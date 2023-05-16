@@ -233,7 +233,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
     ExecutionContext exe_ctx(m_target.GetProcessSP()
                                  ->GetThreadList()
                                  .GetSelectedThread()
-                                 ->GetSelectedFrame()
+                                 ->GetSelectedFrame(DoNoSelectMostRelevantFrame)
                                  .get());
 
     lldb::ProcessSP process_sp(exe_ctx.GetProcessSP());
@@ -308,7 +308,8 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
         Thread *thread = exe_ctx.GetThreadPtr();
         if (thread && thread->UnwindInnermostExpression().Success()) {
           thread->SetSelectedFrameByIndex(0, false);
-          exe_ctx.SetFrameSP(thread->GetSelectedFrame());
+          exe_ctx.SetFrameSP(
+              thread->GetSelectedFrame(DoNoSelectMostRelevantFrame));
         }
       }
 
@@ -341,9 +342,11 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
                                    expr_prefix, result_valobj_sp, error,
                                    nullptr); // fixed expression
 
-      // CommandInterpreter &ci = debugger.GetCommandInterpreter();
-
-      if (process_sp && process_sp->IsAlive()) {
+      if (llvm::Error err = OnExpressionEvaluated(exe_ctx, code, expr_options,
+                                                  execution_results,
+                                                  result_valobj_sp, error)) {
+        *error_sp << llvm::toString(std::move(err)) << "\n";
+      } else if (process_sp && process_sp->IsAlive()) {
         bool add_to_code = true;
         bool handled = false;
         if (result_valobj_sp) {

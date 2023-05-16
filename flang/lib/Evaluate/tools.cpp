@@ -1454,8 +1454,6 @@ bool IsSaved(const Symbol &original) {
     // 8.5.16p4
     // In main programs, implied SAVE matters only for pointer
     // initialization targets and coarrays.
-    // BLOCK DATA entities must all be in COMMON,
-    // which was checked above.
     return true;
   } else if (scopeKind == Scope::Kind::MainProgram &&
       (features.IsEnabled(common::LanguageFeature::SaveMainProgram) ||
@@ -1657,6 +1655,21 @@ bool AreTkCompatibleTypes(const DeclTypeSpec *x, const DeclTypeSpec *y) {
     }
   }
   return false;
+}
+
+common::IgnoreTKRSet GetIgnoreTKR(const Symbol &symbol) {
+  common::IgnoreTKRSet result;
+  if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
+    result = object->ignoreTKR();
+    if (const Symbol * ownerSymbol{symbol.owner().symbol()}) {
+      if (const auto *ownerSubp{ownerSymbol->detailsIf<SubprogramDetails>()}) {
+        if (ownerSubp->defaultIgnoreTKR()) {
+          result |= common::ignoreTKRAll;
+        }
+      }
+    }
+  }
+  return result;
 }
 
 } // namespace Fortran::semantics

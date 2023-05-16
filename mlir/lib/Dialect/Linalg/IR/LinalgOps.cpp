@@ -27,8 +27,10 @@
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 
@@ -128,10 +130,15 @@ parseCommonStructuredOpParts(OpAsmParser &parser, OperationState &result,
                              SmallVectorImpl<Type> &inputTypes,
                              SmallVectorImpl<Type> &outputTypes,
                              bool addOperandSegmentSizes = true) {
-  SMLoc inputsOperandsLoc, outputsOperandsLoc;
+  SMLoc attrsLoc, inputsOperandsLoc, outputsOperandsLoc;
   SmallVector<OpAsmParser::UnresolvedOperand, 4> inputsOperands,
       outputsOperands;
 
+  if (succeeded(parser.parseOptionalLess())) {
+    if (parser.parseAttribute(result.propertiesAttr) || parser.parseGreater())
+      return failure();
+  }
+  attrsLoc = parser.getCurrentLocation();
   if (parser.parseOptionalAttrDict(result.attributes))
     return failure();
 
@@ -159,10 +166,36 @@ parseCommonStructuredOpParts(OpAsmParser &parser, OperationState &result,
     return failure();
 
   if (addOperandSegmentSizes) {
-    result.addAttribute("operand_segment_sizes",
-                        parser.getBuilder().getDenseI32ArrayAttr(
-                            {static_cast<int32_t>(inputsOperands.size()),
-                             static_cast<int32_t>(outputsOperands.size())}));
+    // This is a bit complex because we're trying to be backward compatible with
+    // operation syntax that mix the inherent attributes and the discardable ones
+    // in the same dictionary.
+    // If the properties are used, we append the operand_segment_sizes there directly.
+    // Otherwise we append it to the discardable attributes dictionary where it is
+    // handled by the generic Operation::create(...) method.
+    if (result.propertiesAttr) {
+      NamedAttrList attrs = result.propertiesAttr.cast<DictionaryAttr>();
+      attrs.append("operand_segment_sizes",
+                   parser.getBuilder().getDenseI32ArrayAttr(
+                       {static_cast<int32_t>(inputsOperands.size()),
+                        static_cast<int32_t>(outputsOperands.size())}));
+      result.propertiesAttr = attrs.getDictionary(parser.getContext());
+    } else {
+      result.addAttribute("operand_segment_sizes",
+                          parser.getBuilder().getDenseI32ArrayAttr(
+                              {static_cast<int32_t>(inputsOperands.size()),
+                               static_cast<int32_t>(outputsOperands.size())}));
+    }
+  }
+  if (!result.propertiesAttr) {
+    std::optional<RegisteredOperationName> info =
+        result.name.getRegisteredInfo();
+    if (info) {
+      if (failed(info->verifyInherentAttrs(result.attributes, [&]() {
+            return parser.emitError(attrsLoc)
+                   << "'" << result.name.getStringRef() << "' op ";
+          })))
+        return failure();
+    }
   }
   return success();
 }
@@ -389,10 +422,7 @@ public:
     OpBuilder builder = getBuilder();
     Location loc = builder.getUnknownLoc();
     Attribute valueAttr = parseAttribute(value, builder.getContext());
-    Type type = NoneType::get(builder.getContext());
-    if (auto typedAttr = valueAttr.dyn_cast<TypedAttr>())
-      type = typedAttr.getType();
-    return builder.create<arith::ConstantOp>(loc, type, valueAttr);
+    return builder.create<arith::ConstantOp>(loc, ::cast<TypedAttr>(valueAttr));
   }
 
   Value index(int64_t dim) {
@@ -580,7 +610,7 @@ struct FoldInsertPadIntoFill : public OpRewritePattern<tensor::InsertSliceOp> {
     // plus low padding sizes.
     SmallVector<OpFoldResult, 4> newOffsets;
     for (const auto &p : llvm::zip(lowPads, oldOffsets)) {
-      newOffsets.push_back(makeComposedFoldedAffineApply(
+      newOffsets.push_back(affine::makeComposedFoldedAffineApply(
           rewriter, loc, addMap, {std::get<0>(p), std::get<1>(p)}));
     }
 
@@ -777,18 +807,23 @@ ParseResult GenericOp::parse(OpAsmParser &parser, OperationState &result) {
   // The name is unimportant as we will overwrite result.attributes.
   // The core linalg traits must contain the information necessary to pass the
   // verifier.
+  llvm::SMLoc attributeLocation = parser.getCurrentLocation();
   if (parser.parseAttribute(dictAttr, "_", result.attributes))
     return failure();
   result.attributes.assign(dictAttr.getValue().begin(),
                            dictAttr.getValue().end());
 
-  // Convert array of string into an array of IteratyType enums. This is needed,
-  // because tests still use the old format when 'iterator_types' attribute is
-  // represented as an array of strings.
+  // Convert array of string into an array of IteratorType enums. This is
+  // needed, because tests still use the old format when 'iterator_types'
+  // attribute is represented as an array of strings.
   // TODO: Remove this conversion once tests are fixed.
-  ArrayAttr iteratorTypes =
-      result.attributes.get(getIteratorTypesAttrName(result.name))
-          .cast<ArrayAttr>();
+  auto iteratorTypes = dyn_cast_or_null<ArrayAttr>(
+      result.attributes.get(getIteratorTypesAttrName(result.name)));
+  if (!iteratorTypes) {
+    return parser.emitError(attributeLocation)
+           << "expected " << getIteratorTypesAttrName(result.name)
+           << " array attribute";
+  }
 
   SmallVector<Attribute> iteratorTypeAttrs;
 
@@ -1173,7 +1208,7 @@ LogicalResult MapOp::verify() {
   }
 
   // The shape of each input must match the shape of the output.
-  auto outputShape = getInit().getType().cast<ShapedType>().getShape();
+  auto outputShape = getInit().getType().getShape();
   for (Type inputArgType : TypeRange{getInputs()}) {
     auto inputElemShape = inputArgType.cast<ShapedType>().getShape();
     if (inputElemShape != outputShape) {
@@ -2104,5 +2139,5 @@ void LinalgDialect::getCanonicalizationPatterns(
 Operation *LinalgDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
-  return builder.create<arith::ConstantOp>(loc, type, value);
+  return arith::ConstantOp::materialize(builder, value, type, loc);
 }

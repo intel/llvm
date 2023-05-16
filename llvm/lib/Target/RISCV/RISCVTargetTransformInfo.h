@@ -143,7 +143,7 @@ public:
                                    const Instruction *I = nullptr);
 
   InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                         bool IsUnsigned,
+                                         bool IsUnsigned, FastMathFlags FMF,
                                          TTI::TargetCostKind CostKind);
 
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
@@ -152,7 +152,7 @@ public:
 
   InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
                                            Type *ResTy, VectorType *ValTy,
-                                           std::optional<FastMathFlags> FMF,
+                                           FastMathFlags FMF,
                                            TTI::TargetCostKind CostKind);
 
   InstructionCost
@@ -179,22 +179,25 @@ public:
       const Instruction *CxtI = nullptr);
 
   bool isElementTypeLegalForScalableVector(Type *Ty) const {
-    return TLI->isLegalElementTypeForRVV(Ty);
+    return TLI->isLegalElementTypeForRVV(TLI->getValueType(DL, Ty));
   }
 
   bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
     if (!ST->hasVInstructions())
       return false;
 
+    EVT DataTypeVT = TLI->getValueType(DL, DataType);
+
     // Only support fixed vectors if we know the minimum vector size.
-    if (isa<FixedVectorType>(DataType) && !ST->useRVVForFixedLengthVectors())
+    if (DataTypeVT.isFixedLengthVector() && !ST->useRVVForFixedLengthVectors())
       return false;
 
-    if (Alignment <
-        DL.getTypeStoreSize(DataType->getScalarType()).getFixedValue())
+    EVT ElemType = DataTypeVT.getScalarType();
+    if (!ST->enableUnalignedVectorMem() && Alignment < ElemType.getStoreSize())
       return false;
 
-    return TLI->isLegalElementTypeForRVV(DataType->getScalarType());
+    return TLI->isLegalElementTypeForRVV(ElemType);
+
   }
 
   bool isLegalMaskedLoad(Type *DataType, Align Alignment) {
@@ -208,15 +211,17 @@ public:
     if (!ST->hasVInstructions())
       return false;
 
+    EVT DataTypeVT = TLI->getValueType(DL, DataType);
+
     // Only support fixed vectors if we know the minimum vector size.
-    if (isa<FixedVectorType>(DataType) && !ST->useRVVForFixedLengthVectors())
+    if (DataTypeVT.isFixedLengthVector() && !ST->useRVVForFixedLengthVectors())
       return false;
 
-    if (Alignment <
-        DL.getTypeStoreSize(DataType->getScalarType()).getFixedValue())
+    EVT ElemType = DataTypeVT.getScalarType();
+    if (!ST->enableUnalignedVectorMem() && Alignment < ElemType.getStoreSize())
       return false;
 
-    return TLI->isLegalElementTypeForRVV(DataType->getScalarType());
+    return TLI->isLegalElementTypeForRVV(ElemType);
   }
 
   bool isLegalMaskedGather(Type *DataType, Align Alignment) {
@@ -260,7 +265,7 @@ public:
       return true;
 
     Type *Ty = RdxDesc.getRecurrenceType();
-    if (!TLI->isLegalElementTypeForRVV(Ty))
+    if (!TLI->isLegalElementTypeForRVV(TLI->getValueType(DL, Ty)))
       return false;
 
     switch (RdxDesc.getRecurrenceKind()) {

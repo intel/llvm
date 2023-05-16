@@ -143,6 +143,15 @@ llvm.func @bitreverse_test(%arg0: i32, %arg1: vector<8xi32>) {
   llvm.return
 }
 
+// CHECK-LABEL: @byteswap_test
+llvm.func @byteswap_test(%arg0: i32, %arg1: vector<8xi32>) {
+  // CHECK: call i32 @llvm.bswap.i32
+  "llvm.intr.bswap"(%arg0) : (i32) -> i32
+  // CHECK: call <8 x i32> @llvm.bswap.v8i32
+  "llvm.intr.bswap"(%arg1) : (vector<8xi32>) -> vector<8xi32>
+  llvm.return
+}
+
 // CHECK-LABEL: @ctlz_test
 llvm.func @ctlz_test(%arg0: i32, %arg1: vector<8xi32>) {
   %i1 = llvm.mlir.constant(false) : i1
@@ -169,6 +178,24 @@ llvm.func @ctpop_test(%arg0: i32, %arg1: vector<8xi32>) {
   "llvm.intr.ctpop"(%arg0) : (i32) -> i32
   // CHECK: call <8 x i32> @llvm.ctpop.v8i32
   "llvm.intr.ctpop"(%arg1) : (vector<8xi32>) -> vector<8xi32>
+  llvm.return
+}
+
+// CHECK-LABEL: @fshl_test
+llvm.func @fshl_test(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: vector<8xi32>, %arg4: vector<8xi32>, %arg5: vector<8xi32>) {
+  // CHECK: call i32 @llvm.fshl.i32
+  "llvm.intr.fshl"(%arg0, %arg1, %arg2) : (i32, i32, i32) -> i32
+  // CHECK: call <8 x i32> @llvm.fshl.v8i32
+  "llvm.intr.fshl"(%arg3, %arg4, %arg5) : (vector<8xi32>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  llvm.return
+}
+
+// CHECK-LABEL: @fshr_test
+llvm.func @fshr_test(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: vector<8xi32>, %arg4: vector<8xi32>, %arg5: vector<8xi32>) {
+  // CHECK: call i32 @llvm.fshr.i32
+  "llvm.intr.fshr"(%arg0, %arg1, %arg2) : (i32, i32, i32) -> i32
+  // CHECK: call <8 x i32> @llvm.fshr.v8i32
+  "llvm.intr.fshr"(%arg3, %arg4, %arg5) : (vector<8xi32>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
   llvm.return
 }
 
@@ -344,6 +371,17 @@ llvm.func @masked_expand_compress_intrinsics(%ptr: !llvm.ptr<f32>, %mask: vector
   // CHECK: call void @llvm.masked.compressstore.v7f32(<7 x float> %{{.*}}, ptr %{{.*}}, <7 x i1> %{{.*}})
   "llvm.intr.masked.compressstore"(%0, %ptr, %mask)
     : (vector<7xf32>, !llvm.ptr<f32>, vector<7xi1>) -> ()
+  llvm.return
+}
+
+// CHECK-LABEL: @trap_intrinsics
+llvm.func @trap_intrinsics() {
+  // CHECK: call void @llvm.trap()
+  "llvm.intr.trap"() : () -> ()
+  // CHECK: call void @llvm.debugtrap()
+  "llvm.intr.debugtrap"() : () -> ()
+  // CHECK: call void @llvm.ubsantrap(i8 1)
+  "llvm.intr.ubsantrap"() {failureKind = 1 : i8} : () -> ()
   llvm.return
 }
 
@@ -761,6 +799,9 @@ llvm.func @lifetime(%p: !llvm.ptr) {
 // CHECK-DAG: declare void @llvm.masked.scatter.v7f32.v7p0(<7 x float>, <7 x ptr>, i32 immarg, <7 x i1>)
 // CHECK-DAG: declare <7 x float> @llvm.masked.expandload.v7f32(ptr nocapture, <7 x i1>, <7 x float>)
 // CHECK-DAG: declare void @llvm.masked.compressstore.v7f32(<7 x float>, ptr nocapture, <7 x i1>)
+// CHECK-DAG: declare void @llvm.trap()
+// CHECK-DAG: declare void @llvm.debugtrap()
+// CHECK-DAG: declare void @llvm.ubsantrap(i8 immarg)
 // CHECK-DAG: declare void @llvm.memcpy.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i32, i1 immarg)
 // CHECK-DAG: declare void @llvm.memcpy.inline.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64 immarg, i1 immarg)
 // CHECK-DAG: declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)

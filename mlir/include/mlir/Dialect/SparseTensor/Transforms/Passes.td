@@ -70,7 +70,7 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   }];
   let constructor = "mlir::createSparsificationPass()";
   let dependentDialects = [
-    "AffineDialect",
+    "affine::AffineDialect",
     "arith::ArithDialect",
     "bufferization::BufferizationDialect",
     "LLVM::LLVMDialect",
@@ -307,6 +307,26 @@ def SparseVectorization : Pass<"sparse-vectorization", "ModuleOp"> {
            "false", "Enable vector length agnostic vectorization">,
     Option<"enableSIMDIndex32", "enable-simd-index32", "bool", "false",
            "Enable i32 indexing into vectors (for efficient gather/scatter)">,
+  ];
+}
+
+def SparseGPUCodegen : Pass<"sparse-gpu-codegen", "ModuleOp"> {
+  let summary = "Generates GPU code during sparsification";
+  let description = [{
+    Enables sparse compiler to use GPU acceleration.
+  }];
+  let constructor = "mlir::createSparseGPUCodegenPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "bufferization::BufferizationDialect",
+    "gpu::GPUDialect",
+    "linalg::LinalgDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
+    "sparse_tensor::SparseTensorDialect",
+  ];
+  let options = [
+    Option<"numThreads", "num_threads", "int32_t", "1024", "Sets the number of GPU threads">,
   ];
 }
 

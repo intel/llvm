@@ -106,7 +106,7 @@ static bool isDefBetween(const SIRegisterInfo &TRI,
 
 // Optimize sequence
 //    %sel = V_CNDMASK_B32_e64 0, 1, %cc
-//    %cmp = V_CMP_NE_U32 1, %1
+//    %cmp = V_CMP_NE_U32 1, %sel
 //    $vcc = S_AND_B64 $exec, %cmp
 //    S_CBRANCH_VCC[N]Z
 // =>
@@ -294,7 +294,13 @@ bool SIOptimizeExecMaskingPreRA::optimizeVcndVcmpPair(MachineBasicBlock &MBB) {
 
       LIS->removeVRegDefAt(*SelLI, SelIdx.getRegSlot());
       LIS->RemoveMachineInstrFromMaps(*Sel);
+      bool ShrinkSel = Sel->getOperand(0).readsReg();
       Sel->eraseFromParent();
+      if (ShrinkSel) {
+        // The result of the V_CNDMASK was a subreg def which counted as a read
+        // from the other parts of the reg. Shrink their live ranges.
+        LIS->shrinkToUses(SelLI);
+      }
     }
   }
 

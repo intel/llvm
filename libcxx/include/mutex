@@ -715,10 +715,10 @@ _LIBCPP_POP_MACROS
 #  include <cstdlib>
 #  include <cstring>
 #  include <ctime>
-#  include <functional>
 #  include <initializer_list>
 #  include <new>
 #  include <stdexcept>
+#  include <system_error>
 #  include <type_traits>
 #  include <typeinfo>
 #endif

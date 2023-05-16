@@ -89,11 +89,13 @@ public:
 
   bool hasBranchDivergence() const { return false; }
 
-  bool useGPUDivergenceAnalysis() const { return false; }
-
   bool isSourceOfDivergence(const Value *V) const { return false; }
 
   bool isAlwaysUniform(const Value *V) const { return false; }
+
+  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const {
+    return false;
+  }
 
   unsigned getFlatAddressSpace() const { return -1; }
 
@@ -163,13 +165,7 @@ public:
     return false;
   }
 
-  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
-                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
-                                   DominatorTree *DT,
-                                   LoopVectorizationLegality *LVL,
-                                   InterleavedAccessInfo *IAI) const {
-    return false;
-  }
+  bool preferPredicateOverEpilogue(TailFoldingInfo *TFI) const { return false; }
 
   TailFoldingStyle
   getPreferredTailFoldingStyle(bool IVUpdateMayOverflow = true) const {
@@ -723,13 +719,14 @@ public:
   }
 
   InstructionCost getMinMaxReductionCost(VectorType *, VectorType *, bool,
+                                         FastMathFlags,
                                          TTI::TargetCostKind) const {
     return 1;
   }
 
   InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
                                            Type *ResTy, VectorType *Ty,
-                                           std::optional<FastMathFlags> FMF,
+                                           FastMathFlags FMF,
                                            TTI::TargetCostKind CostKind) const {
     return 1;
   }
@@ -880,6 +877,8 @@ public:
   }
 
   bool hasArmWideBranch(bool) const { return false; }
+
+  unsigned getMaxNumArgs() const { return UINT_MAX; }
 
 protected:
   // Obtain the minimum required size to hold the value (without the sign)
@@ -1270,7 +1269,7 @@ public:
           APInt DemandedDstElts =
               APInt::getZero(Shuffle->getShuffleMask().size());
           for (auto I : enumerate(Shuffle->getShuffleMask())) {
-            if (I.value() != UndefMaskElem)
+            if (I.value() != PoisonMaskElem)
               DemandedDstElts.setBit(I.index());
           }
           return TargetTTI->getReplicationShuffleCost(

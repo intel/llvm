@@ -39,6 +39,7 @@ namespace mlir {
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::affine;
 using namespace mlir::linalg;
 using namespace mlir::scf;
 
@@ -178,7 +179,7 @@ mlir::linalg::computeMultiTileSizes(OpBuilder &builder, LinalgOp op,
   AffineExpr s1 = b.getAffineSymbolExpr(1);
   AffineExpr s2 = b.getAffineSymbolExpr(2);
   auto apply = [&](AffineExpr expr, ValueRange values) -> Value {
-    return makeComposedAffineApply(b, b.getLoc(), expr, values);
+    return affine::makeComposedAffineApply(b, b.getLoc(), expr, values);
   };
   Value a = apply(s0.floorDiv(s1), {tripCount, divisorValue});
   Value t = apply((s0 + s1 - 1).floorDiv(s1), {targetSizeValue, divisorValue});
@@ -228,7 +229,7 @@ static bool canOmitTileOffsetInBoundsCheck(OpFoldResult tileSize,
 /// Build an `affine_max` of all the `vals`.
 static OpFoldResult buildMax(OpBuilder &b, Location loc,
                              ArrayRef<OpFoldResult> vals) {
-  return makeComposedFoldedAffineMax(
+  return affine::makeComposedFoldedAffineMax(
       b, loc, AffineMap::getMultiDimIdentityMap(vals.size(), loc.getContext()),
       vals);
 }
@@ -236,7 +237,7 @@ static OpFoldResult buildMax(OpBuilder &b, Location loc,
 /// Build an `affine_min` of all the `vals`.
 static OpFoldResult buildMin(OpBuilder &b, Location loc,
                              ArrayRef<OpFoldResult> vals) {
-  return makeComposedFoldedAffineMin(
+  return affine::makeComposedFoldedAffineMin(
       b, loc, AffineMap::getMultiDimIdentityMap(vals.size(), loc.getContext()),
       vals);
 }
@@ -354,8 +355,6 @@ static FailureOr<ForallTilingResult> tileToForallOpImpl(
         return getValueOrCreateConstantIndexOp(b, loc, ofr);
       }));
 
-  Operation *tiledOp = nullptr;
-
   // 1. Create the ForallOp. We don't use the lambda body-builder
   // version because we require the use of RewriterBase in the body, so we
   // manually move the insertion point to the body below.
@@ -371,6 +370,8 @@ static FailureOr<ForallTilingResult> tileToForallOpImpl(
   // 3. Clone the tileable op and update its destination operands to use the
   // output bbArgs of the ForallOp.
   ArrayRef<BlockArgument> destBbArgs = forallOp.getOutputBlockArguments();
+  Operation *tiledOp = nullptr;
+  SmallVector<Value> tiledValues;
   {
     // 3.a. RAII guard, inserting within forallOp, before terminator.
     OpBuilder::InsertionGuard g(b);
@@ -395,13 +396,12 @@ static FailureOr<ForallTilingResult> tileToForallOpImpl(
     assert(tilingResult->tiledOps.size() == 1 &&
            "expected a single produced tiled op");
     tiledOp = tilingResult->tiledOps.front();
+    tiledValues = tilingResult->tiledValues;
   }
 
   // 5. Parallel insert back into the result tensor.
-  auto tilingInterfaceOp = dyn_cast<TilingInterface>(tiledOp);
-  assert(tilingInterfaceOp && "Tiled op does not implement TilingInterface");
   for (auto it : llvm::zip(llvm::seq(unsigned(0), unsigned(dest.size())),
-                           tilingInterfaceOp->getResults(), destBbArgs)) {
+                           tiledValues, destBbArgs)) {
     // 5.a. Partial subset information is inserted just before the terminator.
     OpBuilder::InsertionGuard g(b);
     b.setInsertionPoint(forallOp.getTerminator());
@@ -969,10 +969,10 @@ mlir::linalg::getLinalgTilingCanonicalizationPatterns(MLIRContext *ctx) {
 void mlir::linalg::populateLinalgTilingCanonicalizationPatterns(
     RewritePatternSet &patterns) {
   auto *ctx = patterns.getContext();
-  AffineApplyOp::getCanonicalizationPatterns(patterns, ctx);
-  AffineForOp::getCanonicalizationPatterns(patterns, ctx);
-  AffineMinOp::getCanonicalizationPatterns(patterns, ctx);
-  AffineMaxOp::getCanonicalizationPatterns(patterns, ctx);
+  affine::AffineApplyOp::getCanonicalizationPatterns(patterns, ctx);
+  affine::AffineForOp::getCanonicalizationPatterns(patterns, ctx);
+  affine::AffineMinOp::getCanonicalizationPatterns(patterns, ctx);
+  affine::AffineMaxOp::getCanonicalizationPatterns(patterns, ctx);
   arith::ConstantIndexOp::getCanonicalizationPatterns(patterns, ctx);
 
   memref::SubViewOp::getCanonicalizationPatterns(patterns, ctx);

@@ -283,11 +283,13 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
     Normal,
     DefaultArgument,
     DataMember,
-    StaticDataMember,
     InlineVariable,
-    VariableTemplate,
+    TemplatedVariable,
     Concept
   } Kind = Normal;
+
+  bool IsInNonspecializedTemplate =
+      inTemplateInstantiation() || CurContext->isDependentContext();
 
   // Default arguments of member function parameters that appear in a class
   // definition, as well as the initializers of data members, receive special
@@ -299,15 +301,15 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
         if (LexicalDC->isRecord())
           Kind = DefaultArgument;
     } else if (VarDecl *Var = dyn_cast<VarDecl>(ManglingContextDecl)) {
-      if (Var->getDeclContext()->isRecord())
-        Kind = StaticDataMember;
-      else if (Var->getMostRecentDecl()->isInline())
+      if (Var->getMostRecentDecl()->isInline())
         Kind = InlineVariable;
+      else if (Var->getDeclContext()->isRecord() && IsInNonspecializedTemplate)
+        Kind = TemplatedVariable;
       else if (Var->getDescribedVarTemplate())
-        Kind = VariableTemplate;
+        Kind = TemplatedVariable;
       else if (auto *VTS = dyn_cast<VarTemplateSpecializationDecl>(Var)) {
         if (!VTS->isExplicitSpecialization())
-          Kind = VariableTemplate;
+          Kind = TemplatedVariable;
       }
     } else if (isa<FieldDecl>(ManglingContextDecl)) {
       Kind = DataMember;
@@ -319,12 +321,9 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
   // Itanium ABI [5.1.7]:
   //   In the following contexts [...] the one-definition rule requires closure
   //   types in different translation units to "correspond":
-  bool IsInNonspecializedTemplate =
-      inTemplateInstantiation() || CurContext->isDependentContext();
   switch (Kind) {
   case Normal: {
-    //  -- the bodies of non-exported nonspecialized template functions
-    //  -- the bodies of inline functions
+    //  -- the bodies of inline or templated functions
     if ((IsInNonspecializedTemplate &&
          !(ManglingContextDecl && isa<ParmVarDecl>(ManglingContextDecl))) ||
         isInInlineFunction(CurContext)) {
@@ -341,21 +340,13 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
     // however the ManglingContextDecl is important for the purposes of
     // re-forming the template argument list of the lambda for constraint
     // evaluation.
-  case StaticDataMember:
-    //  -- the initializers of nonspecialized static members of template classes
-    if (!IsInNonspecializedTemplate)
-      return std::make_tuple(nullptr, ManglingContextDecl);
-    // Fall through to get the current context.
-    [[fallthrough]];
-
   case DataMember:
-    //  -- the in-class initializers of class members
+    //  -- default member initializers
   case DefaultArgument:
     //  -- default arguments appearing in class definitions
   case InlineVariable:
-    //  -- the initializers of inline variables
-  case VariableTemplate:
-    //  -- the initializers of templated variables
+  case TemplatedVariable:
+    //  -- the initializers of inline or templated variables
     return std::make_tuple(
         &Context.getManglingNumberContext(ASTContext::NeedExtraManglingDecl,
                                           ManglingContextDecl),
@@ -965,8 +956,7 @@ void Sema::CompleteLambdaCallOperator(
     CheckParmsForFunctionDef(Params, /*CheckParameterNames=*/false);
     Method->setParams(Params);
     for (auto P : Method->parameters()) {
-      if (!P)
-        continue;
+      assert(P && "null in a parameter list");
       P->setOwningFunction(Method);
     }
   }
@@ -1373,6 +1363,26 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     if (CheckRedefinition(P))
       CheckShadow(CurScope, P);
     PushOnScopeChains(P, CurScope);
+  }
+
+  // C++23 [expr.prim.lambda.capture]p5:
+  // If an identifier in a capture appears as the declarator-id of a parameter
+  // of the lambda-declarator's parameter-declaration-clause or as the name of a
+  // template parameter of the lambda-expression's template-parameter-list, the
+  // program is ill-formed.
+  TemplateParameterList *TemplateParams =
+      getGenericLambdaTemplateParameterList(LSI, *this);
+  if (TemplateParams) {
+    for (const auto *TP : TemplateParams->asArray()) {
+      if (!TP->getIdentifier())
+        continue;
+      for (const auto &Capture : Intro.Captures) {
+        if (Capture.Id == TP->getIdentifier()) {
+          Diag(Capture.Loc, diag::err_template_param_shadow) << Capture.Id;
+          Diag(TP->getLocation(), diag::note_template_param_here);
+        }
+      }
+    }
   }
 
   // C++20: dcl.decl.general p4:

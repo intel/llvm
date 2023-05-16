@@ -162,7 +162,8 @@ static bool DiagReservedModuleName(Sema &S, const IdentifierInfo *II,
   case Invalid:
     return S.Diag(Loc, diag::err_invalid_module_name) << II;
   case Reserved:
-    return S.Diag(Loc, diag::warn_reserved_module_name) << II;
+    S.Diag(Loc, diag::warn_reserved_module_name) << II;
+    return false;
   }
   llvm_unreachable("fell off a fully covered switch");
 }
@@ -254,7 +255,7 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
     }
   }
 
-  // C++2b [module.unit]p1: ... The identifiers module and import shall not
+  // C++23 [module.unit]p1: ... The identifiers module and import shall not
   // appear as identifiers in a module-name or module-partition. All
   // module-names either beginning with an identifier consisting of std
   // followed by zero or more digits or containing a reserved identifier
@@ -267,10 +268,8 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
   if (!getSourceManager().isInSystemHeader(Path[0].second) &&
       (FirstComponentName == "std" ||
        (FirstComponentName.startswith("std") &&
-        llvm::all_of(FirstComponentName.drop_front(3), &llvm::isDigit)))) {
+        llvm::all_of(FirstComponentName.drop_front(3), &llvm::isDigit))))
     Diag(Path[0].second, diag::warn_reserved_module_name) << Path[0].first;
-    return nullptr;
-  }
 
   // Then test all of the components in the path to see if any of them are
   // using another kind of reserved or invalid identifier.

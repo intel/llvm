@@ -1,10 +1,13 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp64
+// UNSUPPORTED: gpu
 
-// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build} -fsycl-device-lib-jit-link %{mathflags} -o %t.out
+// RUN: %{run} %t.out
 
 #include "math_utils.hpp"
 #include <cmath>
@@ -162,9 +165,7 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
 
 int main() {
   s::queue deviceQueue;
-  if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
-    device_cmath_test<double>(deviceQueue);
-    std::cout << "Pass" << std::endl;
-  }
+  device_cmath_test<double>(deviceQueue);
+  std::cout << "Pass" << std::endl;
   return 0;
 }

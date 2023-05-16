@@ -38,7 +38,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y bash curl
 
 # Install various tools used by the build or the test suite
-RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils python3-psutil git gdb
+#RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils python3-psutil git gdb
+# TODO add ninja-build once 1.11 is available in Ubuntu, also remove the manual installation.
+RUN apt-get update && apt-get install -y python3 python3-sphinx python3-distutils python3-psutil git gdb
+RUN apt-get update && apt-get install -y wget && \
+  wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip && \
+  gunzip /usr/local/bin/ninja.gz && \
+  chmod a+x /usr/local/bin/ninja
 
 # Install dependencies required to run the LLDB data formatter tests
 RUN apt-get update && apt-get install -y python3 python3-dev libpython3-dev uuid-dev libncurses5-dev swig3.0 libxml2-dev libedit-dev
@@ -68,15 +74,25 @@ RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 2)) # previous release
 RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 1)) # latest release
 RUN bash /tmp/llvm.sh $LLVM_HEAD_VERSION          # current ToT
 
+# Install clang-scan-deps, which is required to build modules; always all supported versions.
+RUN apt-get update && apt-get install -y clang-tools-$(($LLVM_HEAD_VERSION - 3)) \
+                                         clang-tools-$(($LLVM_HEAD_VERSION - 2)) \
+                                         clang-tools-$(($LLVM_HEAD_VERSION - 1)) \
+                                         clang-tools-$LLVM_HEAD_VERSION
+
 # Install clang-format; always use the lastest stable branch.
 RUN apt-get update && apt-get install -y clang-format-$(($LLVM_HEAD_VERSION - 2)) clang-format-$(($LLVM_HEAD_VERSION - 1))
 
 # Install clang-tidy
-RUN apt-get update && apt-get install -y clang-tidy-$(($LLVM_HEAD_VERSION - 2)) clang-tidy-$((LLVM_HEAD_VERSION - 1))
+# TODO LLVM 17 revert D148831 to only install $(($LLVM_HEAD_VERSION - 1)) and $LLVM_HEAD_VERSION
+# The usage of the ToT version is needed due to module issues with Clang 16
+RUN apt-get update && apt-get install -y clang-tidy-$(($LLVM_HEAD_VERSION - 2)) clang-tidy-$(($LLVM_HEAD_VERSION - 1)) clang-tidy-$LLVM_HEAD_VERSION
 
 # Install llvm-dev and libclang-dev to compile custom clang-tidy checks
-RUN apt-get update && apt-get install -y llvm-$(($LLVM_HEAD_VERSION - 1))-dev     llvm-$(($LLVM_HEAD_VERSION - 2))-dev \
-                                     libclang-$(($LLVM_HEAD_VERSION - 1))-dev libclang-$(($LLVM_HEAD_VERSION - 2))-dev
+# TODO LLVM 17 revert D148831 to only install $(($LLVM_HEAD_VERSION - 1)) and $LLVM_HEAD_VERSION
+# The usage of the ToT version is needed due to module issues with Clang 16
+RUN apt-get update && apt-get install -y llvm-$(($LLVM_HEAD_VERSION - 2))-dev llvm-$(($LLVM_HEAD_VERSION - 1))-dev     llvm-$LLVM_HEAD_VERSION-dev \
+                                     libclang-$(($LLVM_HEAD_VERSION - 2))-dev libclang-$(($LLVM_HEAD_VERSION - 1))-dev libclang-$LLVM_HEAD_VERSION-dev
 
 # Install the most recent GCC, like clang install the previous version as a transition.
 ENV GCC_LATEST_VERSION=12
@@ -89,6 +105,12 @@ RUN rm -rf /var/lib/apt/lists/*
 # Install a recent CMake
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.21.1/cmake-3.21.1-linux-x86_64.sh -O /tmp/install-cmake.sh
 RUN bash /tmp/install-cmake.sh --prefix=/usr --exclude-subdir --skip-license
+RUN rm /tmp/install-cmake.sh
+
+# Install a newer CMake for modules
+# TODO Remove the duplicated installation when all runtimes can be build with CMake 3.26.
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.26.1/cmake-3.26.1-linux-x86_64.sh -O /tmp/install-cmake.sh
+RUN bash /tmp/install-cmake.sh --prefix=/opt --exclude-subdir --skip-license
 RUN rm /tmp/install-cmake.sh
 
 # Change the user to a non-root user, since some of the libc++ tests

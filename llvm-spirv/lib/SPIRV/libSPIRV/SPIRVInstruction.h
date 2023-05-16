@@ -42,6 +42,7 @@
 
 #include "SPIRVBasicBlock.h"
 #include "SPIRVEnum.h"
+#include "SPIRVFunction.h"
 #include "SPIRVIsValidEnum.h"
 #include "SPIRVOpCode.h"
 #include "SPIRVStream.h"
@@ -1757,13 +1758,22 @@ public:
 
   SPIRVExtInstSetKind getExtSetKind() const { return ExtSetKind; }
 
+  void addContinuedInstruction(SPIRVExtInst *Inst) {
+    ContinuedInstructions.push_back(Inst);
+  }
+
+  std::vector<SPIRVExtInst *> getContinuedInstructions() {
+    return ContinuedInstructions;
+  }
+
   void setExtSetKindById() {
     assert(Module && "Invalid module");
     ExtSetKind = Module->getBuiltinSet(ExtSetId);
     assert((ExtSetKind == SPIRVEIS_OpenCL || ExtSetKind == SPIRVEIS_Debug ||
             ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100 ||
             ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
-            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) &&
+            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200 ||
+            ExtSetKind == SPIRVEIS_NonSemantic_AuxData) &&
            "not supported");
   }
   void encode(spv_ostream &O) const override {
@@ -1777,6 +1787,9 @@ public:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getEncoder(O) << ExtOpDebug;
+      break;
+    case SPIRVEIS_NonSemantic_AuxData:
+      getEncoder(O) << ExtOpNonSemanticAuxData;
       break;
     default:
       assert(0 && "not supported");
@@ -1797,11 +1810,24 @@ public:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getDecoder(I) >> ExtOpDebug;
       break;
+    case SPIRVEIS_NonSemantic_AuxData:
+      getDecoder(I) >> ExtOpNonSemanticAuxData;
+      break;
     default:
       assert(0 && "not supported");
       getDecoder(I) >> ExtOp;
     }
-    getDecoder(I) >> Args;
+    SPIRVDecoder Decoder = getDecoder(I);
+    Decoder >> Args;
+
+    if (ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+        ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+      if (getExtOp() == SPIRVDebug::Instruction::Source) {
+        for (SPIRVEntry *E : Decoder.getSourceContinuedInstructions()) {
+          addContinuedInstruction(static_cast<SPIRVExtInst *>(E));
+        }
+      }
+    }
   }
   void validate() const override {
     SPIRVFunctionCallGeneric::validate();
@@ -1842,6 +1868,12 @@ public:
     return ArgTypes;
   }
 
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    if (SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0)
+      return ExtensionID::SPV_KHR_non_semantic_info;
+    return {};
+  }
+
 protected:
   SPIRVExtInstSetKind ExtSetKind;
   SPIRVId ExtSetId;
@@ -1849,7 +1881,9 @@ protected:
     SPIRVWord ExtOp;
     OCLExtOpKind ExtOpOCL;
     SPIRVDebugExtOpKind ExtOpDebug;
+    NonSemanticAuxDataOpKind ExtOpNonSemanticAuxData;
   };
+  std::vector<SPIRVExtInst *> ContinuedInstructions;
 };
 
 class SPIRVCompositeConstruct : public SPIRVInstruction {
@@ -1890,6 +1924,7 @@ protected:
     case OpTypeArray:
     case OpTypeStruct:
     case internal::OpTypeJointMatrixINTEL:
+    case internal::OpTypeJointMatrixINTELv2:
       break;
     default:
       assert(false && "Invalid type");
@@ -3329,10 +3364,10 @@ class SPIRVJointMatrixINTELInst : public SPIRVJointMatrixINTELInstBase {
       SPIRV##x##INTEL;
 _SPIRV_OP(JointMatrixLoad, true, 6, true)
 _SPIRV_OP(JointMatrixStore, false, 5, true)
-_SPIRV_OP(JointMatrixMad, true, 7)
-_SPIRV_OP(JointMatrixSUMad, true, 7)
-_SPIRV_OP(JointMatrixUSMad, true, 7)
-_SPIRV_OP(JointMatrixUUMad, true, 7)
+_SPIRV_OP(JointMatrixMad, true, 6, true)
+_SPIRV_OP(JointMatrixSUMad, true, 6, true)
+_SPIRV_OP(JointMatrixUSMad, true, 6, true)
+_SPIRV_OP(JointMatrixUUMad, true, 6, true)
 // TODO: move to SPIRVJointMatrixINTELWorkItemInst
 _SPIRV_OP(JointMatrixWorkItemLength, true, 4)
 #undef _SPIRV_OP

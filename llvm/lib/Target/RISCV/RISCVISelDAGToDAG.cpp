@@ -884,13 +884,17 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
       Opc = RISCV::FMV_H_X;
       break;
     case MVT::f32:
-      Opc = RISCV::FMV_W_X;
+      Opc = Subtarget->hasStdExtZfinx() ? RISCV::COPY : RISCV::FMV_W_X;
       break;
     case MVT::f64:
       // For RV32, we can't move from a GPR, we need to convert instead. This
       // should only happen for +0.0 and -0.0.
       assert((Subtarget->is64Bit() || APF.isZero()) && "Unexpected constant");
-      Opc = Subtarget->is64Bit() ? RISCV::FMV_D_X : RISCV::FCVT_D_W;
+      bool HasZdinx = Subtarget->hasStdExtZdinx();
+      if (Subtarget->is64Bit())
+        Opc = HasZdinx ? RISCV::COPY : RISCV::FMV_D_X;
+      else
+        Opc = RISCV::FCVT_D_W;
       break;
     }
 
@@ -2055,10 +2059,6 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
   case RISCVISD::VFMV_S_F_VL:
   case RISCVISD::VMV_V_X_VL:
   case RISCVISD::VFMV_V_F_VL: {
-    // Only if we have optimized zero-stride vector load.
-    if (!Subtarget->hasOptimizedZeroStrideLoad())
-      break;
-
     // Try to match splat of a scalar load to a strided load with stride of x0.
     bool IsScalarMove = Node->getOpcode() == RISCVISD::VMV_S_X_VL ||
                         Node->getOpcode() == RISCVISD::VFMV_S_F_VL;
@@ -2089,13 +2089,22 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
     unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
     SDValue SEW = CurDAG->getTargetConstant(Log2SEW, DL, XLenVT);
 
-    SDValue Operands[] = {Ld->getBasePtr(),
-                          CurDAG->getRegister(RISCV::X0, XLenVT), VL, SEW,
-                          Ld->getChain()};
+    // If VL=1, then we don't need to do a strided load and can just do a
+    // regular load.
+    bool IsStrided = !isOneConstant(VL);
+
+    // Only do a strided load if we have optimized zero-stride vector load.
+    if (IsStrided && !Subtarget->hasOptimizedZeroStrideLoad())
+      break;
+
+    SmallVector<SDValue> Operands = {Ld->getBasePtr()};
+    if (IsStrided)
+      Operands.push_back(CurDAG->getRegister(RISCV::X0, XLenVT));
+    Operands.append({VL, SEW, Ld->getChain()});
 
     RISCVII::VLMUL LMUL = RISCVTargetLowering::getLMUL(VT);
     const RISCV::VLEPseudo *P = RISCV::getVLEPseudo(
-        /*IsMasked*/ false, /*IsTU*/ false, /*IsStrided*/ true, /*FF*/ false,
+        /*IsMasked*/ false, /*IsTU*/ false, IsStrided, /*FF*/ false,
         Log2SEW, static_cast<unsigned>(LMUL));
     MachineSDNode *Load =
         CurDAG->getMachineNode(P->Pseudo, DL, {VT, MVT::Other}, Operands);

@@ -11,9 +11,9 @@ queue q;
 using Accessor =
     accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer>;
 #ifdef SPIR64
-// expected-warning@#KernelSingleTask {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
+// expected-warning@27 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 #elif SPIR32
-// expected-warning@#KernelSingleTask {{size of kernel arguments (7986 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
+// expected-warning@27 {{size of kernel arguments (7986 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 #endif
 
 void use() {

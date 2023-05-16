@@ -16,8 +16,6 @@
 // Define the static class field
 std::mutex ZeCall::GlobalLock;
 
-ZeUSMImportExtension ZeUSMImport;
-
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -25,12 +23,6 @@ ZeUSMImportExtension ZeUSMImport;
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return ze2urResult(Result);                                              \
   }
-
-static const bool ExposeCSliceInAffinityPartitioning = [] {
-  const char *Flag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
-  return Flag ? std::atoi(Flag) != 0 : false;
-}();
 
 ur_result_t _ur_platform_handle_t::initialize() {
   // Cache driver properties
@@ -247,6 +239,8 @@ ur_result_t urPlatformGetInfo(
     // information>. Follow the same notation here.
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+  case UR_PLATFORM_INFO_BACKEND:
+    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
   default:
     urPrint("piPlatformGetInfo: unrecognized ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -282,7 +276,7 @@ ur_result_t urDeviceGet(
 
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<pi_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
@@ -662,25 +656,26 @@ ur_result_t urDeviceGetInfo(
     ze_device_fp_flags_t ZeSingleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp32flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      SingleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{SingleFPValue});
   }
@@ -689,25 +684,25 @@ ur_result_t urDeviceGetInfo(
     ze_device_fp_flags_t ZeHalfFPCapabilities =
         Device->ZeDeviceModuleProperties->fp16flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{HalfFPValue});
   }
@@ -716,25 +711,26 @@ ur_result_t urDeviceGetInfo(
     ze_device_fp_flags_t ZeDoubleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp64flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      DoubleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{DoubleFPValue});
   }
@@ -1017,6 +1013,10 @@ ur_result_t urDeviceGetInfo(
         UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
     return ReturnValue(capabilities);
   }
+  case UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    return ReturnValue(pi_bool{false});
+  case UR_DEVICE_INFO_IMAGE_SRGB:
+    return ReturnValue(pi_bool{false});
 
   // TODO: Implement.
   default:
@@ -1028,7 +1028,7 @@ ur_result_t urDeviceGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-// SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
+// UR_L0_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
 // Here, the indices point to copy engines in a list of all available copy
 // engines.
@@ -1038,13 +1038,16 @@ ur_result_t urDeviceGetInfo(
 // available copy engines can be used.
 const std::pair<int, int>
 getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
-  static const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  static const char *EnvVar = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
+
   // If the environment variable is not set, no copy engines are used when
   // immediate commandlists are being used. For standard commandlists all are
   // used.
   if (!EnvVar) {
     if (Device->useImmediateCommandLists())
-      return std::pair<int, int>(-1, -1);   // No copy engines can be used.
+      return std::pair<int, int>(0, 0); // Only main copy engine will be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
   std::string CopyEngineRange = EnvVar;
@@ -1061,7 +1064,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    urPrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+    urPrint("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
             "default set.\n");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
@@ -1085,16 +1088,23 @@ _ur_device_handle_t::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device
   // default.
   static const int ImmediateCommandlistsSetting = [] {
+    char *UrRet = std::getenv("UR_L0_USE_IMMEDIATE_COMMANDLISTS");
+    char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
     const char *ImmediateCommandlistsSettingStr =
-        std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
+        UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (!ImmediateCommandlistsSettingStr)
       return -1;
     return std::stoi(ImmediateCommandlistsSettingStr);
   }();
 
   if (ImmediateCommandlistsSetting == -1)
-    // Change this to PerQueue as default after more testing.
+  // Immediate command lists will be used by default only on Linux PVC.
+#ifdef _WIN32
     return NotUsed;
+#else
+    return isPVC() ? PerQueue : NotUsed;
+#endif
+
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -1109,8 +1119,10 @@ _ur_device_handle_t::useImmediateCommandLists() {
 
 // Get value of device scope events env var setting or default setting
 static const EventsScope DeviceEventsSetting = [] {
+  char *UrRet = std::getenv("UR_L0_DEVICE_SCOPE_EVENTS");
+  char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
   const char *DeviceEventsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (DeviceEventsSettingStr) {
     // Override the default if user has explicitly chosen the events scope.
     switch (std::stoi(DeviceEventsSettingStr)) {
@@ -1132,75 +1144,6 @@ static const EventsScope DeviceEventsSetting = [] {
 
 ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
                                             int SubSubDeviceIndex) {
-  uint32_t numQueueGroups = 0;
-  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-          (ZeDevice, &numQueueGroups, nullptr));
-  if (numQueueGroups == 0) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
-  std::vector<ZeStruct<ze_command_queue_group_properties_t>>
-      QueueGroupProperties(numQueueGroups);
-  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
-          (ZeDevice, &numQueueGroups, QueueGroupProperties.data()));
-
-  // Initialize ordinal and compute queue group properties
-  for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (QueueGroupProperties[i].flags &
-        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
-          i;
-      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
-          .ZeProperties = QueueGroupProperties[i];
-      break;
-    }
-  }
-
-  // Reinitialize a sub-sub-device with its own ordinal, index.
-  // Our sub-sub-device representation is currently [Level-Zero sub-device
-  // handle + Level-Zero compute group/engine index]. Only the specified
-  // index queue will be used to submit work to the sub-sub-device.
-  if (SubSubDeviceOrdinal >= 0) {
-    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
-        SubSubDeviceOrdinal;
-    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeIndex =
-        SubSubDeviceIndex;
-  } else { // Proceed with initialization for root and sub-device
-    // How is it possible that there are no "compute" capabilities?
-    if (QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal <
-        0) {
-      return UR_RESULT_ERROR_UNKNOWN;
-    }
-
-    if (CopyEngineRequested((ur_device_handle_t)this)) {
-      for (uint32_t i = 0; i < numQueueGroups; i++) {
-        if (((QueueGroupProperties[i].flags &
-              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-            (QueueGroupProperties[i].flags &
-             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
-          if (QueueGroupProperties[i].numQueues == 1) {
-            QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal = i;
-            QueueGroup[queue_group_info_t::MainCopy].ZeProperties =
-                QueueGroupProperties[i];
-          } else {
-            QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal = i;
-            QueueGroup[queue_group_info_t::LinkCopy].ZeProperties =
-                QueueGroupProperties[i];
-            break;
-          }
-        }
-      }
-      if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        urPrint("NOTE: main blitter/copy engine is not available\n");
-      else
-        urPrint("NOTE: main blitter/copy engine is available\n");
-
-      if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        urPrint("NOTE: link blitter/copy engines are not available\n");
-      else
-        urPrint("NOTE: link blitter/copy engines are available\n");
-    }
-  }
 
   // Maintain various device properties cache.
   // Note that we just describe here how to compute the data.
@@ -1273,6 +1216,76 @@ ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
     ZeEventsScope = DeviceEventsSetting;
   }
 
+  uint32_t numQueueGroups = 0;
+  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+          (ZeDevice, &numQueueGroups, nullptr));
+  if (numQueueGroups == 0) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
+  std::vector<ZeStruct<ze_command_queue_group_properties_t>>
+      QueueGroupProperties(numQueueGroups);
+  ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+          (ZeDevice, &numQueueGroups, QueueGroupProperties.data()));
+
+  // Initialize ordinal and compute queue group properties
+  for (uint32_t i = 0; i < numQueueGroups; i++) {
+    if (QueueGroupProperties[i].flags &
+        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
+          i;
+      QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
+          .ZeProperties = QueueGroupProperties[i];
+      break;
+    }
+  }
+
+  // Reinitialize a sub-sub-device with its own ordinal, index.
+  // Our sub-sub-device representation is currently [Level-Zero sub-device
+  // handle + Level-Zero compute group/engine index]. Only the specified
+  // index queue will be used to submit work to the sub-sub-device.
+  if (SubSubDeviceOrdinal >= 0) {
+    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal =
+        SubSubDeviceOrdinal;
+    QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeIndex =
+        SubSubDeviceIndex;
+  } else { // Proceed with initialization for root and sub-device
+           // How is it possible that there are no "compute" capabilities?
+    if (QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute].ZeOrdinal <
+        0) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+
+    if (CopyEngineRequested((ur_device_handle_t)this)) {
+      for (uint32_t i = 0; i < numQueueGroups; i++) {
+        if (((QueueGroupProperties[i].flags &
+              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
+            (QueueGroupProperties[i].flags &
+             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+          if (QueueGroupProperties[i].numQueues == 1) {
+            QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal = i;
+            QueueGroup[queue_group_info_t::MainCopy].ZeProperties =
+                QueueGroupProperties[i];
+          } else {
+            QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal = i;
+            QueueGroup[queue_group_info_t::LinkCopy].ZeProperties =
+                QueueGroupProperties[i];
+            break;
+          }
+        }
+      }
+      if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
+        urPrint("NOTE: main blitter/copy engine is not available\n");
+      else
+        urPrint("NOTE: main blitter/copy engine is available\n");
+
+      if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
+        urPrint("NOTE: link blitter/copy engines are not available\n");
+      else
+        urPrint("NOTE: link blitter/copy engines are available\n");
+    }
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -1291,7 +1304,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // mapping from L0 device handle to PI device assumed in this function. Until
   // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
   // filter out PI sub-sub-devices.
-  std::shared_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::shared_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
@@ -1306,7 +1319,7 @@ _ur_platform_handle_t::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
 // Check the device cache and load it if necessary.
 ur_result_t _ur_platform_handle_t::populateDeviceCacheIfNeeded() {
-  std::scoped_lock<pi_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::scoped_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
     return UR_RESULT_SUCCESS;
@@ -1526,7 +1539,7 @@ ur_result_t urDevicePartition(
 
     // Sub-Sub-Devices are partitioned by CSlices, not by affinity domain.
     // However, if
-    // SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
+    // UR_L0_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
     // still expose CSlices in partitioning by affinity domain for compatibility
     // reasons.
     if (Properties[0] == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&

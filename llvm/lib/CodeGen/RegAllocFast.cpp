@@ -75,15 +75,15 @@ namespace {
     }
 
   private:
-    MachineFrameInfo *MFI;
-    MachineRegisterInfo *MRI;
-    const TargetRegisterInfo *TRI;
-    const TargetInstrInfo *TII;
+    MachineFrameInfo *MFI = nullptr;
+    MachineRegisterInfo *MRI = nullptr;
+    const TargetRegisterInfo *TRI = nullptr;
+    const TargetInstrInfo *TII = nullptr;
     RegisterClassInfo RegClassInfo;
     const RegClassFilterFunc ShouldAllocateClass;
 
     /// Basic block currently being allocated.
-    MachineBasicBlock *MBB;
+    MachineBasicBlock *MBB = nullptr;
 
     /// Maps virtual regs to the frame index where these values are spilled.
     IndexedMap<int, VirtReg2IndexFunctor> StackSlotForVirtReg;
@@ -106,7 +106,7 @@ namespace {
       }
     };
 
-    using LiveRegMap = SparseSet<LiveReg>;
+    using LiveRegMap = SparseSet<LiveReg, identity<unsigned>, uint16_t>;
     /// This map contains entries for each virtual register that is currently
     /// available in a physical register.
     LiveRegMap LiveVirtRegs;
@@ -1321,9 +1321,11 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
       if (!MO.isReg() || !MO.isDef())
         continue;
 
+      Register Reg = MO.getReg();
+
       // subreg defs don't free the full register. We left the subreg number
       // around as a marker in setPhysReg() to recognize this case here.
-      if (MO.getSubReg() != 0) {
+      if (Reg.isPhysical() && MO.getSubReg() != 0) {
         MO.setSubReg(0);
         continue;
       }
@@ -1334,7 +1336,6 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
       // Do not free tied operands and early clobbers.
       if ((MO.isTied() && !TiedOpIsUndef(MO, I)) || MO.isEarlyClobber())
         continue;
-      Register Reg = MO.getReg();
       if (!Reg)
         continue;
       if (Reg.isVirtual()) {

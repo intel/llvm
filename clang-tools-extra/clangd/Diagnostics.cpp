@@ -423,15 +423,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Diag &D) {
   return OS;
 }
 
-CodeAction toCodeAction(const Fix &F, const URIForFile &File) {
-  CodeAction Action;
-  Action.title = F.Message;
-  Action.kind = std::string(CodeAction::QUICKFIX_KIND);
-  Action.edit.emplace();
-  Action.edit->changes[File.uri()] = {F.Edits.begin(), F.Edits.end()};
-  return Action;
-}
-
 Diag toDiag(const llvm::SMDiagnostic &D, Diag::DiagSource Source) {
   Diag Result;
   Result.Message = D.getMessage().str();
@@ -498,13 +489,6 @@ void toLSPDiags(
     break;
   case Diag::Unknown:
     break;
-  }
-  if (Opts.EmbedFixesInDiagnostics) {
-    Main.codeActions.emplace();
-    for (const auto &Fix : D.Fixes)
-      Main.codeActions->push_back(toCodeAction(Fix, File));
-    if (Main.codeActions->size() == 1)
-      Main.codeActions->front().isPreferred = true;
   }
   if (Opts.SendDiagnosticCategory && !D.Category.empty())
     Main.category = D.Category;
@@ -715,9 +699,9 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     D.InsideMainFile = isInsideMainFile(PatchLoc, SM);
     D.Range = diagnosticRange(Info, *LangOpts);
     auto FID = SM.getFileID(Info.getLocation());
-    if (auto *FE = SM.getFileEntryForID(FID)) {
+    if (const auto FE = SM.getFileEntryRefForID(FID)) {
       D.File = FE->getName().str();
-      D.AbsFile = getCanonicalPath(FE, SM);
+      D.AbsFile = getCanonicalPath(*FE, SM);
     }
     D.ID = Info.getID();
     return D;
@@ -786,7 +770,7 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     if (Message.empty()) // either !SyntheticMessage, or we failed to make one.
       Info.FormatDiagnostic(Message);
     LastDiag->Fixes.push_back(
-        Fix{std::string(Message.str()), std::move(Edits)});
+        Fix{std::string(Message.str()), std::move(Edits), {}});
     return true;
   };
 

@@ -457,7 +457,7 @@ DeclarationFragmentsBuilder::getFragmentsForFunction(const FunctionDecl *Func) {
   Fragments.append(")", DeclarationFragments::FragmentKind::Text);
 
   // FIXME: Handle exception specifiers: throw, noexcept
-  return Fragments;
+  return Fragments.append(";", DeclarationFragments::FragmentKind::Text);
 }
 
 DeclarationFragments DeclarationFragmentsBuilder::getFragmentsForEnumConstant(
@@ -638,7 +638,7 @@ DeclarationFragments DeclarationFragmentsBuilder::getFragmentsForObjCProperty(
   // Build the Objective-C property keyword.
   Fragments.append("@property", DeclarationFragments::FragmentKind::Keyword);
 
-  const auto Attributes = Property->getPropertyAttributes();
+  const auto Attributes = Property->getPropertyAttributesAsWritten();
   // Build the attributes if there is any associated with the property.
   if (Attributes != ObjCPropertyAttribute::kind_noattr) {
     // No leading comma for the first attribute.

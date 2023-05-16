@@ -495,7 +495,9 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
   } else {
     TODO(loc, "global"); // Procedure pointer or something else
   }
-  // Creates undefined initializer for globals without initializers
+  // Creates zero or undefined initializer for globals without initializers
+  // Zero initializer is used for "simple types" (integer, real and logical),
+  // undefined is used for types aside from those types.
   if (!globalIsInitialized(global)) {
     // TODO: Is it really required to add the undef init if the Public
     // visibility is set ? We need to make sure the global is not optimized out
@@ -507,8 +509,12 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
       TODO(loc, "BIND(C) module variable linkage");
     Fortran::lower::createGlobalInitialization(
         builder, global, [&](fir::FirOpBuilder &builder) {
-          builder.create<fir::HasValueOp>(
-              loc, builder.create<fir::UndefOp>(loc, symTy));
+          mlir::Value initValue;
+          if (symTy.isa<mlir::IntegerType, mlir::FloatType, fir::LogicalType>())
+            initValue = builder.create<fir::ZeroOp>(loc, symTy);
+          else
+            initValue = builder.create<fir::UndefOp>(loc, symTy);
+          builder.create<fir::HasValueOp>(loc, initValue);
         });
   }
   // Set public visibility to prevent global definition to be optimized out
@@ -721,9 +727,12 @@ static void deallocateIntentOut(Fortran::lower::AbstractConverter &converter,
     if (auto mutBox = extVal.getBoxOf<fir::MutableBoxValue>()) {
       // The dummy argument is not passed in the ENTRY so it should not be
       // deallocated.
-      if (mlir::Operation *op = mutBox->getAddr().getDefiningOp())
-        if (mlir::isa<fir::AllocaOp>(op))
+      if (mlir::Operation *op = mutBox->getAddr().getDefiningOp()) {
+        if (auto declOp = mlir::dyn_cast<hlfir::DeclareOp>(op))
+          op = declOp.getMemref().getDefiningOp();
+        if (op && mlir::isa<fir::AllocaOp>(op))
           return;
+      }
       mlir::Location loc = converter.getCurrentLocation();
       fir::FirOpBuilder &builder = converter.getFirOpBuilder();
       auto genDeallocateWithTypeDesc = [&]() {
@@ -1837,14 +1846,15 @@ void Fortran::lower::mapSymbolAttributes(
     }
   }
 
+  if (addr && addr.getDefiningOp<fir::UnboxCharOp>()) {
+    // Ensure proper type is given to array/scalar that transited via
+    // fir.boxchar arg.
+    mlir::Type castTy = builder.getRefType(converter.genType(var));
+    addr = builder.createConvert(loc, castTy, addr);
+  }
+
   // Compute array extents and lower bounds.
   if (ba.isArray()) {
-    if (addr && addr.getDefiningOp<fir::UnboxCharOp>()) {
-      // Ensure proper type is given to array that transited via fir.boxchar
-      // arg.
-      mlir::Type castTy = builder.getRefType(converter.genType(var));
-      addr = builder.createConvert(loc, castTy, addr);
-    }
     if (ba.isStaticArray()) {
       if (ba.lboundIsAllOnes()) {
         for (std::int64_t extent :

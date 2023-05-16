@@ -9,8 +9,8 @@
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
 ; CHECK-SPIRV: Name [[F1Name:[0-9]+]] "f1"
 ; CHECK-SPIRV: Name [[F2Name:[0-9]+]] "f2"
-; CHECK-SPIRV: TypeInt [[Int32:[0-9]+]] 32
-; CHECK-SPIRV: TypeInt [[Int64:[0-9]+]] 64
+; CHECK-SPIRV-DAG: TypeInt [[Int32:[0-9]+]] 32
+; CHECK-SPIRV-DAG: TypeInt [[Int64:[0-9]+]] 64
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[XArg:[0-9]+]] 32
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[YArg:[0-9]+]] 2
 

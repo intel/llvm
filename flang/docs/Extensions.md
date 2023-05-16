@@ -91,6 +91,7 @@ end
 * A module name from a `USE` statement can also be used as a
   non-global name in the same scope.  This is not conforming,
   but it is useful and unambiguous.
+* The argument to `RANDOM_NUMBER` may not be an assumed-size array.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -98,6 +99,7 @@ end
 * `<>` as synonym for `.NE.` and `/=`
 * `$` and `@` as legal characters in names
 * Initialization in type declaration statements using `/values/`
+* Saved integer, logical and real scalars are zero initialized.
 * Kind specification with `*`, e.g. `REAL*4`
 * `DOUBLE COMPLEX` as a synonym for `COMPLEX(KIND(0.D0))` --
   but not when spelled `TYPE(DOUBLECOMPLEX)`.
@@ -111,6 +113,7 @@ end
 * Quad precision REAL literals with `Q`
 * `X` prefix/suffix as synonym for `Z` on hexadecimal literals
 * `B`, `O`, `Z`, and `X` accepted as suffixes as well as prefixes
+* Support for using bare `L` in FORMAT statement
 * Triplets allowed in array constructors
 * `%LOC`, `%VAL`, and `%REF`
 * Leading comma allowed before I/O item list
@@ -277,6 +280,9 @@ end
 * The character length of the `SOURCE=` or `MOLD=` in `ALLOCATE`
   may be distinct from the constant character length, if any,
   of an allocated object.
+* When a name is brought into a scope by multiple ways,
+  such as USE-association as well as an `IMPORT` from its host,
+  it's an error only if the resolution is ambiguous.
 
 ### Extensions supported when enabled by options
 

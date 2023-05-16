@@ -14,6 +14,7 @@
 #define LLVMIR_OPS
 
 include "mlir/Dialect/LLVMIR/LLVMAttrDefs.td"
+include "mlir/Dialect/LLVMIR/LLVMEnums.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/FunctionInterfaces.td"
@@ -21,6 +22,7 @@ include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/Mem2RegInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class LLVM_Builder<string builder> {
@@ -170,7 +172,9 @@ def LLVM_FNegOp : LLVM_UnaryFloatArithmeticOp<
   LLVM_ScalarOrVectorOf<LLVM_AnyFloat>, "fneg", "FNeg">;
 
 // Memory-related operations.
-def LLVM_AllocaOp : LLVM_Op<"alloca">, LLVM_MemOpPatterns {
+def LLVM_AllocaOp : LLVM_Op<"alloca", 
+    [DeclareOpInterfaceMethods<PromotableAllocationOpInterface>]>,
+  LLVM_MemOpPatterns {
   let arguments = (ins AnyInteger:$arraySize,
                    OptionalAttr<I64Attr>:$alignment,
                    OptionalAttr<TypeAttr>:$elem_type,
@@ -227,7 +231,8 @@ def LLVM_AllocaOp : LLVM_Op<"alloca">, LLVM_MemOpPatterns {
   let hasVerifier = 1;
 }
 
-def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
+def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
+    DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let arguments = (ins LLVM_ScalarOrVectorOf<LLVM_AnyPointer>:$base,
                    Variadic<LLVM_ScalarOrVectorOf<AnyInteger>>:$dynamicIndices,
                    DenseI32ArrayAttr:$rawConstantIndices,
@@ -310,7 +315,8 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
   let hasVerifier = 1;
 }
 
-def LLVM_LoadOp : LLVM_MemAccessOpBase<"load"> {
+def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>]> {
   dag args = (ins Arg<LLVM_PointerTo<LLVM_LoadableType>, "", [MemRead]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$volatile_,
@@ -381,7 +387,8 @@ def LLVM_LoadOp : LLVM_MemAccessOpBase<"load"> {
   let hasVerifier = 1;
 }
 
-def LLVM_StoreOp : LLVM_MemAccessOpBase<"store"> {
+def LLVM_StoreOp : LLVM_MemAccessOpBase<"store",
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>]> {
   dag args = (ins LLVM_LoadableType:$value,
               Arg<LLVM_PointerTo<LLVM_LoadableType>,"",[MemWrite]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
@@ -464,14 +471,15 @@ class LLVM_CastOp<string mnemonic, string instName, Type type,
       $_location, $_resultType, $arg);
   }];
 }
-def LLVM_BitcastOp : LLVM_CastOp<"bitcast", "BitCast",
-                                 LLVM_AnyNonAggregate, LLVM_AnyNonAggregate> {
+def LLVM_BitcastOp : LLVM_CastOp<"bitcast", "BitCast", LLVM_AnyNonAggregate,
+    LLVM_AnyNonAggregate, [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let hasFolder = 1;
   let hasVerifier = 1;
 }
 def LLVM_AddrSpaceCastOp : LLVM_CastOp<"addrspacecast", "AddrSpaceCast",
-                                       LLVM_ScalarOrVectorOf<LLVM_AnyPointer>,
-                                       LLVM_ScalarOrVectorOf<LLVM_AnyPointer>> {
+    LLVM_ScalarOrVectorOf<LLVM_AnyPointer>,
+    LLVM_ScalarOrVectorOf<LLVM_AnyPointer>,
+    [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let hasFolder = 1;
 }
 def LLVM_IntToPtrOp : LLVM_CastOp<"inttoptr", "IntToPtr",

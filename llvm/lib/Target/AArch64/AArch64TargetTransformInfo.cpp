@@ -523,6 +523,52 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     }
     break;
   }
+  case Intrinsic::fshl:
+  case Intrinsic::fshr: {
+    if (ICA.getArgs().empty())
+      break;
+
+    // TODO: Add handling for fshl where third argument is not a constant.
+    const TTI::OperandValueInfo OpInfoZ = TTI::getOperandInfo(ICA.getArgs()[2]);
+    if (!OpInfoZ.isConstant())
+      break;
+
+    const auto LegalisationCost = getTypeLegalizationCost(RetTy);
+    if (OpInfoZ.isUniform()) {
+      // FIXME: The costs could be lower if the codegen is better.
+      static const CostTblEntry FshlTbl[] = {
+          {Intrinsic::fshl, MVT::v4i32, 3}, // ushr + shl + orr
+          {Intrinsic::fshl, MVT::v2i64, 3}, {Intrinsic::fshl, MVT::v16i8, 4},
+          {Intrinsic::fshl, MVT::v8i16, 4}, {Intrinsic::fshl, MVT::v2i32, 3},
+          {Intrinsic::fshl, MVT::v8i8, 4},  {Intrinsic::fshl, MVT::v4i16, 4}};
+      // Costs for both fshl & fshr are the same, so just pass Intrinsic::fshl
+      // to avoid having to duplicate the costs.
+      const auto *Entry =
+          CostTableLookup(FshlTbl, Intrinsic::fshl, LegalisationCost.second);
+      if (Entry)
+        return LegalisationCost.first * Entry->Cost;
+    }
+
+    auto TyL = getTypeLegalizationCost(RetTy);
+    if (!RetTy->isIntegerTy())
+      break;
+
+    // Estimate cost manually, as types like i8 and i16 will get promoted to
+    // i32 and CostTableLookup will ignore the extra conversion cost.
+    bool HigherCost = (RetTy->getScalarSizeInBits() != 32 &&
+                       RetTy->getScalarSizeInBits() < 64) ||
+                      (RetTy->getScalarSizeInBits() % 64 != 0);
+    unsigned ExtraCost = HigherCost ? 1 : 0;
+    if (RetTy->getScalarSizeInBits() == 32 ||
+        RetTy->getScalarSizeInBits() == 64)
+      ExtraCost = 0; // fhsl/fshr for i32 and i64 can be lowered to a single
+                     // extr instruction.
+    else if (HigherCost)
+      ExtraCost = 1;
+    else
+      break;
+    return TyL.first + ExtraCost;
+  }
   default:
     break;
   }
@@ -1178,6 +1224,10 @@ static Instruction::BinaryOps intrinsicIDToBinOpCode(unsigned Intrinsic) {
 
 static std::optional<Instruction *>
 instCombineSVEVectorBinOp(InstCombiner &IC, IntrinsicInst &II) {
+  // Bail due to missing support for ISD::STRICT_ scalable vector operations.
+  if (II.isStrictFP())
+    return std::nullopt;
+
   auto *OpPredicate = II.getOperand(0);
   auto BinOpCode = intrinsicIDToBinOpCode(II.getIntrinsicID());
   if (BinOpCode == Instruction::BinaryOpsEnd ||
@@ -2087,6 +2137,23 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::BITCAST, MVT::nxv2i16, MVT::nxv2f16, 0 },
     { ISD::BITCAST, MVT::nxv4i16, MVT::nxv4f16, 0 },
     { ISD::BITCAST, MVT::nxv2i32, MVT::nxv2f32, 0 },
+
+    // Add cost for extending to illegal -too wide- scalable vectors.
+    // zero/sign extend are implemented by multiple unpack operations,
+    // where each operation has a cost of 1.
+    { ISD::ZERO_EXTEND, MVT::nxv16i16, MVT::nxv16i8, 2},
+    { ISD::ZERO_EXTEND, MVT::nxv16i32, MVT::nxv16i8, 6},
+    { ISD::ZERO_EXTEND, MVT::nxv16i64, MVT::nxv16i8, 14},
+    { ISD::ZERO_EXTEND, MVT::nxv8i32, MVT::nxv8i16, 2},
+    { ISD::ZERO_EXTEND, MVT::nxv8i64, MVT::nxv8i16, 6},
+    { ISD::ZERO_EXTEND, MVT::nxv4i64, MVT::nxv4i32, 2},
+
+    { ISD::SIGN_EXTEND, MVT::nxv16i16, MVT::nxv16i8, 2},
+    { ISD::SIGN_EXTEND, MVT::nxv16i32, MVT::nxv16i8, 6},
+    { ISD::SIGN_EXTEND, MVT::nxv16i64, MVT::nxv16i8, 14},
+    { ISD::SIGN_EXTEND, MVT::nxv8i32, MVT::nxv8i16, 2},
+    { ISD::SIGN_EXTEND, MVT::nxv8i64, MVT::nxv8i16, 6},
+    { ISD::SIGN_EXTEND, MVT::nxv4i64, MVT::nxv4i32, 2},
   };
 
   if (const auto *Entry = ConvertCostTableLookup(ConversionTbl, ISD,
@@ -2123,6 +2190,13 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     if (const auto *Entry = ConvertCostTableLookup(
             FP16Tbl, ISD, DstTy.getSimpleVT(), SrcTy.getSimpleVT()))
       return AdjustCost(Entry->Cost);
+
+  // The BasicTTIImpl version only deals with CCH==TTI::CastContextHint::Normal,
+  // but we also want to include the TTI::CastContextHint::Masked case too.
+  if ((ISD == ISD::ZERO_EXTEND || ISD == ISD::SIGN_EXTEND) &&
+      CCH == TTI::CastContextHint::Masked && ST->hasSVEorSME() &&
+      TLI->isTypeLegal(DstTy))
+    CCH = TTI::CastContextHint::Normal;
 
   return AdjustCost(
       BaseT::getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I));
@@ -2251,7 +2325,9 @@ InstructionCost AArch64TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
                                                    TTI::TargetCostKind CostKind,
                                                    unsigned Index, Value *Op0,
                                                    Value *Op1) {
-  return getVectorInstrCostHelper(nullptr, Val, Index, false /* HasRealUse */);
+  bool HasRealUse =
+      Opcode == Instruction::InsertElement && Op0 && !isa<UndefValue>(Op0);
+  return getVectorInstrCostHelper(nullptr, Val, Index, HasRealUse);
 }
 
 InstructionCost AArch64TTIImpl::getVectorInstrCost(const Instruction &I,
@@ -2404,11 +2480,19 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
     // We know that they are legal. See LowerAdd in ISelLowering.
     return LT.first;
 
+  case ISD::FNEG:
   case ISD::FADD:
   case ISD::FSUB:
+    // Increase the cost for half and bfloat types if not architecturally
+    // supported.
+    if ((Ty->getScalarType()->isHalfTy() && !ST->hasFullFP16()) ||
+        (Ty->getScalarType()->isBFloatTy() && !ST->hasBF16()))
+      return 2 * LT.first;
+    if (!Ty->getScalarType()->isFP128Ty())
+      return LT.first;
+    LLVM_FALLTHROUGH;
   case ISD::FMUL:
   case ISD::FDIV:
-  case ISD::FNEG:
     // These nodes are marked as 'custom' just to lower them to SVE.
     // We know said lowering will incur no additional cost.
     if (!Ty->getScalarType()->isFP128Ty())
@@ -2945,12 +3029,12 @@ bool AArch64TTIImpl::isLegalToVectorizeReduction(
 
 InstructionCost
 AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                       bool IsUnsigned,
+                                       bool IsUnsigned, FastMathFlags FMF,
                                        TTI::TargetCostKind CostKind) {
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
 
   if (LT.second.getScalarType() == MVT::f16 && !ST->hasFullFP16())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
 
   assert((isa<ScalableVectorType>(Ty) == isa<ScalableVectorType>(CondTy)) &&
          "Both vector needs to be equally scalable");
@@ -2958,11 +3042,12 @@ AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
   InstructionCost LegalizationCost = 0;
   if (LT.first > 1) {
     Type *LegalVTy = EVT(LT.second).getTypeForEVT(Ty->getContext());
-    unsigned MinMaxOpcode =
+    Intrinsic::ID MinMaxOpcode =
         Ty->isFPOrFPVectorTy()
             ? Intrinsic::maxnum
             : (IsUnsigned ? Intrinsic::umin : Intrinsic::smin);
-    IntrinsicCostAttributes Attrs(MinMaxOpcode, LegalVTy, {LegalVTy, LegalVTy});
+    IntrinsicCostAttributes Attrs(MinMaxOpcode, LegalVTy, {LegalVTy, LegalVTy},
+                                  FMF);
     LegalizationCost = getIntrinsicInstrCost(Attrs, CostKind) * (LT.first - 1);
   }
 
@@ -3180,9 +3265,9 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
       unsigned NumSources = 0;
       for (unsigned E = 0; E < LTNumElts; E++) {
         int MaskElt = (N * LTNumElts + E < TpNumElts) ? Mask[N * LTNumElts + E]
-                                                      : UndefMaskElem;
+                                                      : PoisonMaskElem;
         if (MaskElt < 0) {
-          NMask.push_back(UndefMaskElem);
+          NMask.push_back(PoisonMaskElem);
           continue;
         }
 
@@ -3410,29 +3495,27 @@ static bool containsDecreasingPointers(Loop *TheLoop,
   return false;
 }
 
-bool AArch64TTIImpl::preferPredicateOverEpilogue(
-    Loop *L, LoopInfo *LI, ScalarEvolution &SE, AssumptionCache &AC,
-    TargetLibraryInfo *TLI, DominatorTree *DT, LoopVectorizationLegality *LVL,
-    InterleavedAccessInfo *IAI) {
+bool AArch64TTIImpl::preferPredicateOverEpilogue(TailFoldingInfo *TFI) {
   if (!ST->hasSVE() || TailFoldingKindLoc == TailFoldingKind::TFDisabled)
     return false;
 
   // We don't currently support vectorisation with interleaving for SVE - with
   // such loops we're better off not using tail-folding. This gives us a chance
   // to fall back on fixed-width vectorisation using NEON's ld2/st2/etc.
-  if (IAI->hasGroups())
+  if (TFI->IAI->hasGroups())
     return false;
 
   TailFoldingKind Required; // Defaults to 0.
-  if (LVL->getReductionVars().size())
+  if (TFI->LVL->getReductionVars().size())
     Required.add(TailFoldingKind::TFReductions);
-  if (LVL->getFixedOrderRecurrences().size())
+  if (TFI->LVL->getFixedOrderRecurrences().size())
     Required.add(TailFoldingKind::TFRecurrences);
 
   // We call this to discover whether any load/store pointers in the loop have
   // negative strides. This will require extra work to reverse the loop
   // predicate, which may be expensive.
-  if (containsDecreasingPointers(L, LVL->getPredicatedScalarEvolution()))
+  if (containsDecreasingPointers(TFI->LVL->getLoop(),
+                                 TFI->LVL->getPredicatedScalarEvolution()))
     Required.add(TailFoldingKind::TFReverse);
   if (!Required)
     Required.add(TailFoldingKind::TFSimple);

@@ -28,6 +28,7 @@
 #include <__format/format_parse_context.h>
 #include <__format/format_string.h>
 #include <__format/unicode.h>
+#include <__format/width_estimation_table.h>
 #include <__iterator/concepts.h>
 #include <__iterator/readable_traits.h> // iter_value_t
 #include <__type_traits/common_type.h>
@@ -81,22 +82,33 @@ __substitute_arg_id(basic_format_arg<_Context> __format_arg) {
   return _VSTD::__visit_format_arg(
       [](auto __arg) -> uint32_t {
         using _Type = decltype(__arg);
-        if constexpr (integral<_Type>) {
+        if constexpr (same_as<_Type, monostate>)
+          std::__throw_format_error("Argument index out of bounds");
+
+        // [format.string.std]/8
+        // If { arg-idopt } is used in a width or precision, the value of the
+        // corresponding formatting argument is used in its place. If the
+        // corresponding formatting argument is not of standard signed or unsigned
+        // integer type, or its value is negative for precision or non-positive for
+        // width, an exception of type format_error is thrown.
+        //
+        // When an integral is used in a format function, it is stored as one of
+        // the types checked below. Other integral types are promoted. For example,
+        // a signed char is stored as an int.
+        if constexpr (same_as<_Type, int> || same_as<_Type, unsigned int> || //
+                      same_as<_Type, long long> || same_as<_Type, unsigned long long>) {
           if constexpr (signed_integral<_Type>) {
             if (__arg < 0)
               std::__throw_format_error("A format-spec arg-id replacement shouldn't have a negative value");
           }
 
           using _CT = common_type_t<_Type, decltype(__format::__number_max)>;
-          if (static_cast<_CT>(__arg) >
-              static_cast<_CT>(__format::__number_max))
+          if (static_cast<_CT>(__arg) > static_cast<_CT>(__format::__number_max))
             std::__throw_format_error("A format-spec arg-id replacement exceeds the maximum supported value");
 
           return __arg;
-        } else if constexpr (same_as<_Type, monostate>)
-          std::__throw_format_error("Argument index out of bounds");
-        else
-          std::__throw_format_error("A format-spec arg-id replacement argument isn't an integral type");
+        } else
+          std::__throw_format_error("Replacement argument isn't a standard signed or unsigned integer type");
       },
       __format_arg);
 }
@@ -143,6 +155,7 @@ inline constexpr __fields __fields_pointer{.__type_ = true};
 #  if _LIBCPP_STD_VER >= 23
 inline constexpr __fields __fields_tuple{.__use_range_fill_ = true};
 inline constexpr __fields __fields_range{.__use_range_fill_ = true};
+inline constexpr __fields __fields_fill_align_width{};
 #  endif
 
 enum class _LIBCPP_ENUM_VIS __alignment : uint8_t {
@@ -774,57 +787,6 @@ enum class __column_width_rounding { __down, __up };
 #  ifndef _LIBCPP_HAS_NO_UNICODE
 
 namespace __detail {
-
-/// Converts a code point to the column width.
-///
-/// The estimations are conforming to [format.string.general]/11
-///
-/// This version expects a value less than 0x1'0000, which is a 3-byte UTF-8
-/// character.
-_LIBCPP_HIDE_FROM_ABI constexpr int __column_width_3(uint32_t __c) noexcept {
-  _LIBCPP_ASSERT(__c < 0x10000, "Use __column_width_4 or __column_width for larger values");
-
-  // clang-format off
-  return 1 + (__c >= 0x1100 && (__c <= 0x115f ||
-             (__c >= 0x2329 && (__c <= 0x232a ||
-             (__c >= 0x2e80 && (__c <= 0x303e ||
-             (__c >= 0x3040 && (__c <= 0xa4cf ||
-             (__c >= 0xac00 && (__c <= 0xd7a3 ||
-             (__c >= 0xf900 && (__c <= 0xfaff ||
-             (__c >= 0xfe10 && (__c <= 0xfe19 ||
-             (__c >= 0xfe30 && (__c <= 0xfe6f ||
-             (__c >= 0xff00 && (__c <= 0xff60 ||
-             (__c >= 0xffe0 && (__c <= 0xffe6
-             ))))))))))))))))))));
-  // clang-format on
-}
-
-/// @overload
-///
-/// This version expects a value greater than or equal to 0x1'0000, which is a
-/// 4-byte UTF-8 character.
-_LIBCPP_HIDE_FROM_ABI constexpr int __column_width_4(uint32_t __c) noexcept {
-  _LIBCPP_ASSERT(__c >= 0x10000, "Use __column_width_3 or __column_width for smaller values");
-
-  // clang-format off
-  return 1 + (__c >= 0x1'f300 && (__c <= 0x1'f64f ||
-             (__c >= 0x1'f900 && (__c <= 0x1'f9ff ||
-             (__c >= 0x2'0000 && (__c <= 0x2'fffd ||
-             (__c >= 0x3'0000 && (__c <= 0x3'fffd
-             ))))))));
-  // clang-format on
-}
-
-/// @overload
-///
-/// The general case, accepting all values.
-_LIBCPP_HIDE_FROM_ABI constexpr int __column_width(uint32_t __c) noexcept {
-  if (__c < 0x10000)
-    return __detail::__column_width_3(__c);
-
-  return __detail::__column_width_4(__c);
-}
-
 template <contiguous_iterator _Iterator>
 _LIBCPP_HIDE_FROM_ABI constexpr __column_width_result<_Iterator> __estimate_column_width_grapheme_clustering(
     _Iterator __first, _Iterator __last, size_t __maximum, __column_width_rounding __rounding) noexcept {
@@ -834,7 +796,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr __column_width_result<_Iterator> __estimate_colu
   __column_width_result<_Iterator> __result{0, __first};
   while (__result.__last_ != __last && __result.__width_ <= __maximum) {
     typename __unicode::__extended_grapheme_cluster_view<_CharT>::__cluster __cluster = __view.__consume();
-    int __width = __detail::__column_width(__cluster.__code_point_);
+    int __width = __width_estimation_table::__estimated_width(__cluster.__code_point_);
 
     // When the next entry would exceed the maximum width the previous width
     // might be returned. For example when a width of 100 is requested the

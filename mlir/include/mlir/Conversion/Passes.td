@@ -627,6 +627,7 @@ def ConvertMathToFuncs : Pass<"convert-math-to-funcs", "ModuleOp"> {
     "arith::ArithDialect",
     "cf::ControlFlowDialect",
     "func::FuncDialect",
+    "scf::SCFDialect",
     "vector::VectorDialect",
     "LLVM::LLVMDialect",
   ];
@@ -634,7 +635,12 @@ def ConvertMathToFuncs : Pass<"convert-math-to-funcs", "ModuleOp"> {
     Option<"minWidthOfFPowIExponent", "min-width-of-fpowi-exponent", "unsigned",
            /*default=*/"1",
            "Convert FPowI only if the width of its exponent's integer type "
-           "is greater than or equal to this value">
+           "is greater than or equal to this value">,
+    // Most backend targets support a native ctlz operation, so by default
+    // ctrlz conversion is disabled.
+    Option<"convertCtlz", "convert-ctlz", "bool", /*default=*/"false",
+           "Convert math.ctlz to a software implementation. Enable "
+           "for targets that do not natively support ctlz.">,
   ];
 }
 
@@ -646,10 +652,10 @@ def FinalizeMemRefToLLVMConversionPass :
     Pass<"finalize-memref-to-llvm", "ModuleOp"> {
   let summary = "Finalize MemRef dialect to LLVM dialect conversion";
   let description = [{
-    Finalize the conversion of the operations from the MemRef 
+    Finalize the conversion of the operations from the MemRef
     dialect to the LLVM dialect.
-    This conversion will not convert some complex MemRef 
-    operations. Make sure to run `expand-strided-metadata` 
+    This conversion will not convert some complex MemRef
+    operations. Make sure to run `expand-strided-metadata`
     beforehand for these.
   }];
   let dependentDialects = ["LLVM::LLVMDialect"];
@@ -850,7 +856,7 @@ def ConvertAffineForToGPU
 def ConvertParallelLoopToGpu : Pass<"convert-parallel-loops-to-gpu"> {
   let summary = "Convert mapped scf.parallel ops to gpu launch operations";
   let constructor = "mlir::createParallelLoopToGpuPass()";
-  let dependentDialects = ["AffineDialect", "gpu::GPUDialect"];
+  let dependentDialects = ["affine::AffineDialect", "gpu::GPUDialect"];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1027,7 +1033,7 @@ def ConvertVectorToGPU : Pass<"convert-vector-to-gpu"> {
                 "dialect";
   let constructor = "mlir::createConvertVectorToGPUPass()";
   let dependentDialects = [
-    "memref::MemRefDialect", "gpu::GPUDialect", "AffineDialect",
+    "memref::MemRefDialect", "gpu::GPUDialect", "affine::AffineDialect",
     "vector::VectorDialect", "nvgpu::NVGPUDialect"
   ];
 
@@ -1046,7 +1052,7 @@ def ConvertVectorToSCF : Pass<"convert-vector-to-scf"> {
                 "dialect";
   let constructor = "mlir::createConvertVectorToSCFPass()";
   let dependentDialects = [
-    "AffineDialect",
+    "affine::AffineDialect",
     "memref::MemRefDialect",
     "scf::SCFDialect",
     "tensor::TensorDialect"

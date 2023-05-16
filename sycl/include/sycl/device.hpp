@@ -223,13 +223,27 @@ public:
   /// \return the backend associated with this device.
   backend get_backend() const noexcept;
 
+// Clang may warn about the use of diagnose_if in __SYCL_WARN_IMAGE_ASPECT, so
+// we disable that warning as we make appropriate checks to ensure its
+// existence.
+// TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgcc-compat"
+#endif // defined(__clang__)
+
   /// Indicates if the SYCL device has the given feature.
   ///
   /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
   /// Provisional Spec.
   ///
   /// \return true if the SYCL device has the given feature.
-  bool has(aspect Aspect) const;
+  bool has(aspect Aspect) const __SYCL_WARN_IMAGE_ASPECT(Aspect);
+
+// TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif // defined(__clang__)
 
 private:
   std::shared_ptr<detail::device_impl> impl;
@@ -241,9 +255,8 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend
-      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
-      detail::getRawSyclObjImpl(const T &SyclObject);
+  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
+  detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

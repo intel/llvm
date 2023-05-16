@@ -68,7 +68,7 @@ def AOp : NS_Op<"a_op", []> {
 
 // DEF:      ::mlir::LogicalResult AOpAdaptor::verify
 // DEF:      ::mlir::Attribute tblgen_aAttr;
-// DEF-NEXT: while (true) {
+// DEF: while (true) {
 // DEF-NEXT:   if (namedAttrIt == namedAttrRange.end())
 // DEF-NEXT:     return emitError(loc, "'test.a_op' op ""requires attribute 'aAttr'");
 // DEF-NEXT:   if (namedAttrIt->getName() == AOp::getAAttrAttrName(*odsOpName)) {
@@ -217,10 +217,10 @@ def AgetOp : Op<Test2_Dialect, "a_get_op", []> {
 
 // DEF:      ::mlir::LogicalResult AgetOpAdaptor::verify
 // DEF:      ::mlir::Attribute tblgen_aAttr;
-// DEF-NEXT: while (true)
+// DEF: while (true)
 // DEF:      ::mlir::Attribute tblgen_bAttr;
 // DEF-NEXT: ::mlir::Attribute tblgen_cAttr;
-// DEF-NEXT: while (true)
+// DEF: while (true)
 // DEF:      if (tblgen_aAttr && !((some-condition)))
 // DEF-NEXT:   return emitError(loc, "'test2.a_get_op' op ""attribute 'aAttr' failed to satisfy constraint: some attribute kind");
 // DEF:      if (tblgen_bAttr && !((some-condition)))
@@ -318,10 +318,10 @@ def BOp : NS_Op<"b_op", []> {
 // DEF: if (tblgen_str_attr && !((tblgen_str_attr.isa<::mlir::StringAttr>())))
 // DEF: if (tblgen_elements_attr && !((tblgen_elements_attr.isa<::mlir::ElementsAttr>())))
 // DEF: if (tblgen_function_attr && !((tblgen_function_attr.isa<::mlir::FlatSymbolRefAttr>())))
-// DEF: if (tblgen_some_type_attr && !(((tblgen_some_type_attr.isa<::mlir::TypeAttr>())) && ((tblgen_some_type_attr.cast<::mlir::TypeAttr>().getValue().isa<SomeType>()))))
+// DEF: if (tblgen_some_type_attr && !(((tblgen_some_type_attr.isa<::mlir::TypeAttr>())) && ((tblgen_some_type_attr.cast<::mlir::TypeAttr>().getValue().isa<SomeType>())) && ((true))))
 // DEF: if (tblgen_array_attr && !((tblgen_array_attr.isa<::mlir::ArrayAttr>())))
 // DEF: if (tblgen_some_attr_array && !(((tblgen_some_attr_array.isa<::mlir::ArrayAttr>())) && (::llvm::all_of(tblgen_some_attr_array.cast<::mlir::ArrayAttr>(), [&](::mlir::Attribute attr) { return attr && ((some-condition)); }))))
-// DEF: if (tblgen_type_attr && !(((tblgen_type_attr.isa<::mlir::TypeAttr>())) && ((tblgen_type_attr.cast<::mlir::TypeAttr>().getValue().isa<::mlir::Type>()))))
+// DEF: if (tblgen_type_attr && !(((tblgen_type_attr.isa<::mlir::TypeAttr>())) && ((tblgen_type_attr.cast<::mlir::TypeAttr>().getValue().isa<::mlir::Type>())) && ((true))))
 
 // Test common attribute kind getters' return types
 // ---

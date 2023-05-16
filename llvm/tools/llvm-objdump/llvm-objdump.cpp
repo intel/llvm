@@ -914,6 +914,9 @@ addMissingWasmCodeSymbols(const WasmObjectFile &Obj,
 static void addPltEntries(const ObjectFile &Obj,
                           std::map<SectionRef, SectionSymbolsTy> &AllSymbols,
                           StringSaver &Saver) {
+  auto *ElfObj = dyn_cast<ELFObjectFileBase>(&Obj);
+  if (!ElfObj)
+    return;
   std::optional<SectionRef> Plt;
   for (const SectionRef &Section : Obj.sections()) {
     Expected<StringRef> SecNameOrErr = Section.getName();
@@ -926,26 +929,24 @@ static void addPltEntries(const ObjectFile &Obj,
   }
   if (!Plt)
     return;
-  if (auto *ElfObj = dyn_cast<ELFObjectFileBase>(&Obj)) {
-    for (auto PltEntry : ElfObj->getPltAddresses()) {
-      if (PltEntry.first) {
-        SymbolRef Symbol(*PltEntry.first, ElfObj);
-        uint8_t SymbolType = getElfSymbolType(Obj, Symbol);
-        if (Expected<StringRef> NameOrErr = Symbol.getName()) {
-          if (!NameOrErr->empty())
-            AllSymbols[*Plt].emplace_back(
-                PltEntry.second, Saver.save((*NameOrErr + "@plt").str()),
-                SymbolType);
-          continue;
-        } else {
-          // The warning has been reported in disassembleObject().
-          consumeError(NameOrErr.takeError());
-        }
+  for (auto PltEntry : ElfObj->getPltAddresses()) {
+    if (PltEntry.first) {
+      SymbolRef Symbol(*PltEntry.first, ElfObj);
+      uint8_t SymbolType = getElfSymbolType(Obj, Symbol);
+      if (Expected<StringRef> NameOrErr = Symbol.getName()) {
+        if (!NameOrErr->empty())
+          AllSymbols[*Plt].emplace_back(
+              PltEntry.second, Saver.save((*NameOrErr + "@plt").str()),
+              SymbolType);
+        continue;
+      } else {
+        // The warning has been reported in disassembleObject().
+        consumeError(NameOrErr.takeError());
       }
-      reportWarning("PLT entry at 0x" + Twine::utohexstr(PltEntry.second) +
-                        " references an invalid symbol",
-                    Obj.getFileName());
     }
+    reportWarning("PLT entry at 0x" + Twine::utohexstr(PltEntry.second) +
+                      " references an invalid symbol",
+                  Obj.getFileName());
   }
 }
 
@@ -1285,10 +1286,10 @@ static void createFakeELFSections(ObjectFile &Obj) {
 // Build ID. Returns std::nullopt if nothing was found.
 static std::optional<OwningBinary<Binary>>
 fetchBinaryByBuildID(const ObjectFile &Obj) {
-  std::optional<object::BuildIDRef> BuildID = getBuildID(&Obj);
-  if (!BuildID)
+  object::BuildIDRef BuildID = getBuildID(&Obj);
+  if (BuildID.empty())
     return std::nullopt;
-  std::optional<std::string> Path = BIDFetcher->fetch(*BuildID);
+  std::optional<std::string> Path = BIDFetcher->fetch(BuildID);
   if (!Path)
     return std::nullopt;
   Expected<OwningBinary<Binary>> DebugBinary = createBinary(*Path);
@@ -2943,13 +2944,11 @@ static void parseIntArg(const llvm::opt::InputArgList &InputArgs, int ID,
 
 static object::BuildID parseBuildIDArg(const opt::Arg *A) {
   StringRef V(A->getValue());
-  std::string Bytes;
-  if (!tryGetFromHex(V, Bytes))
+  object::BuildID BID = parseBuildID(V);
+  if (BID.empty())
     reportCmdLineError(A->getSpelling() + ": expected a build ID, but got '" +
                        V + "'");
-  ArrayRef<uint8_t> BuildID(reinterpret_cast<const uint8_t *>(Bytes.data()),
-                            Bytes.size());
-  return object::BuildID(BuildID.begin(), BuildID.end());
+  return BID;
 }
 
 void objdump::invalidArgValue(const opt::Arg *A) {

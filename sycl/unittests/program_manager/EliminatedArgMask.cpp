@@ -138,7 +138,7 @@ public:
   }
 };
 
-sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
+const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
     const sycl::kernel_bundle<sycl::bundle_state::input> &KernelBundle,
     std::shared_ptr<sycl::detail::queue_impl> QueueImpl) {
 
@@ -193,13 +193,12 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
           {sycl::get_kernel_id<EAMTestKernel>(),
            sycl::get_kernel_id<EAMTestKernel2>()});
 
-  sycl::detail::ProgramManager::KernelArgMask EliminatedArgMask =
+  const sycl::detail::KernelArgMask *EliminatedArgMask =
       getKernelArgMaskFromBundle(KernelBundle,
                                  sycl::detail::getSyclObjImpl(Queue));
 
-  sycl::detail::ProgramManager::KernelArgMask ExpElimArgMask(
-      EAMTestKernelNumArgs);
+  sycl::detail::KernelArgMask ExpElimArgMask(EAMTestKernelNumArgs);
   ExpElimArgMask[0] = ExpElimArgMask[2] = true;
 
-  EXPECT_EQ(EliminatedArgMask, ExpElimArgMask);
+  EXPECT_EQ(*EliminatedArgMask, ExpElimArgMask);
 }

@@ -33,6 +33,7 @@
 #define DEBUG_TYPE "affine-super-vectorizer-test"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
 
@@ -92,14 +93,14 @@ struct VectorizerTestPass
   void testComposeMaps(llvm::raw_ostream &outs);
 
   /// Test for 'vectorizeAffineLoopNest' utility.
-  void testVecAffineLoopNest();
+  void testVecAffineLoopNest(llvm::raw_ostream &outs);
 };
 
 } // namespace
 
 void VectorizerTestPass::testVectorShapeRatio(llvm::raw_ostream &outs) {
   auto f = getOperation();
-  using matcher::Op;
+  using affine::matcher::Op;
   SmallVector<int64_t, 8> shape(clTestVectorShapeRatio.begin(),
                                 clTestVectorShapeRatio.end());
   auto subVectorType =
@@ -109,7 +110,7 @@ void VectorizerTestPass::testVectorShapeRatio(llvm::raw_ostream &outs) {
   auto filter = [&](Operation &op) {
     assert(subVectorType.getElementType().isF32() &&
            "Only f32 supported for now");
-    if (!matcher::operatesOnSuperVectorsOf(op, subVectorType)) {
+    if (!mlir::matcher::operatesOnSuperVectorsOf(op, subVectorType)) {
       return false;
     }
     if (op.getNumResults() != 1) {
@@ -139,7 +140,7 @@ void VectorizerTestPass::testVectorShapeRatio(llvm::raw_ostream &outs) {
 }
 
 static NestedPattern patternTestSlicingOps() {
-  using matcher::Op;
+  using affine::matcher::Op;
   // Match all operations with the kTestSlicingOpName name.
   auto filter = [](Operation &op) {
     // Just use a custom op name for this test, it makes life easier.
@@ -202,7 +203,7 @@ static bool customOpWithAffineMapAttribute(Operation &op) {
 void VectorizerTestPass::testComposeMaps(llvm::raw_ostream &outs) {
   auto f = getOperation();
 
-  using matcher::Op;
+  using affine::matcher::Op;
   auto pattern = Op(customOpWithAffineMapAttribute);
   SmallVector<NestedMatch, 8> matches;
   pattern.match(f, &matches);
@@ -226,7 +227,7 @@ void VectorizerTestPass::testComposeMaps(llvm::raw_ostream &outs) {
 }
 
 /// Test for 'vectorizeAffineLoopNest' utility.
-void VectorizerTestPass::testVecAffineLoopNest() {
+void VectorizerTestPass::testVecAffineLoopNest(llvm::raw_ostream &outs) {
   std::vector<SmallVector<AffineForOp, 2>> loops;
   gatherLoops(getOperation(), loops);
 
@@ -239,6 +240,13 @@ void VectorizerTestPass::testVecAffineLoopNest() {
   VectorizationStrategy strategy;
   strategy.vectorSizes.push_back(4 /*vectorization factor*/);
   strategy.loopToVectorDim[outermostLoop] = 0;
+
+  ReductionLoopMap reductionLoops;
+  SmallVector<LoopReduction, 2> reductions;
+  if (!isLoopParallel(outermostLoop, &reductions)) {
+    outs << "Outermost loop cannot be parallel\n";
+    return;
+  }
   std::vector<SmallVector<AffineForOp, 2>> loopsToVectorize;
   loopsToVectorize.push_back({outermostLoop});
   (void)vectorizeAffineLoopNest(loopsToVectorize, strategy);
@@ -273,7 +281,7 @@ void VectorizerTestPass::runOnOperation() {
   }
 
   if (clTestVecAffineLoopNest)
-    testVecAffineLoopNest();
+    testVecAffineLoopNest(outs);
 
   if (!outs.str().empty()) {
     emitRemark(UnknownLoc::get(&getContext()), outs.str());

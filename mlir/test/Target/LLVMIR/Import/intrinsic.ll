@@ -125,6 +125,14 @@ define void @bitreverse_test(i32 %0, <8 x i32> %1) {
   %4 = call <8 x i32> @llvm.bitreverse.v8i32(<8 x i32> %1)
   ret void
 }
+; CHECK-LABEL:  llvm.func @byteswap_test
+define void @byteswap_test(i32 %0, <8 x i32> %1) {
+  ; CHECK:   llvm.intr.bswap(%{{.*}}) : (i32) -> i32
+  %3 = call i32 @llvm.bswap.i32(i32 %0)
+  ; CHECK:   llvm.intr.bswap(%{{.*}}) : (vector<8xi32>) -> vector<8xi32>
+  %4 = call <8 x i32> @llvm.bswap.v8i32(<8 x i32> %1)
+  ret void
+}
 ; CHECK-LABEL:  llvm.func @ctlz_test
 define void @ctlz_test(i32 %0, <8 x i32> %1) {
   ; CHECK:   %[[FALSE:.+]] = llvm.mlir.constant(false) : i1
@@ -150,6 +158,24 @@ define void @ctpop_test(i32 %0, <8 x i32> %1) {
   %3 = call i32 @llvm.ctpop.i32(i32 %0)
   ; CHECK:   llvm.intr.ctpop(%{{.*}}) : (vector<8xi32>) -> vector<8xi32>
   %4 = call <8 x i32> @llvm.ctpop.v8i32(<8 x i32> %1)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @fshl_test
+define void @fshl_test(i32 %0, i32 %1, i32 %2, <8 x i32> %3, <8 x i32> %4, <8 x i32> %5) {
+  ; CHECK:   llvm.intr.fshl(%{{.*}}, %{{.*}}, %{{.*}}) : (i32, i32, i32) -> i32
+  %7 = call i32 @llvm.fshl.i32(i32 %0, i32 %1, i32 %2)
+  ; CHECK:   llvm.intr.fshl(%{{.*}}, %{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %8 = call <8 x i32> @llvm.fshl.v8i32(<8 x i32> %3, <8 x i32> %4, <8 x i32> %5)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @fshr_test
+define void @fshr_test(i32 %0, i32 %1, i32 %2, <8 x i32> %3, <8 x i32> %4, <8 x i32> %5) {
+  ; CHECK:   llvm.intr.fshr(%{{.*}}, %{{.*}}, %{{.*}}) : (i32, i32, i32) -> i32
+  %7 = call i32 @llvm.fshr.i32(i32 %0, i32 %1, i32 %2)
+  ; CHECK:   llvm.intr.fshr(%{{.*}}, %{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %8 = call <8 x i32> @llvm.fshr.v8i32(<8 x i32> %3, <8 x i32> %4, <8 x i32> %5)
   ret void
 }
 
@@ -247,13 +273,13 @@ define void @vector_reductions(float %0, <8 x float> %1, <8 x i32> %2) {
   %12 = call i32 @llvm.vector.reduce.umax.v8i32(<8 x i32> %2)
   ; CHECK: "llvm.intr.vector.reduce.umin"(%{{.*}}) : (vector<8xi32>) -> i32
   %13 = call i32 @llvm.vector.reduce.umin.v8i32(<8 x i32> %2)
-  ; CHECK: "llvm.intr.vector.reduce.fadd"(%{{.*}}, %{{.*}}) {reassoc = false} : (f32, vector<8xf32>) -> f32
+  ; CHECK: "llvm.intr.vector.reduce.fadd"(%{{.*}}, %{{.*}}) <{reassoc = false}> : (f32, vector<8xf32>) -> f32
   %14 = call float @llvm.vector.reduce.fadd.v8f32(float %0, <8 x float> %1)
-  ; CHECK: "llvm.intr.vector.reduce.fmul"(%{{.*}}, %{{.*}}) {reassoc = false} : (f32, vector<8xf32>) -> f32
+  ; CHECK: "llvm.intr.vector.reduce.fmul"(%{{.*}}, %{{.*}}) <{reassoc = false}> : (f32, vector<8xf32>) -> f32
   %15 = call float @llvm.vector.reduce.fmul.v8f32(float %0, <8 x float> %1)
-  ; CHECK: "llvm.intr.vector.reduce.fadd"(%{{.*}}, %{{.*}}) {reassoc = true} : (f32, vector<8xf32>) -> f32
+  ; CHECK: "llvm.intr.vector.reduce.fadd"(%{{.*}}, %{{.*}}) <{reassoc = true}> : (f32, vector<8xf32>) -> f32
   %16 = call reassoc float @llvm.vector.reduce.fadd.v8f32(float %0, <8 x float> %1)
-  ; CHECK: "llvm.intr.vector.reduce.fmul"(%{{.*}}, %{{.*}}) {reassoc = true} : (f32, vector<8xf32>) -> f32
+  ; CHECK: "llvm.intr.vector.reduce.fmul"(%{{.*}}, %{{.*}}) <{reassoc = true}> : (f32, vector<8xf32>) -> f32
   %17 = call reassoc float @llvm.vector.reduce.fmul.v8f32(float %0, <8 x float> %1)
   ; CHECK:  "llvm.intr.vector.reduce.xor"(%{{.*}}) : (vector<8xi32>) -> i32
   %18 = call i32 @llvm.vector.reduce.xor.v8i32(<8 x i32> %2)
@@ -326,6 +352,18 @@ define void @masked_expand_compress_intrinsics(ptr %0, <7 x i1> %1, <7 x float> 
   %4 = call <7 x float> @llvm.masked.expandload.v7f32(ptr %0, <7 x i1> %1, <7 x float> %2)
   ; CHECK: "llvm.intr.masked.compressstore"(%[[val1]], %{{.*}}, %{{.*}}) : (vector<7xf32>, !llvm.ptr, vector<7xi1>) -> ()
   call void @llvm.masked.compressstore.v7f32(<7 x float> %4, ptr %0, <7 x i1> %1)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @trap_intrinsics
+define void @trap_intrinsics() {
+  ; CHECK: "llvm.intr.trap"() : () -> ()
+  call void @llvm.trap()
+  ; CHECK: "llvm.intr.debugtrap"() : () -> ()
+  call void @llvm.debugtrap()
+  ; CHECK: "llvm.intr.ubsantrap"()
+  ; CHECK-SAME: failureKind = 1
+  call void @llvm.ubsantrap(i8 1)
   ret void
 }
 
@@ -665,12 +703,18 @@ declare float @llvm.pow.f32(float, float)
 declare <8 x float> @llvm.pow.v8f32(<8 x float>, <8 x float>)
 declare i32 @llvm.bitreverse.i32(i32)
 declare <8 x i32> @llvm.bitreverse.v8i32(<8 x i32>)
+declare i32 @llvm.bswap.i32(i32)
+declare <8 x i32> @llvm.bswap.v8i32(<8 x i32>)
 declare i32 @llvm.ctlz.i32(i32, i1 immarg)
 declare <8 x i32> @llvm.ctlz.v8i32(<8 x i32>, i1 immarg)
 declare i32 @llvm.cttz.i32(i32, i1 immarg)
 declare <8 x i32> @llvm.cttz.v8i32(<8 x i32>, i1 immarg)
 declare i32 @llvm.ctpop.i32(i32)
 declare <8 x i32> @llvm.ctpop.v8i32(<8 x i32>)
+declare i32 @llvm.fshl.i32(i32, i32, i32)
+declare <8 x i32> @llvm.fshl.v8i32(<8 x i32>, <8 x i32>, <8 x i32>)
+declare i32 @llvm.fshr.i32(i32, i32, i32)
+declare <8 x i32> @llvm.fshr.v8i32(<8 x i32>, <8 x i32>, <8 x i32>)
 declare float @llvm.maximum.f32(float, float)
 declare <8 x float> @llvm.maximum.v8f32(<8 x float>, <8 x float>)
 declare float @llvm.minimum.f32(float, float)
@@ -711,6 +755,9 @@ declare <7 x float> @llvm.masked.gather.v7f32.v7p0(<7 x ptr>, i32 immarg, <7 x i
 declare void @llvm.masked.scatter.v7f32.v7p0(<7 x float>, <7 x ptr>, i32 immarg, <7 x i1>)
 declare <7 x float> @llvm.masked.expandload.v7f32(ptr, <7 x i1>, <7 x float>)
 declare void @llvm.masked.compressstore.v7f32(<7 x float>, ptr, <7 x i1>)
+declare void @llvm.trap()
+declare void @llvm.debugtrap()
+declare void @llvm.ubsantrap(i8 immarg)
 declare void @llvm.memcpy.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i32, i1 immarg)
 declare void @llvm.memcpy.inline.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64 immarg, i1 immarg)
 declare void @llvm.memmove.p0.p0.i32(ptr nocapture writeonly, ptr nocapture readonly, i32, i1 immarg)

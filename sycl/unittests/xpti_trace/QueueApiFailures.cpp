@@ -459,7 +459,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
   Test(STD_EXCEPTION);
 }
 
-TEST_F(QueueApiFailures, QueueKernelAsync) {
+TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
   MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunch);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(

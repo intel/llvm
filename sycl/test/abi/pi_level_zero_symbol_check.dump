@@ -59,6 +59,7 @@ piMemRelease
 piMemRetain
 piPlatformGetInfo
 piPlatformsGet
+piPluginGetBackendOption
 piPluginGetLastError
 piPluginInit
 piProgramBuild
@@ -100,6 +101,7 @@ piextKernelSetArgPointer
 piextKernelSetArgSampler
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
+piextMemImageCreateWithNativeHandle
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextPluginGetOpaqueData

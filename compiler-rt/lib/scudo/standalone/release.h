@@ -11,10 +11,41 @@
 
 #include "common.h"
 #include "list.h"
+#include "mem_map.h"
 #include "mutex.h"
 #include "thread_annotations.h"
 
 namespace scudo {
+
+template <typename MemMapT> class RegionReleaseRecorder {
+public:
+  RegionReleaseRecorder(MemMapT *RegionMemMap, uptr Base, uptr Offset = 0)
+      : RegionMemMap(RegionMemMap), Base(Base), Offset(Offset) {}
+
+  uptr getReleasedRangesCount() const { return ReleasedRangesCount; }
+
+  uptr getReleasedBytes() const { return ReleasedBytes; }
+
+  uptr getBase() const { return Base; }
+
+  // Releases [From, To) range of pages back to OS. Note that `From` and `To`
+  // are offseted from `Base` + Offset.
+  void releasePageRangeToOS(uptr From, uptr To) {
+    const uptr Size = To - From;
+    RegionMemMap->releasePagesToOS(getBase() + Offset + From, Size);
+    ReleasedRangesCount++;
+    ReleasedBytes += Size;
+  }
+
+private:
+  uptr ReleasedRangesCount = 0;
+  uptr ReleasedBytes = 0;
+  MemMapT *RegionMemMap = nullptr;
+  uptr Base = 0;
+  // The release offset from Base. This is used when we know a given range after
+  // Base will not be released.
+  uptr Offset = 0;
+};
 
 class ReleaseRecorder {
 public:
@@ -449,8 +480,9 @@ struct PageReleaseContext {
     }
 
     uptr LastBlockInRange = roundDownSlow(ToInRegion - 1, BlockSize);
-    if (LastBlockInRange < FromInRegion)
-      return;
+
+    // Note that LastBlockInRange may be smaller than `FromInRegion` at this
+    // point because it may contain only one block in the range.
 
     // When the last block sits across `To`, we can't just mark the pages
     // occupied by the last block as all counted. Instead, we increment the
@@ -509,13 +541,18 @@ struct PageReleaseContext {
       //   last block
       const uptr RoundedRegionSize = roundUp(RegionSize, PageSize);
       const uptr TrailingBlockBase = LastBlockInRegion + BlockSize;
-      // Only the last page touched by the last block needs to mark the trailing
-      // blocks. If the difference between `RoundedRegionSize` and
+      // If the difference between `RoundedRegionSize` and
       // `TrailingBlockBase` is larger than a page, that implies the reported
       // `RegionSize` may not be accurate.
       DCHECK_LT(RoundedRegionSize - TrailingBlockBase, PageSize);
+
+      // Only the last page touched by the last block needs to mark the trailing
+      // blocks. Note that if the last "pretend" block straddles the boundary,
+      // we still have to count it in so that the logic of counting the number
+      // of blocks on a page is consistent.
       uptr NumTrailingBlocks =
-          roundUpSlow(RoundedRegionSize - TrailingBlockBase, BlockSize) /
+          (roundUpSlow(RoundedRegionSize - TrailingBlockBase, BlockSize) +
+           BlockSize - 1) /
           BlockSize;
       if (NumTrailingBlocks > 0) {
         PageMap.incN(RegionIndex, getPageIndex(TrailingBlockBase),

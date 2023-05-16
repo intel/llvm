@@ -52,6 +52,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGAddressAnalysis.h"
@@ -98,7 +99,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -1132,8 +1132,8 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SSUBO, MVT::i32, Custom);
   setOperationAction(ISD::USUBO, MVT::i32, Custom);
 
-  setOperationAction(ISD::ADDCARRY, MVT::i32, Custom);
-  setOperationAction(ISD::SUBCARRY, MVT::i32, Custom);
+  setOperationAction(ISD::UADDO_CARRY, MVT::i32, Custom);
+  setOperationAction(ISD::USUBO_CARRY, MVT::i32, Custom);
   if (Subtarget->hasDSP()) {
     setOperationAction(ISD::SADDSAT, MVT::i8, Custom);
     setOperationAction(ISD::SSUBSAT, MVT::i8, Custom);
@@ -2081,6 +2081,8 @@ ARMTargetLowering::getEffectiveCallingConv(CallingConv::ID CC,
     return CC;
   case CallingConv::PreserveMost:
     return CallingConv::PreserveMost;
+  case CallingConv::PreserveAll:
+    return CallingConv::PreserveAll;
   case CallingConv::ARM_AAPCS_VFP:
   case CallingConv::Swift:
   case CallingConv::SwiftTail:
@@ -2138,6 +2140,8 @@ CCAssignFn *ARMTargetLowering::CCAssignFnForNode(CallingConv::ID CC,
   case CallingConv::GHC:
     return (Return ? RetCC_ARM_APCS : CC_ARM_APCS_GHC);
   case CallingConv::PreserveMost:
+    return (Return ? RetCC_ARM_AAPCS : CC_ARM_AAPCS);
+  case CallingConv::PreserveAll:
     return (Return ? RetCC_ARM_AAPCS : CC_ARM_AAPCS);
   case CallingConv::CFGuard_Check:
     return (Return ? RetCC_ARM_AAPCS : CC_ARM_Win32_CFGuard_Check);
@@ -5048,7 +5052,7 @@ SDValue ARMTargetLowering::LowerUnsignedALUO(SDValue Op,
 static SDValue LowerADDSUBSAT(SDValue Op, SelectionDAG &DAG,
                               const ARMSubtarget *Subtarget) {
   EVT VT = Op.getValueType();
-  if (!Subtarget->hasV6Ops() || !Subtarget->hasDSP())
+  if (!Subtarget->hasV6Ops() || !Subtarget->hasDSP() || Subtarget->isThumb1Only())
     return SDValue();
   if (!VT.isSimple())
     return SDValue();
@@ -6884,7 +6888,7 @@ static SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) {
 
   assert(LHS.getSimpleValueType().isInteger() && "SETCCCARRY is integer only.");
 
-  // ARMISD::SUBE expects a carry not a borrow like ISD::SUBCARRY so we
+  // ARMISD::SUBE expects a carry not a borrow like ISD::USUBO_CARRY so we
   // have to invert the carry first.
   Carry = DAG.getNode(ISD::SUB, DL, MVT::i32,
                       DAG.getConstant(1, DL, MVT::i32), Carry);
@@ -9787,7 +9791,7 @@ static SDValue LowerUDIV(SDValue Op, SelectionDAG &DAG,
   return N0;
 }
 
-static SDValue LowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) {
+static SDValue LowerUADDSUBO_CARRY(SDValue Op, SelectionDAG &DAG) {
   SDNode *N = Op.getNode();
   EVT VT = N->getValueType(0);
   SDVTList VTs = DAG.getVTList(VT, MVT::i32);
@@ -9797,7 +9801,7 @@ static SDValue LowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) {
   SDLoc DL(Op);
 
   SDValue Result;
-  if (Op.getOpcode() == ISD::ADDCARRY) {
+  if (Op.getOpcode() == ISD::UADDO_CARRY) {
     // This converts the boolean value carry into the carry flag.
     Carry = ConvertBooleanCarryToCarryFlag(Carry, DAG);
 
@@ -9808,7 +9812,7 @@ static SDValue LowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) {
     // Now convert the carry flag into a boolean value.
     Carry = ConvertCarryFlagToBooleanCarry(Result.getValue(1), VT, DAG);
   } else {
-    // ARMISD::SUBE expects a carry not a borrow like ISD::SUBCARRY so we
+    // ARMISD::SUBE expects a carry not a borrow like ISD::USUBO_CARRY so we
     // have to invert the carry first.
     Carry = DAG.getNode(ISD::SUB, DL, MVT::i32,
                         DAG.getConstant(1, DL, MVT::i32), Carry);
@@ -9822,7 +9826,7 @@ static SDValue LowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) {
     // Now convert the carry flag into a boolean value.
     Carry = ConvertCarryFlagToBooleanCarry(Result.getValue(1), VT, DAG);
     // But the carry returned by ARMISD::SUBE is not a borrow as expected
-    // by ISD::SUBCARRY, so compute 1 - C.
+    // by ISD::USUBO_CARRY, so compute 1 - C.
     Carry = DAG.getNode(ISD::SUB, DL, MVT::i32,
                         DAG.getConstant(1, DL, MVT::i32), Carry);
   }
@@ -10540,8 +10544,9 @@ SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     if (Subtarget->isTargetWindows() && !Op.getValueType().isVector())
       return LowerDIV_Windows(Op, DAG, /* Signed */ false);
     return LowerUDIV(Op, DAG, Subtarget);
-  case ISD::ADDCARRY:
-  case ISD::SUBCARRY:      return LowerADDSUBCARRY(Op, DAG);
+  case ISD::UADDO_CARRY:
+  case ISD::USUBO_CARRY:
+    return LowerUADDSUBO_CARRY(Op, DAG);
   case ISD::SADDO:
   case ISD::SSUBO:
     return LowerSignedALUO(Op, DAG);
@@ -13787,6 +13792,11 @@ bool ARMTargetLowering::shouldFoldConstantShiftPairToMask(
   return false;
 }
 
+bool ARMTargetLowering::shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
+                                                             EVT VT) const {
+  return Subtarget->hasMVEIntegerOps() && isTypeLegal(VT);
+}
+
 bool ARMTargetLowering::preferIncOfAddToSubOfNot(EVT VT) const {
   if (!Subtarget->hasNEON()) {
     if (Subtarget->isThumb1Only())
@@ -16884,6 +16894,46 @@ static SDValue PerformFAddVSelectCombine(SDNode *N, SelectionDAG &DAG,
   return DAG.getNode(ISD::VSELECT, DL, VT, Op1.getOperand(0), FAdd, Op0, FaddFlags);
 }
 
+static SDValue PerformFADDVCMLACombine(SDNode *N, SelectionDAG &DAG) {
+  SDValue LHS = N->getOperand(0);
+  SDValue RHS = N->getOperand(1);
+  EVT VT = N->getValueType(0);
+  SDLoc DL(N);
+
+  if (!N->getFlags().hasAllowReassociation())
+    return SDValue();
+
+  // Combine fadd(a, vcmla(b, c, d)) -> vcmla(fadd(a, b), b, c)
+  auto ReassocComplex = [&](SDValue A, SDValue B) {
+    if (A.getOpcode() != ISD::INTRINSIC_WO_CHAIN)
+      return SDValue();
+    unsigned Opc = A.getConstantOperandVal(0);
+    if (Opc != Intrinsic::arm_mve_vcmlaq)
+      return SDValue();
+    SDValue VCMLA = DAG.getNode(
+        ISD::INTRINSIC_WO_CHAIN, DL, VT, A.getOperand(0), A.getOperand(1),
+        DAG.getNode(ISD::FADD, DL, VT, A.getOperand(2), B, N->getFlags()),
+        A.getOperand(3), A.getOperand(4));
+    VCMLA->setFlags(A->getFlags());
+    return VCMLA;
+  };
+  if (SDValue R = ReassocComplex(LHS, RHS))
+    return R;
+  if (SDValue R = ReassocComplex(RHS, LHS))
+    return R;
+
+  return SDValue();
+}
+
+static SDValue PerformFADDCombine(SDNode *N, SelectionDAG &DAG,
+                                  const ARMSubtarget *Subtarget) {
+  if (SDValue S = PerformFAddVSelectCombine(N, DAG, Subtarget))
+    return S;
+  if (SDValue S = PerformFADDVCMLACombine(N, DAG))
+    return S;
+  return SDValue();
+}
+
 /// PerformVDIVCombine - VCVT (fixed-point to floating-point, Advanced SIMD)
 /// can replace combinations of VCVT (integer to floating-point) and VDIV
 /// when the VDIV has a constant operand that is a power of 2.
@@ -18324,23 +18374,23 @@ ARMTargetLowering::PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const {
                           DAG.getConstant(5, dl, MVT::i32));
       } else {
         // CMOV 0, 1, ==, (CMPZ x, y) ->
-        //     (ADDCARRY (SUB x, y), t:0, t:1)
-        // where t = (SUBCARRY 0, (SUB x, y), 0)
+        //     (UADDO_CARRY (SUB x, y), t:0, t:1)
+        // where t = (USUBO_CARRY 0, (SUB x, y), 0)
         //
-        // The SUBCARRY computes 0 - (x - y) and this will give a borrow when
+        // The USUBO_CARRY computes 0 - (x - y) and this will give a borrow when
         // x != y. In other words, a carry C == 1 when x == y, C == 0
         // otherwise.
-        // The final ADDCARRY computes
+        // The final UADDO_CARRY computes
         //     x - y + (0 - (x - y)) + C == C
         SDValue Sub = DAG.getNode(ISD::SUB, dl, VT, LHS, RHS);
         SDVTList VTs = DAG.getVTList(VT, MVT::i32);
         SDValue Neg = DAG.getNode(ISD::USUBO, dl, VTs, FalseVal, Sub);
-        // ISD::SUBCARRY returns a borrow but we want the carry here
+        // ISD::USUBO_CARRY returns a borrow but we want the carry here
         // actually.
         SDValue Carry =
             DAG.getNode(ISD::SUB, dl, MVT::i32,
                         DAG.getConstant(1, dl, MVT::i32), Neg.getValue(1));
-        Res = DAG.getNode(ISD::ADDCARRY, dl, VTs, Sub, Neg, Carry);
+        Res = DAG.getNode(ISD::UADDO_CARRY, dl, VTs, Sub, Neg, Carry);
       }
     } else if (CC == ARMCC::NE && !isNullConstant(RHS) &&
                (!Subtarget->isThumb1Only() || isPowerOf2Constant(TrueVal))) {
@@ -18375,14 +18425,14 @@ ARMTargetLowering::PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const {
   // (z == 2 ^ K).
   // CMOV (SUBS x, y), z, !=, (SUBS x, y):1 ->
   // t1 = (USUBO (SUB x, y), 1)
-  // t2 = (SUBCARRY (SUB x, y), t1:0, t1:1)
+  // t2 = (USUBO_CARRY (SUB x, y), t1:0, t1:1)
   // Result = if K != 0 then (SHL t2:0, K) else t2:0
   //
   // This also handles the special case of comparing against zero; it's
   // essentially, the same pattern, except there's no SUBS:
   // CMOV x, z, !=, (CMPZ x, 0) ->
   // t1 = (USUBO x, 1)
-  // t2 = (SUBCARRY x, t1:0, t1:1)
+  // t2 = (USUBO_CARRY x, t1:0, t1:1)
   // Result = if K != 0 then (SHL t2:0, K) else t2:0
   const APInt *TrueConst;
   if (Subtarget->isThumb1Only() && CC == ARMCC::NE &&
@@ -18395,7 +18445,8 @@ ARMTargetLowering::PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const {
     if (ShiftAmount)
       TrueVal = DAG.getConstant(1, dl, VT);
     SDValue Subc = DAG.getNode(ISD::USUBO, dl, VTs, FalseVal, TrueVal);
-    Res = DAG.getNode(ISD::SUBCARRY, dl, VTs, FalseVal, Subc, Subc.getValue(1));
+    Res = DAG.getNode(ISD::USUBO_CARRY, dl, VTs, FalseVal, Subc,
+                      Subc.getValue(1));
 
     if (ShiftAmount)
       Res = DAG.getNode(ISD::SHL, dl, VT, Res,
@@ -18771,7 +18822,7 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::FP_TO_UINT:
     return PerformVCVTCombine(N, DCI.DAG, Subtarget);
   case ISD::FADD:
-    return PerformFAddVSelectCombine(N, DCI.DAG, Subtarget);
+    return PerformFADDCombine(N, DCI.DAG, Subtarget);
   case ISD::FDIV:
     return PerformVDIVCombine(N, DCI.DAG, Subtarget);
   case ISD::INTRINSIC_WO_CHAIN:
@@ -20307,13 +20358,7 @@ RCPair ARMTargetLowering::getRegForInlineAsmConstraint(
     case 'w':
       if (VT == MVT::Other)
         break;
-      if (VT == MVT::f16)
-        return RCPair(0U, Subtarget->hasFullFP16() ? &ARM::HPRRegClass
-                                                   : &ARM::SPRRegClass);
-      if (VT == MVT::bf16)
-        return RCPair(0U, Subtarget->hasBF16() ? &ARM::HPRRegClass
-                                               : &ARM::SPRRegClass);
-      if (VT == MVT::f32)
+      if (VT == MVT::f32 || VT == MVT::f16 || VT == MVT::bf16)
         return RCPair(0U, &ARM::SPRRegClass);
       if (VT.getSizeInBits() == 64)
         return RCPair(0U, &ARM::DPRRegClass);
@@ -20323,7 +20368,7 @@ RCPair ARMTargetLowering::getRegForInlineAsmConstraint(
     case 'x':
       if (VT == MVT::Other)
         break;
-      if (VT == MVT::f32)
+      if (VT == MVT::f32 || VT == MVT::f16 || VT == MVT::bf16)
         return RCPair(0U, &ARM::SPR_8RegClass);
       if (VT.getSizeInBits() == 64)
         return RCPair(0U, &ARM::DPR_8RegClass);
@@ -20333,13 +20378,7 @@ RCPair ARMTargetLowering::getRegForInlineAsmConstraint(
     case 't':
       if (VT == MVT::Other)
         break;
-      if (VT == MVT::f16)
-        return RCPair(0U, Subtarget->hasFullFP16() ? &ARM::HPRRegClass
-                                                   : &ARM::SPRRegClass);
-      if (VT == MVT::bf16)
-        return RCPair(0U, Subtarget->hasBF16() ? &ARM::HPRRegClass
-                                               : &ARM::SPRRegClass);
-      if (VT == MVT::f32 || VT == MVT::i32)
+      if (VT == MVT::f32 || VT == MVT::i32 || VT == MVT::f16 || VT == MVT::bf16)
         return RCPair(0U, &ARM::SPRRegClass);
       if (VT.getSizeInBits() == 64)
         return RCPair(0U, &ARM::DPR_VFP2RegClass);

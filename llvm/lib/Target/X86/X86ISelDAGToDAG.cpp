@@ -646,7 +646,7 @@ X86DAGToDAGISel::IsProfitableToFold(SDValue N, SDNode *U, SDNode *Root) const {
     case X86ISD::XOR:
     case X86ISD::OR:
     case ISD::ADD:
-    case ISD::ADDCARRY:
+    case ISD::UADDO_CARRY:
     case ISD::AND:
     case ISD::OR:
     case ISD::XOR: {
@@ -1034,18 +1034,27 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       break;
     }
     case ISD::VSELECT: {
-      // Replace VSELECT with non-mask conditions with with BLENDV.
-      if (N->getOperand(0).getValueType().getVectorElementType() == MVT::i1)
+      // Replace VSELECT with non-mask conditions with with BLENDV/VPTERNLOG.
+      EVT EleVT = N->getOperand(0).getValueType().getVectorElementType();
+      if (EleVT == MVT::i1)
         break;
 
       assert(Subtarget->hasSSE41() && "Expected SSE4.1 support!");
       assert(N->getValueType(0).getVectorElementType() != MVT::i16 &&
              "We can't replace VSELECT with BLENDV in vXi16!");
-      SDValue Blendv =
-          CurDAG->getNode(X86ISD::BLENDV, SDLoc(N), N->getValueType(0),
-                          N->getOperand(0), N->getOperand(1), N->getOperand(2));
+      SDValue R;
+      if (Subtarget->hasVLX() && CurDAG->ComputeNumSignBits(N->getOperand(0)) ==
+                                     EleVT.getSizeInBits()) {
+        R = CurDAG->getNode(X86ISD::VPTERNLOG, SDLoc(N), N->getValueType(0),
+                            N->getOperand(0), N->getOperand(1), N->getOperand(2),
+                            CurDAG->getTargetConstant(0xCA, SDLoc(N), MVT::i8));
+      } else {
+        R = CurDAG->getNode(X86ISD::BLENDV, SDLoc(N), N->getValueType(0),
+                            N->getOperand(0), N->getOperand(1),
+                            N->getOperand(2));
+      }
       --I;
-      CurDAG->ReplaceAllUsesWith(N, Blendv.getNode());
+      CurDAG->ReplaceAllUsesWith(N, R.getNode());
       ++I;
       MadeChange = true;
       continue;
@@ -1706,23 +1715,21 @@ bool X86DAGToDAGISel::matchLoadInAddress(LoadSDNode *N, X86ISelAddressMode &AM,
   // zero-extended to 64 bits and then added it to the base address, which gives
   // unwanted results when the register holds a negative value.
   // For more information see http://people.redhat.com/drepper/tls.pdf
-  if (auto *C = dyn_cast<ConstantSDNode>(Address)) {
-    if (C->getSExtValue() == 0 && AM.Segment.getNode() == nullptr &&
-        !IndirectTlsSegRefs &&
-        (Subtarget->isTargetGlibc() || Subtarget->isTargetAndroid() ||
-         Subtarget->isTargetFuchsia())) {
-      if (Subtarget->isTarget64BitILP32() && !AllowSegmentRegForX32)
-        return true;
-      switch (N->getPointerInfo().getAddrSpace()) {
-      case X86AS::GS:
-        AM.Segment = CurDAG->getRegister(X86::GS, MVT::i16);
-        return false;
-      case X86AS::FS:
-        AM.Segment = CurDAG->getRegister(X86::FS, MVT::i16);
-        return false;
+  if (isNullConstant(Address) && AM.Segment.getNode() == nullptr &&
+      !IndirectTlsSegRefs &&
+      (Subtarget->isTargetGlibc() || Subtarget->isTargetAndroid() ||
+       Subtarget->isTargetFuchsia())) {
+    if (Subtarget->isTarget64BitILP32() && !AllowSegmentRegForX32)
+      return true;
+    switch (N->getPointerInfo().getAddrSpace()) {
+    case X86AS::GS:
+      AM.Segment = CurDAG->getRegister(X86::GS, MVT::i16);
+      return false;
+    case X86AS::FS:
+      AM.Segment = CurDAG->getRegister(X86::FS, MVT::i16);
+      return false;
       // Address space X86AS::SS is not handled here, because it is not used to
       // address TLS areas.
-      }
     }
   }
 

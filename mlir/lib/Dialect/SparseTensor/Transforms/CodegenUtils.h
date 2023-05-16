@@ -75,11 +75,16 @@ StringRef primaryTypeFunctionSuffix(Type elemTp);
 /// Add type casting between arith and index types when needed.
 Value genCast(OpBuilder &builder, Location loc, Value value, Type dstTy);
 
+/// Generates a pointer/index load from the sparse storage scheme. Narrower
+/// data types need to be zero extended before casting the value into the
+/// index type used for looping and indexing.
+Value genIndexLoad(OpBuilder &builder, Location loc, Value mem, Value s);
+
 /// Generates a 1-valued attribute of the given type.  This supports
 /// all the same types as `getZeroAttr`; however, unlike `getZeroAttr`,
 /// for unsupported types we raise `llvm_unreachable` rather than
 /// returning a null attribute.
-Attribute getOneAttr(Builder &builder, Type tp);
+TypedAttr getOneAttr(Builder &builder, Type tp);
 
 /// Generates the comparison `v != 0` where `v` is of numeric type.
 /// For floating types, we use the "unordered" comparator (i.e., returns
@@ -89,7 +94,7 @@ Value genIsNonzero(OpBuilder &builder, Location loc, Value v);
 /// Computes the shape of destination tensor of a reshape operator. This is only
 /// used when operands have dynamic shape. The shape of the destination is
 /// stored into dstShape.
-void genReshapeDstShape(Location loc, PatternRewriter &rewriter,
+void genReshapeDstShape(OpBuilder &builder, Location loc,
                         SmallVectorImpl<Value> &dstShape,
                         ArrayRef<Value> srcShape,
                         ArrayRef<StaticSize> staticDstShape,
@@ -116,7 +121,8 @@ func::CallOp createFuncCall(OpBuilder &builder, Location loc, StringRef name,
 
 /// Returns the equivalent of `void*` for opaque arguments to the
 /// execution engine.
-Type getOpaquePointerType(OpBuilder &builder);
+Type getOpaquePointerType(MLIRContext *ctx);
+Type getOpaquePointerType(Builder &builder);
 
 /// Generates an uninitialized temporary buffer of the given size and
 /// type, but returns it as type `memref<? x $tp>` (rather than as type
@@ -211,8 +217,8 @@ Operation *getTop(Operation *op);
 /// %v3 = complex.constant (5.0, 6.0)
 /// callback({%c3}, %v3)
 void foreachInSparseConstant(
-    Location loc, RewriterBase &rewriter, SparseElementsAttr attr,
-    AffineMap order, function_ref<void(ArrayRef<Value>, Value)> callback);
+    OpBuilder &builder, Location loc, SparseElementsAttr attr, AffineMap order,
+    function_ref<void(ArrayRef<Value>, Value)> callback);
 
 /// Loads `size`-many values from the memref, which must have rank-1 and
 /// size greater-or-equal to `size`.  If the optional `(offsetIdx,offsetVal)`

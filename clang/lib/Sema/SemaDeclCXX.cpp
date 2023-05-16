@@ -34,6 +34,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/CXXFieldCollector.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedTemplate.h"
@@ -41,9 +42,9 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include <map>
 #include <optional>
@@ -761,7 +762,7 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
   // C++20 [dcl.dcl]/8:
   //   If decl-specifier-seq contains any decl-specifier other than static,
   //   thread_local, auto, or cv-qualifiers, the program is ill-formed.
-  // C++2b [dcl.pre]/6:
+  // C++23 [dcl.pre]/6:
   //   Each decl-specifier in the decl-specifier-seq shall be static,
   //   thread_local, auto (9.2.9.6 [dcl.spec.auto]), or a cv-qualifier.
   auto &DS = D.getDeclSpec();
@@ -1712,8 +1713,6 @@ static bool CheckConstexprDestructorSubobjects(Sema &SemaRef,
 
 /// Check whether a function's parameter types are all literal types. If so,
 /// return true. If not, produce a suitable diagnostic and return false.
-/// If any ParamDecl is null, return false without producing a diagnostic.
-/// The code creating null parameters is responsible for producing a diagnostic.
 static bool CheckConstexprParameterTypes(Sema &SemaRef,
                                          const FunctionDecl *FD,
                                          Sema::CheckConstexprKind Kind) {
@@ -1723,8 +1722,7 @@ static bool CheckConstexprParameterTypes(Sema &SemaRef,
                                               e = FT->param_type_end();
        i != e; ++i, ++ArgIndex) {
     const ParmVarDecl *PD = FD->getParamDecl(ArgIndex);
-    if (!PD)
-      return false;
+    assert(PD && "null in a parameter list");
     SourceLocation ParamLoc = PD->getLocation();
     if (CheckLiteralType(SemaRef, Kind, ParamLoc, *i,
                          diag::err_constexpr_non_literal_param, ArgIndex + 1,
@@ -1930,16 +1928,16 @@ static bool CheckConstexprDeclStmt(Sema &SemaRef, const FunctionDecl *Dcl,
         if (VD->isStaticLocal()) {
           if (Kind == Sema::CheckConstexprKind::Diagnose) {
             SemaRef.Diag(VD->getLocation(),
-                         SemaRef.getLangOpts().CPlusPlus2b
+                         SemaRef.getLangOpts().CPlusPlus23
                              ? diag::warn_cxx20_compat_constexpr_var
                              : diag::ext_constexpr_static_var)
                 << isa<CXXConstructorDecl>(Dcl)
                 << (VD->getTLSKind() == VarDecl::TLS_Dynamic);
-          } else if (!SemaRef.getLangOpts().CPlusPlus2b) {
+          } else if (!SemaRef.getLangOpts().CPlusPlus23) {
             return false;
           }
         }
-        if (SemaRef.LangOpts.CPlusPlus2b) {
+        if (SemaRef.LangOpts.CPlusPlus23) {
           CheckLiteralType(SemaRef, Kind, VD->getLocation(), VD->getType(),
                            diag::warn_cxx20_compat_constexpr_var,
                            isa<CXXConstructorDecl>(Dcl),
@@ -2278,15 +2276,15 @@ static bool CheckConstexprFunctionBody(Sema &SemaRef, const FunctionDecl *Dcl,
   if (Kind == Sema::CheckConstexprKind::CheckValid) {
     // If this is only valid as an extension, report that we don't satisfy the
     // constraints of the current language.
-    if ((Cxx2bLoc.isValid() && !SemaRef.getLangOpts().CPlusPlus2b) ||
+    if ((Cxx2bLoc.isValid() && !SemaRef.getLangOpts().CPlusPlus23) ||
         (Cxx2aLoc.isValid() && !SemaRef.getLangOpts().CPlusPlus20) ||
         (Cxx1yLoc.isValid() && !SemaRef.getLangOpts().CPlusPlus17))
       return false;
   } else if (Cxx2bLoc.isValid()) {
     SemaRef.Diag(Cxx2bLoc,
-                 SemaRef.getLangOpts().CPlusPlus2b
+                 SemaRef.getLangOpts().CPlusPlus23
                      ? diag::warn_cxx20_compat_constexpr_body_invalid_stmt
-                     : diag::ext_constexpr_body_invalid_stmt_cxx2b)
+                     : diag::ext_constexpr_body_invalid_stmt_cxx23)
         << isa<CXXConstructorDecl>(Dcl);
   } else if (Cxx2aLoc.isValid()) {
     SemaRef.Diag(Cxx2aLoc,
@@ -3253,16 +3251,6 @@ static bool InitializationHasSideEffects(const FieldDecl &FD) {
   return false;
 }
 
-static const ParsedAttr *getMSPropertyAttr(const ParsedAttributesView &list) {
-  ParsedAttributesView::const_iterator Itr =
-      llvm::find_if(list, [](const ParsedAttr &AL) {
-        return AL.isDeclspecPropertyAttribute();
-      });
-  if (Itr != list.end())
-    return &*Itr;
-  return nullptr;
-}
-
 // Check if there is a field shadowing.
 void Sema::CheckShadowInheritedFields(const SourceLocation &Loc,
                                       DeclarationName FieldName,
@@ -3340,7 +3328,7 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
 
   bool isFunc = D.isDeclarationOfFunction();
   const ParsedAttr *MSPropertyAttr =
-      getMSPropertyAttr(D.getDeclSpec().getAttributes());
+      D.getDeclSpec().getAttributes().getMSPropertyAttr();
 
   if (cast<CXXRecordDecl>(CurContext)->isInterface()) {
     // The Microsoft extension __interface only permits public member functions
@@ -3598,12 +3586,12 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
   }
 
   if (VS.isOverrideSpecified())
-    Member->addAttr(OverrideAttr::Create(Context, VS.getOverrideLoc(),
-                                         AttributeCommonInfo::AS_Keyword));
+    Member->addAttr(OverrideAttr::Create(Context, VS.getOverrideLoc()));
   if (VS.isFinalSpecified())
-    Member->addAttr(FinalAttr::Create(
-        Context, VS.getFinalLoc(), AttributeCommonInfo::AS_Keyword,
-        static_cast<FinalAttr::Spelling>(VS.isFinalSpelledSealed())));
+    Member->addAttr(FinalAttr::Create(Context, VS.getFinalLoc(),
+                                      VS.isFinalSpelledSealed()
+                                          ? FinalAttr::Keyword_sealed
+                                          : FinalAttr::Keyword_final));
 
   if (VS.getLastLocation().isValid()) {
     // Update the end location of a method that has a virt-specifiers.
@@ -4030,7 +4018,7 @@ namespace {
     }
 
     llvm::SmallPtrSet<QualType, 4> UninitializedBaseClasses;
-    for (auto I : RD->bases())
+    for (const auto &I : RD->bases())
       UninitializedBaseClasses.insert(I.getType().getCanonicalType());
 
     if (UninitializedFields.empty() && UninitializedBaseClasses.empty())
@@ -7817,6 +7805,10 @@ protected:
 
     //   followed by the non-static data members of C
     for (FieldDecl *Field : Record->fields()) {
+      // C++23 [class.bit]p2:
+      //   Unnamed bit-fields are not members ...
+      if (Field->isUnnamedBitfield())
+        continue;
       // Recursively expand anonymous structs.
       if (Field->isAnonymousStructOrUnion()) {
         if (visitSubobjects(Results, Field->getType()->getAsCXXRecordDecl(),
@@ -8867,12 +8859,25 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
   //   the requirements for a constexpr function [...]
   // The only relevant requirements are that the parameter and return types are
   // literal types. The remaining conditions are checked by the analyzer.
+  //
+  // We support P2448R2 in language modes earlier than C++23 as an extension.
+  // The concept of constexpr-compatible was removed.
+  // C++23 [dcl.fct.def.default]p3 [P2448R2]
+  //  A function explicitly defaulted on its first declaration is implicitly
+  //  inline, and is implicitly constexpr if it is constexpr-suitable.
+  // C++23 [dcl.constexpr]p3
+  //   A function is constexpr-suitable if
+  //    - it is not a coroutine, and
+  //    - if the function is a constructor or destructor, its class does not
+  //      have any virtual base classes.
   if (FD->isConstexpr()) {
     if (CheckConstexprReturnType(*this, FD, CheckConstexprKind::Diagnose) &&
         CheckConstexprParameterTypes(*this, FD, CheckConstexprKind::Diagnose) &&
         !Info.Constexpr) {
       Diag(FD->getBeginLoc(),
-           diag::err_incorrect_defaulted_comparison_constexpr)
+           getLangOpts().CPlusPlus23
+               ? diag::warn_cxx23_compat_defaulted_comparison_constexpr_mismatch
+               : diag::ext_defaulted_comparison_constexpr_mismatch)
           << FD->isImplicit() << (int)DCK << FD->isConsteval();
       DefaultedComparisonAnalyzer(*this, RD, FD, DCK,
                                   DefaultedComparisonAnalyzer::ExplainConstexpr)
@@ -15713,9 +15718,6 @@ Sema::BuildCXXConstructExpr(SourceLocation ConstructLoc, QualType DeclInitType,
   MarkFunctionReferenced(ConstructLoc, Constructor);
   if (getLangOpts().CUDA && !CheckCUDACall(ConstructLoc, Constructor))
     return ExprError();
-  if (getLangOpts().SYCLIsDevice &&
-      !checkSYCLDeviceFunction(ConstructLoc, Constructor))
-    return ExprError();
 
   return CheckForImmediateInvocation(
       CXXConstructExpr::Create(
@@ -15773,7 +15775,8 @@ void Sema::FinalizeVarWithDestructor(VarDecl *VD, const RecordType *Record) {
     }
   }
 
-  if (!VD->hasGlobalStorage()) return;
+  if (!VD->hasGlobalStorage() || !VD->needsDestruction(Context))
+    return;
 
   // Emit warning for non-trivial dtor in global scope (a real global,
   // class-static, function-static).
@@ -16030,7 +16033,7 @@ bool Sema::CheckOverloadedOperatorDeclaration(FunctionDecl *FnDecl) {
     if (MethodDecl->isStatic()) {
       if (Op == OO_Call || Op == OO_Subscript)
         Diag(FnDecl->getLocation(),
-             (LangOpts.CPlusPlus2b
+             (LangOpts.CPlusPlus23
                   ? diag::warn_cxx20_compat_operator_overload_static
                   : diag::ext_operator_overload_static))
             << FnDecl;
@@ -16071,7 +16074,7 @@ bool Sema::CheckOverloadedOperatorDeclaration(FunctionDecl *FnDecl) {
     }
     if (FirstDefaultedParam) {
       if (Op == OO_Subscript) {
-        Diag(FnDecl->getLocation(), LangOpts.CPlusPlus2b
+        Diag(FnDecl->getLocation(), LangOpts.CPlusPlus23
                                         ? diag::ext_subscript_overload
                                         : diag::error_subscript_overload)
             << FnDecl->getDeclName() << 1
@@ -16122,7 +16125,7 @@ bool Sema::CheckOverloadedOperatorDeclaration(FunctionDecl *FnDecl) {
   }
 
   if (Op == OO_Subscript && NumParams != 2) {
-    Diag(FnDecl->getLocation(), LangOpts.CPlusPlus2b
+    Diag(FnDecl->getLocation(), LangOpts.CPlusPlus23
                                     ? diag::ext_subscript_overload
                                     : diag::error_subscript_overload)
         << FnDecl->getDeclName() << (NumParams == 1 ? 0 : 2);
@@ -16777,7 +16780,8 @@ static bool UsefulToPrintExpr(const Expr *E) {
 /// Try to print more useful information about a failed static_assert
 /// with expression \E
 void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
-  if (const auto *Op = dyn_cast<BinaryOperator>(E)) {
+  if (const auto *Op = dyn_cast<BinaryOperator>(E);
+      Op && Op->getOpcode() != BO_LOr) {
     const Expr *LHS = Op->getLHS()->IgnoreParenImpCasts();
     const Expr *RHS = Op->getRHS()->IgnoreParenImpCasts();
 
@@ -16878,19 +16882,20 @@ Decl *Sema::BuildStaticAssertDeclaration(SourceLocation StaticAssertLoc,
       if (InnerCond && isa<ConceptSpecializationExpr>(InnerCond)) {
         // Drill down into concept specialization expressions to see why they
         // weren't satisfied.
-        Diag(StaticAssertLoc, diag::err_static_assert_failed)
-          << !AssertMessage << Msg.str() << AssertExpr->getSourceRange();
+        Diag(AssertExpr->getBeginLoc(), diag::err_static_assert_failed)
+            << !AssertMessage << Msg.str() << AssertExpr->getSourceRange();
         ConstraintSatisfaction Satisfaction;
         if (!CheckConstraintSatisfaction(InnerCond, Satisfaction))
           DiagnoseUnsatisfiedConstraint(Satisfaction);
       } else if (InnerCond && !isa<CXXBoolLiteralExpr>(InnerCond)
                            && !isa<IntegerLiteral>(InnerCond)) {
-        Diag(StaticAssertLoc, diag::err_static_assert_requirement_failed)
-          << InnerCondDescription << !AssertMessage
-          << Msg.str() << InnerCond->getSourceRange();
+        Diag(InnerCond->getBeginLoc(),
+             diag::err_static_assert_requirement_failed)
+            << InnerCondDescription << !AssertMessage << Msg.str()
+            << InnerCond->getSourceRange();
         DiagnoseStaticAssertDetails(InnerCond);
       } else {
-        Diag(StaticAssertLoc, diag::err_static_assert_failed)
+        Diag(AssertExpr->getBeginLoc(), diag::err_static_assert_failed)
             << !AssertMessage << Msg.str() << AssertExpr->getSourceRange();
         PrintContextStack();
       }

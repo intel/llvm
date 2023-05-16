@@ -195,7 +195,7 @@ static mlir::LogicalResult verifyConstantForType(mlir::Type type,
 
     // Check that the rank of the attribute type matches the rank of the
     // constant result type.
-    auto attrType = attrValue.getType().cast<mlir::TensorType>();
+    auto attrType = attrValue.getType().cast<mlir::RankedTensorType>();
     if (attrType.getRank() != resultType.getRank()) {
       return op->emitOpError("return type must match the one of the attached "
                              "value attribute: ")
@@ -365,6 +365,12 @@ void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 /// call interface.
 CallInterfaceCallable GenericCallOp::getCallableForCallee() {
   return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+}
+
+/// Set the callee for the generic call operation, this is required by the call
+/// interface.
+void GenericCallOp::setCalleeFromCallable(CallInterfaceCallable callee) {
+  (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
 }
 
 /// Get the argument operands to the called function, this is required by the

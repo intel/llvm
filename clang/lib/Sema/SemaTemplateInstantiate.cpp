@@ -26,6 +26,7 @@
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
@@ -1372,7 +1373,8 @@ namespace {
 
       CXXMethodDecl *MD = Result.getAs<LambdaExpr>()->getCallOperator();
       for (ParmVarDecl *PVD : MD->parameters()) {
-        if (!PVD || !PVD->hasDefaultArg())
+        assert(PVD && "null in a parameter list");
+        if (!PVD->hasDefaultArg())
           continue;
         Expr *UninstExpr = PVD->getUninstantiatedDefaultArg();
         // FIXME: Obtain the source location for the '=' token.

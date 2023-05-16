@@ -18,10 +18,11 @@ transform.sequence failures(propagate) {
   %1, %loops:3 = transform.structured.tile %0 [2, 2, 2] : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation, !pdl.operation)
   %2 = get_closest_isolated_parent %1 : (!pdl.operation) -> !pdl.operation
   transform.structured.vectorize %2
-  transform.bufferization.one_shot_bufferize layout{IdentityLayoutMap} %module_op
-    {bufferize_function_boundaries = true}
+  %b = transform.bufferization.one_shot_bufferize layout{IdentityLayoutMap}
+      %module_op {bufferize_function_boundaries = true}
+      : (!pdl.operation) -> !pdl.operation
 
-  %f = transform.structured.match ops{["func.func"]} in %module_op 
+  %f = transform.structured.match ops{["func.func"]} in %b
     : (!pdl.operation) -> !pdl.operation
 
   // TODO: group these lower-level controls into various properly named vector
@@ -53,6 +54,6 @@ transform.sequence failures(propagate) {
     : (!pdl.operation) -> !pdl.operation
 
   %func_8 = transform.vector.lower_transpose %func_7
-    lowering_strategy = "shuffle"
+    lowering_strategy = "shuffle_1d"
       : (!pdl.operation) -> !pdl.operation
 }

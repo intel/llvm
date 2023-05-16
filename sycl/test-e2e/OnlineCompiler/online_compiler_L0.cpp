@@ -1,8 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit, cm-compiler
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DRUN_KERNELS %level_zero_options %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -DRUN_KERNELS %level_zero_options -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks ext::intel feature class online_compiler for Level-Zero.
 // All Level-Zero specific code is kept here and the common part that can be
@@ -56,9 +55,21 @@ sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
       sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
                                sycl::bundle_state::executable>(
           {ZeModule, sycl::ext::oneapi::level_zero::ownership::keep}, Context);
-  return sycl::make_kernel<sycl::backend::ext_oneapi_level_zero>(
+
+  auto Kernel = sycl::make_kernel<sycl::backend::ext_oneapi_level_zero>(
       {SyclKB, ZeKernel, sycl::ext::oneapi::level_zero::ownership::keep},
       Context);
+
+  // Should not throw an exception
+  try {
+    auto num_args = Kernel.get_info<sycl::info::kernel::num_args>();
+    (void)num_args;
+  } catch (sycl::exception &e) {
+    assert(false && "Using \"info::kernel::num_args\" query for valid kernel "
+                    "should not throw an exception.");
+  }
+
+  return Kernel;
 }
 #endif // RUN_KERNELS
 

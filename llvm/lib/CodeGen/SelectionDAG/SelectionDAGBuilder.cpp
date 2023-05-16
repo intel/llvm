@@ -1405,6 +1405,17 @@ void SelectionDAGBuilder::salvageUnresolvedDbgValue(DanglingDebugInfo &DDI) {
                     << "\n");
 }
 
+void SelectionDAGBuilder::handleKillDebugValue(DILocalVariable *Var,
+                                               DIExpression *Expr,
+                                               DebugLoc DbgLoc,
+                                               unsigned Order) {
+  Value *Poison = PoisonValue::get(Type::getInt1Ty(*Context));
+  DIExpression *NewExpr =
+      const_cast<DIExpression *>(DIExpression::convertToUndefExpression(Expr));
+  handleDebugValue(Poison, Var, NewExpr, DbgLoc, Order,
+                   /*IsVariadic*/ false);
+}
+
 bool SelectionDAGBuilder::handleDebugValue(ArrayRef<const Value *> Values,
                                            DILocalVariable *Var,
                                            DIExpression *Expr, DebugLoc DbgLoc,
@@ -6114,12 +6125,14 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     return;
   }
   case Intrinsic::dbg_declare: {
+    const auto &DI = cast<DbgDeclareInst>(I);
     // Debug intrinsics are handled separately in assignment tracking mode.
-    if (AssignmentTrackingEnabled)
+    // Some intrinsics are handled right after Argument lowering.
+    if (AssignmentTrackingEnabled ||
+        FuncInfo.PreprocessedDbgDeclares.count(&DI))
       return;
     // Assume dbg.declare can not currently use DIArgList, i.e.
     // it is non-variadic.
-    const auto &DI = cast<DbgVariableIntrinsic>(I);
     assert(!DI.hasArgList() && "Only dbg.value should currently use DIArgList");
     DILocalVariable *Variable = DI.getVariable();
     DIExpression *Expression = DI.getExpression();
@@ -6137,29 +6150,6 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     }
 
     bool isParameter = Variable->isParameter() || isa<Argument>(Address);
-
-    // Check if this variable can be described by a frame index, typically
-    // either as a static alloca or a byval parameter.
-    int FI = std::numeric_limits<int>::max();
-    if (const auto *AI =
-            dyn_cast<AllocaInst>(Address->stripInBoundsConstantOffsets())) {
-      if (AI->isStaticAlloca()) {
-        auto I = FuncInfo.StaticAllocaMap.find(AI);
-        if (I != FuncInfo.StaticAllocaMap.end())
-          FI = I->second;
-      }
-    } else if (const auto *Arg = dyn_cast<Argument>(
-                   Address->stripInBoundsConstantOffsets())) {
-      FI = FuncInfo.getArgumentFrameIndex(Arg);
-    }
-
-    // llvm.dbg.declare is handled as a frame index in the MachineFunction
-    // variable table.
-    if (FI != std::numeric_limits<int>::max()) {
-      LLVM_DEBUG(dbgs() << "Skipping " << DI
-                        << " (variable info stashed in MF side table)\n");
-      return;
-    }
 
     SDValue &N = NodeMap[Address];
     if (!N.getNode() && isa<Argument>(Address))
@@ -6210,9 +6200,11 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
   }
   case Intrinsic::dbg_assign: {
     // Debug intrinsics are handled seperately in assignment tracking mode.
-    assert(AssignmentTrackingEnabled &&
-           "expected assignment tracking to be enabled");
-    return;
+    if (AssignmentTrackingEnabled)
+      return;
+    // If assignment tracking hasn't been enabled then fall through and treat
+    // the dbg.assign as a dbg.value.
+    [[fallthrough]];
   }
   case Intrinsic::dbg_value: {
     // Debug intrinsics are handled seperately in assignment tracking mode.
@@ -6224,11 +6216,14 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     DILocalVariable *Variable = DI.getVariable();
     DIExpression *Expression = DI.getExpression();
     dropDanglingDebugInfo(Variable, Expression);
+
+    if (DI.isKillLocation()) {
+      handleKillDebugValue(Variable, Expression, DI.getDebugLoc(), SDNodeOrder);
+      return;
+    }
+
     SmallVector<Value *, 4> Values(DI.getValues());
     if (Values.empty())
-      return;
-
-    if (llvm::is_contained(Values, nullptr))
       return;
 
     bool IsVariadic = DI.hasArgList();
@@ -7033,6 +7028,8 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     llvm_unreachable("instrprof failed to lower a cover");
   case Intrinsic::instrprof_increment:
     llvm_unreachable("instrprof failed to lower an increment");
+  case Intrinsic::instrprof_timestamp:
+    llvm_unreachable("instrprof failed to lower a timestamp");
   case Intrinsic::instrprof_value_profile:
     llvm_unreachable("instrprof failed to lower a value profiling call");
   case Intrinsic::localescape: {
@@ -7494,21 +7491,21 @@ static unsigned getISDForVPIntrinsic(const VPIntrinsic &VPIntrin) {
   return *ResOPC;
 }
 
-void SelectionDAGBuilder::visitVPLoad(const VPIntrinsic &VPIntrin, EVT VT,
-                                      SmallVector<SDValue, 7> &OpValues) {
+void SelectionDAGBuilder::visitVPLoad(
+    const VPIntrinsic &VPIntrin, EVT VT,
+    const SmallVectorImpl<SDValue> &OpValues) {
   SDLoc DL = getCurSDLoc();
   Value *PtrOperand = VPIntrin.getArgOperand(0);
   MaybeAlign Alignment = VPIntrin.getPointerAlignment();
   AAMDNodes AAInfo = VPIntrin.getAAMetadata();
   const MDNode *Ranges = VPIntrin.getMetadata(LLVMContext::MD_range);
   SDValue LD;
-  bool AddToChain = true;
   // Do not serialize variable-length loads of constant memory with
   // anything.
   if (!Alignment)
     Alignment = DAG.getEVTAlign(VT);
   MemoryLocation ML = MemoryLocation::getAfter(PtrOperand, AAInfo);
-  AddToChain = !AA || !AA->pointsToConstantMemory(ML);
+  bool AddToChain = !AA || !AA->pointsToConstantMemory(ML);
   SDValue InChain = AddToChain ? DAG.getRoot() : DAG.getEntryNode();
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
       MachinePointerInfo(PtrOperand), MachineMemOperand::MOLoad,
@@ -7520,8 +7517,9 @@ void SelectionDAGBuilder::visitVPLoad(const VPIntrinsic &VPIntrin, EVT VT,
   setValue(&VPIntrin, LD);
 }
 
-void SelectionDAGBuilder::visitVPGather(const VPIntrinsic &VPIntrin, EVT VT,
-                                        SmallVector<SDValue, 7> &OpValues) {
+void SelectionDAGBuilder::visitVPGather(
+    const VPIntrinsic &VPIntrin, EVT VT,
+    const SmallVectorImpl<SDValue> &OpValues) {
   SDLoc DL = getCurSDLoc();
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   Value *PtrOperand = VPIntrin.getArgOperand(0);
@@ -7561,8 +7559,8 @@ void SelectionDAGBuilder::visitVPGather(const VPIntrinsic &VPIntrin, EVT VT,
   setValue(&VPIntrin, LD);
 }
 
-void SelectionDAGBuilder::visitVPStore(const VPIntrinsic &VPIntrin,
-                                       SmallVector<SDValue, 7> &OpValues) {
+void SelectionDAGBuilder::visitVPStore(
+    const VPIntrinsic &VPIntrin, const SmallVectorImpl<SDValue> &OpValues) {
   SDLoc DL = getCurSDLoc();
   Value *PtrOperand = VPIntrin.getArgOperand(1);
   EVT VT = OpValues[0].getValueType();
@@ -7583,8 +7581,8 @@ void SelectionDAGBuilder::visitVPStore(const VPIntrinsic &VPIntrin,
   setValue(&VPIntrin, ST);
 }
 
-void SelectionDAGBuilder::visitVPScatter(const VPIntrinsic &VPIntrin,
-                                              SmallVector<SDValue, 7> &OpValues) {
+void SelectionDAGBuilder::visitVPScatter(
+    const VPIntrinsic &VPIntrin, const SmallVectorImpl<SDValue> &OpValues) {
   SDLoc DL = getCurSDLoc();
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   Value *PtrOperand = VPIntrin.getArgOperand(1);
@@ -7626,7 +7624,8 @@ void SelectionDAGBuilder::visitVPScatter(const VPIntrinsic &VPIntrin,
 }
 
 void SelectionDAGBuilder::visitVPStridedLoad(
-    const VPIntrinsic &VPIntrin, EVT VT, SmallVectorImpl<SDValue> &OpValues) {
+    const VPIntrinsic &VPIntrin, EVT VT,
+    const SmallVectorImpl<SDValue> &OpValues) {
   SDLoc DL = getCurSDLoc();
   Value *PtrOperand = VPIntrin.getArgOperand(0);
   MaybeAlign Alignment = VPIntrin.getPointerAlignment();
@@ -7651,7 +7650,7 @@ void SelectionDAGBuilder::visitVPStridedLoad(
 }
 
 void SelectionDAGBuilder::visitVPStridedStore(
-    const VPIntrinsic &VPIntrin, SmallVectorImpl<SDValue> &OpValues) {
+    const VPIntrinsic &VPIntrin, const SmallVectorImpl<SDValue> &OpValues) {
   SDLoc DL = getCurSDLoc();
   Value *PtrOperand = VPIntrin.getArgOperand(1);
   EVT VT = OpValues[0].getValueType();
@@ -11603,7 +11602,6 @@ void SelectionDAGBuilder::visitVectorDeinterleave(const CallInst &I) {
   SDValue Res = DAG.getNode(ISD::VECTOR_DEINTERLEAVE, DL,
                             DAG.getVTList(OutVT, OutVT), Lo, Hi);
   setValue(&I, Res);
-  return;
 }
 
 void SelectionDAGBuilder::visitVectorInterleave(const CallInst &I) {
@@ -11629,7 +11627,6 @@ void SelectionDAGBuilder::visitVectorInterleave(const CallInst &I) {
   Res = DAG.getNode(ISD::CONCAT_VECTORS, DL, OutVT, Res.getValue(0),
                     Res.getValue(1));
   setValue(&I, Res);
-  return;
 }
 
 void SelectionDAGBuilder::visitFreeze(const FreezeInst &I) {

@@ -80,6 +80,7 @@ enum SPIRVExtInstSetKind {
   SPIRVEIS_OpenCL_DebugInfo_100,
   SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
   SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+  SPIRVEIS_NonSemantic_AuxData,
   SPIRVEIS_Count,
 };
 
@@ -135,6 +136,7 @@ template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
       "NonSemantic.Shader.DebugInfo.100");
   add(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
       "NonSemantic.Shader.DebugInfo.200");
+  add(SPIRVEIS_NonSemantic_AuxData, "NonSemantic.AuxData");
 }
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string> SPIRVBuiltinSetNameMap;
 

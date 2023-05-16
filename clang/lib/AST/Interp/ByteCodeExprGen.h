@@ -181,8 +181,11 @@ protected:
     return this->emitPopPtr(I);
   }
 
+  bool visitConditional(const AbstractConditionalOperator *E,
+                        llvm::function_ref<bool(const Expr *)> V);
+
   /// Creates a local primitive value.
-  unsigned allocateLocalPrimitive(DeclTy &&Decl, PrimType Ty, bool IsMutable,
+  unsigned allocateLocalPrimitive(DeclTy &&Decl, PrimType Ty, bool IsConst,
                                   bool IsExtended = false);
 
   /// Allocates a space storing a local given its type.
@@ -198,7 +201,7 @@ private:
   friend class ArrayIndexScope<Emitter>;
 
   /// Emits a zero initializer.
-  bool visitZeroInitializer(PrimType T, const Expr *E);
+  bool visitZeroInitializer(QualType QT, const Expr *E);
 
   enum class DerefKind {
     /// Value is read and pushed to stack.
@@ -224,9 +227,9 @@ private:
                       llvm::function_ref<bool(PrimType)> Indirect);
 
   /// Emits an APSInt constant.
-  bool emitConst(const APSInt &Value, const Expr *E);
-  bool emitConst(const APInt &Value, const Expr *E) {
-    return emitConst(static_cast<APSInt>(Value), E);
+  bool emitConst(const llvm::APSInt &Value, const Expr *E);
+  bool emitConst(const llvm::APInt &Value, const Expr *E) {
+    return emitConst(static_cast<llvm::APSInt>(Value), E);
   }
 
   /// Emits an integer constant.

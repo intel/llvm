@@ -226,7 +226,7 @@ ENUM_CLASS(ArgFlag, none,
     defaultsToSameKind, // for MatchingDefaultKIND
     defaultsToSizeKind, // for SizeDefaultKIND
     defaultsToDefaultForResult, // for DefaultingKIND
-)
+    notAssumedSize)
 
 struct IntrinsicDummyArgument {
   const char *keyword{nullptr};
@@ -685,8 +685,10 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             common::Intent::In, {ArgFlag::canBeNull}}},
         SameCharNoLen, Rank::scalar, IntrinsicClass::inquiryFunction},
     {"nint", {{"a", AnyReal}, DefaultingKIND}, KINDInt},
-    {"norm2", {{"x", SameReal, Rank::array}, OptionalDIM}, SameReal,
+    {"norm2", {{"x", SameReal, Rank::array}, RequiredDIM}, SameReal,
         Rank::dimReduced, IntrinsicClass::transformationalFunction},
+    {"norm2", {{"x", SameReal, Rank::array}, MissingDIM}, SameReal,
+        Rank::scalar, IntrinsicClass::transformationalFunction},
     {"not", {{"i", SameInt}}, SameInt},
     // NULL() is a special case handled in Probe() below
     {"num_images", {}, DefaultInt, Rank::scalar,
@@ -811,8 +813,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         Rank::scalar, IntrinsicClass::inquiryFunction},
     {"spacing", {{"x", SameReal}}, SameReal},
     {"spread",
-        {{"source", SameType, Rank::known}, RequiredDIM,
-            {"ncopies", AnyInt, Rank::scalar}},
+        {{"source", SameType, Rank::known, Optionality::required,
+             common::Intent::In, {ArgFlag::notAssumedSize}},
+            RequiredDIM, {"ncopies", AnyInt, Rank::scalar}},
         SameType, Rank::rankPlus1, IntrinsicClass::transformationalFunction},
     {"sqrt", {{"x", SameFloating}}, SameFloating},
     {"stopped_images", {OptionalTEAM, SizeDefaultKIND}, KINDInt, Rank::vector,
@@ -1364,7 +1367,7 @@ static const IntrinsicInterface intrinsicSubroutine[]{
         {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"random_number",
         {{"harvest", AnyReal, Rank::known, Optionality::required,
-            common::Intent::Out}},
+            common::Intent::Out, {ArgFlag::notAssumedSize}}},
         {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"random_seed",
         {{"size", DefaultInt, Rank::scalar, Optionality::optional,
@@ -1654,9 +1657,9 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
           // max(a1=x) or max(a2=x)
           const auto kwA1{dummy[0].keyword};
           const auto kwA2{dummy[1].keyword};
-          if (maxMinKeywords.begin()->ToString().compare(kwA1) == 0) {
+          if (maxMinKeywords.begin()->ToString() == kwA1) {
             messages.Say("missing mandatory 'a2=' argument"_err_en_US);
-          } else if (maxMinKeywords.begin()->ToString().compare(kwA2) == 0) {
+          } else if (maxMinKeywords.begin()->ToString() == kwA2) {
             messages.Say("missing mandatory 'a1=' argument"_err_en_US);
           } else {
             messages.Say(
@@ -1683,6 +1686,16 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
           messages.Say(arg->sourceLocation(),
               "A NULL() pointer is not allowed for '%s=' intrinsic argument"_err_en_US,
               d.keyword);
+          return std::nullopt;
+        }
+      }
+    }
+    if (d.flags.test(ArgFlag::notAssumedSize)) {
+      if (auto named{ExtractNamedEntity(*arg)}) {
+        if (semantics::IsAssumedSizeArray(named->GetLastSymbol())) {
+          messages.Say(arg->sourceLocation(),
+              "The '%s=' argument to the intrinsic procedure '%s' may not be assumed-size"_err_en_US,
+              d.keyword, name);
           return std::nullopt;
         }
       }
@@ -1971,8 +1984,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
             if (semantics::IsAssumedSizeArray(named->GetLastSymbol())) {
               if (strcmp(name, "shape") == 0) {
                 messages.Say(arg->sourceLocation(),
-                    "The '%s=' argument to the intrinsic function '%s' may not be assumed-size"_err_en_US,
-                    d.keyword, name);
+                    "The 'source=' argument to the intrinsic function 'shape' may not be assumed-size"_err_en_US);
               } else {
                 messages.Say(arg->sourceLocation(),
                     "A dim= argument is required for '%s' when the array is assumed-size"_err_en_US,
