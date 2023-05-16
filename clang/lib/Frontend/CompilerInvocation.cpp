@@ -1567,6 +1567,9 @@ void CompilerInvocation::GenerateCodeGenArgs(
   if (Opts.EnableAIXExtendedAltivecABI)
     GenerateArg(Args, OPT_mabi_EQ_vec_extabi, SA);
 
+  if (Opts.XCOFFReadOnlyPointers)
+    GenerateArg(Args, OPT_mxcoff_roptr, SA);
+
   if (!Opts.OptRecordPasses.empty())
     GenerateArg(Args, OPT_opt_record_passes, Opts.OptRecordPasses, SA);
 
@@ -1945,6 +1948,25 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
       Diags.Report(diag::err_drv_unsupported_opt_for_target)
           << A->getSpelling() << T.str();
     Opts.SPIRITTAnnotations = true;
+  }
+
+  if (Arg *A = Args.getLastArg(OPT_mxcoff_roptr)) {
+    if (!T.isOSAIX())
+      Diags.Report(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << T.str();
+
+    // Since the storage mapping class is specified per csect,
+    // without using data sections, it is less effective to use read-only
+    // pointers. Using read-only pointers may cause other RO variables in the
+    // same csect to become RW when the linker acts upon `-bforceimprw`;
+    // therefore, we require that separate data sections
+    // are used when `-mxcoff-roptr` is in effect. We respect the setting of
+    // data-sections since we have not found reasons to do otherwise that
+    // overcome the user surprise of not respecting the setting.
+    if (!Args.hasFlag(OPT_fdata_sections, OPT_fno_data_sections, false))
+      Diags.Report(diag::err_roptr_requires_data_sections);
+
+    Opts.XCOFFReadOnlyPointers = true;
   }
 
   if (Arg *A = Args.getLastArg(OPT_mabi_EQ_quadword_atomics)) {

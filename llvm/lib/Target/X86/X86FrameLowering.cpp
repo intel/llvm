@@ -1644,7 +1644,19 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
       Fn.arg_size() == 2) {
     StackSize += 8;
     MFI.setStackSize(StackSize);
-    emitSPUpdate(MBB, MBBI, DL, -8, /*InEpilogue=*/false);
+
+    // Update the stack pointer by pushing a register. This is the instruction
+    // emitted that would be end up being emitted by a call to `emitSPUpdate`.
+    // Hard-coding the update to a push avoids emitting a second
+    // `STACKALLOC_W_PROBING` instruction in the save block: We know that stack
+    // probing isn't needed anyways for an 8-byte update.
+    // Pushing a register leaves us in a similar situation to a regular
+    // function call where we know that the address at (rsp-8) is writeable.
+    // That way we avoid any off-by-ones with stack probing for additional
+    // stack pointer updates later on.
+    BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH64r))
+        .addReg(X86::RAX, RegState::Undef)
+        .setMIFlag(MachineInstr::FrameSetup);
   }
 
   // If this is x86-64 and the Red Zone is not disabled, if we are a leaf
@@ -3817,6 +3829,32 @@ int X86FrameLowering::getInitialCFAOffset(const MachineFunction &MF) const {
 Register
 X86FrameLowering::getInitialCFARegister(const MachineFunction &MF) const {
   return TRI->getDwarfRegNum(StackPtr, true);
+}
+
+TargetFrameLowering::DwarfFrameBase
+X86FrameLowering::getDwarfFrameBase(const MachineFunction &MF) const {
+  if (needsDwarfCFI(MF)) {
+    // TODO(khuey): Eventually we should emit the variable expressions in
+    // terms of the CFA, rather than adjusting the CFA to mimic the frame
+    // or stack pointers.
+    DwarfFrameBase FrameBase;
+    FrameBase.Kind = DwarfFrameBase::CFA;
+    FrameBase.Location.Offset = -getInitialCFAOffset(MF);
+    if (hasFP(MF)) {
+      // Adjust for one additional stack slot (for the saved frame pointer
+      // register), so that the frame base expression is equivalent to the
+      // value of the frame pointer.
+      FrameBase.Location.Offset -= TRI->getSlotSize();
+    } else {
+      // Adjust for the entire stack size, so that the frame base expression
+      // is equivalent to the value of the stack pointer once the stack
+      // frame is completely set up.
+      FrameBase.Location.Offset -= MF.getFrameInfo().getStackSize();
+    }
+    return FrameBase;
+  }
+
+  return TargetFrameLowering::getDwarfFrameBase(MF);
 }
 
 namespace {
