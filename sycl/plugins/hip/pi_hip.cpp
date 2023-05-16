@@ -5631,6 +5631,9 @@ pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
                                      pi_device peer_device, pi_peer_attr attr,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
   return getInfo(param_value_size, param_value, param_value_size_ret, 0);
 }
 

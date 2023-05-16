@@ -5868,9 +5868,7 @@ pi_result cuda_piextEnablePeerAccess(pi_device command_device,
 
       result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
-
   } catch (pi_result err) {
-    setErrorMessage("", err);
     result = err;
   }
   return result;
@@ -5880,7 +5878,6 @@ pi_result cuda_piextDisablePeerAccess(pi_device command_device,
                                       pi_device peer_device) {
   pi_result result = PI_SUCCESS;
   try {
-
     ScopedContext active(command_device->get_context());
 
     CUresult cu_res = cuCtxDisablePeerAccess(peer_device->get_context());
@@ -5899,9 +5896,7 @@ pi_result cuda_piextDisablePeerAccess(pi_device command_device,
       free(message);
       result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
-
   } catch (pi_result err) {
-    setErrorMessage("", err);
     result = err;
   }
   return result;
@@ -5948,7 +5943,6 @@ pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
       return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
   } catch (pi_result err) {
-    setErrorMessage("", err);
     return err;
   }
   return getInfo(param_value_size, param_value, param_value_size_ret, value);

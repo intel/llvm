@@ -213,14 +213,7 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   const RT::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     auto Plugin = impl->getPlugin();
-    pi_result result =
-        Plugin->call_nocheck<detail::PiApiKind::piextEnablePeerAccess>(Device,
-                                                                       Peer);
-    if (result != PI_SUCCESS) {
-      char *message = nullptr;
-      Plugin->call<detail::PiApiKind::piPluginGetLastError>(&message);
-      throw sycl::exception(make_error_code(errc::runtime), message);
-    }
+    Plugin->call<detail::PiApiKind::piextEnablePeerAccess>(Device, Peer);
   }
 }
 
@@ -229,14 +222,7 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   const RT::PiDevice Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     auto Plugin = impl->getPlugin();
-    pi_result result =
-        Plugin->call_nocheck<detail::PiApiKind::piextDisablePeerAccess>(Device,
-                                                                        Peer);
-    if (result != PI_SUCCESS) {
-      char *message = nullptr;
-      Plugin->call<detail::PiApiKind::piPluginGetLastError>(&message);
-      throw sycl::exception(make_error_code(errc::runtime), message);
-    }
+    Plugin->call<detail::PiApiKind::piextDisablePeerAccess>(Device, Peer);
   }
 }
 
@@ -263,15 +249,8 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
                           "Unrecognized peer access attribute.");
   }();
   auto Plugin = impl->getPlugin();
-  pi_result result =
-      Plugin->call_nocheck<detail::PiApiKind::piextPeerAccessGetInfo>(
-          Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
-
-  if (result != PI_SUCCESS) {
-    char *message = nullptr;
-    Plugin->call<detail::PiApiKind::piPluginGetLastError>(&message);
-    throw sycl::exception(make_error_code(errc::runtime), message);
-  }
+  Plugin->call<detail::PiApiKind::piextPeerAccessGetInfo>(
+      Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
 
   return value == 1;
 }

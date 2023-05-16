@@ -8872,8 +8872,11 @@ pi_result piextDisablePeerAccess(pi_device command_device,
 
 pi_result piextPeerAccessGetInfo(pi_device command_device,
                                  pi_device peer_device, pi_peer_attr attr,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+                                 size_t ParamValueSize, void *ParamValue,
+                                 size_t *ParamValueSizeRet) {
+  std::ignore = command_device;
+  std::ignore = peer_device;
+  std::ignore = attr;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   return ReturnValue(0);
