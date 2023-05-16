@@ -15,8 +15,8 @@
 
 using namespace sycl;
 
-inline constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+inline constexpr auto DisableCleanupName =
+    "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 class MockHandlerStreamInit : public MockHandler {
 public:
@@ -32,7 +32,8 @@ public:
           std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
           getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
           getKernelName(), getOSModuleHandle(), getStreamStorage(),
-          std::move(MImpl->MAuxiliaryResources), getCGType(), getCodeLoc()));
+          std::move(MImpl->MAuxiliaryResources), getCGType(), {},
+          getCodeLoc()));
       break;
     }
     default:
@@ -76,8 +77,8 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   // Disable post enqueue cleanup so that it doesn't interfere with dependency
   // checks.
   unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+      DisableCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
   std::shared_ptr<detail::queue_impl> HQueueImpl(new detail::queue_impl(
       detail::device_impl::getHostDeviceImpl(), /*AsyncHandler=*/{},
       /*PropList=*/{}));

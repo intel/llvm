@@ -675,6 +675,8 @@ supported for the ``amdgcn`` target.
      Private                           5               private     scratch          32      0xFFFFFFFF
      Constant 32-bit                   6               *TODO*                               0x00000000
      Buffer Fat Pointer (experimental) 7               *TODO*
+     Buffer Resource (experimental)    8               *TODO*
+     Streamout Registers               128             N/A         GS_REGS
      ================================= =============== =========== ================ ======= ============================
 
 **Generic**
@@ -782,6 +784,33 @@ supported for the ``amdgcn`` target.
   *pointer*), allowing normal LLVM load/store/atomic operations to be used to
   model the buffer descriptors used heavily in graphics workloads targeting
   the backend.
+
+  The buffer descriptor used to construct a buffer fat pointer must be *raw*:
+  the stride must be 0, the "add tid" flag bust be 0, the swizzle enable bits
+  must be off, and the extent must be measured in bytes. (On subtargets where
+  bounds checking may be disabled, buffer fat pointers may choose to enable
+  it or not).
+
+**Buffer Resource**
+  The buffer resource is an experimental address space that is currently unsupported
+  in the backend. It exposes a non-integral pointer that will represent a 128-bit
+  buffer descriptor resource.
+
+  Since, in general, a buffer resource supports complex addressing modes that cannot
+  be easily represented in LLVM (such as implicit swizzled access to structured
+  buffers), it is **illegal** to perform non-trivial address computations, such as
+  ``getelementptr`` operations, on buffer resources. They may be passed to
+  AMDGPU buffer intrinsics, and they may be converted to and from ``i128``.
+
+  Casting a buffer resource to a bufer fat pointer is permitted and adds an offset
+  of 0.
+
+**Streamout Registers**
+  Dedicated registers used by the GS NGG Streamout Instructions. The register
+  file is modelled as a memory in a distinct address space because it is indexed
+  by an address-like offset in place of named registers, and because register
+  accesses affect LGKMcnt. This is an internal address space used only by the
+  compiler. Do not use this address space for IR pointers.
 
 .. _amdgpu-memory-scopes:
 
@@ -1292,6 +1321,9 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX1036``    0x045      ``gfx1036``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1101``    0x046      ``gfx1101``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1102``    0x047      ``gfx1102``
+     *reserved*                           0x048      Reserved.
+     *reserved*                           0x049      Reserved.
+     *reserved*                           0x04a      Reserved.
      ==================================== ========== =============================
 
 Sections
@@ -4613,15 +4645,18 @@ The fields used by CP for code objects before V3 also match those specified in
   .. table:: Floating Point Denorm Mode Enumeration Values
      :name: amdgpu-amdhsa-floating-point-denorm-mode-enumeration-values-table
 
-     ====================================== ===== ==============================
+     ====================================== ===== ====================================
      Enumeration Name                       Value Description
-     ====================================== ===== ==============================
-     FLOAT_DENORM_MODE_FLUSH_SRC_DST        0     Flush Source and Destination
-                                                  Denorms
+     ====================================== ===== ====================================
+     FLOAT_DENORM_MODE_FLUSH_SRC_DST        0     Flush Source and Destination Denorms
      FLOAT_DENORM_MODE_FLUSH_DST            1     Flush Output Denorms
      FLOAT_DENORM_MODE_FLUSH_SRC            2     Flush Source Denorms
      FLOAT_DENORM_MODE_FLUSH_NONE           3     No Flush
-     ====================================== ===== ==============================
+     ====================================== ===== ====================================
+
+  Denormal flushing is sign respecting. i.e. the behavior expected by
+  ``"denormal-fp-math"="preserve-sign"``. The behavior is undefined with
+  ``"denormal-fp-math"="positive-zero"``
 
 ..
 

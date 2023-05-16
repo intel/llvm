@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 6fb8e2620f1474428a539ef46d6dd47043c7d59b)
+  set(UNIFIED_RUNTIME_TAG 74843ea0800e6fb7ce0f82e0ef991fc258f4b9bd)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -37,16 +37,16 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   # Restore original flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
-  add_library(${PROJECT_NAME}::ur_loader ALIAS loader)
-
-  set(UNIFIED_RUNTIME_LIBRARY ${PROJECT_NAME}::ur_loader)
+  add_library(UnifiedRuntimeLoader ALIAS loader)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
 
+
 add_library (UnifiedRuntime-Headers INTERFACE)
+
 target_include_directories(UnifiedRuntime-Headers
   INTERFACE
     "${UNIFIED_RUNTIME_INCLUDE_DIR}"
@@ -54,11 +54,6 @@ target_include_directories(UnifiedRuntime-Headers
 
 find_package(Threads REQUIRED)
 
-#
-# NOTE: the Unified Runtime doesn't have the loader [yet].
-# So what we really build is the Unified Runtime with Level Zero Adapter
-# together.
-#
 add_sycl_plugin(unified_runtime
   SOURCES
     # These are short-term shared with Unified Runtime
@@ -69,9 +64,27 @@ add_sycl_plugin(unified_runtime
     "ur_bindings.hpp"
     "pi2ur.hpp"
     "pi2ur.cpp"
+    # These below belong to Unified Runtime PI Plugin only
+    "pi_unified_runtime.hpp"
+    "pi_unified_runtime.cpp"
+    LIBRARIES
+    Threads::Threads
+    UnifiedRuntimeLoader
+    UnifiedRuntime-Headers
+)
+
+# Build level zero adapter
+add_sycl_library("ur_adapter_level_zero" SHARED
+  SOURCES
     "ur/ur.hpp"
     "ur/ur.cpp"
+    "ur/usm_allocator.hpp"
+    "ur/usm_allocator.cpp"
+    "ur/usm_allocator_config.cpp"
+    "ur/usm_allocator_config.hpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
+    "ur/adapters/level_zero/ur_level_zero.cpp"
+    "ur/adapters/level_zero/ur_loader_interface.cpp"
     "ur/adapters/level_zero/ur_level_zero_common.hpp"
     "ur/adapters/level_zero/ur_level_zero_context.hpp"
     "ur/adapters/level_zero/ur_level_zero_device.hpp"
@@ -93,18 +106,37 @@ add_sycl_plugin(unified_runtime
     "ur/adapters/level_zero/ur_level_zero_program.cpp"
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
-    "ur/usm_allocator.hpp"
-    "ur/usm_allocator.cpp"
-    # These below belong to Unified Runtime PI Plugin only
-    "pi_unified_runtime.hpp"
-    "pi_unified_runtime.cpp"
-    LIBRARIES
-    Threads::Threads
+  INCLUDE_DIRS
+    ${sycl_inc_dir}
+  LIBRARIES
     UnifiedRuntime-Headers
     LevelZeroLoader-Headers
     LevelZeroLoader
+    Threads::Threads
 )
 
-if (TARGET ${PROJECT_NAME}::ur_loader)
+set_target_properties("ur_adapter_level_zero" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+)
+
+
+if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+  # Install the UR loader.
+  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
+  # When UR is moved to its separate repo perhaps we should introduce new component,
+  # e.g. unified-runtime-sycl-dev.
+  install(TARGETS loader
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+  )
 endif()
+
+# Install the UR adapters too
+install(TARGETS ur_adapter_level_zero
+ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
+LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+)

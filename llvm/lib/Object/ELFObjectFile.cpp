@@ -303,12 +303,7 @@ Expected<SubtargetFeatures> ELFObjectFileBase::getRISCVFeatures() const {
   std::optional<StringRef> Attr =
       Attributes.getAttributeString(RISCVAttrs::ARCH);
   if (Attr) {
-    // Suppress version checking for experimental extensions to prevent erroring
-    // when getting any unknown version of experimental extension.
-    auto ParseResult = RISCVISAInfo::parseArchString(
-        *Attr, /*EnableExperimentalExtension=*/true,
-        /*ExperimentalExtensionVersionCheck=*/false,
-        /*IgnoreUnknown=*/true);
+    auto ParseResult = RISCVISAInfo::parseNormalizedArchString(*Attr);
     if (!ParseResult)
       return ParseResult.takeError();
     auto &ISAInfo = *ParseResult;
@@ -629,7 +624,8 @@ ELFObjectFileBase::getPltAddresses() const {
       T->createMCInstrAnalysis(MII.get()));
   if (!MIA)
     return {};
-  std::optional<SectionRef> Plt, RelaPlt, GotPlt;
+  std::optional<SectionRef> Plt, RelaPlt;
+  uint64_t GotBaseVA = 0;
   for (const SectionRef &Section : sections()) {
     Expected<StringRef> NameOrErr = Section.getName();
     if (!NameOrErr) {
@@ -643,22 +639,27 @@ ELFObjectFileBase::getPltAddresses() const {
     else if (Name == ".rela.plt" || Name == ".rel.plt")
       RelaPlt = Section;
     else if (Name == ".got.plt")
-      GotPlt = Section;
+      GotBaseVA = Section.getAddress();
   }
-  if (!Plt || !RelaPlt || !GotPlt)
+  if (!Plt || !RelaPlt)
     return {};
   Expected<StringRef> PltContents = Plt->getContents();
   if (!PltContents) {
     consumeError(PltContents.takeError());
     return {};
   }
-  auto PltEntries = MIA->findPltEntries(Plt->getAddress(),
-                                        arrayRefFromStringRef(*PltContents),
-                                        GotPlt->getAddress(), Triple);
+  auto PltEntries = MIA->findPltEntries(
+      Plt->getAddress(), arrayRefFromStringRef(*PltContents), Triple);
+
   // Build a map from GOT entry virtual address to PLT entry virtual address.
   DenseMap<uint64_t, uint64_t> GotToPlt;
-  for (const auto &Entry : PltEntries)
-    GotToPlt.insert(std::make_pair(Entry.second, Entry.first));
+  for (auto [Plt, GotPltEntry] : PltEntries) {
+    // An x86-32 PIC PLT uses jmp DWORD PTR [ebx-offset]. Add
+    // _GLOBAL_OFFSET_TABLE_ (EBX) to get the .got.plt (or .got) entry address.
+    if (static_cast<int64_t>(GotPltEntry) < 0 && getEMachine() == ELF::EM_386)
+      GotPltEntry = ~GotPltEntry + GotBaseVA;
+    GotToPlt.insert(std::make_pair(GotPltEntry, Plt));
+  }
   // Find the relocations in the dynamic relocation table that point to
   // locations in the GOT for which we know the corresponding PLT entry.
   std::vector<std::pair<std::optional<DataRefImpl>, uint64_t>> Result;
@@ -681,24 +682,39 @@ template <class ELFT>
 Expected<std::vector<BBAddrMap>> static readBBAddrMapImpl(
     const ELFFile<ELFT> &EF, std::optional<unsigned> TextSectionIndex) {
   using Elf_Shdr = typename ELFT::Shdr;
+  bool IsRelocatable = EF.getHeader().e_type == ELF::ET_REL;
   std::vector<BBAddrMap> BBAddrMaps;
+
   const auto &Sections = cantFail(EF.sections());
-  for (const Elf_Shdr &Sec : Sections) {
+  auto IsMatch = [&](const Elf_Shdr &Sec) -> Expected<bool> {
     if (Sec.sh_type != ELF::SHT_LLVM_BB_ADDR_MAP &&
         Sec.sh_type != ELF::SHT_LLVM_BB_ADDR_MAP_V0)
-      continue;
-    if (TextSectionIndex) {
-      Expected<const Elf_Shdr *> TextSecOrErr = EF.getSection(Sec.sh_link);
-      if (!TextSecOrErr)
-        return createError("unable to get the linked-to section for " +
-                           describe(EF, Sec) + ": " +
-                           toString(TextSecOrErr.takeError()));
-      if (*TextSectionIndex != std::distance(Sections.begin(), *TextSecOrErr))
-        continue;
-    }
-    Expected<std::vector<BBAddrMap>> BBAddrMapOrErr = EF.decodeBBAddrMap(Sec);
+      return false;
+    if (!TextSectionIndex)
+      return true;
+    Expected<const Elf_Shdr *> TextSecOrErr = EF.getSection(Sec.sh_link);
+    if (!TextSecOrErr)
+      return createError("unable to get the linked-to section for " +
+                         describe(EF, Sec) + ": " +
+                         toString(TextSecOrErr.takeError()));
+    if (*TextSectionIndex != std::distance(Sections.begin(), *TextSecOrErr))
+      return false;
+    return true;
+  };
+
+  Expected<MapVector<const Elf_Shdr *, const Elf_Shdr *>> SectionRelocMapOrErr =
+      EF.getSectionAndRelocations(IsMatch);
+  if (!SectionRelocMapOrErr)
+    return SectionRelocMapOrErr.takeError();
+
+  for (auto const &[Sec, RelocSec] : *SectionRelocMapOrErr) {
+    if (IsRelocatable && !RelocSec)
+      return createError("unable to get relocation section for " +
+                         describe(EF, *Sec));
+    Expected<std::vector<BBAddrMap>> BBAddrMapOrErr =
+        EF.decodeBBAddrMap(*Sec, RelocSec);
     if (!BBAddrMapOrErr)
-      return createError("unable to read " + describe(EF, Sec) + ": " +
+      return createError("unable to read " + describe(EF, *Sec) + ": " +
                          toString(BBAddrMapOrErr.takeError()));
     std::move(BBAddrMapOrErr->begin(), BBAddrMapOrErr->end(),
               std::back_inserter(BBAddrMaps));

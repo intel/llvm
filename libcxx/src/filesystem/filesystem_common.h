@@ -12,14 +12,15 @@
 #include <__assert>
 #include <__config>
 #include <array>
+#include <cerrno>
 #include <chrono>
 #include <climits>
 #include <cstdarg>
 #include <ctime>
 #include <filesystem>
 #include <ratio>
-#include <system_error>
 #include <utility>
+#include <system_error>
 
 #if defined(_LIBCPP_WIN32API)
 # define WIN32_LEAN_AND_MEAN
@@ -34,19 +35,16 @@
 # include <unistd.h>
 #endif // defined(_LIBCPP_WIN32API)
 
-#include "../include/apple_availability.h"
-
-#if !defined(__APPLE__)
-// We can use the presence of UTIME_OMIT to detect platforms that provide
-// utimensat.
+// We can use the presence of UTIME_OMIT to detect platforms that provide utimensat.
 #if defined(UTIME_OMIT)
-#define _LIBCPP_USE_UTIMENSAT
-#endif
+# define _LIBCPP_USE_UTIMENSAT
 #endif
 
+// TODO: Check whether these functions actually need internal linkage, or if they can be made normal header functions
 _LIBCPP_DIAGNOSTIC_PUSH
 _LIBCPP_GCC_DIAGNOSTIC_IGNORED("-Wunused-function")
 _LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-function")
+_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-template")
 
 #if defined(_LIBCPP_WIN32API)
 #  define PATHSTR(x) (L##x)

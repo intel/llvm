@@ -39,6 +39,80 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
+::jit_compiler::BinaryFormat getTargetFormat(QueueImplPtr &Queue) {
+  auto Backend = Queue->getDeviceImplPtr()->getBackend();
+  switch (Backend) {
+  case backend::ext_oneapi_level_zero:
+  case backend::opencl:
+    return ::jit_compiler::BinaryFormat::SPIRV;
+  case backend::ext_oneapi_cuda:
+    return ::jit_compiler::BinaryFormat::PTX;
+  default:
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Backend unsupported by kernel fusion");
+  }
+}
+
+std::pair<const RTDeviceBinaryImage *, RT::PiProgram>
+retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
+  auto KernelName = KernelCG->getKernelName();
+
+  bool isNvidia =
+      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda;
+  if (isNvidia) {
+    auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    std::vector<kernel_id> KernelIds{KernelID};
+    auto DeviceImages =
+        ProgramManager::getInstance().getRawDeviceImages(KernelIds);
+    auto DeviceImage = std::find_if(
+        DeviceImages.begin(), DeviceImages.end(), [](RTDeviceBinaryImage *DI) {
+          return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
+                 DI->getRawData().DeviceTargetSpec ==
+                     std::string("llvm_nvptx64");
+        });
+    if (DeviceImage == DeviceImages.end()) {
+      return {nullptr, nullptr};
+    }
+    auto ContextImpl = Queue->getContextImplPtr();
+    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
+    auto DeviceImpl = Queue->getDeviceImplPtr();
+    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
+    RT::PiProgram Program =
+        detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
+                                                              Context, Device);
+    return {*DeviceImage, Program};
+  }
+
+  const RTDeviceBinaryImage *DeviceImage = nullptr;
+  RT::PiProgram Program = nullptr;
+  if (KernelCG->getKernelBundle() != nullptr) {
+    // Retrieve the device image from the kernel bundle.
+    auto KernelBundle = KernelCG->getKernelBundle();
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+
+    auto SyclKernel = detail::getSyclObjImpl(
+        KernelBundle->get_kernel(KernelID, KernelBundle));
+
+    DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
+    Program = SyclKernel->getDeviceImage()->get_program_ref();
+  } else if (KernelCG->MSyclKernel != nullptr) {
+    DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
+    Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
+  } else {
+    auto ContextImpl = Queue->getContextImplPtr();
+    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
+    auto DeviceImpl = Queue->getDeviceImplPtr();
+    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
+    DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
+        KernelCG->MOSModuleHandle, KernelName, Context, Device);
+    Program = detail::ProgramManager::getInstance().createPIProgram(
+        *DeviceImage, Context, Device);
+  }
+  return {DeviceImage, Program};
+}
+
 static ::jit_compiler::ParameterKind
 translateArgType(kernel_param_kind_t Kind) {
   using PK = ::jit_compiler::ParameterKind;
@@ -378,7 +452,15 @@ static ParamIterator preProcessArguments(
     // which will go out-of-scope before we execute the fused kernel. Therefore,
     // we need to copy the argument to a permant location and update the
     // argument.
-    Arg->Arg.MPtr = storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+    if (Arg->Arg.MPtr) {
+      Arg->Arg.MPtr =
+          storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+      // Propagate values of scalar parameters as constants to the JIT
+      // compiler.
+      JITConstants.emplace_back(
+          ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
+          Arg->Arg.MPtr, Arg->Arg.MSize);
+    }
     // Standard layout arguments do not participate in identical argument
     // detection, but we still add it to the list here. As the SYCL runtime can
     // only check the raw bytes for identical content, but is unaware of the
@@ -386,14 +468,9 @@ static ParamIterator preProcessArguments(
     // not be materialized by the JIT compiler. Instead of removing some
     // standard layout arguments due to identity and missing some in case the
     // materialization is not possible, we rely on constant propagation to
-    // replace standard layout arguments by constants (see below).
+    // replace standard layout arguments by constants.
     NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
                                     true);
-    // Propagate values of scalar parameters as constants to the JIT
-    // compiler.
-    JITConstants.emplace_back(
-        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
-        Arg->Arg.MPtr, Arg->Arg.MSize);
     return ++Arg;
   }
   // First check if there's already another parameter with identical
@@ -557,6 +634,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> Requirements;
   std::vector<detail::EventImplPtr> Events;
   std::vector<::jit_compiler::NDRange> Ranges;
+  RT::PiKernelCacheConfig KernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -574,38 +653,14 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
           "Cannot fuse kernel with invalid kernel function name");
       return nullptr;
     }
-    const RTDeviceBinaryImage *DeviceImage = nullptr;
-    RT::PiProgram Program = nullptr;
-    if (KernelCG->getKernelBundle() != nullptr) {
-      // Retrieve the device image from the kernel bundle.
-      auto KernelBundle = KernelCG->getKernelBundle();
-      kernel_id KernelID =
-          detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
 
-      auto SyclKernel = detail::getSyclObjImpl(
-          KernelBundle->get_kernel(KernelID, KernelBundle));
+    auto [DeviceImage, Program] = retrieveKernelBinary(Queue, KernelCG);
 
-      DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
-      Program = SyclKernel->getDeviceImage()->get_program_ref();
-    } else if (KernelCG->MSyclKernel != nullptr) {
-      DeviceImage =
-          KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
-      Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
-    } else {
-      auto ContextImpl = Queue->getContextImplPtr();
-      auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-      auto DeviceImpl = Queue->getDeviceImplPtr();
-      auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-      DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-          KernelCG->MOSModuleHandle, KernelName, Context, Device);
-      Program = detail::ProgramManager::getInstance().createPIProgram(
-          *DeviceImage, Context, Device);
-    }
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
     }
-    ProgramManager::KernelArgMask EliminatedArgs;
+    const KernelArgMask *EliminatedArgs = nullptr;
     if (Program && (KernelCG->MSyclKernel == nullptr ||
                     !KernelCG->MSyclKernel->isCreatedFromSource())) {
       EliminatedArgs =
@@ -632,7 +687,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       // DPC++ internally uses 'true' to indicate that an argument has been
       // eliminated, while the JIT compiler uses 'true' to indicate an
       // argument is used. Translate this here.
-      bool Eliminated = !EliminatedArgs.empty() && EliminatedArgs[ArgIndex++];
+      bool Eliminated = EliminatedArgs && !EliminatedArgs->empty() &&
+                        (*EliminatedArgs)[ArgIndex++];
       ArgDescriptor.UsageMask.emplace_back(!Eliminated);
 
       // If the argument has not been eliminated, i.e., is still present on
@@ -664,8 +720,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return nullptr;
     }
     ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
-        translateBinaryImageFormat(DeviceImage->getFormat()), 0,
-        RawDeviceImage.BinaryStart, DeviceImageSize};
+        BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
 
     constexpr auto SYCLTypeToIndices = [](auto Val) -> ::jit_compiler::Indices {
       return {Val.get(0), Val.get(1), Val.get(2)};
@@ -714,6 +769,15 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                         KernelCG->MRequirements.end());
     Events.insert(Events.end(), KernelCG->MEvents.begin(),
                   KernelCG->MEvents.end());
+
+    // If all kernels have the same cache config then use it for the merged
+    // kernel, otherwise use default configuration.
+    if (KernelIndex == 0) {
+      KernelCacheConfig = KernelCG->MKernelCacheConfig;
+    } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
+      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+    }
+
     ++KernelIndex;
   }
 
@@ -745,6 +809,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITEnableVerbose>(DebugEnabled);
   JITConfig.set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
+
+  ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
+  JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
@@ -785,11 +852,19 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }(FusedKernelInfo.NDR);
   updatePromotedArgs(FusedKernelInfo, NDRDesc, FusedArgs, ArgsStorage);
 
+  OSModuleHandle Handle = OSUtil::DummyModuleHandle;
   if (!FusionResult.cached()) {
-    auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo);
+    auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo, TargetFormat);
     detail::ProgramManager::getInstance().addImages(PIDeviceBinaries);
-  } else if (DebugEnabled) {
-    std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
+    Handle = OSUtil::getOSModuleHandle(PIDeviceBinaries->DeviceBinaries);
+    CachedModules.emplace(FusedKernelInfo.Name, Handle);
+  } else {
+    if (DebugEnabled) {
+      std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
+    }
+    // Retrieve an OSModuleHandle for the cached binary.
+    assert(CachedModules.count(FusedKernelInfo.Name) && "No cached binary");
+    Handle = CachedModules.at(FusedKernelInfo.Name);
   }
 
   // Create a kernel bundle for the fused kernel.
@@ -798,22 +873,45 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       FusedKernelInfo.Name);
   std::vector<std::shared_ptr<const void>> RawExtendedMembers;
 
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-          Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
+  if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
+    detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
+        Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
+  }
 
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(ArgsStorage), std::move(AccStorage),
       std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
-      std::move(FusedArgs), FusedKernelInfo.Name, OSUtil::DummyModuleHandle, {},
-      {}, CG::CGTYPE::Kernel));
+      std::move(FusedArgs), FusedKernelInfo.Name, Handle, {}, {},
+      CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 
 pi_device_binaries jit_compiler::createPIDeviceBinary(
-    const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo) {
+    const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
+    ::jit_compiler::BinaryFormat Format) {
+
+  const char *TargetSpec = nullptr;
+  pi_device_binary_type BinFormat = PI_DEVICE_BINARY_TYPE_NATIVE;
+  switch (Format) {
+  case ::jit_compiler::BinaryFormat::PTX: {
+    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
+    BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
+    break;
+  }
+  case ::jit_compiler::BinaryFormat::SPIRV: {
+    TargetSpec = (FusedKernelInfo.BinaryInfo.AddressBits == 64)
+                     ? __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64
+                     : __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32;
+    BinFormat = PI_DEVICE_BINARY_TYPE_SPIRV;
+    break;
+  }
+  default:
+    sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                    "Invalid output format");
+  }
 
   DeviceBinaryContainer Binary;
 
@@ -838,11 +936,33 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
 
   Binary.addProperty(std::move(ArgMaskPropSet));
 
+  if (Format == ::jit_compiler::BinaryFormat::PTX) {
+    // Add a program metadata property with the reqd_work_group_size attribute.
+    // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+    auto ReqdWGS = std::find_if(
+        FusedKernelInfo.Attributes.begin(), FusedKernelInfo.Attributes.end(),
+        [](const ::jit_compiler::SYCLKernelAttribute &Attr) {
+          return Attr.AttributeName == "reqd_work_group_size";
+        });
+    if (ReqdWGS != FusedKernelInfo.Attributes.end()) {
+      auto Encoded = encodeReqdWorkGroupSize(*ReqdWGS);
+      std::stringstream PropName;
+      PropName << FusedKernelInfo.Name;
+      PropName << __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
+      PropertyContainer ReqdWorkGroupSizeProp{
+          PropName.str(), Encoded.data(), Encoded.size(),
+          pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+      PropertySetContainer ProgramMetadata{
+          __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+      ProgramMetadata.addProperty(std::move(ReqdWorkGroupSizeProp));
+      Binary.addProperty(std::move(ProgramMetadata));
+    }
+  }
+
   DeviceBinariesCollection Collection;
-  Collection.addDeviceBinary(std::move(Binary),
-                             FusedKernelInfo.BinaryInfo.BinaryStart,
-                             FusedKernelInfo.BinaryInfo.BinarySize,
-                             FusedKernelInfo.BinaryInfo.AddressBits);
+  Collection.addDeviceBinary(
+      std::move(Binary), FusedKernelInfo.BinaryInfo.BinaryStart,
+      FusedKernelInfo.BinaryInfo.BinarySize, TargetSpec, BinFormat);
 
   JITDeviceBinaries.push_back(std::move(Collection));
   return JITDeviceBinaries.back().getPIDeviceStruct();
@@ -874,6 +994,23 @@ std::vector<uint8_t> jit_compiler::encodeArgUsageMask(
       uint8_t &Byte = Encoded[NBytesForSize + (i / NBitsInElement)];
       Byte |= static_cast<uint8_t>((1 << (i % NBitsInElement)));
     }
+  }
+  return Encoded;
+}
+
+std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
+    const ::jit_compiler::SYCLKernelAttribute &Attr) const {
+  assert(Attr.AttributeName == "reqd_work_group_size");
+  size_t NumBytes = sizeof(uint64_t) + (Attr.Values.size() * sizeof(uint32_t));
+  std::vector<uint8_t> Encoded(NumBytes, 0u);
+  uint8_t *Ptr = Encoded.data();
+  // Skip 64-bit wide size argument with value 0 at the start of the data.
+  // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+  Ptr += sizeof(uint64_t);
+  for (const auto &Val : Attr.Values) {
+    uint32_t UVal = std::stoul(Val);
+    std::memcpy(Ptr, &UVal, sizeof(uint32_t));
+    Ptr += sizeof(uint32_t);
   }
   return Encoded;
 }

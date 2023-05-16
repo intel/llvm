@@ -117,11 +117,52 @@ void yamlize(IO &IO, ClangTidyOptions::OptionMap &Options, bool,
   }
 }
 
+struct ChecksVariant {
+  std::optional<std::string> AsString;
+  std::optional<std::vector<std::string>> AsVector;
+};
+
+template <>
+void yamlize(IO &IO, ChecksVariant &Checks, bool, EmptyContext &Ctx) {
+  if (!IO.outputting()) {
+    // Special case for reading from YAML
+    // Must support reading from both a string or a list
+    Input &I = reinterpret_cast<Input &>(IO);
+    if (isa<ScalarNode, BlockScalarNode>(I.getCurrentNode())) {
+      Checks.AsString = std::string();
+      yamlize(IO, *Checks.AsString, true, Ctx);
+    } else if (isa<SequenceNode>(I.getCurrentNode())) {
+      Checks.AsVector = std::vector<std::string>();
+      yamlize(IO, *Checks.AsVector, true, Ctx);
+    } else {
+      IO.setError("expected string or sequence");
+    }
+  }
+}
+
+static void mapChecks(IO &IO, std::optional<std::string> &Checks) {
+  if (IO.outputting()) {
+    // Output always a string
+    IO.mapOptional("Checks", Checks);
+  } else {
+    // Input as either a string or a list
+    ChecksVariant ChecksAsVariant;
+    IO.mapOptional("Checks", ChecksAsVariant);
+    if (ChecksAsVariant.AsString)
+      Checks = ChecksAsVariant.AsString;
+    else if (ChecksAsVariant.AsVector)
+      Checks = llvm::join(*ChecksAsVariant.AsVector, ",");
+  }
+}
+
 template <> struct MappingTraits<ClangTidyOptions> {
   static void mapping(IO &IO, ClangTidyOptions &Options) {
     bool Ignored = false;
-    IO.mapOptional("Checks", Options.Checks);
+    mapChecks(IO, Options.Checks);
     IO.mapOptional("WarningsAsErrors", Options.WarningsAsErrors);
+    IO.mapOptional("HeaderFileExtensions", Options.HeaderFileExtensions);
+    IO.mapOptional("ImplementationFileExtensions",
+                   Options.ImplementationFileExtensions);
     IO.mapOptional("HeaderFilterRegex", Options.HeaderFilterRegex);
     IO.mapOptional("AnalyzeTemporaryDtors", Ignored); // deprecated
     IO.mapOptional("FormatStyle", Options.FormatStyle);
@@ -131,6 +172,7 @@ template <> struct MappingTraits<ClangTidyOptions> {
     IO.mapOptional("ExtraArgsBefore", Options.ExtraArgsBefore);
     IO.mapOptional("InheritParentConfig", Options.InheritParentConfig);
     IO.mapOptional("UseColor", Options.UseColor);
+    IO.mapOptional("SystemHeaders", Options.SystemHeaders);
   }
 };
 
@@ -142,6 +184,8 @@ ClangTidyOptions ClangTidyOptions::getDefaults() {
   ClangTidyOptions Options;
   Options.Checks = "";
   Options.WarningsAsErrors = "";
+  Options.HeaderFileExtensions = {"", "h", "hh", "hpp", "hxx"};
+  Options.ImplementationFileExtensions = {"c", "cc", "cpp", "cxx"};
   Options.HeaderFilterRegex = "";
   Options.SystemHeaders = false;
   Options.FormatStyle = "none";
@@ -178,6 +222,9 @@ ClangTidyOptions &ClangTidyOptions::mergeWith(const ClangTidyOptions &Other,
                                               unsigned Order) {
   mergeCommaSeparatedLists(Checks, Other.Checks);
   mergeCommaSeparatedLists(WarningsAsErrors, Other.WarningsAsErrors);
+  overrideValue(HeaderFileExtensions, Other.HeaderFileExtensions);
+  overrideValue(ImplementationFileExtensions,
+                Other.ImplementationFileExtensions);
   overrideValue(HeaderFilterRegex, Other.HeaderFilterRegex);
   overrideValue(SystemHeaders, Other.SystemHeaders);
   overrideValue(FormatStyle, Other.FormatStyle);

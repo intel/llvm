@@ -23,6 +23,7 @@ def Func_Dialect : Dialect {
   let cppNamespace = "::mlir::func";
   let dependentDialects = ["cf::ControlFlowDialect"];
   let hasConstantMaterializer = 1;
+  let usePropertiesForAttributes = 1;
 }
 
 // Base class for Func dialect ops.
@@ -90,6 +91,11 @@ def CallOp : Func_Op<"call",
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
+    }
   }];
 
   let assemblyFormat = [{
@@ -152,6 +158,11 @@ def CallIndirectOp : Func_Op<"call_indirect", [
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() { return getCallee(); }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      setOperand(0, callee.get<Value>());
+    }
   }];
 
   let hasCanonicalizeMethod = 1;
@@ -298,6 +309,18 @@ def FuncOp : Func_Op<"func", [
     /// Returns the results types that the callable region produces when
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
+
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
 
     //===------------------------------------------------------------------===//
     // FunctionOpInterface Methods

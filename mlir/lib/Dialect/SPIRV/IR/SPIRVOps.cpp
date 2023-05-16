@@ -1736,7 +1736,7 @@ LogicalResult spirv::BranchConditionalOp::verify() {
       return emitOpError("must have exactly two branch weights");
     }
     if (llvm::all_of(*weights, [](Attribute attr) {
-          return attr.cast<IntegerAttr>().getValue().isNullValue();
+          return attr.cast<IntegerAttr>().getValue().isZero();
         }))
       return emitOpError("branch weights cannot both be zero");
   }
@@ -2202,6 +2202,46 @@ LogicalResult spirv::ConvertUToFOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// spirv.INTELConvertBF16ToFOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult spirv::INTELConvertBF16ToFOp::verify() {
+  auto operandType = getOperand().getType();
+  auto resultType = getResult().getType();
+  // ODS checks that vector result type and vector operand type have the same
+  // shape.
+  if (auto vectorType = operandType.dyn_cast<VectorType>()) {
+    unsigned operandNumElements = vectorType.getNumElements();
+    unsigned resultNumElements = resultType.cast<VectorType>().getNumElements();
+    if (operandNumElements != resultNumElements) {
+      return emitOpError(
+          "operand and result must have same number of elements");
+    }
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// spirv.INTELConvertFToBF16Op
+//===----------------------------------------------------------------------===//
+
+LogicalResult spirv::INTELConvertFToBF16Op::verify() {
+  auto operandType = getOperand().getType();
+  auto resultType = getResult().getType();
+  // ODS checks that vector result type and vector operand type have the same
+  // shape.
+  if (auto vectorType = operandType.dyn_cast<VectorType>()) {
+    unsigned operandNumElements = vectorType.getNumElements();
+    unsigned resultNumElements = resultType.cast<VectorType>().getNumElements();
+    if (operandNumElements != resultNumElements) {
+      return emitOpError(
+          "operand and result must have same number of elements");
+    }
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // spirv.EntryPoint
 //===----------------------------------------------------------------------===//
 
@@ -2469,6 +2509,16 @@ ArrayRef<Type> spirv::FuncOp::getCallableResults() {
   return getFunctionType().getResults();
 }
 
+// CallableOpInterface
+::mlir::ArrayAttr spirv::FuncOp::getCallableArgAttrs() {
+  return getArgAttrs().value_or(nullptr);
+}
+
+// CallableOpInterface
+::mlir::ArrayAttr spirv::FuncOp::getCallableResAttrs() {
+  return getResAttrs().value_or(nullptr);
+}
+
 //===----------------------------------------------------------------------===//
 // spirv.FunctionCall
 //===----------------------------------------------------------------------===//
@@ -2524,6 +2574,11 @@ LogicalResult spirv::FunctionCallOp::verify() {
 
 CallInterfaceCallable spirv::FunctionCallOp::getCallableForCallee() {
   return (*this)->getAttrOfType<SymbolRefAttr>(kCallee);
+}
+
+void spirv::FunctionCallOp::setCalleeFromCallable(
+    CallInterfaceCallable callee) {
+  (*this)->setAttr(kCallee, callee.get<SymbolRefAttr>());
 }
 
 Operation::operand_range spirv::FunctionCallOp::getArgOperands() {

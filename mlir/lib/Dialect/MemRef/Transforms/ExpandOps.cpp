@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Transforms/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -110,9 +111,9 @@ public:
               loc, rewriter.getIndexType(), size);
         sizes[i] = size;
       } else {
-        sizes[i] = rewriter.getIndexAttr(op.getType().getDimSize(i));
-        size =
-            rewriter.create<arith::ConstantOp>(loc, sizes[i].get<Attribute>());
+        auto sizeAttr = rewriter.getIndexAttr(op.getType().getDimSize(i));
+        size = rewriter.create<arith::ConstantOp>(loc, sizeAttr);
+        sizes[i] = sizeAttr;
       }
       strides[i] = stride;
       if (i > 0)

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
 #include "Plugins/Platform/MacOSX/PlatformDarwinKernel.h"
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Core/Debugger.h"
@@ -112,16 +113,17 @@ public:
 
   bool GetLoadKexts() const {
     const uint32_t idx = ePropertyLoadKexts;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(
-        nullptr, idx,
+    return GetPropertyAtIndexAs<bool>(
+        idx,
         g_dynamicloaderdarwinkernel_properties[idx].default_uint_value != 0);
   }
 
   KASLRScanType GetScanType() const {
     const uint32_t idx = ePropertyScanType;
-    return (KASLRScanType)m_collection_sp->GetPropertyAtIndexAsEnumeration(
-        nullptr, idx,
-        g_dynamicloaderdarwinkernel_properties[idx].default_uint_value);
+    return GetPropertyAtIndexAs<KASLRScanType>(
+        idx,
+        static_cast<KASLRScanType>(
+            g_dynamicloaderdarwinkernel_properties[idx].default_uint_value));
   }
 };
 
@@ -713,6 +715,7 @@ void DynamicLoaderDarwinKernel::KextImageInfo::SetIsKernel(bool is_kernel) {
 
 bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
     Process *process) {
+  Log *log = GetLog(LLDBLog::DynamicLoader);
   if (IsLoaded())
     return true;
 
@@ -810,6 +813,27 @@ bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
       }
     }
 
+    if (m_module_sp && m_uuid.IsValid() && m_module_sp->GetUUID() == m_uuid &&
+        m_module_sp->GetObjectFile()) {
+      if (ObjectFileMachO *ondisk_objfile_macho =
+              llvm::dyn_cast<ObjectFileMachO>(m_module_sp->GetObjectFile())) {
+        if (!IsKernel() && !ondisk_objfile_macho->IsKext()) {
+          // We have a non-kext, non-kernel binary.  If we already have this
+          // loaded in the Target with load addresses, don't re-load it again.
+          ModuleSP existing_module_sp = target.GetImages().FindModule(m_uuid);
+          if (existing_module_sp &&
+              existing_module_sp->IsLoadedInTarget(&target)) {
+            LLDB_LOGF(log,
+                      "'%s' with UUID %s is not a kext or kernel, and is "
+                      "already registered in target, not loading.",
+                      m_name.c_str(), m_uuid.GetAsString().c_str());
+            // It's already loaded, return true.
+            return true;
+          }
+        }
+      }
+    }
+
     // If we managed to find a module, append it to the target's list of
     // images. If we also have a memory module, require that they have matching
     // UUIDs
@@ -836,6 +860,34 @@ bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
         // The memory_module for kexts may have an invalid __LINKEDIT seg; skip
         // it.
         const bool ignore_linkedit = !IsKernel();
+
+        // Normally a kext will have its segment load commands
+        // (LC_SEGMENT vmaddrs) corrected in memory to have their
+        // actual segment addresses.
+        // Userland proceses have their libraries updated the same way
+        // by dyld.  The Mach-O load commands in memory are the canonical
+        // addresses.
+        //
+        // If the kernel gives us a binary where the in-memory segment
+        // vmaddr is incorrect, then this binary was put in memory without
+        // updating its Mach-O load commands.  We should assume a static
+        // slide value will be applied to every segment; we don't have the
+        // correct addresses for each individual segment.
+        addr_t fixed_slide = LLDB_INVALID_ADDRESS;
+        if (ObjectFileMachO *memory_objfile_macho =
+                llvm::dyn_cast<ObjectFileMachO>(memory_object_file)) {
+          if (Section *header_sect =
+                  memory_objfile_macho->GetMachHeaderSection()) {
+            if (header_sect->GetFileAddress() != m_load_address) {
+              fixed_slide = m_load_address - header_sect->GetFileAddress();
+              LLDB_LOGF(
+                  log,
+                  "kext %s in-memory LC_SEGMENT vmaddr is not correct, using a "
+                  "fixed slide of 0x%" PRIx64,
+                  m_name.c_str(), fixed_slide);
+            }
+          }
+        }
 
         SectionList *ondisk_section_list = ondisk_object_file->GetSectionList();
         SectionList *memory_section_list = memory_object_file->GetSectionList();
@@ -865,14 +917,20 @@ bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
                   ondisk_section_sp->GetName() == g_section_name_LINKEDIT)
                 continue;
 
-              const Section *memory_section =
-                  memory_section_list
-                      ->FindSectionByName(ondisk_section_sp->GetName())
-                      .get();
-              if (memory_section) {
-                target.SetSectionLoadAddress(ondisk_section_sp,
-                                             memory_section->GetFileAddress());
-                ++num_sections_loaded;
+              if (fixed_slide != LLDB_INVALID_ADDRESS) {
+                target.SetSectionLoadAddress(
+                    ondisk_section_sp,
+                    ondisk_section_sp->GetFileAddress() + fixed_slide);
+              } else {
+                const Section *memory_section =
+                    memory_section_list
+                        ->FindSectionByName(ondisk_section_sp->GetName())
+                        .get();
+                if (memory_section) {
+                  target.SetSectionLoadAddress(
+                      ondisk_section_sp, memory_section->GetFileAddress());
+                  ++num_sections_loaded;
+                }
               }
             }
           }
@@ -1011,6 +1069,7 @@ void DynamicLoaderDarwinKernel::LoadKernelModuleIfNeeded() {
 
     if (m_kernel.IsLoaded() && m_kernel.GetModule()) {
       static ConstString kext_summary_symbol("gLoadedKextSummaries");
+      static ConstString arm64_T1Sz_value("gT1Sz");
       const Symbol *symbol =
           m_kernel.GetModule()->FindFirstSymbolWithNameAndType(
               kext_summary_symbol, eSymbolTypeData);
@@ -1018,6 +1077,36 @@ void DynamicLoaderDarwinKernel::LoadKernelModuleIfNeeded() {
         m_kext_summary_header_ptr_addr = symbol->GetAddress();
         // Update all image infos
         ReadAllKextSummaries();
+      }
+      // If the kernel global with the T1Sz setting is available,
+      // update the target.process.virtual-addressable-bits to be correct.
+      symbol = m_kernel.GetModule()->FindFirstSymbolWithNameAndType(
+          arm64_T1Sz_value, eSymbolTypeData);
+      if (symbol) {
+        const uint32_t orig_bits_value = m_process->GetVirtualAddressableBits();
+        // Mark all bits as addressable so we don't strip any from our
+        // memory read below, with an incorrect default value.
+        // b55 is the sign extension bit with PAC, b56:63 are TBI,
+        // don't mark those as addressable.
+        m_process->SetVirtualAddressableBits(55);
+        Status error;
+        // gT1Sz is 8 bytes.  We may run on a stripped kernel binary
+        // where we can't get the size accurately.  Hardcode it.
+        const size_t sym_bytesize = 8; // size of gT1Sz value
+        uint64_t sym_value =
+            m_process->GetTarget().ReadUnsignedIntegerFromMemory(
+                symbol->GetAddress(), sym_bytesize, 0, error);
+        if (error.Success()) {
+          // 64 - T1Sz is the highest bit used for auth.
+          // The value we pass in to SetVirtualAddressableBits is
+          // the number of bits used for addressing, so if
+          // T1Sz is 25, then 64-25 == 39, bits 0..38 are used for
+          // addressing, bits 39..63 are used for PAC/TBI or whatever.
+          uint32_t virt_addr_bits = 64 - sym_value;
+          m_process->SetVirtualAddressableBits(virt_addr_bits);
+        } else {
+          m_process->SetVirtualAddressableBits(orig_bits_value);
+        }
       }
     } else {
       m_kernel.Clear();
@@ -1520,7 +1609,7 @@ void DynamicLoaderDarwinKernel::DebuggerInitialize(
     const bool is_global_setting = true;
     PluginManager::CreateSettingForDynamicLoaderPlugin(
         debugger, GetGlobalProperties().GetValueProperties(),
-        ConstString("Properties for the DynamicLoaderDarwinKernel plug-in."),
+        "Properties for the DynamicLoaderDarwinKernel plug-in.",
         is_global_setting);
   }
 }

@@ -1100,6 +1100,12 @@ extern void __kmp_init_target_mem();
 
 /* ------------------------------------------------------------------------ */
 
+#if ENABLE_LIBOMPTARGET
+extern void __kmp_init_target_task();
+#endif
+
+/* ------------------------------------------------------------------------ */
+
 #define KMP_UINT64_MAX                                                         \
   (~((kmp_uint64)1 << ((sizeof(kmp_uint64) * (1 << 3)) - 1)))
 
@@ -4183,13 +4189,6 @@ KMP_EXPORT void __kmpc_doacross_fini(ident_t *loc, kmp_int32 gtid);
 KMP_EXPORT void *__kmpc_threadprivate_cached(ident_t *loc, kmp_int32 global_tid,
                                              void *data, size_t size,
                                              void ***cache);
-
-// Symbols for MS mutual detection.
-extern int _You_must_link_with_exactly_one_OpenMP_library;
-extern int _You_must_link_with_Intel_OpenMP_library;
-#if KMP_OS_WINDOWS && (KMP_VERSION_MAJOR > 4)
-extern int _You_must_link_with_Microsoft_OpenMP_library;
-#endif
 
 // The routines below are not exported.
 // Consider making them 'static' in corresponding source files.

@@ -17,7 +17,6 @@
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -40,7 +39,7 @@ struct TestLinalgTransforms
 
   void getDependentDialects(DialectRegistry &registry) const override {
     // clang-format off
-    registry.insert<AffineDialect,
+    registry.insert<affine::AffineDialect,
                     bufferization::BufferizationDialect,
                     memref::MemRefDialect,
                     scf::SCFDialect,

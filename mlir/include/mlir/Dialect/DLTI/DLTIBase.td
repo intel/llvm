@@ -23,9 +23,11 @@ def DLTI_Dialect : Dialect {
   }];
 
   let extraClassDeclaration = [{
+    // Top level attribute name.
     constexpr const static ::llvm::StringLiteral
     kDataLayoutAttrName = "dlti.dl_spec";
 
+    // Constants used in entries.
     constexpr const static ::llvm::StringLiteral
     kDataLayoutEndiannessKey = "dlti.endianness";
 
@@ -34,6 +36,12 @@ def DLTI_Dialect : Dialect {
 
     constexpr const static ::llvm::StringLiteral
     kDataLayoutEndiannessLittle = "little";
+
+    constexpr const static ::llvm::StringLiteral
+    kDataLayoutAllocaMemorySpaceKey = "dlti.alloca_memory_space";
+
+    constexpr const static ::llvm::StringLiteral
+    kDataLayoutStackAlignmentKey = "dlti.stack_alignment";
   }];
 
   let useDefaultAttributePrinterParser = 1;

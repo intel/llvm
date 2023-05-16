@@ -89,7 +89,7 @@ IntegerType IntegerType::scaleElementBitwidth(unsigned scale) {
 
 unsigned FloatType::getWidth() {
   if (isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-          Float8E4M3FNUZType>())
+          Float8E4M3FNUZType, Float8E4M3B11FNUZType>())
     return 8;
   if (isa<Float16Type, BFloat16Type>())
     return 16;
@@ -114,6 +114,8 @@ const llvm::fltSemantics &FloatType::getFloatSemantics() {
     return APFloat::Float8E5M2FNUZ();
   if (isa<Float8E4M3FNUZType>())
     return APFloat::Float8E4M3FNUZ();
+  if (isa<Float8E4M3B11FNUZType>())
+    return APFloat::Float8E4M3B11FNUZ();
   if (isa<BFloat16Type>())
     return APFloat::BFloat();
   if (isa<Float16Type>())
@@ -537,7 +539,7 @@ MemRefType MemRefType::get(ArrayRef<int64_t> shape, Type elementType,
                                             elementType.getContext());
 
   // Wrap AffineMap into Attribute.
-  Attribute layout = AffineMapAttr::get(map);
+  auto layout = AffineMapAttr::get(map);
 
   // Drop default memory space value and replace it with empty attribute.
   memorySpace = skipDefaultMemorySpace(memorySpace);
@@ -557,7 +559,7 @@ MemRefType::getChecked(function_ref<InFlightDiagnostic()> emitErrorFn,
                                             elementType.getContext());
 
   // Wrap AffineMap into Attribute.
-  Attribute layout = AffineMapAttr::get(map);
+  auto layout = AffineMapAttr::get(map);
 
   // Drop default memory space value and replace it with empty attribute.
   memorySpace = skipDefaultMemorySpace(memorySpace);
@@ -575,7 +577,7 @@ MemRefType MemRefType::get(ArrayRef<int64_t> shape, Type elementType,
                                             elementType.getContext());
 
   // Wrap AffineMap into Attribute.
-  Attribute layout = AffineMapAttr::get(map);
+  auto layout = AffineMapAttr::get(map);
 
   // Convert deprecated integer-like memory space to Attribute.
   Attribute memorySpace =
@@ -596,7 +598,7 @@ MemRefType::getChecked(function_ref<InFlightDiagnostic()> emitErrorFn,
                                             elementType.getContext());
 
   // Wrap AffineMap into Attribute.
-  Attribute layout = AffineMapAttr::get(map);
+  auto layout = AffineMapAttr::get(map);
 
   // Convert deprecated integer-like memory space to Attribute.
   Attribute memorySpace =

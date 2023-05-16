@@ -11,6 +11,7 @@
 #include "ToolChains/AMDGPUOpenMP.h"
 #include "ToolChains/AVR.h"
 #include "ToolChains/Ananas.h"
+#include "ToolChains/Arch/RISCV.h"
 #include "ToolChains/BareMetal.h"
 #include "ToolChains/CSKYToolChain.h"
 #include "ToolChains/Clang.h"
@@ -39,6 +40,7 @@
 #include "ToolChains/Myriad.h"
 #include "ToolChains/NaCl.h"
 #include "ToolChains/NetBSD.h"
+#include "ToolChains/OHOS.h"
 #include "ToolChains/OpenBSD.h"
 #include "ToolChains/PPCFreeBSD.h"
 #include "ToolChains/PPCLinux.h"
@@ -205,8 +207,9 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
       DriverTitle(Title), CCCPrintBindings(false), CCPrintOptions(false),
       CCLogDiagnostics(false), CCGenDiagnostics(false),
-      CCPrintProcessStats(false), TargetTriple(TargetTriple), Saver(Alloc),
-      PrependArg(nullptr), CheckInputsExist(true), ProbePrecompiled(true),
+      CCPrintProcessStats(false), CCPrintInternalStats(false),
+      TargetTriple(TargetTriple), Saver(Alloc), PrependArg(nullptr),
+      CheckInputsExist(true), ProbePrecompiled(true),
       SuppressMissingInputWarning(false) {
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
@@ -626,13 +629,21 @@ static llvm::Triple computeTargetTriple(const Driver &D,
     }
   }
 
+  // The `-maix[32|64]` flags are only valid for AIX targets.
+  if (Arg *A = Args.getLastArgNoClaim(options::OPT_maix32, options::OPT_maix64);
+      A && !Target.isOSAIX())
+    D.Diag(diag::err_drv_unsupported_opt_for_target)
+        << A->getAsString(Args) << Target.str();
+
   // Handle pseudo-target flags '-m64', '-mx32', '-m32' and '-m16'.
   Arg *A = Args.getLastArg(options::OPT_m64, options::OPT_mx32,
-                           options::OPT_m32, options::OPT_m16);
+                           options::OPT_m32, options::OPT_m16,
+                           options::OPT_maix32, options::OPT_maix64);
   if (A) {
     llvm::Triple::ArchType AT = llvm::Triple::UnknownArch;
 
-    if (A->getOption().matches(options::OPT_m64)) {
+    if (A->getOption().matches(options::OPT_m64) ||
+        A->getOption().matches(options::OPT_maix64)) {
       AT = Target.get64BitArchVariant().getArch();
       if (Target.getEnvironment() == llvm::Triple::GNUX32)
         Target.setEnvironment(llvm::Triple::GNU);
@@ -645,7 +656,8 @@ static llvm::Triple computeTargetTriple(const Driver &D,
         Target.setEnvironment(llvm::Triple::MuslX32);
       else
         Target.setEnvironment(llvm::Triple::GNUX32);
-    } else if (A->getOption().matches(options::OPT_m32)) {
+    } else if (A->getOption().matches(options::OPT_m32) ||
+               A->getOption().matches(options::OPT_maix32)) {
       AT = Target.get32BitArchVariant().getArch();
       if (Target.getEnvironment() == llvm::Triple::GNUX32)
         Target.setEnvironment(llvm::Triple::GNU);
@@ -710,8 +722,9 @@ static llvm::Triple computeTargetTriple(const Driver &D,
   // If target is RISC-V adjust the target triple according to
   // provided architecture name
   if (Target.isRISCV()) {
-    if ((A = Args.getLastArg(options::OPT_march_EQ))) {
-      StringRef ArchName = A->getValue();
+    if (Args.hasArg(options::OPT_march_EQ) ||
+        Args.hasArg(options::OPT_mcpu_EQ)) {
+      StringRef ArchName = tools::riscv::getRISCVArch(Args, Target);
       if (ArchName.startswith_insensitive("rv32"))
         Target.setArch(llvm::Triple::riscv32);
       else if (ArchName.startswith_insensitive("rv64"))
@@ -1033,7 +1046,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         } else
           TC = &getToolChain(C.getInputArgs(), TT);
         C.addOffloadDeviceToolChain(TC, Action::OFK_OpenMP);
-        if (DerivedArchs.find(TT.getTriple()) != DerivedArchs.end())
+        if (DerivedArchs.contains(TT.getTriple()))
           KnownArchs[TC] = DerivedArchs[TT.getTriple()];
       }
     }
@@ -1191,32 +1204,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
-          // Warn about deprecated `sycldevice` environment component.
-          llvm::Triple TT(MakeSYCLDeviceTriple(UserTargetName));
-          if (TT.getEnvironmentName() == "sycldevice") {
-            // Build a string with suggested target triple.
-            std::string SuggestedTriple = TT.getArchName().str();
-            if (TT.getOS() != llvm::Triple::UnknownOS) {
-              SuggestedTriple += '-';
-              if (TT.getVendor() != llvm::Triple::UnknownVendor)
-                SuggestedTriple += TT.getVendorName();
-              SuggestedTriple += Twine("-" + TT.getOSName()).str();
-            } else if (TT.getVendor() != llvm::Triple::UnknownVendor)
-              SuggestedTriple += Twine("-" + TT.getVendorName()).str();
-            Diag(clang::diag::warn_drv_deprecated_arg)
-                << TT.str() << SuggestedTriple;
-            // Drop environment component.
-            std::string EffectiveTriple =
-                Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
-                      TT.getOSName())
-                    .str();
-            TT.setTriple(EffectiveTriple);
-          }
-
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(TT);
+          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -1721,8 +1712,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   const Arg *Std = Args.getLastArg(options::OPT_std_EQ);
   ModulesModeCXX20 =
       !Args.hasArg(options::OPT_fmodules) && Std &&
-      (Std->containsValue("c++20") || Std->containsValue("c++2b") ||
-       Std->containsValue("c++2a") || Std->containsValue("c++latest"));
+      (Std->containsValue("c++20") || Std->containsValue("c++2a") ||
+       Std->containsValue("c++23") || Std->containsValue("c++2b") ||
+       Std->containsValue("c++latest"));
 
   // Process -fmodule-header{=} flags.
   if (Arg *A = Args.getLastArg(options::OPT_fmodule_header_EQ,
@@ -2177,9 +2169,6 @@ void Driver::generateCompilationDiagnostics(
           << "(choose the .crash file that corresponds to your crash)";
     }
   }
-
-  for (const auto &A : C.getArgs().filtered(options::OPT_frewrite_map_file_EQ))
-    Diag(clang::diag::note_drv_command_failed_diag_msg) << A->getValue();
 
   Diag(clang::diag::note_drv_command_failed_diag_msg)
       << "\n\n********************";
@@ -5395,7 +5384,7 @@ class OffloadingActionBuilder final {
 
         const toolchains::CudaToolChain *CudaTC =
             static_cast<const toolchains::CudaToolChain *>(TC);
-        for (auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+        for (const auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
           const char *BoundArch =
               SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
           std::string LibDeviceFile =
@@ -5419,7 +5408,7 @@ class OffloadingActionBuilder final {
       // to produce a final binary.
       // They will be bundled per TC before being sent to the Offload Wrapper.
       llvm::MapVector<const ToolChain *, ActionList> LinkedInputs;
-      for (auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+      for (const auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
         auto &LI = LinkInputEnum.value();
         const ToolChain *TC = SYCLTargetInfoList[LinkInputEnum.index()].TC;
         const char *BoundArch =
@@ -5506,6 +5495,8 @@ class OffloadingActionBuilder final {
         //   s - device code split requested
         //   r - relocatable device code is requested
         //   f - link object output type is TY_Tempfilelist (fat archive)
+        //   e - Embedded IR for fusion (-fsycl-embed-ir) was requested
+        //       and target is NVPTX.
         //   * - "all other cases"
         //     - no condition means output/input is "always" present
         // First symbol indicates output/input type
@@ -5525,58 +5516,58 @@ class OffloadingActionBuilder final {
         //                |             |
         //                |             |
         //         .---------------------------------------.
-        //         |               PostLink                |
-        //         .---------------------------------------.
-        //                           [+*]                [+]
-        //                             |                  |
-        //                             |                  |
-        //                             |---------         |
-        //                             |        |         |
-        //                             |        |         |
-        //                             |      [+!rf]      |
-        //                             |  .-------------. |
-        //                             |  | llvm-foreach| |
-        //                             |  .-------------. |
-        //                             |        |         |
-        //                            [+*]    [+!rf]      |
-        //                      .-----------------.       |
-        //                      | FileTableTform  |       |
-        //                      | (extract "Code")|       |
-        //                      .-----------------.       |
-        //                              [-]               |-----------
-        //           --------------------|                           |
-        //           |                   |                           |
-        //           |                   |-----------------          |
-        //           |                   |                |          |
-        //           |                   |               [-!rf]      |
-        //           |                   |         .--------------.  |
-        //           |                   |         |FileTableTform|  |
-        //           |                   |         |   (merge)    |  |
-        //           |                   |         .--------------.  |
-        //           |                   |               [-]         |-------
-        //           |                   |                |          |      |
-        //           |                   |                |    ------|      |
-        //           |                   |        --------|    |            |
-        //          [.]                 [-*]   [-!rf]        [+!rf]         |
-        //   .---------------.  .-------------------. .--------------.      |
-        //   | finalizeNVPTX  | |  SPIRVTranslator  | |FileTableTform|      |
-        //   | finalizeAMDGCN | |                   | |   (merge)    |      |
-        //   .---------------.  .-------------------. . -------------.      |
-        //          [.]             [-as]      [-!a]         |              |
-        //           |                |          |           |              |
-        //           |              [-s]         |           |              |
-        //           |       .----------------.  |           |              |
-        //           |       | BackendCompile |  |           |              |
-        //           |       .----------------.  |     ------|              |
-        //           |              [-s]         |     |                    |
-        //           |                |          |     |                    |
-        //           |              [-a]      [-!a]  [-!rf]                 |
-        //           |              .--------------------.                  |
-        //           -----------[-n]|   FileTableTform   |[+*]--------------|
-        //                          |  (replace "Code")  |
-        //                          .--------------------.
-        //                                      |
-        //                                    [+*]
+        //         |               PostLink                |[+e]----------------
+        //         .---------------------------------------.                   |
+        //                           [+*]                [+]                   |
+        //                             |                  |                    |
+        //                             |                  |                    |
+        //                             |---------         |                    |
+        //                             |        |         |                    |
+        //                             |        |         |                    |
+        //                             |      [+!rf]      |                    |
+        //                             |  .-------------. |                    |
+        //                             |  | llvm-foreach| |                    |
+        //                             |  .-------------. |                    |
+        //                             |        |         |                    |
+        //                            [+*]    [+!rf]      |                    |
+        //                      .-----------------.       |                    |
+        //                      | FileTableTform  |       |                    |
+        //                      | (extract "Code")|       |                    |
+        //                      .-----------------.       |                    |
+        //                              [-]               |-----------         |
+        //           --------------------|                           |         |
+        //           |                   |                           |         |
+        //           |                   |-----------------          |         |
+        //           |                   |                |          |         |
+        //           |                   |               [-!rf]      |         |
+        //           |                   |         .--------------.  |         |
+        //           |                   |         |FileTableTform|  |         |
+        //           |                   |         |   (merge)    |  |         |
+        //           |                   |         .--------------.  |         |
+        //           |                   |               [-]         |-------  |
+        //           |                   |                |          |      |  |
+        //           |                   |                |    ------|      |  |
+        //           |                   |        --------|    |            |  |
+        //          [.]                 [-*]   [-!rf]        [+!rf]         |  |
+        //   .---------------.  .-------------------. .--------------.      |  |
+        //   | finalizeNVPTX  | |  SPIRVTranslator  | |FileTableTform|      |  |
+        //   | finalizeAMDGCN | |                   | |   (merge)    |      |  |
+        //   .---------------.  .-------------------. . -------------.      |  |
+        //          [.]             [-as]      [-!a]         |              |  |
+        //           |                |          |           |              |  |
+        //           |              [-s]         |           |              |  |
+        //           |       .----------------.  |           |              |  |
+        //           |       | BackendCompile |  |           |              |  |
+        //           |       .----------------.  |     ------|              |  |
+        //           |              [-s]         |     |                    |  |
+        //           |                |          |     |                    |  |
+        //           |              [-a]      [-!a]  [-!rf]                 |  |
+        //           |              .--------------------.                  |  |
+        //           -----------[-n]|   FileTableTform   |[+*]--------------|  |
+        //                          |  (replace "Code")  |                     |
+        //                          .--------------------.                     |
+        //                                      |      -------------------------
+        //                                    [+*]     | [+e]
         //         .--------------------------------------.
         //         |            OffloadWrapper            |
         //         .--------------------------------------.
@@ -5683,6 +5674,16 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
+          if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
+            // When compiling for Nvidia/CUDA devices and the user requested the
+            // IR to be embedded in the application (via option), run the output
+            // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
+            // through the offload wrapper and link the resulting object to the
+            // application.
+            auto *WrapBitcodeAction = C.MakeAction<OffloadWrapperJobAction>(
+                PostLinkAction, types::TY_Object, true);
+            DA.add(*WrapBitcodeAction, *TC, BoundArch, Action::OFK_SYCL);
+          }
           bool NoRDCFatStaticArchive =
               !IsRDC &&
               FullDeviceLinkAction->getType() == types::TY_Tempfilelist;
@@ -6702,8 +6703,7 @@ public:
     return C.MakeAction<OffloadAction>(HDep, DDeps);
   }
 
-  void unbundleStaticArchives(Compilation &C, DerivedArgList &Args,
-                              DeviceActionBuilder::PhasesTy &PL) {
+  void unbundleStaticArchives(Compilation &C, DerivedArgList &Args) {
     if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
       return;
 
@@ -6716,6 +6716,7 @@ public:
       Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
       Action *Current = C.MakeAction<InputAction>(*InputArg, T);
       addHostDependenceToDeviceActions(Current, InputArg, Args);
+      auto PL = types::getCompilationPhases(T);
       addDeviceDependencesToHostAction(Current, InputArg, phases::Link,
                                        PL.back(), PL);
     };
@@ -7074,16 +7075,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
       Current = NewCurrent;
 
-      // Use the current host action in any of the offloading actions, if
-      // required.
-      if (!UseNewOffloadingDriver)
-        if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg, Args))
-          break;
-
       // Try to build the offloading actions and add the result as a dependency
       // to the host.
       if (UseNewOffloadingDriver)
         Current = BuildOffloadingActions(C, Args, I, Current);
+      // Use the current host action in any of the offloading actions, if
+      // required.
+      else if (OffloadBuilder->addHostDependenceToDeviceActions(Current,
+                                                                InputArg,
+                                                                Args))
+        break;
 
       if (Current->getType() == types::TY_Nothing)
         break;
@@ -7109,7 +7110,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
       OffloadBuilder->addDeviceLinkDependenciesFromHost(LinkerInputs);
 
-    OffloadBuilder->unbundleStaticArchives(C, Args, PL);
+    OffloadBuilder->unbundleStaticArchives(C, Args);
   }
 
   // For an FPGA archive, we add the unbundling step above to take care of
@@ -7349,7 +7350,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                 : "--no-offload-arch");
   }
 
-  if (KnownArchs.find(TC) != KnownArchs.end())
+  if (KnownArchs.contains(TC))
     return KnownArchs.lookup(TC);
 
   llvm::DenseSet<StringRef> Archs;
@@ -8843,7 +8844,8 @@ static bool HasPreprocessOutput(const Action &JA) {
 const char *Driver::CreateTempFile(Compilation &C, StringRef Prefix,
                                    StringRef Suffix, bool MultipleArchs,
                                    StringRef BoundArch,
-                                   types::ID Type) const {
+                                   types::ID Type,
+                                   bool NeedUniqueDirectory) const {
   SmallString<128> TmpName;
   Arg *A = C.getArgs().getLastArg(options::OPT_fcrash_diagnostics_dir);
   std::optional<std::string> CrashDirectory =
@@ -8863,9 +8865,15 @@ const char *Driver::CreateTempFile(Compilation &C, StringRef Prefix,
     }
   } else {
     if (MultipleArchs && !BoundArch.empty()) {
-      TmpName = GetTemporaryDirectory(Prefix);
-      llvm::sys::path::append(TmpName,
-                              Twine(Prefix) + "-" + BoundArch + "." + Suffix);
+      if (NeedUniqueDirectory) {
+        TmpName = GetTemporaryDirectory(Prefix);
+        llvm::sys::path::append(TmpName,
+                                Twine(Prefix) + "-" + BoundArch + "." + Suffix);
+      } else {
+        TmpName =
+            GetTemporaryPath((Twine(Prefix) + "-" + BoundArch).str(), Suffix);
+      }
+
     } else {
       TmpName = GetTemporaryPath(Prefix, Suffix);
     }
@@ -9019,8 +9027,16 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
     const char *Suffix = types::getTypeTempSuffix(JA.getType(), IsCLMode());
+    // The non-offloading toolchain on Darwin requires deterministic input
+    // file name for binaries to be deterministic, therefore it needs unique
+    // directory.
+    llvm::Triple Triple(C.getDriver().getTargetTriple());
+    bool NeedUniqueDirectory =
+        (JA.getOffloadingDeviceKind() == Action::OFK_None ||
+         JA.getOffloadingDeviceKind() == Action::OFK_Host) &&
+        Triple.isOSDarwin();
     return CreateTempFile(C, Split.first, Suffix, MultipleArchs, BoundArch,
-                          JA.getType());
+                          JA.getType(), NeedUniqueDirectory);
   }
 
   SmallString<128> BasePath(BaseInput);
@@ -9415,7 +9431,8 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
                                                               Args);
       else if (Target.getArch() == llvm::Triple::ve)
         TC = std::make_unique<toolchains::VEToolChain>(*this, Target, Args);
-
+      else if (Target.isOHOSFamily())
+        TC = std::make_unique<toolchains::OHOS>(*this, Target, Args);
       else
         TC = std::make_unique<toolchains::Linux>(*this, Target, Args);
       break;
@@ -9478,6 +9495,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       break;
     case llvm::Triple::Hurd:
       TC = std::make_unique<toolchains::Hurd>(*this, Target, Args);
+      break;
+    case llvm::Triple::LiteOS:
+      TC = std::make_unique<toolchains::OHOS>(*this, Target, Args);
       break;
     case llvm::Triple::ZOS:
       TC = std::make_unique<toolchains::ZOS>(*this, Target, Args);
@@ -9830,3 +9850,58 @@ llvm::StringRef clang::driver::getDriverMode(StringRef ProgName,
 }
 
 bool driver::IsClangCL(StringRef DriverMode) { return DriverMode.equals("cl"); }
+
+llvm::Error driver::expandResponseFiles(SmallVectorImpl<const char *> &Args,
+                                        bool ClangCLMode,
+                                        llvm::BumpPtrAllocator &Alloc,
+                                        llvm::vfs::FileSystem *FS) {
+  // Parse response files using the GNU syntax, unless we're in CL mode. There
+  // are two ways to put clang in CL compatibility mode: ProgName is either
+  // clang-cl or cl, or --driver-mode=cl is on the command line. The normal
+  // command line parsing can't happen until after response file parsing, so we
+  // have to manually search for a --driver-mode=cl argument the hard way.
+  // Finally, our -cc1 tools don't care which tokenization mode we use because
+  // response files written by clang will tokenize the same way in either mode.
+  enum { Default, POSIX, Windows } RSPQuoting = Default;
+  for (const char *F : Args) {
+    if (strcmp(F, "--rsp-quoting=posix") == 0)
+      RSPQuoting = POSIX;
+    else if (strcmp(F, "--rsp-quoting=windows") == 0)
+      RSPQuoting = Windows;
+  }
+
+  // Determines whether we want nullptr markers in Args to indicate response
+  // files end-of-lines. We only use this for the /LINK driver argument with
+  // clang-cl.exe on Windows.
+  bool MarkEOLs = ClangCLMode;
+
+  llvm::cl::TokenizerCallback Tokenizer;
+  if (RSPQuoting == Windows || (RSPQuoting == Default && ClangCLMode))
+    Tokenizer = &llvm::cl::TokenizeWindowsCommandLine;
+  else
+    Tokenizer = &llvm::cl::TokenizeGNUCommandLine;
+
+  if (MarkEOLs && Args.size() > 1 && StringRef(Args[1]).startswith("-cc1"))
+    MarkEOLs = false;
+
+  llvm::cl::ExpansionContext ECtx(Alloc, Tokenizer);
+  ECtx.setMarkEOLs(MarkEOLs);
+  if (FS)
+    ECtx.setVFS(FS);
+
+  if (llvm::Error Err = ECtx.expandResponseFiles(Args))
+    return Err;
+
+  // If -cc1 came from a response file, remove the EOL sentinels.
+  auto FirstArg = llvm::find_if(llvm::drop_begin(Args),
+                                [](const char *A) { return A != nullptr; });
+  if (FirstArg != Args.end() && StringRef(*FirstArg).startswith("-cc1")) {
+    // If -cc1 came from a response file, remove the EOL sentinels.
+    if (MarkEOLs) {
+      auto newEnd = std::remove(Args.begin(), Args.end(), nullptr);
+      Args.resize(newEnd - Args.begin());
+    }
+  }
+
+  return llvm::Error::success();
+}

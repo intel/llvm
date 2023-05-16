@@ -44,7 +44,7 @@ class auto_name {};
 template <typename Name, typename Type> struct get_kernel_name_t {
   using name = Name;
   static_assert(
-      !std::is_same<Name, auto_name>::value,
+      !std::is_same_v<Name, auto_name>,
       "No kernel name provided without -fsycl-unnamed-lambda enabled!");
 };
 

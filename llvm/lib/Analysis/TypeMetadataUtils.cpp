@@ -161,7 +161,7 @@ Constant *llvm::getPointerAtOffset(Constant *I, uint64_t Offset, Module &M,
 
   // (Swift-specific) relative-pointer support starts here.
   if (auto *CI = dyn_cast<ConstantInt>(I)) {
-    if (Offset == 0 && CI->getZExtValue() == 0) {
+    if (Offset == 0 && CI->isZero()) {
       return I;
     }
   }

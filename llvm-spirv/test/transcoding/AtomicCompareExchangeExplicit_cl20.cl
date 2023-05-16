@@ -42,8 +42,8 @@ __kernel void testAtomicCompareExchangeExplicit_cl20(
 
 //CHECK-SPIRV: AtomicCompareExchange {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[DeviceScope]] [[ReleaseMemSem]] [[RelaxedMemSem]]
 //CHECK-SPIRV: AtomicCompareExchange {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[WorkgroupScope]] [[AcqRelMemSem]] [[RelaxedMemSem]]
-//CHECK-SPIRV: AtomicCompareExchangeWeak {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[DeviceScope]] [[ReleaseMemSem]] [[RelaxedMemSem]]
-//CHECK-SPIRV: AtomicCompareExchangeWeak {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[WorkgroupScope]] [[AcqRelMemSem]] [[RelaxedMemSem]]
+//CHECK-SPIRV: AtomicCompareExchange {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[DeviceScope]] [[ReleaseMemSem]] [[RelaxedMemSem]]
+//CHECK-SPIRV: AtomicCompareExchange {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[WorkgroupScope]] [[AcqRelMemSem]] [[RelaxedMemSem]]
 
 //CHECK-LLVM: call spir_func i1 @_Z39atomic_compare_exchange_strong_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(ptr addrspace(4) %0, ptr addrspace(4) %expected5.as, i32 %desired, i32 3, i32 0, i32 2)
 //CHECK-LLVM: call spir_func i1 @_Z39atomic_compare_exchange_strong_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(ptr addrspace(4) %0, ptr addrspace(4) %expected8.as, i32 %desired, i32 4, i32 0, i32 1)

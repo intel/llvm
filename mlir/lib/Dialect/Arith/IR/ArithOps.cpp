@@ -185,6 +185,13 @@ bool arith::ConstantOp::isBuildableWith(Attribute value, Type type) {
   return value.isa<IntegerAttr, FloatAttr, ElementsAttr>();
 }
 
+ConstantOp arith::ConstantOp::materialize(OpBuilder &builder, Attribute value,
+                                          Type type, Location loc) {
+  if (isBuildableWith(value, type))
+    return builder.create<arith::ConstantOp>(loc, cast<TypedAttr>(value));
+  return nullptr;
+}
+
 OpFoldResult arith::ConstantOp::fold(FoldAdaptor adaptor) { return getValue(); }
 
 void arith::ConstantIntOp::build(OpBuilder &builder, OperationState &result,
@@ -258,8 +265,8 @@ OpFoldResult arith::AddIOp::fold(FoldAdaptor adaptor) {
 
 void arith::AddIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                 MLIRContext *context) {
-  patterns.add<AddIAddConstant, AddISubConstantRHS, AddISubConstantLHS>(
-      context);
+  patterns.add<AddIAddConstant, AddISubConstantRHS, AddISubConstantLHS,
+               AddIMulNegativeOneRhs, AddIMulNegativeOneLhs>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -708,7 +715,7 @@ OpFoldResult arith::RemUIOp::fold(FoldAdaptor adaptor) {
   bool div0 = false;
   auto result = constFoldBinaryOp<IntegerAttr>(adaptor.getOperands(),
                                                [&](APInt a, const APInt &b) {
-                                                 if (div0 || b.isNullValue()) {
+                                                 if (div0 || b.isZero()) {
                                                    div0 = true;
                                                    return a;
                                                  }
@@ -731,7 +738,7 @@ OpFoldResult arith::RemSIOp::fold(FoldAdaptor adaptor) {
   bool div0 = false;
   auto result = constFoldBinaryOp<IntegerAttr>(adaptor.getOperands(),
                                                [&](APInt a, const APInt &b) {
-                                                 if (div0 || b.isNullValue()) {
+                                                 if (div0 || b.isZero()) {
                                                    div0 = true;
                                                    return a;
                                                  }
@@ -1224,6 +1231,16 @@ LogicalResult arith::ExtSIOp::verify() {
 // ExtFOp
 //===----------------------------------------------------------------------===//
 
+/// Always fold extension of FP constants.
+OpFoldResult arith::ExtFOp::fold(FoldAdaptor adaptor) {
+  auto constOperand = adaptor.getIn().dyn_cast_or_null<FloatAttr>();
+  if (!constOperand)
+    return {};
+
+  // Convert to target type via 'double'.
+  return FloatAttr::get(getType(), constOperand.getValue().convertToDouble());
+}
+
 bool arith::ExtFOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return checkWidthChangeCast<std::greater, FloatType>(inputs, outputs);
 }
@@ -1235,11 +1252,22 @@ LogicalResult arith::ExtFOp::verify() { return verifyExtOp<FloatType>(*this); }
 //===----------------------------------------------------------------------===//
 
 OpFoldResult arith::TruncIOp::fold(FoldAdaptor adaptor) {
-  // trunci(zexti(a)) -> a
-  // trunci(sexti(a)) -> a
   if (matchPattern(getOperand(), m_Op<arith::ExtUIOp>()) ||
-      matchPattern(getOperand(), m_Op<arith::ExtSIOp>()))
-    return getOperand().getDefiningOp()->getOperand(0);
+      matchPattern(getOperand(), m_Op<arith::ExtSIOp>())) {
+    Value src = getOperand().getDefiningOp()->getOperand(0);
+    Type srcType = getElementTypeOrSelf(src.getType());
+    Type dstType = getElementTypeOrSelf(getType());
+    // trunci(zexti(a)) -> trunci(a)
+    // trunci(sexti(a)) -> trunci(a)
+    if (srcType.cast<IntegerType>().getWidth() >
+        dstType.cast<IntegerType>().getWidth()) {
+      setOperand(src);
+      return getResult();
+    }
+    // trunci(zexti(a)) -> a
+    // trunci(sexti(a)) -> a
+    return src;
+  }
 
   // trunci(trunci(a)) -> trunci(a))
   if (matchPattern(getOperand(), m_Op<arith::TruncIOp>())) {
@@ -1262,8 +1290,9 @@ bool arith::TruncIOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
 
 void arith::TruncIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
-  patterns.add<TruncIShrSIToTrunciShrUI, TruncIShrUIMulIToMulSIExtended,
-               TruncIShrUIMulIToMulUIExtended>(context);
+  patterns.add<TruncIExtSIToExtSI, TruncIExtUIToExtUI, TruncIShrSIToTrunciShrUI,
+               TruncIShrUIMulIToMulSIExtended, TruncIShrUIMulIToMulUIExtended>(
+      context);
 }
 
 LogicalResult arith::TruncIOp::verify() {
@@ -1445,12 +1474,15 @@ bool arith::IndexCastOp::areCastCompatible(TypeRange inputs,
 
 OpFoldResult arith::IndexCastOp::fold(FoldAdaptor adaptor) {
   // index_cast(constant) -> constant
-  // A little hack because we go through int. Otherwise, the size of the
-  // constant might need to change.
-  if (auto value = adaptor.getIn().dyn_cast_or_null<IntegerAttr>())
-    return IntegerAttr::get(getType(), value.getInt());
+  unsigned resultBitwidth = 64; // Default for index integer attributes.
+  if (auto intTy = dyn_cast<IntegerType>(getElementTypeOrSelf(getType())))
+    resultBitwidth = intTy.getWidth();
 
-  return {};
+  return constFoldCastOp<IntegerAttr, IntegerAttr>(
+      adaptor.getOperands(), getType(),
+      [resultBitwidth](const APInt &a, bool & /*castStatus*/) {
+        return a.sextOrTrunc(resultBitwidth);
+      });
 }
 
 void arith::IndexCastOp::getCanonicalizationPatterns(
@@ -1469,12 +1501,15 @@ bool arith::IndexCastUIOp::areCastCompatible(TypeRange inputs,
 
 OpFoldResult arith::IndexCastUIOp::fold(FoldAdaptor adaptor) {
   // index_castui(constant) -> constant
-  // A little hack because we go through int. Otherwise, the size of the
-  // constant might need to change.
-  if (auto value = adaptor.getIn().dyn_cast_or_null<IntegerAttr>())
-    return IntegerAttr::get(getType(), value.getValue().getZExtValue());
+  unsigned resultBitwidth = 64; // Default for index integer attributes.
+  if (auto intTy = dyn_cast<IntegerType>(getElementTypeOrSelf(getType())))
+    resultBitwidth = intTy.getWidth();
 
-  return {};
+  return constFoldCastOp<IntegerAttr, IntegerAttr>(
+      adaptor.getOperands(), getType(),
+      [resultBitwidth](const APInt &a, bool & /*castStatus*/) {
+        return a.zextOrTrunc(resultBitwidth);
+      });
 }
 
 void arith::IndexCastUIOp::getCanonicalizationPatterns(
@@ -2279,7 +2314,7 @@ OpFoldResult arith::ShRSIOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 /// Returns the identity value attribute associated with an AtomicRMWKind op.
-Attribute mlir::arith::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
+TypedAttr mlir::arith::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
                                             OpBuilder &builder, Location loc) {
   switch (kind) {
   case AtomicRMWKind::maxf:
@@ -2328,7 +2363,7 @@ Attribute mlir::arith::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
 /// Returns the identity value associated with an AtomicRMWKind op.
 Value mlir::arith::getIdentityValue(AtomicRMWKind op, Type resultType,
                                     OpBuilder &builder, Location loc) {
-  Attribute attr = getIdentityValueAttr(op, resultType, builder, loc);
+  auto attr = getIdentityValueAttr(op, resultType, builder, loc);
   return builder.create<arith::ConstantOp>(loc, attr);
 }
 

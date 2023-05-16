@@ -52,11 +52,18 @@ Configuration files:
                                  options. Example:
                                    CheckOptions:
                                      some-check.SomeOption: 'some value'
-  Checks                       - Same as '--checks'.
+  Checks                       - Same as '--checks'. Additionally, the list of
+                                 globs can be specified as a list instead of a
+                                 string.
   ExtraArgs                    - Same as '--extra-args'.
   ExtraArgsBefore              - Same as '--extra-args-before'.
   FormatStyle                  - Same as '--format-style'.
+  HeaderFileExtensions         - File extensions to consider to determine if a
+                                 given diagnostic is located in a header file.
   HeaderFilterRegex            - Same as '--header-filter-regex'.
+  ImplementationFileExtensions - File extensions to consider to determine if a
+                                 given diagnostic is located in an
+                                 implementation file.
   InheritParentConfig          - If this option is true in a config file, the
                                  configuration file in the parent directory
                                  (if any exists) will be taken and the current
@@ -74,12 +81,14 @@ Configuration files:
 
     $ clang-tidy --dump-config
     ---
-    Checks:              '-*,some-check'
-    WarningsAsErrors:    ''
-    HeaderFilterRegex:   ''
-    FormatStyle:         none
-    InheritParentConfig: true
-    User:                user
+    Checks:                       '-*,some-check'
+    WarningsAsErrors:             ''
+    HeaderFileExtensions:         ['', 'h','hh','hpp','hxx']
+    ImplementationFileExtensions: ['c','cc','cpp','cxx']
+    HeaderFilterRegex:            ''
+    FormatStyle:                  none
+    InheritParentConfig:          true
+    User:                         user
     CheckOptions:
       some-check.SomeOption: 'some value'
     ...
@@ -125,10 +134,13 @@ option in .clang-tidy file, if any.
                                          cl::init(""),
                                          cl::cat(ClangTidyCategory));
 
-static cl::opt<bool>
-    SystemHeaders("system-headers",
-                  desc("Display the errors from system headers."),
-                  cl::init(false), cl::cat(ClangTidyCategory));
+static cl::opt<bool> SystemHeaders("system-headers", desc(R"(
+Display the errors from system headers.
+This option overrides the 'SystemHeaders' option
+in .clang-tidy file, if any.
+)"),
+                                   cl::init(false), cl::cat(ClangTidyCategory));
+
 static cl::opt<std::string> LineFilter("line-filter", desc(R"(
 List of files with line ranges to filter the
 warnings. Can be used together with
@@ -484,6 +496,26 @@ static bool verifyChecks(const StringSet<> &AllChecks, StringRef CheckGlob,
   return AnyInvalid;
 }
 
+static bool verifyFileExtensions(
+    const std::vector<std::string> &HeaderFileExtensions,
+    const std::vector<std::string> &ImplementationFileExtensions,
+    StringRef Source) {
+  bool AnyInvalid = false;
+  for (const auto &HeaderExtension : HeaderFileExtensions) {
+    for (const auto &ImplementationExtension : ImplementationFileExtensions) {
+      if (HeaderExtension == ImplementationExtension) {
+        AnyInvalid = true;
+        auto &Output = llvm::WithColor::warning(llvm::errs(), Source)
+                       << "HeaderFileExtension '" << HeaderExtension << '\''
+                       << " is the same as ImplementationFileExtension '"
+                       << ImplementationExtension << '\'';
+        Output << VerifyConfigWarningEnd;
+      }
+    }
+  }
+  return AnyInvalid;
+}
+
 int clangTidyMain(int argc, const char **argv) {
   llvm::InitLLVM X(argc, argv);
 
@@ -586,6 +618,11 @@ int clangTidyMain(int argc, const char **argv) {
     for (const auto &[Opts, Source] : RawOptions) {
       if (Opts.Checks)
         AnyInvalid |= verifyChecks(Valid.Names, *Opts.Checks, Source);
+
+      if (Opts.HeaderFileExtensions && Opts.ImplementationFileExtensions)
+        AnyInvalid |=
+            verifyFileExtensions(*Opts.HeaderFileExtensions,
+                                 *Opts.ImplementationFileExtensions, Source);
 
       for (auto Key : Opts.CheckOptions.keys()) {
         if (Valid.Options.contains(Key))

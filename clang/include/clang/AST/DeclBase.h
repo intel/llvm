@@ -1227,6 +1227,10 @@ public:
   /// have a FunctionType.
   const FunctionType *getFunctionType(bool BlocksToo = true) const;
 
+  // Looks through the Decl's underlying type to determine if it's a
+  // function pointer type.
+  bool isFunctionPointerType() const;
+
 private:
   void setAttrsImpl(const AttrVec& Attrs, ASTContext &Ctx);
   void setDeclContextsImpl(DeclContext *SemaDC, DeclContext *LexicalDC,
@@ -1597,7 +1601,7 @@ class DeclContext {
     uint64_t : NumDeclContextBits;
 
     /// Kind of initializer,
-    /// function call or omp_priv<init_expr> initializtion.
+    /// function call or omp_priv<init_expr> initialization.
     uint64_t InitializerKind : 2;
   };
 

@@ -1,4 +1,4 @@
-//===-- RISCVSubtarget.cpp - RISCV Subtarget Information ------------------===//
+//===-- RISCVSubtarget.cpp - RISC-V Subtarget Information -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the RISCV specific subclass of TargetSubtargetInfo.
+// This file implements the RISC-V specific subclass of TargetSubtargetInfo.
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,7 +30,7 @@ using namespace llvm;
 #include "RISCVGenSubtargetInfo.inc"
 
 static cl::opt<bool> EnableSubRegLiveness("riscv-enable-subreg-liveness",
-                                          cl::init(false), cl::Hidden);
+                                          cl::init(true), cl::Hidden);
 
 static cl::opt<unsigned> RVVVectorLMULMax(
     "riscv-v-fixed-length-vector-lmul-max",
@@ -83,9 +83,6 @@ RISCVSubtarget::RISCVSubtarget(const Triple &TT, StringRef CPU,
       FrameLowering(
           initializeSubtargetDependencies(TT, CPU, TuneCPU, FS, ABIName)),
       InstrInfo(*this), RegInfo(getHwMode()), TLInfo(TM, *this) {
-  if (RISCV::isX18ReservedByDefault(TT))
-    UserReservedRegister.set(RISCV::X18);
-
   CallLoweringInfo.reset(new RISCVCallLowering(*getTargetLowering()));
   Legalizer.reset(new RISCVLegalizerInfo(*this));
 

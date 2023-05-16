@@ -15,6 +15,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
@@ -74,9 +75,7 @@ struct Wrapper {
 Operation *MemRefDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
-  if (arith::ConstantOp::isBuildableWith(value, type))
-    return builder.create<arith::ConstantOp>(loc, value, type);
-  return nullptr;
+  return arith::ConstantOp::materialize(builder, value, type, loc);
 }
 
 //===----------------------------------------------------------------------===//
@@ -284,7 +283,10 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocLikeOp> {
     // Check to see if any dimensions operands are constants.  If so, we can
     // substitute and drop them.
     if (llvm::none_of(alloc.getDynamicSizes(), [](Value operand) {
-          return matchPattern(operand, matchConstantIndex());
+          APInt constSizeArg;
+          if (!matchPattern(operand, m_ConstantInt(&constSizeArg)))
+            return false;
+          return constSizeArg.isNonNegative();
         }))
       return failure();
 
@@ -305,11 +307,11 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocLikeOp> {
         continue;
       }
       auto dynamicSize = alloc.getDynamicSizes()[dynamicDimPos];
-      auto *defOp = dynamicSize.getDefiningOp();
-      if (auto constantIndexOp =
-              dyn_cast_or_null<arith::ConstantIndexOp>(defOp)) {
+      APInt constSizeArg;
+      if (matchPattern(dynamicSize, m_ConstantInt(&constSizeArg)) &&
+          constSizeArg.isNonNegative()) {
         // Dynamic shape dimension will be folded.
-        newShapeConstants.push_back(constantIndexOp.value());
+        newShapeConstants.push_back(constSizeArg.getZExtValue());
       } else {
         // Dynamic shape dimension not folded; copy dynamicSize from old memref.
         newShapeConstants.push_back(ShapedType::kDynamic);
@@ -550,7 +552,7 @@ struct AllocaScopeInliner : public OpRewritePattern<AllocaScopeOp> {
     Block *block = &op.getRegion().front();
     Operation *terminator = block->getTerminator();
     ValueRange results = terminator->getOperands();
-    rewriter.mergeBlockBefore(block, op);
+    rewriter.inlineBlockBefore(block, op);
     rewriter.replaceOp(op, results);
     rewriter.eraseOp(terminator);
     return success();
@@ -1353,9 +1355,10 @@ void ExtractAlignedPointerAsIndexOp::getAsmResultNames(
 /// shape of the source.
 LogicalResult ExtractStridedMetadataOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  ExtractStridedMetadataOpAdaptor extractAdaptor(operands, attributes, regions);
+  ExtractStridedMetadataOpAdaptor extractAdaptor(operands, attributes,
+                                                 properties);
   auto sourceType = extractAdaptor.getSource().getType().dyn_cast<MemRefType>();
   if (!sourceType)
     return failure();
@@ -1868,15 +1871,13 @@ LogicalResult ReinterpretCastOp::verify() {
            << srcType << " and result memref type " << resultType;
 
   // Match sizes in result memref type and in static_sizes attribute.
-  for (auto &en :
-       llvm::enumerate(llvm::zip(resultType.getShape(), getStaticSizes()))) {
-    int64_t resultSize = std::get<0>(en.value());
-    int64_t expectedSize = std::get<1>(en.value());
+  for (auto [idx, resultSize, expectedSize] :
+       llvm::enumerate(resultType.getShape(), getStaticSizes())) {
     if (!ShapedType::isDynamic(resultSize) &&
         !ShapedType::isDynamic(expectedSize) && resultSize != expectedSize)
       return emitError("expected result type with size = ")
              << expectedSize << " instead of " << resultSize
-             << " in dim = " << en.index();
+             << " in dim = " << idx;
   }
 
   // Match offset and strides in static_offset and static_strides attributes. If
@@ -1894,19 +1895,17 @@ LogicalResult ReinterpretCastOp::verify() {
       !ShapedType::isDynamic(expectedOffset) &&
       resultOffset != expectedOffset)
     return emitError("expected result type with offset = ")
-           << resultOffset << " instead of " << expectedOffset;
+           << expectedOffset << " instead of " << resultOffset;
 
   // Match strides in result memref type and in static_strides attribute.
-  for (auto &en :
-       llvm::enumerate(llvm::zip(resultStrides, getStaticStrides()))) {
-    int64_t resultStride = std::get<0>(en.value());
-    int64_t expectedStride = std::get<1>(en.value());
+  for (auto [idx, resultStride, expectedStride] :
+       llvm::enumerate(resultStrides, getStaticStrides())) {
     if (!ShapedType::isDynamic(resultStride) &&
         !ShapedType::isDynamic(expectedStride) &&
         resultStride != expectedStride)
       return emitError("expected result type with stride = ")
              << expectedStride << " instead of " << resultStride
-             << " in dim = " << en.index();
+             << " in dim = " << idx;
   }
 
   return success();
@@ -3237,7 +3236,7 @@ ParseResult TransposeOp::parse(OpAsmParser &parser, OperationState &result) {
 LogicalResult TransposeOp::verify() {
   if (!getPermutation().isPermutation())
     return emitOpError("expected a permutation map");
-  if (getPermutation().getNumDims() != getShapedType().getRank())
+  if (getPermutation().getNumDims() != getIn().getType().getRank())
     return emitOpError("expected a permutation map of same rank as the input");
 
   auto srcType = getIn().getType().cast<MemRefType>();

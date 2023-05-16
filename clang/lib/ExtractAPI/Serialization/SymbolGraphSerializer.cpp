@@ -171,12 +171,16 @@ serializeAvailability(const AvailabilitySet &Availabilities) {
   for (const auto &AvailInfo : Availabilities) {
     Object Availability;
     Availability["domain"] = AvailInfo.Domain;
-    serializeObject(Availability, "introducedVersion",
-                    serializeSemanticVersion(AvailInfo.Introduced));
-    serializeObject(Availability, "deprecatedVersion",
-                    serializeSemanticVersion(AvailInfo.Deprecated));
-    serializeObject(Availability, "obsoletedVersion",
-                    serializeSemanticVersion(AvailInfo.Obsoleted));
+    if (AvailInfo.Unavailable)
+      Availability["isUnconditionallyUnavailable"] = true;
+    else {
+      serializeObject(Availability, "introducedVersion",
+                      serializeSemanticVersion(AvailInfo.Introduced));
+      serializeObject(Availability, "deprecatedVersion",
+                      serializeSemanticVersion(AvailInfo.Deprecated));
+      serializeObject(Availability, "obsoletedVersion",
+                      serializeSemanticVersion(AvailInfo.Obsoleted));
+    }
     AvailabilityArray.emplace_back(std::move(Availability));
   }
 
@@ -542,10 +546,6 @@ Array generateParentContexts(const RecordTy &Record, const APISet &API,
                            ParentContexts.push_back(
                                serializeParentContext(PC, Lang));
                          });
-
-  // The last component would be the record itself so let's remove it.
-  if (!ParentContexts.empty())
-    ParentContexts.pop_back();
 
   return ParentContexts;
 }

@@ -402,7 +402,7 @@ static Address createReferenceTemporary(CodeGenFunction &CGF,
     QualType Ty = Inner->getType();
     if (CGF.CGM.getCodeGenOpts().MergeAllConstants &&
         (Ty->isArrayType() || Ty->isRecordType()) &&
-        CGF.CGM.isTypeConstant(Ty, true))
+        CGF.CGM.isTypeConstant(Ty, true, false))
       if (auto Init = ConstantEmitter(CGF).tryEmitAbstract(Inner, Ty)) {
         auto AS = CGF.CGM.GetGlobalConstantAddressSpace();
         auto *GV = new llvm::GlobalVariable(
@@ -542,13 +542,17 @@ EmitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *M) {
       // Avoid creating a conditional cleanup just to hold an llvm.lifetime.end
       // marker. Instead, start the lifetime of a conditional temporary earlier
       // so that it's unconditional. Don't do this with sanitizers which need
-      // more precise lifetime marks.
+      // more precise lifetime marks. However when inside an "await.suspend"
+      // block, we should always avoid conditional cleanup because it creates
+      // boolean marker that lives across await_suspend, which can destroy coro
+      // frame.
       ConditionalEvaluation *OldConditional = nullptr;
       CGBuilderTy::InsertPoint OldIP;
       if (isInConditionalBranch() && !E->getType().isDestructedType() &&
-          !SanOpts.has(SanitizerKind::HWAddress) &&
-          !SanOpts.has(SanitizerKind::Memory) &&
-          !CGM.getCodeGenOpts().SanitizeAddressUseAfterScope) {
+          ((!SanOpts.has(SanitizerKind::HWAddress) &&
+            !SanOpts.has(SanitizerKind::Memory) &&
+            !CGM.getCodeGenOpts().SanitizeAddressUseAfterScope) ||
+           inSuspendBlock())) {
         OldConditional = OutermostConditional;
         OutermostConditional = nullptr;
 

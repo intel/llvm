@@ -10,15 +10,17 @@
 #include "Annotations.h"
 #include "Config.h"
 #include "Hover.h"
+#include "TestFS.h"
 #include "TestIndex.h"
 #include "TestTU.h"
 #include "index/MemIndex.h"
 #include "clang/AST/Attr.h"
+#include "clang/Format/Format.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -27,6 +29,10 @@ namespace clangd {
 namespace {
 
 using PassMode = HoverInfo::PassType::PassMode;
+
+std::string guard(llvm::StringRef Code) {
+  return "#pragma once\n" + Code.str();
+}
 
 TEST(Hover, Structured) {
   struct {
@@ -900,12 +906,64 @@ class Foo final {})cpp";
          HI.CalleeArgInfo->Type = "int &";
          HI.CallPassType = HoverInfo::PassType{PassMode::Ref, false};
        }},
+      {// make_unique-like function call
+       R"cpp(
+          struct Foo {
+            explicit Foo(int arg_a) {}
+          };
+          template<class T, class... Args>
+          T make(Args&&... args)
+          {
+              return T(args...);
+          }
+
+          void code() {
+            int a = 1;
+            auto foo = make<Foo>([[^a]]);
+          }
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "a";
+         HI.Kind = index::SymbolKind::Variable;
+         HI.NamespaceScope = "";
+         HI.Definition = "int a = 1";
+         HI.LocalScope = "code::";
+         HI.Value = "1";
+         HI.Type = "int";
+         HI.CalleeArgInfo.emplace();
+         HI.CalleeArgInfo->Name = "arg_a";
+         HI.CalleeArgInfo->Type = "int";
+         HI.CallPassType = HoverInfo::PassType{PassMode::Value, false};
+       }},
       {
           R"cpp(
           void foobar(const float &arg);
           int main() {
             int a = 0;
             foobar([[^a]]);
+          }
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "a";
+            HI.Kind = index::SymbolKind::Variable;
+            HI.NamespaceScope = "";
+            HI.Definition = "int a = 0";
+            HI.LocalScope = "main::";
+            HI.Value = "0";
+            HI.Type = "int";
+            HI.CalleeArgInfo.emplace();
+            HI.CalleeArgInfo->Name = "arg";
+            HI.CalleeArgInfo->Type = "const float &";
+            HI.CallPassType = HoverInfo::PassType{PassMode::Value, true};
+          }},
+      {
+          R"cpp(
+          struct Foo {
+            explicit Foo(const float& arg) {}
+          };
+          int main() {
+            int a = 0;
+            Foo foo([[^a]]);
           }
           )cpp",
           [](HoverInfo &HI) {
@@ -1307,6 +1365,7 @@ class CustomClass {
   CustomClass(const Base &x) {}
   CustomClass(int &x) {}
   CustomClass(float x) {}
+  CustomClass(int x, int y) {}
 };
 
 void int_by_ref(int &x) {}
@@ -1353,6 +1412,11 @@ void fun() {
       {"base_by_ref([[^derived]]);", PassMode::Ref, false},
       {"base_by_const_ref([[^derived]]);", PassMode::ConstRef, false},
       {"base_by_value([[^derived]]);", PassMode::Value, false},
+      // Custom class constructor tests
+      {"CustomClass c1([[^base]]);", PassMode::ConstRef, false},
+      {"auto c2 = new CustomClass([[^base]]);", PassMode::ConstRef, false},
+      {"CustomClass c3([[^int_x]]);", PassMode::Ref, false},
+      {"CustomClass c3(int_x, [[^int_x]]);", PassMode::Value, false},
       // Converted tests
       {"float_by_value([[^int_x]]);", PassMode::Value, true},
       {"float_by_value([[^int_ref]]);", PassMode::Value, true},
@@ -2882,6 +2946,149 @@ TEST(Hover, All) {
   }
 }
 
+TEST(Hover, Providers) {
+  struct {
+    const char *Code;
+    const std::function<void(HoverInfo &)> ExpectedBuilder;
+  } Cases[] = {{R"cpp(
+                  struct Foo {};                     
+                  Foo F = Fo^o{};
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = ""; }},
+               {R"cpp(
+                  #include "foo.h"                   
+                  Foo F = Fo^o{};
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #include "all.h"  
+                  Foo F = Fo^o{};
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #define FOO 5
+                  int F = ^FOO;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = ""; }},
+               {R"cpp(
+                  #include "foo.h"
+                  int F = ^FOO;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #include "all.h"
+                  int F = ^FOO;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               {R"cpp(
+                  #include "foo.h"    
+                  Foo A;
+                  Foo B;
+                  Foo C = A ^+ B;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+               // Hover selects the underlying decl of the using decl
+               {R"cpp(
+                  #include "foo.h"
+                  namespace ns {
+                    using ::Foo;
+                  }
+                  ns::F^oo d;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }}};
+
+  for (const auto &Case : Cases) {
+    Annotations Code{Case.Code};
+    SCOPED_TRACE(Code.code());
+
+    TestTU TU;
+    TU.Filename = "foo.cpp";
+    TU.Code = Code.code();
+    TU.AdditionalFiles["foo.h"] = guard(R"cpp(
+                                          #define FOO 1
+                                          class Foo {};
+                                          Foo& operator+(const Foo, const Foo);
+                                        )cpp");
+    TU.AdditionalFiles["all.h"] = guard("#include \"foo.h\"");
+
+    auto AST = TU.build();
+    auto H = getHover(AST, Code.point(), format::getLLVMStyle(), nullptr);
+    ASSERT_TRUE(H);
+    HoverInfo Expected;
+    Case.ExpectedBuilder(Expected);
+    SCOPED_TRACE(H->present().asMarkdown());
+    EXPECT_EQ(H->Provider, Expected.Provider);
+  }
+}
+
+TEST(Hover, ParseProviderInfo) {
+  HoverInfo HIFoo;
+  HIFoo.Name = "foo";
+  HIFoo.Provider = "\"foo.h\"";
+
+  HoverInfo HIFooBar;
+  HIFooBar.Name = "foo";
+  HIFooBar.Provider = "<bar.h>";
+  struct Case {
+    HoverInfo HI;
+    llvm::StringRef ExpectedMarkdown;
+  } Cases[] = {{HIFoo, "### `foo`  \nprovided by `\"foo.h\"`"},
+               {HIFooBar, "### `foo`  \nprovided by `<bar.h>`"}};
+
+  for (const auto &Case : Cases)
+    EXPECT_EQ(Case.HI.present().asMarkdown(), Case.ExpectedMarkdown);
+}
+
+TEST(Hover, UsedSymbols) {
+  struct {
+    const char *Code;
+    const std::function<void(HoverInfo &)> ExpectedBuilder;
+  } Cases[] = {{R"cpp(
+                  #include ^"bar.h"
+                  int fstBar = bar1();
+                  int sndBar = bar2();
+                  Bar bar;
+                  int macroBar = BAR;
+                )cpp",
+                [](HoverInfo &HI) {
+                  HI.UsedSymbolNames = {"BAR", "Bar", "bar1", "bar2"};
+                }},
+               {R"cpp(
+                  #in^clude <vector>
+                  std::vector<int> vec;
+                )cpp",
+                [](HoverInfo &HI) { HI.UsedSymbolNames = {"vector"}; }}};
+  for (const auto &Case : Cases) {
+    Annotations Code{Case.Code};
+    SCOPED_TRACE(Code.code());
+
+    TestTU TU;
+    TU.Filename = "foo.cpp";
+    TU.Code = Code.code();
+    TU.AdditionalFiles["bar.h"] = guard(R"cpp(
+                                          #define BAR 5
+                                          int bar1();
+                                          int bar2();
+                                          class Bar {};
+                                        )cpp");
+    TU.AdditionalFiles["system/vector"] = guard(R"cpp(
+      namespace std {
+        template<typename>
+        class vector{};
+      }
+    )cpp");
+    TU.ExtraArgs.push_back("-isystem" + testPath("system"));
+
+    auto AST = TU.build();
+    auto H = getHover(AST, Code.point(), format::getLLVMStyle(), nullptr);
+    ASSERT_TRUE(H);
+    HoverInfo Expected;
+    Case.ExpectedBuilder(Expected);
+    SCOPED_TRACE(H->present().asMarkdown());
+    EXPECT_EQ(H->UsedSymbolNames, Expected.UsedSymbolNames);
+  }
+}
+
 TEST(Hover, DocsFromIndex) {
   Annotations T(R"cpp(
   template <typename T> class X {};
@@ -2945,6 +3152,15 @@ TEST(Hover, NoCrash) {
   auto AST = TU.build();
   for (const auto &P : T.points())
     getHover(AST, P, format::getLLVMStyle(), nullptr);
+}
+
+TEST(Hover, NoCrashAPInt64) {
+  Annotations T(R"cpp(
+    constexpr unsigned long value = -1; // wrap around
+    void foo() { va^lue; }
+  )cpp");
+  auto AST = TestTU::withCode(T.code()).build();
+  getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
 }
 
 TEST(Hover, DocsFromMostSpecial) {
@@ -3262,7 +3478,21 @@ int foo = 3)",
           R"(stdio.h
 
 /usr/include/stdio.h)",
-      }};
+      },
+      {[](HoverInfo &HI) {
+         HI.Name = "foo.h";
+         HI.UsedSymbolNames = {"Foo", "Bar", "Baz"};
+       },
+       R"(foo.h
+
+provides Foo, Bar, Baz)"},
+      {[](HoverInfo &HI) {
+         HI.Name = "foo.h";
+         HI.UsedSymbolNames = {"Foo", "Bar", "Baz", "Foobar", "Qux", "Quux"};
+       },
+       R"(foo.h
+
+provides Foo, Bar, Baz, Foobar, Qux and 1 more)"}};
 
   for (const auto &C : Cases) {
     HoverInfo HI;
@@ -3359,8 +3589,8 @@ TEST(Hover, ParseDocumentation) {
   }
 }
 
-// This is a separate test as headings don't create any differences in plaintext
-// mode.
+// This is a separate test as headings don't create any differences in
+// plaintext mode.
 TEST(Hover, PresentHeadings) {
   HoverInfo HI;
   HI.Kind = index::SymbolKind::Variable;

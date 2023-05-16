@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
@@ -40,7 +41,6 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/Printable.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetIntrinsicInfo.h"
@@ -297,6 +297,8 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::CONCAT_VECTORS:             return "concat_vectors";
   case ISD::INSERT_SUBVECTOR:           return "insert_subvector";
   case ISD::EXTRACT_SUBVECTOR:          return "extract_subvector";
+  case ISD::VECTOR_DEINTERLEAVE:        return "vector_deinterleave";
+  case ISD::VECTOR_INTERLEAVE:          return "vector_interleave";
   case ISD::SCALAR_TO_VECTOR:           return "scalar_to_vector";
   case ISD::VECTOR_SHUFFLE:             return "vector_shuffle";
   case ISD::VECTOR_SPLICE:              return "vector_splice";
@@ -307,7 +309,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::CARRY_FALSE:                return "carry_false";
   case ISD::ADDC:                       return "addc";
   case ISD::ADDE:                       return "adde";
-  case ISD::ADDCARRY:                   return "addcarry";
+  case ISD::UADDO_CARRY:                return "uaddo_carry";
   case ISD::SADDO_CARRY:                return "saddo_carry";
   case ISD::SADDO:                      return "saddo";
   case ISD::UADDO:                      return "uaddo";
@@ -317,7 +319,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::UMULO:                      return "umulo";
   case ISD::SUBC:                       return "subc";
   case ISD::SUBE:                       return "sube";
-  case ISD::SUBCARRY:                   return "subcarry";
+  case ISD::USUBO_CARRY:                return "usubo_carry";
   case ISD::SSUBO_CARRY:                return "ssubo_carry";
   case ISD::SHL_PARTS:                  return "shl_parts";
   case ISD::SRA_PARTS:                  return "sra_parts";
@@ -849,6 +851,12 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
           Dbg->print(OS);
     } else if (getHasDebugValue())
       OS << " [NoOfDbgValues>0]";
+
+    if (const auto *MD = G ? G->getPCSections(this) : nullptr) {
+      OS << " [pcsections ";
+      MD->printAsOperand(OS, G->getMachineFunction().getFunction().getParent());
+      OS << ']';
+    }
   }
 }
 

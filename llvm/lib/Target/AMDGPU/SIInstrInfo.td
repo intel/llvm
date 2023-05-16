@@ -963,17 +963,7 @@ def Attr : Operand<i32> {
   let OperandType = "OPERAND_IMMEDIATE";
 }
 
-def AttrChanMatchClass : AsmOperandClass {
-  let Name = "AttrChan";
-  let PredicateMethod = "isAttrChan";
-  let RenderMethod = "addImmOperands";
-}
-
-def AttrChan : Operand<i32> {
-  let PrintMethod = "printInterpAttrChan";
-  let ParserMatchClass = AttrChanMatchClass;
-  let OperandType = "OPERAND_IMMEDIATE";
-}
+def AttrChan : ImmOperand<i32, "AttrChan", 0, "printInterpAttrChan">;
 
 def SendMsgMatchClass : AsmOperandClass {
   let Name = "SendMsg";
@@ -1217,6 +1207,17 @@ class NamedOperandU32Default1<string Name, AsmOperandClass MatchClass> :
   let ParserMatchClass = MatchClass;
 }
 
+class SDWAOperandClass<string Id, string Name>
+    : CustomOperandClass<Name, 1> {
+  string ImmTy = "AMDGPUOperand::ImmTy"#Name;
+  let ParserMethod =
+    "[this](OperandVector &Operands) -> OperandMatchResultTy { "#
+    "return parseSDWASel(Operands, \""#Id#"\", "#ImmTy#"); }";
+}
+
+class SDWAOperand<string Id, string Name = NAME>
+  : CustomOperand<i32, 1, Name, SDWAOperandClass<Id, Name>>;
+
 let OperandType = "OPERAND_IMMEDIATE" in {
 
 def flat_offset : CustomOperand<i32, 1, "FlatOffset">;
@@ -1257,10 +1258,10 @@ def FORMAT : CustomOperand<i8>;
 def DMask : NamedIntOperand<i16, "dmask">;
 def Dim : CustomOperand<i8>;
 
-def dst_sel : NamedOperandU32<"SDWADstSel", NamedMatchClass<"SDWADstSel">>;
-def src0_sel : NamedOperandU32<"SDWASrc0Sel", NamedMatchClass<"SDWASrc0Sel">>;
-def src1_sel : NamedOperandU32<"SDWASrc1Sel", NamedMatchClass<"SDWASrc1Sel">>;
-def dst_unused : NamedOperandU32<"SDWADstUnused", NamedMatchClass<"SDWADstUnused">>;
+def dst_sel : SDWAOperand<"dst_sel", "SDWADstSel">;
+def src0_sel : SDWAOperand<"src0_sel", "SDWASrc0Sel">;
+def src1_sel : SDWAOperand<"src1_sel", "SDWASrc1Sel">;
+def dst_unused : CustomOperand<i32, 1, "SDWADstUnused">;
 
 def op_sel0 : NamedOperandU32Default0<"OpSel", NamedMatchClass<"OpSel">>;
 def op_sel_hi0 : NamedOperandU32Default0<"OpSelHi", NamedMatchClass<"OpSelHi">>;
@@ -1511,7 +1512,8 @@ def VOP3OpSel  : ComplexPattern<untyped, 2, "SelectVOP3OpSel">;
 
 def VOP3OpSelMods  : ComplexPattern<untyped, 2, "SelectVOP3OpSelMods">;
 
-def VOP3PMadMixMods  : ComplexPattern<untyped, 2, "SelectVOP3PMadMixMods">;
+def VOP3PMadMixModsExt : ComplexPattern<untyped, 2, "SelectVOP3PMadMixModsExt">;
+def VOP3PMadMixMods : ComplexPattern<untyped, 2, "SelectVOP3PMadMixMods">;
 
 def VINTERPMods  : ComplexPattern<untyped, 2, "SelectVINTERPMods">;
 def VINTERPModsHi  : ComplexPattern<untyped, 2, "SelectVINTERPModsHi">;
@@ -2380,14 +2382,6 @@ class getLdStRegisterOperand<RegisterClass RC> {
     )))));
 }
 
-class BitOr<bit a, bit b> {
-  bit ret = !if(a, 1, !if(b, 1, 0));
-}
-
-class BitAnd<bit a, bit b> {
-  bit ret = !if(a, !if(b, 1, 0), 0);
-}
-
 class getHasVOP3DPP <ValueType DstVT = i32, ValueType Src0VT = i32,
                  ValueType Src1VT = i32, ValueType Src2VT = i32> {
   bit ret =    !if(!eq(DstVT.Size, 64),
@@ -2499,8 +2493,7 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableClamp = 0> {
 
   field bit HasExt = getHasExt<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExtVOP3DPP = getHasVOP3DPP<DstVT, Src0VT, Src1VT, Src2VT>.ret;
-  field bit HasExtDPP = !if(!or(getHasDPP<NumSrcArgs>.ret,
-                HasExtVOP3DPP), 1, 0);
+  field bit HasExtDPP = !or(getHasDPP<NumSrcArgs>.ret, HasExtVOP3DPP);
   field bit HasExt32BitDPP = getHasExt32BitDPP<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExt64BitDPP = getHasExt64BitDPP<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;
   field bit HasExtSDWA = getHasSDWA<NumSrcArgs, DstVT, Src0VT, Src1VT>.ret;

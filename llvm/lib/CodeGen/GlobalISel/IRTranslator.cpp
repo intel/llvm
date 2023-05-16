@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/LowLevelType.h"
+#include "llvm/CodeGen/LowLevelTypeUtils.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -74,7 +75,6 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetIntrinsicInfo.h"
@@ -844,8 +844,8 @@ void IRTranslator::emitSwitchCase(SwitchCG::CaseBlock &CB,
     // For conditional branch lowering, we might try to do something silly like
     // emit an G_ICMP to compare an existing G_ICMP i1 result with true. If so,
     // just re-use the existing condition vreg.
-    if (MRI->getType(CondLHS).getSizeInBits() == 1 && CI &&
-        CI->getZExtValue() == 1 && CB.PredInfo.Pred == CmpInst::ICMP_EQ) {
+    if (MRI->getType(CondLHS).getSizeInBits() == 1 && CI && CI->isOne() &&
+        CB.PredInfo.Pred == CmpInst::ICMP_EQ) {
       Cond = CondLHS;
     } else {
       Register CondRHS = getOrCreateVReg(*CB.CmpRHS);
@@ -1993,6 +1993,17 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
       MIRBuilder.buildIndirectDbgValue(0, DI.getVariable(), DI.getExpression());
     } else if (const auto *CI = dyn_cast<Constant>(V)) {
       MIRBuilder.buildConstDbgValue(*CI, DI.getVariable(), DI.getExpression());
+    } else if (auto *AI = dyn_cast<AllocaInst>(V);
+               AI && AI->isStaticAlloca() &&
+               DI.getExpression()->startsWithDeref()) {
+      // If the value is an alloca and the expression starts with a
+      // dereference, track a stack slot instead of a register, as registers
+      // may be clobbered.
+      auto ExprOperands = DI.getExpression()->getElements();
+      auto *ExprDerefRemoved =
+          DIExpression::get(AI->getContext(), ExprOperands.drop_front());
+      MIRBuilder.buildFIDbgValue(getOrCreateFrameIndex(*AI), DI.getVariable(),
+                                 ExprDerefRemoved);
     } else {
       for (Register Reg : getOrCreateVRegs(*V)) {
         // FIXME: This does not handle register-indirect values at offset 0. The

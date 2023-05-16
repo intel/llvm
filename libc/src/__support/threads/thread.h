@@ -37,7 +37,8 @@ union ThreadReturnValue {
 };
 
 #if (defined(LIBC_TARGET_ARCH_IS_AARCH64) ||                                   \
-     defined(LIBC_TARGET_ARCH_IS_X86_64))
+     defined(LIBC_TARGET_ARCH_IS_X86_64) ||                                    \
+     defined(LIBC_TARGET_ARCH_IS_RISCV64))
 constexpr unsigned int STACK_ALIGNMENT = 16;
 #endif
 // TODO: Provide stack alignment requirements for other architectures.
@@ -156,7 +157,8 @@ struct Thread {
     int status = join(retval);
     if (status != 0)
       return status;
-    *val = retval.stdc_retval;
+    if (val != nullptr)
+      *val = retval.stdc_retval;
     return 0;
   }
 
@@ -165,7 +167,8 @@ struct Thread {
     int status = join(retval);
     if (status != 0)
       return status;
-    *val = retval.posix_retval;
+    if (val != nullptr)
+      *val = retval.posix_retval;
     return 0;
   }
 

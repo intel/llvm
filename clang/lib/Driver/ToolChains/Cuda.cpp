@@ -780,8 +780,9 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
 /// toolchain.
 NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                                const llvm::Triple &HostTriple,
-                               const ArgList &Args)
-    : ToolChain(D, Triple, Args), CudaInstallation(D, HostTriple, Args) {
+                               const ArgList &Args, bool Freestanding = false)
+    : ToolChain(D, Triple, Args), CudaInstallation(D, HostTriple, Args),
+      Freestanding(Freestanding) {
   if (CudaInstallation.isValid()) {
     CudaInstallation.WarnIfUnsupportedVersion();
     getProgramPaths().push_back(std::string(CudaInstallation.getBinPath()));
@@ -796,7 +797,8 @@ NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
 NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                                const ArgList &Args)
     : NVPTXToolChain(D, Triple,
-                     llvm::Triple(llvm::sys::getDefaultTargetTriple()), Args) {}
+                     llvm::Triple(llvm::sys::getDefaultTargetTriple()), Args,
+                     /*Freestanding=*/true) {}
 
 llvm::opt::DerivedArgList *
 NVPTXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
@@ -828,6 +830,16 @@ static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
   return "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
 }
 
+void NVPTXToolChain::addClangTargetOptions(
+    const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
+    Action::OffloadKind DeviceOffloadingKind) const {
+  // If we are compiling with a standalone NVPTX toolchain we want to try to
+  // mimic a standard environment as much as possible. So we enable lowering
+  // ctor / dtor functions to global symbols that can be registered.
+  if (Freestanding)
+    CC1Args.append({"-mllvm", "--nvptx-lower-global-ctor-dtor"});
+}
+
 bool NVPTXToolChain::supportsDebugInfoOption(const llvm::opt::Arg *A) const {
   const Option &O = A->getOption();
   return (O.matches(options::OPT_gN_Group) &&
@@ -841,13 +853,14 @@ bool NVPTXToolChain::supportsDebugInfoOption(const llvm::opt::Arg *A) const {
 }
 
 void NVPTXToolChain::adjustDebugInfoKind(
-    codegenoptions::DebugInfoKind &DebugInfoKind, const ArgList &Args) const {
+    llvm::codegenoptions::DebugInfoKind &DebugInfoKind,
+    const ArgList &Args) const {
   switch (mustEmitDebugInfo(Args)) {
   case DisableDebugInfo:
-    DebugInfoKind = codegenoptions::NoDebugInfo;
+    DebugInfoKind = llvm::codegenoptions::NoDebugInfo;
     break;
   case DebugDirectivesOnly:
-    DebugInfoKind = codegenoptions::DebugDirectivesOnly;
+    DebugInfoKind = llvm::codegenoptions::DebugDirectivesOnly;
     break;
   case EmitSameDebugInfoAsHost:
     // Use same debug info level as the host.

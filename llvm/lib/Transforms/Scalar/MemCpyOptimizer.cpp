@@ -46,13 +46,10 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <algorithm>
 #include <cassert>
@@ -255,54 +252,6 @@ void MemsetRanges::addRange(int64_t Start, int64_t Size, Value *Ptr,
 //                         MemCpyOptLegacyPass Pass
 //===----------------------------------------------------------------------===//
 
-namespace {
-
-class MemCpyOptLegacyPass : public FunctionPass {
-  MemCpyOptPass Impl;
-
-public:
-  static char ID; // Pass identification, replacement for typeid
-
-  MemCpyOptLegacyPass() : FunctionPass(ID) {
-    initializeMemCpyOptLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnFunction(Function &F) override;
-
-private:
-  // This transformation requires dominator postdominator info
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-    AU.addRequired<AssumptionCacheTracker>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-    AU.addPreserved<GlobalsAAWrapperPass>();
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-    AU.addRequired<AAResultsWrapperPass>();
-    AU.addPreserved<AAResultsWrapperPass>();
-    AU.addRequired<MemorySSAWrapperPass>();
-    AU.addPreserved<MemorySSAWrapperPass>();
-  }
-};
-
-} // end anonymous namespace
-
-char MemCpyOptLegacyPass::ID = 0;
-
-/// The public interface to this file...
-FunctionPass *llvm::createMemCpyOptPass() { return new MemCpyOptLegacyPass(); }
-
-INITIALIZE_PASS_BEGIN(MemCpyOptLegacyPass, "memcpyopt", "MemCpy Optimization",
-                      false, false)
-INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(GlobalsAAWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(MemorySSAWrapperPass)
-INITIALIZE_PASS_END(MemCpyOptLegacyPass, "memcpyopt", "MemCpy Optimization",
-                    false, false)
-
 // Check that V is either not accessible by the caller, or unwinding cannot
 // occur between Start and End.
 static bool mayBeVisibleThroughUnwinding(Value *V, Instruction *Start,
@@ -463,7 +412,7 @@ Instruction *MemCpyOptPass::tryMergingIntoMemset(Instruction *StartInst,
 
       // Check to see if this store is to a constant offset from the start ptr.
       std::optional<int64_t> Offset =
-          isPointerOffset(StartPtr, NextStore->getPointerOperand(), DL);
+          NextStore->getPointerOperand()->getPointerOffsetFrom(StartPtr, DL);
       if (!Offset)
         break;
 
@@ -477,7 +426,7 @@ Instruction *MemCpyOptPass::tryMergingIntoMemset(Instruction *StartInst,
 
       // Check to see if this store is to a constant offset from the start ptr.
       std::optional<int64_t> Offset =
-          isPointerOffset(StartPtr, MSI->getDest(), DL);
+          MSI->getDest()->getPointerOffsetFrom(StartPtr, DL);
       if (!Offset)
         break;
 
@@ -1200,8 +1149,14 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
   // still want to eliminate the intermediate value, but we have to generate a
   // memmove instead of memcpy.
   bool UseMemMove = false;
-  if (isModSet(BAA.getModRefInfo(M, MemoryLocation::getForSource(MDep))))
+  if (isModSet(BAA.getModRefInfo(M, MemoryLocation::getForSource(MDep)))) {
+    // Don't convert llvm.memcpy.inline into memmove because memmove can be
+    // lowered as a call, and that is not allowed for llvm.memcpy.inline (and
+    // there is no inline version of llvm.memmove)
+    if (isa<MemCpyInlineInst>(M))
+      return false;
     UseMemMove = true;
+  }
 
   // If all checks passed, then we can transform M.
   LLVM_DEBUG(dbgs() << "MemCpyOptPass: Forwarding memcpy->memcpy src:\n"
@@ -1729,18 +1684,4 @@ bool MemCpyOptPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
     MSSA_->verifyMemorySSA();
 
   return MadeChange;
-}
-
-/// This is the main transformation entry point for a function.
-bool MemCpyOptLegacyPass::runOnFunction(Function &F) {
-  if (skipFunction(F))
-    return false;
-
-  auto *TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-  auto *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
-  auto *AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-  auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto *MSSA = &getAnalysis<MemorySSAWrapperPass>().getMSSA();
-
-  return Impl.runImpl(F, TLI, AA, AC, DT, MSSA);
 }

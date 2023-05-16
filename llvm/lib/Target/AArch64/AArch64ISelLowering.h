@@ -77,7 +77,7 @@ enum NodeType : unsigned {
   ADDlow,   // Add the low 12 bits of a TargetGlobalAddress operand.
   LOADgot,  // Load from automatically generated descriptor (e.g. Global
             // Offset Table, TLS record).
-  RET_FLAG, // Return with a flag operand. Operand 0 is the chain operand.
+  RET_GLUE, // Return with a glue operand. Operand 0 is the chain operand.
   BRCOND,   // Conditional branch instruction; "b.cond".
   CSEL,
   CSINV, // Conditional select invert.
@@ -535,6 +535,11 @@ public:
                                      const SelectionDAG &DAG,
                                      unsigned Depth = 0) const override;
 
+  unsigned ComputeNumSignBitsForTargetNode(SDValue Op,
+                                           const APInt &DemandedElts,
+                                           const SelectionDAG &DAG,
+                                           unsigned Depth) const override;
+
   MVT getPointerTy(const DataLayout &DL, uint32_t AS = 0) const override {
     // Returning i64 unconditionally here (i.e. even for ILP32) means that the
     // *DAG* representation of pointers will always be 64-bits. They will be
@@ -617,6 +622,8 @@ public:
 
   bool shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtTy,
                              EVT NewVT) const override;
+
+  bool shouldRemoveRedundantExtend(SDValue Op) const override;
 
   bool isTruncateFree(Type *Ty1, Type *Ty2) const override;
   bool isTruncateFree(EVT VT1, EVT VT2) const override;
@@ -912,10 +919,10 @@ public:
   /// \p Entry tells whether this is before/after the Call, which is necessary
   /// because PSTATE.SM is only queried once.
   SDValue changeStreamingMode(SelectionDAG &DAG, SDLoc DL, bool Enable,
-                              SDValue Chain, SDValue InFlag,
+                              SDValue Chain, SDValue InGlue,
                               SDValue PStateSM, bool Entry) const;
 
-  bool isVScaleKnownToBeAPowerOfTwo() const override;
+  bool isVScaleKnownToBeAPowerOfTwo() const override { return true; }
 
   // Normally SVE is only used for byte size vectors that do not fit within a
   // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
@@ -930,8 +937,7 @@ private:
   bool isExtFreeImpl(const Instruction *Ext) const override;
 
   void addTypeForNEON(MVT VT);
-  void addTypeForStreamingSVE(MVT VT);
-  void addTypeForFixedLengthSVE(MVT VT);
+  void addTypeForFixedLengthSVE(MVT VT, bool StreamingSVE);
   void addDRTypeForNEON(MVT VT);
   void addQRTypeForNEON(MVT VT);
 
@@ -947,7 +953,7 @@ private:
   SDValue LowerCall(CallLoweringInfo & /*CLI*/,
                     SmallVectorImpl<SDValue> &InVals) const override;
 
-  SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
+  SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
                           CallingConv::ID CallConv, bool isVarArg,
                           const SmallVectorImpl<CCValAssign> &RVLocs,
                           const SDLoc &DL, SelectionDAG &DAG,
@@ -1055,6 +1061,8 @@ private:
   SDValue LowerVECTOR_SPLICE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINSERT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVECTOR_DEINTERLEAVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVECTOR_INTERLEAVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDIV(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorSRA_SRL_SHL(SDValue Op, SelectionDAG &DAG) const;
@@ -1087,6 +1095,7 @@ private:
   SDValue LowerWindowsDYNAMIC_STACKALLOC(SDValue Op, SDValue Chain,
                                          SDValue &Size,
                                          SelectionDAG &DAG) const;
+  SDValue LowerAVG(SDValue Op, SelectionDAG &DAG, unsigned NewOp) const;
 
   SDValue LowerFixedLengthVectorIntDivideToSVE(SDValue Op,
                                                SelectionDAG &DAG) const;
@@ -1161,6 +1170,12 @@ private:
     return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
   }
 
+  /// Handle Lowering flag assembly outputs.
+  SDValue LowerAsmOutputForConstraint(SDValue &Chain, SDValue &Flag,
+                                      const SDLoc &DL,
+                                      const AsmOperandInfo &Constraint,
+                                      SelectionDAG &DAG) const override;
+
   bool shouldExtendGSIndex(EVT VT, EVT &EltTy) const override;
   bool shouldRemoveExtendFromGSIndex(EVT IndexVT, EVT DataVT) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
@@ -1218,6 +1233,8 @@ private:
 
   bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
                                               LLT Ty2) const override;
+
+  bool preferScalarizeSplat(SDNode *N) const override;
 };
 
 namespace AArch64 {

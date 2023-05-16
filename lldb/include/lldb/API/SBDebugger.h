@@ -197,6 +197,10 @@ public:
   lldb::SBCommandInterpreter GetCommandInterpreter();
 
   void HandleCommand(const char *command);
+  
+  void RequestInterrupt();
+  void CancelInterruptRequest();
+  bool InterruptRequested();
 
   lldb::SBListener GetListener();
 
@@ -315,6 +319,9 @@ public:
   bool EnableLog(const char *channel, const char **categories);
 
   void SetLoggingCallback(lldb::LogOutputCallback log_callback, void *baton);
+
+  void SetDestroyCallback(lldb::SBDebuggerDestroyCallback destroy_callback,
+                          void *baton);
 
   // DEPRECATED
 #ifndef SWIG

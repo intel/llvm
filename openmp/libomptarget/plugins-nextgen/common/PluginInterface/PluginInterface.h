@@ -48,16 +48,14 @@ struct GenericDeviceTy;
 /// Class that wraps the __tgt_async_info to simply its usage. In case the
 /// object is constructed without a valid __tgt_async_info, the object will use
 /// an internal one and will synchronize the current thread with the pending
-/// operations on object destruction.
+/// operations when calling AsyncInfoWrapperTy::finalize(). This latter function
+/// must be called before destroying the wrapper object.
 struct AsyncInfoWrapperTy {
-  AsyncInfoWrapperTy(Error &Err, GenericDeviceTy &Device,
-                     __tgt_async_info *AsyncInfoPtr)
-      : Err(Err), ErrOutParam(&Err), Device(Device),
-        AsyncInfoPtr(AsyncInfoPtr ? AsyncInfoPtr : &LocalAsyncInfo) {}
+  AsyncInfoWrapperTy(GenericDeviceTy &Device, __tgt_async_info *AsyncInfoPtr);
 
-  /// Synchronize with the __tgt_async_info's pending operations if it's the
-  /// internal one.
-  ~AsyncInfoWrapperTy();
+  ~AsyncInfoWrapperTy() {
+    assert(!AsyncInfoPtr && "AsyncInfoWrapperTy not finalized");
+  }
 
   /// Get the raw __tgt_async_info pointer.
   operator __tgt_async_info *() const { return AsyncInfoPtr; }
@@ -72,12 +70,18 @@ struct AsyncInfoWrapperTy {
   /// Indicate whether there is queue.
   bool hasQueue() const { return (AsyncInfoPtr->Queue != nullptr); }
 
+  /// Synchronize with the __tgt_async_info's pending operations if it's the
+  /// internal async info. The error associated to the aysnchronous operations
+  /// issued in this queue must be provided in \p Err. This function will update
+  /// the error parameter with the result of the synchronization if it was
+  /// actually executed. This function must be called before destroying the
+  /// object and only once.
+  void finalize(Error &Err);
+
 private:
-  Error &Err;
-  ErrorAsOutParameter ErrOutParam;
   GenericDeviceTy &Device;
   __tgt_async_info LocalAsyncInfo;
-  __tgt_async_info *const AsyncInfoPtr;
+  __tgt_async_info *AsyncInfoPtr;
 };
 
 /// Class wrapping a __tgt_device_image and its offload entry table on a
@@ -196,13 +200,38 @@ struct GenericKernelTy {
     return false;
   }
 
+protected:
+  /// Get the execution mode name of the kernel.
+  const char *getExecutionModeName() const {
+    switch (ExecutionMode) {
+    case OMP_TGT_EXEC_MODE_SPMD:
+      return "SPMD";
+    case OMP_TGT_EXEC_MODE_GENERIC:
+      return "Generic";
+    case OMP_TGT_EXEC_MODE_GENERIC_SPMD:
+      return "Generic-SPMD";
+    }
+    llvm_unreachable("Unknown execution mode!");
+  }
+
+  /// Prints generic kernel launch information.
+  Error printLaunchInfo(GenericDeviceTy &GenericDevice,
+                        KernelArgsTy &KernelArgs, uint32_t NumThreads,
+                        uint64_t NumBlocks) const;
+
+  /// Prints plugin-specific kernel launch information after generic kernel
+  /// launch information
+  virtual Error printLaunchInfoDetails(GenericDeviceTy &GenericDevice,
+                                       KernelArgsTy &KernelArgs,
+                                       uint32_t NumThreads,
+                                       uint64_t NumBlocks) const;
+
 private:
   /// Prepare the arguments before launching the kernel.
   void *prepareArgs(GenericDeviceTy &GenericDevice, void **ArgPtrs,
                     ptrdiff_t *ArgOffsets, int32_t NumArgs,
                     llvm::SmallVectorImpl<void *> &Args,
-                    llvm::SmallVectorImpl<void *> &Ptrs,
-                    AsyncInfoWrapperTy &AsyncInfoWrapper) const;
+                    llvm::SmallVectorImpl<void *> &Ptrs) const;
 
   /// Get the default number of threads and blocks for the kernel.
   virtual uint32_t getDefaultNumThreads(GenericDeviceTy &Device) const = 0;
@@ -224,19 +253,6 @@ private:
     return ExecutionMode == OMP_TGT_EXEC_MODE_GENERIC;
   }
   bool isSPMDMode() const { return ExecutionMode == OMP_TGT_EXEC_MODE_SPMD; }
-
-  /// Get the execution mode name of the kernel.
-  const char *getExecutionModeName() const {
-    switch (ExecutionMode) {
-    case OMP_TGT_EXEC_MODE_SPMD:
-      return "SPMD";
-    case OMP_TGT_EXEC_MODE_GENERIC:
-      return "Generic";
-    case OMP_TGT_EXEC_MODE_GENERIC_SPMD:
-      return "Generic-SPMD";
-    }
-    llvm_unreachable("Unknown execution mode!");
-  }
 
   /// The kernel name.
   const char *Name;

@@ -74,9 +74,8 @@ bool Parser::isCXXDeclarationStatement(
       switch (Tok.getKind()) {
       case tok::identifier: {
         IdentifierInfo *II = Tok.getIdentifierInfo();
-        bool isDeductionGuide =
-            Actions.isDeductionGuideName(getCurScope(), *II, Tok.getLocation(),
-                                         /*Template=*/nullptr);
+        bool isDeductionGuide = Actions.isDeductionGuideName(
+            getCurScope(), *II, Tok.getLocation(), SS, /*Template=*/nullptr);
         if (Actions.isCurrentClassName(*II, getCurScope(), &SS) ||
             isDeductionGuide) {
           if (isConstructorDeclarator(/*Unqualified=*/SS.isEmpty(),
@@ -88,10 +87,8 @@ bool Parser::isCXXDeclarationStatement(
       }
       case tok::kw_operator:
         return true;
-      case tok::annot_cxxscope: // Check if this is a dtor.
-        if (NextToken().is(tok::tilde))
-          return true;
-        break;
+      case tok::tilde:
+        return true;
       default:
         break;
       }
@@ -1509,6 +1506,10 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
   case tok::kw__Nullable_result:
   case tok::kw__Null_unspecified:
   case tok::kw___kindof:
+    return TPResult::True;
+
+    // WebAssemblyFuncref
+  case tok::kw___funcref:
     return TPResult::True;
 
     // Borland

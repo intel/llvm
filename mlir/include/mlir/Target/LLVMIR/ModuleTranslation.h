@@ -14,6 +14,7 @@
 #ifndef MLIR_TARGET_LLVMIR_MODULETRANSLATION_H
 #define MLIR_TARGET_LLVMIR_MODULETRANSLATION_H
 
+#include "mlir/Dialect/LLVMIR/LLVMInterfaces.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Value.h"
@@ -121,18 +122,24 @@ public:
   void forgetMapping(Region &region);
 
   /// Returns the LLVM metadata corresponding to a symbol reference to an mlir
-  /// LLVM dialect alias scope operation
+  /// LLVM dialect alias scope operation.
   llvm::MDNode *getAliasScope(Operation *op, SymbolRefAttr aliasScopeRef) const;
 
+  /// Returns the LLVM metadata corresponding to an array of symbol references
+  /// to mlir LLVM dialect alias scope operations.
+  llvm::MDNode *getAliasScopes(Operation *op,
+                               ArrayRef<SymbolRefAttr> aliasScopeRefs) const;
+
   // Sets LLVM metadata for memory operations that are in a parallel loop.
-  void setAccessGroupsMetadata(Operation *op, llvm::Instruction *inst);
+  void setAccessGroupsMetadata(AccessGroupOpInterface op,
+                               llvm::Instruction *inst);
 
   // Sets LLVM metadata for memory operations that have alias scope information.
-  void setAliasScopeMetadata(Operation *op, llvm::Instruction *inst);
+  void setAliasScopeMetadata(AliasAnalysisOpInterface op,
+                             llvm::Instruction *inst);
 
-  /// Sets LLVM TBAA metadata for memory operations that have
-  /// TBAA attributes.
-  void setTBAAMetadata(Operation *op, llvm::Instruction *inst);
+  /// Sets LLVM TBAA metadata for memory operations that have TBAA attributes.
+  void setTBAAMetadata(AliasAnalysisOpInterface op, llvm::Instruction *inst);
 
   /// Sets LLVM loop metadata for branch operations that have a loop annotation
   /// attribute.
@@ -155,13 +162,10 @@ public:
 
   /// Returns the OpenMP IR builder associated with the LLVM IR module being
   /// constructed.
-  llvm::OpenMPIRBuilder *getOpenMPBuilder() {
-    if (!ompBuilder) {
-      ompBuilder = std::make_unique<llvm::OpenMPIRBuilder>(*llvmModule);
-      ompBuilder->initialize();
-    }
-    return ompBuilder.get();
-  }
+  llvm::OpenMPIRBuilder *getOpenMPBuilder();
+
+  /// Returns the LLVM module in which the IR is being constructed.
+  llvm::Module *getLLVMModule() { return llvmModule.get(); }
 
   /// Translates the given location.
   const llvm::DILocation *translateLoc(Location loc, llvm::DILocalScope *scope);

@@ -424,18 +424,10 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
   if (I->isEHPad())
     return false;
 
-  // We don't want debug info removed by anything this general, unless
-  // debug info is empty.
-  if (DbgDeclareInst *DDI = dyn_cast<DbgDeclareInst>(I)) {
-    if (DDI->getAddress())
-      return false;
-    return true;
-  }
-  if (DbgValueInst *DVI = dyn_cast<DbgValueInst>(I)) {
-    if (DVI->hasArgList() || DVI->getValue(0))
-      return false;
-    return true;
-  }
+  // We don't want debug info removed by anything this general.
+  if (isa<DbgVariableIntrinsic>(I))
+    return false;
+
   if (DbgLabelInst *DLI = dyn_cast<DbgLabelInst>(I)) {
     if (DLI->getLabel())
       return false;
@@ -555,7 +547,7 @@ bool llvm::RecursivelyDeleteTriviallyDeadInstructionsPermissive(
     std::function<void(Value *)> AboutToDeleteCallback) {
   unsigned S = 0, E = DeadInsts.size(), Alive = 0;
   for (; S != E; ++S) {
-    auto *I = dyn_cast<Instruction>(DeadInsts[S]);
+    auto *I = dyn_cast_or_null<Instruction>(DeadInsts[S]);
     if (!I || !isInstructionTriviallyDead(I)) {
       DeadInsts[S] = nullptr;
       ++Alive;
@@ -1486,19 +1478,16 @@ static bool PhiHasDebugValue(DILocalVariable *DIVar,
 /// (or fragment of the variable) described by \p DII.
 ///
 /// This is primarily intended as a helper for the different
-/// ConvertDebugDeclareToDebugValue functions. The dbg.declare/dbg.addr that is
-/// converted describes an alloca'd variable, so we need to use the
-/// alloc size of the value when doing the comparison. E.g. an i1 value will be
-/// identified as covering an n-bit fragment, if the store size of i1 is at
-/// least n bits.
+/// ConvertDebugDeclareToDebugValue functions. The dbg.declare that is converted
+/// describes an alloca'd variable, so we need to use the alloc size of the
+/// value when doing the comparison. E.g. an i1 value will be identified as
+/// covering an n-bit fragment, if the store size of i1 is at least n bits.
 static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
   const DataLayout &DL = DII->getModule()->getDataLayout();
   TypeSize ValueSize = DL.getTypeAllocSizeInBits(ValTy);
-  if (std::optional<uint64_t> FragmentSize = DII->getFragmentSizeInBits()) {
-    assert(!ValueSize.isScalable() &&
-           "Fragments don't work on scalable types.");
-    return ValueSize.getFixedValue() >= *FragmentSize;
-  }
+  if (std::optional<uint64_t> FragmentSize = DII->getFragmentSizeInBits())
+    return TypeSize::isKnownGE(ValueSize, TypeSize::getFixed(*FragmentSize));
+
   // We can't always calculate the size of the DI variable (e.g. if it is a
   // VLA). Try to use the size of the alloca that the dbg intrinsic describes
   // intead.
@@ -1519,7 +1508,7 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
 }
 
 /// Inserts a llvm.dbg.value intrinsic before a store to an alloca'd value
-/// that has an associated llvm.dbg.declare or llvm.dbg.addr intrinsic.
+/// that has an associated llvm.dbg.declare intrinsic.
 void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
                                            StoreInst *SI, DIBuilder &Builder) {
   assert(DII->isAddressOfVariable() || isa<DbgAssignIntrinsic>(DII));
@@ -1562,7 +1551,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
 }
 
 /// Inserts a llvm.dbg.value intrinsic before a load of an alloca'd value
-/// that has an associated llvm.dbg.declare or llvm.dbg.addr intrinsic.
+/// that has an associated llvm.dbg.declare intrinsic.
 void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
                                            LoadInst *LI, DIBuilder &Builder) {
   auto *DIVar = DII->getVariable();
@@ -1590,7 +1579,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
 }
 
 /// Inserts a llvm.dbg.value intrinsic after a phi that has an associated
-/// llvm.dbg.declare or llvm.dbg.addr intrinsic.
+/// llvm.dbg.declare intrinsic.
 void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
                                            PHINode *APN, DIBuilder &Builder) {
   auto *DIVar = DII->getVariable();
@@ -1773,8 +1762,8 @@ void llvm::insertDebugValuesForPHIs(BasicBlock *BB,
 bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
                              DIBuilder &Builder, uint8_t DIExprFlags,
                              int Offset) {
-  auto DbgAddrs = FindDbgAddrUses(Address);
-  for (DbgVariableIntrinsic *DII : DbgAddrs) {
+  auto DbgDeclares = FindDbgDeclareUses(Address);
+  for (DbgVariableIntrinsic *DII : DbgDeclares) {
     const DebugLoc &Loc = DII->getDebugLoc();
     auto *DIVar = DII->getVariable();
     auto *DIExpr = DII->getExpression();
@@ -1785,7 +1774,7 @@ bool llvm::replaceDbgDeclare(Value *Address, Value *NewAddress,
     Builder.insertDeclare(NewAddress, DIVar, DIExpr, Loc, DII);
     DII->eraseFromParent();
   }
-  return !DbgAddrs.empty();
+  return !DbgDeclares.empty();
 }
 
 static void replaceOneDbgValueForAlloca(DbgValueInst *DVI, Value *NewAddress,
@@ -1881,9 +1870,8 @@ void llvm::salvageDebugInfoForDbgValues(
         continue;
     }
 
-    // Do not add DW_OP_stack_value for DbgDeclare and DbgAddr, because they
-    // are implicitly pointing out the value as a DWARF memory location
-    // description.
+    // Do not add DW_OP_stack_value for DbgDeclare, because they are implicitly
+    // pointing out the value as a DWARF memory location description.
     bool StackValue = isa<DbgValueInst>(DII);
     auto DIILocation = DII->location_ops();
     assert(
@@ -1917,17 +1905,14 @@ void llvm::salvageDebugInfoForDbgValues(
     bool IsValidSalvageExpr = SalvagedExpr->getNumElements() <= MaxExpressionSize;
     if (AdditionalValues.empty() && IsValidSalvageExpr) {
       DII->setExpression(SalvagedExpr);
-    } else if (isa<DbgValueInst>(DII) && !isa<DbgAssignIntrinsic>(DII) &&
-               IsValidSalvageExpr &&
+    } else if (isa<DbgValueInst>(DII) && IsValidSalvageExpr &&
                DII->getNumVariableLocationOps() + AdditionalValues.size() <=
                    MaxDebugArgs) {
       DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);
     } else {
-      // Do not salvage using DIArgList for dbg.addr/dbg.declare, as it is
-      // not currently supported in those instructions. Do not salvage using
-      // DIArgList for dbg.assign yet. FIXME: support this.
-      // Also do not salvage if the resulting DIArgList would contain an
-      // unreasonably large number of values.
+      // Do not salvage using DIArgList for dbg.declare, as it is not currently
+      // supported in those instructions. Also do not salvage if the resulting
+      // DIArgList would contain an unreasonably large number of values.
       DII->setKillLocation();
     }
     LLVM_DEBUG(dbgs() << "SALVAGE: " << *DII << '\n');
@@ -1955,7 +1940,7 @@ Value *getSalvageOpsForGEP(GetElementPtrInst *GEP, const DataLayout &DL,
     Opcodes.insert(Opcodes.begin(), {dwarf::DW_OP_LLVM_arg, 0});
     CurrentLocOps = 1;
   }
-  for (auto Offset : VariableOffsets) {
+  for (const auto &Offset : VariableOffsets) {
     AdditionalValues.push_back(Offset.first);
     assert(Offset.second.isStrictlyPositive() &&
            "Expected strictly positive multiplier for offset.");
@@ -2682,39 +2667,35 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
                        intersectAccessGroups(K, J));
         break;
       case LLVMContext::MD_range:
-
-        // If K does move, use most generic range. Otherwise keep the range of
-        // K.
-        if (DoesKMove)
-          // FIXME: If K does move, we should drop the range info and nonnull.
-          //        Currently this function is used with DoesKMove in passes
-          //        doing hoisting/sinking and the current behavior of using the
-          //        most generic range is correct in those cases.
+        if (DoesKMove || !K->hasMetadata(LLVMContext::MD_noundef))
           K->setMetadata(Kind, MDNode::getMostGenericRange(JMD, KMD));
         break;
       case LLVMContext::MD_fpmath:
         K->setMetadata(Kind, MDNode::getMostGenericFPMath(JMD, KMD));
         break;
       case LLVMContext::MD_invariant_load:
-        // Only set the !invariant.load if it is present in both instructions.
-        K->setMetadata(Kind, JMD);
+        // If K moves, only set the !invariant.load if it is present in both
+        // instructions.
+        if (DoesKMove)
+          K->setMetadata(Kind, JMD);
         break;
       case LLVMContext::MD_nonnull:
-        // If K does move, keep nonull if it is present in both instructions.
-        if (DoesKMove)
+        if (DoesKMove || !K->hasMetadata(LLVMContext::MD_noundef))
           K->setMetadata(Kind, JMD);
         break;
       case LLVMContext::MD_invariant_group:
         // Preserve !invariant.group in K.
         break;
       case LLVMContext::MD_align:
-        K->setMetadata(Kind,
-          MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
+        if (DoesKMove || !K->hasMetadata(LLVMContext::MD_noundef))
+          K->setMetadata(
+              Kind, MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
         break;
       case LLVMContext::MD_dereferenceable:
       case LLVMContext::MD_dereferenceable_or_null:
-        K->setMetadata(Kind,
-          MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
+        if (DoesKMove)
+          K->setMetadata(Kind,
+            MDNode::getMostGenericAlignmentOrDereferenceable(JMD, KMD));
         break;
       case LLVMContext::MD_preserve_access_index:
         // Preserve !preserve.access.index in K.
@@ -2723,6 +2704,14 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
         // If K does move, keep noundef if it is present in both instructions.
         if (DoesKMove)
           K->setMetadata(Kind, JMD);
+        break;
+      case LLVMContext::MD_nontemporal:
+        // Preserve !nontemporal if it is present on both instructions.
+        K->setMetadata(Kind, JMD);
+        break;
+      case LLVMContext::MD_prof:
+        if (DoesKMove)
+          K->setMetadata(Kind, MDNode::getMergedProfMetadata(KMD, JMD, K, J));
         break;
     }
   }
@@ -2739,14 +2728,22 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
 
 void llvm::combineMetadataForCSE(Instruction *K, const Instruction *J,
                                  bool KDominatesJ) {
-  unsigned KnownIDs[] = {
-      LLVMContext::MD_tbaa,            LLVMContext::MD_alias_scope,
-      LLVMContext::MD_noalias,         LLVMContext::MD_range,
-      LLVMContext::MD_invariant_load,  LLVMContext::MD_nonnull,
-      LLVMContext::MD_invariant_group, LLVMContext::MD_align,
-      LLVMContext::MD_dereferenceable,
-      LLVMContext::MD_dereferenceable_or_null,
-      LLVMContext::MD_access_group,    LLVMContext::MD_preserve_access_index};
+  unsigned KnownIDs[] = {LLVMContext::MD_tbaa,
+                         LLVMContext::MD_alias_scope,
+                         LLVMContext::MD_noalias,
+                         LLVMContext::MD_range,
+                         LLVMContext::MD_fpmath,
+                         LLVMContext::MD_invariant_load,
+                         LLVMContext::MD_nonnull,
+                         LLVMContext::MD_invariant_group,
+                         LLVMContext::MD_align,
+                         LLVMContext::MD_dereferenceable,
+                         LLVMContext::MD_dereferenceable_or_null,
+                         LLVMContext::MD_access_group,
+                         LLVMContext::MD_preserve_access_index,
+                         LLVMContext::MD_prof,
+                         LLVMContext::MD_nontemporal,
+                         LLVMContext::MD_noundef};
   combineMetadata(K, J, KnownIDs, KDominatesJ);
 }
 
@@ -2825,14 +2822,7 @@ void llvm::patchReplacementInstruction(Instruction *I, Value *Repl) {
   // In general, GVN unifies expressions over different control-flow
   // regions, and so we need a conservative combination of the noalias
   // scopes.
-  static const unsigned KnownIDs[] = {
-      LLVMContext::MD_tbaa,            LLVMContext::MD_alias_scope,
-      LLVMContext::MD_noalias,         LLVMContext::MD_range,
-      LLVMContext::MD_fpmath,          LLVMContext::MD_invariant_load,
-      LLVMContext::MD_invariant_group, LLVMContext::MD_nonnull,
-      LLVMContext::MD_access_group,    LLVMContext::MD_preserve_access_index,
-      LLVMContext::MD_noundef};
-  combineMetadata(ReplInst, I, KnownIDs, false);
+  combineMetadataForCSE(ReplInst, I, false);
 }
 
 template <typename RootType, typename DominatesFn>
@@ -2957,7 +2947,8 @@ void llvm::copyRangeMetadata(const DataLayout &DL, const LoadInst &OldLI,
     return;
 
   unsigned BitWidth = DL.getPointerTypeSizeInBits(NewTy);
-  if (!getConstantRangeFromMetadata(*N).contains(APInt(BitWidth, 0))) {
+  if (BitWidth == OldLI.getType()->getScalarSizeInBits() &&
+      !getConstantRangeFromMetadata(*N).contains(APInt(BitWidth, 0))) {
     MDNode *NN = MDNode::get(OldLI.getContext(), std::nullopt);
     NewLI.setMetadata(LLVMContext::MD_nonnull, NN);
   }
@@ -2996,7 +2987,7 @@ void llvm::hoistAllInstructionsInto(BasicBlock *DomBlock, Instruction *InsertPt,
 
   for (BasicBlock::iterator II = BB->begin(), IE = BB->end(); II != IE;) {
     Instruction *I = &*II;
-    I->dropUndefImplyingAttrsAndUnknownMetadata();
+    I->dropUBImplyingAttrsAndMetadata();
     if (I->isUsedByMetadata())
       dropDebugUsers(*I);
     if (I->isDebugOrPseudoInst()) {
@@ -3152,7 +3143,7 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
 
       // Check that the mask allows a multiple of 8 bits for a bswap, for an
       // early exit.
-      unsigned NumMaskedBits = AndMask.countPopulation();
+      unsigned NumMaskedBits = AndMask.popcount();
       if (!MatchBitReversals && (NumMaskedBits % 8) != 0)
         return Result;
 

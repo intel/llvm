@@ -471,8 +471,7 @@ void MCObjectStreamer::emitInstToFragment(const MCInst &Inst,
   insert(IF);
 
   SmallString<128> Code;
-  raw_svector_ostream VecOS(Code);
-  getAssembler().getEmitter().encodeInstruction(Inst, VecOS, IF->getFixups(),
+  getAssembler().getEmitter().encodeInstruction(Inst, Code, IF->getFixups(),
                                                 STI);
   IF->getContents().append(Code.begin(), Code.end());
 }
@@ -574,10 +573,12 @@ void MCObjectStreamer::emitDwarfAdvanceFrameAddr(const MCSymbol *LastLabel,
   const MCExpr *AddrDelta = buildSymbolDiff(*this, Label, LastLabel);
   int64_t Res;
   if (AddrDelta->evaluateAsAbsolute(Res, getAssemblerPtr())) {
-    MCDwarfFrameEmitter::EmitAdvanceLoc(*this, Res);
-    return;
+    SmallString<8> Tmp;
+    MCDwarfFrameEmitter::encodeAdvanceLoc(getContext(), Res, Tmp);
+    emitBytes(Tmp);
+  } else {
+    insert(new MCDwarfCallFrameFragment(*AddrDelta));
   }
-  insert(new MCDwarfCallFrameFragment(*AddrDelta));
 }
 
 void MCObjectStreamer::emitCVLocDirective(unsigned FunctionId, unsigned FileNo,

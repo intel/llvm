@@ -219,6 +219,7 @@ struct DummyDataObject {
   std::vector<Expr<SubscriptInteger>> coshape;
   common::Intent intent{common::Intent::Default};
   Attrs attrs;
+  common::IgnoreTKRSet ignoreTKR;
 };
 
 // 15.3.2.3
@@ -259,6 +260,8 @@ struct DummyArgument {
   bool operator!=(const DummyArgument &that) const { return !(*this == that); }
   static std::optional<DummyArgument> FromActual(
       std::string &&, const Expr<SomeType> &, FoldingContext &);
+  static std::optional<DummyArgument> FromActual(
+      std::string &&, const ActualArgument &, FoldingContext &);
   bool IsOptional() const;
   void SetOptional(bool = true);
   common::Intent GetIntent() const;
@@ -338,6 +341,10 @@ struct Procedure {
       const ProcedureDesignator &, FoldingContext &);
   static std::optional<Procedure> Characterize(
       const ProcedureRef &, FoldingContext &);
+  // Characterizes the procedure being referenced, deducing dummy argument
+  // types from actual arguments in the case of an implicit interface.
+  static std::optional<Procedure> FromActuals(
+      const ProcedureDesignator &, const ActualArguments &, FoldingContext &);
 
   // At most one of these will return true.
   // For "EXTERNAL P" with no type for or calls to P, both will be false.

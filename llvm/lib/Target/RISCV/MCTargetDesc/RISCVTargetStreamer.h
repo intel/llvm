@@ -1,4 +1,4 @@
-//===-- RISCVTargetStreamer.h - RISCV Target Streamer ----------*- C++ -*--===//
+//===-- RISCVTargetStreamer.h - RISC-V Target Streamer ---------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -40,7 +40,7 @@ public:
   virtual void emitIntTextAttribute(unsigned Attribute, unsigned IntValue,
                                     StringRef StringValue);
 
-  void emitTargetAttributes(const MCSubtargetInfo &STI);
+  void emitTargetAttributes(const MCSubtargetInfo &STI, bool EmitStackAlign);
   void setTargetABI(RISCVABI::ABI ABI);
   RISCVABI::ABI getTargetABI() const { return TargetABI; }
 };

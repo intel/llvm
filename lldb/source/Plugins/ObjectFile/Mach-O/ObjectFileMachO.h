@@ -10,10 +10,10 @@
 #define LLDB_SOURCE_PLUGINS_OBJECTFILE_MACH_O_OBJECTFILEMACHO_H
 
 #include "lldb/Core/Address.h"
-#include "lldb/Core/FileSpecList.h"
 #include "lldb/Host/SafeMachO.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/FileSpecList.h"
 #include "lldb/Utility/RangeMap.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/UUID.h"
@@ -90,6 +90,8 @@ public:
 
   bool IsSharedCacheBinary() const;
 
+  bool IsKext() const;
+
   uint32_t GetAddressByteSize() const override;
 
   lldb_private::AddressClass GetAddressClass(lldb::addr_t file_addr) override;
@@ -151,6 +153,8 @@ public:
 
   bool AllowAssemblyEmulationUnwindPlans() override;
 
+  lldb_private::Section *GetMachHeaderSection();
+
   // PluginInterface protocol
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
@@ -192,8 +196,6 @@ protected:
   /// does not match the process' shared cache UUID, this optimization
   /// should not be used.
   void GetLLDBSharedCacheUUID(lldb::addr_t &base_addir, lldb_private::UUID &uuid);
-
-  lldb_private::Section *GetMachHeaderSection();
 
   lldb::addr_t CalculateSectionLoadAddressForMemoryImage(
       lldb::addr_t mach_header_load_address,

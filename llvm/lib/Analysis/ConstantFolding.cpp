@@ -713,7 +713,7 @@ Constant *llvm::ConstantFoldLoadFromConst(Constant *C, Type *Ty,
     return Result;
 
   // Try hard to fold loads from bitcasted strange and non-type-safe things.
-  if (Offset.getMinSignedBits() <= 64)
+  if (Offset.getSignificantBits() <= 64)
     if (Constant *Result =
             FoldReinterpretLoadFromConst(C, Ty, Offset.getSExtValue(), DL))
       return Result;
@@ -822,7 +822,8 @@ Constant *SymbolicallyEvaluateBinop(unsigned Opc, Constant *Op0, Constant *Op1,
 /// If array indices are not pointer-sized integers, explicitly cast them so
 /// that they aren't implicitly casted by the getelementptr.
 Constant *CastGEPIndices(Type *SrcElemTy, ArrayRef<Constant *> Ops,
-                         Type *ResultTy, std::optional<unsigned> InRangeIndex,
+                         Type *ResultTy, bool InBounds,
+                         std::optional<unsigned> InRangeIndex,
                          const DataLayout &DL, const TargetLibraryInfo *TLI) {
   Type *IntIdxTy = DL.getIndexType(ResultTy);
   Type *IntIdxScalarTy = IntIdxTy->getScalarType();
@@ -851,7 +852,7 @@ Constant *CastGEPIndices(Type *SrcElemTy, ArrayRef<Constant *> Ops,
     return nullptr;
 
   Constant *C = ConstantExpr::getGetElementPtr(
-      SrcElemTy, Ops[0], NewIdxs, /*InBounds=*/false, InRangeIndex);
+      SrcElemTy, Ops[0], NewIdxs, InBounds, InRangeIndex);
   return ConstantFoldConstant(C, DL, TLI);
 }
 
@@ -886,7 +887,8 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
     return nullptr;
 
   if (Constant *C = CastGEPIndices(SrcElemTy, Ops, ResTy,
-                                   GEP->getInRangeIndex(), DL, TLI))
+                                   GEP->isInBounds(), GEP->getInRangeIndex(),
+                                   DL, TLI))
     return C;
 
   Constant *Ptr = Ops[0];
@@ -1050,11 +1052,15 @@ Constant *ConstantFoldInstOperandsImpl(const Value *InstOrCE, unsigned Opcode,
     return ConstantFoldCastOperand(Opcode, Ops[0], DestTy, DL);
 
   if (auto *GEP = dyn_cast<GEPOperator>(InstOrCE)) {
+    Type *SrcElemTy = GEP->getSourceElementType();
+    if (!ConstantExpr::isSupportedGetElementPtr(SrcElemTy))
+      return nullptr;
+
     if (Constant *C = SymbolicallyEvaluateGEP(GEP, Ops, DL, TLI))
       return C;
 
-    return ConstantExpr::getGetElementPtr(GEP->getSourceElementType(), Ops[0],
-                                          Ops.slice(1), GEP->isInBounds(),
+    return ConstantExpr::getGetElementPtr(SrcElemTy, Ops[0], Ops.slice(1),
+                                          GEP->isInBounds(),
                                           GEP->getInRangeIndex());
   }
 
@@ -1083,7 +1089,7 @@ Constant *ConstantFoldInstOperandsImpl(const Value *InstOrCE, unsigned Opcode,
     }
     return nullptr;
   case Instruction::Select:
-    return ConstantExpr::getSelect(Ops[0], Ops[1], Ops[2]);
+    return ConstantFoldSelectInstruction(Ops[0], Ops[1], Ops[2]);
   case Instruction::ExtractElement:
     return ConstantExpr::getExtractElement(Ops[0], Ops[1]);
   case Instruction::ExtractValue:
@@ -1320,7 +1326,11 @@ Constant *llvm::ConstantFoldCompareInstOperands(
   // Flush any denormal constant float input according to denormal handling
   // mode.
   Ops0 = FlushFPConstant(Ops0, I, /* IsOutput */ false);
+  if (!Ops0)
+    return nullptr;
   Ops1 = FlushFPConstant(Ops1, I, /* IsOutput */ false);
+  if (!Ops1)
+    return nullptr;
 
   return ConstantExpr::getCompare(Predicate, Ops0, Ops1);
 }
@@ -1355,6 +1365,10 @@ Constant *llvm::FlushFPConstant(Constant *Operand, const Instruction *I,
     return Operand;
 
   const APFloat &APF = CFP->getValueAPF();
+  // TODO: Should this canonicalize nans?
+  if (!APF.isDenormal())
+    return Operand;
+
   Type *Ty = CFP->getType();
   DenormalMode DenormMode =
       I->getFunction()->getDenormalMode(Ty->getFltSemantics());
@@ -1363,7 +1377,8 @@ Constant *llvm::FlushFPConstant(Constant *Operand, const Instruction *I,
   switch (Mode) {
   default:
     llvm_unreachable("unknown denormal mode");
-    return Operand;
+  case DenormalMode::Dynamic:
+    return nullptr;
   case DenormalMode::IEEE:
     return Operand;
   case DenormalMode::PreserveSign:
@@ -1389,7 +1404,11 @@ Constant *llvm::ConstantFoldFPInstOperands(unsigned Opcode, Constant *LHS,
   if (Instruction::isBinaryOp(Opcode)) {
     // Flush denormal inputs if needed.
     Constant *Op0 = FlushFPConstant(LHS, I, /* IsOutput */ false);
+    if (!Op0)
+      return nullptr;
     Constant *Op1 = FlushFPConstant(RHS, I, /* IsOutput */ false);
+    if (!Op1)
+      return nullptr;
 
     // Calculate constant result.
     Constant *C = ConstantFoldBinaryOpOperands(Opcode, Op0, Op1, DL);
@@ -1963,13 +1982,26 @@ static Constant *constantFoldCanonicalize(const Type *Ty, const CallBase *CI,
   if (Src.isDenormal() && CI->getParent() && CI->getFunction()) {
     DenormalMode DenormMode =
         CI->getFunction()->getDenormalMode(Src.getSemantics());
+
+    // TODO: Should allow folding for pure IEEE.
     if (DenormMode == DenormalMode::getIEEE())
+      return nullptr;
+
+    if (DenormMode == DenormalMode::getDynamic())
+      return nullptr;
+
+    // If we know if either input or output is flushed, we can fold.
+    if ((DenormMode.Input == DenormalMode::Dynamic &&
+         DenormMode.Output == DenormalMode::IEEE) ||
+        (DenormMode.Input == DenormalMode::IEEE &&
+         DenormMode.Output == DenormalMode::Dynamic))
       return nullptr;
 
     bool IsPositive =
         (!Src.isNegative() || DenormMode.Input == DenormalMode::PositiveZero ||
          (DenormMode.Output == DenormalMode::PositiveZero &&
           DenormMode.Input == DenormalMode::IEEE));
+
     return ConstantFP::get(CI->getContext(),
                            APFloat::getZero(Src.getSemantics(), !IsPositive));
   }
@@ -2395,7 +2427,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     case Intrinsic::bswap:
       return ConstantInt::get(Ty->getContext(), Op->getValue().byteSwap());
     case Intrinsic::ctpop:
-      return ConstantInt::get(Ty, Op->getValue().countPopulation());
+      return ConstantInt::get(Ty, Op->getValue().popcount());
     case Intrinsic::bitreverse:
       return ConstantInt::get(Ty->getContext(), Op->getValue().reverseBits());
     case Intrinsic::convert_from_fp16: {
@@ -2577,7 +2609,7 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
         // The legacy behaviour is that multiplying +/- 0.0 by anything, even
         // NaN or infinity, gives +0.0.
         if (Op1V.isZero() || Op2V.isZero())
-          return ConstantFP::getNullValue(Ty);
+          return ConstantFP::getZero(Ty);
         return ConstantFP::get(Ty->getContext(), Op1V * Op2V);
       }
 
@@ -2630,18 +2662,18 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
     } else if (auto *Op2C = dyn_cast<ConstantInt>(Operands[1])) {
       switch (IntrinsicID) {
       case Intrinsic::is_fpclass: {
-        uint32_t Mask = Op2C->getZExtValue();
+        FPClassTest Mask = static_cast<FPClassTest>(Op2C->getZExtValue());
         bool Result =
           ((Mask & fcSNan) && Op1V.isNaN() && Op1V.isSignaling()) ||
           ((Mask & fcQNan) && Op1V.isNaN() && !Op1V.isSignaling()) ||
-          ((Mask & fcNegInf) && Op1V.isInfinity() && Op1V.isNegative()) ||
+          ((Mask & fcNegInf) && Op1V.isNegInfinity()) ||
           ((Mask & fcNegNormal) && Op1V.isNormal() && Op1V.isNegative()) ||
           ((Mask & fcNegSubnormal) && Op1V.isDenormal() && Op1V.isNegative()) ||
           ((Mask & fcNegZero) && Op1V.isZero() && Op1V.isNegative()) ||
           ((Mask & fcPosZero) && Op1V.isZero() && !Op1V.isNegative()) ||
           ((Mask & fcPosSubnormal) && Op1V.isDenormal() && !Op1V.isNegative()) ||
           ((Mask & fcPosNormal) && Op1V.isNormal() && !Op1V.isNegative()) ||
-          ((Mask & fcPosInf) && Op1V.isInfinity() && !Op1V.isNegative());
+          ((Mask & fcPosInf) && Op1V.isPosInfinity());
         return ConstantInt::get(Ty, Result);
       }
       default:
@@ -2801,9 +2833,9 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
       if (!C0)
         return Constant::getNullValue(Ty);
       if (IntrinsicID == Intrinsic::cttz)
-        return ConstantInt::get(Ty, C0->countTrailingZeros());
+        return ConstantInt::get(Ty, C0->countr_zero());
       else
-        return ConstantInt::get(Ty, C0->countLeadingZeros());
+        return ConstantInt::get(Ty, C0->countl_zero());
 
     case Intrinsic::abs:
       assert(C1 && "Must be constant int");

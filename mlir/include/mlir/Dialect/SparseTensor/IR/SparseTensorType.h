@@ -51,12 +51,19 @@ public:
       : rtp(rtp), enc(getSparseTensorEncoding(rtp)),
         lvlRank(enc ? enc.getLvlRank() : getDimRank()),
         dim2lvl(enc.hasIdDimOrdering() ? AffineMap() : enc.getDimOrdering()) {
+    assert(rtp && "got null RankedTensorType");
     assert((!isIdentity() || getDimRank() == lvlRank) && "Rank mismatch");
   }
 
   SparseTensorType(ShapedType stp, SparseTensorEncodingAttr enc)
       : SparseTensorType(
             RankedTensorType::get(stp.getShape(), stp.getElementType(), enc)) {}
+
+  // Copy-assignment would be implicitly deleted (because our fields
+  // are const), so we explicitly delete it for clarity.
+  SparseTensorType &operator=(const SparseTensorType &) = delete;
+  // So we must explicitly define the copy-ctor to silence -Wdeprecated-copy.
+  SparseTensorType(const SparseTensorType &) = default;
 
   /// Constructs a new `SparseTensorType` with the same dimension-shape
   /// and element type, but with the encoding replaced by the given encoding.
@@ -226,22 +233,20 @@ public:
   bool isOrderedLvl(Level l) const { return isOrderedDLT(getLvlType(l)); }
   bool isUniqueLvl(Level l) const { return isUniqueDLT(getLvlType(l)); }
 
-  /// Returns the index-overhead bitwidth, defaulting to zero.
-  unsigned getIndexBitWidth() const { return enc ? enc.getIndexBitWidth() : 0; }
+  /// Returns the coordinate-overhead bitwidth, defaulting to zero.
+  unsigned getCrdWidth() const { return enc ? enc.getCrdWidth() : 0; }
 
-  /// Returns the pointer-overhead bitwidth, defaulting to zero.
-  unsigned getPointerBitWidth() const {
-    return enc ? enc.getPointerBitWidth() : 0;
+  /// Returns the position-overhead bitwidth, defaulting to zero.
+  unsigned getPosWidth() const { return enc ? enc.getPosWidth() : 0; }
+
+  /// Returns the coordinate-overhead MLIR type, defaulting to `IndexType`.
+  Type getCrdType() const {
+    return detail::getIntegerOrIndexType(getContext(), getCrdWidth());
   }
 
-  /// Returns the index-overhead MLIR type, defaulting to `IndexType`.
-  Type getIndexType() const {
-    return detail::getIntegerOrIndexType(getContext(), getIndexBitWidth());
-  }
-
-  /// Returns the pointer-overhead MLIR type, defaulting to `IndexType`.
-  Type getPointerType() const {
-    return detail::getIntegerOrIndexType(getContext(), getPointerBitWidth());
+  /// Returns the position-overhead MLIR type, defaulting to `IndexType`.
+  Type getPosType() const {
+    return detail::getIntegerOrIndexType(getContext(), getPosWidth());
   }
 
 private:

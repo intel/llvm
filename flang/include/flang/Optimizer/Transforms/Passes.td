@@ -64,7 +64,8 @@ def AffineDialectPromotion : Pass<"promote-to-affine", "::mlir::func::FuncOp"> {
   }];
   let constructor = "::fir::createPromoteToAffinePass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "mlir::func::FuncDialect", "mlir::AffineDialect"
+    "fir::FIROpsDialect", "mlir::func::FuncDialect",
+    "mlir::affine::AffineDialect"
   ];
 }
 
@@ -78,7 +79,8 @@ def AffineDialectDemotion : Pass<"demote-affine", "::mlir::func::FuncOp"> {
   }];
   let constructor = "::fir::createAffineDemotionPass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "mlir::func::FuncDialect", "mlir::AffineDialect"
+    "fir::FIROpsDialect", "mlir::func::FuncDialect",
+    "mlir::affine::AffineDialect"
   ];
 }
 
@@ -169,6 +171,11 @@ def ExternalNameConversion : Pass<"external-name-interop", "mlir::ModuleOp"> {
     Demangle FIR internal name and mangle them for external interoperability.
   }];
   let constructor = "::fir::createExternalNameConversionPass()";
+  let options = [
+    Option<"appendUnderscore", "append-underscore",
+           "bool", /*default=*/"true",
+           "Append trailing underscore to external names.">
+  ];
 }
 
 def MemRefDataFlowOpt : Pass<"fir-memref-dataflow-opt", "::mlir::func::FuncOp"> {
@@ -264,6 +271,41 @@ def AlgebraicSimplification : Pass<"flang-algebraic-simplification"> {
   }];
   let dependentDialects = [ "mlir::math::MathDialect" ];
   let constructor = "::fir::createAlgebraicSimplificationPass()";
+}
+
+def PolymorphicOpConversion : Pass<"fir-polymorphic-op", "::mlir::func::FuncOp"> {
+  let summary =
+    "Simplify operations on polymorphic types";
+  let description = [{
+    This pass breaks up the lowering of operations on polymorphic types by 
+    introducing an intermediate FIR level that simplifies code geneation. 
+  }];
+  let constructor = "::fir::createPolymorphicOpConversionPass()";
+  let dependentDialects = [
+    "fir::FIROpsDialect", "mlir::func::FuncDialect"
+  ];
+}
+
+def OpenACCDataOperandConversion : Pass<"fir-openacc-data-operand-conversion", "::mlir::func::FuncOp"> {
+  let summary = "Convert the FIR operands in OpenACC ops to LLVM dialect";
+  let dependentDialects = ["mlir::LLVM::LLVMDialect"];
+  let options = [
+    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
+           /*default=*/"true", "Generate LLVM IR using opaque pointers "
+           "instead of typed pointers">,
+  ];
+}
+
+def LoopVersioning : Pass<"loop-versioning", "mlir::func::FuncOp"> {
+  let summary = "Loop Versioning";
+  let description = [{
+    Loop Versioning pass adds a check and two variants of a loop when the input
+    array is an assumed shape array, to optimize for the (often common) case where
+    an array has element sized stride. The element sizes stride allows some
+    loops to be vectorized as well as other loop optimizations.
+  }];
+  let constructor = "::fir::createLoopVersioningPass()";
+  let dependentDialects = [ "fir::FIROpsDialect" ];
 }
 
 #endif // FLANG_OPTIMIZER_TRANSFORMS_PASSES

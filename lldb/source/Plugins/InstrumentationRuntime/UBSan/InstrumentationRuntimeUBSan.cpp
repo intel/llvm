@@ -67,19 +67,18 @@ __ubsan_get_current_report_data(const char **OutIssueKind,
     const char **OutMessage, const char **OutFilename, unsigned *OutLine,
     unsigned *OutCol, char **OutMemoryAddr);
 }
+)";
 
-struct data {
+static const char *ub_sanitizer_retrieve_report_data_command = R"(
+struct {
   const char *issue_kind;
   const char *message;
   const char *filename;
   unsigned line;
   unsigned col;
   char *memory_addr;
-};
-)";
+} t;
 
-static const char *ub_sanitizer_retrieve_report_data_command = R"(
-data t;
 __ubsan_get_current_report_data(&t.issue_kind, &t.message, &t.filename, &t.line,
                                 &t.col, &t.memory_addr);
 t;
@@ -109,7 +108,8 @@ StructuredData::ObjectSP InstrumentationRuntimeUBSan::RetrieveReportData(
     return StructuredData::ObjectSP();
 
   ThreadSP thread_sp = exe_ctx_ref.GetThreadSP();
-  StackFrameSP frame_sp = thread_sp->GetSelectedFrame();
+  StackFrameSP frame_sp =
+      thread_sp->GetSelectedFrame(DoNoSelectMostRelevantFrame);
   ModuleSP runtime_module_sp = GetRuntimeModuleSP();
   Target &target = process_sp->GetTarget();
 

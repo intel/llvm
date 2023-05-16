@@ -437,7 +437,11 @@ void RocmInstallationDetector::detectHIPRuntime() {
   SmallVector<Candidate, 4> HIPSearchDirs;
   if (!HIPPathArg.empty())
     HIPSearchDirs.emplace_back(HIPPathArg.str(), /*StrictChecking=*/true);
-  else
+  else if (std::optional<std::string> HIPPathEnv =
+               llvm::sys::Process::GetEnv("HIP_PATH")) {
+    if (!HIPPathEnv->empty())
+      HIPSearchDirs.emplace_back(std::move(*HIPPathEnv));
+  } else
     HIPSearchDirs.append(getInstallationPathCandidates());
   auto &FS = D.getVFS();
 
@@ -540,6 +544,10 @@ void amdgpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
   addLinkerCompressDebugSectionsOption(getToolChain(), Args, CmdArgs);
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  if (C.getDriver().isUsingLTO())
+    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs[0],
+                  C.getDriver().getLTOMode() == LTOK_Thin);
+  CmdArgs.push_back("--no-undefined");
   CmdArgs.push_back("-shared");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());

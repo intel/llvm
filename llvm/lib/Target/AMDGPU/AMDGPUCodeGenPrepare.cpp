@@ -14,15 +14,16 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUTargetMachine.h"
+#include "SIModeRegisterDefaults.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ConstantFolding.h"
-#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
+#include "llvm/Analysis/UniformityAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/KnownBits.h"
@@ -45,6 +46,22 @@ static cl::opt<bool> Widen16BitOps(
   cl::desc("Widen uniform 16-bit instructions to 32-bit in AMDGPUCodeGenPrepare"),
   cl::ReallyHidden,
   cl::init(true));
+
+static cl::opt<bool>
+    ScalarizeLargePHIs("amdgpu-codegenprepare-break-large-phis",
+                       cl::desc("Break large PHI nodes for DAGISel"),
+                       cl::ReallyHidden, cl::init(true));
+
+static cl::opt<bool>
+    ForceScalarizeLargePHIs("amdgpu-codegenprepare-force-break-large-phis",
+                            cl::desc("For testing purposes, always break large "
+                                     "PHIs even if it isn't profitable."),
+                            cl::ReallyHidden, cl::init(false));
+
+static cl::opt<unsigned> ScalarizeLargePHIsThreshold(
+    "amdgpu-codegenprepare-break-large-phis-threshold",
+    cl::desc("Minimum type size in bits for breaking large PHI nodes"),
+    cl::ReallyHidden, cl::init(32));
 
 static cl::opt<bool> UseMul24Intrin(
   "amdgpu-codegenprepare-mul24",
@@ -72,7 +89,7 @@ class AMDGPUCodeGenPrepare : public FunctionPass,
   const GCNSubtarget *ST = nullptr;
   AssumptionCache *AC = nullptr;
   DominatorTree *DT = nullptr;
-  LegacyDivergenceAnalysis *DA = nullptr;
+  UniformityInfo *UA = nullptr;
   Module *Mod = nullptr;
   const DataLayout *DL = nullptr;
   bool HasUnsafeFPMath = false;
@@ -212,6 +229,7 @@ public:
   bool visitLoadInst(LoadInst &I);
   bool visitICmpInst(ICmpInst &I);
   bool visitSelectInst(SelectInst &I);
+  bool visitPHINode(PHINode &I);
 
   bool visitIntrinsicInst(IntrinsicInst &I);
   bool visitBitreverseIntrinsicInst(IntrinsicInst &I);
@@ -223,7 +241,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<AssumptionCacheTracker>();
-    AU.addRequired<LegacyDivergenceAnalysis>();
+    AU.addRequired<UniformityInfoWrapperPass>();
 
     // FIXME: Division expansion needs to preserve the dominator tree.
     if (!ExpandDiv64InIR)
@@ -313,7 +331,7 @@ bool AMDGPUCodeGenPrepare::canWidenScalarExtLoad(LoadInst &I) const {
   int TySize = DL.getTypeSizeInBits(Ty);
   Align Alignment = DL.getValueOrABITypeAlignment(I.getAlign(), Ty);
 
-  return I.isSimple() && TySize < 32 && Alignment >= 4 && DA->isUniform(&I);
+  return I.isSimple() && TySize < 32 && Alignment >= 4 && UA->isUniform(&I);
 }
 
 bool AMDGPUCodeGenPrepare::promoteUniformOpToI32(BinaryOperator &I) const {
@@ -518,7 +536,7 @@ bool AMDGPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
     return false;
 
   // Prefer scalar if this could be s_mul_i32
-  if (DA->isUniform(&I))
+  if (UA->isUniform(&I))
     return false;
 
   Value *LHS = I.getOperand(0);
@@ -1236,7 +1254,7 @@ bool AMDGPUCodeGenPrepare::visitBinaryOperator(BinaryOperator &I) {
     return true;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I) && promoteUniformOpToI32(I))
+      UA->isUniform(&I) && promoteUniformOpToI32(I))
     return true;
 
   if (UseMul24Intrin && replaceMulWithMul24(I))
@@ -1325,9 +1343,7 @@ bool AMDGPUCodeGenPrepare::visitLoadInst(LoadInst &I) {
     Builder.SetCurrentDebugLocation(I.getDebugLoc());
 
     Type *I32Ty = Builder.getInt32Ty();
-    Type *PT = PointerType::get(I32Ty, I.getPointerAddressSpace());
-    Value *BitCast= Builder.CreateBitCast(I.getPointerOperand(), PT);
-    LoadInst *WidenLoad = Builder.CreateLoad(I32Ty, BitCast);
+    LoadInst *WidenLoad = Builder.CreateLoad(I32Ty, I.getPointerOperand());
     WidenLoad->copyMetadata(I);
 
     // If we have range metadata, we need to convert the type, and not make
@@ -1366,7 +1382,7 @@ bool AMDGPUCodeGenPrepare::visitICmpInst(ICmpInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getOperand(0)->getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformOpToI32(I);
 
   return Changed;
@@ -1376,10 +1392,172 @@ bool AMDGPUCodeGenPrepare::visitSelectInst(SelectInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformOpToI32(I);
 
   return Changed;
+}
+
+// Helper for breaking large PHIs that returns true when an extractelement on V
+// is likely to be folded away by the DAG combiner.
+static bool isInterestingPHIIncomingValue(Value *V, FixedVectorType *FVT) {
+  InsertElementInst *IE = dyn_cast<InsertElementInst>(V);
+
+  // Constants & InsertElements chains are interesting.
+  if (!IE)
+    return isa<Constant>(V);
+
+  // Check if this is a simple chain of insertelement that fills the vector. If
+  // that's the case, we can break up this PHI node profitably because the
+  // extractelement we will insert will get folded out.
+  BasicBlock *BB = IE->getParent();
+  BitVector EltsCovered(FVT->getNumElements());
+  InsertElementInst *Next = IE;
+  while (Next && !EltsCovered.all()) {
+    ConstantInt *Idx = dyn_cast<ConstantInt>(Next->getOperand(2));
+
+    // Non constant index/out of bounds index -> folding is unlikely.
+    // Note that this is more of a sanity check - canonical IR should
+    // already have replaced those with poison.
+    if (!Idx || Idx->getSExtValue() >= FVT->getNumElements())
+      return false;
+
+    EltsCovered.set(Idx->getSExtValue());
+
+    // If the insertelement chain ends with a constant, it's fine.
+    if (isa<Constant>(Next->getOperand(0)))
+      return true;
+
+    Next = dyn_cast<InsertElementInst>(Next->getOperand(0));
+
+    // If the chain is spread across basic blocks, the DAG combiner
+    // won't see it in its entirety and is unlikely to be able to fold
+    // evevrything away.
+    if (Next && Next->getParent() != BB)
+      return false;
+  }
+
+  // All elements covered, all of the extract elements will likely be
+  // combined.
+  return EltsCovered.all();
+}
+
+bool AMDGPUCodeGenPrepare::visitPHINode(PHINode &I) {
+  // Break-up fixed-vector PHIs into smaller pieces.
+  // Default threshold is 32, so it breaks up any vector that's >32 bits into
+  // its elements, or into 32-bit pieces (for 8/16 bit elts).
+  //
+  // This is only helpful for DAGISel because it doesn't handle large PHIs as
+  // well as GlobalISel. DAGISel lowers PHIs by using CopyToReg/CopyFromReg.
+  // With large, odd-sized PHIs we may end up needing many `build_vector`
+  // operations with most elements being "undef". This inhibits a lot of
+  // optimization opportunities and can result in unreasonably high register
+  // pressure and the inevitable stack spilling.
+  if (!ScalarizeLargePHIs || getCGPassBuilderOption().EnableGlobalISelOption)
+    return false;
+
+  FixedVectorType *FVT = dyn_cast<FixedVectorType>(I.getType());
+  if (!FVT || DL->getTypeSizeInBits(FVT) <= ScalarizeLargePHIsThreshold)
+    return false;
+
+  // Try to avoid unprofitable cases:
+  // - Don't break PHIs that have no interesting incoming values. That is, where
+  // there is no clear opportunity to fold the "extractelement" instructions we
+  // would add.
+  //   - Note: IC does not run after this pass, so we're only interested in the
+  //     folding that the DAG combiner can do.
+  // - For simplicity, don't break PHIs that are used by other PHIs because it'd
+  // require us to determine if the whole "chain" can be converted or not. e.g.
+  // if we broke this PHI but not its user, we would actually make things worse.
+  if (!ForceScalarizeLargePHIs) {
+    if (none_of(
+            I.incoming_values(),
+            [&](Value *V) { return isInterestingPHIIncomingValue(V, FVT); }) ||
+        any_of(I.users(), [&](User *U) { return isa<PHINode>(U); })) {
+      return false;
+    }
+  }
+
+  struct VectorSlice {
+    Type *Ty = nullptr;
+    unsigned Idx = 0;
+    unsigned NumElts = 0;
+    std::vector<Value *> IncomingValues = {};
+    PHINode *NewPHI = nullptr;
+  };
+
+  std::vector<VectorSlice> Slices;
+
+  Type *EltTy = FVT->getElementType();
+  {
+    unsigned Idx = 0;
+    // For 8/16 bits type, don't scalarize fully but break it up into as many
+    // 32-bit slices as we can, and scalarize the tail.
+    const unsigned EltSize = DL->getTypeSizeInBits(EltTy);
+    const unsigned NumElts = FVT->getNumElements();
+    if (EltSize == 8 || EltSize == 16) {
+      const unsigned SubVecSize = (32 / EltSize);
+      Type *SubVecTy = FixedVectorType::get(EltTy, SubVecSize);
+      for (unsigned End = alignDown(NumElts, SubVecSize); Idx < End;
+           Idx += SubVecSize)
+        Slices.push_back(VectorSlice{SubVecTy, Idx, SubVecSize});
+    }
+
+    // Scalarize all remaining elements.
+    for (; Idx < NumElts; ++Idx)
+      Slices.push_back(VectorSlice{EltTy, Idx, 1});
+  }
+
+  if (Slices.size() == 1)
+    return false;
+
+  // Break up this PHI's incoming values.
+  for (unsigned Idx = 0; Idx < I.getNumIncomingValues(); ++Idx) {
+    Value *Inc = I.getIncomingValue(Idx);
+
+    IRBuilder<> B(I.getIncomingBlock(Idx)->getTerminator());
+    if (Instruction *IncInst = dyn_cast<Instruction>(Inc))
+      B.SetCurrentDebugLocation(IncInst->getDebugLoc());
+
+    unsigned NameSuffix = 0;
+    for (VectorSlice &S : Slices) {
+      const auto ValName =
+          "largephi.extractslice" + std::to_string(NameSuffix++);
+      if (S.NumElts > 1) {
+        SmallVector<int, 4> Mask;
+        for (unsigned K = S.Idx; K < (S.Idx + S.NumElts); ++K)
+          Mask.push_back(K);
+        S.IncomingValues.push_back(B.CreateShuffleVector(Inc, Mask, ValName));
+      } else
+        S.IncomingValues.push_back(B.CreateExtractElement(Inc, S.Idx, ValName));
+    }
+  }
+
+  // Now create one PHI per vector piece.
+  IRBuilder<> B(I.getParent()->getFirstNonPHI());
+  B.SetCurrentDebugLocation(I.getDebugLoc());
+
+  for (VectorSlice &S : Slices) {
+    S.NewPHI = B.CreatePHI(S.Ty, I.getNumIncomingValues());
+    for (const auto &[Idx, BB] : enumerate(I.blocks()))
+      S.NewPHI->addIncoming(S.IncomingValues[Idx], BB);
+  }
+
+  // And replace this PHI with a vector of all the previous PHI values.
+  Value *Vec = PoisonValue::get(FVT);
+  unsigned NameSuffix = 0;
+  for (VectorSlice &S : Slices) {
+    const auto ValName = "largephi.insertslice" + std::to_string(NameSuffix++);
+    if (S.NumElts > 1)
+      Vec =
+          B.CreateInsertVector(FVT, Vec, S.NewPHI, B.getInt64(S.Idx), ValName);
+    else
+      Vec = B.CreateInsertElement(Vec, S.NewPHI, S.Idx, ValName);
+  }
+
+  I.replaceAllUsesWith(Vec);
+  I.eraseFromParent();
+  return true;
 }
 
 bool AMDGPUCodeGenPrepare::visitIntrinsicInst(IntrinsicInst &I) {
@@ -1395,7 +1573,7 @@ bool AMDGPUCodeGenPrepare::visitBitreverseIntrinsicInst(IntrinsicInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformBitreverseToI32(I);
 
   return Changed;
@@ -1418,14 +1596,14 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
   const AMDGPUTargetMachine &TM = TPC->getTM<AMDGPUTargetMachine>();
   ST = &TM.getSubtarget<GCNSubtarget>(F);
   AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-  DA = &getAnalysis<LegacyDivergenceAnalysis>();
+  UA = &getAnalysis<UniformityInfoWrapperPass>().getUniformityInfo();
 
   auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>();
   DT = DTWP ? &DTWP->getDomTree() : nullptr;
 
   HasUnsafeFPMath = hasUnsafeFPMath(F);
 
-  AMDGPU::SIModeRegisterDefaults Mode(F);
+  SIModeRegisterDefaults Mode(F);
   HasFP32Denormals = Mode.allFP32Denormals();
 
   bool MadeChange = false;
@@ -1458,7 +1636,7 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
 INITIALIZE_PASS_BEGIN(AMDGPUCodeGenPrepare, DEBUG_TYPE,
                       "AMDGPU IR optimizations", false, false)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(LegacyDivergenceAnalysis)
+INITIALIZE_PASS_DEPENDENCY(UniformityInfoWrapperPass)
 INITIALIZE_PASS_END(AMDGPUCodeGenPrepare, DEBUG_TYPE, "AMDGPU IR optimizations",
                     false, false)
 

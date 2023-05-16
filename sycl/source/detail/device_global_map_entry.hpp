@@ -15,8 +15,8 @@
 #include <optional>
 #include <set>
 
+#include <detail/pi_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/pi.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -28,38 +28,6 @@ class device_impl;
 class platform_impl;
 class queue_impl;
 
-// RAII object for keeping ownership of a PI event.
-struct OwnedPiEvent {
-  OwnedPiEvent(const plugin &Plugin) : MEvent{std::nullopt}, MPlugin{Plugin} {}
-  OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin);
-  ~OwnedPiEvent();
-
-  OwnedPiEvent(OwnedPiEvent &&Other)
-      : MEvent(Other.MEvent), MPlugin(Other.MPlugin) {
-    Other.MEvent = std::nullopt;
-  }
-
-  // Copy constructor explicitly deleted for simplicity as it is not currently
-  // used. Implement if needed.
-  OwnedPiEvent(const OwnedPiEvent &Other) = delete;
-
-  operator bool() { return MEvent.has_value(); }
-
-  RT::PiEvent GetEvent() { return *MEvent; }
-
-  // Transfers the ownership of the event to the caller. The destructor will
-  // no longer release the event.
-  RT::PiEvent TransferOwnership() {
-    RT::PiEvent Event = *MEvent;
-    MEvent = std::nullopt;
-    return Event;
-  }
-
-private:
-  std::optional<RT::PiEvent> MEvent;
-  const plugin &MPlugin;
-};
-
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
   ~DeviceGlobalUSMMem();
@@ -68,7 +36,7 @@ struct DeviceGlobalUSMMem {
 
   // Gets the zero-initialization event if it exists. If not the OwnedPiEvent
   // will contain no event.
-  OwnedPiEvent getZeroInitEvent(const plugin &Plugin);
+  OwnedPiEvent getZeroInitEvent(const PluginPtr &Plugin);
 
 private:
   void *MPtr;

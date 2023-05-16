@@ -138,17 +138,15 @@ FailureOr<Value> bufferization::allocateTensorForShapedValue(
     bool reifiedShapes = false;
     if (shapedValue.getType().isa<RankedTensorType>() &&
         shapedValue.isa<OpResult>()) {
-      if (auto rankedOp = dyn_cast_or_null<ReifyRankedShapedTypeOpInterface>(
-              shapedValue.getDefiningOp())) {
-        ReifiedRankedShapedTypeDims resultDims;
-        if (succeeded(rankedOp.reifyResultShapes(b, resultDims))) {
-          reifiedShapes = true;
-          auto &shape =
-              resultDims[shapedValue.cast<OpResult>().getResultNumber()];
-          for (const auto &dim : enumerate(tensorType.getShape()))
-            if (ShapedType::isDynamic(dim.value()))
-              dynamicSizes.push_back(shape[dim.index()]);
-        }
+      ReifiedRankedShapedTypeDims resultDims;
+      if (succeeded(
+              reifyResultShapes(b, shapedValue.getDefiningOp(), resultDims))) {
+        reifiedShapes = true;
+        auto &shape =
+            resultDims[shapedValue.cast<OpResult>().getResultNumber()];
+        for (const auto &dim : enumerate(tensorType.getShape()))
+          if (ShapedType::isDynamic(dim.value()))
+            dynamicSizes.push_back(shape[dim.index()].get<Value>());
       }
     }
 
@@ -324,17 +322,29 @@ bool OpFilter::isOpAllowed(Operation *op) const {
 // BufferizationOptions
 //===----------------------------------------------------------------------===//
 
+namespace {
+
+/// Default function arg type converter: Use a fully dynamic layout map.
+BaseMemRefType
+defaultFunctionArgTypeConverter(TensorType type, Attribute memorySpace,
+                                func::FuncOp funcOp,
+                                const BufferizationOptions &options) {
+  return getMemRefTypeWithFullyDynamicLayout(type, memorySpace);
+}
 /// Default unknown type converter: Use a fully dynamic layout map.
-static BaseMemRefType
+BaseMemRefType
 defaultUnknownTypeConverter(Value value, Attribute memorySpace,
                             const BufferizationOptions &options) {
   return getMemRefTypeWithFullyDynamicLayout(value.getType().cast<TensorType>(),
                                              memorySpace);
 }
 
+} // namespace
+
 // Default constructor for BufferizationOptions.
 BufferizationOptions::BufferizationOptions()
-    : unknownTypeConverterFn(defaultUnknownTypeConverter) {}
+    : functionArgTypeConverterFn(defaultFunctionArgTypeConverter),
+      unknownTypeConverterFn(defaultUnknownTypeConverter) {}
 
 bool BufferizationOptions::isOpAllowed(Operation *op) const {
   // Special case: If function boundary bufferization is deactivated, do not
@@ -362,6 +372,21 @@ BufferizationOptions::dynCastBufferizableOp(Value value) const {
     if (isOpAllowed(bufferizableOp.getOperation()))
       return bufferizableOp;
   return nullptr;
+}
+
+void BufferizationOptions::setFunctionBoundaryTypeConversion(
+    LayoutMapOption layoutMapOption) {
+  functionArgTypeConverterFn = [=](TensorType tensorType, Attribute memorySpace,
+                                   func::FuncOp funcOp,
+                                   const BufferizationOptions &options) {
+    if (layoutMapOption == LayoutMapOption::IdentityLayoutMap)
+      return bufferization::getMemRefTypeWithStaticIdentityLayout(tensorType,
+                                                                  memorySpace);
+    return bufferization::getMemRefTypeWithFullyDynamicLayout(tensorType,
+                                                              memorySpace);
+  };
+  inferFunctionResultLayout =
+      layoutMapOption == LayoutMapOption::InferLayoutMap;
 }
 
 //===----------------------------------------------------------------------===//
@@ -482,8 +507,14 @@ llvm::SetVector<Value> AnalysisState::findValueInReverseUseDefChain(
 
   while (!workingSet.empty()) {
     Value value = workingSet.pop_back_val();
-    if (condition(value) || value.isa<BlockArgument>()) {
+    if (condition(value)) {
       result.insert(value);
+      continue;
+    }
+
+    if (value.isa<BlockArgument>()) {
+      if (alwaysIncludeLeaves)
+        result.insert(value);
       continue;
     }
 

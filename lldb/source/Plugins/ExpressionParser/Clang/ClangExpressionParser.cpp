@@ -509,6 +509,16 @@ ClangExpressionParser::ClangExpressionParser(
     // be re-evaluated in the future.
     lang_opts.CPlusPlus11 = true;
     break;
+  case lldb::eLanguageTypeC_plus_plus_20:
+    lang_opts.CPlusPlus20 = true;
+    LLVM_FALLTHROUGH;
+  case lldb::eLanguageTypeC_plus_plus_17:
+    // FIXME: add a separate case for CPlusPlus14. Currently folded into C++17
+    // because C++14 is the default standard for Clang but enabling CPlusPlus14
+    // expression evaluatino doesn't pass the test-suite cleanly.
+    lang_opts.CPlusPlus14 = true;
+    lang_opts.CPlusPlus17 = true;
+    LLVM_FALLTHROUGH;
   case lldb::eLanguageTypeC_plus_plus:
   case lldb::eLanguageTypeC_plus_plus_11:
   case lldb::eLanguageTypeC_plus_plus_14:
@@ -1403,14 +1413,12 @@ lldb_private::Status ClangExpressionParser::PrepareForExecution(
           ClangDynamicCheckerFunctions *dynamic_checkers =
               new ClangDynamicCheckerFunctions();
 
-          DiagnosticManager install_diagnostics;
-
-          if (!dynamic_checkers->Install(install_diagnostics, exe_ctx)) {
-            if (install_diagnostics.Diagnostics().size())
-              err.SetErrorString(install_diagnostics.GetString().c_str());
-            else
-              err.SetErrorString("couldn't install checkers, unknown error");
-
+          DiagnosticManager install_diags;
+          if (Error Err = dynamic_checkers->Install(install_diags, exe_ctx)) {
+            std::string ErrMsg = "couldn't install checkers: " + toString(std::move(Err));
+            if (install_diags.Diagnostics().size())
+              ErrMsg = ErrMsg + "\n" + install_diags.GetString().c_str();
+            err.SetErrorString(ErrMsg);
             return err;
           }
 

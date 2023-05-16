@@ -106,6 +106,9 @@ void DataLayoutEntryAttr::print(AsmPrinter &os) const {
 //===----------------------------------------------------------------------===//
 //
 constexpr const StringLiteral mlir::DataLayoutSpecAttr::kAttrKeyword;
+constexpr const StringLiteral
+    mlir::DLTIDialect::kDataLayoutAllocaMemorySpaceKey;
+constexpr const StringLiteral mlir::DLTIDialect::kDataLayoutStackAlignmentKey;
 
 namespace mlir {
 namespace impl {
@@ -273,6 +276,18 @@ DataLayoutEntryListRef DataLayoutSpecAttr::getEntries() const {
   return getImpl()->entries;
 }
 
+StringAttr
+DataLayoutSpecAttr::getAllocaMemorySpaceIdentifier(MLIRContext *context) const {
+  return Builder(context).getStringAttr(
+      DLTIDialect::kDataLayoutAllocaMemorySpaceKey);
+}
+
+StringAttr
+DataLayoutSpecAttr::getStackAlignmentIdentifier(MLIRContext *context) const {
+  return Builder(context).getStringAttr(
+      DLTIDialect::kDataLayoutStackAlignmentKey);
+}
+
 /// Parses an attribute with syntax
 ///   attr ::= `#target.` `dl_spec` `<` attr-list? `>`
 ///   attr-list ::= attr
@@ -329,6 +344,9 @@ public:
                             << DLTIDialect::kDataLayoutEndiannessBig << "' or '"
                             << DLTIDialect::kDataLayoutEndiannessLittle << "'";
     }
+    if (entryName == DLTIDialect::kDataLayoutAllocaMemorySpaceKey ||
+        entryName == DLTIDialect::kDataLayoutStackAlignmentKey)
+      return success();
     return emitError(loc) << "unknown data layout entry name: " << entryName;
   }
 };

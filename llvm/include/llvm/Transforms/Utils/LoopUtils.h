@@ -78,7 +78,7 @@ bool formDedicatedExitBlocks(Loop *L, DominatorTree *DT, LoopInfo *LI,
 /// they still do not have any uses). Otherwise the PHIs are directly removed.
 bool formLCSSAForInstructions(
     SmallVectorImpl<Instruction *> &Worklist, const DominatorTree &DT,
-    const LoopInfo &LI, ScalarEvolution *SE, IRBuilderBase &Builder,
+    const LoopInfo &LI, IRBuilderBase &Builder,
     SmallVectorImpl<PHINode *> *PHIsToRemove = nullptr);
 
 /// Put loop into LCSSA form.
@@ -88,25 +88,21 @@ bool formLCSSAForInstructions(
 /// the loop are rewritten to use this node. Sub-loops must be in LCSSA form
 /// already.
 ///
-/// LoopInfo and DominatorTree are required and preserved.
-///
-/// If ScalarEvolution is passed in, it will be preserved.
+/// LoopInfo and DominatorTree are required and preserved. ScalarEvolution is
+/// preserved.
 ///
 /// Returns true if any modifications are made to the loop.
-bool formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
-               ScalarEvolution *SE);
+bool formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI);
 
 /// Put a loop nest into LCSSA form.
 ///
 /// This recursively forms LCSSA for a loop nest.
 ///
-/// LoopInfo and DominatorTree are required and preserved.
-///
-/// If ScalarEvolution is passed in, it will be preserved.
+/// LoopInfo and DominatorTree are required and preserved. ScalarEvolution is
+/// preserved.
 ///
 /// Returns true if any modifications are made to the loop.
-bool formLCSSARecursively(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
-                          ScalarEvolution *SE);
+bool formLCSSARecursively(Loop &L, const DominatorTree &DT, const LoopInfo *LI);
 
 /// Flags controlling how much is checked when sinking or hoisting
 /// instructions.  The number of memory access in the loop (and whether there
@@ -116,10 +112,9 @@ public:
   // Explicitly set limits.
   SinkAndHoistLICMFlags(unsigned LicmMssaOptCap,
                         unsigned LicmMssaNoAccForPromotionCap, bool IsSink,
-                        Loop *L = nullptr, MemorySSA *MSSA = nullptr);
+                        Loop &L, MemorySSA &MSSA);
   // Use default limits.
-  SinkAndHoistLICMFlags(bool IsSink, Loop *L = nullptr,
-                        MemorySSA *MSSA = nullptr);
+  SinkAndHoistLICMFlags(bool IsSink, Loop &L, MemorySSA &MSSA);
 
   void setIsSink(bool B) { IsSink = B; }
   bool getIsSink() { return IsSink; }
@@ -174,6 +169,11 @@ bool hoistRegion(DomTreeNode *, AAResults *, LoopInfo *, DominatorTree *,
                  MemorySSAUpdater &, ScalarEvolution *, ICFLoopSafetyInfo *,
                  SinkAndHoistLICMFlags &, OptimizationRemarkEmitter *, bool,
                  bool AllowSpeculation);
+
+/// Return true if the induction variable \p IV in a Loop whose latch is
+/// \p LatchBlock would become dead if the exit test \p Cond were removed.
+/// Conservatively returns false if analysis is insufficient.
+bool isAlmostDeadIV(PHINode *IV, BasicBlock *LatchBlock, Value *Cond);
 
 /// This function deletes dead loops. The caller of this function needs to
 /// guarantee that the loop is infact dead.
@@ -349,6 +349,9 @@ bool canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
                         SinkAndHoistLICMFlags &LICMFlags,
                         OptimizationRemarkEmitter *ORE = nullptr);
 
+/// Returns the min/max intrinsic used when expanding a min/max reduction.
+Intrinsic::ID getMinMaxReductionIntrinsicOp(RecurKind RK);
+
 /// Returns the comparison predicate used when expanding a min/max reduction.
 CmpInst::Predicate getMinMaxReductionPredicate(RecurKind RK);
 
@@ -424,6 +427,14 @@ bool isKnownNegativeInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE);
 /// Returns true if we can prove that \p S is defined and always non-negative in
 /// loop \p L.
 bool isKnownNonNegativeInLoop(const SCEV *S, const Loop *L,
+                              ScalarEvolution &SE);
+/// Returns true if we can prove that \p S is defined and always positive in
+/// loop \p L.
+bool isKnownPositiveInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE);
+
+/// Returns true if we can prove that \p S is defined and always non-positive in
+/// loop \p L.
+bool isKnownNonPositiveInLoop(const SCEV *S, const Loop *L,
                               ScalarEvolution &SE);
 
 /// Returns true if \p S is defined and never is equal to signed/unsigned max.

@@ -33,6 +33,7 @@
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/BasicBlockSectionsProfileReader.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
@@ -82,7 +83,6 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -264,6 +264,10 @@ static cl::opt<unsigned>
     HugeFuncThresholdInCGPP("cgpp-huge-func", cl::init(10000), cl::Hidden,
                             cl::desc("Least BB number of huge function."));
 
+static cl::opt<unsigned>
+    MaxAddressUsersToScan("cgp-max-address-users-to-scan", cl::init(100),
+                          cl::Hidden,
+                          cl::desc("Max number of address users to look at"));
 namespace {
 
 enum ExtType {
@@ -294,16 +298,16 @@ class TypePromotionTransaction;
 
 class CodeGenPrepare : public FunctionPass {
   const TargetMachine *TM = nullptr;
-  const TargetSubtargetInfo *SubtargetInfo;
+  const TargetSubtargetInfo *SubtargetInfo = nullptr;
   const TargetLowering *TLI = nullptr;
-  const TargetRegisterInfo *TRI;
+  const TargetRegisterInfo *TRI = nullptr;
   const TargetTransformInfo *TTI = nullptr;
   const BasicBlockSectionsProfileReader *BBSectionsProfileReader = nullptr;
-  const TargetLibraryInfo *TLInfo;
-  const LoopInfo *LI;
+  const TargetLibraryInfo *TLInfo = nullptr;
+  const LoopInfo *LI = nullptr;
   std::unique_ptr<BlockFrequencyInfo> BFI;
   std::unique_ptr<BranchProbabilityInfo> BPI;
-  ProfileSummaryInfo *PSI;
+  ProfileSummaryInfo *PSI = nullptr;
 
   /// As we scan instructions optimizing them, this is the next instruction
   /// to optimize. Transforms that can invalidate this should update it.
@@ -1579,6 +1583,7 @@ static bool matchUAddWithOverflowConstantEdgeCases(CmpInst *Cmp,
 /// intrinsic. Return true if any changes were made.
 bool CodeGenPrepare::combineToUAddWithOverflow(CmpInst *Cmp,
                                                ModifyDT &ModifiedDT) {
+  bool EdgeCase = false;
   Value *A, *B;
   BinaryOperator *Add;
   if (!match(Cmp, m_UAddWithOverflow(m_Value(A), m_Value(B), m_BinOp(Add)))) {
@@ -1587,11 +1592,12 @@ bool CodeGenPrepare::combineToUAddWithOverflow(CmpInst *Cmp,
     // Set A and B in case we match matchUAddWithOverflowConstantEdgeCases.
     A = Add->getOperand(0);
     B = Add->getOperand(1);
+    EdgeCase = true;
   }
 
   if (!TLI->shouldFormOverflowOp(ISD::UADDO,
                                  TLI->getValueType(*DL, Add->getType()),
-                                 Add->hasNUsesOrMore(2)))
+                                 Add->hasNUsesOrMore(EdgeCase ? 1 : 2)))
     return false;
 
   // We don't want to move around uses of condition values this late, so we
@@ -1660,7 +1666,7 @@ bool CodeGenPrepare::combineToUSubWithOverflow(CmpInst *Cmp,
 
   if (!TLI->shouldFormOverflowOp(ISD::USUBO,
                                  TLI->getValueType(*DL, Sub->getType()),
-                                 Sub->hasNUsesOrMore(2)))
+                                 Sub->hasNUsesOrMore(1)))
     return false;
 
   if (!replaceMathCmpWithIntrinsic(Sub, Sub->getOperand(0), Sub->getOperand(1),
@@ -2279,7 +2285,8 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, ModifyDT &ModifiedDT) {
       if (!Arg->getType()->isPointerTy())
         continue;
       unsigned AS = Arg->getType()->getPointerAddressSpace();
-      return optimizeMemoryInst(CI, Arg, Arg->getType(), AS);
+      if (optimizeMemoryInst(CI, Arg, Arg->getType(), AS))
+        return true;
     }
 
   IntrinsicInst *II = dyn_cast<IntrinsicInst>(CI);
@@ -2349,24 +2356,6 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, ModifyDT &ModifiedDT) {
     case Intrinsic::dbg_assign:
     case Intrinsic::dbg_value:
       return fixupDbgValue(II);
-    case Intrinsic::vscale: {
-      // If datalayout has no special restrictions on vector data layout,
-      // replace `llvm.vscale` by an equivalent constant expression
-      // to benefit from cheap constant propagation.
-      Type *ScalableVectorTy =
-          VectorType::get(Type::getInt8Ty(II->getContext()), 1, true);
-      if (DL->getTypeAllocSize(ScalableVectorTy).getKnownMinValue() == 8) {
-        auto *Null = Constant::getNullValue(ScalableVectorTy->getPointerTo());
-        auto *One = ConstantInt::getSigned(II->getType(), 1);
-        auto *CGep =
-            ConstantExpr::getGetElementPtr(ScalableVectorTy, Null, One);
-        replaceAllUsesWith(II, ConstantExpr::getPtrToInt(CGep, II->getType()),
-                           FreshBBs, IsHugeFunc);
-        II->eraseFromParent();
-        return true;
-      }
-      break;
-    }
     case Intrinsic::masked_gather:
       return optimizeGatherScatterInst(II, II->getArgOperand(0));
     case Intrinsic::masked_scatter:
@@ -2687,7 +2676,7 @@ void ExtAddrMode::print(raw_ostream &OS) const {
   if (InBounds)
     OS << "inbounds ";
   if (BaseGV) {
-    OS << (NeedPlus ? " + " : "") << "GV:";
+    OS << "GV:";
     BaseGV->printAsOperand(OS, /*PrintType=*/false);
     NeedPlus = true;
   }
@@ -3258,7 +3247,7 @@ class AddressingModeMatcher {
   bool IgnoreProfitability;
 
   /// True if we are optimizing for size.
-  bool OptSize;
+  bool OptSize = false;
 
   ProfileSummaryInfo *PSI;
   BlockFrequencyInfo *BFI;
@@ -3574,9 +3563,14 @@ private:
   /// Original Address.
   Value *Original;
 
+  /// Common value among addresses
+  Value *CommonValue = nullptr;
+
 public:
   AddressingModeCombiner(const SimplifyQuery &_SQ, Value *OriginalValue)
       : SQ(_SQ), Original(OriginalValue) {}
+
+  ~AddressingModeCombiner() { eraseCommonValueIfDead(); }
 
   /// Get the combined AddrMode
   const ExtAddrMode &getAddrMode() const { return AddrModes[0]; }
@@ -3662,13 +3656,21 @@ public:
     if (!initializeMap(Map))
       return false;
 
-    Value *CommonValue = findCommon(Map);
+    CommonValue = findCommon(Map);
     if (CommonValue)
       AddrModes[0].SetCombinedField(DifferentField, CommonValue, AddrModes);
     return CommonValue != nullptr;
   }
 
 private:
+  /// `CommonValue` may be a placeholder inserted by us.
+  /// If the placeholder is not used, we should remove this dead instruction.
+  void eraseCommonValueIfDead() {
+    if (CommonValue && CommonValue->getNumUses() == 0)
+      if (Instruction *CommonInst = dyn_cast<Instruction>(CommonValue))
+        CommonInst->eraseFromParent();
+  }
+
   /// Initialize Map with anchor values. For address seen
   /// we set the value of different field saw in this address.
   /// At the same time we find a common type for different field we will
@@ -3866,17 +3868,17 @@ private:
                         SimplificationTracker &ST) {
     while (!TraverseOrder.empty()) {
       Value *Current = TraverseOrder.pop_back_val();
-      assert(Map.find(Current) != Map.end() && "No node to fill!!!");
+      assert(Map.contains(Current) && "No node to fill!!!");
       Value *V = Map[Current];
 
       if (SelectInst *Select = dyn_cast<SelectInst>(V)) {
         // CurrentValue also must be Select.
         auto *CurrentSelect = cast<SelectInst>(Current);
         auto *TrueValue = CurrentSelect->getTrueValue();
-        assert(Map.find(TrueValue) != Map.end() && "No True Value!");
+        assert(Map.contains(TrueValue) && "No True Value!");
         Select->setTrueValue(ST.Get(Map[TrueValue]));
         auto *FalseValue = CurrentSelect->getFalseValue();
-        assert(Map.find(FalseValue) != Map.end() && "No False Value!");
+        assert(Map.contains(FalseValue) && "No False Value!");
         Select->setFalseValue(ST.Get(Map[FalseValue]));
       } else {
         // Must be a Phi node then.
@@ -3884,7 +3886,7 @@ private:
         // Fill the Phi node with values from predecessors.
         for (auto *B : predecessors(PHI->getParent())) {
           Value *PV = cast<PHINode>(Current)->getIncomingValueForBlock(B);
-          assert(Map.find(PV) != Map.end() && "No predecessor Value!");
+          assert(Map.contains(PV) && "No predecessor Value!");
           PHI->addIncoming(ST.Get(Map[PV]), B);
         }
       }
@@ -3908,7 +3910,7 @@ private:
     while (!Worklist.empty()) {
       Value *Current = Worklist.pop_back_val();
       // if it is already visited or it is an ending value then skip it.
-      if (Map.find(Current) != Map.end())
+      if (Map.contains(Current))
         continue;
       TraverseOrder.push_back(Current);
 
@@ -4627,7 +4629,8 @@ bool AddressingModeMatcher::matchOperationAddr(User *AddrInst, unsigned Opcode,
     return false;
   }
   case Instruction::Add: {
-    // Check to see if we can merge in the RHS then the LHS.  If so, we win.
+    // Check to see if we can merge in one operand, then the other.  If so, we
+    // win.
     ExtAddrMode BackupAddrMode = AddrMode;
     unsigned OldSize = AddrModeInsts.size();
     // Start a transaction at this point.
@@ -4637,9 +4640,15 @@ bool AddressingModeMatcher::matchOperationAddr(User *AddrInst, unsigned Opcode,
     TypePromotionTransaction::ConstRestorationPt LastKnownGood =
         TPT.getRestorationPoint();
 
+    // Try to match an integer constant second to increase its chance of ending
+    // up in `BaseOffs`, resp. decrease its chance of ending up in `BaseReg`.
+    int First = 0, Second = 1;
+    if (isa<ConstantInt>(AddrInst->getOperand(First))
+      && !isa<ConstantInt>(AddrInst->getOperand(Second)))
+        std::swap(First, Second);
     AddrMode.InBounds = false;
-    if (matchAddr(AddrInst->getOperand(1), Depth + 1) &&
-        matchAddr(AddrInst->getOperand(0), Depth + 1))
+    if (matchAddr(AddrInst->getOperand(First), Depth + 1) &&
+        matchAddr(AddrInst->getOperand(Second), Depth + 1))
       return true;
 
     // Restore the old addr mode info.
@@ -4647,9 +4656,10 @@ bool AddressingModeMatcher::matchOperationAddr(User *AddrInst, unsigned Opcode,
     AddrModeInsts.resize(OldSize);
     TPT.rollback(LastKnownGood);
 
-    // Otherwise this was over-aggressive.  Try merging in the LHS then the RHS.
-    if (matchAddr(AddrInst->getOperand(0), Depth + 1) &&
-        matchAddr(AddrInst->getOperand(1), Depth + 1))
+    // Otherwise this was over-aggressive.  Try merging operands in the opposite
+    // order.
+    if (matchAddr(AddrInst->getOperand(Second), Depth + 1) &&
+        matchAddr(AddrInst->getOperand(First), Depth + 1))
       return true;
 
     // Otherwise we definitely can't merge the ADD in.
@@ -4698,7 +4708,7 @@ bool AddressingModeMatcher::matchOperationAddr(User *AddrInst, unsigned Opcode,
           if (ConstantInt *CI =
                   dyn_cast<ConstantInt>(AddrInst->getOperand(i))) {
             const APInt &CVal = CI->getValue();
-            if (CVal.getMinSignedBits() <= 64) {
+            if (CVal.getSignificantBits() <= 64) {
               ConstantOffset += CVal.getSExtValue() * TypeSize;
               continue;
             }
@@ -4718,36 +4728,35 @@ bool AddressingModeMatcher::matchOperationAddr(User *AddrInst, unsigned Opcode,
     // just add it to the disp field and check validity.
     if (VariableOperand == -1) {
       AddrMode.BaseOffs += ConstantOffset;
-      if (ConstantOffset == 0 ||
-          TLI.isLegalAddressingMode(DL, AddrMode, AccessTy, AddrSpace)) {
-        // Check to see if we can fold the base pointer in too.
-        if (matchAddr(AddrInst->getOperand(0), Depth + 1)) {
+      if (matchAddr(AddrInst->getOperand(0), Depth + 1)) {
           if (!cast<GEPOperator>(AddrInst)->isInBounds())
             AddrMode.InBounds = false;
           return true;
-        }
-      } else if (EnableGEPOffsetSplit && isa<GetElementPtrInst>(AddrInst) &&
-                 TLI.shouldConsiderGEPOffsetSplit() && Depth == 0 &&
-                 ConstantOffset > 0) {
-        // Record GEPs with non-zero offsets as candidates for splitting in the
-        // event that the offset cannot fit into the r+i addressing mode.
-        // Simple and common case that only one GEP is used in calculating the
-        // address for the memory access.
-        Value *Base = AddrInst->getOperand(0);
-        auto *BaseI = dyn_cast<Instruction>(Base);
-        auto *GEP = cast<GetElementPtrInst>(AddrInst);
-        if (isa<Argument>(Base) || isa<GlobalValue>(Base) ||
-            (BaseI && !isa<CastInst>(BaseI) &&
-             !isa<GetElementPtrInst>(BaseI))) {
-          // Make sure the parent block allows inserting non-PHI instructions
-          // before the terminator.
-          BasicBlock *Parent =
-              BaseI ? BaseI->getParent() : &GEP->getFunction()->getEntryBlock();
-          if (!Parent->getTerminator()->isEHPad())
-            LargeOffsetGEP = std::make_pair(GEP, ConstantOffset);
-        }
       }
       AddrMode.BaseOffs -= ConstantOffset;
+
+      if (EnableGEPOffsetSplit && isa<GetElementPtrInst>(AddrInst) &&
+          TLI.shouldConsiderGEPOffsetSplit() && Depth == 0 &&
+          ConstantOffset > 0) {
+          // Record GEPs with non-zero offsets as candidates for splitting in
+          // the event that the offset cannot fit into the r+i addressing mode.
+          // Simple and common case that only one GEP is used in calculating the
+          // address for the memory access.
+          Value *Base = AddrInst->getOperand(0);
+          auto *BaseI = dyn_cast<Instruction>(Base);
+          auto *GEP = cast<GetElementPtrInst>(AddrInst);
+          if (isa<Argument>(Base) || isa<GlobalValue>(Base) ||
+              (BaseI && !isa<CastInst>(BaseI) &&
+               !isa<GetElementPtrInst>(BaseI))) {
+            // Make sure the parent block allows inserting non-PHI instructions
+            // before the terminator.
+            BasicBlock *Parent = BaseI ? BaseI->getParent()
+                                       : &GEP->getFunction()->getEntryBlock();
+            if (!Parent->getTerminator()->isEHPad())
+            LargeOffsetGEP = std::make_pair(GEP, ConstantOffset);
+          }
+      }
+
       return false;
     }
 
@@ -4963,18 +4972,14 @@ static bool IsOperandAMemoryOperand(CallInst *CI, InlineAsm *IA, Value *OpVal,
   return true;
 }
 
-// Max number of memory uses to look at before aborting the search to conserve
-// compile time.
-static constexpr int MaxMemoryUsesToScan = 20;
-
 /// Recursively walk all the uses of I until we find a memory use.
 /// If we find an obviously non-foldable instruction, return true.
 /// Add accessed addresses and types to MemoryUses.
 static bool FindAllMemoryUses(
-    Instruction *I, SmallVectorImpl<std::pair<Value *, Type *>> &MemoryUses,
+    Instruction *I, SmallVectorImpl<std::pair<Use *, Type *>> &MemoryUses,
     SmallPtrSetImpl<Instruction *> &ConsideredInsts, const TargetLowering &TLI,
     const TargetRegisterInfo &TRI, bool OptSize, ProfileSummaryInfo *PSI,
-    BlockFrequencyInfo *BFI, int SeenInsts = 0) {
+    BlockFrequencyInfo *BFI, unsigned &SeenInsts) {
   // If we already considered this instruction, we're done.
   if (!ConsideredInsts.insert(I).second)
     return false;
@@ -4987,33 +4992,33 @@ static bool FindAllMemoryUses(
   for (Use &U : I->uses()) {
     // Conservatively return true if we're seeing a large number or a deep chain
     // of users. This avoids excessive compilation times in pathological cases.
-    if (SeenInsts++ >= MaxMemoryUsesToScan)
+    if (SeenInsts++ >= MaxAddressUsersToScan)
       return true;
 
     Instruction *UserI = cast<Instruction>(U.getUser());
     if (LoadInst *LI = dyn_cast<LoadInst>(UserI)) {
-      MemoryUses.push_back({U.get(), LI->getType()});
+      MemoryUses.push_back({&U, LI->getType()});
       continue;
     }
 
     if (StoreInst *SI = dyn_cast<StoreInst>(UserI)) {
       if (U.getOperandNo() != StoreInst::getPointerOperandIndex())
         return true; // Storing addr, not into addr.
-      MemoryUses.push_back({U.get(), SI->getValueOperand()->getType()});
+      MemoryUses.push_back({&U, SI->getValueOperand()->getType()});
       continue;
     }
 
     if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(UserI)) {
       if (U.getOperandNo() != AtomicRMWInst::getPointerOperandIndex())
         return true; // Storing addr, not into addr.
-      MemoryUses.push_back({U.get(), RMW->getValOperand()->getType()});
+      MemoryUses.push_back({&U, RMW->getValOperand()->getType()});
       continue;
     }
 
     if (AtomicCmpXchgInst *CmpX = dyn_cast<AtomicCmpXchgInst>(UserI)) {
       if (U.getOperandNo() != AtomicCmpXchgInst::getPointerOperandIndex())
         return true; // Storing addr, not into addr.
-      MemoryUses.push_back({U.get(), CmpX->getCompareOperand()->getType()});
+      MemoryUses.push_back({&U, CmpX->getCompareOperand()->getType()});
       continue;
     }
 
@@ -5044,6 +5049,17 @@ static bool FindAllMemoryUses(
 
   return false;
 }
+
+static bool FindAllMemoryUses(
+    Instruction *I, SmallVectorImpl<std::pair<Use *, Type *>> &MemoryUses,
+    const TargetLowering &TLI, const TargetRegisterInfo &TRI, bool OptSize,
+    ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI) {
+  unsigned SeenInsts = 0;
+  SmallPtrSet<Instruction *, 16> ConsideredInsts;
+  return FindAllMemoryUses(I, MemoryUses, ConsideredInsts, TLI, TRI, OptSize,
+                           PSI, BFI, SeenInsts);
+}
+
 
 /// Return true if Val is already known to be live at the use site that we're
 /// folding it into. If so, there is no cost to include it in the addressing
@@ -5126,10 +5142,8 @@ bool AddressingModeMatcher::isProfitableToFoldIntoAddressingMode(
   // we can remove the addressing mode and effectively trade one live register
   // for another (at worst.)  In this context, folding an addressing mode into
   // the use is just a particularly nice way of sinking it.
-  SmallVector<std::pair<Value *, Type *>, 16> MemoryUses;
-  SmallPtrSet<Instruction *, 16> ConsideredInsts;
-  if (FindAllMemoryUses(I, MemoryUses, ConsideredInsts, TLI, TRI, OptSize, PSI,
-                        BFI))
+  SmallVector<std::pair<Use *, Type *>, 16> MemoryUses;
+  if (FindAllMemoryUses(I, MemoryUses, TLI, TRI, OptSize, PSI, BFI))
     return false; // Has a non-memory, non-foldable use!
 
   // Now that we know that all uses of this instruction are part of a chain of
@@ -5142,8 +5156,9 @@ bool AddressingModeMatcher::isProfitableToFoldIntoAddressingMode(
   // growth since most architectures have some reasonable small and fast way to
   // compute an effective address.  (i.e LEA on x86)
   SmallVector<Instruction *, 32> MatchedAddrModeInsts;
-  for (const std::pair<Value *, Type *> &Pair : MemoryUses) {
-    Value *Address = Pair.first;
+  for (const std::pair<Use *, Type *> &Pair : MemoryUses) {
+    Value *Address = Pair.first->get();
+    Instruction *UserI = cast<Instruction>(Pair.first->getUser());
     Type *AddressAccessTy = Pair.second;
     unsigned AS = Address->getType()->getPointerAddressSpace();
 
@@ -5156,7 +5171,7 @@ bool AddressingModeMatcher::isProfitableToFoldIntoAddressingMode(
     TypePromotionTransaction::ConstRestorationPt LastKnownGood =
         TPT.getRestorationPoint();
     AddressingModeMatcher Matcher(MatchedAddrModeInsts, TLI, TRI, LI, getDTFn,
-                                  AddressAccessTy, AS, MemoryInst, Result,
+                                  AddressAccessTy, AS, UserI, Result,
                                   InsertedInsts, PromotedInsts, TPT,
                                   LargeOffsetGEP, OptSize, PSI, BFI);
     Matcher.IgnoreProfitability = true;
@@ -6027,6 +6042,7 @@ bool CodeGenPrepare::splitLargeGEPOffsets() {
       int64_t Offset = LargeOffsetGEP->second;
       if (Offset != BaseOffset) {
         TargetLowering::AddrMode AddrMode;
+        AddrMode.HasBaseReg = true;
         AddrMode.BaseOffs = Offset - BaseOffset;
         // The result type of the GEP might not be the type of the memory
         // access.
@@ -6872,9 +6888,7 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
     return false;
 
   TargetLowering::SelectSupportKind SelectKind;
-  if (VectorCond)
-    SelectKind = TargetLowering::VectorMaskSelect;
-  else if (SI->getType()->isVectorTy())
+  if (SI->getType()->isVectorTy())
     SelectKind = TargetLowering::ScalarCondVectorVal;
   else
     SelectKind = TargetLowering::ScalarValSelect;
@@ -7696,7 +7710,7 @@ static bool splitMergedValStore(StoreInst &SI, const DataLayout &DL,
   // whereas scalable vectors would have to be shifted by
   // <2log(vscale) + number of bits> in order to store the
   // low/high parts. Bailing out for now.
-  if (isa<ScalableVectorType>(StoreType))
+  if (StoreType->isScalableTy())
     return false;
 
   if (!DL.typeSizeEqualsStoreSize(StoreType) ||

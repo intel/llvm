@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This pass custom lowers llvm.gather and llvm.scatter instructions to
-// RISCV intrinsics.
+// RISC-V intrinsics.
 //
 //===----------------------------------------------------------------------===//
 
@@ -59,12 +59,10 @@ public:
   }
 
   StringRef getPassName() const override {
-    return "RISCV gather/scatter lowering";
+    return "RISC-V gather/scatter lowering";
   }
 
 private:
-  bool isLegalTypeAndAlignment(Type *DataType, Value *AlignOp);
-
   bool tryCreateStridedLoadStore(IntrinsicInst *II, Type *DataType, Value *Ptr,
                                  Value *AlignOp);
 
@@ -81,32 +79,17 @@ private:
 char RISCVGatherScatterLowering::ID = 0;
 
 INITIALIZE_PASS(RISCVGatherScatterLowering, DEBUG_TYPE,
-                "RISCV gather/scatter lowering pass", false, false)
+                "RISC-V gather/scatter lowering pass", false, false)
 
 FunctionPass *llvm::createRISCVGatherScatterLoweringPass() {
   return new RISCVGatherScatterLowering();
 }
 
-bool RISCVGatherScatterLowering::isLegalTypeAndAlignment(Type *DataType,
-                                                         Value *AlignOp) {
-  Type *ScalarType = DataType->getScalarType();
-  if (!TLI->isLegalElementTypeForRVV(ScalarType))
-    return false;
-
-  MaybeAlign MA = cast<ConstantInt>(AlignOp)->getMaybeAlignValue();
-  if (MA && MA->value() < DL->getTypeStoreSize(ScalarType).getFixedValue())
-    return false;
-
-  // FIXME: Let the backend type legalize by splitting/widening?
-  EVT DataVT = TLI->getValueType(*DL, DataType);
-  if (!TLI->isTypeLegal(DataVT))
-    return false;
-
-  return true;
-}
-
 // TODO: Should we consider the mask when looking for a stride?
 static std::pair<Value *, Value *> matchStridedConstant(Constant *StartC) {
+  if (!isa<FixedVectorType>(StartC->getType()))
+    return std::make_pair(nullptr, nullptr);
+
   unsigned NumElts = cast<FixedVectorType>(StartC->getType())->getNumElements();
 
   // Check that the start value is a strided constant.
@@ -148,9 +131,11 @@ static std::pair<Value *, Value *> matchStridedStart(Value *Start,
     return std::make_pair(ConstantInt::get(Ty, 0), ConstantInt::get(Ty, 1));
   }
 
-  // Not a constant, maybe it's a strided constant with a splat added to it.
+  // Not a constant, maybe it's a strided constant with a splat added or
+  // multipled.
   auto *BO = dyn_cast<BinaryOperator>(Start);
-  if (!BO || BO->getOpcode() != Instruction::Add)
+  if (!BO || (BO->getOpcode() != Instruction::Add &&
+              BO->getOpcode() != Instruction::Mul))
     return std::make_pair(nullptr, nullptr);
 
   // Look for an operand that is splatted.
@@ -169,10 +154,17 @@ static std::pair<Value *, Value *> matchStridedStart(Value *Start,
   if (!Start)
     return std::make_pair(nullptr, nullptr);
 
-  // Add the splat value to the start.
   Builder.SetInsertPoint(BO);
   Builder.SetCurrentDebugLocation(DebugLoc());
-  Start = Builder.CreateAdd(Start, Splat);
+  // Add the splat value to the start or multiply the start and stride by the
+  // splat.
+  if (BO->getOpcode() == Instruction::Add) {
+    Start = Builder.CreateAdd(Start, Splat);
+  } else {
+    assert(BO->getOpcode() == Instruction::Mul && "Unexpected opcode");
+    Start = Builder.CreateMul(Start, Splat);
+    Stride = Builder.CreateMul(Stride, Splat);
+  }
   return std::make_pair(Start, Stride);
 }
 
@@ -452,7 +444,13 @@ bool RISCVGatherScatterLowering::tryCreateStridedLoadStore(IntrinsicInst *II,
                                                            Value *Ptr,
                                                            Value *AlignOp) {
   // Make sure the operation will be supported by the backend.
-  if (!isLegalTypeAndAlignment(DataType, AlignOp))
+  MaybeAlign MA = cast<ConstantInt>(AlignOp)->getMaybeAlignValue();
+  EVT DataTypeVT = TLI->getValueType(*DL, DataType);
+  if (!MA || !TLI->isLegalStridedLoadStore(DataTypeVT, *MA))
+    return false;
+
+  // FIXME: Let the backend type legalize by splitting/widening?
+  if (!TLI->isTypeLegal(DataTypeVT))
     return false;
 
   // Pointer should be a GEP.

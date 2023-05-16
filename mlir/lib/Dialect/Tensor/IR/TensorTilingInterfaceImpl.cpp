@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/Interfaces/TilingInterface.h"
+#include "mlir/Interfaces/ValueBoundsOpInterface.h"
 
 using namespace mlir;
 using namespace mlir::tensor;
@@ -34,10 +35,7 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
 
   SmallVector<Range> getIterationDomain(Operation *op, OpBuilder &b) const {
     ReifiedRankedShapedTypeDims reifiedShapes;
-    ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
-        dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
-    (void)reifyShapedTypeInterface.reifyResultShapes(b, reifiedShapes);
-
+    (void)reifyResultShapes(b, op, reifiedShapes);
     Location loc = op->getLoc();
     Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
     Value one = b.create<arith::ConstantIndexOp>(loc, 1);
@@ -49,15 +47,15 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
     return loopRanges;
   }
 
-  SmallVector<Operation *>
+  FailureOr<TilingResult>
   getTiledImplementation(Operation *op, OpBuilder &b,
                          ArrayRef<OpFoldResult> offsets,
                          ArrayRef<OpFoldResult> sizes) const {
-    Operation *result =
+    FailureOr<TilingResult> result =
         tensor::bubbleUpPadSlice(b, cast<PadOp>(op), offsets, sizes);
-    if (!result)
-      return {};
-    return {result};
+    if (failed(result))
+      return failure();
+    return result.value();
   }
 
   LogicalResult
@@ -84,7 +82,7 @@ static SmallVector<Range> getPackUnPackIterationDomain(OpTy op,
   Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
   Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
   ReifiedRankedShapedTypeDims resultShape;
-  (void)op.reifyResultShapes(builder, resultShape);
+  (void)reifyResultShapes(builder, op, resultShape);
   SmallVector<Range> loopBounds(rank);
   for (auto dim : llvm::seq<int64_t>(0, rank)) {
     loopBounds[dim].offset = zero;
@@ -120,7 +118,7 @@ struct PackOpTiling
     return getPackUnPackIterationDomain<PackOp>(cast<PackOp>(op), b);
   }
 
-  SmallVector<Operation *>
+  FailureOr<TilingResult>
   getTiledImplementation(Operation *op, OpBuilder &b,
                          ArrayRef<OpFoldResult> offsets,
                          ArrayRef<OpFoldResult> sizes) const {
@@ -141,8 +139,8 @@ struct PackOpTiling
         tensor::createDimValues(b, loc, packOp.getSource());
     SmallVector<OpFoldResult> inputIndices, inputSizes;
     for (auto dim : llvm::seq<int64_t>(0, inputRank)) {
-      using AV = AffineValueExpr;
-      AffineBuilder ab(b, loc);
+      using AV = affine::AffineValueExpr;
+      affine::AffineBuilder ab(b, loc);
       AffineExpr dim0, dim1, sym;
       bindDims(b.getContext(), dim0, dim1);
       bindSymbols(b.getContext(), sym);
@@ -161,11 +159,13 @@ struct PackOpTiling
       }
 
       // Limit the size of the input operand for incomplete tiles.
-      OpFoldResult dimSize = srcDimValues[dim];
-      auto avDimSize = AV(dim0).bind(dimSize);
-      auto avInputIdx = AV(dim1).bind(inputIndices.back());
-      inputSizes.back() =
-          ab.min({inputSizes.back(), ab.sub(avDimSize, avInputIdx)});
+      if (packOp.getPaddingValue()) {
+        OpFoldResult dimSize = srcDimValues[dim];
+        auto avDimSize = AV(dim0).bind(dimSize);
+        auto avInputIdx = AV(dim1).bind(inputIndices.back());
+        inputSizes.back() =
+            ab.min({inputSizes.back(), ab.sub(avDimSize, avInputIdx)});
+      }
     }
 
     auto oneAttr = b.getI64IntegerAttr(1);
@@ -193,7 +193,8 @@ struct PackOpTiling
     Operation *tiledPackOp = b.create<PackOp>(
         loc, TypeRange{extractSlice.getType()}, tiledOperands, op->getAttrs());
 
-    return {tiledPackOp};
+    return TilingResult{{tiledPackOp},
+                        SmallVector<Value>(tiledPackOp->getResults())};
   }
 
   LogicalResult
@@ -214,10 +215,10 @@ struct PackOpTiling
     resultOffsets.append(outputRank - inputRank, zeroAttr);
 
     ReifiedRankedShapedTypeDims outputShape;
-    (void)packOp.reifyResultShapes(b, outputShape);
+    (void)reifyResultShapes(b, packOp, outputShape);
     resultSizes.assign(sizes.begin(), sizes.end());
     for (auto dataTileDim : llvm::seq<unsigned>(inputRank, outputRank))
-      resultSizes.push_back(getAsOpFoldResult(outputShape[0][dataTileDim]));
+      resultSizes.push_back(outputShape[0][dataTileDim]);
 
     return success();
   }
@@ -254,8 +255,8 @@ static UnpackTileDimInfo getUnpackTileDimInfo(OpBuilder &b, UnPackOp unpackOp,
   }
 
   Location loc = unpackOp.getLoc();
-  using AV = AffineValueExpr;
-  AffineBuilder ab(b, loc);
+  using AV = affine::AffineValueExpr;
+  affine::AffineBuilder ab(b, loc);
   AffineExpr dim0, dim1, sym0;
   bindDims(b.getContext(), dim0, dim1);
   bindSymbols(b.getContext(), sym0);
@@ -263,8 +264,10 @@ static UnpackTileDimInfo getUnpackTileDimInfo(OpBuilder &b, UnPackOp unpackOp,
   OpFoldResult innerTileSize = dimAndTileMapping[tileDim];
 
   info.isAlignedToInnerTileSize = false;
-  FailureOr<int64_t> cstSize = linalg::getConstantUpperBoundForIndex(
-      getValueOrCreateConstantIndexOp(b, loc, tileSize));
+  FailureOr<int64_t> cstSize = ValueBoundsConstraintSet::computeConstantBound(
+      presburger::BoundType::UB,
+      getValueOrCreateConstantIndexOp(b, loc, tileSize), /*dim=*/std::nullopt,
+      /*stopCondition=*/nullptr, /*closedUB=*/true);
   std::optional<int64_t> cstInnerSize = getConstantIntValue(innerTileSize);
   if (!failed(cstSize) && cstInnerSize) {
     if (*cstSize % *cstInnerSize == 0)
@@ -300,12 +303,12 @@ static UnpackTileDimInfo getUnpackTileDimInfo(OpBuilder &b, UnPackOp unpackOp,
     return info;
   }
 
-  DivModValue firstCoord =
-      getDivMod(b, loc, getValueOrCreateConstantIndexOp(b, loc, tileOffset),
-                getValueOrCreateConstantIndexOp(b, loc, innerTileSize));
+  affine::DivModValue firstCoord = affine::getDivMod(
+      b, loc, getValueOrCreateConstantIndexOp(b, loc, tileOffset),
+      getValueOrCreateConstantIndexOp(b, loc, innerTileSize));
   OpFoldResult tileExclusiveBound =
       ab.add(AV(dim0).bind(tileOffset), AV(dim1).bind(tileSize));
-  DivModValue lastCoord = getDivMod(
+  affine::DivModValue lastCoord = affine::getDivMod(
       b, loc,
       getValueOrCreateConstantIndexOp(
           b, loc,
@@ -354,7 +357,7 @@ struct UnPackOpTiling
   /// (3, 7). In this context, the tiled unpack produces a (3 * n) elements
   /// because there are 3 rows in total. Follow by a tensor.extract_slice op, we
   /// can get the actual result.
-  SmallVector<Operation *>
+  FailureOr<TilingResult>
   getTiledImplementation(Operation *op, OpBuilder &b,
                          ArrayRef<OpFoldResult> offsets,
                          ArrayRef<OpFoldResult> sizes) const {
@@ -413,12 +416,13 @@ struct UnPackOpTiling
         loc, TypeRange{sliceDest.getType()}, tiledOperands, op->getAttrs());
 
     if (isPerfectTilingCase)
-      return {tiledUnpackOp};
+      return TilingResult{{tiledUnpackOp},
+                          SmallVector<Value>(tiledUnpackOp->getResults())};
 
-    Operation *extractSlice =
+    auto extractSlice =
         b.create<ExtractSliceOp>(loc, tiledUnpackOp->getResult(0),
                                  resultOffsetsFromDest, sizes, destStrides);
-    return {tiledUnpackOp, extractSlice};
+    return TilingResult{{tiledUnpackOp}, {extractSlice.getResult()}};
   }
 
   LogicalResult
@@ -432,26 +436,29 @@ struct UnPackOpTiling
     return success();
   }
 
-  FailureOr<Value> generateResultTileValue(Operation *op, OpBuilder &b,
-                                           unsigned resultNumber,
-                                           ArrayRef<OpFoldResult> offsets,
-                                           ArrayRef<OpFoldResult> sizes) const {
-    return getTiledImplementation(op, b, offsets, sizes)
-        .back()
-        ->getResult(resultNumber);
+  FailureOr<TilingResult>
+  generateResultTileValue(Operation *op, OpBuilder &b, unsigned resultNumber,
+                          ArrayRef<OpFoldResult> offsets,
+                          ArrayRef<OpFoldResult> sizes) const {
+    FailureOr<TilingResult> tilingResult =
+        getTiledImplementation(op, b, offsets, sizes);
+    if (failed(tilingResult))
+      return failure();
+    return tilingResult.value();
   }
 };
 
 } // namespace
 
-Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
-                                    ArrayRef<OpFoldResult> offsets,
-                                    ArrayRef<OpFoldResult> sizes,
-                                    bool generateZeroSliceGuard) {
+FailureOr<TilingResult> tensor::bubbleUpPadSlice(OpBuilder &b,
+                                                 tensor::PadOp padOp,
+                                                 ArrayRef<OpFoldResult> offsets,
+                                                 ArrayRef<OpFoldResult> sizes,
+                                                 bool generateZeroSliceGuard) {
   // Only constant padding value supported.
   Value padValue = padOp.getConstantPaddingValue();
   if (!padValue)
-    return nullptr;
+    return failure();
 
   // Helper variables and functions for various arithmetic operations. These
   // are used extensively for computing new offset/length and padding values.
@@ -460,42 +467,29 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
   bindDims(b.getContext(), dim0, dim1);
   // Add two integers.
   auto addMap = AffineMap::get(2, 0, {dim0 + dim1});
-  auto add = [&](Value v1, Value v2) {
-    return b.createOrFold<AffineApplyOp>(loc, addMap, ValueRange{v1, v2});
+  auto add = [&](OpFoldResult v1, OpFoldResult v2) {
+    return affine::makeComposedFoldedAffineApply(b, loc, addMap, {v1, v2});
   };
   // Subtract two integers.
   auto subMap = AffineMap::get(2, 0, {dim0 - dim1});
-  auto sub = [&](Value v1, Value v2) {
-    return b.createOrFold<AffineApplyOp>(loc, subMap, ValueRange{v1, v2});
+  auto sub = [&](OpFoldResult v1, OpFoldResult v2) {
+    return affine::makeComposedFoldedAffineApply(b, loc, subMap, {v1, v2});
   };
   // Take the minimum of two integers.
   auto idMap = AffineMap::getMultiDimIdentityMap(2, b.getContext());
-  auto min = [&](Value v1, Value v2) {
-    return b.createOrFold<AffineMinOp>(loc, idMap, ValueRange{v1, v2});
+  auto min = [&](OpFoldResult v1, OpFoldResult v2) {
+    return affine::makeComposedFoldedAffineMin(b, loc, idMap, {v1, v2});
   };
   // Take the maximum of two integers.
-  auto max = [&](Value v1, Value v2) {
-    return b.createOrFold<AffineMaxOp>(loc, idMap, ValueRange{v1, v2});
+  auto max = [&](OpFoldResult v1, OpFoldResult v2) {
+    return affine::makeComposedFoldedAffineMax(b, loc, idMap, {v1, v2});
   };
   // Zero index-typed integer.
-  auto zero = b.create<arith::ConstantIndexOp>(loc, 0);
-
-  // Helper function for filling static/dynamic low/high padding indices
-  // vectors of PadOp.
-  auto appendIndex = [&](Value val, SmallVector<Value> &dynIndices,
-                         SmallVector<int64_t> &staticIndices) {
-    if (auto constInt = getConstantIntValue(val)) {
-      staticIndices.push_back(*constInt);
-    } else {
-      staticIndices.push_back(ShapedType::kDynamic);
-      dynIndices.push_back(val);
-    }
-  };
+  OpFoldResult zero = b.getIndexAttr(0);
 
   // Compute new offsets, lengths, low padding, high padding.
   SmallVector<OpFoldResult> newOffsets, newLengths, newStrides;
-  SmallVector<Value> newLows, newHighs;
-  SmallVector<int64_t> staticNewLows, staticNewHighs;
+  SmallVector<OpFoldResult> newLows, newHighs;
   // Set to true if the original data source is not read at all.
   bool hasZeroLen = false;
   // Same as hasZeroLen, but for dynamic dimension sizes. This condition
@@ -504,23 +498,22 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
 
   int64_t rank = padOp.getSourceType().getRank();
   for (unsigned dim = 0; dim < rank; ++dim) {
-    auto low =
-        getValueOrCreateConstantIndexOp(b, loc, padOp.getMixedLowPad()[dim]);
-    bool hasLowPad = getConstantIntValue(low) != static_cast<int64_t>(0);
-    auto high =
-        getValueOrCreateConstantIndexOp(b, loc, padOp.getMixedHighPad()[dim]);
-    bool hasHighPad = getConstantIntValue(high) != static_cast<int64_t>(0);
-    auto offset = getValueOrCreateConstantIndexOp(b, loc, offsets[dim]);
-    auto length = getValueOrCreateConstantIndexOp(b, loc, sizes[dim]);
-    auto srcSize = b.createOrFold<tensor::DimOp>(loc, padOp.getSource(), dim);
+    auto low = padOp.getMixedLowPad()[dim];
+    bool hasLowPad = !isConstantIntValue(low, 0);
+    auto high = padOp.getMixedHighPad()[dim];
+    bool hasHighPad = !isConstantIntValue(high, 0);
+    auto offset = offsets[dim];
+    auto length = sizes[dim];
+    auto srcSize =
+        tensor::createDimValue(b, loc, padOp.getSource(), dim).value();
 
     // The new amount of low padding is `low - offset`. Except for the case
     // where none of the low padding is read. In that case, the new amount of
     // low padding is zero.
     //
     // Optimization: If low = 0, then newLow = 0.
-    Value newLow = hasLowPad ? max(zero, sub(low, offset)) : zero;
-    appendIndex(newLow, newLows, staticNewLows);
+    OpFoldResult newLow = hasLowPad ? max(zero, sub(low, offset)) : zero;
+    newLows.push_back(newLow);
 
     // Start reading the data from position `offset - low`. Since the original
     // read may have started in the low padding zone, this value could be
@@ -534,9 +527,10 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
     // no data from the source.)
     //
     // Optimization: If low = 0, then the formula can be simplified.
-    Value newOffset = hasLowPad ? min(max(sub(offset, low), zero), srcSize)
-                                : min(offset, srcSize);
-    newOffsets.push_back(getAsOpFoldResult(newOffset));
+    OpFoldResult newOffset = hasLowPad
+                                 ? min(max(sub(offset, low), zero), srcSize)
+                                 : min(offset, srcSize);
+    newOffsets.push_back(newOffset);
 
     // The original ExtractSliceOp was reading until position `offset +
     // length`. Therefore, the corresponding position within the source tensor
@@ -557,19 +551,21 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
     // The new ExtractSliceOp length is `endLoc - newOffset`.
     //
     // Optimization: If low = 0, then the formula can be simplified.
-    Value endLoc = hasLowPad
-                       ? min(max(add(sub(offset, low), length), zero), srcSize)
-                       : min(add(offset, length), srcSize);
-    Value newLength = sub(endLoc, newOffset);
-    newLengths.push_back(getAsOpFoldResult(newLength));
+    OpFoldResult endLoc =
+        hasLowPad ? min(max(add(sub(offset, low), length), zero), srcSize)
+                  : min(add(offset, length), srcSize);
+    OpFoldResult newLength = sub(endLoc, newOffset);
+    newLengths.push_back(newLength);
 
     // Check if newLength is zero. In that case, no SubTensorOp should be
     // executed.
-    if (auto newLengthInt = getConstantIntValue(newLength)) {
-      hasZeroLen |= *newLengthInt == 0;
-    } else {
-      Value check = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                            newLength, zero);
+    if (isConstantIntValue(newLength, 0)) {
+      hasZeroLen = true;
+    } else if (!hasZeroLen) {
+      Value check = b.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq,
+          getValueOrCreateConstantIndexOp(b, loc, newLength),
+          getValueOrCreateConstantIndexOp(b, loc, zero));
       dynHasZeroLenCond =
           dynHasZeroLenCond
               ? b.create<arith::OrIOp>(loc, check, dynHasZeroLenCond)
@@ -580,8 +576,9 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
     // so that the result has the same length as the original ExtractSliceOp.
     // As an optimization, if the original high padding is zero, then the new
     // high padding must also be zero.
-    Value newHigh = hasHighPad ? sub(sub(length, newLength), newLow) : zero;
-    appendIndex(newHigh, newHighs, staticNewHighs);
+    OpFoldResult newHigh =
+        hasHighPad ? sub(sub(length, newLength), newLow) : zero;
+    newHighs.push_back(newHigh);
 
     // Only unit stride supported.
     newStrides.push_back(b.getIndexAttr(1));
@@ -595,7 +592,9 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
       RankedTensorType::get(shape, padOp.getResultType().getElementType());
 
   // Insert cast to ensure that types match. (May be folded away.)
-  auto castResult = [&](Value val) -> Operation * {
+  auto castResult = [&](Value val) -> Value {
+    if (resultType == val.getType())
+      return val;
     return b.create<tensor::CastOp>(loc, resultType, val);
   };
 
@@ -609,47 +608,57 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
         [&](OpBuilder &builder, Location gLoc, ValueRange indices) {
           builder.create<tensor::YieldOp>(gLoc, padValue);
         });
-    return castResult(generateOp);
+    return generateOp;
   };
 
   // Emit a SliceOp and a PadOp. Should not be used in cases where
   // the result shape of the new SliceOp has a zero dimension.
   auto createPadOfExtractSlice = [&]() {
     // Create pad(extract_slice(x)).
-    auto newSliceOp = b.create<tensor::ExtractSliceOp>(
+    Value newSliceOp = b.create<tensor::ExtractSliceOp>(
         loc, padOp.getSource(), newOffsets, newLengths, newStrides);
-    auto newPadOp = b.create<PadOp>(loc, newSliceOp, staticNewLows,
-                                    staticNewHighs, newLows, newHighs);
+    auto newPadOp = b.create<PadOp>(
+        loc, Type(), newSliceOp, newLows, newHighs,
+        /*nofold=*/padOp.getNofold(),
+        getPrunedAttributeList(padOp, PadOp::getAttributeNames()));
 
     // Copy region to new PadOp.
     IRMapping bvm;
     padOp.getRegion().cloneInto(&newPadOp.getRegion(), bvm);
 
     // Cast result and return.
-    return castResult(newPadOp);
+    return newPadOp;
   };
 
   // Rewrite extract_slice(pad(x)) into a GenerateOp it is statically known that
   // the original data source x is not used.
-  if (hasZeroLen)
-    return createGenerateOp();
+  if (hasZeroLen) {
+    Operation *generateOp = createGenerateOp();
+    return TilingResult{{generateOp}, {castResult(generateOp->getResult(0))}};
+  }
 
   // If there are dynamic dimensions: Generate an scf.if check to avoid
   // creating SliceOps with result dimensions of size 0 at runtime.
   if (generateZeroSliceGuard && dynHasZeroLenCond) {
+    Operation *thenOp;
+    Operation *elseOp;
     auto result = b.create<scf::IfOp>(
         loc, dynHasZeroLenCond,
         /*thenBuilder=*/
         [&](OpBuilder &b, Location loc) {
-          b.create<scf::YieldOp>(loc, createGenerateOp()->getResult(0));
+          thenOp = createGenerateOp();
+          b.create<scf::YieldOp>(loc, castResult(thenOp->getResult(0)));
         },
         /*elseBuilder=*/
         [&](OpBuilder &b, Location loc) {
-          b.create<scf::YieldOp>(loc, createPadOfExtractSlice()->getResult(0));
+          elseOp = createPadOfExtractSlice();
+          b.create<scf::YieldOp>(loc, castResult(elseOp->getResult(0)));
         });
-    return result;
+    return TilingResult{{elseOp}, SmallVector<Value>(result->getResults())};
   }
-  return createPadOfExtractSlice();
+
+  Operation *newPadOp = createPadOfExtractSlice();
+  return TilingResult{{newPadOp}, {castResult(newPadOp->getResult(0))}};
 }
 
 void mlir::tensor::registerTilingInterfaceExternalModels(

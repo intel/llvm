@@ -228,7 +228,7 @@ void ASTStmtReader::VisitIfStmt(IfStmt *S) {
   if (HasElse)
     S->setElse(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
   if (HasInit)
     S->setInit(Record.readSubStmt());
 
@@ -253,7 +253,7 @@ void ASTStmtReader::VisitSwitchStmt(SwitchStmt *S) {
   if (HasInit)
     S->setInit(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
 
   S->setSwitchLoc(readSourceLocation());
   S->setLParenLoc(readSourceLocation());
@@ -279,7 +279,7 @@ void ASTStmtReader::VisitWhileStmt(WhileStmt *S) {
   S->setCond(Record.readSubExpr());
   S->setBody(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
 
   S->setWhileLoc(readSourceLocation());
   S->setLParenLoc(readSourceLocation());
@@ -299,7 +299,7 @@ void ASTStmtReader::VisitForStmt(ForStmt *S) {
   VisitStmt(S);
   S->setInit(Record.readSubStmt());
   S->setCond(Record.readSubExpr());
-  S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+  S->setConditionVariableDeclStmt(cast_or_null<DeclStmt>(Record.readSubStmt()));
   S->setInc(Record.readSubExpr());
   S->setBody(Record.readSubStmt());
   S->setForLoc(readSourceLocation());
@@ -1209,6 +1209,8 @@ void ASTStmtReader::VisitInitListExpr(InitListExpr *E) {
 }
 
 void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
+  using Designator = DesignatedInitExpr::Designator;
+
   VisitExpr(E);
   unsigned NumSubExprs = Record.readInt();
   assert(NumSubExprs == E->getNumSubExprs() && "Wrong number of subexprs");
@@ -1226,7 +1228,7 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       SourceLocation FieldLoc = readSourceLocation();
       Designators.push_back(Designator::CreateFieldDesignator(
           Field->getIdentifier(), DotLoc, FieldLoc));
-      Designators.back().setField(Field);
+      Designators.back().setFieldDecl(Field);
       break;
     }
 
@@ -1234,8 +1236,8 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       const IdentifierInfo *Name = Record.readIdentifier();
       SourceLocation DotLoc = readSourceLocation();
       SourceLocation FieldLoc = readSourceLocation();
-      Designators.push_back(
-          Designator::CreateFieldDesignator(Name, DotLoc, FieldLoc));
+      Designators.push_back(Designator::CreateFieldDesignator(Name, DotLoc,
+                                                              FieldLoc));
       break;
     }
 
@@ -1243,8 +1245,9 @@ void ASTStmtReader::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
       unsigned Index = Record.readInt();
       SourceLocation LBracketLoc = readSourceLocation();
       SourceLocation RBracketLoc = readSourceLocation();
-      Designators.push_back(
-          Designator::CreateArrayDesignator(Index, LBracketLoc, RBracketLoc));
+      Designators.push_back(Designator::CreateArrayDesignator(Index,
+                                                              LBracketLoc,
+                                                              RBracketLoc));
       break;
     }
 
@@ -2035,9 +2038,10 @@ ASTStmtReader::VisitCXXUnresolvedConstructExpr(CXXUnresolvedConstructExpr *E) {
   Record.skipInts(1);
   for (unsigned I = 0, N = E->getNumArgs(); I != N; ++I)
     E->setArg(I, Record.readSubExpr());
-  E->TSI = readTypeSourceInfo();
+  E->TypeAndInitForm.setPointer(readTypeSourceInfo());
   E->setLParenLoc(readSourceLocation());
   E->setRParenLoc(readSourceLocation());
+  E->TypeAndInitForm.setInt(Record.readInt());
 }
 
 void ASTStmtReader::VisitOverloadExpr(OverloadExpr *E) {
@@ -2837,7 +2841,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_REF_PTR:
       IsStmtReference = true;
-      assert(StmtEntries.find(Record[0]) != StmtEntries.end() &&
+      assert(StmtEntries.contains(Record[0]) &&
              "No stmt was recorded for this offset reference!");
       S = StmtEntries[Record.readInt()];
       break;

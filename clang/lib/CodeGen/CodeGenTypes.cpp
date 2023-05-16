@@ -664,6 +664,8 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     case BuiltinType::SveInt64x4:
     case BuiltinType::SveUint64x4:
     case BuiltinType::SveBool:
+    case BuiltinType::SveBoolx2:
+    case BuiltinType::SveBoolx4:
     case BuiltinType::SveFloat16:
     case BuiltinType::SveFloat16x2:
     case BuiltinType::SveFloat16x3:
@@ -686,6 +688,8 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
                                            Info.EC.getKnownMinValue() *
                                                Info.NumVectors);
     }
+    case BuiltinType::SveCount:
+      return llvm::TargetExtType::get(getLLVMContext(), "aarch64.svcount");
 #define PPC_VECTOR_TYPE(Name, Id, Size) \
     case BuiltinType::Id: \
       ResultType = \

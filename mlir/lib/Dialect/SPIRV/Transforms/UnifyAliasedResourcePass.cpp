@@ -220,6 +220,9 @@ ResourceAliasAnalysis::ResourceAliasAnalysis(Operation *root) {
 }
 
 bool ResourceAliasAnalysis::shouldUnify(Operation *op) const {
+  if (!op)
+    return false;
+
   if (auto varOp = dyn_cast<spirv::GlobalVariableOp>(op)) {
     auto canonicalOp = getCanonicalResource(varOp);
     return canonicalOp && varOp != canonicalOp;
@@ -366,7 +369,6 @@ struct ConvertAccessChain : public ConvertAliasResource<spirv::AccessChainOp> {
     }
 
     Location loc = acOp.getLoc();
-    auto i32Type = rewriter.getI32Type();
 
     if (srcElemType.isIntOrFloat() && dstElemType.isa<VectorType>()) {
       // The source indices are for a buffer with scalar element types. Rewrite
@@ -376,16 +378,19 @@ struct ConvertAccessChain : public ConvertAliasResource<spirv::AccessChainOp> {
       int srcNumBytes = *srcElemType.getSizeInBytes();
       int dstNumBytes = *dstElemType.getSizeInBytes();
       assert(dstNumBytes >= srcNumBytes && dstNumBytes % srcNumBytes == 0);
-      int ratio = dstNumBytes / srcNumBytes;
-      auto ratioValue = rewriter.create<spirv::ConstantOp>(
-          loc, i32Type, rewriter.getI32IntegerAttr(ratio));
 
       auto indices = llvm::to_vector<4>(acOp.getIndices());
       Value oldIndex = indices.back();
+      Type indexType = oldIndex.getType();
+
+      int ratio = dstNumBytes / srcNumBytes;
+      auto ratioValue = rewriter.create<spirv::ConstantOp>(
+          loc, indexType, rewriter.getIntegerAttr(indexType, ratio));
+
       indices.back() =
-          rewriter.create<spirv::SDivOp>(loc, i32Type, oldIndex, ratioValue);
+          rewriter.create<spirv::SDivOp>(loc, indexType, oldIndex, ratioValue);
       indices.push_back(
-          rewriter.create<spirv::SModOp>(loc, i32Type, oldIndex, ratioValue));
+          rewriter.create<spirv::SModOp>(loc, indexType, oldIndex, ratioValue));
 
       rewriter.replaceOpWithNewOp<spirv::AccessChainOp>(
           acOp, adaptor.getBasePtr(), indices);
@@ -400,14 +405,17 @@ struct ConvertAccessChain : public ConvertAliasResource<spirv::AccessChainOp> {
       int srcNumBytes = *srcElemType.getSizeInBytes();
       int dstNumBytes = *dstElemType.getSizeInBytes();
       assert(srcNumBytes >= dstNumBytes && srcNumBytes % dstNumBytes == 0);
-      int ratio = srcNumBytes / dstNumBytes;
-      auto ratioValue = rewriter.create<spirv::ConstantOp>(
-          loc, i32Type, rewriter.getI32IntegerAttr(ratio));
 
       auto indices = llvm::to_vector<4>(acOp.getIndices());
       Value oldIndex = indices.back();
+      Type indexType = oldIndex.getType();
+
+      int ratio = srcNumBytes / dstNumBytes;
+      auto ratioValue = rewriter.create<spirv::ConstantOp>(
+          loc, indexType, rewriter.getIntegerAttr(indexType, ratio));
+
       indices.back() =
-          rewriter.create<spirv::IMulOp>(loc, i32Type, oldIndex, ratioValue);
+          rewriter.create<spirv::IMulOp>(loc, indexType, oldIndex, ratioValue);
 
       rewriter.replaceOpWithNewOp<spirv::AccessChainOp>(
           acOp, adaptor.getBasePtr(), indices);
@@ -561,16 +569,15 @@ public:
 private:
   spirv::GetTargetEnvFn getTargetEnvFn;
 };
-} // namespace
 
 void UnifyAliasedResourcePass::runOnOperation() {
   spirv::ModuleOp moduleOp = getOperation();
   MLIRContext *context = &getContext();
 
   if (getTargetEnvFn) {
-    // This pass is only needed for targeting WebGPU, Metal, or layering Vulkan
-    // on Metal via MoltenVK, where we need to translate SPIR-V into WGSL or
-    // MSL. The translation has limitations.
+    // This pass is only needed for targeting WebGPU, Metal, or layering
+    // Vulkan on Metal via MoltenVK, where we need to translate SPIR-V into
+    // WGSL or MSL. The translation has limitations.
     spirv::TargetEnvAttr targetEnv = getTargetEnvFn(moduleOp);
     spirv::ClientAPI clientAPI = targetEnv.getClientAPI();
     bool isVulkanOnAppleDevices =
@@ -609,6 +616,7 @@ void UnifyAliasedResourcePass::runOnOperation() {
       resources.front()->removeAttr("aliased");
   }
 }
+} // namespace
 
 std::unique_ptr<mlir::OperationPass<spirv::ModuleOp>>
 spirv::createUnifyAliasedResourcePass(spirv::GetTargetEnvFn getTargetEnv) {

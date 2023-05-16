@@ -49,17 +49,23 @@ public:
   /// section.
   virtual bool hasValidRelocs() = 0;
 
-  /// Checks that the specified variable \p DIE references live code section.
-  /// Allowed kind of input die: DW_TAG_variable, DW_TAG_constant.
-  /// \returns true and sets Info.InDebugMap if it is the case.
-  virtual bool isLiveVariable(const DWARFDie &DIE,
-                              CompileUnit::DIEInfo &Info) = 0;
+  /// Checks that the specified variable \p DIE references the live code
+  /// section and returns the relocation adjustment value (to get the linked
+  /// address this value might be added to the source variable address).
+  /// Allowed kinds of input DIE: DW_TAG_variable, DW_TAG_constant.
+  /// \returns relocation adjustment value or std::nullopt if there is no
+  /// corresponding live address.
+  virtual std::optional<int64_t>
+  getVariableRelocAdjustment(const DWARFDie &DIE) = 0;
 
-  /// Checks that the specified subprogram \p DIE references live code section.
-  /// Allowed kind of input die: DW_TAG_subprogram, DW_TAG_label.
-  /// \returns true and sets Info.InDebugMap if it is the case.
-  virtual bool isLiveSubprogram(const DWARFDie &DIE,
-                                CompileUnit::DIEInfo &Info) = 0;
+  /// Checks that the specified subprogram \p DIE references the live code
+  /// section and returns the relocation adjustment value (to get the linked
+  /// address this value might be added to the source subprogram address).
+  /// Allowed kinds of input DIE: DW_TAG_subprogram, DW_TAG_label.
+  /// \returns relocation adjustment value or std::nullopt if there is no
+  /// corresponding live address.
+  virtual std::optional<int64_t>
+  getSubprogramRelocAdjustment(const DWARFDie &DIE) = 0;
 
   /// Apply the valid relocations to the buffer \p Data, taking into
   /// account that Data is at \p BaseOffset in the .debug_info section.
@@ -117,16 +123,36 @@ public:
   virtual void
   emitAppleTypes(AccelTable<AppleAccelTableStaticTypeData> &Table) = 0;
 
-  /// Emit piece of .debug_ranges for \p Ranges.
-  virtual void
-  emitDwarfDebugRangesTableFragment(const CompileUnit &Unit,
-                                    const AddressRanges &LinkedRanges) = 0;
+  /// Emit debug ranges (.debug_ranges, .debug_rnglists) header.
+  virtual MCSymbol *emitDwarfDebugRangeListHeader(const CompileUnit &Unit) = 0;
 
-  /// Emit .debug_aranges entries for \p Unit and if \p DoRangesSection is true,
-  /// also emit the .debug_ranges entries for the DW_TAG_compile_unit's
-  /// DW_AT_ranges attribute.
-  virtual void emitUnitRangesEntries(CompileUnit &Unit,
-                                     bool DoRangesSection) = 0;
+  /// Emit debug ranges (.debug_ranges, .debug_rnglists) fragment.
+  virtual void
+  emitDwarfDebugRangeListFragment(const CompileUnit &Unit,
+                                  const AddressRanges &LinkedRanges,
+                                  PatchLocation Patch) = 0;
+
+  /// Emit debug ranges (.debug_ranges, .debug_rnglists) footer.
+  virtual void emitDwarfDebugRangeListFooter(const CompileUnit &Unit,
+                                             MCSymbol *EndLabel) = 0;
+
+  /// Emit debug locations (.debug_loc, .debug_loclists) header.
+  virtual MCSymbol *emitDwarfDebugLocListHeader(const CompileUnit &Unit) = 0;
+
+  /// Emit debug locations (.debug_loc, .debug_loclists) fragment.
+  virtual void emitDwarfDebugLocListFragment(
+      const CompileUnit &Unit,
+      const DWARFLocationExpressionsVector &LinkedLocationExpression,
+      PatchLocation Patch) = 0;
+
+  /// Emit debug locations (.debug_loc, .debug_loclists) footer.
+  virtual void emitDwarfDebugLocListFooter(const CompileUnit &Unit,
+                                           MCSymbol *EndLabel) = 0;
+
+  /// Emit .debug_aranges entries for \p Unit
+  virtual void
+  emitDwarfDebugArangesTable(const CompileUnit &Unit,
+                             const AddressRanges &LinkedRanges) = 0;
 
   /// Copy the .debug_line over to the updated binary while unobfuscating the
   /// file names and directories.
@@ -151,14 +177,6 @@ public:
   /// Emit an FDE with data \p Bytes.
   virtual void emitFDE(uint32_t CIEOffset, uint32_t AddreSize, uint64_t Address,
                        StringRef Bytes) = 0;
-
-  /// Emit the .debug_loc contribution for \p Unit by copying the entries from
-  /// \p Dwarf and offsetting them. Update the location attributes to point to
-  /// the new entries.
-  virtual void emitLocationsForUnit(
-      const CompileUnit &Unit, DWARFContext &Dwarf,
-      std::function<void(StringRef, SmallVectorImpl<uint8_t> &)>
-          ProcessExpr) = 0;
 
   /// Emit the compilation unit header for \p Unit in the
   /// .debug_info section.
@@ -189,6 +207,9 @@ public:
   /// Returns size of generated .debug_ranges section.
   virtual uint64_t getRangesSectionSize() const = 0;
 
+  /// Returns size of generated .debug_rnglists section.
+  virtual uint64_t getRngListsSectionSize() const = 0;
+
   /// Returns size of generated .debug_info section.
   virtual uint64_t getDebugInfoSectionSize() const = 0;
 
@@ -197,6 +218,9 @@ public:
 
   /// Returns size of generated .debug_macro section.
   virtual uint64_t getDebugMacroSectionSize() const = 0;
+
+  /// Returns size of generated .debug_loclists section.
+  virtual uint64_t getLocListsSectionSize() const = 0;
 };
 
 using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
@@ -226,6 +250,7 @@ public:
 typedef std::function<void(const Twine &Warning, StringRef Context,
                            const DWARFDie *DIE)>
     messageHandler;
+typedef std::function<void(const DWARFFile &File)> inputVerificationHandler;
 typedef std::function<ErrorOr<DWARFFile &>(StringRef ContainerName,
                                            StringRef Path)>
     objFileLoader;
@@ -327,6 +352,12 @@ public:
     Options.ErrorHandler = Handler;
   }
 
+  /// Set verification handler which would be used to report verification
+  /// errors.
+  void setInputVerificationHandler(inputVerificationHandler Handler) {
+    Options.InputVerificationHandler = Handler;
+  }
+
   /// Set map for Swift interfaces.
   void setSwiftInterfacesMap(swiftInterfacesMap *Map) {
     Options.ParseableSwiftInterfaces = Map;
@@ -406,7 +437,7 @@ private:
   };
 
   /// Verify the given DWARF file.
-  bool verify(const DWARFFile &File);
+  void verifyInput(const DWARFFile &File);
 
   /// returns true if we need to translate strings.
   bool needToTranslateStrings() { return StringsTranslator != nullptr; }
@@ -724,14 +755,17 @@ private:
   /// Assign an abbreviation number to \p Abbrev
   void assignAbbrev(DIEAbbrev &Abbrev);
 
-  /// Compute and emit .debug_ranges section for \p Unit, and
-  /// patch the attributes referencing it.
-  void patchRangesForUnit(const CompileUnit &Unit, DWARFContext &Dwarf,
-                          const DWARFFile &File) const;
+  /// Compute and emit debug ranges(.debug_aranges, .debug_ranges,
+  /// .debug_rnglists) for \p Unit, patch the attributes referencing it.
+  void generateUnitRanges(CompileUnit &Unit, const DWARFFile &File) const;
 
-  /// Generate and emit the DW_AT_ranges attribute for a compile_unit if it had
-  /// one.
-  void generateUnitRanges(CompileUnit &Unit) const;
+  using ExpressionHandlerRef = function_ref<void(SmallVectorImpl<uint8_t> &,
+                                                 SmallVectorImpl<uint8_t> &)>;
+
+  /// Compute and emit debug locations (.debug_loc, .debug_loclists)
+  /// for \p Unit, patch the attributes referencing it.
+  void generateUnitLocations(CompileUnit &Unit, const DWARFFile &File,
+                             ExpressionHandlerRef ExprHandler) const;
 
   /// Extract the line tables from the original dwarf, extract the relevant
   /// parts according to the linked function ranges and emit the result in the
@@ -834,6 +868,9 @@ private:
 
     // error handler
     messageHandler ErrorHandler = nullptr;
+
+    // input verification handler
+    inputVerificationHandler InputVerificationHandler = nullptr;
 
     /// A list of all .swiftinterface files referenced by the debug
     /// info, mapping Module name to path on disk. The entries need to

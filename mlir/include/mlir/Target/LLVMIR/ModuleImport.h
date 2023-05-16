@@ -32,6 +32,7 @@ namespace mlir {
 namespace LLVM {
 
 namespace detail {
+class DataLayoutImporter;
 class DebugImporter;
 class LoopAnnotationImporter;
 } // namespace detail
@@ -57,6 +58,10 @@ public:
 
   /// Converts all global variables of the LLVM module to MLIR global variables.
   LogicalResult convertGlobals();
+
+  /// Converts the data layout of the LLVM module to an MLIR data layout
+  /// specification.
+  LogicalResult convertDataLayout();
 
   /// Stores the mapping between an LLVM value and its MLIR counterpart.
   void mapValue(llvm::Value *llvm, Value mlir) { mapValue(llvm) = mlir; }
@@ -134,6 +139,11 @@ public:
   /// Converts `value` to a local variable attribute. Asserts if the matching
   /// fails.
   DILocalVariableAttr matchLocalVariableAttr(llvm::Value *value);
+
+  /// Converts `value` to an array of symbol references pointing to alias scope
+  /// operations, or returns failure if the conversion fails.
+  FailureOr<SmallVector<SymbolRefAttr>>
+  matchAliasScopeAttrs(llvm::Value *value);
 
   /// Translates the debug location.
   Location translateLoc(llvm::DILocation *loc);

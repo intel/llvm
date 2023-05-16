@@ -86,15 +86,13 @@ public:
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    // Exercise OperationFolder API for a single-result operation that is folded
-    // upon construction. The operation being created through the folder has an
-    // in-place folder, and it should be still present in the output.
-    // Furthermore, the folder should not crash when attempting to recover the
-    // (unchanged) operation result.
-    OperationFolder folder(op->getContext());
-    Value result = folder.create<TestOpInPlaceFold>(
-        rewriter, op->getLoc(), rewriter.getIntegerType(32), op->getOperand(0),
-        rewriter.getI32IntegerAttr(0));
+    // Exercise createOrFold API for a single-result operation that is folded
+    // upon construction. The operation being created has an in-place folder,
+    // and it should be still present in the output. Furthermore, the folder
+    // should not crash when attempting to recover the (unchanged) operation
+    // result.
+    Value result = rewriter.createOrFold<TestOpInPlaceFold>(
+        op->getLoc(), rewriter.getIntegerType(32), op->getOperand(0));
     assert(result);
     rewriter.replaceOp(op, result);
     return success();
@@ -436,7 +434,8 @@ static void invokeCreateWithInferredReturnType(Operation *op) {
       SmallVector<Type, 2> inferredReturnTypes;
       if (succeeded(OpTy::inferReturnTypes(
               context, std::nullopt, values, op->getAttrDictionary(),
-              op->getRegions(), inferredReturnTypes))) {
+              op->getPropertiesStorage(), op->getRegions(),
+              inferredReturnTypes))) {
         OperationState state(location, OpTy::getOperationName());
         // TODO: Expand to regions.
         OpTy::build(b, state, values, op->getAttrs());
@@ -1593,7 +1592,7 @@ struct TestMergeSingleBlockOps
     Block &innerBlock = op.getRegion().front();
     TerminatorOp innerTerminator =
         cast<TerminatorOp>(innerBlock.getTerminator());
-    rewriter.mergeBlockBefore(&innerBlock, op);
+    rewriter.inlineBlockBefore(&innerBlock, op);
     rewriter.eraseOp(innerTerminator);
     rewriter.eraseOp(op);
     rewriter.updateRootInPlace(op, [] {});

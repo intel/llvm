@@ -9,6 +9,9 @@
 // UNSUPPORTED: no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
+// TODO FMT This test should not require std::to_chars(floating-point)
+// XFAIL: availability-fp_to_chars-missing
+
 // Basic test to validate ill-formed code is properly detected.
 
 // <format>

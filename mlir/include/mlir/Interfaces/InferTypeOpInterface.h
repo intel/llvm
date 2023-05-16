@@ -26,7 +26,13 @@
 namespace mlir {
 
 class ShapedTypeComponents;
-using ReifiedRankedShapedTypeDims = SmallVector<SmallVector<Value>>;
+using ReifiedRankedShapedTypeDims = SmallVector<SmallVector<OpFoldResult>>;
+
+/// Reify the shape of the result of an operation (typically in terms of the
+/// shape of its operands).
+LogicalResult
+reifyResultShapes(OpBuilder &b, Operation *op,
+                  ReifiedRankedShapedTypeDims &reifiedReturnShapes);
 
 /// Adaptor class to abstract the differences between whether value is from
 /// a ShapedType or ShapedTypeComponents or DenseIntElementsAttribute.
@@ -238,11 +244,11 @@ LogicalResult inferReturnTensorTypes(
     function_ref<
         LogicalResult(MLIRContext *, std::optional<Location> location,
                       ValueShapeRange operands, DictionaryAttr attributes,
-                      RegionRange regions,
+                      OpaqueProperties properties, RegionRange regions,
                       SmallVectorImpl<ShapedTypeComponents> &retComponents)>
         componentTypeFn,
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes);
 
 /// Verifies that the inferred result types match the actual result types for
@@ -275,7 +281,7 @@ public:
   static LogicalResult
   inferReturnTypes(MLIRContext *context, std::optional<Location> location,
                    ValueRange operands, DictionaryAttr attributes,
-                   RegionRange regions,
+                   OpaqueProperties properties, RegionRange regions,
                    SmallVectorImpl<Type> &inferredReturnTypes) {
     static_assert(
         ConcreteType::template hasTrait<InferShapedTypeOpInterface::Trait>(),
@@ -285,7 +291,7 @@ public:
         "requires InferTypeOpInterface to ensure succesful invocation");
     return ::mlir::detail::inferReturnTensorTypes(
         ConcreteType::inferReturnTypeComponents, context, location, operands,
-        attributes, regions, inferredReturnTypes);
+        attributes, properties, regions, inferredReturnTypes);
   }
 };
 

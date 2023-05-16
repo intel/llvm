@@ -523,7 +523,7 @@ static bool threadSafetyCheckIsSmartPointer(Sema &S, const RecordType* RT) {
   if (!CXXRecord)
     return false;
 
-  for (auto BaseSpecifier : CXXRecord->bases()) {
+  for (const auto &BaseSpecifier : CXXRecord->bases()) {
     if (!foundStarOperator)
       foundStarOperator = IsOverloadedOperatorPresent(
           BaseSpecifier.getType()->getAsRecordDecl(), OO_Star);
@@ -2854,7 +2854,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         return V;
       };
       AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
-          ND, AL.getRange(), NewII, true /*Implicit*/,
+          ND, AL, NewII, true /*Implicit*/,
           MinMacCatalystVersion(Introduced.Version),
           MinMacCatalystVersion(Deprecated.Version),
           MinMacCatalystVersion(Obsoleted.Version), IsUnavailable, Str,
@@ -2896,7 +2896,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
             return V ? *V : VersionTuple();
           };
           AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
-              ND, AL.getRange(), NewII, true /*Implicit*/,
+              ND, AL, NewII, true /*Implicit*/,
               VersionOrEmptyVersion(NewIntroduced),
               VersionOrEmptyVersion(NewDeprecated),
               VersionOrEmptyVersion(NewObsoleted), /*IsUnavailable=*/false, Str,
@@ -2913,7 +2913,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static void handleExternalSourceSymbolAttr(Sema &S, Decl *D,
                                            const ParsedAttr &AL) {
-  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 4))
     return;
 
   StringRef Language;
@@ -2923,9 +2923,12 @@ static void handleExternalSourceSymbolAttr(Sema &S, Decl *D,
   if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(1)))
     DefinedIn = SE->getString();
   bool IsGeneratedDeclaration = AL.getArgAsIdent(2) != nullptr;
+  StringRef USR;
+  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(3)))
+    USR = SE->getString();
 
   D->addAttr(::new (S.Context) ExternalSourceSymbolAttr(
-      S.Context, AL, Language, DefinedIn, IsGeneratedDeclaration));
+      S.Context, AL, Language, DefinedIn, IsGeneratedDeclaration, USR));
 }
 
 template <class T>
@@ -4809,6 +4812,7 @@ bool Sema::checkTargetClonesAttrString(
   enum SecondParam { None, CPU, Tune };
   enum ThirdParam { Target, TargetClones };
   HasCommas = HasCommas || Str.contains(',');
+  const TargetInfo &TInfo = Context.getTargetInfo();
   // Warn on empty at the beginning of a string.
   if (Str.size() == 0)
     return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
@@ -4818,16 +4822,17 @@ bool Sema::checkTargetClonesAttrString(
   while (!Parts.second.empty()) {
     Parts = Parts.second.split(',');
     StringRef Cur = Parts.first.trim();
-    SourceLocation CurLoc = Literal->getLocationOfByte(
-        Cur.data() - Literal->getString().data(), getSourceManager(),
-        getLangOpts(), Context.getTargetInfo());
+    SourceLocation CurLoc =
+        Literal->getLocationOfByte(Cur.data() - Literal->getString().data(),
+                                   getSourceManager(), getLangOpts(), TInfo);
 
     bool DefaultIsDupe = false;
     bool HasCodeGenImpact = false;
     if (Cur.empty())
       return Diag(CurLoc, diag::warn_unsupported_target_attribute)
              << Unsupported << None << "" << TargetClones;
-    if (Context.getTargetInfo().getTriple().isAArch64()) {
+
+    if (TInfo.getTriple().isAArch64()) {
       // AArch64 target clones specific
       if (Cur == "default") {
         DefaultIsDupe = HasDefault;
@@ -4842,13 +4847,12 @@ bool Sema::checkTargetClonesAttrString(
         while (!CurParts.second.empty()) {
           CurParts = CurParts.second.split('+');
           StringRef CurFeature = CurParts.first.trim();
-          if (!Context.getTargetInfo().validateCpuSupports(CurFeature)) {
+          if (!TInfo.validateCpuSupports(CurFeature)) {
             Diag(CurLoc, diag::warn_unsupported_target_attribute)
                 << Unsupported << None << CurFeature << TargetClones;
             continue;
           }
-          std::string Options;
-          if (Context.getTargetInfo().getFeatureDepOptions(CurFeature, Options))
+          if (TInfo.doesFeatureAffectCodeGen(CurFeature))
             HasCodeGenImpact = true;
           CurFeatures.push_back(CurFeature);
         }
@@ -5061,7 +5065,7 @@ static void handleEnumExtensibilityAttr(Sema &S, Decl *D,
 /// Handle __attribute__((format_arg((idx)))) attribute based on
 /// http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html
 static void handleFormatArgAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  Expr *IdxExpr = AL.getArgAsExpr(0);
+  const Expr *IdxExpr = AL.getArgAsExpr(0);
   ParamIdx Idx;
   if (!checkFunctionOrMethodParameterIndex(S, D, AL, 1, IdxExpr, Idx))
     return;
@@ -6394,7 +6398,10 @@ static void handleGlobalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (FD->isInlineSpecified() && !S.getLangOpts().CUDAIsDevice)
     S.Diag(FD->getBeginLoc(), diag::warn_kern_is_inline) << FD;
 
-  D->addAttr(::new (S.Context) CUDAGlobalAttr(S.Context, AL));
+  if (AL.getKind() == ParsedAttr::AT_NVPTXKernel)
+    D->addAttr(::new (S.Context) NVPTXKernelAttr(S.Context, AL));
+  else
+    D->addAttr(::new (S.Context) CUDAGlobalAttr(S.Context, AL));
   // In host compilation the kernel is emitted as a stub function, which is
   // a helper function for launching the kernel. The instructions in the helper
   // function has nothing to do with the source code of the kernel. Do not emit
@@ -8025,10 +8032,12 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   // "sycl-single-task" is present on all single_task invocations, implicitly
   // added by the SYCL headers. It can only conflict with max_global_work_dim,
   // but the value will be the same so there is no need for a warning.
-  if (NumArgsWithoutFilter == 2 &&
-      AddIRFuncAttr->getAttributeNameValuePairs(Context)[0].first ==
-          "sycl-single-task")
-    return;
+  if (NumArgsWithoutFilter == 2) {
+    auto NameValuePairs = AddIRFuncAttr->getAttributeNameValuePairs(Context);
+    if (NameValuePairs.size() > 0 &&
+        NameValuePairs[0].first == "sycl-single-task")
+      return;
+  }
 
   // If there are potentially conflicting attributes, we issue a warning.
   for (const auto *Attr : std::vector<AttributeCommonInfo *>{
@@ -11265,14 +11274,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
 
   // Ignore C++11 attributes on declarator chunks: they appertain to the type
   // instead.
-  // FIXME: We currently check the attribute syntax directly instead of using
-  // isCXX11Attribute(), which currently erroneously classifies the C11
-  // `_Alignas` attribute as a C++11 attribute. `_Alignas` can appear on the
-  // `DeclSpec`, so we need to let it through here to make sure it is processed
-  // appropriately. Once the behavior of isCXX11Attribute() is fixed, we can
-  // go back to using that here.
-  if (AL.getSyntax() == ParsedAttr::AS_CXX11 &&
-      !Options.IncludeCXX11Attributes &&
+  if (AL.isCXX11Attribute() && !Options.IncludeCXX11Attributes &&
       (!IsDeclLambdaCallOperator(D) || !AL.supportsNonconformingLambdaSyntax()))
     return;
 
@@ -11560,6 +11562,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_CalledOnce:
     handleCalledOnceAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_NVPTXKernel:
   case ParsedAttr::AT_CUDAGlobal:
     handleGlobalAttr(S, D, AL);
     break;
@@ -12359,8 +12362,7 @@ void Sema::DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, const WeakInfo &W) {
     NamedDecl *NewD = DeclClonePragmaWeak(ND, W.getAlias(), W.getLocation());
     NewD->addAttr(
         AliasAttr::CreateImplicit(Context, NDId->getName(), W.getLocation()));
-    NewD->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation(),
-                                           AttributeCommonInfo::AS_Pragma));
+    NewD->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation()));
     WeakTopLevelDecl.push_back(NewD);
     // FIXME: "hideous" code from Sema::LazilyCreateBuiltin
     // to insert Decl at TU scope, sorry.
@@ -12371,8 +12373,7 @@ void Sema::DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, const WeakInfo &W) {
     PushOnScopeChains(NewD, S);
     CurContext = SavedContext;
   } else { // just add weak to existing
-    ND->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation(),
-                                         AttributeCommonInfo::AS_Pragma));
+    ND->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation()));
   }
 }
 

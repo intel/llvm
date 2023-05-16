@@ -431,19 +431,109 @@ func.func @indexCastUIOfUnsignedExtend(%arg0: i8) -> index {
 // CHECK-LABEL: @indexCastFold
 //       CHECK:   %[[res:.*]] = arith.constant -2 : index
 //       CHECK:   return %[[res]]
-func.func @indexCastFold(%arg0: i8) -> index {
+func.func @indexCastFold() -> index {
   %c-2 = arith.constant -2 : i8
   %idx = arith.index_cast %c-2 : i8 to index
   return %idx : index
 }
 
+// CHECK-LABEL: @indexCastFoldIndexToInt
+//       CHECK:   %[[res:.*]] = arith.constant 1 : i32
+//       CHECK:   return %[[res]]
+func.func @indexCastFoldIndexToInt() -> i32 {
+  %c1 = arith.constant 1 : index
+  %int = arith.index_cast %c1 : index to i32
+  return %int : i32
+}
+
+// CHECK-LABEL: @indexCastFoldSplatVector
+//       CHECK:   %[[res:.*]] = arith.constant dense<42> : vector<3xindex>
+//       CHECK:   return %[[res]] : vector<3xindex>
+func.func @indexCastFoldSplatVector() -> vector<3xindex> {
+  %cst = arith.constant dense<42> : vector<3xi32>
+  %int = arith.index_cast %cst : vector<3xi32> to vector<3xindex>
+  return %int : vector<3xindex>
+}
+
+// CHECK-LABEL: @indexCastFoldVector
+//       CHECK:   %[[res:.*]] = arith.constant dense<[1, 2, 3]> : vector<3xindex>
+//       CHECK:   return %[[res]] : vector<3xindex>
+func.func @indexCastFoldVector() -> vector<3xindex> {
+  %cst = arith.constant dense<[1, 2, 3]> : vector<3xi32>
+  %int = arith.index_cast %cst : vector<3xi32> to vector<3xindex>
+  return %int : vector<3xindex>
+}
+
+// CHECK-LABEL: @indexCastFoldSplatVectorIndexToInt
+//       CHECK:   %[[res:.*]] = arith.constant dense<42> : vector<3xi32>
+//       CHECK:   return %[[res]] : vector<3xi32>
+func.func @indexCastFoldSplatVectorIndexToInt() -> vector<3xi32> {
+  %cst = arith.constant dense<42> : vector<3xindex>
+  %int = arith.index_cast %cst : vector<3xindex> to vector<3xi32>
+  return %int : vector<3xi32>
+}
+
+// CHECK-LABEL: @indexCastFoldVectorIndexToInt
+//       CHECK:   %[[res:.*]] = arith.constant dense<[1, 2, 3]> : vector<3xi32>
+//       CHECK:   return %[[res]] : vector<3xi32>
+func.func @indexCastFoldVectorIndexToInt() -> vector<3xi32> {
+  %cst = arith.constant dense<[1, 2, 3]> : vector<3xindex>
+  %int = arith.index_cast %cst : vector<3xindex> to vector<3xi32>
+  return %int : vector<3xi32>
+}
+
 // CHECK-LABEL: @indexCastUIFold
 //       CHECK:   %[[res:.*]] = arith.constant 254 : index
 //       CHECK:   return %[[res]]
-func.func @indexCastUIFold(%arg0: i8) -> index {
+func.func @indexCastUIFold() -> index {
   %c-2 = arith.constant -2 : i8
   %idx = arith.index_castui %c-2 : i8 to index
   return %idx : index
+}
+
+// CHECK-LABEL: @indexCastUIFoldSplatVector
+//       CHECK:   %[[res:.*]] = arith.constant dense<42> : vector<3xindex>
+//       CHECK:   return %[[res]] : vector<3xindex>
+func.func @indexCastUIFoldSplatVector() -> vector<3xindex> {
+  %cst = arith.constant dense<42> : vector<3xi32>
+  %int = arith.index_castui %cst : vector<3xi32> to vector<3xindex>
+  return %int : vector<3xindex>
+}
+
+// CHECK-LABEL: @indexCastUIFoldVector
+//       CHECK:   %[[res:.*]] = arith.constant dense<[1, 2, 3]> : vector<3xindex>
+//       CHECK:   return %[[res]] : vector<3xindex>
+func.func @indexCastUIFoldVector() -> vector<3xindex> {
+  %cst = arith.constant dense<[1, 2, 3]> : vector<3xi32>
+  %int = arith.index_castui %cst : vector<3xi32> to vector<3xindex>
+  return %int : vector<3xindex>
+}
+
+// CHECK-LABEL: @indexCastUIFoldIndexToInt
+//       CHECK:   %[[res:.*]] = arith.constant 1 : i32
+//       CHECK:   return %[[res]]
+func.func @indexCastUIFoldIndexToInt() -> i32 {
+  %c1 = arith.constant 1 : index
+  %int = arith.index_castui %c1 : index to i32
+  return %int : i32
+}
+
+// CHECK-LABEL: @indexCastUIFoldSplatVectorIndexToInt
+//       CHECK:   %[[res:.*]] = arith.constant dense<42> : vector<3xi32>
+//       CHECK:   return %[[res]] : vector<3xi32>
+func.func @indexCastUIFoldSplatVectorIndexToInt() -> vector<3xi32> {
+  %cst = arith.constant dense<42> : vector<3xindex>
+  %int = arith.index_castui %cst : vector<3xindex> to vector<3xi32>
+  return %int : vector<3xi32>
+}
+
+// CHECK-LABEL: @indexCastUIFoldVectorIndexToInt
+//       CHECK:   %[[res:.*]] = arith.constant dense<[1, 2, 3]> : vector<3xi32>
+//       CHECK:   return %[[res]] : vector<3xi32>
+func.func @indexCastUIFoldVectorIndexToInt() -> vector<3xi32> {
+  %cst = arith.constant dense<[1, 2, 3]> : vector<3xindex>
+  %int = arith.index_castui %cst : vector<3xindex> to vector<3xi32>
+  return %int : vector<3xi32>
 }
 
 // CHECK-LABEL: @signExtendConstant
@@ -502,6 +592,15 @@ func.func @unsignedExtendConstantVector() -> vector<4xi16> {
   return %ext : vector<4xi16>
 }
 
+// CHECK-LABEL: @extFPConstant
+//       CHECK:   %[[cres:.+]] = arith.constant 1.000000e+00 : f64
+//       CHECK:   return %[[cres]]
+func.func @extFPConstant() -> f64 {
+  %cst = arith.constant 1.000000e+00 : f32
+  %0 = arith.extf %cst : f32 to f64
+  return %0 : f64
+}
+
 // CHECK-LABEL: @truncConstant
 //       CHECK:   %[[cres:.+]] = arith.constant -2 : i16
 //       CHECK:   return %[[cres]]
@@ -520,6 +619,36 @@ func.func @truncExtui(%arg0: i32) -> i32 {
   return %trunci : i32
 }
 
+// CHECK-LABEL: @truncExtui2
+//       CHECK:  %[[ARG0:.+]]: i32
+//       CHECK:  %[[CST:.*]] = arith.trunci %[[ARG0:.+]] : i32 to i16
+//       CHECK:   return  %[[CST:.*]]
+func.func @truncExtui2(%arg0: i32) -> i16 {
+  %extui = arith.extui %arg0 : i32 to i64
+  %trunci = arith.trunci %extui : i64 to i16
+  return %trunci : i16
+}
+
+// CHECK-LABEL: @truncExtui3
+//       CHECK:  %[[ARG0:.+]]: i8
+//       CHECK:  %[[CST:.*]] = arith.extui %[[ARG0:.+]] : i8 to i16
+//       CHECK:   return  %[[CST:.*]] : i16
+func.func @truncExtui3(%arg0: i8) -> i16 {
+  %extui = arith.extui %arg0 : i8 to i32
+  %trunci = arith.trunci %extui : i32 to i16
+  return %trunci : i16
+}
+
+// CHECK-LABEL: @truncExtuiVector
+//       CHECK:  %[[ARG0:.+]]: vector<2xi32>
+//       CHECK:  %[[CST:.*]] = arith.trunci %[[ARG0:.+]] : vector<2xi32> to vector<2xi16>
+//       CHECK:   return  %[[CST:.*]]
+func.func @truncExtuiVector(%arg0: vector<2xi32>) -> vector<2xi16> {
+  %extsi = arith.extui %arg0 : vector<2xi32> to vector<2xi64>
+  %trunci = arith.trunci %extsi : vector<2xi64> to vector<2xi16>
+  return %trunci : vector<2xi16>
+}
+
 // CHECK-LABEL: @truncExtsi
 //       CHECK-NOT:  trunci
 //       CHECK:   return  %arg0
@@ -527,6 +656,36 @@ func.func @truncExtsi(%arg0: i32) -> i32 {
   %extsi = arith.extsi %arg0 : i32 to i64
   %trunci = arith.trunci %extsi : i64 to i32
   return %trunci : i32
+}
+
+// CHECK-LABEL: @truncExtsi2
+//       CHECK:  %[[ARG0:.+]]: i32
+//       CHECK:  %[[CST:.*]] = arith.trunci %[[ARG0:.+]] : i32 to i16
+//       CHECK:   return  %[[CST:.*]]
+func.func @truncExtsi2(%arg0: i32) -> i16 {
+  %extsi = arith.extsi %arg0 : i32 to i64
+  %trunci = arith.trunci %extsi : i64 to i16
+  return %trunci : i16
+}
+
+// CHECK-LABEL: @truncExtsi3
+//       CHECK:  %[[ARG0:.+]]: i8
+//       CHECK:  %[[CST:.*]] = arith.extsi %[[ARG0:.+]] : i8 to i16
+//       CHECK:   return  %[[CST:.*]] : i16
+func.func @truncExtsi3(%arg0: i8) -> i16 {
+  %extsi = arith.extsi %arg0 : i8 to i32
+  %trunci = arith.trunci %extsi : i32 to i16
+  return %trunci : i16
+}
+
+// CHECK-LABEL: @truncExtsiVector
+//       CHECK:  %[[ARG0:.+]]: vector<2xi32>
+//       CHECK:  %[[CST:.*]] = arith.trunci %[[ARG0:.+]] : vector<2xi32> to vector<2xi16>
+//       CHECK:   return  %[[CST:.*]]
+func.func @truncExtsiVector(%arg0: vector<2xi32>) -> vector<2xi16> {
+  %extsi = arith.extsi %arg0 : vector<2xi32> to vector<2xi64>
+  %trunci = arith.trunci %extsi : vector<2xi64> to vector<2xi16>
+  return %trunci : vector<2xi16>
 }
 
 // CHECK-LABEL: @truncConstantSplat
@@ -724,6 +883,72 @@ func.func @doubleAddSub2(%arg0: index, %arg1 : index) -> index {
   %sub = arith.subi %arg0, %arg1 : index
   %add = arith.addi %arg1, %sub : index
   return %add : index
+}
+
+// CHECK-LABEL: @addiMuliToSubiRhsI32
+//  CHECK-SAME:   (%[[ARG0:.+]]: i32, %[[ARG1:.+]]: i32)
+//       CHECK:   %[[SUB:.+]] = arith.subi %[[ARG0]], %[[ARG1]] : i32
+//       CHECK:   return %[[SUB]]
+func.func @addiMuliToSubiRhsI32(%arg0: i32, %arg1: i32) -> i32 {
+  %c-1 = arith.constant -1 : i32
+  %neg = arith.muli %arg1, %c-1 : i32
+  %add = arith.addi %arg0, %neg : i32
+  return %add : i32
+}
+
+// CHECK-LABEL: @addiMuliToSubiRhsIndex
+//  CHECK-SAME:   (%[[ARG0:.+]]: index, %[[ARG1:.+]]: index)
+//       CHECK:   %[[SUB:.+]] = arith.subi %[[ARG0]], %[[ARG1]] : index
+//       CHECK:   return %[[SUB]]
+func.func @addiMuliToSubiRhsIndex(%arg0: index, %arg1: index) -> index {
+  %c-1 = arith.constant -1 : index
+  %neg = arith.muli %arg1, %c-1 : index
+  %add = arith.addi %arg0, %neg : index
+  return %add : index
+}
+
+// CHECK-LABEL: @addiMuliToSubiRhsVector
+//  CHECK-SAME:   (%[[ARG0:.+]]: vector<3xi64>, %[[ARG1:.+]]: vector<3xi64>)
+//       CHECK:   %[[SUB:.+]] = arith.subi %[[ARG0]], %[[ARG1]] : vector<3xi64>
+//       CHECK:   return %[[SUB]]
+func.func @addiMuliToSubiRhsVector(%arg0: vector<3xi64>, %arg1: vector<3xi64>) -> vector<3xi64> {
+  %c-1 = arith.constant dense<-1> : vector<3xi64>
+  %neg = arith.muli %arg1, %c-1 : vector<3xi64>
+  %add = arith.addi %arg0, %neg : vector<3xi64>
+  return %add : vector<3xi64>
+}
+
+// CHECK-LABEL: @addiMuliToSubiLhsI32
+//  CHECK-SAME:   (%[[ARG0:.+]]: i32, %[[ARG1:.+]]: i32)
+//       CHECK:   %[[SUB:.+]] = arith.subi %[[ARG0]], %[[ARG1]] : i32
+//       CHECK:   return %[[SUB]]
+func.func @addiMuliToSubiLhsI32(%arg0: i32, %arg1: i32) -> i32 {
+  %c-1 = arith.constant -1 : i32
+  %neg = arith.muli %arg1, %c-1 : i32
+  %add = arith.addi %neg, %arg0 : i32
+  return %add : i32
+}
+
+// CHECK-LABEL: @addiMuliToSubiLhsIndex
+//  CHECK-SAME:   (%[[ARG0:.+]]: index, %[[ARG1:.+]]: index)
+//       CHECK:   %[[SUB:.+]] = arith.subi %[[ARG0]], %[[ARG1]] : index
+//       CHECK:   return %[[SUB]]
+func.func @addiMuliToSubiLhsIndex(%arg0: index, %arg1: index) -> index {
+  %c-1 = arith.constant -1 : index
+  %neg = arith.muli %arg1, %c-1 : index
+  %add = arith.addi %neg, %arg0 : index
+  return %add : index
+}
+
+// CHECK-LABEL: @addiMuliToSubiLhsVector
+//  CHECK-SAME:   (%[[ARG0:.+]]: vector<3xi64>, %[[ARG1:.+]]: vector<3xi64>)
+//       CHECK:   %[[SUB:.+]] = arith.subi %[[ARG0]], %[[ARG1]] : vector<3xi64>
+//       CHECK:   return %[[SUB]]
+func.func @addiMuliToSubiLhsVector(%arg0: vector<3xi64>, %arg1: vector<3xi64>) -> vector<3xi64> {
+  %c-1 = arith.constant dense<-1> : vector<3xi64>
+  %neg = arith.muli %arg1, %c-1 : vector<3xi64>
+  %add = arith.addi %neg, %arg0 : vector<3xi64>
+  return %add : vector<3xi64>
 }
 
 // CHECK-LABEL: @adduiExtendedZeroRhs

@@ -193,6 +193,23 @@ OperationState::OperationState(Location location, StringRef name,
     : OperationState(location, OperationName(name, location.getContext()),
                      operands, types, attributes, successors, regions) {}
 
+OperationState::~OperationState() {
+  if (properties)
+    propertiesDeleter(properties);
+}
+
+LogicalResult
+OperationState::setProperties(Operation *op,
+                              InFlightDiagnostic *diagnostic) const {
+  if (LLVM_UNLIKELY(propertiesAttr)) {
+    assert(!properties);
+    return op->setPropertiesFromAttribute(propertiesAttr, diagnostic);
+  }
+  if (properties)
+    propertiesSetter(op->getPropertiesStorage(), properties);
+  return success();
+}
+
 void OperationState::addOperands(ValueRange newOperands) {
   operands.append(newOperands.begin(), newOperands.end());
 }
@@ -589,6 +606,11 @@ void ResultRange::replaceAllUsesWith(Operation *op) {
   replaceAllUsesWith(op->getResults());
 }
 
+void ResultRange::replaceUsesWithIf(
+    Operation *op, function_ref<bool(OpOperand &)> shouldReplace) {
+  replaceUsesWithIf(op->getResults(), shouldReplace);
+}
+
 //===----------------------------------------------------------------------===//
 // ValueRange
 
@@ -628,8 +650,9 @@ llvm::hash_code OperationEquivalence::computeHash(
   //   - Operation Name
   //   - Attributes
   //   - Result Types
-  llvm::hash_code hash = llvm::hash_combine(
-      op->getName(), op->getAttrDictionary(), op->getResultTypes());
+  llvm::hash_code hash =
+      llvm::hash_combine(op->getName(), op->getAttrDictionary(),
+                         op->getResultTypes(), op->hashProperties());
 
   //   - Operands
   ValueRange operands = op->getOperands();
@@ -650,11 +673,11 @@ llvm::hash_code OperationEquivalence::computeHash(
   return hash;
 }
 
-static bool
-isRegionEquivalentTo(Region *lhs, Region *rhs,
-                     function_ref<LogicalResult(Value, Value)> checkEquivalent,
-                     function_ref<void(Value, Value)> markEquivalent,
-                     OperationEquivalence::Flags flags) {
+/*static*/ bool OperationEquivalence::isRegionEquivalentTo(
+    Region *lhs, Region *rhs,
+    function_ref<LogicalResult(Value, Value)> checkEquivalent,
+    function_ref<void(Value, Value)> markEquivalent,
+    OperationEquivalence::Flags flags) {
   DenseMap<Block *, Block *> blocksMap;
   auto blocksEquivalent = [&](Block &lBlock, Block &rBlock) {
     // Check block arguments.
@@ -701,7 +724,40 @@ isRegionEquivalentTo(Region *lhs, Region *rhs,
   return llvm::all_of_zip(*lhs, *rhs, blocksEquivalent);
 }
 
-bool OperationEquivalence::isEquivalentTo(
+// Value equivalence cache to be used with `isRegionEquivalentTo` and
+// `isEquivalentTo`.
+struct ValueEquivalenceCache {
+  DenseMap<Value, Value> equivalentValues;
+  LogicalResult checkEquivalent(Value lhsValue, Value rhsValue) {
+    return success(lhsValue == rhsValue ||
+                   equivalentValues.lookup(lhsValue) == rhsValue);
+  }
+  void markEquivalent(Value lhsResult, Value rhsResult) {
+    auto insertion = equivalentValues.insert({lhsResult, rhsResult});
+    // Make sure that the value was not already marked equivalent to some other
+    // value.
+    (void)insertion;
+    assert(insertion.first->second == rhsResult &&
+           "inconsistent OperationEquivalence state");
+  }
+};
+
+/*static*/ bool
+OperationEquivalence::isRegionEquivalentTo(Region *lhs, Region *rhs,
+                                           OperationEquivalence::Flags flags) {
+  ValueEquivalenceCache cache;
+  return isRegionEquivalentTo(
+      lhs, rhs,
+      [&](Value lhsValue, Value rhsValue) -> LogicalResult {
+        return cache.checkEquivalent(lhsValue, rhsValue);
+      },
+      [&](Value lhsResult, Value rhsResult) {
+        cache.markEquivalent(lhsResult, rhsResult);
+      },
+      flags);
+}
+
+/*static*/ bool OperationEquivalence::isEquivalentTo(
     Operation *lhs, Operation *rhs,
     function_ref<LogicalResult(Value, Value)> checkEquivalent,
     function_ref<void(Value, Value)> markEquivalent, Flags flags) {
@@ -785,24 +841,19 @@ bool OperationEquivalence::isEquivalentTo(
   return true;
 }
 
-bool OperationEquivalence::isEquivalentTo(Operation *lhs, Operation *rhs,
-                                          Flags flags) {
-  // Equivalent values in lhs and rhs.
-  DenseMap<Value, Value> equivalentValues;
-  auto checkEquivalent = [&](Value lhsValue, Value rhsValue) -> LogicalResult {
-    return success(lhsValue == rhsValue ||
-                   equivalentValues.lookup(lhsValue) == rhsValue);
-  };
-  auto markEquivalent = [&](Value lhsResult, Value rhsResult) {
-    auto insertion = equivalentValues.insert({lhsResult, rhsResult});
-    // Make sure that the value was not already marked equivalent to some other
-    // value.
-    (void)insertion;
-    assert(insertion.first->second == rhsResult &&
-           "inconsistent OperationEquivalence state");
-  };
-  return OperationEquivalence::isEquivalentTo(lhs, rhs, checkEquivalent,
-                                              markEquivalent, flags);
+/*static*/ bool OperationEquivalence::isEquivalentTo(Operation *lhs,
+                                                     Operation *rhs,
+                                                     Flags flags) {
+  ValueEquivalenceCache cache;
+  return OperationEquivalence::isEquivalentTo(
+      lhs, rhs,
+      [&](Value lhsValue, Value rhsValue) -> LogicalResult {
+        return cache.checkEquivalent(lhsValue, rhsValue);
+      },
+      [&](Value lhsResult, Value rhsResult) {
+        cache.markEquivalent(lhsResult, rhsResult);
+      },
+      flags);
 }
 
 //===----------------------------------------------------------------------===//
@@ -840,6 +891,9 @@ OperationFingerPrint::OperationFingerPrint(Operation *topOp) {
     //   - Successors
     for (unsigned i = 0, e = op->getNumSuccessors(); i != e; ++i)
       addDataToHash(hasher, op->getSuccessor(i));
+    //   - Result types
+    for (Type t : op->getResultTypes())
+      addDataToHash(hasher, t);
   });
   hash = hasher.result();
 }

@@ -1223,6 +1223,13 @@ public:
       SmallVectorImpl<MachineInstr *> &DelInstrs,
       DenseMap<unsigned, unsigned> &InstIdxForVirtReg) const;
 
+  /// When calculate the latency of the root instruction, accumulate the
+  /// latency of the sequence to the root latency.
+  /// \param Root - Instruction that could be combined with one of its operands
+  virtual bool accumulateInstrSeqToRootLatency(MachineInstr &Root) const {
+    return true;
+  }
+
   /// Attempt to reassociate \P Root and \P Prev according to \P Pattern to
   /// reduce critical path length.
   void reassociateOps(MachineInstr &Root, MachineInstr &Prev,
@@ -1966,8 +1973,9 @@ public:
   }
 
   /// Returns a \p outliner::OutlinedFunction struct containing target-specific
-  /// information for a set of outlining candidates.
-  virtual outliner::OutlinedFunction getOutliningCandidateInfo(
+  /// information for a set of outlining candidates. Returns std::nullopt if the
+  /// candidates are not suitable for outlining.
+  virtual std::optional<outliner::OutlinedFunction> getOutliningCandidateInfo(
       std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
     llvm_unreachable(
         "Target didn't implement TargetInstrInfo::getOutliningCandidateInfo!");

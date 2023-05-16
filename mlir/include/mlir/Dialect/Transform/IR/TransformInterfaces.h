@@ -17,9 +17,11 @@
 #include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
+
 namespace transform {
 
 class TransformOpInterface;
+class TransformResults;
 
 /// Options controlling the application of transform operations by the
 /// TransformState.
@@ -192,6 +194,12 @@ public:
   // class body to comply with visibility and full-declaration requirements.
   inline RegionScope make_region_scope(Region &region);
 
+  /// Creates a new region scope for the given isolated-from-above region.
+  /// Unlike the non-isolated counterpart, there is no nesting expectation.
+  // Implementation note: this method is inline but implemented outside of the
+  // class body to comply with visibility and full-declaration requirements
+  inline RegionScope make_isolated_region_scope(Region &region);
+
   /// A RAII object maintaining a "stack frame" for a transform IR region. When
   /// applying a transform IR operation that contains a region, the caller is
   /// expected to create a RegionScope before applying the ops contained in the
@@ -201,17 +209,23 @@ public:
   class RegionScope {
   public:
     /// Forgets the mapping from or to values defined in the associated
-    /// transform IR region.
+    /// transform IR region, and restores the mapping that existed before
+    /// entering this scope.
     ~RegionScope() {
       state.mappings.erase(region);
+      if (storedMappings.has_value())
+        state.mappings.swap(*storedMappings);
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
       state.regionStack.pop_back();
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
     }
 
   private:
+    /// Tag structure for differentiating the constructor for isolated regions.
+    struct Isolated {};
+
     /// Creates a new scope for mappings between values defined in the given
-    /// transform IR region and payload IR operations.
+    /// transform IR region and payload IR objects.
     RegionScope(TransformState &state, Region &region)
         : state(state), region(&region) {
       auto res = state.mappings.try_emplace(this->region);
@@ -225,13 +239,33 @@ public:
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
     }
 
+    /// Creates a new scope for mappings between values defined in the given
+    /// isolated-from-above transform IR region and payload IR objects.
+    RegionScope(TransformState &state, Region &region, Isolated)
+        : state(state), region(&region) {
+      // Store the previous mapping stack locally.
+      storedMappings = llvm::SmallDenseMap<Region *, Mappings>();
+      storedMappings->swap(state.mappings);
+      state.mappings.try_emplace(this->region);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+      state.regionStack.push_back(this->region);
+#endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
+    }
+
     /// Back-reference to the transform state.
     TransformState &state;
 
     /// The region this scope is associated with.
     Region *region;
 
+    /// Local copy of the mappings that existed before entering the current
+    /// region. Used only when the current region is isolated so we don't
+    /// accidentally look up the values defined outside the isolated region.
+    std::optional<llvm::SmallDenseMap<Region *, Mappings>> storedMappings =
+        std::nullopt;
+
     friend RegionScope TransformState::make_region_scope(Region &);
+    friend RegionScope TransformState::make_isolated_region_scope(Region &);
   };
   friend class RegionScope;
 
@@ -281,7 +315,15 @@ public:
     /// Replaces the given payload op with another op. If the replacement op is
     /// null, removes the association of the payload op with its handle. Returns
     /// failure if the op is not associated with any handle.
+    ///
+    /// Note: This function does not update value handles. None of the original
+    /// op's results are allowed to be mapped to any value handle.
     LogicalResult replacePayloadOp(Operation *op, Operation *replacement);
+
+    /// Replaces the given payload value with another value. If the replacement
+    /// value is null, removes the association of the payload value with its
+    /// handle. Returns failure if the value is not associated with any handle.
+    LogicalResult replacePayloadValue(Value value, Value replacement);
 
   private:
     /// Back-reference to the state that is being extended.
@@ -359,6 +401,11 @@ private:
            "trying to find a mapping for an operation from an unmapped region");
     return it->second;
   }
+
+  /// Updates the state to include the associations between op results and the
+  /// provided result of applying a transform op.
+  LogicalResult updateStateFromResults(const TransformResults &results,
+                                       ResultRange opResults);
 
   /// Sets the payload IR ops associated with the given transform IR value
   /// (handle). A payload op may be associated multiple handles as long as
@@ -452,17 +499,17 @@ private:
   void forgetValueMapping(Value valueHandle,
                           ArrayRef<Operation *> payloadOperations);
 
-  /// Updates the payload IR ops associated with the given transform IR value.
-  /// The callback function is called once per associated operation and is
-  /// expected to return the modified operation or nullptr. In the latter case,
-  /// the corresponding operation is no longer associated with the transform IR
-  /// value. Value handles associated with the results of the operation are
-  /// also updated to be associated with the results of the new operation. For
-  /// this reason, the new operation must have the same number of results.
+  /// Replaces the given payload op with another op. If the replacement op is
+  /// null, removes the association of the payload op with its handle.
   ///
-  /// Returns failure if the payload does not satisfy the conditions associated
-  /// with the type of the handle value.
+  /// Note: This function does not update value handles. None of the original
+  /// op's results are allowed to be mapped to any value handle.
   LogicalResult replacePayloadOp(Operation *op, Operation *replacement);
+
+  /// Replaces the given payload value with another value. If the replacement
+  /// value is null, removes the association of the payload value with its
+  /// handle.
+  LogicalResult replacePayloadValue(Value value, Value replacement);
 
   /// If the operand is a handle consumed by the operation, i.e. has the "free"
   /// memory effect associated with it, identifies other handles that are
@@ -523,6 +570,18 @@ private:
   /// Each region must be an ancestor of the following regions in this list.
   /// These are also the keys for "mappings".
   SmallVector<Region *> regionStack;
+
+  /// This cache stores operation names for operations that are tracked in the
+  /// transform dialect state. It is used to detect missing memory side effects
+  /// and op tracking.
+  ///
+  /// All tracked ops are added to this cache before a transform op is applied.
+  /// After the application of the transform op, the names of all tracked ops
+  /// are compared with the names in the cache. If there is a mismatch (or a
+  /// crash), op tracking is missing somewhere. This is typically a missing
+  /// "consumesHandle" side effect or a pattern that removes an op without
+  /// notifying a TrackingListener.
+  DenseMap<Operation *, OperationName> cachedNames;
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
 };
 
@@ -550,6 +609,17 @@ public:
   /// succeeding. The value must have a type implementing
   /// TransformValueHandleTypeInterface.
   void setValues(OpResult handle, ValueRange values);
+
+  /// Indicates that the result of the transform IR op at the given position
+  /// corresponds to the given range of mapped values. All mapped values are
+  /// expected to be compatible with the type of the result, e.g., if the result
+  /// is an operation handle, all mapped values are expected to be payload
+  /// operations.
+  void setMappedValues(OpResult handle, ArrayRef<MappedValue> values);
+
+  /// Sets the currently unset results to empty lists of the kind expected by
+  /// the corresponding results of the given `transform` op.
+  void setRemainingToEmpty(TransformOpInterface transform);
 
 private:
   /// Creates an instance of TransformResults that expects mappings for
@@ -597,8 +667,19 @@ private:
   RaggedArray<Value> values;
 };
 
+/// Creates a RAII object the lifetime of which corresponds to the new mapping
+/// for transform IR values defined in the given region. Values defined in
+/// surrounding regions remain accessible.
 TransformState::RegionScope TransformState::make_region_scope(Region &region) {
   return RegionScope(*this, region);
+}
+
+/// Creates a RAII object the lifetime of which corresponds to the new mapping
+/// for transform IR values defined in the given isolated-from-above region.
+/// Values defined in surrounding regions cannot be accessed.
+TransformState::RegionScope
+TransformState::make_isolated_region_scope(Region &region) {
+  return RegionScope(*this, region, RegionScope::Isolated());
 }
 
 namespace detail {
@@ -614,6 +695,17 @@ LogicalResult verifyPossibleTopLevelTransformOpTrait(Operation *op);
 
 /// Verification hook for TransformOpInterface.
 LogicalResult verifyTransformOpInterface(Operation *op);
+
+/// Populates `mappings` with mapped values associated with the given transform
+/// IR values in the given `state`.
+void prepareValueMappings(
+    SmallVectorImpl<SmallVector<transform::MappedValue>> &mappings,
+    ValueRange values, const transform::TransformState &state);
+
+/// Populates `results` with payload associations that match exactly those of
+/// the operands to `block`'s terminator.
+void forwardTerminatorOperands(Block *block, transform::TransformState &state,
+                               transform::TransformResults &results);
 } // namespace detail
 
 /// This trait is supposed to be attached to Transform dialect operations that
@@ -661,19 +753,21 @@ public:
   }
 };
 
+class ApplyToEachResultList;
+
 /// Trait implementing the TransformOpInterface for operations applying a
 /// transformation to a single operation handle and producing an arbitrary
 /// number of handles and parameter values.
 /// The op must implement a method with the following signature:
 ///   - DiagnosedSilenceableFailure applyToOne(OpTy,
-///       SmallVector<Operation*> &results, state)
+///       ApplyToEachResultList &results, TransformState &state)
 /// to perform a transformation that is applied in turn to all payload IR
 /// operations that correspond to the handle of the transform IR operation.
 /// In `applyToOne`, OpTy is either Operation* or a concrete payload IR Op class
 /// that the transformation is applied to (and NOT the class of the transform IR
 /// op).
 /// The `applyToOne` method takes an empty `results` vector that it fills with
-/// zero, one or multiple operations depending on the number of resultd expected
+/// zero, one or multiple operations depending on the number of results expected
 /// by the transform op.
 /// The number of results must match the number of results of the transform op.
 /// `applyToOne` is allowed to fill the `results` with all null elements to
@@ -705,6 +799,30 @@ public:
                                     TransformState &state);
 
   /// Checks that the op matches the expectations of this trait.
+  static LogicalResult verifyTrait(Operation *op);
+};
+
+/// Trait implementing the applyToOne function required by TransformEachOpTrait
+/// by greedily applying a set of patterns to each target payload operation.
+/// This requires the transform operation to implement TransformEachOpTrait and
+/// to provide the following method:
+///   - void populatePatterns(RewritePatternSet &)
+/// that populates the given object with the patterns to apply. This is an
+/// instance method that can depend on the transform operation attributes.
+///
+/// The payload operation is expected to have the IsolatedFromAboveTrait, which
+/// is a requirement of the pattern rewriter. If it does not, or if pattern
+/// application fails, the transform fails definitively as the rewriter will
+/// have likely left the payload IR in some intermediate state that precludes
+/// further transformation.
+template <typename OpTy>
+class TransformWithPatternsOpTrait
+    : public OpTrait::TraitBase<OpTy, TransformWithPatternsOpTrait> {
+public:
+  DiagnosedSilenceableFailure applyToOne(Operation *target,
+                                         ApplyToEachResultList &results,
+                                         TransformState &state);
+
   static LogicalResult verifyTrait(Operation *op);
 };
 
@@ -756,6 +874,11 @@ bool isHandleConsumed(Value handle, transform::TransformOpInterface transform);
 /// IR resource.
 void modifiesPayload(SmallVectorImpl<MemoryEffects::EffectInstance> &effects);
 void onlyReadsPayload(SmallVectorImpl<MemoryEffects::EffectInstance> &effects);
+
+/// Populates `consumedArguments` with positions of `block` arguments that are
+/// consumed by the operations in the `block`.
+void getConsumedBlockArguments(
+    Block &block, llvm::SmallDenseSet<unsigned> &consumedArguments);
 
 /// Trait implementing the MemoryEffectOpInterface for operations that "consume"
 /// their operands and produce new results.
@@ -994,6 +1117,14 @@ applyTransformToEach(TransformOpTy transformOp, ArrayRef<Operation *> targets,
   return DiagnosedSilenceableFailure::success();
 }
 
+/// Applies patterns configured by `populatePatterns` greedily to the contents
+/// of `target`. Reports (definite) errors at the location of `transformOp`.
+/// Sets up `results` to point to `target` after pattern application on success.
+DiagnosedSilenceableFailure transformWithPatternsApply(
+    Operation *transformOp, Operation *target, ApplyToEachResultList &results,
+    TransformState &state,
+    function_ref<void(RewritePatternSet &)> populatePatterns);
+
 } // namespace detail
 } // namespace transform
 } // namespace mlir
@@ -1054,6 +1185,28 @@ mlir::transform::TransformEachOpTrait<OpTy>::verifyTrait(Operation *op) {
                               "ops that implement TransformOpInterface";
   }
 
+  return success();
+}
+
+template <typename OpTy>
+mlir::DiagnosedSilenceableFailure
+mlir::transform::TransformWithPatternsOpTrait<OpTy>::applyToOne(
+    Operation *target, ApplyToEachResultList &results, TransformState &state) {
+  return detail::transformWithPatternsApply(
+      this->getOperation(), target, results, state,
+      [this](RewritePatternSet &patterns) {
+        cast<OpTy>(this->getOperation()).populatePatterns(patterns);
+      });
+}
+
+template <typename OpTy>
+mlir::LogicalResult
+mlir::transform::TransformWithPatternsOpTrait<OpTy>::verifyTrait(
+    Operation *op) {
+  if (!op->hasTrait<mlir::transform::TransformEachOpTrait>()) {
+    return op->emitOpError()
+           << "TransformWithPatternsOpTrait requires TransformEachOpTrait";
+  }
   return success();
 }
 

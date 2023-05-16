@@ -56,8 +56,8 @@ class FoldingContext;
 // that can also be typeless values are encoded with an "elementalOrBOZ"
 // rank pattern.
 // Assumed-type (TYPE(*)) dummy arguments can be forwarded along to some
-// intrinsic functions that accept AnyType + Rank::anyOrAssumedRank or
-// AnyType + Kind::addressable.
+// intrinsic functions that accept AnyType + Rank::anyOrAssumedRank,
+// AnyType + Rank::arrayOrAssumedRank,  or AnyType + Kind::addressable.
 using CategorySet = common::EnumSet<TypeCategory, 8>;
 static constexpr CategorySet IntType{TypeCategory::Integer};
 static constexpr CategorySet RealType{TypeCategory::Real};
@@ -203,7 +203,8 @@ ENUM_CLASS(Rank,
     coarray, // rank is known and can be scalar; has nonzero corank
     atom, // is scalar and has nonzero corank or is coindexed
     known, // rank is known and can be scalar
-    anyOrAssumedRank, // rank can be unknown; assumed-type TYPE(*) allowed
+    anyOrAssumedRank, // any rank, or assumed; assumed-type TYPE(*) allowed
+    arrayOrAssumedRank, // rank >= 1 or assumed; assumed-type TYPE(*) allowed
     conformable, // scalar, or array of same rank & shape as "array" argument
     reduceOperation, // a pure function with constraints for REDUCE
     dimReduced, // scalar if no DIM= argument, else rank(array)-1
@@ -225,7 +226,7 @@ ENUM_CLASS(ArgFlag, none,
     defaultsToSameKind, // for MatchingDefaultKIND
     defaultsToSizeKind, // for SizeDefaultKIND
     defaultsToDefaultForResult, // for DefaultingKIND
-)
+    notAssumedSize)
 
 struct IntrinsicDummyArgument {
   const char *keyword{nullptr};
@@ -554,7 +555,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         {{"array", AnyData, Rank::anyOrAssumedRank}, RequiredDIM,
             SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
-    {"lbound", {{"array", AnyData, Rank::anyOrAssumedRank}, SizeDefaultKIND},
+    {"lbound", {{"array", AnyData, Rank::arrayOrAssumedRank}, SizeDefaultKIND},
         KINDInt, Rank::vector, IntrinsicClass::inquiryFunction},
     {"lcobound",
         {{"coarray", AnyData, Rank::coarray}, OptionalDIM, SizeDefaultKIND},
@@ -684,8 +685,10 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             common::Intent::In, {ArgFlag::canBeNull}}},
         SameCharNoLen, Rank::scalar, IntrinsicClass::inquiryFunction},
     {"nint", {{"a", AnyReal}, DefaultingKIND}, KINDInt},
-    {"norm2", {{"x", SameReal, Rank::array}, OptionalDIM}, SameReal,
+    {"norm2", {{"x", SameReal, Rank::array}, RequiredDIM}, SameReal,
         Rank::dimReduced, IntrinsicClass::transformationalFunction},
+    {"norm2", {{"x", SameReal, Rank::array}, MissingDIM}, SameReal,
+        Rank::scalar, IntrinsicClass::transformationalFunction},
     {"not", {{"i", SameInt}}, SameInt},
     // NULL() is a special case handled in Probe() below
     {"num_images", {}, DefaultInt, Rank::scalar,
@@ -802,7 +805,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"sind", {{"x", SameFloating}}, SameFloating},
     {"sinh", {{"x", SameFloating}}, SameFloating},
     {"size",
-        {{"array", AnyData, Rank::anyOrAssumedRank},
+        {{"array", AnyData, Rank::arrayOrAssumedRank},
             OptionalDIM, // unless array is assumed-size
             SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
@@ -810,8 +813,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         Rank::scalar, IntrinsicClass::inquiryFunction},
     {"spacing", {{"x", SameReal}}, SameReal},
     {"spread",
-        {{"source", SameType, Rank::known}, RequiredDIM,
-            {"ncopies", AnyInt, Rank::scalar}},
+        {{"source", SameType, Rank::known, Optionality::required,
+             common::Intent::In, {ArgFlag::notAssumedSize}},
+            RequiredDIM, {"ncopies", AnyInt, Rank::scalar}},
         SameType, Rank::rankPlus1, IntrinsicClass::transformationalFunction},
     {"sqrt", {{"x", SameFloating}}, SameFloating},
     {"stopped_images", {OptionalTEAM, SizeDefaultKIND}, KINDInt, Rank::vector,
@@ -862,7 +866,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         {{"array", AnyData, Rank::anyOrAssumedRank}, RequiredDIM,
             SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
-    {"ubound", {{"array", AnyData, Rank::anyOrAssumedRank}, SizeDefaultKIND},
+    {"ubound", {{"array", AnyData, Rank::arrayOrAssumedRank}, SizeDefaultKIND},
         KINDInt, Rank::vector, IntrinsicClass::inquiryFunction},
     {"ucobound",
         {{"coarray", AnyData, Rank::coarray}, OptionalDIM, SizeDefaultKIND},
@@ -1363,7 +1367,7 @@ static const IntrinsicInterface intrinsicSubroutine[]{
         {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"random_number",
         {{"harvest", AnyReal, Rank::known, Optionality::required,
-            common::Intent::Out}},
+            common::Intent::Out, {ArgFlag::notAssumedSize}}},
         {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"random_seed",
         {{"size", DefaultInt, Rank::scalar, Optionality::optional,
@@ -1543,17 +1547,32 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       dummy[dummyArgPatterns - 1].optionality == Optionality::repeats};
   std::vector<ActualArgument *> actualForDummy(
       isMaxMin ? 0 : dummyArgPatterns, nullptr);
-  int missingActualArguments{0};
+  bool anyMissingActualArgument{false};
   std::set<parser::CharBlock> maxMinKeywords;
+  bool anyKeyword{false};
+  int which{0};
   for (std::optional<ActualArgument> &arg : arguments) {
-    if (!arg) {
-      ++missingActualArguments;
-    } else if (arg->isAlternateReturn()) {
-      messages.Say(arg->sourceLocation(),
-          "alternate return specifier not acceptable on call to intrinsic '%s'"_err_en_US,
-          name);
-      return std::nullopt;
-    } else if (isMaxMin) {
+    ++which;
+    if (arg) {
+      if (arg->isAlternateReturn()) {
+        messages.Say(arg->sourceLocation(),
+            "alternate return specifier not acceptable on call to intrinsic '%s'"_err_en_US,
+            name);
+        return std::nullopt;
+      }
+      if (arg->keyword()) {
+        anyKeyword = true;
+      } else if (anyKeyword) {
+        messages.Say(arg ? arg->sourceLocation() : std::nullopt,
+            "actual argument #%d without a keyword may not follow an actual argument with a keyword"_err_en_US,
+            which);
+        return std::nullopt;
+      }
+    } else {
+      anyMissingActualArgument = true;
+      continue;
+    }
+    if (isMaxMin) {
       if (CheckMaxMinArgument(arg->keyword(), maxMinKeywords, name, messages)) {
         actualForDummy.push_back(&*arg);
       } else {
@@ -1561,7 +1580,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       }
     } else {
       bool found{false};
-      int slot{missingActualArguments};
       for (std::size_t j{0}; j < dummyArgPatterns && !found; ++j) {
         if (dummy[j].optionality == Optionality::missing) {
           continue;
@@ -1584,7 +1602,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
             }
           }
         } else {
-          found = !actualForDummy[j] && slot-- == 0;
+          found = !actualForDummy[j] && !anyMissingActualArgument;
         }
         if (found) {
           actualForDummy[j] = &*arg;
@@ -1639,9 +1657,9 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
           // max(a1=x) or max(a2=x)
           const auto kwA1{dummy[0].keyword};
           const auto kwA2{dummy[1].keyword};
-          if (maxMinKeywords.begin()->ToString().compare(kwA1) == 0) {
+          if (maxMinKeywords.begin()->ToString() == kwA1) {
             messages.Say("missing mandatory 'a2=' argument"_err_en_US);
-          } else if (maxMinKeywords.begin()->ToString().compare(kwA2) == 0) {
+          } else if (maxMinKeywords.begin()->ToString() == kwA2) {
             messages.Say("missing mandatory 'a1=' argument"_err_en_US);
           } else {
             messages.Say(
@@ -1672,10 +1690,21 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         }
       }
     }
+    if (d.flags.test(ArgFlag::notAssumedSize)) {
+      if (auto named{ExtractNamedEntity(*arg)}) {
+        if (semantics::IsAssumedSizeArray(named->GetLastSymbol())) {
+          messages.Say(arg->sourceLocation(),
+              "The '%s=' argument to the intrinsic procedure '%s' may not be assumed-size"_err_en_US,
+              d.keyword, name);
+          return std::nullopt;
+        }
+      }
+    }
     if (arg->GetAssumedTypeDummy()) {
       // TYPE(*) assumed-type dummy argument forwarded to intrinsic
       if (d.typePattern.categorySet == AnyType &&
-          d.rank == Rank::anyOrAssumedRank &&
+          (d.rank == Rank::anyOrAssumedRank ||
+              d.rank == Rank::arrayOrAssumedRank) &&
           (d.typePattern.kindCode == KindCode::any ||
               d.typePattern.kindCode == KindCode::addressable)) {
         continue;
@@ -1857,7 +1886,8 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
     if (const ActualArgument *arg{actualForDummy[j]}) {
       bool isAssumedRank{IsAssumedRank(*arg)};
-      if (isAssumedRank && d.rank != Rank::anyOrAssumedRank) {
+      if (isAssumedRank && d.rank != Rank::anyOrAssumedRank &&
+          d.rank != Rank::arrayOrAssumedRank) {
         messages.Say(arg->sourceLocation(),
             "Assumed-rank array cannot be forwarded to '%s=' argument"_err_en_US,
             d.keyword);
@@ -1935,6 +1965,11 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         argOk = rank == knownArg->Rank();
         break;
       case Rank::anyOrAssumedRank:
+      case Rank::arrayOrAssumedRank:
+        if (d.rank == Rank::arrayOrAssumedRank && rank == 0) {
+          argOk = false;
+          break;
+        }
         if (!dimArg && rank > 0 && !isAssumedRank &&
             (std::strcmp(name, "shape") == 0 ||
                 std::strcmp(name, "size") == 0 ||
@@ -1949,8 +1984,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
             if (semantics::IsAssumedSizeArray(named->GetLastSymbol())) {
               if (strcmp(name, "shape") == 0) {
                 messages.Say(arg->sourceLocation(),
-                    "The '%s=' argument to the intrinsic function '%s' may not be assumed-size"_err_en_US,
-                    d.keyword, name);
+                    "The 'source=' argument to the intrinsic function 'shape' may not be assumed-size"_err_en_US);
               } else {
                 messages.Say(arg->sourceLocation(),
                     "A dim= argument is required for '%s' when the array is assumed-size"_err_en_US,
@@ -2231,6 +2265,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   case Rank::atom:
   case Rank::known:
   case Rank::anyOrAssumedRank:
+  case Rank::arrayOrAssumedRank:
   case Rank::reduceOperation:
   case Rank::dimRemovedOrScalar:
     common::die("INTERNAL: bad Rank code on intrinsic '%s' result", name);

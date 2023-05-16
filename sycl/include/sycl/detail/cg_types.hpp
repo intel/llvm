@@ -154,16 +154,16 @@ static constexpr bool check_kernel_lambda_takes_args() {
 // check_kernel_lambda_takes_args with proper set of arguments. Also this type
 // trait workarounds compilation error which happens only with msvc.
 
-template <typename KernelType, typename LambdaArgType,
-          typename std::enable_if_t<std::is_same<LambdaArgType, void>::value>
-              * = nullptr>
+template <
+    typename KernelType, typename LambdaArgType,
+    typename std::enable_if_t<std::is_same_v<LambdaArgType, void>> * = nullptr>
 constexpr bool isKernelLambdaCallableWithKernelHandlerImpl() {
   return check_kernel_lambda_takes_args<KernelType, kernel_handler>();
 }
 
-template <typename KernelType, typename LambdaArgType,
-          typename std::enable_if_t<!std::is_same<LambdaArgType, void>::value>
-              * = nullptr>
+template <
+    typename KernelType, typename LambdaArgType,
+    typename std::enable_if_t<!std::is_same_v<LambdaArgType, void>> * = nullptr>
 constexpr bool isKernelLambdaCallableWithKernelHandlerImpl() {
   return check_kernel_lambda_takes_args<KernelType, LambdaArgType,
                                         kernel_handler>();
@@ -281,13 +281,13 @@ public:
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<std::is_same<ArgT, void>::value>
+  typename std::enable_if_t<std::is_same_v<ArgT, void>>
   runOnHost(const NDRDescT &) {
     runKernelWithoutArg(MKernel);
   }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
+  typename std::enable_if_t<std::is_same_v<ArgT, sycl::id<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
@@ -312,8 +312,7 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<
-      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
+  typename std::enable_if_t<std::is_same_v<ArgT, item<Dims, /*Offset=*/false>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
@@ -330,8 +329,7 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<
-      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
+  typename std::enable_if_t<std::is_same_v<ArgT, item<Dims, /*Offset=*/true>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
@@ -356,7 +354,7 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
+  typename std::enable_if_t<std::is_same_v<ArgT, nd_item<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
@@ -397,7 +395,7 @@ public:
   }
 
   template <typename ArgT = KernelArgType>
-  enable_if_t<std::is_same<ArgT, sycl::group<Dims>>::value>
+  std::enable_if_t<std::is_same_v<ArgT, sycl::group<Dims>>>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> NGroups(InitializedVal<Dims, range>::template get<0>());
 

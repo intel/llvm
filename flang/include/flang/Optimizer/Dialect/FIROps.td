@@ -2146,7 +2146,9 @@ def fir_DoLoopOp : region_Op<"do_loop",
   }];
 }
 
-def fir_IfOp : region_Op<"if", [NoRegionArguments]> {
+def fir_IfOp : region_Op<"if", [DeclareOpInterfaceMethods<RegionBranchOpInterface, [
+    "getRegionInvocationBounds"]>, RecursiveMemoryEffects,
+    NoRegionArguments]> {
   let summary = "if-then-else conditional operation";
   let description = [{
     Used to conditionally execute operations. This operation is the FIR
@@ -2168,7 +2170,7 @@ def fir_IfOp : region_Op<"if", [NoRegionArguments]> {
 
   let regions = (region
     SizedRegion<1>:$thenRegion,
-    AnyRegion:$elseRegion
+    MaxSizedRegion<1>:$elseRegion
   );
 
   let skipDefaultBuilders = 1;
@@ -2354,6 +2356,14 @@ def fir_CallOp : fir_Op<"call",
           (*this)->getAttrOfType<mlir::SymbolRefAttr>(getCalleeAttrName()))
         return calling;
       return getOperand(0);
+    }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(mlir::CallInterfaceCallable callee) {
+      if (auto calling =
+          (*this)->getAttrOfType<mlir::SymbolRefAttr>(getCalleeAttrName()))
+        (*this)->setAttr(getCalleeAttrName(), callee.get<mlir::SymbolRefAttr>());
+      setOperand(0, callee.get<mlir::Value>());
     }
   }];
 }

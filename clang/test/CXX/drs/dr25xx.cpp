@@ -1,5 +1,39 @@
 // RUN: %clang_cc1 -std=c++20 -triple x86_64-unknown-unknown %s -verify
 
+namespace dr2518 { // dr2518: 17
+
+template <class T>
+void f(T t) {
+  if constexpr (sizeof(T) != sizeof(int)) {
+    static_assert(false, "must be int-sized"); // expected-error {{must be int-size}}
+  }
+}
+
+void g(char c) {
+  f(0);
+  f(c); // expected-note {{requested here}}
+}
+
+template <typename Ty>
+struct S {
+  static_assert(false); // expected-error {{static assertion failed}}
+};
+
+template <>
+struct S<int> {};
+
+template <>
+struct S<float> {};
+
+int test_specialization() {
+  S<int> s1;
+  S<float> s2;
+  S<double> s3; // expected-note {{in instantiation of template class 'dr2518::S<double>' requested here}}
+}
+
+}
+
+
 namespace dr2565 { // dr2565: 16 open
   template<typename T>
     concept C = requires (typename T::type x) {
@@ -41,4 +75,25 @@ namespace dr2565 { // dr2565: 16 open
   // expected-error@-1{{constraints not satisfied for class template 'VariadicStruct'}}
   // expected-note@#VSREQ{{because 'Variadic<void, int, char, double>' evaluated to false}}
   // expected-note@#VC{{because 'b' would be invalid: argument may not have 'void' type}}
+
+  template<typename T>
+  // expected-error@+1 {{unknown type name 'ErrorRequires'}}
+  concept ErrorRequires = requires (ErrorRequires auto x) {
+    x;
+  };
+  static_assert(ErrorRequires<int>);
+  // expected-error@-1{{static assertion failed}}
+  // expected-note@-2{{because substituted constraint expression is ill-formed: constraint depends on a previously diagnosed expression}}
+
+  template<typename T>
+  // expected-error@+2 {{unknown type name 'NestedErrorInRequires'}}
+  concept NestedErrorInRequires = requires (T x) {
+    requires requires (NestedErrorInRequires auto y) {
+      y;
+    };
+  };
+  static_assert(NestedErrorInRequires<int>);
+  // expected-error@-1{{static assertion failed}}
+  // expected-note@-2{{because substituted constraint expression is ill-formed: constraint depends on a previously diagnosed expression}}
+
 }

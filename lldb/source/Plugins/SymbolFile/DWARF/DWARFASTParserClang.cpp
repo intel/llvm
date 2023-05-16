@@ -731,10 +731,10 @@ DWARFASTParserClang::ParseTypeModifier(const SymbolContext &sc,
     }
   }
 
-  type_sp = dwarf->MakeType(
-      die.GetID(), attrs.name, attrs.byte_size, nullptr,
-      dwarf->GetUID(attrs.type.Reference()), encoding_data_type, &attrs.decl,
-      clang_type, resolve_state, TypePayloadClang(GetOwningClangModule(die)));
+  type_sp = dwarf->MakeType(die.GetID(), attrs.name, attrs.byte_size, nullptr,
+                            attrs.type.Reference().GetID(), encoding_data_type,
+                            &attrs.decl, clang_type, resolve_state,
+                            TypePayloadClang(GetOwningClangModule(die)));
 
   dwarf->GetDIEToType()[die.GetDIE()] = type_sp.get();
   return type_sp;
@@ -834,11 +834,11 @@ TypeSP DWARFASTParserClang::ParseEnum(const SymbolContext &sc,
 
   LinkDeclContextToDIE(TypeSystemClang::GetDeclContextForType(clang_type), die);
 
-  type_sp = dwarf->MakeType(die.GetID(), attrs.name, attrs.byte_size, nullptr,
-                            dwarf->GetUID(attrs.type.Reference()),
-                            Type::eEncodingIsUID, &attrs.decl, clang_type,
-                            Type::ResolveState::Forward,
-                            TypePayloadClang(GetOwningClangModule(die)));
+  type_sp =
+      dwarf->MakeType(die.GetID(), attrs.name, attrs.byte_size, nullptr,
+                      attrs.type.Reference().GetID(), Type::eEncodingIsUID,
+                      &attrs.decl, clang_type, Type::ResolveState::Forward,
+                      TypePayloadClang(GetOwningClangModule(die)));
 
   if (TypeSystemClang::StartTagDeclarationDefinition(clang_type)) {
     if (die.HasChildren()) {
@@ -1336,7 +1336,7 @@ DWARFASTParserClang::ParseArrayType(const DWARFDIE &die,
   ConstString empty_name;
   TypeSP type_sp =
       dwarf->MakeType(die.GetID(), empty_name, array_element_bit_stride / 8,
-                      nullptr, dwarf->GetUID(type_die), Type::eEncodingIsUID,
+                      nullptr, type_die.GetID(), Type::eEncodingIsUID,
                       &attrs.decl, clang_type, Type::ResolveState::Full);
   type_sp->SetEncodingType(element_type);
   const clang::Type *type = ClangUtil::GetQualType(clang_type).getTypePtr();
@@ -1350,6 +1350,11 @@ TypeSP DWARFASTParserClang::ParsePointerToMemberType(
   Type *pointee_type = dwarf->ResolveTypeUID(attrs.type.Reference(), true);
   Type *class_type =
       dwarf->ResolveTypeUID(attrs.containing_type.Reference(), true);
+
+  // Check to make sure pointers are not NULL before attempting to
+  // dereference them.
+  if ((class_type == nullptr) || (pointee_type == nullptr))
+    return nullptr;
 
   CompilerType pointee_clang_type = pointee_type->GetForwardCompilerType();
   CompilerType class_clang_type = class_type->GetForwardCompilerType();
@@ -2394,12 +2399,12 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
   DWARFRangeList func_ranges;
   const char *name = nullptr;
   const char *mangled = nullptr;
-  int decl_file = 0;
-  int decl_line = 0;
-  int decl_column = 0;
-  int call_file = 0;
-  int call_line = 0;
-  int call_column = 0;
+  std::optional<int> decl_file;
+  std::optional<int> decl_line;
+  std::optional<int> decl_column;
+  std::optional<int> call_file;
+  std::optional<int> call_line;
+  std::optional<int> call_column;
   DWARFExpressionList frame_base;
 
   const dw_tag_t tag = die.Tag();
@@ -2412,7 +2417,7 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
                                &frame_base)) {
     Mangled func_name;
     if (mangled)
-      func_name.SetValue(ConstString(mangled), true);
+      func_name.SetValue(ConstString(mangled));
     else if ((die.GetParent().Tag() == DW_TAG_compile_unit ||
               die.GetParent().Tag() == DW_TAG_partial_unit) &&
              Language::LanguageIsCPlusPlus(
@@ -2423,15 +2428,16 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
       // If the mangled name is not present in the DWARF, generate the
       // demangled name using the decl context. We skip if the function is
       // "main" as its name is never mangled.
-      func_name.SetValue(ConstructDemangledNameFromDWARF(die), false);
+      func_name.SetValue(ConstructDemangledNameFromDWARF(die));
     } else
-      func_name.SetValue(ConstString(name), false);
+      func_name.SetValue(ConstString(name));
 
     FunctionSP func_sp;
     std::unique_ptr<Declaration> decl_up;
-    if (decl_file != 0 || decl_line != 0 || decl_column != 0)
-      decl_up = std::make_unique<Declaration>(die.GetCU()->GetFile(decl_file),
-                                              decl_line, decl_column);
+    if (decl_file || decl_line || decl_column)
+      decl_up = std::make_unique<Declaration>(
+          die.GetCU()->GetFile(decl_file ? *decl_file : 0),
+          decl_line ? *decl_line : 0, decl_column ? *decl_column : 0);
 
     SymbolFileDWARF *dwarf = die.GetDWARF();
     // Supply the type _only_ if it has already been parsed
@@ -2707,7 +2713,7 @@ llvm::Expected<llvm::APInt> DWARFASTParserClang::ExtractIntFromFormValue(
   // For signed types, ask APInt how many bits are required to represent the
   // signed integer.
   const unsigned required_bits =
-      is_unsigned ? result.getActiveBits() : result.getMinSignedBits();
+      is_unsigned ? result.getActiveBits() : result.getSignificantBits();
 
   // If the input value doesn't fit into the integer type, return an error.
   if (required_bits > type_bits) {

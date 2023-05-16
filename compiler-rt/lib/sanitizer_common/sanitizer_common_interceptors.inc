@@ -1350,7 +1350,7 @@ INTERCEPTOR(int, prctl, int option, unsigned long arg2, unsigned long arg3,
     char *name = (char *)arg5;
     COMMON_INTERCEPTOR_READ_RANGE(ctx, name, internal_strlen(name) + 1);
   }
-  int res = REAL(prctl(option, arg2, arg3, arg4, arg5));
+  int res = REAL(prctl)(option, arg2, arg3, arg4, arg5);
   if (option == PR_SET_NAME) {
     char buff[16];
     internal_strncpy(buff, (char *)arg2, 15);
@@ -5763,8 +5763,10 @@ INTERCEPTOR(int, capget, void *hdrp, void *datap) {
   // its metadata. See
   // https://github.com/google/sanitizers/issues/321.
   int res = REAL(capget)(hdrp, datap);
-  if (res == 0 && datap)
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, datap, __user_cap_data_struct_sz);
+  if (res == 0 && datap) {
+    unsigned datasz = __user_cap_data_struct_sz(hdrp);
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, datap, datasz);
+  }
   // We can also return -1 and write to hdrp->version if the version passed in
   // hdrp->version is unsupported. But that's not a trivial condition to check,
   // and anyway COMMON_INTERCEPTOR_READ_RANGE protects us to some extent.
@@ -5775,8 +5777,10 @@ INTERCEPTOR(int, capset, void *hdrp, const void *datap) {
   COMMON_INTERCEPTOR_ENTER(ctx, capset, hdrp, datap);
   if (hdrp)
     COMMON_INTERCEPTOR_READ_RANGE(ctx, hdrp, __user_cap_header_struct_sz);
-  if (datap)
-    COMMON_INTERCEPTOR_READ_RANGE(ctx, datap, __user_cap_data_struct_sz);
+  if (datap) {
+    unsigned datasz = __user_cap_data_struct_sz(hdrp);
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, datap, datasz);
+  }
   return REAL(capset)(hdrp, datap);
 }
 #define INIT_CAPGET                  \
@@ -7744,8 +7748,7 @@ static void write_protoent(void *ctx, struct __sanitizer_protoent *p) {
   for (char **pp = p->p_aliases; *pp; ++pp, ++pp_size)
       COMMON_INTERCEPTOR_WRITE_RANGE(ctx, *pp, internal_strlen(*pp) + 1);
 
-  COMMON_INTERCEPTOR_WRITE_RANGE(ctx, p->p_aliases,
-                                  pp_size * sizeof(char **));
+  COMMON_INTERCEPTOR_WRITE_RANGE(ctx, p->p_aliases, pp_size * sizeof(char *));
 }
 
 INTERCEPTOR(struct __sanitizer_protoent *, getprotoent) {
@@ -7851,8 +7854,7 @@ INTERCEPTOR(struct __sanitizer_netent *, getnetent) {
     for (char **nn = n->n_aliases; *nn; ++nn, ++nn_size)
       COMMON_INTERCEPTOR_WRITE_RANGE(ctx, *nn, internal_strlen(*nn) + 1);
 
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, n->n_aliases,
-                                   nn_size * sizeof(char **));
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, n->n_aliases, nn_size * sizeof(char *));
   }
   return n;
 }
@@ -7873,8 +7875,7 @@ INTERCEPTOR(struct __sanitizer_netent *, getnetbyname, const char *name) {
     for (char **nn = n->n_aliases; *nn; ++nn, ++nn_size)
       COMMON_INTERCEPTOR_WRITE_RANGE(ctx, *nn, internal_strlen(*nn) + 1);
 
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, n->n_aliases,
-                                   nn_size * sizeof(char **));
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, n->n_aliases, nn_size * sizeof(char *));
   }
   return n;
 }
@@ -7893,8 +7894,7 @@ INTERCEPTOR(struct __sanitizer_netent *, getnetbyaddr, u32 net, int type) {
     for (char **nn = n->n_aliases; *nn; ++nn, ++nn_size)
       COMMON_INTERCEPTOR_WRITE_RANGE(ctx, *nn, internal_strlen(*nn) + 1);
 
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, n->n_aliases,
-                                   nn_size * sizeof(char **));
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, n->n_aliases, nn_size * sizeof(char *));
   }
   return n;
 }
@@ -10086,41 +10086,6 @@ INTERCEPTOR(SSIZE_T, getrandom, void *buf, SIZE_T buflen, unsigned int flags) {
 #define INIT_GETRANDOM
 #endif
 
-#if SANITIZER_INTERCEPT_CRYPT
-INTERCEPTOR(char *, crypt, char *key, char *salt) {
-  void *ctx;
-  COMMON_INTERCEPTOR_ENTER(ctx, crypt, key, salt);
-  COMMON_INTERCEPTOR_READ_RANGE(ctx, key, internal_strlen(key) + 1);
-  COMMON_INTERCEPTOR_READ_RANGE(ctx, salt, internal_strlen(salt) + 1);
-  char *res = REAL(crypt)(key, salt);
-  if (res != nullptr)
-    COMMON_INTERCEPTOR_INITIALIZE_RANGE(res, internal_strlen(res) + 1);
-  return res;
-}
-#define INIT_CRYPT COMMON_INTERCEPT_FUNCTION(crypt);
-#else
-#define INIT_CRYPT
-#endif
-
-#if SANITIZER_INTERCEPT_CRYPT_R
-INTERCEPTOR(char *, crypt_r, char *key, char *salt, void *data) {
-  void *ctx;
-  COMMON_INTERCEPTOR_ENTER(ctx, crypt_r, key, salt, data);
-  COMMON_INTERCEPTOR_READ_RANGE(ctx, key, internal_strlen(key) + 1);
-  COMMON_INTERCEPTOR_READ_RANGE(ctx, salt, internal_strlen(salt) + 1);
-  char *res = REAL(crypt_r)(key, salt, data);
-  if (res != nullptr) {
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, data,
-                                   __sanitizer::struct_crypt_data_sz);
-    COMMON_INTERCEPTOR_INITIALIZE_RANGE(res, internal_strlen(res) + 1);
-  }
-  return res;
-}
-#define INIT_CRYPT_R COMMON_INTERCEPT_FUNCTION(crypt_r);
-#else
-#define INIT_CRYPT_R
-#endif
-
 #if SANITIZER_INTERCEPT_GETENTROPY
 INTERCEPTOR(int, getentropy, void *buf, SIZE_T buflen) {
   void *ctx;
@@ -10369,6 +10334,25 @@ INTERCEPTOR(void, hexdump, const void *ptr, int length, const char *header, int 
 #define INIT_HEXDUMP COMMON_INTERCEPT_FUNCTION(hexdump);
 #else
 #define INIT_HEXDUMP
+#endif
+
+#if SANITIZER_INTERCEPT_ARGP_PARSE
+INTERCEPTOR(int, argp_parse, const struct argp *argp, int argc, char **argv,
+            unsigned flags, int *arg_index, void *input) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, argp_parse, argp, argc, argv, flags, arg_index,
+                           input);
+  for (int i = 0; i < argc; i++)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, argv[i], internal_strlen(argv[i]) + 1);
+  int res = REAL(argp_parse)(argp, argc, argv, flags, arg_index, input);
+  if (!res && arg_index)
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, arg_index, sizeof(int));
+  return res;
+}
+
+#define INIT_ARGP_PARSE COMMON_INTERCEPT_FUNCTION(argp_parse);
+#else
+#define INIT_ARGP_PARSE
 #endif
 
 #include "sanitizer_common_interceptors_netbsd_compat.inc"
@@ -10679,8 +10663,6 @@ static void InitializeCommonInterceptors() {
   INIT_GETUSERSHELL;
   INIT_SL_INIT;
   INIT_GETRANDOM;
-  INIT_CRYPT;
-  INIT_CRYPT_R;
   INIT_GETENTROPY;
   INIT_QSORT;
   INIT_QSORT_R;
@@ -10690,6 +10672,7 @@ static void InitializeCommonInterceptors() {
   INIT_UNAME;
   INIT___XUNAME;
   INIT_HEXDUMP;
+  INIT_ARGP_PARSE;
 
   INIT___PRINTF_CHK;
 }

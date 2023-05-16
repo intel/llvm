@@ -15,11 +15,13 @@
 #include "mlir/Target/LLVMIR/Import.h"
 
 #include "AttrKindDetail.h"
+#include "DataLayoutImporter.h"
 #include "DebugImporter.h"
 #include "LoopAnnotationImporter.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
@@ -79,25 +81,6 @@ static constexpr StringRef getGlobalMetadataOpName() {
   return "__llvm_global_metadata";
 }
 
-/// Returns a supported MLIR floating point type of the given bit width or null
-/// if the bit width is not supported.
-static FloatType getDLFloatType(MLIRContext &ctx, int32_t bitwidth) {
-  switch (bitwidth) {
-  case 16:
-    return FloatType::getF16(&ctx);
-  case 32:
-    return FloatType::getF32(&ctx);
-  case 64:
-    return FloatType::getF64(&ctx);
-  case 80:
-    return FloatType::getF80(&ctx);
-  case 128:
-    return FloatType::getF128(&ctx);
-  default:
-    return nullptr;
-  }
-}
-
 /// Converts the sync scope identifier of `inst` to the string representation
 /// necessary to build an atomic LLVM dialect operation. Returns the empty
 /// string if the operation has either no sync scope or the default system-level
@@ -147,92 +130,6 @@ static LogicalResult convertInstructionImpl(OpBuilder &odsBuilder,
   return failure();
 }
 
-/// Creates an attribute containing ABI and preferred alignment numbers parsed
-/// a string. The string may be either "abi:preferred" or just "abi". In the
-/// latter case, the preferred alignment is considered equal to ABI alignment.
-static DenseIntElementsAttr parseDataLayoutAlignment(MLIRContext &ctx,
-                                                     StringRef spec) {
-  auto i32 = IntegerType::get(&ctx, 32);
-
-  StringRef abiString, preferredString;
-  std::tie(abiString, preferredString) = spec.split(':');
-  int abi, preferred;
-  if (abiString.getAsInteger(/*Radix=*/10, abi))
-    return nullptr;
-
-  if (preferredString.empty())
-    preferred = abi;
-  else if (preferredString.getAsInteger(/*Radix=*/10, preferred))
-    return nullptr;
-
-  return DenseIntElementsAttr::get(VectorType::get({2}, i32), {abi, preferred});
-}
-
-/// Translate the given LLVM data layout into an MLIR equivalent using the DLTI
-/// dialect.
-DataLayoutSpecInterface
-mlir::translateDataLayout(const llvm::DataLayout &dataLayout,
-                          MLIRContext *context) {
-  assert(context && "expected MLIR context");
-  std::string layoutstr = dataLayout.getStringRepresentation();
-
-  // Remaining unhandled default layout defaults
-  // e (little endian if not set)
-  // p[n]:64:64:64 (non zero address spaces have 64-bit properties)
-  std::string append =
-      "p:64:64:64-S0-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f16:16:16-f64:"
-      "64:64-f128:128:128-v64:64:64-v128:128:128-a:0:64";
-  if (layoutstr.empty())
-    layoutstr = append;
-  else
-    layoutstr = layoutstr + "-" + append;
-
-  StringRef layout(layoutstr);
-
-  SmallVector<DataLayoutEntryInterface> entries;
-  StringSet<> seen;
-  while (!layout.empty()) {
-    // Split at '-'.
-    std::pair<StringRef, StringRef> split = layout.split('-');
-    StringRef current;
-    std::tie(current, layout) = split;
-
-    // Split at ':'.
-    StringRef kind, spec;
-    std::tie(kind, spec) = current.split(':');
-    if (seen.contains(kind))
-      continue;
-    seen.insert(kind);
-
-    char symbol = kind.front();
-    StringRef parameter = kind.substr(1);
-
-    if (symbol == 'i' || symbol == 'f') {
-      unsigned bitwidth;
-      if (parameter.getAsInteger(/*Radix=*/10, bitwidth))
-        return nullptr;
-      DenseIntElementsAttr params = parseDataLayoutAlignment(*context, spec);
-      if (!params)
-        return nullptr;
-      auto entry = DataLayoutEntryAttr::get(
-          symbol == 'i' ? static_cast<Type>(IntegerType::get(context, bitwidth))
-                        : getDLFloatType(*context, bitwidth),
-          params);
-      entries.emplace_back(entry);
-    } else if (symbol == 'e' || symbol == 'E') {
-      auto value = StringAttr::get(
-          context, symbol == 'e' ? DLTIDialect::kDataLayoutEndiannessLittle
-                                 : DLTIDialect::kDataLayoutEndiannessBig);
-      auto entry = DataLayoutEntryAttr::get(
-          StringAttr::get(context, DLTIDialect::kDataLayoutEndiannessKey),
-          value);
-      entries.emplace_back(entry);
-    }
-  }
-
-  return DataLayoutSpecAttr::get(context, entries);
-}
-
 /// Get a topologically sorted list of blocks for the given function.
 static SetVector<llvm::BasicBlock *>
 getTopologicallySortedBlocks(llvm::Function *func) {
@@ -256,7 +153,7 @@ ModuleImport::ModuleImport(ModuleOp mlirModule,
       typeTranslator(*mlirModule->getContext()),
       debugImporter(std::make_unique<DebugImporter>(mlirModule)),
       loopAnnotationImporter(
-          std::make_unique<LoopAnnotationImporter>(builder)) {
+          std::make_unique<LoopAnnotationImporter>(*this, builder)) {
   builder.setInsertionPointToStart(mlirModule.getBody());
 }
 
@@ -661,6 +558,21 @@ LogicalResult ModuleImport::convertGlobals() {
   return success();
 }
 
+LogicalResult ModuleImport::convertDataLayout() {
+  Location loc = mlirModule.getLoc();
+  DataLayoutImporter dataLayoutImporter(context, llvmModule->getDataLayout());
+  if (!dataLayoutImporter.getDataLayout())
+    return emitError(loc, "cannot translate data layout: ")
+           << dataLayoutImporter.getLastToken();
+
+  for (StringRef token : dataLayoutImporter.getUnhandledTokens())
+    emitWarning(loc, "unhandled data layout token: ") << token;
+
+  mlirModule->setAttr(DLTIDialect::kDataLayoutAttrName,
+                      dataLayoutImporter.getDataLayout());
+  return success();
+}
+
 LogicalResult ModuleImport::convertFunctions() {
   for (llvm::Function &func : llvmModule->functions())
     if (failed(processFunction(&func)))
@@ -788,7 +700,7 @@ Attribute ModuleImport::getConstantAsAttr(llvm::Constant *value) {
     if (type->isBFloatTy())
       floatTy = FloatType::getBF16(context);
     else
-      floatTy = getDLFloatType(*context, type->getScalarSizeInBits());
+      floatTy = detail::getFloatType(context, type->getScalarSizeInBits());
     assert(floatTy && "unsupported floating point type");
     return builder.getFloatAttr(floatTy, c->getValueAPF());
   }
@@ -893,6 +805,8 @@ LogicalResult ModuleImport::convertGlobal(llvm::GlobalVariable *globalVar) {
   }
   if (globalVar->hasSection())
     globalOp.setSection(globalVar->getSection());
+  globalOp.setVisibility_(
+      convertVisibilityFromLLVM(globalVar->getVisibility()));
 
   return success();
 }
@@ -1020,6 +934,12 @@ FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
     return builder.create<NullOp>(loc, type).getResult();
   }
 
+  // Convert poison.
+  if (auto *poisonVal = dyn_cast<llvm::PoisonValue>(constant)) {
+    Type type = convertType(poisonVal->getType());
+    return builder.create<PoisonOp>(loc, type).getResult();
+  }
+
   // Convert undef.
   if (auto *undefVal = dyn_cast<llvm::UndefValue>(constant)) {
     Type type = convertType(undefVal->getType());
@@ -1042,7 +962,7 @@ FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
     // resulting in a conflicting `valueMapping` entry.
     llvm::Instruction *inst = constExpr->getAsInstruction();
     auto guard = llvm::make_scope_exit([&]() {
-      assert(noResultOpMapping.find(inst) == noResultOpMapping.end() &&
+      assert(!noResultOpMapping.contains(inst) &&
              "expected constant expression to return a result");
       valueMapping.erase(inst);
       inst->deleteValue();
@@ -1096,19 +1016,23 @@ FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
     return root;
   }
 
-  if (isa<llvm::BlockAddress>(constant)) {
-    return emitError(loc)
-           << "blockaddress is not implemented in the LLVM dialect";
-  }
+  StringRef error = "";
+  if (isa<llvm::BlockAddress>(constant))
+    error = " since blockaddress(...) is unsupported";
 
-  return emitError(loc) << "unhandled constant: " << diag(*constant);
+  return emitError(loc) << "unhandled constant: " << diag(*constant) << error;
 }
 
 FailureOr<Value> ModuleImport::convertConstantExpr(llvm::Constant *constant) {
+  // Only call the function for constants that have not been translated before
+  // since it updates the constant insertion point assuming the converted
+  // constant has been introduced at the end of the constant section.
+  assert(!valueMapping.contains(constant) &&
+         "expected constant has not been converted before");
   assert(constantInsertionBlock &&
          "expected the constant insertion block to be non-null");
 
-  // Insert the constant after the last one or at the start or the entry block.
+  // Insert the constant after the last one or at the start of the entry block.
   OpBuilder::InsertionGuard guard(builder);
   if (!constantInsertionOp)
     builder.setInsertionPointToStart(constantInsertionBlock);
@@ -1197,6 +1121,13 @@ DILocalVariableAttr ModuleImport::matchLocalVariableAttr(llvm::Value *value) {
   auto *nodeAsVal = cast<llvm::MetadataAsValue>(value);
   auto *node = cast<llvm::DILocalVariable>(nodeAsVal->getMetadata());
   return debugImporter->translate(node);
+}
+
+FailureOr<SmallVector<SymbolRefAttr>>
+ModuleImport::matchAliasScopeAttrs(llvm::Value *value) {
+  auto *nodeAsVal = cast<llvm::MetadataAsValue>(value);
+  auto *node = cast<llvm::MDNode>(nodeAsVal->getMetadata());
+  return lookupAliasScopeAttrs(node);
 }
 
 Location ModuleImport::translateLoc(llvm::DILocation *loc) {
@@ -1347,7 +1278,7 @@ LogicalResult ModuleImport::convertInstruction(llvm::Instruction *inst) {
     SmallVector<Value> operands;
     operands.reserve(lpInst->getNumClauses());
     for (auto i : llvm::seq<unsigned>(0, lpInst->getNumClauses())) {
-      FailureOr<Value> operand = convertConstantExpr(lpInst->getClause(i));
+      FailureOr<Value> operand = convertValue(lpInst->getClause(i));
       if (failed(operand))
         return failure();
       operands.push_back(*operand);
@@ -1367,28 +1298,73 @@ LogicalResult ModuleImport::convertInstruction(llvm::Instruction *inst) {
     if (failed(convertCallTypeAndOperands(invokeInst, types, operands)))
       return failure();
 
-    SmallVector<Value> normalArgs, unwindArgs;
-    (void)convertBranchArgs(invokeInst, invokeInst->getNormalDest(),
-                            normalArgs);
-    (void)convertBranchArgs(invokeInst, invokeInst->getUnwindDest(),
-                            unwindArgs);
+    // Check whether the invoke result is an argument to the normal destination
+    // block.
+    bool invokeResultUsedInPhi = llvm::any_of(
+        invokeInst->getNormalDest()->phis(), [&](const llvm::PHINode &phi) {
+          return phi.getIncomingValueForBlock(invokeInst->getParent()) ==
+                 invokeInst;
+        });
 
+    Block *normalDest = lookupBlock(invokeInst->getNormalDest());
+    Block *directNormalDest = normalDest;
+    if (invokeResultUsedInPhi) {
+      // The invoke result cannot be an argument to the normal destination
+      // block, as that would imply using the invoke operation result in its
+      // definition, so we need to create a dummy block to serve as an
+      // intermediate destination.
+      OpBuilder::InsertionGuard g(builder);
+      directNormalDest = builder.createBlock(normalDest);
+    }
+
+    SmallVector<Value> unwindArgs;
+    if (failed(convertBranchArgs(invokeInst, invokeInst->getUnwindDest(),
+                                 unwindArgs)))
+      return failure();
+
+    // Create the invoke operation. Normal destination block arguments will be
+    // added later on to handle the case in which the operation result is
+    // included in this list.
     InvokeOp invokeOp;
     if (llvm::Function *callee = invokeInst->getCalledFunction()) {
       invokeOp = builder.create<InvokeOp>(
           loc, types,
           SymbolRefAttr::get(builder.getContext(), callee->getName()), operands,
-          lookupBlock(invokeInst->getNormalDest()), normalArgs,
+          directNormalDest, ValueRange(),
           lookupBlock(invokeInst->getUnwindDest()), unwindArgs);
     } else {
       invokeOp = builder.create<InvokeOp>(
-          loc, types, operands, lookupBlock(invokeInst->getNormalDest()),
-          normalArgs, lookupBlock(invokeInst->getUnwindDest()), unwindArgs);
+          loc, types, operands, directNormalDest, ValueRange(),
+          lookupBlock(invokeInst->getUnwindDest()), unwindArgs);
     }
     if (!invokeInst->getType()->isVoidTy())
       mapValue(inst, invokeOp.getResults().front());
     else
       mapNoResultOp(inst, invokeOp);
+
+    SmallVector<Value> normalArgs;
+    if (failed(convertBranchArgs(invokeInst, invokeInst->getNormalDest(),
+                                 normalArgs)))
+      return failure();
+
+    if (invokeResultUsedInPhi) {
+      // The dummy normal dest block will just host an unconditional branch
+      // instruction to the normal destination block passing the required block
+      // arguments (including the invoke operation's result).
+      OpBuilder::InsertionGuard g(builder);
+      builder.setInsertionPointToStart(directNormalDest);
+      builder.create<LLVM::BrOp>(loc, normalArgs, normalDest);
+    } else {
+      // If the invoke operation's result is not a block argument to the normal
+      // destination block, just add the block arguments as usual.
+      assert(llvm::none_of(
+                 normalArgs,
+                 [&](Value val) { return val.getDefiningOp() == invokeOp; }) &&
+             "An llvm.invoke operation cannot pass its result as a block "
+             "argument.");
+      invokeOp.getNormalDestOperandsMutable().append(normalArgs);
+    }
+
     return success();
   }
   if (inst->getOpcode() == llvm::Instruction::GetElementPtr) {
@@ -1611,6 +1587,8 @@ LogicalResult ModuleImport::processFunction(llvm::Function *func) {
   if (func->hasGC())
     funcOp.setGarbageCollector(StringRef(func->getGC()));
 
+  funcOp.setVisibility_(convertVisibilityFromLLVM(func->getVisibility()));
+
   // Handle Function attributes.
   processFunctionAttributes(func, funcOp);
 
@@ -1706,16 +1684,10 @@ mlir::translateLLVMIRToModule(std::unique_ptr<llvm::Module> llvmModule,
       StringAttr::get(context, llvmModule->getSourceFileName()), /*line=*/0,
       /*column=*/0)));
 
-  DataLayoutSpecInterface dlSpec =
-      translateDataLayout(llvmModule->getDataLayout(), context);
-  if (!dlSpec) {
-    emitError(UnknownLoc::get(context), "can't translate data layout");
-    return {};
-  }
-  module.get()->setAttr(DLTIDialect::kDataLayoutAttrName, dlSpec);
-
   ModuleImport moduleImport(module.get(), std::move(llvmModule));
   if (failed(moduleImport.initializeImportInterface()))
+    return {};
+  if (failed(moduleImport.convertDataLayout()))
     return {};
   if (failed(moduleImport.convertMetadata()))
     return {};

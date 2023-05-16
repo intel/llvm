@@ -8,7 +8,9 @@
 
 #pragma once
 #include <sycl/functional.hpp>
+#include <sycl/half_type.hpp>
 
+#include <complex>
 #include <functional>
 
 namespace sycl {
@@ -31,40 +33,37 @@ namespace detail {
 struct GroupOpISigned {};
 struct GroupOpIUnsigned {};
 struct GroupOpFP {};
+struct GroupOpC {};
 
 template <typename T, typename = void> struct GroupOpTag;
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sigeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger<T>::value>> {
   using type = GroupOpISigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger<T>::value>> {
   using type = GroupOpIUnsigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
   using type = GroupOpFP;
 };
 
+template <typename T>
+struct GroupOpTag<
+    T, std::enable_if_t<std::is_same<T, std::complex<half>>::value ||
+                        std::is_same<T, std::complex<float>>::value ||
+                        std::is_same<T, std::complex<double>>::value>> {
+  using type = GroupOpC;
+};
+
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
-  template <typename T, __spv::GroupOperation O, __spv::Scope::Flag S>         \
-  static T calc(GroupTag, T x, BinaryOperation) {                              \
-    using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
-                                                                               \
-    using OCLT =                                                               \
-        conditional_t<std::is_same<ConvertedT, cl_char>() ||                   \
-                          std::is_same<ConvertedT, cl_short>(),                \
-                      cl_int,                                                  \
-                      conditional_t<std::is_same<ConvertedT, cl_uchar>() ||    \
-                                        std::is_same<ConvertedT, cl_ushort>(), \
-                                    cl_uint, ConvertedT>>;                     \
-    OCLT Arg = x;                                                              \
-    OCLT Ret =                                                                 \
-        __spirv_Group##SPIRVOperation(S, static_cast<unsigned int>(O), Arg);   \
-    return Ret;                                                                \
+  template <__spv::GroupOperation O, typename Group, typename T>               \
+  static T calc(Group g, GroupTag, T x, BinaryOperation) {                     \
+    return sycl::detail::spirv::Group##SPIRVOperation<O>(g, x);                \
   }
 
 // calc for sycl function objects
@@ -83,6 +82,7 @@ __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpISigned, IMulKHR, sycl::multiplies<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMulKHR, sycl::multiplies<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpC, CMulINTEL, sycl::multiplies<T>)
 
 __SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOrKHR, sycl::bit_or<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOrKHR, sycl::bit_or<T>)
@@ -93,10 +93,11 @@ __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndKHR, sycl::bit_and<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 
-template <typename T, __spv::GroupOperation O, __spv::Scope::Flag S,
+template <__spv::GroupOperation O, typename Group, typename T,
           template <typename> class BinaryOperation>
-static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
-  return calc<T, O, S>(typename GroupOpTag<T>::type(), x, BinaryOperation<T>());
+static T calc(Group g, typename GroupOpTag<T>::type, T x,
+              BinaryOperation<void>) {
+  return calc<O>(g, typename GroupOpTag<T>::type(), x, BinaryOperation<T>());
 }
 
 } // namespace detail

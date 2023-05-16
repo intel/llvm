@@ -28,8 +28,8 @@ pi_native_handle interop_handler::GetNativeMem(detail::Requirement *Req) const {
 
   auto Plugin = MQueue->getPlugin();
   pi_native_handle Handle;
-  Plugin.call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
-                                                          &Handle);
+  Plugin->call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
+                                                           &Handle);
   return Handle;
 }
 

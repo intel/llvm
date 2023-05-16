@@ -20,4 +20,19 @@ def BufferizeHLFIR : Pass<"bufferize-hlfir", "::mlir::ModuleOp"> {
   let constructor = "hlfir::createBufferizeHLFIRPass()";
 }
 
+def LowerHLFIRIntrinsics : Pass<"lower-hlfir-intrinsics", "::mlir::ModuleOp"> {
+  let summary = "Lower HLFIR transformational intrinsic operations";
+  let constructor = "hlfir::createLowerHLFIRIntrinsicsPass()";
+}
+
+def LowerHLFIROrderedAssignments : Pass<"lower-hlfir-ordered-assignments", "::mlir::ModuleOp"> {
+  let summary = "Lower HLFIR ordered assignments like forall and where operations";
+  let constructor = "hlfir::createLowerHLFIROrderedAssignmentsPass()";
+}
+
+def SimplifyHLFIRIntrinsics : Pass<"simplify-hlfir-intrinsics", "::mlir::func::FuncOp"> {
+  let summary = "Simplify HLFIR intrinsic operations that don't need to result in runtime calls";
+  let constructor = "hlfir::createSimplifyHLFIRIntrinsicsPass()";
+}
+
 #endif //FORTRAN_DIALECT_HLFIR_PASSES

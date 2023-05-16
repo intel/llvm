@@ -367,6 +367,38 @@ bool lldb_private::LLDBSWIGPythonCallThreadPlan(
   return false;
 }
 
+bool lldb_private::LLDBSWIGPythonCallThreadPlan(
+    void *implementor, const char *method_name, lldb_private::Stream *stream,
+    bool &got_error) {
+  got_error = false;
+
+  PyErr_Cleaner py_err_cleaner(false);
+  PythonObject self(PyRefType::Borrowed, static_cast<PyObject *>(implementor));
+  auto pfunc = self.ResolveName<PythonCallable>(method_name);
+
+  if (!pfunc.IsAllocated()) 
+    return false;
+
+  auto *sb_stream = new lldb::SBStream();
+  PythonObject sb_stream_arg =
+      ToSWIGWrapper(std::unique_ptr<lldb::SBStream>(sb_stream));
+
+  PythonObject result;
+  result = pfunc(sb_stream_arg);
+
+  if (PyErr_Occurred()) {
+    printf("Error occured for call to %s.\n",
+           method_name);
+    PyErr_Print();
+    got_error = true;
+    return false;
+  }
+  if (stream)
+    stream->PutCString(sb_stream->GetData());
+  return true;
+
+}
+
 PythonObject lldb_private::LLDBSwigPythonCreateScriptedBreakpointResolver(
     const char *python_class_name, const char *session_dictionary_name,
     const StructuredDataImpl &args_impl,
@@ -716,6 +748,42 @@ void *lldb_private::LLDBSWIGPython_CastPyObjectToSBData(PyObject * data) {
   return sb_ptr;
 }
 
+void *lldb_private::LLDBSWIGPython_CastPyObjectToSBBreakpoint(PyObject * data) {
+  lldb::SBBreakpoint *sb_ptr = nullptr;
+
+  int valid_cast =
+      SWIG_ConvertPtr(data, (void **)&sb_ptr, SWIGTYPE_p_lldb__SBBreakpoint, 0);
+
+  if (valid_cast == -1)
+    return NULL;
+
+  return sb_ptr;
+}
+
+void *lldb_private::LLDBSWIGPython_CastPyObjectToSBAttachInfo(PyObject * data) {
+  lldb::SBAttachInfo *sb_ptr = nullptr;
+
+  int valid_cast =
+      SWIG_ConvertPtr(data, (void **)&sb_ptr, SWIGTYPE_p_lldb__SBAttachInfo, 0);
+
+  if (valid_cast == -1)
+    return NULL;
+
+  return sb_ptr;
+}
+
+void *lldb_private::LLDBSWIGPython_CastPyObjectToSBLaunchInfo(PyObject * data) {
+  lldb::SBLaunchInfo *sb_ptr = nullptr;
+
+  int valid_cast =
+      SWIG_ConvertPtr(data, (void **)&sb_ptr, SWIGTYPE_p_lldb__SBLaunchInfo, 0);
+
+  if (valid_cast == -1)
+    return NULL;
+
+  return sb_ptr;
+}
+
 void *lldb_private::LLDBSWIGPython_CastPyObjectToSBError(PyObject * data) {
   lldb::SBError *sb_ptr = nullptr;
 
@@ -1034,6 +1102,18 @@ static void LLDBSwigPythonCallPythonLogOutputCallback(const char *str,
     SWIG_PYTHON_THREAD_BEGIN_BLOCK;
     PyObject *result = PyObject_CallFunction(
         reinterpret_cast<PyObject *>(baton), const_cast<char *>("s"), str);
+    Py_XDECREF(result);
+    SWIG_PYTHON_THREAD_END_BLOCK;
+  }
+}
+
+// For DebuggerTerminateCallback functions
+static void LLDBSwigPythonCallPythonSBDebuggerTerminateCallback(lldb::user_id_t debugger_id,
+                                                      void *baton) {
+  if (baton != Py_None) {
+    SWIG_PYTHON_THREAD_BEGIN_BLOCK;
+    PyObject *result = PyObject_CallFunction(
+        reinterpret_cast<PyObject *>(baton), const_cast<char *>("l"), debugger_id);
     Py_XDECREF(result);
     SWIG_PYTHON_THREAD_END_BLOCK;
   }

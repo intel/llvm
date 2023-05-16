@@ -302,4 +302,12 @@ SYCL_EXTERNAL void test_math_intrins() SYCL_ESIMD_FUNCTION {
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.ieee.sqrt.v8f32(<8 x float> %{{[a-zA-Z0-9.]+}})
     use(y);
   }
+  {
+    vec<int, 8> x0 = get8i();
+    vec<int, 8> x1 = get8i();
+    vec<int, 8> x2 = get8i();
+    auto res = __esimd_bfn<0xff, int, 8>(x0, x1, x2);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.bfn.v8i32.v8i32(<8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}}, i8 -1)
+    use(res);
+  }
 }

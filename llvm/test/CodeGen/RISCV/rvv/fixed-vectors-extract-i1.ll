@@ -30,7 +30,6 @@ define i1 @extractelt_v2i1(ptr %x, i64 %idx) nounwind {
 ; CHECK-NEXT:    vmseq.vi v0, v8, 0
 ; CHECK-NEXT:    vmv.v.i v8, 0
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
-; CHECK-NEXT:    vsetivli zero, 1, e8, mf8, ta, ma
 ; CHECK-NEXT:    vslidedown.vx v8, v8, a1
 ; CHECK-NEXT:    vmv.x.s a0, v8
 ; CHECK-NEXT:    ret
@@ -48,7 +47,6 @@ define i1 @extractelt_v4i1(ptr %x, i64 %idx) nounwind {
 ; CHECK-NEXT:    vmseq.vi v0, v8, 0
 ; CHECK-NEXT:    vmv.v.i v8, 0
 ; CHECK-NEXT:    vmerge.vim v8, v8, 1, v0
-; CHECK-NEXT:    vsetivli zero, 1, e8, mf4, ta, ma
 ; CHECK-NEXT:    vslidedown.vx v8, v8, a1
 ; CHECK-NEXT:    vmv.x.s a0, v8
 ; CHECK-NEXT:    ret
@@ -343,7 +341,7 @@ define i1 @extractelt_v256i1(ptr %x, i64 %idx) nounwind {
 ; RV32-NEXT:    vmerge.vim v8, v16, 1, v0
 ; RV32-NEXT:    addi a0, sp, 128
 ; RV32-NEXT:    vse8.v v8, (a0)
-; RV32-NEXT:    lb a0, 0(a1)
+; RV32-NEXT:    lbu a0, 0(a1)
 ; RV32-NEXT:    addi sp, s0, -384
 ; RV32-NEXT:    lw ra, 380(sp) # 4-byte Folded Reload
 ; RV32-NEXT:    lw s0, 376(sp) # 4-byte Folded Reload
@@ -374,7 +372,7 @@ define i1 @extractelt_v256i1(ptr %x, i64 %idx) nounwind {
 ; RV64-NEXT:    vmerge.vim v8, v16, 1, v0
 ; RV64-NEXT:    addi a0, sp, 128
 ; RV64-NEXT:    vse8.v v8, (a0)
-; RV64-NEXT:    lb a0, 0(a1)
+; RV64-NEXT:    lbu a0, 0(a1)
 ; RV64-NEXT:    addi sp, s0, -384
 ; RV64-NEXT:    ld ra, 376(sp) # 8-byte Folded Reload
 ; RV64-NEXT:    ld s0, 368(sp) # 8-byte Folded Reload
@@ -405,7 +403,7 @@ define i1 @extractelt_v256i1(ptr %x, i64 %idx) nounwind {
 ; RV32ZBS-NEXT:    vmerge.vim v8, v16, 1, v0
 ; RV32ZBS-NEXT:    addi a0, sp, 128
 ; RV32ZBS-NEXT:    vse8.v v8, (a0)
-; RV32ZBS-NEXT:    lb a0, 0(a1)
+; RV32ZBS-NEXT:    lbu a0, 0(a1)
 ; RV32ZBS-NEXT:    addi sp, s0, -384
 ; RV32ZBS-NEXT:    lw ra, 380(sp) # 4-byte Folded Reload
 ; RV32ZBS-NEXT:    lw s0, 376(sp) # 4-byte Folded Reload
@@ -436,7 +434,7 @@ define i1 @extractelt_v256i1(ptr %x, i64 %idx) nounwind {
 ; RV64ZBS-NEXT:    vmerge.vim v8, v16, 1, v0
 ; RV64ZBS-NEXT:    addi a0, sp, 128
 ; RV64ZBS-NEXT:    vse8.v v8, (a0)
-; RV64ZBS-NEXT:    lb a0, 0(a1)
+; RV64ZBS-NEXT:    lbu a0, 0(a1)
 ; RV64ZBS-NEXT:    addi sp, s0, -384
 ; RV64ZBS-NEXT:    ld ra, 376(sp) # 8-byte Folded Reload
 ; RV64ZBS-NEXT:    ld s0, 368(sp) # 8-byte Folded Reload
@@ -455,7 +453,7 @@ define i1 @extractelt_v1i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v8, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v8
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <1 x i8>, ptr %x
   %b = icmp eq <1 x i8> %a, zeroinitializer
@@ -470,7 +468,7 @@ define i1 @extractelt_v2i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v8, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v8
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <2 x i8>, ptr %x
   %b = icmp eq <2 x i8> %a, zeroinitializer
@@ -485,7 +483,7 @@ define i1 @extractelt_v4i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v8, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v8
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <4 x i8>, ptr %x
   %b = icmp eq <4 x i8> %a, zeroinitializer
@@ -500,7 +498,7 @@ define i1 @extractelt_v8i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v8, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v8
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <8 x i8>, ptr %x
   %b = icmp eq <8 x i8> %a, zeroinitializer
@@ -515,7 +513,7 @@ define i1 @extractelt_v16i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v8, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v8
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, ptr %x
   %b = icmp eq <16 x i8> %a, zeroinitializer
@@ -531,7 +529,7 @@ define i1 @extractelt_v32i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v10, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v10
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <32 x i8>, ptr %x
   %b = icmp eq <32 x i8> %a, zeroinitializer
@@ -547,7 +545,7 @@ define i1 @extractelt_v64i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v12, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v12
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <64 x i8>, ptr %x
   %b = icmp eq <64 x i8> %a, zeroinitializer
@@ -563,7 +561,7 @@ define i1 @extractelt_v128i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v16, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v16
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <128 x i8>, ptr %x
   %b = icmp eq <128 x i8> %a, zeroinitializer
@@ -579,7 +577,7 @@ define i1 @extractelt_v256i1_idx0(ptr %x) nounwind {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vmseq.vi v16, v8, 0
 ; CHECK-NEXT:    vfirst.m a0, v16
-; CHECK-NEXT:    seqz a0, a0
+; CHECK-NEXT:    snez a0, a0
 ; CHECK-NEXT:    ret
   %a = load <256 x i8>, ptr %x
   %b = icmp eq <256 x i8> %a, zeroinitializer

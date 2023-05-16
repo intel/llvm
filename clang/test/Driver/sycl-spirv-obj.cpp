@@ -10,6 +10,8 @@
 // SPIRV_DEVICE_OBJ-SAME: "-fsycl-is-device"
 // SPIRV_DEVICE_OBJ-SAME: "-o" "[[DEVICE_BC:.+\.bc]]"
 // SPIRV_DEVICE_OBJ: llvm-spirv{{.*}} "-o" "[[DEVICE_SPV:.+\.spv]]"
+// SPIRV_DEVICE_OBJ-SAME: "--spirv-preserve-auxdata"
+// SPIRV_DEVICE_OBJ-SAME: "-spirv-ext=-all,{{.*}},+SPV_KHR_non_semantic_info"
 // SPIRV_DEVICE_OBJ-SAME: "[[DEVICE_BC]]"
 // SPIRV_DEVICE_OBJ: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"
 // SPIRV_DEVICE_OBJ-SAME: "-fsycl-is-host"
@@ -38,5 +40,5 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-obj=spirv -### %t.o 2>&1 | \
 // RUN:  FileCheck %s -check-prefixes=OPT_WARNING,LLVM_SPIRV_R
 // OPT_WARNING: warning: argument unused during compilation: '-fsycl-device-obj=spirv'
-// LLVM_SPIRV_R: spirv-to-ir-wrapper{{.*}}
+// LLVM_SPIRV_R: spirv-to-ir-wrapper{{.*}} "-llvm-spirv-opts" "--spirv-preserve-auxdata"
 // LLVM_SPIRV_R-NOT: llvm-spirv{{.*}} "-r"

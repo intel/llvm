@@ -191,9 +191,6 @@ used variables that control features of LLVM and enabled subprojects.
 
 **CMAKE_BUILD_TYPE**:STRING
   This configures the optimization level for ``make`` or ``ninja`` builds.
-  The default ``CMAKE_BUILD_TYPE`` is set to ``Debug`` but you should
-  carefully read the list below to figure out what configuration matches
-  your use case the best.
 
   Possible values:
 
@@ -746,8 +743,8 @@ enabled sub-projects. Nearly all of these variable names begin with
   Semicolon-separated list of targets to build, or *all* for building all
   targets. Case-sensitive. Defaults to *all*. Example:
   ``-DLLVM_TARGETS_TO_BUILD="X86;PowerPC"``.
-  The full list, as of October 2022, is:
-  ``AArch64;AMDGPU;ARM;AVR;BPF;Hexagon;Lanai;Mips;MSP430;NVPTX;PowerPC;RISCV;Sparc;SystemZ;VE;WebAssembly;X86;XCore``
+  The full list, as of March 2023, is:
+  ``AArch64;AMDGPU;ARM;AVR;BPF;Hexagon;Lanai;LoongArch;Mips;MSP430;NVPTX;PowerPC;RISCV;Sparc;SystemZ;VE;WebAssembly;X86;XCore``
 
 **LLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN**:BOOL
   If enabled, the compiler version check will only warn when using a toolchain

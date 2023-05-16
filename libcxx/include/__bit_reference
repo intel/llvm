@@ -19,8 +19,9 @@
 #include <__iterator/iterator_traits.h>
 #include <__memory/construct_at.h>
 #include <__memory/pointer_traits.h>
+#include <__type_traits/conditional.h>
+#include <__utility/swap.h>
 #include <cstring>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -155,6 +156,8 @@ class __bit_const_reference
     friend typename _Cp::__self;
     friend class __bit_iterator<_Cp, true>;
 public:
+    using __container = typename _Cp::__self;
+
     _LIBCPP_INLINE_VISIBILITY
     __bit_const_reference(const __bit_const_reference&) = default;
 

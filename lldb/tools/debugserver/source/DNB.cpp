@@ -793,6 +793,14 @@ DNBProcessAttachWait(RNBContext *ctx, const char *waitfor_process_name,
   if (waitfor_pid != INVALID_NUB_PROCESS) {
     DNBLogThreadedIf(LOG_PROCESS, "Attaching to %s with pid %i...\n",
                      waitfor_process_name, waitfor_pid);
+    // In some cases, we attempt to attach during the transition from
+    // /usr/lib/dyld to the dyld in the shared cache. If that happens, we may
+    // end up in a state where there is no dyld in the process and from there
+    // the debugging session is doomed.
+    // In an attempt to make this scenario much less likely, we sleep
+    // for an additional `waitfor_interval` number of microseconds before
+    // attaching.
+    ::usleep(waitfor_interval);
     waitfor_pid = DNBProcessAttach(waitfor_pid, timeout_abstime,
                                    ctx->GetIgnoredExceptions(), err_str, 
                                    err_len);
@@ -1760,10 +1768,8 @@ std::string DNBGetMacCatalystVersionString() {
 void DNBInitialize() {
   DNBLogThreadedIf(LOG_PROCESS, "DNBInitialize ()");
 #if defined(__i386__) || defined(__x86_64__)
-  DNBArchImplI386::Initialize();
   DNBArchImplX86_64::Initialize();
 #elif defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
-  DNBArchMachARM::Initialize();
   DNBArchMachARM64::Initialize();
 #endif
 }

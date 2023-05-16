@@ -568,6 +568,122 @@ func.func @atan2() {
 }
 
 
+// -------------------------------------------------------------------------- //
+// Cbrt.
+// -------------------------------------------------------------------------- //
+
+func.func @cbrt_f32(%a : f32) {
+  %r = math.cbrt %a : f32
+  vector.print %r : f32
+  return
+}
+
+func.func @cbrt() {
+  // CHECK: 1
+  %a = arith.constant 1.0 : f32
+  call @cbrt_f32(%a) : (f32) -> ()
+
+  // CHECK: -1
+  %b = arith.constant -1.0 : f32
+  call @cbrt_f32(%b) : (f32) -> ()
+
+  // CHECK: 0
+  %c = arith.constant 0.0 : f32
+  call @cbrt_f32(%c) : (f32) -> ()
+
+  // CHECK: -0
+  %d = arith.constant -0.0 : f32
+  call @cbrt_f32(%d) : (f32) -> ()
+
+  // CHECK: 10
+  %e = arith.constant 1000.0 : f32
+  call @cbrt_f32(%e) : (f32) -> ()
+
+  // CHECK: -10
+  %f = arith.constant -1000.0 : f32
+  call @cbrt_f32(%f) : (f32) -> ()
+
+  // CHECK: 2.57128
+  %g = arith.constant 17.0 : f32
+  call @cbrt_f32(%g) : (f32) -> ()
+
+  return
+}
+
+// -------------------------------------------------------------------------- //
+// floor.
+// -------------------------------------------------------------------------- //
+func.func @func_floorf32(%a : f32) {
+  %r = math.floor %a : f32
+  vector.print %r : f32
+  return
+}
+
+func.func @floorf() {
+  // CHECK: 3
+  %a = arith.constant 3.8 : f32
+  call @func_floorf32(%a) : (f32) -> ()
+
+  // CHECK: -4
+  %b = arith.constant -3.8 : f32
+  call @func_floorf32(%b) : (f32) -> ()
+
+  // CHECK: 0
+  %c = arith.constant 0.0 : f32
+  call @func_floorf32(%c) : (f32) -> ()
+
+  // CHECK: -5
+  %d = arith.constant -4.2 : f32
+  call @func_floorf32(%d) : (f32) -> ()
+
+  // CHECK: -2
+  %e = arith.constant -2.0 : f32
+  call @func_floorf32(%e) : (f32) -> ()
+
+  // CHECK: 2
+  %f = arith.constant 2.0 : f32
+  call @func_floorf32(%f) : (f32) -> ()
+
+  return
+}
+
+// -------------------------------------------------------------------------- //
+// ceil.
+// -------------------------------------------------------------------------- //
+func.func @func_ceilf32(%a : f32) {
+  %r = math.ceil %a : f32
+  vector.print %r : f32
+  return
+}
+
+func.func @ceilf() {
+  // CHECK: 4
+  %a = arith.constant 3.8 : f32
+  call @func_ceilf32(%a) : (f32) -> ()
+
+  // CHECK: -3
+  %b = arith.constant -3.8 : f32
+  call @func_ceilf32(%b) : (f32) -> ()
+
+  // CHECK: 0
+  %c = arith.constant 0.0 : f32
+  call @func_ceilf32(%c) : (f32) -> ()
+
+  // CHECK: -4
+  %d = arith.constant -4.2 : f32
+  call @func_ceilf32(%d) : (f32) -> ()
+
+  // CHECK: -495
+  %e = arith.constant -495.0 : f32
+  call @func_ceilf32(%e) : (f32) -> ()
+
+  // CHECK: 495
+  %f = arith.constant 495.0 : f32
+  call @func_ceilf32(%f) : (f32) -> ()
+
+  return
+}
+
 func.func @main() {
   call @tanh(): () -> ()
   call @log(): () -> ()
@@ -580,5 +696,10 @@ func.func @main() {
   call @cos(): () -> ()
   call @atan() : () -> ()
   call @atan2() : () -> ()
+  call @cbrt() : () -> ()
+  call @floorf() : () -> ()
+  call @ceilf() : () -> ()
   return
 }
+
+

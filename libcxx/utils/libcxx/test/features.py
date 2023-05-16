@@ -7,10 +7,11 @@
 #===----------------------------------------------------------------------===##
 
 from libcxx.test.dsl import *
+from lit.BooleanExpression import BooleanExpression
 import re
 import shutil
-import sys
 import subprocess
+import sys
 
 _isClang      = lambda cfg: '__clang__' in compilerMacros(cfg) and '__apple_build_version__' not in compilerMacros(cfg)
 _isAppleClang = lambda cfg: '__apple_build_version__' in compilerMacros(cfg)
@@ -239,7 +240,10 @@ for locale, alts in locales.items():
 DEFAULT_FEATURES += [
   Feature(name='darwin', when=lambda cfg: '__APPLE__' in compilerMacros(cfg)),
   Feature(name='windows', when=lambda cfg: '_WIN32' in compilerMacros(cfg)),
-  Feature(name='windows-dll', when=lambda cfg: '_WIN32' in compilerMacros(cfg) and programSucceeds(cfg, """
+  Feature(name='windows-dll', when=lambda cfg: '_WIN32' in compilerMacros(cfg) and sourceBuilds(cfg, """
+            #include <iostream>
+            int main(int, char**) { return 0; }
+          """) and programSucceeds(cfg, """
             #include <iostream>
             #include <windows.h>
             #include <winnt.h>
@@ -317,4 +321,64 @@ DEFAULT_FEATURES += [
     when=check_gdb,
     actions=[AddSubstitution('%{gdb}', lambda cfg: shutil.which('gdb'))]
   )
+]
+
+# Define features for back-deployment testing.
+#
+# These features can be used to XFAIL tests that fail when deployed on (or compiled
+# for) an older system. For example, if a test exhibits a bug in the libc on a
+# particular system version, or if it uses a symbol that is not available on an
+# older version of the dylib, it can be marked as XFAIL with these features.
+#
+# It is sometimes useful to check that a test fails specifically when compiled for a
+# given deployment target. For example, this is the case when testing availability
+# markup, where we want to make sure that using the annotated facility on a deployment
+# target that doesn't support it will fail at compile time, not at runtime. This can
+# be achieved by creating a `.verify.cpp` test that checks for the right errors, and
+# mark that test as requiring `stdlib=<vendor>-libc++ && target=<target>`.
+DEFAULT_FEATURES += [
+  # Tests that require std::to_chars(floating-point) in the built library
+  Feature(name='availability-fp_to_chars-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx{{(10.9|10.10|10.11|10.12|10.13|10.14|10.15|11.0|12.0|13.0)(.0)?}}', cfg.available_features)),
+
+  # Tests that require https://wg21.link/P0482 support in the built library
+  Feature(name='availability-char8_t_support-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx{{(10.9|10.10|10.11|10.12|10.13|10.14|10.15|11.0)(.0)?}}', cfg.available_features)),
+
+  # Tests that require __libcpp_verbose_abort support in the built library
+  Feature(name='availability-verbose_abort-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx{{(10.9|10.10|10.11|10.12|10.13|10.14|10.15|11.0|12.0|13.0)(.0)?}}', cfg.available_features)),
+
+  # Tests that require std::bad_variant_access in the built library
+  Feature(name='availability-bad_variant_access-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{(9|10|11|12)(.0)?}}', cfg.available_features)),
+
+  # Tests that require std::bad_optional_access in the built library
+  Feature(name='availability-bad_optional_access-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{(9|10|11|12)(.0)?}}', cfg.available_features)),
+
+  # Tests that require std::bad_any_cast in the built library
+  Feature(name='availability-bad_any_cast-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{(9|10|11|12)(.0)?}}', cfg.available_features)),
+
+  # Tests that require std::pmr support in the built library
+  Feature(name='availability-pmr-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx{{(10.9|10.10|10.11|10.12|10.13|10.14|10.15|11.0)(.0)?}}', cfg.available_features)),
+
+  # Tests that require std::filesystem support in the built library
+  Feature(name='availability-filesystem-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{(9|10|11|12|13|14)(.0)?}}', cfg.available_features)),
+
+  # Tests that require the C++20 synchronization library (P1135R6 implemented by https://llvm.org/D68480) in the built library
+  Feature(name='availability-synchronization_library-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{(9|10|11|12|13|14|15)(.0)?}}', cfg.available_features)),
+
+  # Tests that require support for std::shared_mutex and std::shared_timed_mutex in the built library
+  Feature(name='availability-shared_mutex-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{(9|10|11)(.0)?}}', cfg.available_features)),
+
+  # Tests that require support for aligned allocation in the built library. This is about `operator new(..., std::align_val_t, ...)` specifically,
+  # not other forms of aligned allocation.
+  Feature(name='availability-aligned_allocation-missing',
+    when=lambda cfg: BooleanExpression.evaluate('stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{(9|10|11|12)(.0)?}}', cfg.available_features)),
 ]

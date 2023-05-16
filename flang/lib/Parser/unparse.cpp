@@ -1794,10 +1794,10 @@ public:
     Put('\n');
   }
   void Unparse(const CompilerDirective::IgnoreTKR &x) {
-    const auto &list{std::get<std::list<const char *>>(x.t)};
-    if (!list.empty()) {
+    if (const auto &maybeList{
+            std::get<std::optional<std::list<const char *>>>(x.t)}) {
       Put("(");
-      for (const char *tkr : list) {
+      for (const char *tkr : *maybeList) {
         Put(*tkr);
       }
       Put(") ");
@@ -2045,6 +2045,10 @@ public:
     Walk(std::get<std::optional<OmpAllocateClause::Allocator>>(x.t));
     Put(":");
     Walk(std::get<OmpObjectList>(x.t));
+  }
+  void Unparse(const OmpOrderClause &x) {
+    Walk(std::get<std::optional<OmpOrderModifier>>(x.t), ":");
+    Walk(std::get<OmpOrderClause::Type>(x.t));
   }
   void Unparse(const OmpDependSinkVecLength &x) {
     Walk(std::get<DefinedOperator>(x.t));
@@ -2321,6 +2325,14 @@ public:
     EndOpenMP();
   }
   void Unparse(const OpenMPExecutableAllocate &x) {
+    const auto &fields =
+        std::get<std::optional<std::list<parser::OpenMPDeclarativeAllocate>>>(
+            x.t);
+    if (fields) {
+      for (const auto &decl : *fields) {
+        Walk(decl);
+      }
+    }
     BeginOpenMP();
     Word("!$OMP ALLOCATE");
     Walk(" (", std::get<std::optional<OmpObjectList>>(x.t), ")");
@@ -2619,6 +2631,8 @@ public:
   WALK_NESTED_ENUM(OmpDeviceTypeClause, Type) // OMP DEVICE_TYPE
   WALK_NESTED_ENUM(OmpIfClause, DirectiveNameModifier) // OMP directive-modifier
   WALK_NESTED_ENUM(OmpCancelType, Type) // OMP cancel-type
+  WALK_NESTED_ENUM(OmpOrderClause, Type) // OMP order-type
+  WALK_NESTED_ENUM(OmpOrderModifier, Kind) // OMP order-modifier
 #undef WALK_NESTED_ENUM
 
   void Done() const { CHECK(indent_ == 0); }

@@ -35,7 +35,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/TargetParser/TargetParser.h"
 using namespace llvm;
 
 namespace {
@@ -449,7 +448,6 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
 
   switch (Kind) {
   default:
-    Ctx.reportError(Fixup.getLoc(), "bad relocation fixup type");
     return 0;
   case FK_Data_1:
   case FK_Data_2:
@@ -1158,7 +1156,7 @@ uint32_t ARMAsmBackendDarwin::generateCompactUnwindEncoding(
       // Directive not convertable to compact unwind, bail out.
       DEBUG_WITH_TYPE("compact-unwind",
                       llvm::dbgs()
-                          << "CFI directive not compatiable with comact "
+                          << "CFI directive not compatible with compact "
                              "unwind encoding, opcode=" << Inst.getOperation()
                           << "\n");
       return CU::UNWIND_ARM_MODE_DWARF;

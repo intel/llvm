@@ -17,7 +17,7 @@ class SystemMemory {
 public:
   virtual void *allocate(size_t size) = 0;
   virtual void *allocate(size_t size, size_t aligned) = 0;
-  virtual void deallocate(void *ptr, bool OwnZeMemHandle) = 0;
+  virtual void deallocate(void *ptr) = 0;
   virtual ~SystemMemory() = default;
 };
 
@@ -68,7 +68,7 @@ public:
 
   void *allocate(size_t size);
   void *allocate(size_t size, size_t alignment);
-  void deallocate(void *ptr, bool OwnZeMemHandle);
+  void deallocate(void *ptr);
 
 private:
   std::unique_ptr<USMAllocImpl> pImpl;

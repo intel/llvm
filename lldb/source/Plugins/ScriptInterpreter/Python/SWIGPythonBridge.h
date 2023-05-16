@@ -77,6 +77,10 @@ PythonObject ToSWIGWrapper(lldb::ExecutionContextRefSP ctx_sp);
 PythonObject ToSWIGWrapper(const TypeSummaryOptions &summary_options);
 PythonObject ToSWIGWrapper(const SymbolContext &sym_ctx);
 
+PythonObject ToSWIGWrapper(lldb::ProcessAttachInfoSP attach_info_sp);
+PythonObject ToSWIGWrapper(lldb::ProcessLaunchInfoSP launch_info_sp);
+PythonObject ToSWIGWrapper(lldb::DataExtractorSP data_extractor_sp);
+
 PythonObject ToSWIGWrapper(std::unique_ptr<lldb::SBValue> value_sb);
 PythonObject ToSWIGWrapper(std::unique_ptr<lldb::SBStream> stream_sb);
 PythonObject ToSWIGWrapper(std::unique_ptr<lldb::SBStructuredData> data_sb);
@@ -88,6 +92,9 @@ python::ScopedPythonObject<lldb::SBEvent> ToSWIGWrapper(Event *event);
 } // namespace python
 
 void *LLDBSWIGPython_CastPyObjectToSBData(PyObject *data);
+void *LLDBSWIGPython_CastPyObjectToSBBreakpoint(PyObject *data);
+void *LLDBSWIGPython_CastPyObjectToSBAttachInfo(PyObject *data);
+void *LLDBSWIGPython_CastPyObjectToSBLaunchInfo(PyObject *data);
 void *LLDBSWIGPython_CastPyObjectToSBError(PyObject *data);
 void *LLDBSWIGPython_CastPyObjectToSBValue(PyObject *data);
 void *LLDBSWIGPython_CastPyObjectToSBMemoryRegionInfo(PyObject *data);
@@ -140,6 +147,11 @@ python::PythonObject LLDBSwigPythonCreateScriptedThreadPlan(
 
 bool LLDBSWIGPythonCallThreadPlan(void *implementor, const char *method_name,
                                   lldb_private::Event *event_sp,
+                                  bool &got_error);
+                                  
+bool LLDBSWIGPythonCallThreadPlan(void *implementor, 
+                                  const char *method_name,
+                                  lldb_private::Stream *stream,
                                   bool &got_error);
 
 python::PythonObject LLDBSwigPythonCreateScriptedBreakpointResolver(

@@ -270,7 +270,7 @@ func.func @generic_result_tensor_type(%arg0: memref<?xf32, affine_map<(i)[off]->
 // -----
 
 func.func @generic(%arg0: memref<?x?xf32>) {
-  // expected-error @+6 {{block with no terminator, has %0 = "arith.addf"(%arg1, %arg1) {fastmath = #arith.fastmath<none>} : (f32, f32) -> f32}}
+  // expected-error @+6 {{block with no terminator, has %0 = "arith.addf"(%arg1, %arg1) <{fastmath = #arith.fastmath<none>}> : (f32, f32) -> f32}}
   linalg.generic  {
     indexing_maps = [ affine_map<(i, j) -> (i, j)> ],
     iterator_types = ["parallel", "parallel"]}
@@ -724,4 +724,12 @@ func.func @broadcast_size_1_extension_not_supported(
       outs(%init:tensor<4x?x16xf32>)
       dimensions = [1]
   func.return %bcast : tensor<4x?x16xf32>
+}
+
+// -----
+
+func.func @missing_iterator_types() {
+  // expected-error @below {{expected "iterator_types" array attribute}}
+  linalg.generic {} ins() outs()
+  return
 }

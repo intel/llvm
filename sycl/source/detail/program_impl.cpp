@@ -107,12 +107,12 @@ program_impl::program_impl(
       NonInterOpToLink |= !Prg->MLinkable;
       Programs.push_back(Prg->MProgram);
     }
-    const detail::plugin &Plugin = getPlugin();
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+    const PluginPtr &Plugin = getPlugin();
+    RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(),
         LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
         &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
+    Plugin->checkPiResult<compile_program_error>(Err);
   }
 }
 
@@ -126,25 +126,25 @@ program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
                            RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
-  const detail::plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
   if (MProgram == nullptr) {
     assert(InteropProgram &&
            "No InteropProgram/PiProgram defined with piextProgramFromNative");
     // Translate the raw program handle into PI program.
-    Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
+    Plugin->call<PiApiKind::piextProgramCreateWithNativeHandle>(
         InteropProgram, MContext->getHandleRef(), false, &MProgram);
   } else
-    Plugin.call<PiApiKind::piProgramRetain>(Program);
+    Plugin->call<PiApiKind::piProgramRetain>(Program);
 
   // TODO handle the case when cl_program build is in progress
   pi_uint32 NumDevices;
-  Plugin.call<PiApiKind::piProgramGetInfo>(
+  Plugin->call<PiApiKind::piProgramGetInfo>(
       MProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(pi_uint32), &NumDevices,
       nullptr);
   std::vector<RT::PiDevice> PiDevices(NumDevices);
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_DEVICES,
-                                           sizeof(RT::PiDevice) * NumDevices,
-                                           PiDevices.data(), nullptr);
+  Plugin->call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_DEVICES,
+                                            sizeof(RT::PiDevice) * NumDevices,
+                                            PiDevices.data(), nullptr);
   std::vector<device> SyclContextDevices =
       MContext->get_info<info::context::devices>();
 
@@ -164,7 +164,7 @@ program_impl::program_impl(ContextImplPtr Context,
   RT::PiDevice Device = getSyclObjImpl(MDevices[0])->getHandleRef();
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
-  Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+  Plugin->call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
   if (BinaryType == PI_PROGRAM_BINARY_TYPE_NONE) {
@@ -174,10 +174,10 @@ program_impl::program_impl(ContextImplPtr Context,
         PI_ERROR_INVALID_PROGRAM);
   }
   size_t Size = 0;
-  Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+  Plugin->call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr, &Size);
   std::vector<char> OptionsVector(Size);
-  Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+  Plugin->call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, Size,
       OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
@@ -208,8 +208,8 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host() && MProgram != nullptr) {
-    const detail::plugin &Plugin = getPlugin();
-    Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+    const PluginPtr &Plugin = getPlugin();
+    Plugin->call<PiApiKind::piProgramRelease>(MProgram);
   }
 }
 
@@ -220,7 +220,7 @@ cl_program program_impl::get() const {
         "This instance of program doesn't support OpenCL interoperability.",
         PI_ERROR_INVALID_PROGRAM);
   }
-  getPlugin().call<PiApiKind::piProgramRetain>(MProgram);
+  getPlugin()->call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
 }
 
@@ -265,8 +265,8 @@ void program_impl::build_with_kernel_name(std::string KernelName,
         Module, detail::getSyclObjImpl(get_context()),
         detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
         /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-    const detail::plugin &Plugin = getPlugin();
-    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
+    const PluginPtr &Plugin = getPlugin();
+    Plugin->call<PiApiKind::piProgramRetain>(MProgram);
   }
   MState = program_state::linked;
 }
@@ -290,21 +290,22 @@ void program_impl::link(std::string LinkOptions) {
   if (!is_host()) {
     check_device_feature_support<info::device::is_linker_available>(MDevices);
     std::vector<RT::PiDevice> Devices(get_pi_devices());
-    const detail::plugin &Plugin = getPlugin();
+    const PluginPtr &Plugin = getPlugin();
     const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
     if (!LinkOpts) {
       LinkOpts = LinkOptions.c_str();
     }
 
-    // Plugin resets MProgram with a new pi_program as a result of the call to "piProgramLink".
-    // Thus, we need to release MProgram before the call to piProgramLink.
+    // Plugin resets MProgram with a new pi_program as a result of the call to
+    // "piProgramLink". Thus, we need to release MProgram before the call to
+    // piProgramLink.
     if (MProgram != nullptr)
-      Plugin.call<PiApiKind::piProgramRelease>(MProgram);
-    
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
+
+    RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
         /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
+    Plugin->checkPiResult<compile_program_error>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
   }
@@ -320,11 +321,11 @@ bool program_impl::has_kernel(std::string KernelName,
 
   std::vector<RT::PiDevice> Devices(get_pi_devices());
   pi_uint64 function_ptr;
-  const detail::plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
 
   RT::PiResult Err = PI_SUCCESS;
   for (RT::PiDevice Device : Devices) {
-    Err = Plugin.call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
+    Err = Plugin->call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
         Device, MProgram, KernelName.c_str(), &function_ptr);
     if (Err != PI_SUCCESS &&
         Err != PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE &&
@@ -351,9 +352,9 @@ kernel program_impl::get_kernel(std::string KernelName,
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));
   }
-  return createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(get_pi_kernel(KernelName), MContext,
-                                    PtrToSelf, IsCreatedFromSource, nullptr));
+  auto [Kernel, ArgMask] = get_pi_kernel_arg_mask_pair(KernelName);
+  return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
+      Kernel, MContext, PtrToSelf, IsCreatedFromSource, nullptr, ArgMask));
 }
 
 std::vector<std::vector<char>> program_impl::get_binaries() const {
@@ -362,9 +363,9 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
     return {};
 
   std::vector<std::vector<char>> Result;
-  const detail::plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
   std::vector<size_t> BinarySizes(MDevices.size());
-  Plugin.call<PiApiKind::piProgramGetInfo>(
+  Plugin->call<PiApiKind::piProgramGetInfo>(
       MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -373,9 +374,9 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
     Result.emplace_back(BinarySizes[I]);
     Pointers.push_back(Result[I].data());
   }
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_BINARIES,
-                                           sizeof(char *) * Pointers.size(),
-                                           Pointers.data(), nullptr);
+  Plugin->call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_BINARIES,
+                                            sizeof(char *) * Pointers.size(),
+                                            Pointers.data(), nullptr);
   return Result;
 }
 
@@ -383,9 +384,9 @@ void program_impl::create_cl_program_with_source(const std::string &Source) {
   assert(!MProgram && "This program already has an encapsulated cl_program");
   const char *Src = Source.c_str();
   size_t Size = Source.size();
-  const detail::plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
   RT::PiResult Err =
-      Plugin.call_nocheck<PiApiKind::piclProgramCreateWithSource>(
+      Plugin->call_nocheck<PiApiKind::piclProgramCreateWithSource>(
           MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
 
   if (Err == PI_ERROR_INVALID_OPERATION) {
@@ -395,19 +396,19 @@ void program_impl::create_cl_program_with_source(const std::string &Source) {
   }
 
   if (Err != PI_SUCCESS) {
-    Plugin.reportPiError(Err, "create_cl_program_with_source()");
+    Plugin->reportPiError(Err, "create_cl_program_with_source()");
   }
 }
 
 void program_impl::compile(const std::string &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   std::vector<RT::PiDevice> Devices(get_pi_devices());
-  const detail::plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
   const char *CompileOpts = SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
   if (!CompileOpts) {
     CompileOpts = Options.c_str();
   }
-  RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
+  RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramCompile>(
       MProgram, Devices.size(), Devices.data(), CompileOpts, 0, nullptr,
       nullptr, nullptr, nullptr);
 
@@ -424,9 +425,9 @@ void program_impl::compile(const std::string &Options) {
 void program_impl::build(const std::string &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   std::vector<RT::PiDevice> Devices(get_pi_devices());
-  const detail::plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
   ProgramManager::getInstance().flushSpecConstants(*this);
-  RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
+  RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
 
@@ -447,33 +448,34 @@ std::vector<RT::PiDevice> program_impl::get_pi_devices() const {
   return PiDevices;
 }
 
-RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {
-  RT::PiKernel Kernel = nullptr;
+std::pair<RT::PiKernel, const KernelArgMask *>
+program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
+  std::pair<RT::PiKernel, const KernelArgMask *> Result;
 
   if (is_cacheable()) {
-    std::tie(Kernel, std::ignore, std::ignore) =
+    std::tie(Result.first, std::ignore, Result.second, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
             MProgramModuleHandle, detail::getSyclObjImpl(get_context()),
             detail::getSyclObjImpl(get_devices()[0]), KernelName, this);
-    getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
+    getPlugin()->call<PiApiKind::piKernelRetain>(Result.first);
   } else {
-    const detail::plugin &Plugin = getPlugin();
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piKernelCreate>(
-        MProgram, KernelName.c_str(), &Kernel);
+    const PluginPtr &Plugin = getPlugin();
+    RT::PiResult Err = Plugin->call_nocheck<PiApiKind::piKernelCreate>(
+        MProgram, KernelName.c_str(), &Result.first);
     if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested",
           Err);
     }
-    Plugin.checkPiResult(Err);
+    Plugin->checkPiResult(Err);
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
-    Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
-                                                sizeof(pi_bool), &PI_TRUE);
+    Plugin->call<PiApiKind::piKernelSetExecInfo>(
+        Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
   }
 
-  return Kernel;
+  return Result;
 }
 
 std::vector<device>
@@ -554,7 +556,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
       auto [Id, Offset, Size] =
           Descriptors.consume<uint32_t, uint32_t, uint32_t>();
 
-      Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
+      Ctx->getPlugin()->call<PiApiKind::piextProgramSetSpecializationConstant>(
           NativePrg, Id, Size, SC.getValuePtr() + Offset);
     }
   }
@@ -562,10 +564,10 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
 
 pi_native_handle program_impl::getNative() const {
   const auto &Plugin = getPlugin();
-  if (Plugin.getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
+  if (getContextImplPtr()->getBackend() == backend::opencl)
+    Plugin->call<PiApiKind::piProgramRetain>(MProgram);
   pi_native_handle Handle;
-  Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
+  Plugin->call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
   return Handle;
 }
 

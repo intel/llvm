@@ -1218,8 +1218,19 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 
 void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd,
                                              bool AllowUnsubmitted) {
-  if (SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get())
+  if (SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
+    static bool DeprWarningPrinted = false;
+    if (!DeprWarningPrinted) {
+      std::cerr << "WARNING: The enviroment variable "
+                   "SYCL_DISABLE_POST_ENQUEUE_CLEANUP is deprecated. Please "
+                   "use SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP instead.\n";
+      DeprWarningPrinted = true;
+    }
     return;
+  }
+  if (SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
+    return;
+
   assert(Cmd->MLeafCounter == 0 &&
          (Cmd->isSuccessfullyEnqueued() || AllowUnsubmitted));
   Command::CommandType CmdT = Cmd->getType();
@@ -1384,7 +1395,10 @@ void Scheduler::GraphBuilder::removeNodeFromGraph(
     Dep.MDepCommand->MUsers.erase(Node);
   }
 
-  Node->MDeps.clear();
+  // Clear all the dependencies to avoid cleanDepEventsThroughOneLevel, called
+  // from the destructor of the command to delete the dependencies of the
+  // command this command depends on.
+  Node->clearAllDependencies();
 }
 
 void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,

@@ -22,6 +22,49 @@ namespace mlir {
 #include "mlir/Interfaces/InferTypeOpInterface.cpp.inc"
 } // namespace mlir
 
+LogicalResult
+mlir::reifyResultShapes(OpBuilder &b, Operation *op,
+                        ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  auto reifiableOp = dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
+  if (!reifiableOp)
+    return failure();
+  LogicalResult status = reifiableOp.reifyResultShapes(b, reifiedReturnShapes);
+#ifndef NDEBUG
+  if (failed(status))
+    return failure();
+  // Assert that ReifyRankedShapedTypeOpInterface::reifyResultShapes produced
+  // a correct result.
+  int64_t resultIdx = 0;
+  for (OpResult result : op->getResults()) {
+    auto shapedType = result.getType().dyn_cast<ShapedType>();
+    if (!shapedType)
+      continue;
+    if (!shapedType.hasRank()) {
+      // Nothing to check for unranked shaped values.
+      ++resultIdx;
+      continue;
+    }
+    // Assert one OpFoldResult per dimension.
+    assert(shapedType.getRank() ==
+               static_cast<int64_t>(reifiedReturnShapes[resultIdx].size()) &&
+           "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+    for (int64_t dim = 0; dim < shapedType.getRank(); ++dim) {
+      // reifyResultShapes must return:
+      // * Attribute for static dimensions
+      // * Value for dynamic dimensions
+      assert(shapedType.isDynamicDim(dim) ==
+                 reifiedReturnShapes[resultIdx][dim].is<Value>() &&
+             "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+    }
+    ++resultIdx;
+  }
+  // Assert that every shaped value result was reified.
+  assert(resultIdx == static_cast<int64_t>(reifiedReturnShapes.size()) &&
+         "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+#endif // NDEBUG
+  return status;
+}
+
 bool ShapeAdaptor::hasRank() const {
   if (val.isNull())
     return false;
@@ -177,15 +220,15 @@ LogicalResult mlir::detail::inferReturnTensorTypes(
     function_ref<
         LogicalResult(MLIRContext *, std::optional<Location> location,
                       ValueShapeRange operands, DictionaryAttr attributes,
-                      RegionRange regions,
+                      OpaqueProperties properties, RegionRange regions,
                       SmallVectorImpl<ShapedTypeComponents> &retComponents)>
         componentTypeFn,
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   SmallVector<ShapedTypeComponents, 2> retComponents;
-  if (failed(componentTypeFn(context, location, operands, attributes, regions,
-                             retComponents)))
+  if (failed(componentTypeFn(context, location, operands, attributes,
+                             properties, regions, retComponents)))
     return failure();
   for (const auto &shapeAndType : retComponents) {
     Type elementTy = shapeAndType.getElementType();
@@ -206,7 +249,12 @@ LogicalResult mlir::detail::inferReturnTensorTypes(
 LogicalResult mlir::detail::verifyInferredResultTypes(Operation *op) {
   SmallVector<Type, 4> inferredReturnTypes(op->getResultTypes());
   auto retTypeFn = cast<InferTypeOpInterface>(op);
-  return retTypeFn.refineReturnTypes(op->getContext(), op->getLoc(),
-                                     op->getOperands(), op->getAttrDictionary(),
-                                     op->getRegions(), inferredReturnTypes);
+  auto result = retTypeFn.refineReturnTypes(
+      op->getContext(), op->getLoc(), op->getOperands(),
+      op->getAttrDictionary(), op->getPropertiesStorage(), op->getRegions(),
+      inferredReturnTypes);
+  if (failed(result))
+    op->emitOpError() << "failed to infer returned types";
+
+  return result;
 }

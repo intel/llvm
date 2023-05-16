@@ -1584,19 +1584,17 @@ unsigned CallExpr::offsetToTrailingObjects(StmtClass SC) {
 Decl *Expr::getReferencedDeclOfCallee() {
   Expr *CEE = IgnoreParenImpCasts();
 
-  while (SubstNonTypeTemplateParmExpr *NTTP =
-             dyn_cast<SubstNonTypeTemplateParmExpr>(CEE)) {
+  while (auto *NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(CEE))
     CEE = NTTP->getReplacement()->IgnoreParenImpCasts();
-  }
 
   // If we're calling a dereference, look at the pointer instead.
   while (true) {
-    if (BinaryOperator *BO = dyn_cast<BinaryOperator>(CEE)) {
+    if (auto *BO = dyn_cast<BinaryOperator>(CEE)) {
       if (BO->isPtrMemOp()) {
         CEE = BO->getRHS()->IgnoreParenImpCasts();
         continue;
       }
-    } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(CEE)) {
+    } else if (auto *UO = dyn_cast<UnaryOperator>(CEE)) {
       if (UO->getOpcode() == UO_Deref || UO->getOpcode() == UO_AddrOf ||
           UO->getOpcode() == UO_Plus) {
         CEE = UO->getSubExpr()->IgnoreParenImpCasts();
@@ -1606,9 +1604,9 @@ Decl *Expr::getReferencedDeclOfCallee() {
     break;
   }
 
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(CEE))
+  if (auto *DRE = dyn_cast<DeclRefExpr>(CEE))
     return DRE->getDecl();
-  if (MemberExpr *ME = dyn_cast<MemberExpr>(CEE))
+  if (auto *ME = dyn_cast<MemberExpr>(CEE))
     return ME->getMemberDecl();
   if (auto *BE = dyn_cast<BlockExpr>(CEE))
     return BE->getBlockDecl();
@@ -1618,7 +1616,7 @@ Decl *Expr::getReferencedDeclOfCallee() {
 
 /// If this is a call to a builtin, return the builtin ID. If not, return 0.
 unsigned CallExpr::getBuiltinCallee() const {
-  auto *FDecl = getDirectCallee();
+  const auto *FDecl = getDirectCallee();
   return FDecl ? FDecl->getBuiltinID() : 0;
 }
 
@@ -1673,8 +1671,8 @@ const Attr *CallExpr::getUnusedResultAttr(const ASTContext &Ctx) const {
 }
 
 SourceLocation CallExpr::getBeginLoc() const {
-  if (isa<CXXOperatorCallExpr>(this))
-    return cast<CXXOperatorCallExpr>(this)->getBeginLoc();
+  if (const auto *OCE = dyn_cast<CXXOperatorCallExpr>(this))
+    return OCE->getBeginLoc();
 
   SourceLocation begin = getCallee()->getBeginLoc();
   if (begin.isInvalid() && getNumArgs() > 0 && getArg(0))
@@ -1682,8 +1680,8 @@ SourceLocation CallExpr::getBeginLoc() const {
   return begin;
 }
 SourceLocation CallExpr::getEndLoc() const {
-  if (isa<CXXOperatorCallExpr>(this))
-    return cast<CXXOperatorCallExpr>(this)->getEndLoc();
+  if (const auto *OCE = dyn_cast<CXXOperatorCallExpr>(this))
+    return OCE->getEndLoc();
 
   SourceLocation end = getRParenLoc();
   if (end.isInvalid() && getNumArgs() > 0 && getArg(getNumArgs() - 1))
@@ -2008,7 +2006,7 @@ const char *CastExpr::getCastKindName(CastKind CK) {
 namespace {
 // Skip over implicit nodes produced as part of semantic analysis.
 // Designed for use with IgnoreExprNodes.
-Expr *ignoreImplicitSemaNodes(Expr *E) {
+static Expr *ignoreImplicitSemaNodes(Expr *E) {
   if (auto *Materialize = dyn_cast<MaterializeTemporaryExpr>(E))
     return Materialize->getSubExpr();
 
@@ -2017,6 +2015,10 @@ Expr *ignoreImplicitSemaNodes(Expr *E) {
 
   if (auto *Full = dyn_cast<FullExpr>(E))
     return Full->getSubExpr();
+
+  if (auto *CPLIE = dyn_cast<CXXParenListInitExpr>(E);
+      CPLIE && CPLIE->getInitExprs().size() == 1)
+    return CPLIE->getInitExprs()[0];
 
   return E;
 }
@@ -2249,12 +2251,13 @@ OverloadedOperatorKind BinaryOperator::getOverloadedOperator(Opcode Opc) {
 
 bool BinaryOperator::isNullPointerArithmeticExtension(ASTContext &Ctx,
                                                       Opcode Opc,
-                                                      Expr *LHS, Expr *RHS) {
+                                                      const Expr *LHS,
+                                                      const Expr *RHS) {
   if (Opc != BO_Add)
     return false;
 
   // Check that we have one pointer and one integer operand.
-  Expr *PExp;
+  const Expr *PExp;
   if (LHS->getType()->isPointerType()) {
     if (!RHS->getType()->isIntegerType())
       return false;
@@ -2294,6 +2297,8 @@ StringRef SourceLocExpr::getBuiltinStr() const {
   switch (getIdentKind()) {
   case File:
     return "__builtin_FILE";
+  case FileName:
+    return "__builtin_FILE_NAME";
   case Function:
     return "__builtin_FUNCTION";
   case Line:
@@ -2332,6 +2337,14 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
   };
 
   switch (getIdentKind()) {
+  case SourceLocExpr::FileName: {
+    // __builtin_FILE_NAME() is a Clang-specific extension that expands to the
+    // the last part of __builtin_FILE().
+    SmallString<256> FileName;
+    clang::Preprocessor::processPathToFileName(
+        FileName, PLoc, Ctx.getLangOpts(), Ctx.getTargetInfo());
+    return MakeStringLiteral(FileName);
+  }
   case SourceLocExpr::File: {
     SmallString<256> Path(PLoc.getFilename());
     clang::Preprocessor::processPathForFileMacro(Path, Ctx.getLangOpts(),
@@ -3468,6 +3481,7 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
         CE->getCastKind() == CK_ConstructorConversion ||
         CE->getCastKind() == CK_NonAtomicToAtomic ||
         CE->getCastKind() == CK_AtomicToNonAtomic ||
+        CE->getCastKind() == CK_NullToPointer ||
         CE->getCastKind() == CK_IntToOCLSampler)
       return CE->getSubExpr()->isConstantInitializer(Ctx, false, Culprit);
 
@@ -4449,11 +4463,11 @@ GenericSelectionExpr::CreateEmpty(const ASTContext &Context,
 //  DesignatedInitExpr
 //===----------------------------------------------------------------------===//
 
-const IdentifierInfo *Designator::getFieldName() const {
-  assert(isFieldDesignator() && "Invalid accessor");
-  if (auto *II = FieldInfo.getIdentifierInfo())
-    return II;
-  return FieldInfo.getFieldDecl()->getIdentifier();
+const IdentifierInfo *DesignatedInitExpr::Designator::getFieldName() const {
+  assert(isFieldDesignator() && "Only valid on a field designator");
+  if (FieldInfo.NameOrField & 0x01)
+    return reinterpret_cast<IdentifierInfo *>(FieldInfo.NameOrField & ~0x01);
+  return getFieldDecl()->getIdentifier();
 }
 
 DesignatedInitExpr::DesignatedInitExpr(const ASTContext &C, QualType Ty,
@@ -4530,7 +4544,9 @@ SourceRange DesignatedInitExpr::getDesignatorsSourceRange() const {
 SourceLocation DesignatedInitExpr::getBeginLoc() const {
   auto *DIE = const_cast<DesignatedInitExpr *>(this);
   Designator &First = *DIE->getDesignator(0);
-  return First.getBeginLoc();
+  if (First.isFieldDesignator())
+    return GNUSyntax ? First.getFieldLoc() : First.getDotLoc();
+  return First.getLBracketLoc();
 }
 
 SourceLocation DesignatedInitExpr::getEndLoc() const {
@@ -4539,17 +4555,17 @@ SourceLocation DesignatedInitExpr::getEndLoc() const {
 
 Expr *DesignatedInitExpr::getArrayIndex(const Designator& D) const {
   assert(D.isArrayDesignator() && "Requires array designator");
-  return getSubExpr(D.getFirstExprIndex() + 1);
+  return getSubExpr(D.getArrayIndex() + 1);
 }
 
 Expr *DesignatedInitExpr::getArrayRangeStart(const Designator &D) const {
   assert(D.isArrayRangeDesignator() && "Requires array range designator");
-  return getSubExpr(D.getFirstExprIndex() + 1);
+  return getSubExpr(D.getArrayIndex() + 1);
 }
 
 Expr *DesignatedInitExpr::getArrayRangeEnd(const Designator &D) const {
   assert(D.isArrayRangeDesignator() && "Requires array range designator");
-  return getSubExpr(D.getFirstExprIndex() + 2);
+  return getSubExpr(D.getArrayIndex() + 2);
 }
 
 /// Replaces the designator at index @p Idx with the series

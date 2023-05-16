@@ -3,9 +3,10 @@
 
 include "mlir/IR/OpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMAttrDefs.td"
+include "mlir/Dialect/LLVMIR/LLVMEnums.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
-include "mlir/Dialect/LLVMIR/LLVMAttrDefs.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/Mem2RegInterfaces.td"
 
 // Operations that correspond to LLVM intrinsics. With MLIR operation set being
 // extendable, there is no reason to introduce a hard boundary between "core"
@@ -58,17 +59,29 @@ class LLVM_BinarySameArgsIntrOpF<string func, list<Trait> traits = []> :
   let arguments = !con(commonArgs, fmfArg);
 }
 
-class LLVM_TernarySameArgsIntrOpF<string func, list<Trait> traits = []> :
+class LLVM_TernarySameArgsIntrOpBase<string func, Type element,
+              list<Trait> traits = [], bit requiresFastmath = 0> :
     LLVM_OneResultIntrOp<func, [], [0],
            !listconcat([Pure, SameOperandsAndResultType], traits),
-           /*requiresFastmath=*/1> {
-  let arguments = (ins LLVM_ScalarOrVectorOf<AnyFloat>:$a,
-                       LLVM_ScalarOrVectorOf<AnyFloat>:$b,
-                       LLVM_ScalarOrVectorOf<AnyFloat>:$c,
-                       DefaultValuedAttr<LLVM_FastmathFlagsAttr,
-                                         "{}">:$fastmathFlags);
+           requiresFastmath> {
+  dag commonArgs = (ins LLVM_ScalarOrVectorOf<element>:$a,
+                       LLVM_ScalarOrVectorOf<element>:$b,
+                       LLVM_ScalarOrVectorOf<element>:$c);
   let assemblyFormat = "`(` operands `)` custom<LLVMOpAttrs>(attr-dict) `:` "
       "functional-type(operands, results)";
+}
+
+class LLVM_TernarySameArgsIntrOpI<string func, list<Trait> traits = []> :
+    LLVM_TernarySameArgsIntrOpBase<func, AnySignlessInteger, traits> {
+  let arguments = commonArgs;
+}
+
+class LLVM_TernarySameArgsIntrOpF<string func, list<Trait> traits = []> :
+    LLVM_TernarySameArgsIntrOpBase<func, LLVM_AnyFloat, traits,
+                                  /*requiresFastmath=*/1> {
+  dag fmfArg = (
+    ins DefaultValuedAttr<LLVM_FastmathFlagsAttr, "{}">:$fastmathFlags);
+  let arguments = !con(commonArgs, fmfArg);
 }
 
 class LLVM_CountZerosIntrOp<string func, list<Trait> traits = []> :
@@ -109,8 +122,7 @@ def LLVM_FTruncOp : LLVM_UnaryIntrOpF<"trunc">;
 def LLVM_SqrtOp : LLVM_UnaryIntrOpF<"sqrt">;
 def LLVM_PowOp : LLVM_BinarySameArgsIntrOpF<"pow">;
 def LLVM_PowIOp : LLVM_OneResultIntrOp<"powi", [], [0,1],
-    [DeclareOpInterfaceMethods<FastmathFlagsInterface>, Pure],
-    /*requiresFastmath=*/1> {
+                                       [Pure], /*requiresFastmath=*/1> {
   let arguments =
       (ins LLVM_ScalarOrVectorOf<LLVM_AnyFloat>:$val,
            AnySignlessInteger:$power,
@@ -119,9 +131,12 @@ def LLVM_PowIOp : LLVM_OneResultIntrOp<"powi", [], [0,1],
       "functional-type(operands, results)";
 }
 def LLVM_BitReverseOp : LLVM_UnaryIntrOpI<"bitreverse">;
+def LLVM_ByteSwapOp : LLVM_UnaryIntrOpI<"bswap">;
 def LLVM_CountLeadingZerosOp : LLVM_CountZerosIntrOp<"ctlz">;
 def LLVM_CountTrailingZerosOp : LLVM_CountZerosIntrOp<"cttz">;
 def LLVM_CtPopOp : LLVM_UnaryIntrOpI<"ctpop">;
+def LLVM_FshlOp : LLVM_TernarySameArgsIntrOpI<"fshl">;
+def LLVM_FshrOp : LLVM_TernarySameArgsIntrOpI<"fshr">;
 def LLVM_MaxNumOp : LLVM_BinarySameArgsIntrOpF<"maxnum">;
 def LLVM_MinNumOp : LLVM_BinarySameArgsIntrOpF<"minnum">;
 def LLVM_MaximumOp : LLVM_BinarySameArgsIntrOpF<"maximum">;
@@ -131,25 +146,67 @@ def LLVM_SMinOp : LLVM_BinarySameArgsIntrOpI<"smin">;
 def LLVM_UMaxOp : LLVM_BinarySameArgsIntrOpI<"umax">;
 def LLVM_UMinOp : LLVM_BinarySameArgsIntrOpI<"umin">;
 
-def LLVM_MemcpyOp : LLVM_ZeroResultIntrOp<"memcpy", [0, 1, 2]> {
-  let arguments = (ins Arg<LLVM_AnyPointer,"",[MemWrite]>:$dst,
-                       Arg<LLVM_AnyPointer,"",[MemRead]>:$src,
-                       AnySignlessInteger:$len, I1:$isVolatile);
-}
-def LLVM_MemcpyInlineOp : LLVM_ZeroResultIntrOp<"memcpy.inline", [0, 1, 2]> {
-  let arguments = (ins Arg<LLVM_AnyPointer,"",[MemWrite]>:$dst,
-                       Arg<LLVM_AnyPointer,"",[MemRead]>:$src,
-                       AnySignlessInteger:$len, I1:$isVolatile);
-}
-def LLVM_MemmoveOp : LLVM_ZeroResultIntrOp<"memmove", [0, 1, 2]> {
-  let arguments = (ins Arg<LLVM_AnyPointer,"",[MemWrite]>:$dst,
-                       Arg<LLVM_AnyPointer,"",[MemRead]>:$src,
-                       AnySignlessInteger:$len, I1:$isVolatile);
+class LLVM_MemcpyIntrOpBase<string name> :
+    LLVM_ZeroResultIntrOp<name, [0, 1, 2], [], /*requiresAccessGroup=*/1,
+                                               /*requiresAliasAnalysis=*/1> {
+  dag args = (ins Arg<LLVM_AnyPointer,"",[MemWrite]>:$dst,
+                  Arg<LLVM_AnyPointer,"",[MemRead]>:$src,
+                  AnySignlessInteger:$len, I1:$isVolatile);
+  // Append the alias attributes defined by LLVM_IntrOpBase.
+  let arguments = !con(args, aliasAttrs);
+  let builders = [
+    OpBuilder<(ins "Value":$dst, "Value":$src, "Value":$len,
+                   "Value":$isVolatile), [{
+      build($_builder, $_state, dst, src, len, isVolatile,
+            /*access_groups=*/nullptr, /*alias_scopes=*/nullptr,
+            /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
+    }]
+  >];
 }
 
-def LLVM_MemsetOp : LLVM_ZeroResultIntrOp<"memset", [0, 2]> {
-  let arguments = (ins Arg<LLVM_AnyPointer,"",[MemWrite]>:$dst,
-                       I8:$val, AnySignlessInteger:$len, I1:$isVolatile);
+def LLVM_MemcpyOp : LLVM_MemcpyIntrOpBase<"memcpy">;
+def LLVM_MemcpyInlineOp : LLVM_MemcpyIntrOpBase<"memcpy.inline">;
+def LLVM_MemmoveOp : LLVM_MemcpyIntrOpBase<"memmove">;
+
+def LLVM_MemsetOp : LLVM_ZeroResultIntrOp<"memset", [0, 2], [],
+                      /*requiresAccessGroup=*/1, /*requiresAliasAnalysis=*/1> {
+  dag args = (ins Arg<LLVM_AnyPointer,"",[MemWrite]>:$dst,
+                  I8:$val, AnySignlessInteger:$len, I1:$isVolatile);
+  // Append the alias attributes defined by LLVM_IntrOpBase.
+  let arguments = !con(args, aliasAttrs);
+  let builders = [
+    OpBuilder<(ins "Value":$dst, "Value":$val, "Value":$len,
+                    "Value":$isVolatile), [{
+      build($_builder, $_state, dst, val, len, isVolatile,
+            /*access_groups=*/nullptr, /*alias_scopes=*/nullptr,
+            /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
+    }]
+  >];
+}
+
+def LLVM_NoAliasScopeDeclOp
+    : LLVM_ZeroResultIntrOp<"experimental.noalias.scope.decl"> {
+  let arguments = (ins SymbolRefAttr:$scope);
+  string llvmBuilder = [{
+    // Wrap the scope argument into a list since the LLVM IR intrinsic takes
+    // a list containing exactly one scope rather than a scope itself.
+    llvm::MDNode* node = moduleTranslation.getAliasScopes(op, {$scope});
+    builder.CreateNoAliasScopeDeclaration(node);
+  }];
+  string mlirBuilder = [{
+    FailureOr<SmallVector<SymbolRefAttr>> scopeAttrs =
+      moduleImport.matchAliasScopeAttrs(llvmOperands[0]);
+    // Drop the intrinsic if the alias scope translation fails since the scope
+    // is not used by an aliasing operation, such as a load or store, that is
+    // used to convert the alias scope metadata.
+    if (failed(scopeAttrs))
+      return success();
+    if (scopeAttrs->size() != 1)
+      return failure();
+    $_op = $_builder.create<LLVM::NoAliasScopeDeclOp>(
+      $_location, (*scopeAttrs)[0]);
+  }];
+  let assemblyFormat = "$scope attr-dict";
 }
 
 //===----------------------------------------------------------------------===//
@@ -158,7 +215,8 @@ def LLVM_MemsetOp : LLVM_ZeroResultIntrOp<"memset", [0, 2]> {
 
 /// Base operation for lifetime markers. The LLVM intrinsics require the size
 /// operand to be an immediate. In MLIR it is encoded as an attribute.
-class LLVM_LifetimeBaseOp<string opName> : LLVM_ZeroResultIntrOp<opName> {
+class LLVM_LifetimeBaseOp<string opName> : LLVM_ZeroResultIntrOp<opName, [],
+    [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let arguments = (ins I64Attr:$size, LLVM_AnyPointer:$ptr);
 
   // Custom builder to convert the size attribute to an integer.
@@ -217,13 +275,13 @@ def LLVM_CoroIdOp : LLVM_IntrOp<"coro.id", [], [], [], 1> {
                        LLVM_i8Ptr:$coroaddr,
                        LLVM_i8Ptr:$fnaddrs);
   let assemblyFormat = "$align `,` $promise `,` $coroaddr `,` $fnaddrs"
-    " attr-dict `:` type($res)";
+    " attr-dict `:` functional-type(operands, results)";
 }
 
 def LLVM_CoroBeginOp : LLVM_IntrOp<"coro.begin", [], [], [], 1> {
   let arguments = (ins LLVM_TokenType:$token,
                        LLVM_i8Ptr:$mem);
-  let assemblyFormat = "$token `,` $mem attr-dict `:` type($res)";
+  let assemblyFormat = "$token `,` $mem attr-dict `:` functional-type(operands, results)";
 }
 
 def LLVM_CoroSizeOp : LLVM_IntrOp<"coro.size", [0], [], [], 1> {
@@ -236,7 +294,7 @@ def LLVM_CoroAlignOp : LLVM_IntrOp<"coro.align", [0], [], [], 1> {
 
 def LLVM_CoroSaveOp : LLVM_IntrOp<"coro.save", [], [], [], 1> {
   let arguments = (ins LLVM_i8Ptr:$handle);
-  let assemblyFormat = "$handle attr-dict `:` type($res)";
+  let assemblyFormat = "$handle attr-dict `:` functional-type(operands, results)";
 }
 
 def LLVM_CoroSuspendOp : LLVM_IntrOp<"coro.suspend", [], [], [], 1> {
@@ -248,25 +306,26 @@ def LLVM_CoroSuspendOp : LLVM_IntrOp<"coro.suspend", [], [], [], 1> {
 def LLVM_CoroEndOp : LLVM_IntrOp<"coro.end", [], [], [], 1> {
   let arguments = (ins LLVM_i8Ptr:$handle,
                        I1:$unwind);
-  let assemblyFormat = "$handle `,` $unwind attr-dict `:` type($res)";
+  let assemblyFormat = "$handle `,` $unwind attr-dict `:` functional-type(operands, results)";
 }
 
 def LLVM_CoroFreeOp : LLVM_IntrOp<"coro.free", [], [], [], 1> {
   let arguments = (ins LLVM_TokenType:$id,
                        LLVM_i8Ptr:$handle);
-  let assemblyFormat = "$id `,` $handle attr-dict `:` type($res)";
+  let assemblyFormat = "$id `,` $handle attr-dict `:` functional-type(operands, results)";
 }
 
 def LLVM_CoroResumeOp : LLVM_IntrOp<"coro.resume", [], [], [], 0> {
   let arguments = (ins LLVM_i8Ptr:$handle);
-  let assemblyFormat = "$handle attr-dict";
+  let assemblyFormat = "$handle attr-dict `:` qualified(type($handle))";
 }
 
 //
 // Debug function intrinsics.
 //
 
-class LLVM_DbgIntrOp<string name, string argName> : LLVM_IntrOp<name, [], [], [], 0> {
+class LLVM_DbgIntrOp<string name, string argName, list<Trait> traits = []>
+    : LLVM_IntrOp<name, [], [], traits, 0> {
   let llvmBuilder = [{
     llvm::Module *module = builder.GetInsertBlock()->getModule();
     llvm::LLVMContext &ctx = module->getContext();
@@ -307,12 +366,8 @@ class LLVM_DbgIntrOp<string name, string argName> : LLVM_IntrOp<name, [], [], []
   }];
 }
 
-def LLVM_DbgAddrOp : LLVM_DbgIntrOp<"dbg.addr", "addr"> {
-  let summary = "Describe the current address of a local debug info variable.";
-  let arguments = (ins LLVM_AnyPointer:$addr, LLVM_DILocalVariableAttr:$varInfo);
-}
-
-def LLVM_DbgDeclareOp : LLVM_DbgIntrOp<"dbg.declare", "addr"> {
+def LLVM_DbgDeclareOp : LLVM_DbgIntrOp< "dbg.declare", "addr",
+    [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let summary = "Declare the address of a local debug info variable.";
   let arguments = (ins LLVM_AnyPointer:$addr, LLVM_DILocalVariableAttr:$varInfo);
 }
@@ -328,19 +383,19 @@ def LLVM_DbgValueOp : LLVM_DbgIntrOp<"dbg.value", "value"> {
 
 def LLVM_VaStartOp : LLVM_ZeroResultIntrOp<"vastart">,
                      Arguments<(ins LLVM_i8Ptr:$arg_list)> {
-  let assemblyFormat = "$arg_list attr-dict";
+  let assemblyFormat = "$arg_list attr-dict `:` qualified(type($arg_list))";
   let summary = "Initializes `arg_list` for subsequent variadic argument extractions.";
 }
 
 def LLVM_VaCopyOp : LLVM_ZeroResultIntrOp<"vacopy">,
                     Arguments<(ins LLVM_i8Ptr:$dest_list, LLVM_i8Ptr:$src_list)> {
-  let assemblyFormat = "$src_list `to` $dest_list attr-dict";
+  let assemblyFormat = "$src_list `to` $dest_list attr-dict `:` type(operands)";
   let summary = "Copies the current argument position from `src_list` to `dest_list`.";
 }
 
 def LLVM_VaEndOp : LLVM_ZeroResultIntrOp<"vaend">,
                    Arguments<(ins LLVM_i8Ptr:$arg_list)> {
-  let assemblyFormat = "$arg_list attr-dict";
+  let assemblyFormat = "$arg_list attr-dict `:` qualified(type($arg_list))";
   let summary = "Destroys `arg_list`, which has been initialized by `intr.vastart` or `intr.vacopy`.";
 }
 
@@ -350,7 +405,7 @@ def LLVM_VaEndOp : LLVM_ZeroResultIntrOp<"vaend">,
 
 def LLVM_EhTypeidForOp : LLVM_OneResultIntrOp<"eh.typeid.for"> {
     let arguments = (ins LLVM_i8Ptr:$type_info);
-    let assemblyFormat = "$type_info attr-dict `:` type($res)";
+    let assemblyFormat = "$type_info attr-dict `:` functional-type(operands, results)";
 }
 
 //
@@ -363,7 +418,7 @@ def LLVM_StackSaveOp : LLVM_OneResultIntrOp<"stacksave"> {
 
 def LLVM_StackRestoreOp : LLVM_ZeroResultIntrOp<"stackrestore"> {
   let arguments = (ins LLVM_i8Ptr:$ptr);
-  let assemblyFormat = "$ptr attr-dict";
+  let assemblyFormat = "$ptr attr-dict `:` qualified(type($ptr))";
 }
 
 //
@@ -371,16 +426,27 @@ def LLVM_StackRestoreOp : LLVM_ZeroResultIntrOp<"stackrestore"> {
 //
 
 // LLVM vector reduction over a single vector.
-class LLVM_VecReductionBase<string mnem, Type element>
+class LLVM_VecReductionBase<string mnem, Type element, bit requiresFastmath=0>
     : LLVM_OneResultIntrOp<"vector.reduce." # mnem, [], [0],
-                           [Pure, SameOperandsAndResultElementType]>,
-      Arguments<(ins LLVM_VectorOf<element>)>;
+                           [Pure, SameOperandsAndResultElementType],
+                           requiresFastmath> {
+      dag commonArgs = (ins LLVM_VectorOf<element>:$in);
+}
 
 class LLVM_VecReductionF<string mnem>
-    : LLVM_VecReductionBase<mnem, AnyFloat>;
+    : LLVM_VecReductionBase<mnem, AnyFloat, /*requiresFastmath=*/1> {
+  dag fmfArg = (
+    ins DefaultValuedAttr<LLVM_FastmathFlagsAttr, "{}">:$fastmathFlags);
+  let arguments = !con(commonArgs, fmfArg);
+
+  let assemblyFormat = "`(` operands `)` custom<LLVMOpAttrs>(attr-dict) `:` "
+      "functional-type(operands, results)";
+}
 
 class LLVM_VecReductionI<string mnem>
-    : LLVM_VecReductionBase<mnem, AnySignlessInteger>;
+    : LLVM_VecReductionBase<mnem, AnySignlessInteger> {
+      let arguments = commonArgs;
+}
 
 // LLVM vector reduction over a single vector, with an initial value,
 // and with permission to reassociate the reduction operations.
@@ -648,6 +714,26 @@ def LLVM_masked_expandload : LLVM_IntrOp<"masked.expandload", [0], [], [], 1> {
 def LLVM_masked_compressstore
     : LLVM_IntrOp<"masked.compressstore", [], [0], [], 0> {
   let arguments = (ins LLVM_AnyVector, LLVM_AnyPointer, LLVM_VectorOf<I1>);
+}
+
+//
+// Trap intrinsics.
+//
+
+def LLVM_Trap : LLVM_ZeroResultIntrOp<"trap">;
+
+def LLVM_DebugTrap : LLVM_ZeroResultIntrOp<"debugtrap">;
+
+def LLVM_UBSanTrap : LLVM_ZeroResultIntrOp<"ubsantrap"> {
+  let arguments = (ins I8Attr:$failureKind);
+  string llvmBuilder = [{
+    builder.CreateIntrinsic(
+      llvm::Intrinsic::ubsantrap, {}, {builder.getInt8($failureKind)});
+  }];
+  string mlirBuilder = [{
+    $_op =
+      $_builder.create<LLVM::UBSanTrap>($_location, $_int_attr($failureKind));
+  }];
 }
 
 /// Create a call to vscale intrinsic.

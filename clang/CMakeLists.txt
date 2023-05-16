@@ -118,12 +118,10 @@ if(CLANG_BUILT_STANDALONE)
         set(LLVM_UTILS_PROVIDED ON)
         set(CLANG_TEST_DEPS FileCheck count not)
       endif()
-      set(UNITTEST_DIR ${LLVM_THIRD_PARTY_DIR}/unittest)
-      if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h
-          AND NOT EXISTS ${LLVM_LIBRARY_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}gtest${CMAKE_STATIC_LIBRARY_SUFFIX}
-          AND EXISTS ${UNITTEST_DIR}/CMakeLists.txt)
-        add_subdirectory(${UNITTEST_DIR} third-party/unittest)
-      endif()
+    endif()
+
+    if (NOT TARGET llvm_gtest)
+        message(FATAL_ERROR "llvm-gtest not found. Please install llvm-gtest or disable tests with -DLLVM_INCLUDE_TESTS=OFF")
     endif()
 
     if(LLVM_LIT)
@@ -526,13 +524,11 @@ endif()
 
 
 if( CLANG_INCLUDE_TESTS )
-  if(EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
-    add_subdirectory(unittests)
-    list(APPEND CLANG_TEST_DEPS ClangUnitTests)
-    list(APPEND CLANG_TEST_PARAMS
-      clang_unit_site_config=${CMAKE_CURRENT_BINARY_DIR}/test/Unit/lit.site.cfg
-      )
-  endif()
+  add_subdirectory(unittests)
+  list(APPEND CLANG_TEST_DEPS ClangUnitTests)
+  list(APPEND CLANG_TEST_PARAMS
+    clang_unit_site_config=${CMAKE_CURRENT_BINARY_DIR}/test/Unit/lit.site.cfg
+  )
   add_subdirectory(test)
   add_subdirectory(bindings/python/tests)
 
@@ -637,6 +633,9 @@ if (CLANG_ENABLE_BOOTSTRAP)
       # variable, and have LLVM's CMake append the envar to the archiver calls.
       set(LTO_LIBRARY -DDARWIN_LTO_LIBRARY=${LLVM_SHLIB_OUTPUT_INTDIR}/libLTO.dylib
         -DDYLD_LIBRARY_PATH=${LLVM_LIBRARY_OUTPUT_INTDIR})
+    elseif(MSVC)
+      add_dependencies(clang-bootstrap-deps llvm-lib)
+      set(${CLANG_STAGE}_AR -DCMAKE_AR=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-lib)
     elseif(NOT WIN32)
       add_dependencies(clang-bootstrap-deps llvm-ar llvm-ranlib)
       if(NOT BOOTSTRAP_LLVM_ENABLE_LLD AND LLVM_BINUTILS_INCDIR)
@@ -681,8 +680,6 @@ if (CLANG_ENABLE_BOOTSTRAP)
     LLVM_VERSION_SUFFIX
     LLVM_BINUTILS_INCDIR
     CLANG_REPOSITORY_STRING
-    CMAKE_C_COMPILER_LAUNCHER
-    CMAKE_CXX_COMPILER_LAUNCHER
     CMAKE_MAKE_PROGRAM
     CMAKE_OSX_ARCHITECTURES
     CMAKE_BUILD_TYPE

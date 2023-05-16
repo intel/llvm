@@ -14,7 +14,6 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/TargetParser/AArch64TargetParser.h"
 #include "llvm/TargetParser/Host.h"
-#include "llvm/TargetParser/TargetParser.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -607,7 +606,7 @@ fp16_fml_fallthrough:
       Features.push_back("+fix-cortex-a53-835769");
     else
       Features.push_back("-fix-cortex-a53-835769");
-  } else if (Triple.isAndroid()) {
+  } else if (Triple.isAndroid() || Triple.isOHOSFamily()) {
     // Enabled A53 errata (835769) workaround by default on android
     Features.push_back("+fix-cortex-a53-835769");
   } else if (Triple.isOSFuchsia()) {

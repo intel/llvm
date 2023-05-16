@@ -1547,7 +1547,8 @@ static void emitCommonOMPParallelDirective(
   llvm::Value *NumThreads = nullptr;
   llvm::Function *OutlinedFn =
       CGF.CGM.getOpenMPRuntime().emitParallelOutlinedFunction(
-          S, *CS->getCapturedDecl()->param_begin(), InnermostKind, CodeGen);
+          CGF, S, *CS->getCapturedDecl()->param_begin(), InnermostKind,
+          CodeGen);
   if (const auto *NumThreadsClause = S.getSingleClause<OMPNumThreadsClause>()) {
     CodeGenFunction::RunCleanupsScope NumThreadsScope(CGF);
     NumThreads = CGF.EmitScalarExpr(NumThreadsClause->getNumThreads(),
@@ -4489,6 +4490,33 @@ void CodeGenFunction::EmitOMPParallelMasterDirective(
   checkForLastprivateConditionalUpdate(*this, S);
 }
 
+void CodeGenFunction::EmitOMPParallelMaskedDirective(
+    const OMPParallelMaskedDirective &S) {
+  // Emit directive as a combined directive that consists of two implicit
+  // directives: 'parallel' with 'masked' directive.
+  auto &&CodeGen = [&S](CodeGenFunction &CGF, PrePostActionTy &Action) {
+    Action.Enter(CGF);
+    OMPPrivateScope PrivateScope(CGF);
+    emitOMPCopyinClause(CGF, S);
+    (void)CGF.EmitOMPFirstprivateClause(S, PrivateScope);
+    CGF.EmitOMPPrivateClause(S, PrivateScope);
+    CGF.EmitOMPReductionClauseInit(S, PrivateScope);
+    (void)PrivateScope.Privatize();
+    emitMasked(CGF, S);
+    CGF.EmitOMPReductionClauseFinal(S, /*ReductionKind=*/OMPD_parallel);
+  };
+  {
+    auto LPCRegion =
+        CGOpenMPRuntime::LastprivateConditionalRAII::disable(*this, S);
+    emitCommonOMPParallelDirective(*this, S, OMPD_masked, CodeGen,
+                                   emitEmptyBoundParameters);
+    emitPostUpdateForReductionClause(*this, S,
+                                     [](CodeGenFunction &) { return nullptr; });
+  }
+  // Check for outer lastprivate conditional update.
+  checkForLastprivateConditionalUpdate(*this, S);
+}
+
 void CodeGenFunction::EmitOMPParallelSectionsDirective(
     const OMPParallelSectionsDirective &S) {
   // Emit directive as a combined directive that consists of two implicit
@@ -6656,7 +6684,8 @@ static void emitCommonOMPTeamsDirective(CodeGenFunction &CGF,
   const CapturedStmt *CS = S.getCapturedStmt(OMPD_teams);
   llvm::Function *OutlinedFn =
       CGF.CGM.getOpenMPRuntime().emitTeamsOutlinedFunction(
-          S, *CS->getCapturedDecl()->param_begin(), InnermostKind, CodeGen);
+          CGF, S, *CS->getCapturedDecl()->param_begin(), InnermostKind,
+          CodeGen);
 
   const auto *NT = S.getSingleClause<OMPNumTeamsClause>();
   const auto *TL = S.getSingleClause<OMPThreadLimitClause>();
@@ -7146,7 +7175,7 @@ void CodeGenFunction::EmitOMPUseDevicePtrClause(
       // OMPCapturedExprDecl are used to privative fields of the current
       // structure.
       const auto *ME = cast<MemberExpr>(OED->getInit());
-      assert(isa<CXXThisExpr>(ME->getBase()) &&
+      assert(isa<CXXThisExpr>(ME->getBase()->IgnoreImpCasts()) &&
              "Base should be the current struct!");
       MatchingVD = ME->getMemberDecl();
     }
@@ -7260,16 +7289,13 @@ void CodeGenFunction::EmitOMPTargetDataDirective(
   };
   DevicePointerPrivActionTy PrivAction(PrivatizeDevicePointers);
 
-  auto &&CodeGen = [&S, &Info, &PrivatizeDevicePointers](
-                       CodeGenFunction &CGF, PrePostActionTy &Action) {
+  auto &&CodeGen = [&](CodeGenFunction &CGF, PrePostActionTy &Action) {
     auto &&InnermostCodeGen = [&S](CodeGenFunction &CGF, PrePostActionTy &) {
       CGF.EmitStmt(S.getInnermostCapturedStmt()->getCapturedStmt());
     };
 
     // Codegen that selects whether to generate the privatization code or not.
-    auto &&PrivCodeGen = [&S, &Info, &PrivatizeDevicePointers,
-                          &InnermostCodeGen](CodeGenFunction &CGF,
-                                             PrePostActionTy &Action) {
+    auto &&PrivCodeGen = [&](CodeGenFunction &CGF, PrePostActionTy &Action) {
       RegionCodeGenTy RCG(InnermostCodeGen);
       PrivatizeDevicePointers = false;
 
@@ -7289,7 +7315,28 @@ void CodeGenFunction::EmitOMPTargetDataDirective(
         (void)PrivateScope.Privatize();
         RCG(CGF);
       } else {
-        OMPLexicalScope Scope(CGF, S, OMPD_unknown);
+        // If we don't have target devices, don't bother emitting the data
+        // mapping code.
+        std::optional<OpenMPDirectiveKind> CaptureRegion;
+        if (CGM.getLangOpts().OMPTargetTriples.empty()) {
+          // Emit helper decls of the use_device_ptr/use_device_addr clauses.
+          for (const auto *C : S.getClausesOfKind<OMPUseDevicePtrClause>())
+            for (const Expr *E : C->varlists()) {
+              const Decl *D = cast<DeclRefExpr>(E)->getDecl();
+              if (const auto *OED = dyn_cast<OMPCapturedExprDecl>(D))
+                CGF.EmitVarDecl(*OED);
+            }
+          for (const auto *C : S.getClausesOfKind<OMPUseDeviceAddrClause>())
+            for (const Expr *E : C->varlists()) {
+              const Decl *D = getBaseDecl(E);
+              if (const auto *OED = dyn_cast<OMPCapturedExprDecl>(D))
+                CGF.EmitVarDecl(*OED);
+            }
+        } else {
+          CaptureRegion = OMPD_unknown;
+        }
+
+        OMPLexicalScope Scope(CGF, S, CaptureRegion);
         RCG(CGF);
       }
     };

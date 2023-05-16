@@ -126,6 +126,12 @@ unsigned AArch64InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     if (NumBytes == 0)
       NumBytes = 4;
     break;
+  case TargetOpcode::PATCHABLE_FUNCTION_ENTER:
+  case TargetOpcode::PATCHABLE_FUNCTION_EXIT:
+    // An XRay sled can be 4 bytes of alignment plus a 32-byte block.
+    NumBytes = 36;
+    break;
+
   case AArch64::SPACE:
     NumBytes = MI.getOperand(1).getImm();
     break;
@@ -1692,17 +1698,34 @@ static bool isSUBSRegImm(unsigned Opcode) {
 ///        MI and CmpInstr
 ///        or if MI opcode is not the S form there must be neither defs of flags
 ///        nor uses of flags between MI and CmpInstr.
-/// - and  C/V flags are not used after CmpInstr
+/// - and, if C/V flags are not used after CmpInstr
+///        or if N flag is used but MI produces poison value if signed overflow
+///        occurs.
 static bool canInstrSubstituteCmpInstr(MachineInstr &MI, MachineInstr &CmpInstr,
                                        const TargetRegisterInfo &TRI) {
+  // NOTE this assertion guarantees that MI.getOpcode() is add or subtraction
+  // that may or may not set flags.
   assert(sForm(MI) != AArch64::INSTRUCTION_LIST_END);
 
   const unsigned CmpOpcode = CmpInstr.getOpcode();
   if (!isADDSRegImm(CmpOpcode) && !isSUBSRegImm(CmpOpcode))
     return false;
 
+  assert((CmpInstr.getOperand(2).isImm() &&
+          CmpInstr.getOperand(2).getImm() == 0) &&
+         "Caller guarantees that CmpInstr compares with constant 0");
+
   std::optional<UsedNZCV> NZVCUsed = examineCFlagsUse(MI, CmpInstr, TRI);
-  if (!NZVCUsed || NZVCUsed->C || NZVCUsed->V)
+  if (!NZVCUsed || NZVCUsed->C)
+    return false;
+
+  // CmpInstr is either 'ADDS %vreg, 0' or 'SUBS %vreg, 0', and MI is either
+  // '%vreg = add ...' or '%vreg = sub ...'.
+  // Condition flag V is used to indicate signed overflow.
+  // 1) MI and CmpInstr set N and V to the same value.
+  // 2) If MI is add/sub with no-signed-wrap, it produces a poison value when
+  //    signed overflow occurs, so CmpInstr could still be simplified away.
+  if (NZVCUsed->V && !MI.getFlag(MachineInstr::NoSWrap))
     return false;
 
   AccessKind AccessToCheck = AK_Write;
@@ -2369,7 +2392,7 @@ unsigned AArch64InstrInfo::getLoadStoreImmIdx(unsigned Opc) {
   case AArch64::LDNF1D_IMM:
     return 3;
   case AArch64::ADDG:
-  case AArch64::STGOffset:
+  case AArch64::STGi:
   case AArch64::LDR_PXI:
   case AArch64::STR_PXI:
     return 2;
@@ -2874,8 +2897,8 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     MaxOffset = 63;
     break;
   case AArch64::LDG:
-  case AArch64::STGOffset:
-  case AArch64::STZGOffset:
+  case AArch64::STGi:
+  case AArch64::STZGi:
     Scale = TypeSize::Fixed(16);
     Width = 16;
     MinOffset = -256;
@@ -3033,8 +3056,8 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     MinOffset = -8;
     MaxOffset = 7;
     break;
-  case AArch64::ST2GOffset:
-  case AArch64::STZ2GOffset:
+  case AArch64::ST2Gi:
+  case AArch64::STZ2Gi:
     Scale = TypeSize::Fixed(16);
     Width = 32;
     MinOffset = -256;
@@ -3151,10 +3174,10 @@ int AArch64InstrInfo::getMemScale(unsigned Opc) {
   case AArch64::LDPQi:
   case AArch64::LDRQpre:
   case AArch64::STPQi:
-  case AArch64::STGOffset:
-  case AArch64::STZGOffset:
-  case AArch64::ST2GOffset:
-  case AArch64::STZ2GOffset:
+  case AArch64::STGi:
+  case AArch64::STZGi:
+  case AArch64::ST2Gi:
+  case AArch64::STZ2Gi:
   case AArch64::STGPi:
     return 16;
   }
@@ -7151,7 +7174,8 @@ static bool outliningCandidatesV8_3OpsConsensus(const outliner::Candidate &a,
   return SubtargetA.hasV8_3aOps() == SubtargetB.hasV8_3aOps();
 }
 
-outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction>
+AArch64InstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
   outliner::Candidate &FirstCand = RepeatedSequenceLocs[0];
   unsigned SequenceSize =
@@ -7181,7 +7205,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
             }
             return true;
           }) != RepeatedSequenceLocs.end()) {
-    return outliner::OutlinedFunction();
+    return std::nullopt;
   }
 
   // Since at this point all candidates agree on their return address signing
@@ -7259,7 +7283,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
 
     // If the sequence doesn't have enough candidates left, then we're done.
     if (RepeatedSequenceLocs.size() < 2)
-      return outliner::OutlinedFunction();
+      return std::nullopt;
   }
 
   // Properties about candidate MBBs that hold for all of them.
@@ -7304,7 +7328,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
         C.getMF()->getFrameInstructions();
 
     if (CFICount > 0 && CFICount != CFIInstructions.size())
-      return outliner::OutlinedFunction();
+      return std::nullopt;
   }
 
   // Returns true if an instructions is safe to fix up, false otherwise.
@@ -7506,7 +7530,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
     // If we dropped all of the candidates, bail out here.
     if (RepeatedSequenceLocs.size() < 2) {
       RepeatedSequenceLocs.clear();
-      return outliner::OutlinedFunction();
+      return std::nullopt;
     }
   }
 
@@ -7533,7 +7557,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
       // We can't fix up the stack. Bail out.
       if (!AllStackInstrsSafe) {
         RepeatedSequenceLocs.clear();
-        return outliner::OutlinedFunction();
+        return std::nullopt;
       }
 
       // Save + restore LR.
@@ -7544,7 +7568,7 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
   // If we have CFI instructions, we can only outline if the outlined section
   // can be a tail call
   if (FrameID != MachineOutlinerTailCall && CFICount > 0)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
                                     NumBytesToCreateFrame, FrameID);
@@ -7676,7 +7700,6 @@ AArch64InstrInfo::getOutlinableRanges(MachineBasicBlock &MBB,
     LRAvailableEverywhere &= LRU.available(AArch64::LR);
     RangeBegin = MI.getIterator();
     ++RangeLen;
-    continue;
   }
   // Above loop misses the last (or only) range. If we are still safe, then
   // let's save the range.

@@ -553,10 +553,17 @@ public:
   /// parent.
   Module *createGlobalModuleFragmentForModuleUnit(SourceLocation Loc,
                                                   Module *Parent = nullptr);
+  Module *createImplicitGlobalModuleFragmentForModuleUnit(
+      SourceLocation Loc, bool IsExported, Module *Parent = nullptr);
 
   /// Create a global module fragment for a C++ module interface unit.
   Module *createPrivateModuleFragmentForInterfaceUnit(Module *Parent,
                                                       SourceLocation Loc);
+
+  /// Create a new C++ module with the specified kind, and reparent any pending
+  /// global module fragment(s) to it.
+  Module *createModuleUnitWithKind(SourceLocation Loc, StringRef Name,
+                                   Module::ModuleKind Kind);
 
   /// Create a new module for a C++ module interface unit.
   /// The module must not already exist, and will be configured for the current
@@ -566,6 +573,13 @@ public:
   ///
   /// \returns The newly-created module.
   Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name);
+
+  /// Create a new module for a C++ module implementation unit.
+  /// The interface module for this implementation (implicitly imported) must
+  /// exist and be loaded and present in the modules map.
+  ///
+  /// \returns The newly-created module.
+  Module *createModuleForImplementationUnit(SourceLocation Loc, StringRef Name);
 
   /// Create a C++20 header unit.
   Module *createHeaderUnit(SourceLocation Loc, StringRef Name,

@@ -293,13 +293,16 @@ template<class T, class charT> requires is-vector-bool-reference<T> // Since C++
 #include <__debug>
 #include <__format/enable_insertable.h>
 #include <__format/formatter.h>
+#include <__format/formatter_bool.h>
 #include <__functional/hash.h>
 #include <__functional/unary_function.h>
 #include <__iterator/advance.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/reverse_iterator.h>
 #include <__iterator/wrap_iter.h>
+#include <__memory/addressof.h>
 #include <__memory/allocate_at_least.h>
+#include <__memory/allocator_traits.h>
 #include <__memory/pointer_traits.h>
 #include <__memory/swap_allocator.h>
 #include <__memory/temp_value.h>
@@ -307,18 +310,19 @@ template<class T, class charT> requires is-vector-bool-reference<T> // Since C++
 #include <__memory_resource/polymorphic_allocator.h>
 #include <__split_buffer>
 #include <__type_traits/is_allocator.h>
+#include <__type_traits/is_constructible.h>
+#include <__type_traits/is_nothrow_move_assignable.h>
 #include <__type_traits/noexcept_move_assign_container.h>
+#include <__type_traits/type_identity.h>
 #include <__utility/exception_guard.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/swap.h>
 #include <climits>
-#include <cstdlib>
 #include <cstring>
 #include <iosfwd> // for forward declaration of vector
 #include <limits>
 #include <stdexcept>
-#include <type_traits>
 #include <version>
 
 // standard-mandated includes
@@ -439,11 +443,11 @@ private:
       _LIBCPP_CONSTEXPR __destroy_vector(vector& __vec) : __vec_(__vec) {}
 
       _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI void operator()() {
-          __vec_.__annotate_delete();
           std::__debug_db_erase_c(std::addressof(__vec_));
 
           if (__vec_.__begin_ != nullptr) {
             __vec_.__clear();
+            __vec_.__annotate_delete();
             __alloc_traits::deallocate(__vec_.__alloc(), __vec_.__begin_, __vec_.capacity());
           }
       }
@@ -743,8 +747,7 @@ private:
                                          const void *__old_mid,
                                          const void *__new_mid) const
     {
-
-      if (!__libcpp_is_constant_evaluated() && __beg && is_same<allocator_type, __default_allocator_type>::value)
+      if (!__libcpp_is_constant_evaluated() && __beg != nullptr && __asan_annotate_container_with_allocator<_Allocator>::value)
         __sanitizer_annotate_contiguous_container(__beg, __end, __old_mid, __new_mid);
     }
 #else
@@ -866,6 +869,7 @@ private:
     if (__alloc() != __c.__alloc())
     {
       __clear();
+      __annotate_delete();
       __alloc_traits::deallocate(__alloc(), this->__begin_, capacity());
       this->__begin_ = this->__end_ = __end_cap() = nullptr;
     }
@@ -954,6 +958,7 @@ vector<_Tp, _Allocator>::__vdeallocate() _NOEXCEPT
     if (this->__begin_ != nullptr)
     {
         clear();
+        __annotate_delete();
         __alloc_traits::deallocate(this->__alloc(), this->__begin_, capacity());
         this->__begin_ = this->__end_ = this->__end_cap() = nullptr;
     }
@@ -2107,7 +2112,7 @@ public:
 private:
   class __destroy_vector {
     public:
-      _LIBCPP_CONSTEXPR __destroy_vector(vector& __vec) : __vec_(__vec) {}
+      _LIBCPP_CONSTEXPR _LIBCPP_HIDE_FROM_ABI __destroy_vector(vector& __vec) : __vec_(__vec) {}
 
       _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI void operator()() {
         if (__vec_.__begin_ != nullptr)
@@ -2304,7 +2309,7 @@ public:
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
     void clear() _NOEXCEPT {__size_ = 0;}
 
-    _LIBCPP_CONSTEXPR_SINCE_CXX20 void swap(vector&)
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 void swap(vector&)
 #if _LIBCPP_STD_VER >= 14
         _NOEXCEPT;
 #else
@@ -3321,11 +3326,11 @@ inline constexpr bool __format::__enable_insertable<vector<wchar_t>> = true;
 
 #endif // _LIBCPP_STD_VER >= 20
 
-#if _LIBCPP_STD_VER >= 23
+#if !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT) && _LIBCPP_STD_VER >= 23
 template <class _Tp, class CharT>
 // Since is-vector-bool-reference is only used once it's inlined here.
   requires same_as<typename _Tp::__container, vector<bool, typename _Tp::__container::allocator_type>>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<_Tp, CharT> {
+struct _LIBCPP_TEMPLATE_VIS formatter<_Tp, CharT> {
 private:
   formatter<bool, CharT> __underlying_;
 
@@ -3340,7 +3345,7 @@ public:
         return __underlying_.format(__ref, __ctx);
   }
 };
-#endif // _LIBCPP_STD_VER >= 23
+#endif // !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT) && _LIBCPP_STD_VER >= 23
 
 _LIBCPP_END_NAMESPACE_STD
 
@@ -3359,6 +3364,8 @@ _LIBCPP_POP_MACROS
 #  include <algorithm>
 #  include <atomic>
 #  include <concepts>
+#  include <cstdlib>
+#  include <type_traits>
 #  include <typeinfo>
 #  include <utility>
 #endif

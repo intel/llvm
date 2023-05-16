@@ -162,6 +162,9 @@ def ext_c99_feature : Extension<
   "'%0' is a C99 extension">, InGroup<C99>;
 def ext_c11_feature : Extension<
   "'%0' is a C11 extension">, InGroup<C11>;
+def warn_c2x_compat_keyword : Warning<
+ "'%0' is incompatible with C standards before C2x">,
+ InGroup<CPre2xCompat>, DefaultIgnore;
 
 def err_c11_noreturn_misplaced : Error<
   "'_Noreturn' keyword must precede function declarator">;
@@ -179,8 +182,6 @@ def ext_gnu_statement_expr_macro : Extension<
   InGroup<GNUStatementExpressionFromMacroExpansion>;
 def ext_gnu_conditional_expr : Extension<
   "use of GNU ?: conditional expression extension, omitting middle operand">, InGroup<GNUConditionalOmittedOperand>;
-def ext_gnu_empty_initializer : Extension<
-  "use of GNU empty initializer extension">, InGroup<GNUEmptyInitializer>;
 def ext_gnu_array_range : Extension<"use of GNU array range extension">,
   InGroup<GNUDesignator>;
 def ext_gnu_missing_equal_designator : ExtWarn<
@@ -299,14 +300,14 @@ def ext_c_label_end_of_compound_statement : ExtWarn<
   "label at end of compound statement is a C2x extension">,
    InGroup<C2x>;
 def ext_cxx_label_end_of_compound_statement : ExtWarn<
-  "label at end of compound statement is a C++2b extension">,
-   InGroup<CXX2b>;
+  "label at end of compound statement is a C++23 extension">,
+   InGroup<CXX23>;
 def warn_c2x_compat_label_end_of_compound_statement : Warning<
   "label at end of compound statement is incompatible with C standards before C2x">,
   InGroup<CPre2xCompat>, DefaultIgnore;
 def warn_cxx20_compat_label_end_of_compound_statement : Warning<
-  "label at end of compound statement is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "label at end of compound statement is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def err_address_of_label_outside_fn : Error<
   "use of address-of-label extension outside of a function body">;
 def err_asm_operand_wide_string_literal : Error<
@@ -371,9 +372,6 @@ def warn_cxx11_compat_decltype_auto_type_specifier : Warning<
 def ext_auto_type : Extension<
   "'__auto_type' is a GNU extension">,
   InGroup<GNUAutoType>;
-def warn_c2x_compat_typeof_type_specifier : Warning<
-  "'%select{typeof|typeof_unqual}0' is incompatible with C standards before "
-  "C2x">, InGroup<CPre2xCompat>, DefaultIgnore;
 def ext_for_range : ExtWarn<
   "range-based for loop is a C++11 extension">, InGroup<CXX11>;
 def warn_cxx98_compat_for_range : Warning<
@@ -568,11 +566,11 @@ def err_expected_init_in_condition_lparen : Error<
 def err_extraneous_rparen_in_condition : Error<
   "extraneous ')' after condition, expected a statement">;
 def ext_alias_in_init_statement : ExtWarn<
-  "alias declaration in this context is a C++2b extension">,
-  InGroup<CXX2b>;
+  "alias declaration in this context is a C++23 extension">,
+  InGroup<CXX23>;
 def warn_cxx20_alias_in_init_statement  : Warning<
-  "alias declaration in this context is incompatible with C++ standards before C++2b">,
-  DefaultIgnore, InGroup<CXXPre2bCompat>;
+  "alias declaration in this context is incompatible with C++ standards before C++23">,
+  DefaultIgnore, InGroup<CXXPre23Compat>;
 def warn_dangling_else : Warning<
   "add explicit braces to avoid dangling else">,
   InGroup<DanglingElse>;
@@ -654,11 +652,11 @@ def warn_cxx14_compat_constexpr_if : Warning<
   "constexpr if is incompatible with C++ standards before C++17">,
   DefaultIgnore, InGroup<CXXPre17Compat>;
 def ext_consteval_if : ExtWarn<
-  "consteval if is a C++2b extension">,
-   InGroup<CXX2b>;
+  "consteval if is a C++23 extension">,
+   InGroup<CXX23>;
 def warn_cxx20_compat_consteval_if : Warning<
-  "consteval if is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "consteval if is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 
 def ext_init_statement : ExtWarn<
   "'%select{if|switch}0' initialization statements are a C++17 extension">,
@@ -704,9 +702,6 @@ def warn_cxx98_compat_nullptr : Warning<
   "'nullptr' is incompatible with C++98">, InGroup<CXX98Compat>, DefaultIgnore;
 def ext_c_nullptr : Extension<
   "'nullptr' is a C2x extension">, InGroup<C2x>;
-def warn_c17_compat_nullptr : Warning<
-  "'nullptr' is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
 
 def warn_wrong_clang_attr_namespace : Warning<
   "'__clang__' is a predefined macro name, not an attribute scope specifier; "
@@ -1019,14 +1014,14 @@ def err_lambda_capture_multiple_ellipses : Error<
 def err_capture_default_first : Error<
   "capture default must be first">;
 def ext_decl_attrs_on_lambda : ExtWarn<
-  "an attribute specifier sequence in this position is a C++2b extension">,
-  InGroup<CXX2b>;
+  "an attribute specifier sequence in this position is a C++23 extension">,
+  InGroup<CXX23>;
 def ext_lambda_missing_parens : ExtWarn<
-  "lambda without a parameter clause is a C++2b extension">,
-  InGroup<CXX2b>;
+  "lambda without a parameter clause is a C++23 extension">,
+  InGroup<CXX23>;
 def warn_cxx20_compat_decl_attrs_on_lambda : Warning<
   "an attribute specifier sequence in this position is incompatible with C++ "
-  "standards before C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "standards before C++23">, InGroup<CXXPre23Compat>, DefaultIgnore;
 
 // C++17 lambda expressions
 def err_expected_star_this_capture : Error<
@@ -1049,12 +1044,12 @@ def warn_cxx17_compat_lambda_template_parameter_list: Warning<
 def err_lambda_template_parameter_list_empty : Error<
   "lambda template parameter list cannot be empty">;
 
-// C++2b static lambdas
+// C++23 static lambdas
 def err_static_lambda: ExtWarn<
-  "static lambdas are a C++2b extension">, InGroup<CXX2b>;
-def warn_cxx20_compat_static_lambda: ExtWarn<
-  "static lambdas are incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "static lambdas are a C++23 extension">, InGroup<CXX23>;
+def warn_cxx20_compat_static_lambda : Warning<
+  "static lambdas are incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def err_static_mutable_lambda : Error<
   "lambda cannot be both mutable and static">;
 def err_static_lambda_captures : Error<
@@ -1104,7 +1099,7 @@ def err_availability_query_repeated_star : Error<
 
 // External source symbol attribute
 def err_external_source_symbol_expected_keyword : Error<
-  "expected 'language', 'defined_in', or 'generated_declaration'">;
+  "expected 'language', 'defined_in', 'generated_declaration', or 'USR'">;
 def err_external_source_symbol_duplicate_clause : Error<
   "duplicate %0 clause in an 'external_source_symbol' attribute">;
 
@@ -1303,6 +1298,10 @@ def note_pragma_attribute_namespace_on_attribute : Note<
 def warn_no_support_for_eval_method_source_on_m32 : Warning<
   "Setting the floating point evaluation method to `source` on a target"
   " without SSE is not supported.">, InGroup<Pragmas>;
+// - #pragma __debug
+def warn_pragma_debug_dependent_argument : Warning<
+  "%select{value|type}0-dependent expression passed as an argument to debug "
+  "command">, InGroup<IgnoredPragmas>;
 
 // OpenCL EXTENSION pragma (OpenCL 1.1 [9.1])
 def warn_pragma_expected_colon : Warning<
@@ -1574,9 +1573,6 @@ def warn_ext_int_deprecated : Warning<
 def ext_bit_int : Extension<
   "'_BitInt' in %select{C17 and earlier|C++}0 is a Clang extension">,
   InGroup<DiagGroup<"bit-int-extension">>;
-def warn_c17_compat_bit_int : Warning<
-  "'_BitInt' is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
 } // end of Parse Issue category.
 
 let CategoryName = "Modules Issue" in {

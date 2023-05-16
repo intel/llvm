@@ -115,7 +115,6 @@ public:
   // Queue related functions
   uint32_t GetNumQueues();
 
-  // TODO: This technically takes a uint32_t in the interface file.
   lldb::SBQueue GetQueueAtIndex(size_t index);
 
   // Stepping related functions
@@ -186,6 +185,14 @@ public:
   /// \return
   ///   The stop event corresponding to stop ID.
   lldb::SBEvent GetStopEventForStopID(uint32_t stop_id);
+
+  /// If the process is a scripted process, changes its state to the new state.
+  /// No-op otherwise.
+  ///
+  /// \param [in] new_state
+  ///   The new state that the scripted process should be set to.
+  ///
+  void ForceScriptedState(StateType new_state);
 
   size_t ReadMemory(addr_t addr, void *buf, size_t size, lldb::SBError &error);
 

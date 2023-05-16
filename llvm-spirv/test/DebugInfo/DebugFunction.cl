@@ -1,8 +1,8 @@
 // Check for 2 things:
 // - After round trip translation function definition has !dbg metadata attached
 //   specifically if -gline-tables-only was used for Clang
-// - Parent operand of DebugFunction is DebugCompileUnit, not an OpString, even
-//   if in LLVM IR it points to a DIFile instead of DICompileUnit.
+// - Parent operand of DebugFunction is DebugCompilationUnit, not an OpString,
+//   even if in LLVM IR it points to a DIFile instead of DICompileUnit.
 
 // RUN: %clang_cc1 %s -cl-std=clc++ -emit-llvm-bc -triple spir -debug-info-kind=line-tables-only -O0 -o - | llvm-spirv -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
@@ -17,7 +17,7 @@ void kernel k() {
 
 // CHECK-SPIRV: String [[foo:[0-9]+]] "foo"
 // CHECK-SPIRV: String [[k:[0-9]+]] "k"
-// CHECK-SPIRV: [[CU:[0-9]+]] {{[0-9]+}} DebugCompileUnit
+// CHECK-SPIRV: [[CU:[0-9]+]] {{[0-9]+}} DebugCompilationUnit
 // CHECK-SPIRV: DebugFunction [[foo]] {{.*}} [[CU]] {{.*}} [[foo_id:[0-9]+]] {{[0-9]+}} {{$}}
 // CHECK-SPIRV: DebugFunction [[k]] {{.*}} [[CU]] {{.*}} [[k_id:[0-9]+]] {{[0-9]+}} {{$}}
 

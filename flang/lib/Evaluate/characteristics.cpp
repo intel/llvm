@@ -263,8 +263,22 @@ bool DummyDataObject::operator==(const DummyDataObject &that) const {
 }
 
 static bool AreCompatibleDummyDataObjectShapes(const Shape &x, const Shape &y) {
-  // TODO: Validate more than just compatible ranks
-  return GetRank(x) == GetRank(y);
+  int n{GetRank(x)};
+  if (n != GetRank(y)) {
+    return false;
+  }
+  auto xIter{x.begin()};
+  auto yIter{y.begin()};
+  for (; n-- > 0; ++xIter, ++yIter) {
+    if (auto xVal{ToInt64(*xIter)}) {
+      if (auto yVal{ToInt64(*yIter)}) {
+        if (*xVal != *yVal) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 bool DummyDataObject::IsCompatibleWith(
@@ -300,6 +314,11 @@ bool DummyDataObject::IsCompatibleWith(
     }
     return false;
   }
+  if (ignoreTKR != actual.ignoreTKR) {
+    if (whyNot) {
+      *whyNot = "incompatible !DIR$ IGNORE_TKR directives";
+    }
+  }
   return true;
 }
 
@@ -317,8 +336,8 @@ static common::Intent GetIntent(const semantics::Attrs &attrs) {
 
 std::optional<DummyDataObject> DummyDataObject::Characterize(
     const semantics::Symbol &symbol, FoldingContext &context) {
-  if (symbol.has<semantics::ObjectEntityDetails>() ||
-      symbol.has<semantics::EntityDetails>()) {
+  if (const auto *object{symbol.detailsIf<semantics::ObjectEntityDetails>()};
+      object || symbol.has<semantics::EntityDetails>()) {
     if (auto type{TypeAndShape::Characterize(symbol, context)}) {
       std::optional<DummyDataObject> result{std::move(*type)};
       using semantics::Attr;
@@ -334,6 +353,7 @@ std::optional<DummyDataObject> DummyDataObject::Characterize(
               {Attr::TARGET, DummyDataObject::Attr::Target},
           });
       result->intent = GetIntent(symbol.attrs());
+      result->ignoreTKR = GetIgnoreTKR(symbol);
       return result;
     }
   }
@@ -724,6 +744,17 @@ std::optional<DummyArgument> DummyArgument::FromActual(
       expr.u);
 }
 
+std::optional<DummyArgument> DummyArgument::FromActual(
+    std::string &&name, const ActualArgument &arg, FoldingContext &context) {
+  if (const auto *expr{arg.UnwrapExpr()}) {
+    return FromActual(std::move(name), *expr, context);
+  } else if (arg.GetAssumedTypeDummy()) {
+    return std::nullopt;
+  } else {
+    return DummyArgument{AlternateReturn{}};
+  }
+}
+
 bool DummyArgument::IsOptional() const {
   return common::visit(
       common::visitors{
@@ -925,10 +956,32 @@ bool FunctionResult::IsCompatibleWith(
         if (whyNot) {
           *whyNot = "function results have distinct constant extents";
         }
-      } else if (!ifaceTypeShape->type().IsTkLenCompatibleWith(
-                     actualTypeShape->type())) {
+      } else if (ifaceTypeShape->type() != actualTypeShape->type()) {
+        if (ifaceTypeShape->type().category() ==
+            actualTypeShape->type().category()) {
+          if (ifaceTypeShape->type().category() == TypeCategory::Character) {
+            if (ifaceTypeShape->type().kind() ==
+                actualTypeShape->type().kind()) {
+              auto ifaceLen{ifaceTypeShape->type().knownLength()};
+              auto actualLen{actualTypeShape->type().knownLength()};
+              if (!ifaceLen || !actualLen || *ifaceLen == *actualLen) {
+                return true;
+              }
+            }
+          } else if (ifaceTypeShape->type().category() ==
+              TypeCategory::Derived) {
+            if (ifaceTypeShape->type().IsPolymorphic() ==
+                    actualTypeShape->type().IsPolymorphic() &&
+                !ifaceTypeShape->type().IsUnlimitedPolymorphic() &&
+                !actualTypeShape->type().IsUnlimitedPolymorphic() &&
+                AreSameDerivedType(ifaceTypeShape->type().GetDerivedTypeSpec(),
+                    actualTypeShape->type().GetDerivedTypeSpec())) {
+              return true;
+            }
+          }
+        }
         if (whyNot) {
-          *whyNot = "function results have incompatible types: "s +
+          *whyNot = "function results have distinct types: "s +
               ifaceTypeShape->type().AsFortran() + " vs "s +
               actualTypeShape->type().AsFortran();
         }
@@ -1067,8 +1120,11 @@ bool Procedure::CanOverride(
     return false;
   }
   for (int j{0}; j < argCount; ++j) {
-    if ((!passIndex || j != *passIndex) &&
-        dummyArguments[j] != that.dummyArguments[j]) {
+    if (passIndex && j == *passIndex) {
+      if (!that.dummyArguments[j].IsCompatibleWith(dummyArguments[j])) {
+        return false;
+      }
+    } else if (dummyArguments[j] != that.dummyArguments[j]) {
       return false;
     }
   }
@@ -1105,6 +1161,30 @@ std::optional<Procedure> Procedure::Characterize(
     }
   }
   return std::nullopt;
+}
+
+std::optional<Procedure> Procedure::FromActuals(const ProcedureDesignator &proc,
+    const ActualArguments &args, FoldingContext &context) {
+  auto callee{Characterize(proc, context)};
+  if (callee) {
+    if (callee->dummyArguments.empty() &&
+        callee->attrs.test(Procedure::Attr::ImplicitInterface)) {
+      int j{0};
+      for (const auto &arg : args) {
+        ++j;
+        if (arg) {
+          if (auto dummy{DummyArgument::FromActual(
+                  "x"s + std::to_string(j), *arg, context)}) {
+            callee->dummyArguments.emplace_back(std::move(*dummy));
+            continue;
+          }
+        }
+        callee.reset();
+        break;
+      }
+    }
+  }
+  return callee;
 }
 
 bool Procedure::CanBeCalledViaImplicitInterface() const {
@@ -1180,9 +1260,10 @@ private:
   bool Distinguishable(const DummyDataObject &, const DummyDataObject &) const;
   bool Distinguishable(const DummyProcedure &, const DummyProcedure &) const;
   bool Distinguishable(const FunctionResult &, const FunctionResult &) const;
-  bool Distinguishable(const TypeAndShape &, const TypeAndShape &) const;
+  bool Distinguishable(
+      const TypeAndShape &, const TypeAndShape &, common::IgnoreTKRSet) const;
   bool IsTkrCompatible(const DummyArgument &, const DummyArgument &) const;
-  bool IsTkrCompatible(const TypeAndShape &, const TypeAndShape &) const;
+  bool IsTkCompatible(const DummyDataObject &, const DummyDataObject &) const;
   const DummyArgument *GetAtEffectivePosition(
       const DummyArguments &, int) const;
   const DummyArgument *GetPassArg(const Procedure &) const;
@@ -1358,7 +1439,7 @@ bool DistinguishUtils::Distinguishable(
 bool DistinguishUtils::Distinguishable(
     const DummyDataObject &x, const DummyDataObject &y) const {
   using Attr = DummyDataObject::Attr;
-  if (Distinguishable(x.type, y.type)) {
+  if (Distinguishable(x.type, y.type, x.ignoreTKR | y.ignoreTKR)) {
     return true;
   } else if (x.attrs.test(Attr::Allocatable) && y.attrs.test(Attr::Pointer) &&
       y.intent != common::Intent::In) {
@@ -1407,7 +1488,8 @@ bool DistinguishUtils::Distinguishable(
   return common::visit(
       common::visitors{
           [&](const TypeAndShape &z) {
-            return Distinguishable(z, std::get<TypeAndShape>(y.u));
+            return Distinguishable(
+                z, std::get<TypeAndShape>(y.u), common::IgnoreTKRSet{});
           },
           [&](const CopyableIndirection<Procedure> &z) {
             return Distinguishable(z.value(),
@@ -1417,24 +1499,39 @@ bool DistinguishUtils::Distinguishable(
       x.u);
 }
 
-bool DistinguishUtils::Distinguishable(
-    const TypeAndShape &x, const TypeAndShape &y) const {
-  return !IsTkrCompatible(x, y) && !IsTkrCompatible(y, x);
+bool DistinguishUtils::Distinguishable(const TypeAndShape &x,
+    const TypeAndShape &y, common::IgnoreTKRSet ignoreTKR) const {
+  if (!x.type().IsTkCompatibleWith(y.type(), ignoreTKR) &&
+      !y.type().IsTkCompatibleWith(x.type(), ignoreTKR)) {
+    return true;
+  }
+  if (ignoreTKR.test(common::IgnoreTKR::Rank)) {
+  } else if (x.attrs().test(TypeAndShape::Attr::AssumedRank) ||
+      y.attrs().test(TypeAndShape::Attr::AssumedRank)) {
+  } else if (x.Rank() != y.Rank()) {
+    return true;
+  }
+  return false;
 }
 
 // Compatibility based on type, kind, and rank
+
 bool DistinguishUtils::IsTkrCompatible(
     const DummyArgument &x, const DummyArgument &y) const {
   const auto *obj1{std::get_if<DummyDataObject>(&x.u)};
   const auto *obj2{std::get_if<DummyDataObject>(&y.u)};
-  return obj1 && obj2 && IsTkrCompatible(obj1->type, obj2->type);
+  return obj1 && obj2 && IsTkCompatible(*obj1, *obj2) &&
+      (obj1->type.Rank() == obj2->type.Rank() ||
+          obj1->type.attrs().test(TypeAndShape::Attr::AssumedRank) ||
+          obj2->type.attrs().test(TypeAndShape::Attr::AssumedRank) ||
+          obj1->ignoreTKR.test(common::IgnoreTKR::Rank) ||
+          obj2->ignoreTKR.test(common::IgnoreTKR::Rank));
 }
-bool DistinguishUtils::IsTkrCompatible(
-    const TypeAndShape &x, const TypeAndShape &y) const {
-  return x.type().IsTkCompatibleWith(y.type()) &&
-      (x.attrs().test(TypeAndShape::Attr::AssumedRank) ||
-          y.attrs().test(TypeAndShape::Attr::AssumedRank) ||
-          x.Rank() == y.Rank());
+
+bool DistinguishUtils::IsTkCompatible(
+    const DummyDataObject &x, const DummyDataObject &y) const {
+  return x.type.type().IsTkCompatibleWith(
+      y.type.type(), x.ignoreTKR | y.ignoreTKR);
 }
 
 // Return the argument at the given index, ignoring the passed arg

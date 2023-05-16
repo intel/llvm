@@ -54,9 +54,9 @@ xpti_td *GPIArgCallEvent = nullptr;
 
 template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
   void *ReturnOpaqueData = nullptr;
-  const sycl::detail::plugin &Plugin = sycl::detail::pi::getPlugin<BE>();
+  const PluginPtr &Plugin = pi::getPlugin<BE>();
 
-  Plugin.call<sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
+  Plugin->call<sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
       OpaqueDataParam, &ReturnOpaqueData);
 
   return ReturnOpaqueData;
@@ -67,7 +67,7 @@ getPluginOpaqueData<sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
-static void initializePlugins(std::vector<plugin> &Plugins);
+static void initializePlugins(std::vector<PluginPtr> &Plugins);
 
 bool XPTIInitDone = false;
 
@@ -174,9 +174,9 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
   auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
-  auto plugin = impl->getPlugin();
-  plugin.call<PiApiKind::piextContextSetExtendedDeleter>(contextHandle, func,
-                                                         user_data);
+  const auto &Plugin = impl->getPlugin();
+  Plugin->call<PiApiKind::piextContextSetExtendedDeleter>(contextHandle, func,
+                                                          user_data);
 }
 
 std::string platformInfoToString(pi_platform_info info) {
@@ -191,6 +191,8 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_VENDOR";
   case PI_PLATFORM_INFO_EXTENSIONS:
     return "PI_PLATFORM_INFO_EXTENSIONS";
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return "PI_EXT_PLATFORM_INFO_BACKEND";
   }
   die("Unknown pi_platform_info value passed to "
       "sycl::detail::pi::platformInfoToString");
@@ -280,12 +282,11 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                           "conjunction with SYCL_DEVICE_FILTER");
   } else if (!FilterList && !OdsTargetList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
-                             backend::ext_oneapi_unified_runtime);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
   } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -323,15 +324,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
+      PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     }
   } else {
     ods_target_list &list = *OdsTargetList;
     if (list.backendCompatible(backend::opencl)) {
       PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    }
-    if (list.backendCompatible(backend::ext_oneapi_unified_runtime)) {
-      PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
-                               backend::ext_oneapi_unified_runtime);
     }
     if (list.backendCompatible(backend::ext_oneapi_level_zero)) {
       PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
@@ -348,6 +346,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }
+    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
   }
   return PluginNames;
 }
@@ -394,7 +393,7 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-std::vector<plugin> &initialize() {
+std::vector<PluginPtr> &initialize() {
   static std::once_flag PluginsInitDone;
   // std::call_once is blocking all other threads if a thread is already
   // creating a vector of plugins. So, no additional lock is needed.
@@ -404,7 +403,7 @@ std::vector<plugin> &initialize() {
   return GlobalHandler::instance().getPlugins();
 }
 
-static void initializePlugins(std::vector<plugin> &Plugins) {
+static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -439,14 +438,13 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       }
       continue;
     }
-    plugin &NewPlugin = Plugins.emplace_back(
-        plugin(PluginInformation, PluginNames[I].second, Library));
+    PluginPtr &NewPlugin = Plugins.emplace_back(std::make_shared<plugin>(
+        PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
-                << PluginNames[I].first
-                << " [ PluginVersion: " << NewPlugin.getPiPlugin().PluginVersion
-                << " ]" << std::endl;
+                << PluginNames[I].first << " [ PluginVersion: "
+                << NewPlugin->getPiPlugin().PluginVersion << " ]" << std::endl;
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -503,14 +501,14 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
 }
 
 // Get the plugin serving given backend.
-template <backend BE> const plugin &getPlugin() {
-  static const plugin *Plugin = nullptr;
+template <backend BE> const PluginPtr &getPlugin() {
+  static PluginPtr *Plugin = nullptr;
   if (Plugin)
     return *Plugin;
 
-  const std::vector<plugin> &Plugins = pi::initialize();
-  for (const auto &P : Plugins)
-    if (P.getBackend() == BE) {
+  std::vector<PluginPtr> &Plugins = pi::initialize();
+  for (auto &P : Plugins)
+    if (P->hasBackend(BE)) {
       Plugin = &P;
       return *Plugin;
     }
@@ -519,12 +517,12 @@ template <backend BE> const plugin &getPlugin() {
                       PI_ERROR_INVALID_OPERATION);
 }
 
-template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
-template __SYCL_EXPORT const plugin &
+template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
+template __SYCL_EXPORT const PluginPtr &
 getPlugin<backend::ext_oneapi_level_zero>();
-template __SYCL_EXPORT const plugin &
+template __SYCL_EXPORT const PluginPtr &
 getPlugin<backend::ext_intel_esimd_emulator>();
-template __SYCL_EXPORT const plugin &getPlugin<backend::ext_oneapi_cuda>();
+template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
@@ -641,7 +639,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
               {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
+    std::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     // Check headers for direct formats.

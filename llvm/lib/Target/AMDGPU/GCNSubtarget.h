@@ -20,6 +20,7 @@
 #include "SIFrameLowering.h"
 #include "SIISelLowering.h"
 #include "SIInstrInfo.h"
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 
 #define GET_SUBTARGETINFO_HEADER
@@ -133,7 +134,7 @@ protected:
   bool HasA16 = false;
   bool HasG16 = false;
   bool HasNSAEncoding = false;
-  unsigned NSAMaxSize = 0;
+  bool HasPartialNSAEncoding = false;
   bool GFX10_AEncoding = false;
   bool GFX10_BEncoding = false;
   bool HasDLInsts = false;
@@ -151,9 +152,13 @@ protected:
   bool HasMAIInsts = false;
   bool HasFP8Insts = false;
   bool HasPkFmacF16Inst = false;
+  bool HasAtomicDsPkAdd16Insts = false;
+  bool HasAtomicFlatPkAdd16Insts = false;
   bool HasAtomicFaddRtnInsts = false;
   bool HasAtomicFaddNoRtnInsts = false;
-  bool HasAtomicPkFaddNoRtnInsts = false;
+  bool HasAtomicBufferGlobalPkAddF16NoRtnInsts = false;
+  bool HasAtomicBufferGlobalPkAddF16Insts = false;
+  bool HasAtomicGlobalPkAddBF16Inst = false;
   bool HasFlatAtomicFaddF32Inst = false;
   bool SupportsSRAMECC = false;
 
@@ -757,6 +762,10 @@ public:
     return HasPkFmacF16Inst;
   }
 
+  bool hasAtomicDsPkAdd16Insts() const { return HasAtomicDsPkAdd16Insts; }
+
+  bool hasAtomicFlatPkAdd16Insts() const { return HasAtomicFlatPkAdd16Insts; }
+
   bool hasAtomicFaddInsts() const {
     return HasAtomicFaddRtnInsts || HasAtomicFaddNoRtnInsts;
   }
@@ -765,7 +774,17 @@ public:
 
   bool hasAtomicFaddNoRtnInsts() const { return HasAtomicFaddNoRtnInsts; }
 
-  bool hasAtomicPkFaddNoRtnInsts() const { return HasAtomicPkFaddNoRtnInsts; }
+  bool hasAtomicBufferGlobalPkAddF16NoRtnInsts() const {
+    return HasAtomicBufferGlobalPkAddF16NoRtnInsts;
+  }
+
+  bool hasAtomicBufferGlobalPkAddF16Insts() const {
+    return HasAtomicBufferGlobalPkAddF16Insts;
+  }
+
+  bool hasAtomicGlobalPkAddBF16Inst() const {
+    return HasAtomicGlobalPkAddBF16Inst;
+  }
 
   bool hasFlatAtomicFaddF32Inst() const { return HasFlatAtomicFaddF32Inst; }
 
@@ -931,7 +950,9 @@ public:
 
   bool hasNSAEncoding() const { return HasNSAEncoding; }
 
-  unsigned getNSAMaxSize() const { return NSAMaxSize; }
+  bool hasPartialNSAEncoding() const { return HasPartialNSAEncoding; }
+
+  unsigned getNSAMaxSize() const { return AMDGPU::getNSAMaxSize(*this); }
 
   bool hasGFX10_AEncoding() const {
     return GFX10_AEncoding;

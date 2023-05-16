@@ -1,4 +1,4 @@
-//===-- RISCVTargetObjectFile.cpp - RISCV Object Info -----------------===//
+//===-- RISCVTargetObjectFile.cpp - RISC-V Object Info --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,6 +17,8 @@ using namespace llvm;
 void RISCVELFTargetObjectFile::Initialize(MCContext &Ctx,
                                           const TargetMachine &TM) {
   TargetLoweringObjectFileELF::Initialize(Ctx, TM);
+
+  PLTRelativeVariantKind = MCSymbolRefExpr::VK_PLT;
 
   SmallDataSection = getContext().getELFSection(
       ".sdata", ELF::SHT_PROGBITS, ELF::SHF_WRITE | ELF::SHF_ALLOC);

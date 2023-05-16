@@ -231,7 +231,7 @@ private:  // Parser methods.
   bool ParseDefm(MultiClass *CurMultiClass);
   bool ParseDef(MultiClass *CurMultiClass);
   bool ParseDefset();
-  bool ParseDefvar();
+  bool ParseDefvar(Record *CurRec = nullptr);
   bool ParseForeach(MultiClass *CurMultiClass);
   bool ParseIf(MultiClass *CurMultiClass);
   bool ParseIfBody(MultiClass *CurMultiClass, StringRef Kind);
@@ -265,6 +265,8 @@ private:  // Parser methods.
       Record *CurRec);
   bool ParseOptionalRangeList(SmallVectorImpl<unsigned> &Ranges);
   bool ParseOptionalBitList(SmallVectorImpl<unsigned> &Ranges);
+  TypedInit *ParseSliceElement(Record *CurRec);
+  TypedInit *ParseSliceElements(Record *CurRec, bool Single = false);
   void ParseRangeList(SmallVectorImpl<unsigned> &Result);
   bool ParseRangePiece(SmallVectorImpl<unsigned> &Ranges,
                        TypedInit *FirstItem = nullptr);

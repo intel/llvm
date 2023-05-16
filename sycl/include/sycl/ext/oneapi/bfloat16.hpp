@@ -9,11 +9,8 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/half_type.hpp>
-
-#if !defined(__SYCL_DEVICE_ONLY__)
-#include <cmath>
-#endif
 
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
@@ -46,6 +43,19 @@ public:
   ~bfloat16() = default;
 
 private:
+  static detail::Bfloat16StorageT from_float_fallback(const float &a) {
+    if (sycl::isnan(a))
+      return 0xffc1;
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    floatValue = a;
+    // Do RNE and truncate
+    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
+    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
+  }
+
   // Explicit conversion functions
   static detail::Bfloat16StorageT from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -53,34 +63,15 @@ private:
 #if (__SYCL_CUDA_ARCH__ >= 800)
     return __nvvm_f2bf16_rn(a);
 #else
-    // TODO find a better way to check for NaN
-    if (a != a)
-      return 0xffc1;
-    union {
-      uint32_t intStorage;
-      float floatValue;
-    };
-    floatValue = a;
-    // Do RNE and truncate
-    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
-    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
+    return from_float_fallback(a);
 #endif
+#elif defined(__AMDGCN__)
+    return from_float_fallback(a);
 #else
     return __devicelib_ConvertFToBF16INTEL(a);
 #endif
-#else
-    // In case float value is nan - propagate bfloat16's qnan
-    if (std::isnan(a))
-      return 0xffc1;
-    union {
-      uint32_t intStorage;
-      float floatValue;
-    };
-    floatValue = a;
-    // Do RNE and truncate
-    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
-    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
 #endif
+    return from_float_fallback(a);
   }
 
   static float to_float(const detail::Bfloat16StorageT &a) {

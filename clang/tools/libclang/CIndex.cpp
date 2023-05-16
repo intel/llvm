@@ -2859,9 +2859,10 @@ void EnqueueVisitor::VisitDeclStmt(const DeclStmt *S) {
 }
 void EnqueueVisitor::VisitDesignatedInitExpr(const DesignatedInitExpr *E) {
   AddStmt(E->getInit());
-  for (const Designator &D : llvm::reverse(E->designators())) {
+  for (const DesignatedInitExpr::Designator &D :
+       llvm::reverse(E->designators())) {
     if (D.isFieldDesignator()) {
-      if (FieldDecl *Field = D.getField())
+      if (const FieldDecl *Field = D.getFieldDecl())
         AddMemberRef(Field, D.getFieldLoc());
       continue;
     }
@@ -3652,8 +3653,10 @@ struct RegisterFatalErrorHandler {
 static llvm::ManagedStatic<RegisterFatalErrorHandler>
     RegisterFatalErrorHandlerOnce;
 
-CXIndex clang_createIndex(int excludeDeclarationsFromPCH,
-                          int displayDiagnostics) {
+static CIndexer *clang_createIndex_Impl(
+    int excludeDeclarationsFromPCH, int displayDiagnostics,
+    unsigned char threadBackgroundPriorityForIndexing = CXChoice_Default,
+    unsigned char threadBackgroundPriorityForEditing = CXChoice_Default) {
   // We use crash recovery to make some of our APIs more reliable, implicitly
   // enable it.
   if (!getenv("LIBCLANG_DISABLE_CRASH_RECOVERY"))
@@ -3677,19 +3680,77 @@ CXIndex clang_createIndex(int excludeDeclarationsFromPCH,
   if (displayDiagnostics)
     CIdxr->setDisplayDiagnostics();
 
-  if (getenv("LIBCLANG_BGPRIO_INDEX"))
-    CIdxr->setCXGlobalOptFlags(CIdxr->getCXGlobalOptFlags() |
-                               CXGlobalOpt_ThreadBackgroundPriorityForIndexing);
-  if (getenv("LIBCLANG_BGPRIO_EDIT"))
-    CIdxr->setCXGlobalOptFlags(CIdxr->getCXGlobalOptFlags() |
-                               CXGlobalOpt_ThreadBackgroundPriorityForEditing);
+  unsigned GlobalOptions = CIdxr->getCXGlobalOptFlags();
+  const auto updateGlobalOption =
+      [&GlobalOptions](unsigned char Policy, CXGlobalOptFlags Flag,
+                       const char *EnvironmentVariableName) {
+        switch (Policy) {
+        case CXChoice_Enabled:
+          GlobalOptions |= Flag;
+          break;
+        case CXChoice_Disabled:
+          GlobalOptions &= ~Flag;
+          break;
+        case CXChoice_Default:
+        default: // Fall back to default behavior if Policy is unsupported.
+          if (getenv(EnvironmentVariableName))
+            GlobalOptions |= Flag;
+        }
+      };
+  updateGlobalOption(threadBackgroundPriorityForIndexing,
+                     CXGlobalOpt_ThreadBackgroundPriorityForIndexing,
+                     "LIBCLANG_BGPRIO_INDEX");
+  updateGlobalOption(threadBackgroundPriorityForEditing,
+                     CXGlobalOpt_ThreadBackgroundPriorityForEditing,
+                     "LIBCLANG_BGPRIO_EDIT");
+  CIdxr->setCXGlobalOptFlags(GlobalOptions);
 
   return CIdxr;
+}
+
+CXIndex clang_createIndex(int excludeDeclarationsFromPCH,
+                          int displayDiagnostics) {
+  return clang_createIndex_Impl(excludeDeclarationsFromPCH, displayDiagnostics);
 }
 
 void clang_disposeIndex(CXIndex CIdx) {
   if (CIdx)
     delete static_cast<CIndexer *>(CIdx);
+}
+
+CXIndex clang_createIndexWithOptions(const CXIndexOptions *options) {
+  // Adding new options to struct CXIndexOptions:
+  // 1. If no other new option has been added in the same libclang version,
+  // sizeof(CXIndexOptions) must increase for versioning purposes.
+  // 2. Options should be added at the end of the struct in order to seamlessly
+  // support older struct versions. If options->Size < sizeof(CXIndexOptions),
+  // don't attempt to read the missing options and rely on the default values of
+  // recently added options being reasonable. For example:
+  // if (options->Size >= offsetof(CXIndexOptions, RecentlyAddedMember))
+  //   do_something(options->RecentlyAddedMember);
+
+  // An exception: if a new option is small enough, it can be squeezed into the
+  // /*Reserved*/ bits in CXIndexOptions. Since the default value of each option
+  // is guaranteed to be 0 and the callers are advised to zero out the struct,
+  // programs built against older libclang versions would implicitly set the new
+  // options to default values, which should keep the behavior of previous
+  // libclang versions and thus be backward-compatible.
+
+  // If options->Size > sizeof(CXIndexOptions), the user may have set an option
+  // we can't handle, in which case we return nullptr to report failure.
+  // Replace `!=` with `>` here to support older struct versions. `!=` has the
+  // advantage of catching more usage bugs and no disadvantages while there is a
+  // single supported struct version (the initial version).
+  if (options->Size != sizeof(CXIndexOptions))
+    return nullptr;
+  CIndexer *const CIdxr = clang_createIndex_Impl(
+      options->ExcludeDeclarationsFromPCH, options->DisplayDiagnostics,
+      options->ThreadBackgroundPriorityForIndexing,
+      options->ThreadBackgroundPriorityForEditing);
+  CIdxr->setStorePreamblesInMemory(options->StorePreamblesInMemory);
+  CIdxr->setPreambleStoragePath(options->PreambleStoragePath);
+  CIdxr->setInvocationEmissionPath(options->InvocationEmissionPath);
+  return CIdxr;
 }
 
 void clang_CXIndex_setGlobalOptions(CXIndex CIdx, unsigned options) {
@@ -3901,13 +3962,14 @@ clang_parseTranslationUnit_Impl(CXIndex CIdx, const char *source_filename,
   std::unique_ptr<ASTUnit> Unit(ASTUnit::LoadFromCommandLine(
       Args->data(), Args->data() + Args->size(),
       CXXIdx->getPCHContainerOperations(), Diags,
-      CXXIdx->getClangResourcesPath(), CXXIdx->getOnlyLocalDecls(),
+      CXXIdx->getClangResourcesPath(), CXXIdx->getStorePreamblesInMemory(),
+      CXXIdx->getPreambleStoragePath(), CXXIdx->getOnlyLocalDecls(),
       CaptureDiagnostics, *RemappedFiles.get(),
       /*RemappedFilesKeepOriginalName=*/true, PrecompilePreambleAfterNParses,
       TUKind, CacheCodeCompletionResults, IncludeBriefCommentsInCodeCompletion,
       /*AllowPCHWithCompilerErrors=*/true, SkipFunctionBodies, SingleFileParse,
       /*UserFilesAreVolatile=*/true, ForSerialization, RetainExcludedCB,
-      CXXIdx->getPCHContainerOperations()->getRawReader().getFormat(),
+      CXXIdx->getPCHContainerOperations()->getRawReader().getFormats().front(),
       &ErrUnit));
 
   // Early failures in LoadFromCommandLine may return with ErrUnit unset.

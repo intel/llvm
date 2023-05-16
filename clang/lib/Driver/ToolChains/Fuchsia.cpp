@@ -12,6 +12,7 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/MultilibBuilder.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "llvm/Option/ArgList.h"
@@ -186,7 +187,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-lc");
   }
 
-  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileCurCP(),
                                          Exec, CmdArgs, Inputs, Output));
 }
 
@@ -262,28 +264,35 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
 
   Multilibs.push_back(Multilib());
   // Use the noexcept variant with -fno-exceptions to avoid the extra overhead.
-  Multilibs.push_back(Multilib("noexcept", {}, {}, 1)
+  Multilibs.push_back(MultilibBuilder("noexcept", {}, {})
                           .flag("-fexceptions")
-                          .flag("+fno-exceptions"));
+                          .flag("+fno-exceptions")
+                          .makeMultilib());
   // ASan has higher priority because we always want the instrumentated version.
-  Multilibs.push_back(Multilib("asan", {}, {}, 2)
-                          .flag("+fsanitize=address"));
+  Multilibs.push_back(MultilibBuilder("asan", {}, {})
+                          .flag("+fsanitize=address")
+                          .makeMultilib());
   // Use the asan+noexcept variant with ASan and -fno-exceptions.
-  Multilibs.push_back(Multilib("asan+noexcept", {}, {}, 3)
+  Multilibs.push_back(MultilibBuilder("asan+noexcept", {}, {})
                           .flag("+fsanitize=address")
                           .flag("-fexceptions")
-                          .flag("+fno-exceptions"));
+                          .flag("+fno-exceptions")
+                          .makeMultilib());
   // HWASan has higher priority because we always want the instrumentated
   // version.
-  Multilibs.push_back(
-      Multilib("hwasan", {}, {}, 4).flag("+fsanitize=hwaddress"));
+  Multilibs.push_back(MultilibBuilder("hwasan", {}, {})
+                          .flag("+fsanitize=hwaddress")
+                          .makeMultilib());
   // Use the hwasan+noexcept variant with HWASan and -fno-exceptions.
-  Multilibs.push_back(Multilib("hwasan+noexcept", {}, {}, 5)
+  Multilibs.push_back(MultilibBuilder("hwasan+noexcept", {}, {})
                           .flag("+fsanitize=hwaddress")
                           .flag("-fexceptions")
-                          .flag("+fno-exceptions"));
+                          .flag("+fno-exceptions")
+                          .makeMultilib());
   // Use Itanium C++ ABI for the compat multilib.
-  Multilibs.push_back(Multilib("compat", {}, {}, 6).flag("+fc++-abi=itanium"));
+  Multilibs.push_back(MultilibBuilder("compat", {}, {})
+                          .flag("+fc++-abi=itanium")
+                          .makeMultilib());
 
   Multilibs.FilterOut([&](const Multilib &M) {
     std::vector<std::string> RD = FilePaths(M);
@@ -291,9 +300,10 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
   });
 
   Multilib::flags_list Flags;
-  addMultilibFlag(
-      Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions, true),
-      "fexceptions", Flags);
+  bool Exceptions =
+      Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions, true);
+  addMultilibFlag(Exceptions, "fexceptions", Flags);
+  addMultilibFlag(!Exceptions, "fno-exceptions", Flags);
   addMultilibFlag(getSanitizerArgs(Args).needsAsanRt(), "fsanitize=address",
                   Flags);
   addMultilibFlag(getSanitizerArgs(Args).needsHwasanRt(), "fsanitize=hwaddress",

@@ -42,6 +42,11 @@ def Bdynamic: F<"Bdynamic">, HelpText<"Link against shared libraries (default)">
 
 def Bstatic: F<"Bstatic">, HelpText<"Do not link against shared libraries">;
 
+def build_id: F<"build-id">, HelpText<"Alias for --build-id=fast">;
+
+def build_id_eq: J<"build-id=">, HelpText<"Generate build ID note">,
+  MetaVarName<"[fast,sha1,uuid,0x<hexstring>]">;
+
 defm color_diagnostics: B<"color-diagnostics",
   "Alias for --color-diagnostics=always",
   "Alias for --color-diagnostics=never">;
@@ -220,6 +225,8 @@ def stack_first: FF<"stack-first">,
 defm whole_archive: B<"whole-archive",
     "Force load of all members in a static library",
     "Do not force load of all members in a static library (default)">;
+
+def why_extract: JJ<"why-extract=">, HelpText<"Print to a file about why archive members are extracted">;
 
 defm check_features: BB<"check-features",
     "Check feature compatibility of linked objects (default)",

@@ -23,6 +23,7 @@
 #include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
+using namespace mlir::affine;
 using namespace mlir::tensor;
 
 /// Get the dimension size of a value of RankedTensor type at the
@@ -61,7 +62,7 @@ static DimAndIndex invertSliceIndexing(OpBuilder &b, Location loc,
   assert(dim < sliceParams.size() && "slice should be non rank-reducing");
   return std::make_pair(
       dim,
-      makeComposedAffineApply(
+      affine::makeComposedAffineApply(
           b, loc, s0 + d0 * s1,
           {indexValue,
            getValueOrCreateConstantIndexOp(b, loc, sliceParams[dim].offset),
@@ -112,12 +113,9 @@ tensor::ExtractSliceFromCollapseHelper::create(OpBuilder &b,
   // Materialize the output shape of the collapse_shape operation. This will
   // create IR describing the output shape in terms of the input shape.
   ReifiedRankedShapedTypeDims reifiedShapes;
-  ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
-      dyn_cast<ReifyRankedShapedTypeOpInterface>(op.getOperation());
-  if (failed(reifyShapedTypeInterface.reifyResultShapes(b, reifiedShapes)))
+  if (failed(reifyResultShapes(b, op, reifiedShapes)))
     return failure();
-  SmallVector<OpFoldResult> collapseShapeOutputShape =
-      getAsOpFoldResult(reifiedShapes[0]);
+  SmallVector<OpFoldResult> &collapseShapeOutputShape = reifiedShapes[0];
   SmallVector<ReassociationIndices> reassociationIndices =
       op.getReassociationIndices();
 

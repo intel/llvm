@@ -111,8 +111,8 @@ static SmallVector<OpFoldResult> getGenericOpLoopRange(OpBuilder &b,
       cast<LinalgOp>(op.getOperation()).createFlatListOfOperandDims(b, loc);
   AffineMap map = op.getShapesToLoopsMap();
   IRRewriter rewriter(b);
-  return makeComposedFoldedMultiResultAffineApply(rewriter, loc, map,
-                                                  allShapesSizes);
+  return affine::makeComposedFoldedMultiResultAffineApply(rewriter, loc, map,
+                                                          allShapesSizes);
 }
 
 /// Helper method to permute the list of `values` based on the `map`.
@@ -329,15 +329,15 @@ DecomposeLinalgOp::matchAndRewrite(GenericOp genericOp,
        llvm::enumerate(genericOp.getBody()->getArguments())) {
     Value residualOpReplacementArg =
         residualGenericOpBody->getArgument(inputBlockArg.index());
-    inputBlockArg.value().replaceUsesWithIf(
-        residualOpReplacementArg, [&](OpOperand &use) {
+    rewriter.replaceUsesWithIf(
+        inputBlockArg.value(), residualOpReplacementArg, [&](OpOperand &use) {
           return use.getOwner()->getBlock() == residualGenericOpBody;
         });
 
     Value peeledOpReplacementArg =
         peeledGenericOpBody->getArgument(inputBlockArg.index());
-    inputBlockArg.value().replaceUsesWithIf(
-        peeledOpReplacementArg, [&](OpOperand &use) {
+    rewriter.replaceUsesWithIf(
+        inputBlockArg.value(), peeledOpReplacementArg, [&](OpOperand &use) {
           return use.getOwner()->getBlock() == peeledGenericOpBody;
         });
   }

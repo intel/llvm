@@ -8,30 +8,13 @@
 
 #include "LibcTest.h"
 
+#include "src/__support/CPP/string.h"
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/UInt128.h"
-#include "utils/testutils/ExecuteFunction.h"
-#include <cassert>
-#include <iostream>
-#include <string>
+#include "test/UnitTest/TestLogger.h"
 
 namespace __llvm_libc {
 namespace testing {
-
-// This need not be a class as all it has is a single read-write state variable.
-// But, we make it class as then its implementation can be hidden from the
-// header file.
-class RunContext {
-public:
-  enum RunResult { Result_Pass = 1, Result_Fail = 2 };
-
-  RunResult status() const { return Status; }
-
-  void markFail() { Status = Result_Fail; }
-
-private:
-  RunResult Status = Result_Pass;
-};
 
 namespace internal {
 
@@ -41,18 +24,18 @@ namespace internal {
 // be able to unittest UInt<128> on platforms where UInt128 resolves to
 // UInt128.
 template <typename T>
-cpp::enable_if_t<cpp::is_integral_v<T> && cpp::is_unsigned_v<T>, std::string>
+cpp::enable_if_t<cpp::is_integral_v<T> && cpp::is_unsigned_v<T>, cpp::string>
 describeValueUInt(T Value) {
   static_assert(sizeof(T) % 8 == 0, "Unsupported size of UInt");
-  std::string S(sizeof(T) * 2, '0');
+  cpp::string S(sizeof(T) * 2, '0');
 
   constexpr char HEXADECIMALS[16] = {'0', '1', '2', '3', '4', '5', '6', '7',
                                      '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-
-  for (auto I = S.rbegin(), End = S.rend(); I != End; ++I, Value >>= 8) {
+  const size_t Size = S.size();
+  for (size_t I = 0; I < Size; I += 2, Value >>= 8) {
     unsigned char Mod = static_cast<unsigned char>(Value) & 0xFF;
-    *(I++) = HEXADECIMALS[Mod & 0x0F];
-    *I = HEXADECIMALS[Mod >> 4];
+    S[Size - I] = HEXADECIMALS[Mod & 0x0F];
+    S[Size - (I + 1)] = HEXADECIMALS[Mod & 0x0F];
   }
 
   return "0x" + S;
@@ -60,39 +43,37 @@ describeValueUInt(T Value) {
 
 // When the value is of integral type, just display it as normal.
 template <typename ValType>
-cpp::enable_if_t<cpp::is_integral_v<ValType>, std::string>
+cpp::enable_if_t<cpp::is_integral_v<ValType>, cpp::string>
 describeValue(ValType Value) {
   if constexpr (sizeof(ValType) <= sizeof(uint64_t)) {
-    return std::to_string(Value);
+    return cpp::to_string(Value);
   } else {
     return describeValueUInt(Value);
   }
 }
 
-std::string describeValue(std::string Value) { return std::string(Value); }
-std::string describeValue(cpp::string_view Value) {
-  return std::string(Value.data(), Value.size());
-}
+cpp::string describeValue(cpp::string Value) { return Value; }
+cpp::string_view describeValue(cpp::string_view Value) { return Value; }
 
 template <typename ValType>
 void explainDifference(ValType LHS, ValType RHS, const char *LHSStr,
                        const char *RHSStr, const char *File, unsigned long Line,
-                       std::string OpString) {
+                       cpp::string OpString) {
   size_t OffsetLength = OpString.size() > 2 ? OpString.size() - 2 : 0;
-  std::string Offset(OffsetLength, ' ');
+  cpp::string Offset(OffsetLength, ' ');
 
-  std::cout << File << ":" << Line << ": FAILURE\n"
-            << Offset << "Expected: " << LHSStr << '\n'
-            << Offset << "Which is: " << describeValue(LHS) << '\n'
-            << "To be " << OpString << ": " << RHSStr << '\n'
-            << Offset << "Which is: " << describeValue(RHS) << '\n';
+  tlog << File << ":" << Line << ": FAILURE\n"
+       << Offset << "Expected: " << LHSStr << '\n'
+       << Offset << "Which is: " << describeValue(LHS) << '\n'
+       << "To be " << OpString << ": " << RHSStr << '\n'
+       << Offset << "Which is: " << describeValue(RHS) << '\n';
 }
 
 template <typename ValType>
 bool test(RunContext *Ctx, TestCondition Cond, ValType LHS, ValType RHS,
           const char *LHSStr, const char *RHSStr, const char *File,
           unsigned long Line) {
-  auto ExplainDifference = [=](std::string OpString) {
+  auto ExplainDifference = [=](cpp::string OpString) {
     explainDifference(LHS, RHS, LHSStr, RHSStr, File, Line, OpString);
   };
 
@@ -141,7 +122,7 @@ bool test(RunContext *Ctx, TestCondition Cond, ValType LHS, ValType RHS,
     return false;
   default:
     Ctx->markFail();
-    std::cout << "Unexpected test condition.\n";
+    tlog << "Unexpected test condition.\n";
     return false;
   }
 }
@@ -150,6 +131,12 @@ bool test(RunContext *Ctx, TestCondition Cond, ValType LHS, ValType RHS,
 
 Test *Test::Start = nullptr;
 Test *Test::End = nullptr;
+
+int argc = 0;
+char **argv = nullptr;
+char **envp = nullptr;
+
+using internal::RunContext;
 
 void Test::addTest(Test *T) {
   if (End == nullptr) {
@@ -167,14 +154,14 @@ int Test::runTests(const char *TestFilter) {
   int FailCount = 0;
   for (Test *T = Start; T != nullptr; T = T->Next) {
     const char *TestName = T->getName();
-    std::string StrTestName(TestName);
+    cpp::string StrTestName(TestName);
     constexpr auto GREEN = "\033[32m";
     constexpr auto RED = "\033[31m";
     constexpr auto RESET = "\033[0m";
     if ((TestFilter != nullptr) && (StrTestName != TestFilter)) {
       continue;
     }
-    std::cout << GREEN << "[ RUN      ] " << RESET << TestName << '\n';
+    tlog << GREEN << "[ RUN      ] " << RESET << TestName << '\n';
     RunContext Ctx;
     T->SetUp();
     T->setContext(&Ctx);
@@ -183,24 +170,24 @@ int Test::runTests(const char *TestFilter) {
     auto Result = Ctx.status();
     switch (Result) {
     case RunContext::Result_Fail:
-      std::cout << RED << "[  FAILED  ] " << RESET << TestName << '\n';
+      tlog << RED << "[  FAILED  ] " << RESET << TestName << '\n';
       ++FailCount;
       break;
     case RunContext::Result_Pass:
-      std::cout << GREEN << "[       OK ] " << RESET << TestName << '\n';
+      tlog << GREEN << "[       OK ] " << RESET << TestName << '\n';
       break;
     }
     ++TestCount;
   }
 
   if (TestCount > 0) {
-    std::cout << "Ran " << TestCount << " tests. "
-              << " PASS: " << TestCount - FailCount << ' '
-              << " FAIL: " << FailCount << '\n';
+    tlog << "Ran " << TestCount << " tests. "
+         << " PASS: " << TestCount - FailCount << ' ' << " FAIL: " << FailCount
+         << '\n';
   } else {
-    std::cout << "No tests run.\n";
+    tlog << "No tests run.\n";
     if (TestFilter) {
-      std::cout << "No matching test for " << TestFilter << '\n';
+      tlog << "No matching test for " << TestFilter << '\n';
     }
   }
 
@@ -302,15 +289,15 @@ template bool test<__llvm_libc::cpp::string_view>(
 
 bool Test::testStrEq(const char *LHS, const char *RHS, const char *LHSStr,
                      const char *RHSStr, const char *File, unsigned long Line) {
-  return internal::test(Ctx, Cond_EQ, LHS ? std::string(LHS) : std::string(),
-                        RHS ? std::string(RHS) : std::string(), LHSStr, RHSStr,
+  return internal::test(Ctx, Cond_EQ, LHS ? cpp::string(LHS) : cpp::string(),
+                        RHS ? cpp::string(RHS) : cpp::string(), LHSStr, RHSStr,
                         File, Line);
 }
 
 bool Test::testStrNe(const char *LHS, const char *RHS, const char *LHSStr,
                      const char *RHSStr, const char *File, unsigned long Line) {
-  return internal::test(Ctx, Cond_NE, LHS ? std::string(LHS) : std::string(),
-                        RHS ? std::string(RHS) : std::string(), LHSStr, RHSStr,
+  return internal::test(Ctx, Cond_NE, LHS ? cpp::string(LHS) : cpp::string(),
+                        RHS ? cpp::string(RHS) : cpp::string(), LHSStr, RHSStr,
                         File, Line);
 }
 
@@ -321,98 +308,12 @@ bool Test::testMatch(bool MatchResult, MatcherBase &Matcher, const char *LHSStr,
 
   Ctx->markFail();
   if (!Matcher.is_silent()) {
-    std::cout << File << ":" << Line << ": FAILURE\n"
-              << "Failed to match " << LHSStr << " against " << RHSStr << ".\n";
-    testutils::StreamWrapper OutsWrapper = testutils::outs();
-    Matcher.explainError(OutsWrapper);
+    tlog << File << ":" << Line << ": FAILURE\n"
+         << "Failed to match " << LHSStr << " against " << RHSStr << ".\n";
+    Matcher.explainError();
   }
   return false;
 }
 
-#ifdef ENABLE_SUBPROCESS_TESTS
-
-bool Test::testProcessKilled(testutils::FunctionCaller *Func, int Signal,
-                             const char *LHSStr, const char *RHSStr,
-                             const char *File, unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invoke_in_subprocess(Func, 500);
-
-  if (const char *error = Result.get_error()) {
-    Ctx->markFail();
-    std::cout << File << ":" << Line << ": FAILURE\n" << error << '\n';
-    return false;
-  }
-
-  if (Result.timed_out()) {
-    Ctx->markFail();
-    std::cout << File << ":" << Line << ": FAILURE\n"
-              << "Process timed out after " << 500 << " milliseconds.\n";
-    return false;
-  }
-
-  if (Result.exited_normally()) {
-    Ctx->markFail();
-    std::cout << File << ":" << Line << ": FAILURE\n"
-              << "Expected " << LHSStr
-              << " to be killed by a signal\nBut it exited normally!\n";
-    return false;
-  }
-
-  int KilledBy = Result.get_fatal_signal();
-  assert(KilledBy != 0 && "Not killed by any signal");
-  if (Signal == -1 || KilledBy == Signal)
-    return true;
-
-  using testutils::signal_as_string;
-  Ctx->markFail();
-  std::cout << File << ":" << Line << ": FAILURE\n"
-            << "              Expected: " << LHSStr << '\n'
-            << "To be killed by signal: " << Signal << '\n'
-            << "              Which is: " << signal_as_string(Signal) << '\n'
-            << "  But it was killed by: " << KilledBy << '\n'
-            << "              Which is: " << signal_as_string(KilledBy) << '\n';
-  return false;
-}
-
-bool Test::testProcessExits(testutils::FunctionCaller *Func, int ExitCode,
-                            const char *LHSStr, const char *RHSStr,
-                            const char *File, unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invoke_in_subprocess(Func, 500);
-
-  if (const char *error = Result.get_error()) {
-    Ctx->markFail();
-    std::cout << File << ":" << Line << ": FAILURE\n" << error << '\n';
-    return false;
-  }
-
-  if (Result.timed_out()) {
-    Ctx->markFail();
-    std::cout << File << ":" << Line << ": FAILURE\n"
-              << "Process timed out after " << 500 << " milliseconds.\n";
-    return false;
-  }
-
-  if (!Result.exited_normally()) {
-    Ctx->markFail();
-    std::cout << File << ":" << Line << ": FAILURE\n"
-              << "Expected " << LHSStr << '\n'
-              << "to exit with exit code " << ExitCode << '\n'
-              << "But it exited abnormally!\n";
-    return false;
-  }
-
-  int ActualExit = Result.get_exit_code();
-  if (ActualExit == ExitCode)
-    return true;
-
-  Ctx->markFail();
-  std::cout << File << ":" << Line << ": FAILURE\n"
-            << "Expected exit code of: " << LHSStr << '\n'
-            << "             Which is: " << ActualExit << '\n'
-            << "       To be equal to: " << RHSStr << '\n'
-            << "             Which is: " << ExitCode << '\n';
-  return false;
-}
-
-#endif // ENABLE_SUBPROCESS_TESTS
 } // namespace testing
 } // namespace __llvm_libc
