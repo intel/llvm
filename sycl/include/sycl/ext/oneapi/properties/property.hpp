@@ -193,8 +193,9 @@ enum PropKind : uint32_t {
   PipeProtocol = 27,
   ReadyLatency = 28,
   UsesValid = 29,
+  UseRootSync = 30,
   // PropKindSize must always be the last value.
-  PropKindSize = 30,
+  PropKindSize = 31,
 };
 
 // This trait must be specialized for all properties and must have a unique

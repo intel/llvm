@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip
 //
 // RUN: %{build} -o %t.out

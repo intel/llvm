@@ -198,7 +198,7 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
 std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
-std::vector<plugin> &GlobalHandler::getPlugins() {
+std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
 }
@@ -258,13 +258,13 @@ void GlobalHandler::unloadPlugins() {
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
-    for (plugin &Plugin : getPlugins()) {
+    for (const PluginPtr &Plugin : getPlugins()) {
       // PluginParameter is reserved for future use that can control
       // some parameters in the plugin tear-down process.
       // Currently, it is not used.
       void *PluginParameter = nullptr;
-      Plugin.call<PiApiKind::piTearDown>(PluginParameter);
-      Plugin.unload();
+      Plugin->call<PiApiKind::piTearDown>(PluginParameter);
+      Plugin->unload();
     }
   }
   // Clear after unload to avoid uses after unload.

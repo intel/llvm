@@ -1,4 +1,6 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-finite-math-only%} %else %{-fno-finite-math-only%}
+
+// RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
 #include "sycl_complex_helper.hpp"

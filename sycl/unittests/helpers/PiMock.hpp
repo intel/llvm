@@ -198,16 +198,16 @@ public:
     // Create new mock plugin platform and plugin handles
     // Note: Mock plugin will be generated if it has not been yet.
     MPlatformImpl = GetMockPlatformImpl(Backend);
-    std::shared_ptr<detail::plugin> NewPluginPtr;
+    detail::PluginPtr NewPluginPtr;
     {
-      const detail::plugin &OriginalPiPlugin = MPlatformImpl->getPlugin();
+      const detail::PluginPtr &OriginalPlugin = MPlatformImpl->getPlugin();
       // Copy the PiPlugin, thus untying our to-be mock platform from other
       // platforms within the context. Reset our platform to use the new plugin.
       NewPluginPtr = std::make_shared<detail::plugin>(
-          OriginalPiPlugin.getPiPluginPtr(), Backend,
-          OriginalPiPlugin.getLibraryHandle());
+          OriginalPlugin->getPiPluginPtr(), Backend,
+          OriginalPlugin->getLibraryHandle());
       // Save a copy of the platform resource
-      OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
+      OrigFuncTable = OriginalPlugin->getPiPlugin().PiFunctionTable;
     }
     MPlatformImpl->setPlugin(NewPluginPtr, Backend);
     // Extract the new PiPlugin instance by a non-const pointer,
@@ -347,7 +347,7 @@ public:
     // This makes sure that the mock plugin is the only available plugin.
     detail::pi::initialize();
     detail::GlobalHandler::instance().unloadPlugins();
-    std::vector<detail::plugin> &Plugins =
+    std::vector<detail::PluginPtr> &Plugins =
         detail::GlobalHandler::instance().getPlugins();
 
     assert(Plugins.empty() && "Clear failed to remove all plugins.");
@@ -356,9 +356,9 @@ public:
         RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
                      getProxyMockedFunctionPointers()});
 
-    MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, Backend,
+    MMockPluginPtr = std::make_shared<detail::plugin>(RTPlugin, Backend,
                                                       /*Library=*/nullptr);
-    Plugins.push_back(*MMockPluginPtr);
+    Plugins.push_back(MMockPluginPtr);
   }
 
 private:
@@ -378,7 +378,7 @@ private:
     MMockPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(
         1, &PiPlatform, nullptr);
     return detail::platform_impl::getOrMakePlatformImpl(PiPlatform,
-                                                        *MMockPluginPtr);
+                                                        MMockPluginPtr);
   }
 
   std::shared_ptr<sycl::detail::platform_impl> MPlatformImpl;
@@ -392,7 +392,7 @@ private:
 
   // Pointer to the mock plugin pointer. This is static to avoid
   // reinitialization and re-registration of the same plugin.
-  static inline std::unique_ptr<detail::plugin> MMockPluginPtr = nullptr;
+  static inline detail::PluginPtr MMockPluginPtr = nullptr;
 };
 
 } // namespace unittest
