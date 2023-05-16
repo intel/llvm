@@ -21,6 +21,8 @@
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
+#include <variant>
 
 #define DEBUG_TYPE "memory-access-analysis"
 
@@ -38,7 +40,6 @@ static std::optional<APInt> getConstIntegerValue(Value val,
   if (!val.getType().isIntOrIndex())
     return std::nullopt;
 
-  llvm::errs() << "val: " << val << "\n";
   auto *inferredRange =
       solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
   if (!inferredRange || inferredRange->getValue().isUninitialized()) {
@@ -115,6 +116,78 @@ static Value removeConversions(Value expr) {
   return expr;
 }
 
+/// Represents a multiplication factor.
+struct Multiplier {
+  Multiplier(Value val) : val(val) {}
+
+  /// Create a multiplier with value one.
+  static Multiplier getOne(MLIRContext *ctx) {
+    OpBuilder b(ctx);
+    return Multiplier(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1));
+  };
+
+  // Determine whether the multiplier has value one.
+  bool isOne(DataFlowSolver &solver) const {
+    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
+      if (constVal.value() == 1)
+        return true;
+    }
+    std::optional<APInt> constVal = getConstIntegerValue(val, solver);
+    return (constVal.has_value() && constVal->isOne());
+  }
+
+  bool operator==(const Multiplier &other) { return val == other.val; }
+  bool operator==(const Value &other) { return val == other; }
+
+  Value val;
+};
+
+/// Represents a multiplier or a value.
+class ValueOrMultiplier {
+  friend raw_ostream &operator<<(raw_ostream &, const ValueOrMultiplier &);
+
+public:
+  ValueOrMultiplier(Multiplier mul) : data(mul) {}
+  ValueOrMultiplier(Value val) : data(val) {}
+
+  // Determine whether the multiplier has value one.
+  bool isOne(DataFlowSolver &solver) const {
+    if (isMultiplier())
+      return getMultiplier().isOne(solver);
+
+    Value val = getValue();
+    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
+      if (constVal.value() == 1)
+        return true;
+    }
+    std::optional<APInt> constVal = getConstIntegerValue(val, solver);
+    return (constVal.has_value() && constVal->isOne());
+  }
+
+  bool isMultiplier() const { return std::holds_alternative<Multiplier>(data); }
+  bool isValue() const { return std::holds_alternative<Value>(data); }
+
+  Multiplier getMultiplier() const {
+    assert(isMultiplier() && "Expecting multiplier");
+    return std::get<Multiplier>(data);
+  }
+
+  Value getValue() const {
+    assert(isValue() && "Expecting value");
+    return std::get<Value>(data);
+  }
+
+private:
+  std::variant<Value, Multiplier> data;
+};
+
+raw_ostream &operator<<(raw_ostream &os,
+                        const ValueOrMultiplier &valOrMultiplier) {
+  if (valOrMultiplier.isMultiplier())
+    return os << valOrMultiplier.getMultiplier().val;
+  return os << valOrMultiplier.getValue();
+}
+
 /// Determine whether \p expr involves a subexpression which is a multiplication
 /// of \p val, and return the multiplication factor if it does.
 /// Example:
@@ -127,88 +200,114 @@ static Value removeConversions(Value expr) {
 ///   %add = arith.addi %mul, %c2_i64 : i64
 ///
 /// Here getMultiplier(%add, %ii) should return '%c1_i32'.
-static std::optional<Value> getMultiplier(Value expr, Value val,
-                                          DataFlowSolver &solver) {
-  llvm::errs() << "expr: " << expr << "\n";
-
-  //  expr = removeConversions(expr);
-  if (expr == val) {
-    OpBuilder b(expr.getContext());
-    return b.create<arith::ConstantIntOp>(expr.getLoc(), 1, 32);
+static ValueOrMultiplier getMultiplier(Value expr, Value factor,
+                                       DataFlowSolver &solver, bool depth = 0) {
+  Operation *op = expr.getDefiningOp();
+  if (!op) {
+    // This is a block argument. Attempt to match the factor.
+    if (expr == factor)
+      return Multiplier::getOne(expr.getContext());
+    return expr;
   }
 
-  Operation *op = expr.getDefiningOp();
-  if (!op)
-    return std::nullopt;
+  return TypeSwitch<Operation *, ValueOrMultiplier>(op)
+      .Case<arith::AddIOp, arith::SubIOp>([&](auto binOp) {
+        Value lhs = removeConversions(binOp.getLhs());
+        Value rhs = removeConversions(binOp.getRhs());
 
-  return TypeSwitch<Operation *, std::optional<Value>>(op)
-      .Case<arith::MulIOp>([&](auto mulOp) -> std::optional<Value> {
-        Value lhs = mulOp.getLhs(), rhs = mulOp.getRhs();
-        llvm::errs() << mulOp << "\n";
-        llvm::errs() << "lhs: " << lhs << "\n";
-        llvm::errs() << "rhs: " << rhs << "\n";
+        auto computeResult = [&](ValueOrMultiplier lhs,
+                                 ValueOrMultiplier rhs) -> ValueOrMultiplier {
+          bool lhsIsMul = lhs.isMultiplier(), rhsIsMul = rhs.isMultiplier();
 
-        auto isOne = [](std::optional<Value> factor, DataFlowSolver &solver) {
-          if (!factor.has_value())
-            return false;
-        // we should use this code but does not work (TODO)
-#if 0
-          std::optional<APInt> constVal = getConstIntegerValue(*factor, solver);
-          return (constVal.has_value() && constVal->isOne());
-#else
-          if (auto constOp =
-                  dyn_cast<arith::ConstantIntOp>(factor->getDefiningOp()))
-            return constOp.value() == 1;
-
-          return false;
-#endif
+          if (lhsIsMul && !rhsIsMul && rhs.getValue() != factor)
+            return lhs;
+          if (rhsIsMul && !lhsIsMul && lhs.getValue() != factor)
+            return rhs;
+          if (!lhsIsMul && !rhsIsMul &&
+              (lhs.getValue() == factor || rhs.getValue() == factor))
+            return Multiplier::getOne(expr.getContext());
+          return Value();
         };
 
-        std::optional<Value> lhsFactor = getMultiplier(lhs, val, solver);
-        if (lhsFactor.has_value())
-          llvm::errs() << "lhsFactor: " << *lhsFactor << "\n";
-        if (isOne(lhsFactor, solver)) {
-          llvm::errs() << "lhsFactor is one\n";
-          return removeConversions(rhs);
-        }
+        // Traverse my subtree.
+        auto lhsRes = getMultiplier(lhs, factor, solver, depth + 1);
+        auto rhsRes = getMultiplier(rhs, factor, solver, depth + 1);
 
-        std::optional<Value> rhsFactor = getMultiplier(rhs, val, solver);
-        if (rhsFactor.has_value())
-          llvm::errs() << "rhsFactor: " << *rhsFactor << "\n";
+        // Compute the result to propagate up the tree.
+        auto res = computeResult(lhsRes, rhsRes);
 
-        if (isOne(rhsFactor, solver)) {
-          llvm::errs() << "rhsFactor is one\n";
-          return removeConversions(lhs);
-        }
+        LLVM_DEBUG({
+          llvm::dbgs().indent(2 * depth) << "expr: " << expr << "\n";
+          llvm::dbgs().indent(2 * depth) << "lhsRes: " << lhsRes << "\n";
+          llvm::dbgs().indent(2 * depth) << "rhsRes: " << rhsRes << "\n";
+          llvm::dbgs().indent(2 * depth) << "res = " << res << "\n";
+        });
 
-        return std::nullopt;
+        return res;
       })
-      .Case<arith::AddIOp, arith::SubIOp>(
-          [&](auto binOp) -> std::optional<Value> {
-            Value lhs = binOp.getLhs(), rhs = binOp.getRhs();
+      .Case<arith::MulIOp>([&](auto mulOp) {
+        Value lhs = removeConversions(mulOp.getLhs());
+        Value rhs = removeConversions(mulOp.getRhs());
 
-            llvm::errs() << binOp << "\n";
-            llvm::errs() << "lhs: " << lhs << "\n";
-            llvm::errs() << "rhs: " << rhs << "\n";
-            std::optional<Value> lhsFactor = getMultiplier(lhs, val, solver);
-            if (lhsFactor.has_value()) {
-              llvm::errs() << "lhsFactor: " << *lhsFactor << "\n";
-              return *lhsFactor;
-            }
+        auto computeResult = [&](ValueOrMultiplier lhs,
+                                 ValueOrMultiplier rhs) -> ValueOrMultiplier {
+          bool lhsIsMul = lhs.isMultiplier(), rhsIsMul = rhs.isMultiplier();
 
-            std::optional<Value> rhsFactor = getMultiplier(rhs, val, solver);
-            if (rhsFactor.has_value()) {
-              llvm::errs() << "rhsFactor: " << *rhsFactor << "\n";
-              return *rhsFactor;
-            }
+          // Both the LHS ands RHS subtrees failed to match the multiplier,
+          // attempt to match the multiplier in this multiplication expression.
+          if (!lhsIsMul && !rhsIsMul) {
+            Value lhsVal = lhs.getValue(), rhsVal = rhs.getValue();
+            if (lhsVal == factor && rhsVal != factor)
+              return Multiplier(rhsVal);
+            if (rhsVal == factor && lhsVal != factor)
+              return Multiplier(lhsVal);
+            return Value();
+          }
 
-            return std::nullopt;
-          })
+          // The LHS (or RHS) subtrees matched the multiplier. Return:
+          //   - the multiplier if the operand has value one
+          //   - a new multiplier with value equal to the other operand if
+          //     + the multiplier is one and
+          //     + the other operand is not the   factor.
+          if (lhsIsMul && !rhsIsMul) {
+            if (rhs.isOne(solver))
+              return lhs;
+            if (lhs.isOne(solver) && rhs.getValue() != factor)
+              return Multiplier(rhs.getValue());
+            return Value();
+          }
+          if (rhsIsMul && !lhsIsMul) {
+            if (lhs.isOne(solver))
+              return rhs;
+            if (rhs.isOne(solver) && lhs.getValue() != factor)
+              return Multiplier(lhs.getValue());
+            return Value();
+          }
+
+          return Value();
+        };
+
+        // Traverse my subtree.
+        auto lhsRes = getMultiplier(lhs, factor, solver, depth + 1);
+        auto rhsRes = getMultiplier(rhs, factor, solver, depth + 1);
+
+        // Compute the result to propagate up the tree.
+        auto res = computeResult(lhsRes, rhsRes);
+
+        LLVM_DEBUG({
+          llvm::dbgs().indent(2 * depth) << "expr: " << expr << "\n";
+          llvm::dbgs().indent(2 * depth) << "lhsRes: " << lhsRes << "\n";
+          llvm::dbgs().indent(2 * depth) << "rhsRes: " << rhsRes << "\n";
+          llvm::dbgs().indent(2 * depth) << "res = " << res << "\n";
+        });
+
+        return res;
+      })
       .Case<arith::ExtUIOp, arith::ExtSIOp, arith::TruncIOp, arith::IndexCastOp,
-            arith::IndexCastUIOp>([&](auto castOp) -> std::optional<Value> {
-        return getMultiplier(castOp.getOperand(), val, solver);
+            arith::IndexCastUIOp>([&](auto castOp) {
+        return getMultiplier(castOp.getOperand(), factor, solver, depth + 1);
       })
-      .Default([](auto) { return std::nullopt; });
+      .Default([&](auto) { return expr; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -219,8 +318,8 @@ raw_ostream &mlir::polygeist::operator<<(raw_ostream &os,
                                          const MemoryAccessMatrix &matrix) {
   auto getConstant = [](Value val) -> Optional<int64_t> {
     return TypeSwitch<Operation *, Optional<int64_t>>(val.getDefiningOp())
-        .Case([](arith::ConstantIndexOp op) { return op.value(); })
-        .Case([](arith::ConstantIntOp op) { return op.value(); })
+        .Case<arith::ConstantIndexOp, arith::ConstantIntOp>(
+            [](auto op) { return op.value(); })
         .Default([](auto) { return std::nullopt; });
   };
 
@@ -878,8 +977,8 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // operation. Example:
   //   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
   //   %sub = sycl.accessor.subscript %acc[%id] ...
-  // Here the underlying values for '%id' are {%i, %j}. The number of underlying
-  // values matches the dimensionality of the sycl id.
+  // Here the underlying values for '%id' are {%i, %j}. The number of
+  // underlying values matches the dimensionality of the sycl id.
   SmallVector<Value> underlyingVals = getUnderlyingValues(
       accessorSubscriptOp.getOffsetOperandIndex(), accessorSubscriptOp, solver);
   if (underlyingVals.empty()) {
@@ -888,20 +987,20 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
     return;
   }
 
-  assert(
-      sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
-      "Number of underlying values should be equal to dimensionality of the id "
-      "used to index the accessor");
+  assert(sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
+         "Number of underlying values should be equal to dimensionality of "
+         "the id "
+         "used to index the accessor");
   LLVM_DEBUG({
     for (Value val : underlyingVals)
       llvm::dbgs() << "Underlying val: " << val << "\n";
   });
 
   // Construct the memory access matrix. The number of rows is equal to the
-  // dimensionality of the sycl.id used by the accessor subscript operation. The
-  // number of columns is equal to the number of loops surrounding the memory
-  // access plus (TODO) the dimensionality of the sycl item received by the
-  // kernel.
+  // dimensionality of the sycl.id used by the accessor subscript operation.
+  // The number of columns is equal to the number of loops surrounding the
+  // memory access plus (TODO) the dimensionality of the sycl item received by
+  // the kernel.
   SetVector<AffineForOp> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
@@ -920,13 +1019,9 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
     Value val = underlyingVals[row];
     for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
-      llvm::errs() << "line: " << __LINE__ << "\n";
-      llvm::errs() << "val: " << val << "\n";
-      llvm::errs() << "IVs[col]: " << IVs[col] << "\n";
-      std::optional<Value> factor = getMultiplier(val, IVs[col], solver);
-      llvm::errs() << "line: " << __LINE__ << "\n";
-      accessMatrix(row, col) = factor.has_value() ? *factor : zero;
-      llvm::errs() << "line: " << __LINE__ << "\n";
+      ValueOrMultiplier valOrMul = getMultiplier(val, IVs[col], solver);
+      accessMatrix(row, col) =
+          valOrMul.isMultiplier() ? valOrMul.getMultiplier().val : zero;
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
@@ -994,8 +1089,8 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
           return getUnderlyingValues(storeOp.getStoredValOperandIndex(),
                                      storeOp, solver);
 
-        // Try to determine the underlying value of the memory pointed to by the
-        // memref operand of a load.
+        // Try to determine the underlying value of the memory pointed to by
+        // the memref operand of a load.
         AffineLoadOp loadOp = cast<AffineLoadOp>(storedVal.getDefiningOp());
         MemRefAccess loadAccess(loadOp);
         assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
