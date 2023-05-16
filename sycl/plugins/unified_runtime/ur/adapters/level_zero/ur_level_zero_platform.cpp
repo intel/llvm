@@ -8,7 +8,6 @@
 
 #include "ur_level_zero_platform.hpp"
 #include "ur_level_zero.hpp"
-  
 
 UR_APIEXPORT ur_result_t UR_APICALL urInit(
     ur_device_init_flags_t

@@ -67,7 +67,6 @@ typedef enum {
   "@reqd_work_group_size"
 #define __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
 
-
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
   std::cerr << "die: " << Message << std::endl;

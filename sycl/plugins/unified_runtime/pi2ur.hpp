@@ -426,7 +426,6 @@ inline pi_result fixupInfoValueTypes(size_t ParamValueSizeUR,
   return PI_SUCCESS;
 }
 
-
 inline ur_result_t
 mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
                   ur_program_metadata_t *ur_metadata) {
@@ -455,7 +454,10 @@ namespace pi2ur {
 
 inline pi_result piTearDown(void *PluginParameter) {
   std::ignore = PluginParameter;
-  HANDLE_ERRORS(urTearDown(nullptr));
+  // TODO: Dont check for errors in urTearDown, since
+  // when using Level Zero plugin, the second urTearDown
+  // will fail as ur_loader.so has already been unloaded,
+  urTearDown(nullptr);
   return PI_SUCCESS;
 }
 
@@ -1379,7 +1381,6 @@ inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
   return PI_SUCCESS;
 }
 
-
 inline pi_result piextQueueGetNativeHandle2(pi_queue Queue,
                                             pi_native_handle *NativeHandle,
                                             int32_t *NativeHandleDesc) {
@@ -1387,7 +1388,6 @@ inline pi_result piextQueueGetNativeHandle2(pi_queue Queue,
   (void)NativeHandleDesc;
   return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
 }
-
 
 inline pi_result piQueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
@@ -2920,7 +2920,6 @@ inline pi_result piextUSMEnqueueFill2D(pi_queue Queue, void *Ptr, size_t Pitch,
                                        const pi_event *EventsWaitList,
                                        pi_event *Event) {
 
-
   auto hQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
   auto phEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
@@ -2931,7 +2930,6 @@ inline pi_result piextUSMEnqueueFill2D(pi_queue Queue, void *Ptr, size_t Pitch,
                                    phEventWaitList, phEvent));
 
   return PI_SUCCESS;
-
 }
 
 inline pi_result piextUSMEnqueueMemset2D(pi_queue Queue, void *Ptr,
@@ -3503,7 +3501,6 @@ inline pi_result piEnqueueEventsWait(pi_queue Queue,
 
   return PI_SUCCESS;
 }
-
 
 inline pi_result
 piextEnqueueReadHostPipe(pi_queue queue, pi_program program,

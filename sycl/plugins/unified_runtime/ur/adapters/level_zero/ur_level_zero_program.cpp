@@ -8,7 +8,6 @@
 
 #include "ur_level_zero_program.hpp"
 #include "ur_level_zero.hpp"
-  
 
 extern "C" {
 // Check to see if a Level Zero module has any unresolved symbols.

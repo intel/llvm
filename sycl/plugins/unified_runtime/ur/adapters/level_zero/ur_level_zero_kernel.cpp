@@ -8,7 +8,6 @@
 
 #include "ur_level_zero_kernel.hpp"
 #include "ur_level_zero.hpp"
-  
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
@@ -609,7 +608,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
                          ///< holding the argument value. If null then argument
                          ///< value is considered null.
 ) {
-  UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), ArgValue));
+  UR_CALL(
+      urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), ArgValue));
   return UR_RESULT_SUCCESS;
 }
 

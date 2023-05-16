@@ -84,6 +84,15 @@ piContextCreate(const pi_context_properties *Properties, pi_uint32 NumDevices,
                                 UserData, RetContext);
 }
 
+__SYCL_EXPORT pi_result piContextGetInfo(pi_context Context,
+                                         pi_context_info ParamName,
+                                         size_t ParamValueSize,
+                                         void *ParamValue,
+                                         size_t *ParamValueSizeRet) {
+  return pi2ur::piContextGetInfo(Context, ParamName, ParamValueSize, ParamValue,
+                                 ParamValueSizeRet);
+}
+
 __SYCL_EXPORT pi_result piContextRelease(pi_context Context) {
   return pi2ur::piContextRelease(Context);
 }
@@ -1045,6 +1054,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piContextCreate)
   _PI_API(piContextRelease)
   _PI_API(piContextRetain)
+  _PI_API(piContextGetInfo)
   _PI_API(piextContextSetExtendedDeleter)
   _PI_API(piextContextGetNativeHandle)
   _PI_API(piextContextCreateWithNativeHandle)

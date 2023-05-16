@@ -8,7 +8,6 @@
 
 #include "ur_level_zero_sampler.hpp"
 #include "ur_level_zero.hpp"
-  
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object

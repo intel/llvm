@@ -11,10 +11,9 @@
 #include <optional>
 #include <string.h>
 
+#include "ur_level_zero.hpp"
 #include "ur_level_zero_common.hpp"
 #include "ur_level_zero_queue.hpp"
-#include "ur_level_zero.hpp"
-  
 
 /// @brief Cleanup events in the immediate lists of the queue.
 /// @param Queue Queue where events need to be cleaned up.
