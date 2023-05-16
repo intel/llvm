@@ -22,7 +22,7 @@ using namespace sycl;
 struct CudaCommandsTest : public ::testing::Test {
 
 protected:
-  std::optional<detail::plugin> plugin =
+  std::optional<detail::PluginPtr> &plugin =
       pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;

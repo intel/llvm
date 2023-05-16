@@ -69,15 +69,10 @@
 // extension is a new feature and may not be supported by the runtime used with
 // SYCL.
 //
-// Overall this sounds stable enough. What could possibly go wrong?
-//
-// With either a CPU run or a GPU run we reset the output file and append the
-// results of the runs. Otherwise a skipped GPU run may remove the output from
-// a CPU run prior to running FileCheck.
-// RUN: echo "" > %t.stderr.native
-// RUN: %if cpu %{ env SYCL_PI_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT ONEAPI_DEVICE_SELECTOR=\*:cpu %{run-unfiltered-devices} %t.out 2>> %t.stderr.native %}
-// RUN: %if gpu %{ env                 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGIOT  ONEAPI_DEVICE_SELECTOR=\*:gpu %{run-unfiltered-devices} %t.out 2>> %t.stderr.native %}
-// RUN: FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
+// RUN: %if cpu %{ env SYCL_PI_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %{run} %t.out 2> %t.stderr.native %}
+// RUN: %if cpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}
+// RUN: %if gpu %{ env                 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGIOT  %{run} %t.out 2> %t.stderr.native %}
+// RUN: %if gpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}
 //
 // Skip the test if the CPU RT doesn't support the extension yet:
 // CHECK-NOTSUPPORTED: Device has no support for cl_intel_devicelib_assert
