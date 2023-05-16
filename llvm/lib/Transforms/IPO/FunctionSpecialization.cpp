@@ -125,6 +125,10 @@ Constant *FunctionSpecializer::getPromotableAlloca(AllocaInst *Alloca,
     // Bail if there is any other unknown usage.
     return nullptr;
   }
+
+  if (!StoreValue)
+    return nullptr;
+
   return getCandidateConstant(StoreValue);
 }
 
@@ -622,6 +626,8 @@ FunctionSpecializer::getSpecializationBonus(Argument *A, Constant *C,
       continue;
     auto *CS = cast<CallBase>(U);
     if (CS->getCalledOperand() != A)
+      continue;
+    if (CS->getFunctionType() != CalledFunction->getFunctionType())
       continue;
 
     // Get the cost of inlining the called function at this call site. Note

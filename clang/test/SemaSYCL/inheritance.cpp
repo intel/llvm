@@ -69,14 +69,14 @@ int main() {
 // base is a simple class with no corresponding generated type. Therefore
 // copy from ParamVar
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'base':'base' 'void (const base &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const base' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const base':'const base' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg__base' 'base'
 
 // second_base contains pointers and therefore the ParamVar is a new generated
 // type. Perform a copy of the corresponding kernel parameter via
 // reinterpret_cast.
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'second_base':'second_base' 'void (const second_base &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const second_base' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const second_base':'const second_base' lvalue <NoOp>
 // CHECK-NEXT: UnaryOperator {{.*}} 'second_base':'second_base' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'second_base *' reinterpret_cast<second_base *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_second_base *' prefix '&' cannot overflow

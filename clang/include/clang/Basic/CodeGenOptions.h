@@ -60,6 +60,7 @@ public:
     LIBMVEC,           // GLIBC vector math library.
     MASSV,             // IBM MASS vector library.
     SVML,              // Intel short vector math library.
+    SLEEF,             // SLEEF SIMD Library for Evaluating Elementary Functions.
     Darwin_libsystem_m // Use Darwin's libsytem_m vector functions.
   };
 
@@ -418,6 +419,11 @@ public:
   /// (files, functions) listed for instrumentation by sanitizer
   /// coverage pass should actually not be instrumented.
   std::vector<std::string> SanitizeCoverageIgnorelistFiles;
+
+  /// Path to ignorelist file specifying which objects
+  /// (files, functions) listed for instrumentation by sanitizer
+  /// binary metadata pass should not be instrumented.
+  std::vector<std::string> SanitizeMetadataIgnorelistFiles;
 
   /// Name of the stack usage file (i.e., .su file) if user passes
   /// -fstack-usage. If empty, it can be implied that -fstack-usage is not

@@ -29,9 +29,8 @@ entry:
 !1587 = !{i32 -1}
 !1588 = !{i32 -1, i32 -1, i32 -1}
 ; CHECK-DAG: ![[PARMDECOR_CASE1]] = !{![[ARG:[0-9]+]]}
-; CHECK-DAG: ![[ARG]] = !{![[ALIGN:[0-9]+]], ![[AWIDTH:[0-9]+]], ![[BL:[0-9]+]], ![[CONDUIT:[0-9]+]], ![[DWIDTH:[0-9]+]], ![[LATENCY:[0-9]+]], ![[MAXBURST:[0-9]+]], ![[RWMODE:[0-9]+]], ![[REGMAP:[0-9]+]], ![[STABLE:[0-9]+]], ![[STRICT:[0-9]+]], ![[WAITREQ:[0-9]+]]}
+; CHECK-DAG: ![[ARG]] = !{![[AWIDTH:[0-9]+]], ![[BL:[0-9]+]], ![[CONDUIT:[0-9]+]], ![[DWIDTH:[0-9]+]], ![[LATENCY:[0-9]+]], ![[MAXBURST:[0-9]+]], ![[RWMODE:[0-9]+]], ![[REGMAP:[0-9]+]], ![[STABLE:[0-9]+]], ![[STRICT:[0-9]+]], ![[WAITREQ:[0-9]+]]}
 
-; CHECK: ![[ALIGN]]   = !{i32 6182, i32 4}
 ; CHECK: ![[AWIDTH]]  = !{i32 6177, i32 32}
 ; CHECK: ![[BL]]      = !{i32 5921, i32 10}
 ; CHECK: ![[CONDUIT]] = !{i32 6175, i32 1}
@@ -40,13 +39,11 @@ entry:
 ; CHECK: ![[MAXBURST]] = !{i32 6181, i32 3}
 ; CHECK: ![[RWMODE]]  = !{i32 6180, i32 2}
 ; CHECK: ![[REGMAP]]  = !{i32 6176, i32 1}
-; CHECK: ![[STABLE]]  = !{i32 6184, i32 1}
+; CHECK: ![[STABLE]]  = !{i32 6183, i32 1}
 ; CHECK: ![[STRICT]]  = !{i32 19, i32 1}
-; CHECK: ![[WAITREQ]] = !{i32 6183, i32 5}
+; CHECK: ![[WAITREQ]] = !{i32 6182, i32 5}
 
-; CHECK-DAG: ![[PARMDECOR_CASE2]] = !{![[ARG1:[0-9]+]], ![[ARG2:[0-9]+]], ![[ARG3:[0-9]+]]}
-; CHECK-DAG: ![[ARG1]] = !{![[ALIGN1:[0-9]+]]}
-; CHECK: ![[ALIGN1]]   = !{i32 6182, i32 8}
-; CHECK-DAG: ![[ARG2]] = !{}
+; CHECK-DAG: ![[PARMDECOR_CASE2]] = !{![[ARG1:[0-9]+]], ![[ARG1:[0-9]+]], ![[ARG3:[0-9]+]]}
+; CHECK-DAG: ![[ARG1]] = !{}
 ; CHECK-DAG: ![[ARG3]] = !{![[AWIDTH3:[0-9]+]]}
 ; CHECK: ![[AWIDTH3]]  = !{i32 6177, i32 64}

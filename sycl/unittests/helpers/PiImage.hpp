@@ -262,6 +262,7 @@ public:
         MPropertySet.end(),
     };
   }
+  const unsigned char *getBinaryPtr() { return &*MBinary.begin(); }
 
 private:
   uint16_t MVersion;

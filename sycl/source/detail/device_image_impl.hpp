@@ -110,8 +110,15 @@ public:
   }
 
   bool all_specialization_constant_native() const noexcept {
-    assert(false && "Not implemented");
-    return false;
+    // Specialization constants are natively supported in JIT mode on backends,
+    // that are using SPIR-V as IR
+    auto IsJITSPIRVTarget = [](const char *Target) {
+      return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+              strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
+    };
+    return (MContext.get_backend() == backend::opencl ||
+            MContext.get_backend() == backend::ext_oneapi_level_zero) &&
+           IsJITSPIRVTarget(MBinImage->getRawData().DeviceTargetSpec);
   }
 
   bool has_specialization_constant(const char *SpecName) const noexcept {

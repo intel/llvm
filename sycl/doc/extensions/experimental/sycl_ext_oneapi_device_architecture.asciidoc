@@ -109,7 +109,6 @@ enum class architecture : /* unspecified */ {
   intel_gpu_aml,
   intel_gpu_cml,
   intel_gpu_icllp,
-  intel_gpu_ehl,
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
@@ -170,7 +169,6 @@ enum class architecture : /* unspecified */ {
   intel_gpu_9_6_0 = intel_gpu_aml,
   intel_gpu_9_7_0 = intel_gpu_cml,
   intel_gpu_11_0_0 = intel_gpu_icllp,
-  intel_gpu_11_2_0 = intel_gpu_ehl,
   intel_gpu_12_0_0 = intel_gpu_tgllp,
   intel_gpu_12_10_0 = intel_gpu_dg1 
 };
@@ -230,10 +228,6 @@ of these enumerators, and it provides a brief description of their meanings.
 |`intel_gpu_icllp`
 |-
 |Ice Lake Intel graphics architecture.
-
-|`intel_gpu_ehl`
-|-
-|Elkhart Lake Intel graphics architecture.
 
 |`intel_gpu_tgllp`
 |-
@@ -318,10 +312,6 @@ of these enumerators, and it provides a brief description of their meanings.
 |`intel_gpu_11_0_0`
 |-
 |Alias for `intel_gpu_icllp`.
-
-|`intel_gpu_11_2_0`
-|-
-|Alias for `intel_gpu_ehl`.
 
 |`intel_gpu_12_0_0`
 |-

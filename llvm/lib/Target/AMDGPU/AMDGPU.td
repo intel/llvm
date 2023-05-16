@@ -536,6 +536,12 @@ def FeatureDLInsts : SubtargetFeature<"dl-insts",
   "Has v_fmac_f32 and v_xnor_b32 instructions"
 >;
 
+def FeatureFmacF64Inst : SubtargetFeature<"fmacf64-inst",
+  "HasFmacF64Inst",
+  "true",
+  "Has v_fmac_f64 instruction"
+>;
+
 def FeatureDot1Insts : SubtargetFeature<"dot1-insts",
   "HasDot1Insts",
   "true",
@@ -575,14 +581,25 @@ def FeatureDot6Insts : SubtargetFeature<"dot6-insts",
 def FeatureDot7Insts : SubtargetFeature<"dot7-insts",
   "HasDot7Insts",
   "true",
-  "Has v_dot2_f32_f16, v_dot4_u32_u8, v_dot8_u32_u4 instructions"
+  "Has v_dot4_u32_u8, v_dot8_u32_u4 instructions"
 >;
 
 def FeatureDot8Insts : SubtargetFeature<"dot8-insts",
   "HasDot8Insts",
   "true",
-  "Has v_dot2_f16_f16, v_dot2_bf16_bf16, v_dot2_f32_bf16, "
-  "v_dot4_i32_iu8, v_dot8_i32_iu4 instructions"
+  "Has v_dot4_i32_iu8, v_dot8_i32_iu4 instructions"
+>;
+
+def FeatureDot9Insts : SubtargetFeature<"dot9-insts",
+  "HasDot9Insts",
+  "true",
+  "Has v_dot2_f16_f16, v_dot2_bf16_bf16, v_dot2_f32_bf16 instructions"
+>;
+
+def FeatureDot10Insts : SubtargetFeature<"dot10-insts",
+  "HasDot10Insts",
+  "true",
+  "Has v_dot2_f32_f16 instruction"
 >;
 
 def FeatureMAIInsts : SubtargetFeature<"mai-insts",
@@ -849,6 +866,12 @@ def FeatureArchitectedFlatScratch : SubtargetFeature<"architected-flat-scratch",
   "Flat Scratch register is a readonly SPI initialized architected register"
 >;
 
+def FeatureArchitectedSGPRs : SubtargetFeature<"architected-sgprs",
+  "HasArchitectedSGPRs",
+  "true",
+  "Enable the architected SGPRs"
+>;
+
 // Dummy feature used to disable assembler instructions.
 def FeatureDisable : SubtargetFeature<"",
   "FeatureDisable","true",
@@ -1070,6 +1093,7 @@ def FeatureISAVersion9_0_6 : FeatureSet<
    FeatureDot1Insts,
    FeatureDot2Insts,
    FeatureDot7Insts,
+   FeatureDot10Insts,
    FeatureSupportsSRAMECC,
    FeatureImageGather4D16Bug]>;
 
@@ -1090,6 +1114,7 @@ def FeatureISAVersion9_0_8 : FeatureSet<
    FeatureDot5Insts,
    FeatureDot6Insts,
    FeatureDot7Insts,
+   FeatureDot10Insts,
    FeatureMAIInsts,
    FeaturePkFmacF16Inst,
    FeatureAtomicFaddNoRtnInsts,
@@ -1114,6 +1139,7 @@ def FeatureISAVersion9_0_A : FeatureSet<
    FeatureFmaMixInsts,
    FeatureLDSBankCount32,
    FeatureDLInsts,
+   FeatureFmacF64Inst,
    FeatureDot1Insts,
    FeatureDot2Insts,
    FeatureDot3Insts,
@@ -1121,6 +1147,7 @@ def FeatureISAVersion9_0_A : FeatureSet<
    FeatureDot5Insts,
    FeatureDot6Insts,
    FeatureDot7Insts,
+   FeatureDot10Insts,
    Feature64BitDPP,
    FeaturePackedFP32Ops,
    FeatureMAIInsts,
@@ -1152,6 +1179,7 @@ def FeatureISAVersion9_4_0 : FeatureSet<
    FeatureFmaMixInsts,
    FeatureLDSBankCount32,
    FeatureDLInsts,
+   FeatureFmacF64Inst,
    FeatureDot1Insts,
    FeatureDot2Insts,
    FeatureDot3Insts,
@@ -1159,6 +1187,7 @@ def FeatureISAVersion9_4_0 : FeatureSet<
    FeatureDot5Insts,
    FeatureDot6Insts,
    FeatureDot7Insts,
+   FeatureDot10Insts,
    Feature64BitDPP,
    FeaturePackedFP32Ops,
    FeatureMAIInsts,
@@ -1220,6 +1249,7 @@ def FeatureISAVersion10_1_1 : FeatureSet<
      FeatureDot5Insts,
      FeatureDot6Insts,
      FeatureDot7Insts,
+     FeatureDot10Insts,
      FeatureNSAEncoding,
      FeatureNSAMaxSize5,
      FeatureWavefrontSize32,
@@ -1243,6 +1273,7 @@ def FeatureISAVersion10_1_2 : FeatureSet<
      FeatureDot5Insts,
      FeatureDot6Insts,
      FeatureDot7Insts,
+     FeatureDot10Insts,
      FeatureNSAEncoding,
      FeatureNSAMaxSize5,
      FeatureWavefrontSize32,
@@ -1287,6 +1318,7 @@ def FeatureISAVersion10_3_0 : FeatureSet<
    FeatureDot5Insts,
    FeatureDot6Insts,
    FeatureDot7Insts,
+   FeatureDot10Insts,
    FeatureNSAEncoding,
    FeatureNSAMaxSize13,
    FeatureWavefrontSize32,
@@ -1300,6 +1332,8 @@ def FeatureISAVersion11_Common : FeatureSet<
    FeatureDot5Insts,
    FeatureDot7Insts,
    FeatureDot8Insts,
+   FeatureDot9Insts,
+   FeatureDot10Insts,
    FeatureNSAEncoding,
    FeatureNSAMaxSize5,
    FeatureWavefrontSize32,
@@ -1722,6 +1756,9 @@ def HasFmaMixInsts : Predicate<"Subtarget->hasFmaMixInsts()">,
 def HasDLInsts : Predicate<"Subtarget->hasDLInsts()">,
   AssemblerPredicate<(all_of FeatureDLInsts)>;
 
+def HasFmacF64Inst : Predicate<"Subtarget->hasFmacF64Inst()">,
+  AssemblerPredicate<(all_of FeatureFmacF64Inst)>;
+
 def HasDot1Insts : Predicate<"Subtarget->hasDot1Insts()">,
   AssemblerPredicate<(all_of FeatureDot1Insts)>;
 
@@ -1745,6 +1782,12 @@ def HasDot7Insts : Predicate<"Subtarget->hasDot7Insts()">,
 
 def HasDot8Insts : Predicate<"Subtarget->hasDot8Insts()">,
   AssemblerPredicate<(all_of FeatureDot8Insts)>;
+
+def HasDot9Insts : Predicate<"Subtarget->hasDot9Insts()">,
+  AssemblerPredicate<(all_of FeatureDot9Insts)>;
+
+def HasDot10Insts : Predicate<"Subtarget->hasDot10Insts()">,
+  AssemblerPredicate<(all_of FeatureDot10Insts)>;
 
 def HasGetWaveIdInst : Predicate<"Subtarget->hasGetWaveIdInst()">,
   AssemblerPredicate<(all_of FeatureGetWaveIdInst)>;

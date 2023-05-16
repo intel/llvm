@@ -89,8 +89,8 @@ module {
     llvm.return
   }
 
-  // CHECK: llvm.func @byvalattr(%{{.*}}: !llvm.ptr<i32> {llvm.byval})
-  llvm.func @byvalattr(%arg0: !llvm.ptr<i32> {llvm.byval}) {
+  // CHECK: llvm.func @byvalattr(%{{.*}}: !llvm.ptr<i32> {llvm.byval = i32})
+  llvm.func @byvalattr(%arg0: !llvm.ptr<i32> {llvm.byval = i32}) {
     llvm.return
   }
 
@@ -188,6 +188,12 @@ module {
   llvm.func @variadic_def(...) {
     llvm.return
   }
+
+  // CHECK-LABEL: llvm.func @memory_attr
+  // CHECK-SAME: attributes {memory = #llvm.memory_effects<other = none, argMem = read, inaccessibleMem = readwrite>} {
+  llvm.func @memory_attr() attributes {memory = #llvm.memory_effects<other = none, argMem = read, inaccessibleMem = readwrite>} {
+    llvm.return
+  }
 }
 
 // -----
@@ -262,58 +268,6 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{cannot attach result attributes to functions with a void return}}
-  llvm.func @variadic_def() -> (!llvm.void {llvm.noundef})
-}
-
-// -----
-
-// expected-error @below{{expected llvm.align result attribute to be an integer attribute}}
-llvm.func @alignattr_ret() -> (!llvm.ptr {llvm.align = 1.0 : f32})
-
-// -----
-
-// expected-error @below{{llvm.align attribute attached to non-pointer result}}
-llvm.func @alignattr_ret() -> (i32 {llvm.align = 4})
-
-// -----
-
-// expected-error @below{{expected llvm.noalias result attribute to be a unit attribute}}
-llvm.func @noaliasattr_ret() -> (!llvm.ptr {llvm.noalias = 1})
-
-// -----
-
-// expected-error @below{{llvm.noalias attribute attached to non-pointer result}}
-llvm.func @noaliasattr_ret() -> (i32 {llvm.noalias})
-
-// -----
-
-// expected-error @below{{expected llvm.noundef result attribute to be a unit attribute}}
-llvm.func @noundefattr_ret() -> (!llvm.ptr {llvm.noundef = 1})
-
-// -----
-
-// expected-error @below{{expected llvm.signext result attribute to be a unit attribute}}
-llvm.func @signextattr_ret() -> (i32 {llvm.signext = 1})
-
-// -----
-
-// expected-error @below{{llvm.signext attribute attached to non-integer result}}
-llvm.func @signextattr_ret() -> (f32 {llvm.signext})
-
-// -----
-
-// expected-error @below{{expected llvm.zeroext result attribute to be a unit attribute}}
-llvm.func @zeroextattr_ret() -> (i32 {llvm.zeroext = 1})
-
-// -----
-
-// expected-error @below{{llvm.zeroext attribute attached to non-integer result}}
-llvm.func @zeroextattr_ret() -> (f32 {llvm.zeroext})
-
-// -----
-
-module {
   // expected-error@+1 {{variadic arguments must be in the end of the argument list}}
   llvm.func @variadic_inside(%arg0: i32, ..., %arg1: i32)
 }
@@ -346,22 +300,4 @@ module {
   // expected-error @below {{invalid Calling Conventions specification: cc_12}}
   // expected-error @below {{failed to parse CConvAttr parameter 'CallingConv' which is to be a `CConv`}}
   }) {sym_name = "generic_unknown_calling_convention", CConv = #llvm.cconv<cc_12>, function_type = !llvm.func<i64 (i64, i64)>} : () -> ()
-}
-
-// -----
-
-module {
-  // expected-error@+3 {{'llvm.readnone' is permitted only on FunctionOpInterface operations}}
-  "llvm.func"() ({
-  ^bb0:
-    llvm.return {llvm.readnone}
-  }) {sym_name = "readnone_return", function_type = !llvm.func<void ()>} : () -> ()
-}
-
-// -----
-
-module {
-  // expected-error@+1 {{op expected 'llvm.readnone' to be a unit attribute}}
-  "llvm.func"() ({
-  }) {sym_name = "readnone_func", llvm.readnone = true, function_type = !llvm.func<void ()>} : () -> ()
 }

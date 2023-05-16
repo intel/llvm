@@ -23,14 +23,19 @@
 ; CHECK-LLVM: @[[StrB:[0-9_.]+]] = {{.*}}"var_annotation_b2\00"
 ; CHECK-LLVM: %[[#StructMember:]] = alloca %class.Sample, align 4
 ; CHECK-LLVM: %[[#GEP1:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
-; CHECK-LLVM: %[[#GEP2:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP2]], i8* getelementptr inbounds ([20 x i8], [20 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: %[[#PtrAnn1:]] = call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: %[[#PtrAnn2:]] = call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#PtrAnn1]], i8* getelementptr inbounds ([20 x i8], [20 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: [[#Var:]] = alloca i32, align 4
 ; CHECK-LLVM: [[#Bitcast1:]] = bitcast i32* %[[#Var]] to i8*
 ; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast1]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: [[#Bitcast2:]] = bitcast i32* %[[#Var]] to i8*
 ; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast2]], i8* getelementptr inbounds ([18 x i8], [18 x i8]* @[[StrB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: [[#Bitcast3:]] = bitcast i32* %[[#PtrAnn2]] to i8*
+; CHECK-LLVM: [[#Bitcast4:]] = bitcast i8* %[[#Bitcast3]] to i32*
+; CHECK-LLVM: [[#Load1:]] = load i32, i32* %[[#Bitcast4]], align 4
+; CHECK-LLVM: call spir_func void @_Z3fooi(i32 %[[#Load1]])
+; CHECK-LLVM: [[#Load2:]] = load i32, i32* %[[#Var]], align 4
+; CHECK-LLVM: call spir_func void @_Z3fooi(i32 %[[#Load2]])
 
 
 source_filename = "llvm-link"

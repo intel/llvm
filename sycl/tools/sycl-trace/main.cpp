@@ -14,7 +14,7 @@
 
 using namespace llvm;
 
-enum ModeKind { PI, ZE, CU };
+enum ModeKind { PI, ZE, CU, SYCL };
 enum PrintFormatKind { PRETTY_COMPACT, PRETTY_VERBOSE, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
@@ -24,7 +24,8 @@ int main(int argc, char **argv, char *env[]) {
           // TODO graph dot
           clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
           clEnumValN(ZE, "level_zero", "Trace Level Zero calls"),
-          clEnumValN(CU, "cuda", "Trace CUDA Driver API calls")));
+          clEnumValN(CU, "cuda", "Trace CUDA Driver API calls"),
+          clEnumValN(SYCL, "sycl", "Trace SYCL API calls")));
   cl::opt<PrintFormatKind> PrintFormat(
       "print-format", cl::desc("Print format"),
       cl::values(
@@ -67,6 +68,9 @@ int main(int argc, char **argv, char *env[]) {
   const auto EnableCUTrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_CU_ENABLE=1");
   };
+  const auto EnableSYCLTrace = [&]() {
+    NewEnv.push_back("SYCL_TRACE_API_ENABLE=1");
+  };
 
   for (auto Mode : Modes) {
     switch (Mode) {
@@ -78,6 +82,9 @@ int main(int argc, char **argv, char *env[]) {
       break;
     case CU:
       EnableCUTrace();
+      break;
+    case SYCL:
+      EnableSYCLTrace();
       break;
     }
   }
@@ -94,6 +101,9 @@ int main(int argc, char **argv, char *env[]) {
     EnablePITrace();
     EnableZETrace();
     EnableCUTrace();
+    // Intentionally do not enable SYCL API traces -> to not break existing
+    // tests.
+    // EnableSYTrace();
   }
 
   std::vector<std::string> Args;

@@ -308,18 +308,19 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
-    if (!is_specialization_constant_set(SpecSymName))
-      return SpecName.getDefaultValue();
-
     using SCType =
         typename std::remove_reference_t<decltype(SpecName)>::value_type;
 
-    std::array<char *, sizeof(SCType)> RetValue;
+    const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
+    SCType Res{SpecName.getDefaultValue()};
+    if (!is_specialization_constant_set(SpecSymName))
+      return Res;
 
+    std::array<char, sizeof(SCType)> RetValue;
     get_specialization_constant_impl(SpecSymName, RetValue.data());
+    std::memcpy(&Res, RetValue.data(), sizeof(SCType));
 
-    return *reinterpret_cast<SCType *>(RetValue.data());
+    return Res;
   }
 
   /// \returns an iterator to the first device image kernel_bundle contains

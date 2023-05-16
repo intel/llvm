@@ -77,7 +77,7 @@ static void findReturnsToZap(Function &F,
                if (U->getType()->isStructTy()) {
                  return all_of(Solver.getStructLatticeValueFor(U),
                                [](const ValueLatticeElement &LV) {
-                                 return !isOverdefined(LV);
+                                 return !SCCPSolver::isOverdefined(LV);
                                });
                }
 
@@ -88,7 +88,7 @@ static void findReturnsToZap(Function &F,
                    return true;
                }
 
-               return !isOverdefined(Solver.getLatticeValueFor(U));
+               return !SCCPSolver::isOverdefined(Solver.getLatticeValueFor(U));
              }) &&
       "We can only zap functions where all live users have a concrete value");
 
@@ -173,7 +173,7 @@ static bool runIPSCCP(
     if (Solver.isBlockExecutable(&F.front())) {
       bool ReplacedPointerArg = false;
       for (Argument &Arg : F.args()) {
-        if (!Arg.use_empty() && tryToReplaceWithConstant(Solver, &Arg)) {
+        if (!Arg.use_empty() && Solver.tryToReplaceWithConstant(&Arg)) {
           ReplacedPointerArg |= Arg.getType()->isPointerTy();
           ++NumArgsElimed;
         }
@@ -219,8 +219,8 @@ static bool runIPSCCP(
         continue;
       }
 
-      MadeChanges |= simplifyInstsInBlock(Solver, BB, InsertedValues,
-                                          NumInstRemoved, NumInstReplaced);
+      MadeChanges |= Solver.simplifyInstsInBlock(
+          BB, InsertedValues, NumInstRemoved, NumInstReplaced);
     }
 
     DomTreeUpdater DTU = IsFuncSpecEnabled && Specializer.isClonedFunction(&F)
@@ -241,7 +241,7 @@ static bool runIPSCCP(
 
     BasicBlock *NewUnreachableBB = nullptr;
     for (BasicBlock &BB : F)
-      MadeChanges |= removeNonFeasibleEdges(Solver, &BB, DTU, NewUnreachableBB);
+      MadeChanges |= Solver.removeNonFeasibleEdges(&BB, DTU, NewUnreachableBB);
 
     for (BasicBlock *DeadBB : BlocksToErase)
       if (!DeadBB->hasAddressTaken())
@@ -315,7 +315,7 @@ static bool runIPSCCP(
     }
     if (F->getReturnType()->isVoidTy())
       continue;
-    if (isConstant(ReturnValue) || ReturnValue.isUnknownOrUndef())
+    if (SCCPSolver::isConstant(ReturnValue) || ReturnValue.isUnknownOrUndef())
       findReturnsToZap(*F, ReturnsToZap, Solver);
   }
 
@@ -361,7 +361,7 @@ static bool runIPSCCP(
   // delete the global and any stores that remain to it.
   for (const auto &I : make_early_inc_range(Solver.getTrackedGlobals())) {
     GlobalVariable *GV = I.first;
-    if (isOverdefined(I.second))
+    if (SCCPSolver::isOverdefined(I.second))
       continue;
     LLVM_DEBUG(dbgs() << "Found that GV '" << GV->getName()
                       << "' is constant!\n");
@@ -370,7 +370,7 @@ static bool runIPSCCP(
       SI->eraseFromParent();
       MadeChanges = true;
     }
-    M.getGlobalList().erase(GV);
+    M.eraseGlobalVariable(GV);
     ++NumGlobalConst;
   }
 
@@ -407,73 +407,3 @@ PreservedAnalyses IPSCCPPass::run(Module &M, ModuleAnalysisManager &AM) {
   PA.preserve<FunctionAnalysisManagerModuleProxy>();
   return PA;
 }
-
-namespace {
-
-//===--------------------------------------------------------------------===//
-//
-/// IPSCCP Class - This class implements interprocedural Sparse Conditional
-/// Constant Propagation.
-///
-class IPSCCPLegacyPass : public ModulePass {
-public:
-  static char ID;
-
-  IPSCCPLegacyPass() : ModulePass(ID) {
-    initializeIPSCCPLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnModule(Module &M) override {
-    if (skipModule(M))
-      return false;
-    const DataLayout &DL = M.getDataLayout();
-    auto GetTLI = [this](Function &F) -> const TargetLibraryInfo & {
-      return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-    };
-    auto GetTTI = [this](Function &F) -> TargetTransformInfo & {
-      return this->getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
-    };
-    auto GetAC = [this](Function &F) -> AssumptionCache & {
-      return this->getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-    };
-    auto getAnalysis = [this](Function &F) -> AnalysisResultsForFn {
-      DominatorTree &DT =
-          this->getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
-      return {
-          std::make_unique<PredicateInfo>(
-              F, DT,
-              this->getAnalysis<AssumptionCacheTracker>().getAssumptionCache(
-                  F)),
-          nullptr,  // We cannot preserve the LI, DT or PDT with the legacy pass
-          nullptr,  // manager, so set them to nullptr.
-          nullptr};
-    };
-
-    return runIPSCCP(M, DL, nullptr, GetTLI, GetTTI, GetAC, getAnalysis, false);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<AssumptionCacheTracker>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-    AU.addRequired<TargetTransformInfoWrapperPass>();
-  }
-};
-
-} // end anonymous namespace
-
-char IPSCCPLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(IPSCCPLegacyPass, "ipsccp",
-                      "Interprocedural Sparse Conditional Constant Propagation",
-                      false, false)
-INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(IPSCCPLegacyPass, "ipsccp",
-                    "Interprocedural Sparse Conditional Constant Propagation",
-                    false, false)
-
-// createIPSCCPPass - This is the public interface to this file.
-ModulePass *llvm::createIPSCCPPass() { return new IPSCCPLegacyPass(); }
-

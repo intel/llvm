@@ -19,7 +19,6 @@
 #include "TargetInfo/PowerPCTargetInfo.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
@@ -44,6 +43,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -385,7 +385,7 @@ public:
                       uint64_t &Target) const override {
     unsigned NumOps = Inst.getNumOperands();
     if (NumOps == 0 ||
-        Info->get(Inst.getOpcode()).OpInfo[NumOps - 1].OperandType !=
+        Info->get(Inst.getOpcode()).operands()[NumOps - 1].OperandType !=
             MCOI::OPERAND_PCREL)
       return false;
     Target = Addr + Inst.getOperand(NumOps - 1).getImm() * Size;

@@ -18,7 +18,7 @@
 #include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define __ESIMD_INTRIN SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#define __ESIMD_INTRIN __DPCPP_SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
 #else
 #define __ESIMD_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__

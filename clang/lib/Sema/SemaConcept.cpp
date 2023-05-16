@@ -150,11 +150,19 @@ bool Sema::CheckConstraintExpression(const Expr *ConstraintExpression,
 namespace {
 struct SatisfactionStackRAII {
   Sema &SemaRef;
-  SatisfactionStackRAII(Sema &SemaRef, llvm::FoldingSetNodeID FSNID)
+  bool Inserted = false;
+  SatisfactionStackRAII(Sema &SemaRef, const NamedDecl *ND,
+                        llvm::FoldingSetNodeID FSNID)
       : SemaRef(SemaRef) {
-      SemaRef.PushSatisfactionStackEntry(FSNID);
+      if (ND) {
+      SemaRef.PushSatisfactionStackEntry(ND, FSNID);
+      Inserted = true;
+      }
   }
-  ~SatisfactionStackRAII() { SemaRef.PopSatisfactionStackEntry(); }
+  ~SatisfactionStackRAII() {
+        if (Inserted)
+          SemaRef.PopSatisfactionStackEntry();
+  }
 };
 } // namespace
 
@@ -273,7 +281,8 @@ calculateConstraintSatisfaction(Sema &S, const Expr *ConstraintExpr,
 }
 
 static bool
-DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID, const Expr *E,
+DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID,
+                            const NamedDecl *Templ, const Expr *E,
                             const MultiLevelTemplateArgumentList &MLTAL) {
   E->Profile(ID, S.Context, /*Canonical=*/true);
   for (const auto &List : MLTAL)
@@ -286,7 +295,7 @@ DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID, const Expr *E,
   // expression, or when trying to determine the constexpr-ness of special
   // members. Otherwise we could just use the
   // Sema::InstantiatingTemplate::isAlreadyBeingInstantiated function.
-  if (S.SatisfactionStackContains(ID)) {
+  if (S.SatisfactionStackContains(Templ, ID)) {
     S.Diag(E->getExprLoc(), diag::err_constraint_depends_on_self)
         << const_cast<Expr *>(E) << E->getSourceRange();
     return true;
@@ -317,26 +326,20 @@ static ExprResult calculateConstraintSatisfaction(
             return ExprError();
 
           llvm::FoldingSetNodeID ID;
-          if (DiagRecursiveConstraintEval(S, ID, AtomicExpr, MLTAL)) {
+          if (Template &&
+              DiagRecursiveConstraintEval(S, ID, Template, AtomicExpr, MLTAL)) {
             Satisfaction.IsSatisfied = false;
             Satisfaction.ContainsErrors = true;
             return ExprEmpty();
           }
 
-          SatisfactionStackRAII StackRAII(S, ID);
+          SatisfactionStackRAII StackRAII(S, Template, ID);
 
           // We do not want error diagnostics escaping here.
           Sema::SFINAETrap Trap(S);
           SubstitutedExpression =
               S.SubstConstraintExpr(const_cast<Expr *>(AtomicExpr), MLTAL);
-          // Substitution might have stripped off a contextual conversion to
-          // bool if this is the operand of an '&&' or '||'. For example, we
-          // might lose an lvalue-to-rvalue conversion here. If so, put it back
-          // before we try to evaluate.
-          if (SubstitutedExpression.isUsable() &&
-              !SubstitutedExpression.isInvalid())
-            SubstitutedExpression =
-                S.PerformContextuallyConvertToBool(SubstitutedExpression.get());
+
           if (SubstitutedExpression.isInvalid() || Trap.hasErrorOccurred()) {
             // C++2a [temp.constr.atomic]p1
             //   ...If substitution results in an invalid type or expression, the
@@ -372,6 +375,22 @@ static ExprResult calculateConstraintSatisfaction(
 
         if (!S.CheckConstraintExpression(SubstitutedExpression.get()))
           return ExprError();
+
+        // [temp.constr.atomic]p3: To determine if an atomic constraint is
+        // satisfied, the parameter mapping and template arguments are first
+        // substituted into its expression.  If substitution results in an
+        // invalid type or expression, the constraint is not satisfied.
+        // Otherwise, the lvalue-to-rvalue conversion is performed if necessary,
+        // and E shall be a constant expression of type bool.
+        //
+        // Perform the L to R Value conversion if necessary. We do so for all
+        // non-PRValue categories, else we fail to extend the lifetime of
+        // temporaries, and that fails the constant expression check.
+        if (!SubstitutedExpression.get()->isPRValue())
+          SubstitutedExpression = ImplicitCastExpr::Create(
+              S.Context, SubstitutedExpression.get()->getType(),
+              CK_LValueToRValue, SubstitutedExpression.get(),
+              /*BasePath=*/nullptr, VK_PRValue, FPOptionsOverride());
 
         return SubstitutedExpression;
       });
@@ -1123,8 +1142,7 @@ substituteParameterMappings(Sema &S, NormalizedConstraint &N,
   Sema::InstantiatingTemplate Inst(
       S, ArgsAsWritten->arguments().front().getSourceRange().getBegin(),
       Sema::InstantiatingTemplate::ParameterMappingSubstitution{}, Concept,
-      SourceRange(ArgsAsWritten->arguments()[0].getSourceRange().getBegin(),
-                  ArgsAsWritten->arguments().back().getSourceRange().getEnd()));
+      ArgsAsWritten->arguments().front().getSourceRange());
   if (S.SubstTemplateArguments(*Atomic.ParameterMapping, MLTAL, SubstArgs))
     return true;
 

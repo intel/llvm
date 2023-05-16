@@ -15,9 +15,9 @@
 #include <cmath>
 #endif
 
-extern "C" SYCL_EXTERNAL uint16_t
+extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
-extern "C" SYCL_EXTERNAL float
+extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 
 namespace sycl {

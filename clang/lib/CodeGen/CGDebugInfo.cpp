@@ -392,8 +392,8 @@ std::optional<StringRef> CGDebugInfo::getSource(const SourceManager &SM,
 FileID ComputeValidFileID(SourceManager &SM, StringRef FileName) {
   FileID MainFileID = SM.getMainFileID();
   // Find the filename FileName and load it.
-  llvm::Expected<FileEntryRef>  ExpectedFileRef =
-    SM.getFileManager().getFileRef(FileName);
+  llvm::Expected<FileEntryRef> ExpectedFileRef =
+      SM.getFileManager().getFileRef(FileName);
   if (ExpectedFileRef) {
     MainFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
                                       SrcMgr::CharacteristicKind::C_User);
@@ -407,18 +407,25 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
   FileID FID;
 
   if (Loc.isInvalid()) {
-    // The DIFile used by the CU is distinct from the main source file. Call
-    // createFile() below for canonicalization if the source file was specified
-    // with an absolute path.
-    FileName = TheCU->getFile()->getFilename();
+    if (CGM.getCodeGenOpts().SYCLUseMainFileName &&
+        CGM.getLangOpts().MacroPrefixMap.size() > 0) {
+      // When fmacro-prefix-map is used, the original source file
+      // file name is indicated by FullMainFileName instead of the CU.
+      auto &CGO = CGM.getCodeGenOpts();
+      FileName = CGO.FullMainFileName;
+      FID = ComputeValidFileID(SM, CGO.FullMainFileName);
+    } else {
+      // The DIFile used by the CU is distinct from the main source file. Call
+      // createFile() below for canonicalization if the source file was
+      // specified with an absolute path.
+      FileName = TheCU->getFile()->getFilename();
+    }
   } else {
     PresumedLoc PLoc = SM.getPresumedLoc(Loc);
     FileName = PLoc.getFilename();
 
     if (FileName.empty()) {
       FileName = TheCU->getFile()->getFilename();
-    } else {
-      FileName = PLoc.getFilename();
     }
     FID = PLoc.getFileID();
   }
@@ -654,11 +661,18 @@ void CGDebugInfo::CreateCompileUnit() {
   // file. Its directory part specifies what becomes the
   // DW_AT_comp_dir (the compilation directory), even if the source
   // file was specified with an absolute path.
+  // Unless an integration footer is involved, and the directory part is
+  // specified by the FileEntryRef provided by the FileID of the main source
+  // file.
   if (CSKind)
     CSInfo.emplace(*CSKind, Checksum);
-  llvm::DIFile *CUFile = DBuilder.createFile(
-      remapDIPath(MainFileName), remapDIPath(getCurrentDirname()), CSInfo,
-      getSource(SM, SM.getMainFileID()));
+
+  if (!CGM.getCodeGenOpts().SYCLUseMainFileName)
+    MainFileDir = getCurrentDirname();
+
+  llvm::DIFile *CUFile =
+      DBuilder.createFile(remapDIPath(MainFileName), remapDIPath(MainFileDir),
+                          CSInfo, getSource(SM, SM.getMainFileID()));
 
   StringRef Sysroot, SDK;
   if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::LLDB) {
@@ -859,6 +873,17 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
       return DBuilder.createVectorType(/*Size=*/0, Align, ElemTy,
                                        SubscriptArray);
     }
+
+#define WASM_REF_TYPE(Name, MangledName, Id, SingletonId, AS)                  \
+  case BuiltinType::Id: {                                                      \
+    if (!SingletonId)                                                          \
+      SingletonId =                                                            \
+          DBuilder.createForwardDecl(llvm::dwarf::DW_TAG_structure_type,       \
+                                     MangledName, TheCU, TheCU->getFile(), 0); \
+    return SingletonId;                                                        \
+  }
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+
   case BuiltinType::UChar:
   case BuiltinType::Char_U:
     Encoding = llvm::dwarf::DW_ATE_unsigned_char;
@@ -1330,9 +1355,21 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
 
   SmallString<128> NS;
   llvm::raw_svector_ostream OS(NS);
-  Ty->getTemplateName().print(OS, getPrintingPolicy(),
-                              TemplateName::Qualified::None);
-  printTemplateArgumentList(OS, Ty->template_arguments(), getPrintingPolicy());
+
+  auto PP = getPrintingPolicy();
+  Ty->getTemplateName().print(OS, PP, TemplateName::Qualified::None);
+
+  // Disable PrintCanonicalTypes here because we want
+  // the DW_AT_name to benefit from the TypePrinter's ability
+  // to skip defaulted template arguments.
+  //
+  // FIXME: Once -gsimple-template-names is enabled by default
+  // and we attach template parameters to alias template DIEs
+  // we don't need to worry about customizing the PrintingPolicy
+  // here anymore.
+  PP.PrintCanonicalTypes = false;
+  printTemplateArgumentList(OS, Ty->template_arguments(), PP,
+                            TD->getTemplateParameters());
 
   SourceLocation Loc = AliasDecl->getLocation();
   return DBuilder.createTypedef(Src, OS.str(), getOrCreateFile(Loc),
@@ -2040,14 +2077,9 @@ CGDebugInfo::CollectTemplateParams(std::optional<TemplateArgs> OArgs,
   for (unsigned i = 0, e = Args.Args.size(); i != e; ++i) {
     const TemplateArgument &TA = Args.Args[i];
     StringRef Name;
-    bool defaultParameter = false;
-    if (Args.TList) {
+    const bool defaultParameter = TA.getIsDefaulted();
+    if (Args.TList)
       Name = Args.TList->getParam(i)->getName();
-
-      NamedDecl const *ND = Args.TList->getParam(i);
-      defaultParameter = clang::isSubstitutedDefaultArgument(
-          CGM.getContext(), TA, ND, Args.Args, Args.TList->getDepth());
-    }
 
     switch (TA.getKind()) {
     case TemplateArgument::Type: {
@@ -4864,9 +4896,10 @@ void CGDebugInfo::EmitDeclareOfBlockDeclRefVariable(
 
 llvm::DILocalVariable *
 CGDebugInfo::EmitDeclareOfArgVariable(const VarDecl *VD, llvm::Value *AI,
-                                      unsigned ArgNo, CGBuilderTy &Builder) {
+                                      unsigned ArgNo, CGBuilderTy &Builder,
+                                      bool UsePointerValue) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
-  return EmitDeclare(VD, AI, ArgNo, Builder);
+  return EmitDeclare(VD, AI, ArgNo, Builder, UsePointerValue);
 }
 
 namespace {
@@ -5443,10 +5476,18 @@ void CGDebugInfo::EmitGlobalVariable(const ValueDecl *VD, const APValue &Init) {
   llvm::DIExpression *InitExpr = nullptr;
   if (CGM.getContext().getTypeSize(VD->getType()) <= 64) {
     // FIXME: Add a representation for integer constants wider than 64 bits.
-    if (Init.isInt())
-      InitExpr =
-          DBuilder.createConstantValueExpression(Init.getInt().getExtValue());
-    else if (Init.isFloat())
+    if (Init.isInt()) {
+      const llvm::APSInt &InitInt = Init.getInt();
+      std::optional<uint64_t> InitIntOpt;
+      if (InitInt.isUnsigned())
+        InitIntOpt = InitInt.tryZExtValue();
+      else if (auto tmp = InitInt.trySExtValue(); tmp.has_value())
+        // Transform a signed optional to unsigned optional. When cpp 23 comes,
+        // use std::optional::transform
+        InitIntOpt = (uint64_t)tmp.value();
+      if (InitIntOpt)
+        InitExpr = DBuilder.createConstantValueExpression(InitIntOpt.value());
+    } else if (Init.isFloat())
       InitExpr = DBuilder.createConstantValueExpression(
           Init.getFloat().bitcastToAPInt().getZExtValue());
   }

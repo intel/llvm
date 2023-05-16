@@ -46,7 +46,6 @@ and not recommended to use in production environment.
     * intel_gpu_adl_s - Alder Lake S Intel graphics architecture
     * intel_gpu_rkl - Rocket Lake Intel graphics architecture
     * intel_gpu_tgllp, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
-    * intel_gpu_ehl, intel_gpu_11_2_0 - Elkhart Lake Intel graphics architecture
     * intel_gpu_icllp, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
     * intel_gpu_cml, intel_gpu_9_7_0 - Comet Lake Intel graphics architecture
     * intel_gpu_aml, intel_gpu_9_6_0 - Amber Lake Intel graphics architecture

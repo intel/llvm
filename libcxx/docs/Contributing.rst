@@ -31,7 +31,7 @@ Pre-commit check list
 Before committing or creating a review, please go through this check-list to make
 sure you don't forget anything:
 
-- Do you have tests for every public class and/or function you're adding or modifying?
+- Do you have :ref:`tests <testing>` for every public class and/or function you're adding or modifying?
 - Did you update the synopsis of the relevant headers?
 - Did you update the relevant files to track implementation status (in ``docs/Status/``)?
 - Did you mark all functions and type declarations with the :ref:`proper visibility macro <visibility-macros>`?
@@ -70,6 +70,8 @@ After branching for an LLVM release:
 2. Update the version number in ``libcxx/docs/conf.py``
 3. Update ``_LIBCPPABI_VERSION`` in ``libcxxabi/include/cxxabi.h``
 4. Update ``_LIBUNWIND_VERSION`` in ``libunwind/include/__libunwind_config.h``
+5. Update the list of supported clang versions in ``libcxx/docs/index.rst``
+6. Remove the in-progress warning from ``libcxx/docs/ReleaseNotes.rst``
 
 Exporting new symbols from the library
 ======================================

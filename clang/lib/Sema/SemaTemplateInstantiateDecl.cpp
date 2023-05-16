@@ -650,12 +650,9 @@ instantiateSYCLDeviceHasAttr(Sema &S,
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   SmallVector<Expr *, 8> Args;
-  for (auto I : Attr->aspects()) {
-    ExprResult Result = S.SubstExpr(I, TemplateArgs);
-    if (Result.isInvalid())
-      return;
-    Args.push_back(Result.getAs<Expr>());
-  }
+  if (S.SubstExprs(ArrayRef<Expr *>(Attr->aspects_begin(), Attr->aspects_end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
   S.AddSYCLDeviceHasAttr(New, *Attr, Args.data(), Args.size());
 }
 
@@ -4172,9 +4169,10 @@ TemplateDeclInstantiator::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
     OMPVarListLocTy Locs(OldC->getBeginLoc(), OldC->getLParenLoc(),
                          OldC->getEndLoc());
     OMPClause *NewC = SemaRef.ActOnOpenMPMapClause(
-        OldC->getMapTypeModifiers(), OldC->getMapTypeModifiersLoc(), SS,
-        NewNameInfo, OldC->getMapType(), OldC->isImplicitMapType(),
-        OldC->getMapLoc(), OldC->getColonLoc(), NewVars, Locs);
+        OldC->getIteratorModifier(), OldC->getMapTypeModifiers(),
+        OldC->getMapTypeModifiersLoc(), SS, NewNameInfo, OldC->getMapType(),
+        OldC->isImplicitMapType(), OldC->getMapLoc(), OldC->getColonLoc(),
+        NewVars, Locs);
     Clauses.push_back(NewC);
   }
   SemaRef.EndOpenMPDSABlock(nullptr);

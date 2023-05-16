@@ -196,6 +196,19 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
   add(DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
   add(DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
+  add(DecorationConduitKernelArgumentINTEL, "ConduitKernelArgumentINTEL");
+  add(DecorationRegisterMapKernelArgumentINTEL,
+      "RegisterMapKernelArgumentINTEL");
+  add(DecorationMMHostInterfaceAddressWidthINTEL,
+      "MMHostInterfaceAddressWidthINTEL");
+  add(DecorationMMHostInterfaceDataWidthINTEL, "MMHostInterfaceDataWidthINTEL");
+  add(DecorationMMHostInterfaceLatencyINTEL, "MMHostInterfaceLatencyINTEL");
+  add(DecorationMMHostInterfaceReadWriteModeINTEL,
+      "MMHostInterfaceReadWriteModeINTEL");
+  add(DecorationMMHostInterfaceMaxBurstINTEL, "MMHostInterfaceMaxBurstINTEL");
+  add(DecorationMMHostInterfaceWaitRequestINTEL,
+      "MMHostInterfaceWaitRequestINTEL");
+  add(DecorationStableKernelArgumentINTEL, "StableKernelArgumentINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
@@ -618,6 +631,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "FPGAInvocationPipeliningAttributesINTEL");
   add(CapabilityRuntimeAlignedAttributeINTEL, "RuntimeAlignedAttributeINTEL");
   add(CapabilityMax, "Max");
+  add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
 
   // From spirv_internal.hpp
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
@@ -629,8 +643,6 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
   add(internal::CapabilityGlobalVariableDecorationsINTEL,
       "GlobalVariableDecorationsINTEL");
-  add(internal::CapabilityNonConstantAddrspacePrintfINTEL,
-      "NonConstantAddrspacePrintfINTEL");
   add(internal::CapabilityComplexFloatMulDivINTEL, "ComplexFloatMulDivINTEL");
   add(internal::CapabilityMaskedGatherScatterINTEL, "MaskedGatherScatterINTEL");
   add(internal::CapabilityTensorFloat32ConversionINTEL,

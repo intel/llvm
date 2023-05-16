@@ -209,7 +209,7 @@ def note_incompatible_analyzer_plugin_api : Note<
 def err_module_build_requires_fmodules : Error<
   "module compilation requires '-fmodules'">;
 def err_module_interface_requires_cpp_modules : Error<
-  "module interface compilation requires '-std=c++20' or '-fmodules-ts'">;
+  "module interface compilation requires '-std=c++20'">;
 def warn_module_config_mismatch : Warning<
   "module file %0 cannot be loaded due to a configuration mismatch with the current "
   "compilation">, InGroup<DiagGroup<"module-file-config-mismatch">>, DefaultError;
@@ -255,11 +255,6 @@ def err_module_header_file_not_found :
 def err_test_module_file_extension_version : Error<
   "test module file extension '%0' has different version (%1.%2) than expected "
   "(%3.%4)">;
-
-def err_missing_vfs_stat_cache_file : Error<
-  "stat cache file '%0' not found">, DefaultFatal;
-def err_invalid_vfs_stat_cache : Error<
-  "invalid stat cache file '%0'">, DefaultFatal;
 
 def err_missing_vfs_overlay_file : Error<
   "virtual filesystem overlay file '%0' not found">, DefaultFatal;

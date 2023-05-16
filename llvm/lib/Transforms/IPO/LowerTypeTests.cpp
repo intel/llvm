@@ -24,7 +24,6 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TinyPtrVector.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TypeMetadataUtils.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Attributes.h"
@@ -69,6 +68,7 @@
 #include "llvm/Support/TrailingObjects.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -172,7 +172,7 @@ BitSetInfo BitSetBuilder::build() {
 
   BSI.AlignLog2 = 0;
   if (Mask != 0)
-    BSI.AlignLog2 = countTrailingZeros(Mask, ZB_Undefined);
+    BSI.AlignLog2 = llvm::countr_zero(Mask);
 
   // Build the compressed bitset while normalizing the offsets against the
   // computed alignment.

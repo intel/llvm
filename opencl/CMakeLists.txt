@@ -44,7 +44,7 @@ FetchContent_GetProperties(ocl-headers)
 set(OpenCL_INCLUDE_DIR
   ${ocl-headers_SOURCE_DIR} CACHE PATH "Path to OpenCL Headers")
 
-target_compile_definitions(Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=220)
+target_compile_definitions(Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=300)
 add_library(OpenCL-Headers ALIAS Headers)
 
 # OpenCL Library (ICD Loader)

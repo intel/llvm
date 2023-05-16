@@ -12,8 +12,12 @@
 
 #include <__assert>
 #include <__config>
+#include <__type_traits/common_type.h>
+#include <__type_traits/is_integral.h>
+#include <__type_traits/is_same.h>
+#include <__type_traits/is_signed.h>
+#include <__type_traits/make_unsigned.h>
 #include <limits>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -24,7 +28,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 
 template <typename _Result, typename _Source, bool _IsSigned = is_signed<_Source>::value> struct __ct_abs;
 

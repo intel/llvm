@@ -33,6 +33,9 @@ public:
   weak_object_base(const weak_object_base &Other) noexcept = default;
   weak_object_base(weak_object_base &&Other) noexcept = default;
 
+  weak_object_base &operator=(const weak_object_base &Other) noexcept = default;
+  weak_object_base &operator=(weak_object_base &&Other) noexcept = default;
+
   void reset() noexcept { MObjWeakPtr.reset(); }
   void swap(weak_object_base &Other) noexcept {
     MObjWeakPtr.swap(Other.MObjWeakPtr);

@@ -22,124 +22,6 @@ namespace llvm {
 // GraphTraits specializations for VPlan Hierarchical Control-Flow Graphs     //
 //===----------------------------------------------------------------------===//
 
-// The following set of template specializations implement GraphTraits to treat
-// any VPBlockBase as a node in a graph of VPBlockBases. It's important to note
-// that VPBlockBase traits don't recurse into VPRegioBlocks, i.e., if the
-// VPBlockBase is a VPRegionBlock, this specialization provides access to its
-// successors/predecessors but not to the blocks inside the region.
-
-template <> struct GraphTraits<VPBlockBase *> {
-  using NodeRef = VPBlockBase *;
-  using ChildIteratorType = SmallVectorImpl<VPBlockBase *>::iterator;
-
-  static NodeRef getEntryNode(NodeRef N) { return N; }
-
-  static inline ChildIteratorType child_begin(NodeRef N) {
-    return N->getSuccessors().begin();
-  }
-
-  static inline ChildIteratorType child_end(NodeRef N) {
-    return N->getSuccessors().end();
-  }
-};
-
-template <> struct GraphTraits<const VPBlockBase *> {
-  using NodeRef = const VPBlockBase *;
-  using ChildIteratorType = SmallVectorImpl<VPBlockBase *>::const_iterator;
-
-  static NodeRef getEntryNode(NodeRef N) { return N; }
-
-  static inline ChildIteratorType child_begin(NodeRef N) {
-    return N->getSuccessors().begin();
-  }
-
-  static inline ChildIteratorType child_end(NodeRef N) {
-    return N->getSuccessors().end();
-  }
-};
-
-// Inverse order specialization for VPBasicBlocks. Predecessors are used instead
-// of successors for the inverse traversal.
-template <> struct GraphTraits<Inverse<VPBlockBase *>> {
-  using NodeRef = VPBlockBase *;
-  using ChildIteratorType = SmallVectorImpl<VPBlockBase *>::iterator;
-
-  static NodeRef getEntryNode(Inverse<NodeRef> B) { return B.Graph; }
-
-  static inline ChildIteratorType child_begin(NodeRef N) {
-    return N->getPredecessors().begin();
-  }
-
-  static inline ChildIteratorType child_end(NodeRef N) {
-    return N->getPredecessors().end();
-  }
-};
-
-// The following set of template specializations implement GraphTraits to
-// treat VPRegionBlock as a graph and recurse inside its nodes. It's important
-// to note that the blocks inside the VPRegionBlock are treated as VPBlockBases
-// (i.e., no dyn_cast is performed, VPBlockBases specialization is used), so
-// there won't be automatic recursion into other VPBlockBases that turn to be
-// VPRegionBlocks.
-
-template <>
-struct GraphTraits<VPRegionBlock *> : public GraphTraits<VPBlockBase *> {
-  using GraphRef = VPRegionBlock *;
-  using nodes_iterator = df_iterator<NodeRef>;
-
-  static NodeRef getEntryNode(GraphRef N) { return N->getEntry(); }
-
-  static nodes_iterator nodes_begin(GraphRef N) {
-    return nodes_iterator::begin(N->getEntry());
-  }
-
-  static nodes_iterator nodes_end(GraphRef N) {
-    // df_iterator::end() returns an empty iterator so the node used doesn't
-    // matter.
-    return nodes_iterator::end(N);
-  }
-};
-
-template <>
-struct GraphTraits<const VPRegionBlock *>
-    : public GraphTraits<const VPBlockBase *> {
-  using GraphRef = const VPRegionBlock *;
-  using nodes_iterator = df_iterator<NodeRef>;
-
-  static NodeRef getEntryNode(GraphRef N) { return N->getEntry(); }
-
-  static nodes_iterator nodes_begin(GraphRef N) {
-    return nodes_iterator::begin(N->getEntry());
-  }
-
-  static nodes_iterator nodes_end(GraphRef N) {
-    // df_iterator::end() returns an empty iterator so the node used doesn't
-    // matter.
-    return nodes_iterator::end(N);
-  }
-};
-
-template <>
-struct GraphTraits<Inverse<VPRegionBlock *>>
-    : public GraphTraits<Inverse<VPBlockBase *>> {
-  using GraphRef = VPRegionBlock *;
-  using nodes_iterator = df_iterator<NodeRef>;
-
-  static NodeRef getEntryNode(Inverse<GraphRef> N) {
-    return N.Graph->getExiting();
-  }
-
-  static nodes_iterator nodes_begin(GraphRef N) {
-    return nodes_iterator::begin(N->getExiting());
-  }
-
-  static nodes_iterator nodes_end(GraphRef N) {
-    // df_iterator::end() returns an empty iterator so the node used doesn't
-    // matter.
-    return nodes_iterator::end(N);
-  }
-};
-
 /// Iterator to traverse all successors of a VPBlockBase node. This includes the
 /// entry node of VPRegionBlocks. Exit blocks of a region implicitly have their
 /// parent region's successors. This ensures all blocks in a region are visited
@@ -150,7 +32,8 @@ struct GraphTraits<Inverse<VPRegionBlock *>>
 template <typename BlockPtrTy>
 class VPAllSuccessorsIterator
     : public iterator_facade_base<VPAllSuccessorsIterator<BlockPtrTy>,
-                                  std::forward_iterator_tag, VPBlockBase> {
+                                  std::bidirectional_iterator_tag,
+                                  VPBlockBase> {
   BlockPtrTy Block;
   /// Index of the current successor. For VPBasicBlock nodes, this simply is the
   /// index for the successor array. For VPRegionBlock, SuccessorIdx == 0 is
@@ -177,6 +60,9 @@ class VPAllSuccessorsIterator
   }
 
 public:
+  /// Used by iterator_facade_base with bidirectional_iterator_tag.
+  using reference = BlockPtrTy;
+
   VPAllSuccessorsIterator(BlockPtrTy Block, size_t Idx = 0)
       : Block(Block), SuccessorIdx(Idx) {}
   VPAllSuccessorsIterator(const VPAllSuccessorsIterator &Other)
@@ -212,6 +98,11 @@ public:
     return *this;
   }
 
+  VPAllSuccessorsIterator &operator--() {
+    SuccessorIdx--;
+    return *this;
+  }
+
   VPAllSuccessorsIterator operator++(int X) {
     VPAllSuccessorsIterator Orig = *this;
     SuccessorIdx++;
@@ -220,11 +111,11 @@ public:
 };
 
 /// Helper for GraphTraits specialization that traverses through VPRegionBlocks.
-template <typename BlockTy> class VPBlockRecursiveTraversalWrapper {
+template <typename BlockTy> class VPBlockDeepTraversalWrapper {
   BlockTy Entry;
 
 public:
-  VPBlockRecursiveTraversalWrapper(BlockTy Entry) : Entry(Entry) {}
+  VPBlockDeepTraversalWrapper(BlockTy Entry) : Entry(Entry) {}
   BlockTy getEntry() { return Entry; }
 };
 
@@ -233,13 +124,11 @@ public:
 /// implicitly have their parent region's successors. This ensures all blocks in
 /// a region are visited before any blocks in a successor region when doing a
 /// reverse post-order traversal of the graph.
-template <>
-struct GraphTraits<VPBlockRecursiveTraversalWrapper<VPBlockBase *>> {
+template <> struct GraphTraits<VPBlockDeepTraversalWrapper<VPBlockBase *>> {
   using NodeRef = VPBlockBase *;
   using ChildIteratorType = VPAllSuccessorsIterator<VPBlockBase *>;
 
-  static NodeRef
-  getEntryNode(VPBlockRecursiveTraversalWrapper<VPBlockBase *> N) {
+  static NodeRef getEntryNode(VPBlockDeepTraversalWrapper<VPBlockBase *> N) {
     return N.getEntry();
   }
 
@@ -253,12 +142,12 @@ struct GraphTraits<VPBlockRecursiveTraversalWrapper<VPBlockBase *>> {
 };
 
 template <>
-struct GraphTraits<VPBlockRecursiveTraversalWrapper<const VPBlockBase *>> {
+struct GraphTraits<VPBlockDeepTraversalWrapper<const VPBlockBase *>> {
   using NodeRef = const VPBlockBase *;
   using ChildIteratorType = VPAllSuccessorsIterator<const VPBlockBase *>;
 
   static NodeRef
-  getEntryNode(VPBlockRecursiveTraversalWrapper<const VPBlockBase *> N) {
+  getEntryNode(VPBlockDeepTraversalWrapper<const VPBlockBase *> N) {
     return N.getEntry();
   }
 
@@ -268,6 +157,151 @@ struct GraphTraits<VPBlockRecursiveTraversalWrapper<const VPBlockBase *>> {
 
   static inline ChildIteratorType child_end(NodeRef N) {
     return ChildIteratorType::end(N);
+  }
+};
+
+/// Helper for GraphTraits specialization that does not traverses through
+/// VPRegionBlocks.
+template <typename BlockTy> class VPBlockShallowTraversalWrapper {
+  BlockTy Entry;
+
+public:
+  VPBlockShallowTraversalWrapper(BlockTy Entry) : Entry(Entry) {}
+  BlockTy getEntry() { return Entry; }
+};
+
+template <> struct GraphTraits<VPBlockShallowTraversalWrapper<VPBlockBase *>> {
+  using NodeRef = VPBlockBase *;
+  using ChildIteratorType = SmallVectorImpl<VPBlockBase *>::iterator;
+
+  static NodeRef getEntryNode(VPBlockShallowTraversalWrapper<VPBlockBase *> N) {
+    return N.getEntry();
+  }
+
+  static inline ChildIteratorType child_begin(NodeRef N) {
+    return N->getSuccessors().begin();
+  }
+
+  static inline ChildIteratorType child_end(NodeRef N) {
+    return N->getSuccessors().end();
+  }
+};
+
+template <>
+struct GraphTraits<VPBlockShallowTraversalWrapper<const VPBlockBase *>> {
+  using NodeRef = const VPBlockBase *;
+  using ChildIteratorType = SmallVectorImpl<VPBlockBase *>::const_iterator;
+
+  static NodeRef
+  getEntryNode(VPBlockShallowTraversalWrapper<const VPBlockBase *> N) {
+    return N.getEntry();
+  }
+
+  static inline ChildIteratorType child_begin(NodeRef N) {
+    return N->getSuccessors().begin();
+  }
+
+  static inline ChildIteratorType child_end(NodeRef N) {
+    return N->getSuccessors().end();
+  }
+};
+
+/// Returns an iterator range to traverse the graph starting at \p G in
+/// depth-first order. The iterator won't traverse through region blocks.
+inline iterator_range<
+    df_iterator<VPBlockShallowTraversalWrapper<VPBlockBase *>>>
+vp_depth_first_shallow(VPBlockBase *G) {
+  return depth_first(VPBlockShallowTraversalWrapper<VPBlockBase *>(G));
+}
+inline iterator_range<
+    df_iterator<VPBlockShallowTraversalWrapper<const VPBlockBase *>>>
+vp_depth_first_shallow(const VPBlockBase *G) {
+  return depth_first(VPBlockShallowTraversalWrapper<const VPBlockBase *>(G));
+}
+
+/// Returns an iterator range to traverse the graph starting at \p G in
+/// depth-first order while traversing through region blocks.
+inline iterator_range<df_iterator<VPBlockDeepTraversalWrapper<VPBlockBase *>>>
+vp_depth_first_deep(VPBlockBase *G) {
+  return depth_first(VPBlockDeepTraversalWrapper<VPBlockBase *>(G));
+}
+inline iterator_range<
+    df_iterator<VPBlockDeepTraversalWrapper<const VPBlockBase *>>>
+vp_depth_first_deep(const VPBlockBase *G) {
+  return depth_first(VPBlockDeepTraversalWrapper<const VPBlockBase *>(G));
+}
+
+// The following set of template specializations implement GraphTraits to treat
+// any VPBlockBase as a node in a graph of VPBlockBases. It's important to note
+// that VPBlockBase traits don't recurse into VPRegioBlocks, i.e., if the
+// VPBlockBase is a VPRegionBlock, this specialization provides access to its
+// successors/predecessors but not to the blocks inside the region.
+
+template <> struct GraphTraits<VPBlockBase *> {
+  using NodeRef = VPBlockBase *;
+  using ChildIteratorType = VPAllSuccessorsIterator<VPBlockBase *>;
+
+  static NodeRef getEntryNode(NodeRef N) { return N; }
+
+  static inline ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N);
+  }
+
+  static inline ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType::end(N);
+  }
+};
+
+template <> struct GraphTraits<const VPBlockBase *> {
+  using NodeRef = const VPBlockBase *;
+  using ChildIteratorType = VPAllSuccessorsIterator<const VPBlockBase *>;
+
+  static NodeRef getEntryNode(NodeRef N) { return N; }
+
+  static inline ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N);
+  }
+
+  static inline ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType::end(N);
+  }
+};
+
+/// Inverse graph traits are not implemented yet.
+/// TODO: Implement a version of VPBlockNonRecursiveTraversalWrapper to traverse
+/// predecessors recursively through regions.
+template <> struct GraphTraits<Inverse<VPBlockBase *>> {
+  using NodeRef = VPBlockBase *;
+  using ChildIteratorType = SmallVectorImpl<VPBlockBase *>::iterator;
+
+  static NodeRef getEntryNode(Inverse<NodeRef> B) {
+    llvm_unreachable("not implemented");
+  }
+
+  static inline ChildIteratorType child_begin(NodeRef N) {
+    llvm_unreachable("not implemented");
+  }
+
+  static inline ChildIteratorType child_end(NodeRef N) {
+    llvm_unreachable("not implemented");
+  }
+};
+
+template <> struct GraphTraits<VPlan *> {
+  using GraphRef = VPlan *;
+  using NodeRef = VPBlockBase *;
+  using nodes_iterator = df_iterator<NodeRef>;
+
+  static NodeRef getEntryNode(GraphRef N) { return N->getEntry(); }
+
+  static nodes_iterator nodes_begin(GraphRef N) {
+    return nodes_iterator::begin(N->getEntry());
+  }
+
+  static nodes_iterator nodes_end(GraphRef N) {
+    // df_iterator::end() returns an empty iterator so the node used doesn't
+    // matter.
+    return nodes_iterator::end(N->getEntry());
   }
 };
 

@@ -147,6 +147,7 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
   // Iterate over the functions in the module and locate all
   // stub functions identified by metadata.
   SmallPtrSet<Function *, 8> ToCleanUp;
+  Error DeferredErrs = Error::success();
   for (Function &F : M) {
     if (F.isDeclaration() // The stub should be a declaration and not defined.
         && F.hasMetadata(
@@ -155,7 +156,9 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
       // attached to this stub function.
       // The newly created function will carry the name also specified
       // in the metadata.
-      fuseKernel(M, F, ModuleInfo, ToCleanUp);
+      if (auto Err = fuseKernel(M, F, ModuleInfo, ToCleanUp)) {
+        DeferredErrs = joinErrors(std::move(DeferredErrs), std::move(Err));
+      }
       // Rembember the stub for deletion, as it is not required anymore after
       // inserting the actual fused function.
       ToCleanUp.insert(&F);
@@ -165,6 +168,11 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
   for (Function *SF : ToCleanUp) {
     SF->eraseFromParent();
   }
+
+  handleAllErrors(std::move(DeferredErrs), [](const StringError &EL) {
+    FUSION_DEBUG(dbgs() << EL.message() << "\n");
+  });
+
   // Inserting a new function and deleting the stub function is a major
   // modification to the module and we did not update any analyses,
   // so return none here.
@@ -222,16 +230,19 @@ static FusionInsertPoints addGuard(IRBuilderBase &Builder,
   return {Entry, CallInsertion, Exit};
 }
 
-static CallInst *createFusionCall(IRBuilderBase &Builder, Function *F,
-                                  ArrayRef<Value *> CallArgs,
-                                  const jit_compiler::NDRange &SrcNDRange,
-                                  const jit_compiler::NDRange &FusedNDRange,
-                                  bool IsLast, int BarriersFlags,
-                                  bool ShouldRemap) {
+static Expected<CallInst *> createFusionCall(
+    IRBuilderBase &Builder, Function *F, ArrayRef<Value *> CallArgs,
+    const jit_compiler::NDRange &SrcNDRange,
+    const jit_compiler::NDRange &FusedNDRange, bool IsLast, int BarriersFlags,
+    jit_compiler::Remapper &Remapper, bool ShouldRemap) {
   const auto IPs = addGuard(Builder, SrcNDRange, FusedNDRange, IsLast);
 
   if (ShouldRemap) {
-    F = jit_compiler::remapBuiltins(F, SrcNDRange, FusedNDRange);
+    auto FOrErr = Remapper.remapBuiltins(F, SrcNDRange, FusedNDRange);
+    if (auto Err = FOrErr.takeError()) {
+      return std::move(Err);
+    }
+    F = *FOrErr;
   }
 
   // Insert call
@@ -258,7 +269,7 @@ static CallInst *createFusionCall(IRBuilderBase &Builder, Function *F,
   return Res;
 }
 
-void SYCLKernelFusion::fuseKernel(
+Error SYCLKernelFusion::fuseKernel(
     Module &M, Function &StubFunction, jit_compiler::SYCLModuleInfo *ModInfo,
     SmallPtrSetImpl<Function *> &ToCleanUp) const {
   // Retrieve the metadata from the stub function.
@@ -372,17 +383,28 @@ void SYCLKernelFusion::fuseKernel(
     unsigned ParamIndex = 0;
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
+      int IdenticalIdx = -1;
       if (!ParamIdentities.empty() && FuncIndex == ParamFront->LHS.KernelIdx &&
           ParamIndex == ParamFront->LHS.ParamIdx) {
-        // There is another parameter with identical value. Use the existing
-        // mapping of that other parameter and do not add this argument to the
-        // fused function. Because ParamIdentity is constructed such that LHS >
-        // RHS, the other parameter must already have been processed.
+        // Because ParamIdentity is constructed such that LHS > RHS, the other
+        // parameter must already have been processed.
         assert(ParamMapping.count(
             {ParamFront->RHS.KernelIdx, ParamFront->RHS.ParamIdx}));
         unsigned Idx =
             ParamMapping[{ParamFront->RHS.KernelIdx, ParamFront->RHS.ParamIdx}];
-        ParamMapping.insert({{FuncIndex, ParamIndex}, Idx});
+        // The SYCL runtime is unaware of the actual type of the parameter and
+        // simply compares size and raw bytes to determine identical parameters.
+        // In case the value is identical, but the underlying LLVM type is
+        // different, ignore the identical parameter.
+        if (FusedArguments[Idx] == Arg.getType()) {
+          IdenticalIdx = Idx;
+        }
+      }
+      if (IdenticalIdx >= 0) {
+        // There is another parameter with identical value. Use the existing
+        // mapping of that other parameter and do not add this argument to the
+        // fused function.
+        ParamMapping.insert({{FuncIndex, ParamIndex}, IdenticalIdx});
         ++ParamFront;
         UsedArgsMask.push_back(false);
       } else {
@@ -523,7 +545,9 @@ void SYCLKernelFusion::fuseKernel(
     const auto BarriersEnd = InputFunctions.size() - 1;
     const auto IsHeterogeneousNDRangesList =
         hasHeterogeneousNDRangesList(InputFunctions);
+    jit_compiler::Remapper Remapper;
 
+    Error DeferredErrs = Error::success();
     for (auto &KF : InputFunctions) {
       auto *IF = KF.F;
       SmallVector<Value *> CallArgs;
@@ -533,16 +557,26 @@ void SYCLKernelFusion::fuseKernel(
         unsigned ParamIdx = ParamMapping[{FuncIndex, I}];
         CallArgs.push_back(FusedFunction->getArg(ParamIdx));
       }
-      auto *Call = createFusionCall(Builder, IF, CallArgs, KF.ND, NDRange,
-                                    FuncIndex == BarriersEnd, BarriersFlags,
-                                    IsHeterogeneousNDRangesList);
-      Calls.push_back(Call);
-
-      ++FuncIndex;
+      auto CallOrErr = createFusionCall(Builder, IF, CallArgs, KF.ND, NDRange,
+                                        FuncIndex == BarriersEnd, BarriersFlags,
+                                        Remapper, IsHeterogeneousNDRangesList);
       // Add to the set of original kernel functions that can be deleted after
       // fusion is complete.
       ToCleanUp.insert(IF);
+      ++FuncIndex;
+
+      if (auto Err = CallOrErr.takeError()) {
+        DeferredErrs = joinErrors(std::move(DeferredErrs), std::move(Err));
+        continue;
+      }
+      auto *Call = *CallOrErr;
+      Calls.push_back(Call);
       ToCleanUp.insert(Call->getCalledFunction());
+    }
+    if (DeferredErrs) {
+      // If we found an error, clean and exit.
+      FusedFunction->eraseFromParent();
+      return DeferredErrs;
     }
   }
   // Create a void return at the end of the newly created kernel.
@@ -608,6 +642,7 @@ void SYCLKernelFusion::fuseKernel(
         &*FusedFunction->getEntryBlock().getFirstInsertionPt());
     WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
   }
+  return Error::success();
 }
 
 void SYCLKernelFusion::canonicalizeParameters(

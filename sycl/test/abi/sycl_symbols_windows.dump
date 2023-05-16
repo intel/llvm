@@ -162,6 +162,7 @@
 ??$get_info@Usingle_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Usub_group_independent_forward_progress@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Usub_group_sizes@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
+??$get_info@Usupports_fusion@device@info@experimental@codeplay@ext@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_device_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_host_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_restricted_shared_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
@@ -887,6 +888,7 @@
 ?getChannelOrder@image_plain@detail@_V1@sycl@@IEBA?AW4image_channel_order@34@XZ
 ?getChannelType@image_impl@detail@_V1@sycl@@QEBA?AW4image_channel_type@34@XZ
 ?getChannelType@image_plain@detail@_V1@sycl@@IEBA?AW4image_channel_type@34@XZ
+?getContextImplPtr@handler@_V1@sycl@@AEBAAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
 ?getCurrentDSODir@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?getDeviceFromHandler@detail@_V1@sycl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDevices@image_impl@detail@_V1@sycl@@AEAA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@V?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@6@@Z

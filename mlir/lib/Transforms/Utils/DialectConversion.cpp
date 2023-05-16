@@ -20,6 +20,7 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -2300,21 +2301,19 @@ unsigned OperationLegalizer::applyCostModelToPatterns(
     return minDepth;
 
   // Sort the patterns by those likely to be the most beneficial.
-  llvm::array_pod_sort(patternsByDepth.begin(), patternsByDepth.end(),
-                       [](const std::pair<const Pattern *, unsigned> *lhs,
-                          const std::pair<const Pattern *, unsigned> *rhs) {
-                         // First sort by the smaller pattern legalization
-                         // depth.
-                         if (lhs->second != rhs->second)
-                           return llvm::array_pod_sort_comparator<unsigned>(
-                               &lhs->second, &rhs->second);
+  std::stable_sort(patternsByDepth.begin(), patternsByDepth.end(),
+                   [](const std::pair<const Pattern *, unsigned> &lhs,
+                      const std::pair<const Pattern *, unsigned> &rhs) {
+                     // First sort by the smaller pattern legalization
+                     // depth.
+                     if (lhs.second != rhs.second)
+                       return lhs.second < rhs.second;
 
-                         // Then sort by the larger pattern benefit.
-                         auto lhsBenefit = lhs->first->getBenefit();
-                         auto rhsBenefit = rhs->first->getBenefit();
-                         return llvm::array_pod_sort_comparator<PatternBenefit>(
-                             &rhsBenefit, &lhsBenefit);
-                       });
+                     // Then sort by the larger pattern benefit.
+                     auto lhsBenefit = lhs.first->getBenefit();
+                     auto rhsBenefit = rhs.first->getBenefit();
+                     return lhsBenefit > rhsBenefit;
+                   });
 
   // Update the legalization pattern to use the new sorted list.
   patterns.clear();
@@ -3053,6 +3052,54 @@ auto TypeConverter::convertBlockSignature(Block *block)
   if (failed(convertSignatureArgs(block->getArgumentTypes(), conversion)))
     return std::nullopt;
   return conversion;
+}
+
+//===----------------------------------------------------------------------===//
+// Type attribute conversion
+//===----------------------------------------------------------------------===//
+TypeConverter::AttributeConversionResult
+TypeConverter::AttributeConversionResult::result(Attribute attr) {
+  return AttributeConversionResult(attr, resultTag);
+}
+
+TypeConverter::AttributeConversionResult
+TypeConverter::AttributeConversionResult::na() {
+  return AttributeConversionResult(nullptr, naTag);
+}
+
+TypeConverter::AttributeConversionResult
+TypeConverter::AttributeConversionResult::abort() {
+  return AttributeConversionResult(nullptr, abortTag);
+}
+
+bool TypeConverter::AttributeConversionResult::hasResult() const {
+  return impl.getInt() == resultTag;
+}
+
+bool TypeConverter::AttributeConversionResult::isNa() const {
+  return impl.getInt() == naTag;
+}
+
+bool TypeConverter::AttributeConversionResult::isAbort() const {
+  return impl.getInt() == abortTag;
+}
+
+Attribute TypeConverter::AttributeConversionResult::getResult() const {
+  assert(hasResult() && "Cannot get result from N/A or abort");
+  return impl.getPointer();
+}
+
+std::optional<Attribute> TypeConverter::convertTypeAttribute(Type type,
+                                                             Attribute attr) {
+  for (TypeAttributeConversionCallbackFn &fn :
+       llvm::reverse(typeAttributeConversions)) {
+    AttributeConversionResult res = fn(type, attr);
+    if (res.hasResult())
+      return res.getResult();
+    if (res.isAbort())
+      return std::nullopt;
+  }
+  return std::nullopt;
 }
 
 //===----------------------------------------------------------------------===//

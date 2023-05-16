@@ -660,7 +660,7 @@ def VOP2e_I16_I16_I16_I1 : VOP2e_SGPR<[i16, i16, i16, i1]>;
 def VOP_READLANE : VOPProfile<[i32, i32, i32, untyped]> {
   let Outs32 = (outs SReg_32:$vdst);
   let Outs64 = Outs32;
-  let Ins32 = (ins VRegOrLds_32:$src0, SCSrc_b32:$src1);
+  let Ins32 = (ins VRegOrLdsSrc_32:$src0, SCSrc_b32:$src1);
   let Ins64 = Ins32;
   let Asm32 = " $vdst, $src0, $src1";
   let Asm64 = Asm32;
@@ -764,11 +764,10 @@ defm V_SUBREV_U32 : VOP2Inst <"v_subrev_u32", VOP_I32_I32_I32_ARITH, null_frag, 
 let isConvergent = 1, Uses = []<Register> in {
 def V_READLANE_B32 : VOP2_Pseudo<"v_readlane_b32", VOP_READLANE,
   [(set i32:$vdst, (int_amdgcn_readlane i32:$src0, i32:$src1))]>;
-
-let Constraints = "$vdst = $vdst_in", DisableEncoding="$vdst_in" in {
+let IsNeverUniform = 1, Constraints = "$vdst = $vdst_in", DisableEncoding="$vdst_in" in {
 def V_WRITELANE_B32 : VOP2_Pseudo<"v_writelane_b32", VOP_WRITELANE,
   [(set i32:$vdst, (int_amdgcn_writelane i32:$src0, i32:$src1, i32:$vdst_in))]>;
-} // End $vdst = $vdst_in, DisableEncoding $vdst_in
+} // End IsNeverUniform, $vdst = $vdst_in, DisableEncoding $vdst_in
 } // End isConvergent = 1
 
 let isReMaterializable = 1 in {
@@ -1013,7 +1012,7 @@ defm V_FMAC_LEGACY_F32 : VOP2Inst <"v_fmac_legacy_f32", VOP_MAC_LEGACY_F32>;
 
 } // End SubtargetPredicate = HasFmaLegacy32
 
-let SubtargetPredicate = isGFX90APlus,
+let SubtargetPredicate = HasFmacF64Inst,
     Constraints = "$vdst = $src2",
     DisableEncoding="$src2",
     isConvertibleToThreeAddress = 1,
@@ -1477,19 +1476,19 @@ defm V_FMAMK_F16_t16       : VOP2Only_Real_MADK_gfx11_with_name<0x037, "v_fmamk_
 defm V_FMAAK_F16_t16       : VOP2Only_Real_MADK_gfx11_with_name<0x038, "v_fmaak_f16">;
 
 // VOP3 only.
-defm V_CNDMASK_B16        : VOP3Only_Realtriple_gfx11<0x25d>;
-defm V_LDEXP_F32          : VOP3Only_Realtriple_gfx11<0x31c>;
-defm V_BFM_B32            : VOP3Only_Realtriple_gfx11<0x31d>;
-defm V_BCNT_U32_B32       : VOP3Only_Realtriple_gfx11<0x31e>;
-defm V_MBCNT_LO_U32_B32   : VOP3Only_Realtriple_gfx11<0x31f>;
-defm V_MBCNT_HI_U32_B32   : VOP3Only_Realtriple_gfx11<0x320>;
-defm V_CVT_PKNORM_I16_F32 : VOP3Only_Realtriple_gfx11<0x321>;
-defm V_CVT_PKNORM_U16_F32 : VOP3Only_Realtriple_gfx11<0x322>;
-defm V_CVT_PK_U16_U32     : VOP3Only_Realtriple_gfx11<0x323>;
-defm V_CVT_PK_I16_I32     : VOP3Only_Realtriple_gfx11<0x324>;
-defm V_ADD_CO_U32         : VOP3beOnly_Realtriple_gfx11<0x300>;
-defm V_SUB_CO_U32         : VOP3beOnly_Realtriple_gfx11<0x301>;
-defm V_SUBREV_CO_U32      : VOP3beOnly_Realtriple_gfx11<0x302>;
+defm V_CNDMASK_B16         : VOP3Only_Realtriple_gfx11<0x25d>;
+defm V_LDEXP_F32           : VOP3Only_Realtriple_gfx11<0x31c>;
+defm V_BFM_B32             : VOP3Only_Realtriple_gfx11<0x31d>;
+defm V_BCNT_U32_B32        : VOP3Only_Realtriple_gfx11<0x31e>;
+defm V_MBCNT_LO_U32_B32    : VOP3Only_Realtriple_gfx11<0x31f>;
+defm V_MBCNT_HI_U32_B32    : VOP3Only_Realtriple_gfx11<0x320>;
+defm V_CVT_PK_NORM_I16_F32 : VOP3Only_Realtriple_with_name_gfx11<0x321, "V_CVT_PKNORM_I16_F32", "v_cvt_pk_norm_i16_f32">;
+defm V_CVT_PK_NORM_U16_F32 : VOP3Only_Realtriple_with_name_gfx11<0x322, "V_CVT_PKNORM_U16_F32", "v_cvt_pk_norm_u16_f32">;
+defm V_CVT_PK_U16_U32      : VOP3Only_Realtriple_gfx11<0x323>;
+defm V_CVT_PK_I16_I32      : VOP3Only_Realtriple_gfx11<0x324>;
+defm V_ADD_CO_U32          : VOP3beOnly_Realtriple_gfx11<0x300>;
+defm V_SUB_CO_U32          : VOP3beOnly_Realtriple_gfx11<0x301>;
+defm V_SUBREV_CO_U32       : VOP3beOnly_Realtriple_gfx11<0x302>;
 
 let SubtargetPredicate = isGFX11Plus in {
   defm : VOP2eInstAliases<V_CNDMASK_B32_e32, V_CNDMASK_B32_e32_gfx11>;
@@ -2280,12 +2279,13 @@ let AssemblerPredicate = isGFX90APlus, DecoderNamespace = "GFX90A" in {
   }
 } // End AssemblerPredicate = isGFX90APlus, DecoderNamespace = "GFX90A"
 
-let SubtargetPredicate = isGFX90APlus in {
+let SubtargetPredicate = HasFmacF64Inst in {
   defm V_FMAC_F64       : VOP2_Real_e32e64_gfx90a <0x4>;
-  let IsSingle = 1 in {
-    defm V_MUL_LEGACY_F32 : VOP2_Real_e64_gfx90a <0x2a1>;
-  }
-} // End SubtargetPredicate = isGFX90APlus
+} // End SubtargetPredicate = HasFmacF64Inst
+
+let SubtargetPredicate = isGFX90APlus, IsSingle = 1 in {
+  defm V_MUL_LEGACY_F32 : VOP2_Real_e64_gfx90a <0x2a1>;
+}
 
 let SubtargetPredicate = HasFmaakFmamkF32Insts in {
 defm V_FMAMK_F32        : VOP2_Real_MADK_gfx940 <0x17>;

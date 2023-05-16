@@ -535,7 +535,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
 
   // For non power-of-2 types, they will very likely be legalized into multiple
   // loads. Don't bother trying to match them into extending loads.
-  if (!isPowerOf2_32(LoadValueTy.getSizeInBits()))
+  if (!llvm::has_single_bit<uint32_t>(LoadValueTy.getSizeInBits()))
     return false;
 
   // Find the preferred type aside from the any-extends (unless it's the only
@@ -1763,6 +1763,15 @@ void CombinerHelper::applyCombineUnmergeMergeToPlainValues(
   for (unsigned Idx = 0; Idx < NumElems; ++Idx) {
     Register DstReg = MI.getOperand(Idx).getReg();
     Register SrcReg = Operands[Idx];
+
+    // This combine may run after RegBankSelect, so we need to be aware of
+    // register banks.
+    const auto &DstCB = MRI.getRegClassOrRegBank(DstReg);
+    if (!DstCB.isNull() && DstCB != MRI.getRegClassOrRegBank(SrcReg)) {
+      SrcReg = Builder.buildCopy(MRI.getType(SrcReg), SrcReg).getReg(0);
+      MRI.setRegClassOrRegBank(SrcReg, DstCB);
+    }
+
     if (CanReuseInputDirectly)
       replaceRegWith(MRI, DstReg, SrcReg);
     else
@@ -2750,7 +2759,7 @@ bool CombinerHelper::matchHoistLogicOpWithSameOpcodeHands(
   Register Y = RightHandInst->getOperand(1).getReg();
   LLT XTy = MRI.getType(X);
   LLT YTy = MRI.getType(Y);
-  if (XTy != YTy)
+  if (!XTy.isValid() || XTy != YTy)
     return false;
   if (!isLegalOrBeforeLegalizer({LogicOpcode, {XTy, YTy}}))
     return false;
@@ -4496,7 +4505,7 @@ bool CombinerHelper::matchBitfieldExtractFromShrAnd(
 
   // Calculate start position and width of the extract.
   const int64_t Pos = ShrAmt;
-  const int64_t Width = countTrailingOnes(UMask) - ShrAmt;
+  const int64_t Width = llvm::countr_one(UMask) - ShrAmt;
 
   // It's preferable to keep the shift, rather than form G_SBFX.
   // TODO: remove the G_AND via demanded bits analysis.
@@ -6183,6 +6192,16 @@ bool CombinerHelper::matchRedundantBinOpInEquality(MachineInstr &MI,
     B.buildICmp(Pred, Dst, Y, Zero);
   };
   return CmpInst::isEquality(Pred) && Y.isValid();
+}
+
+bool CombinerHelper::matchShiftsTooBig(MachineInstr &MI) {
+  Register ShiftReg = MI.getOperand(2).getReg();
+  LLT ResTy = MRI.getType(MI.getOperand(0).getReg());
+  auto IsShiftTooBig = [&](const Constant *C) {
+    auto *CI = dyn_cast<ConstantInt>(C);
+    return CI && CI->uge(ResTy.getScalarSizeInBits());
+  };
+  return matchUnaryPredicate(MRI, ShiftReg, IsShiftTooBig);
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {

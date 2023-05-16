@@ -59,7 +59,8 @@ FusionResult KernelFusion::fuseKernels(
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes"};
+        "Cannot fuse kernels with different offsets or local sizes or "
+        "different global sizes in dimensions [2, N) and non-zero offsets"};
   }
 
   // Initialize the configuration helper to make the options for this invocation
@@ -122,6 +123,10 @@ FusionResult KernelFusion::fuseKernels(
   std::unique_ptr<SYCLModuleInfo> NewModInfo =
       fusion::FusionPipeline::runFusionPasses(*NewMod, ModuleInfo,
                                               BarriersFlags);
+
+  if (!NewMod->getFunction(FusedKernelName)) {
+    return FusionResult{"Kernel fusion failed"};
+  }
 
   // Get the updated kernel info for the fused kernel and add the information to
   // the existing KernelInfo.

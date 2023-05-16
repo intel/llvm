@@ -108,7 +108,6 @@ TypeSystemClangSupportsLanguage(lldb::LanguageType language) {
          lldb_private::Language::LanguageIsPascal(language) ||
          // Use Clang for Rust until there is a proper language plugin for it
          language == eLanguageTypeRust ||
-         language == eLanguageTypeExtRenderScript ||
          // Use Clang for D until there is a proper language plugin for it
          language == eLanguageTypeD ||
          // Open Dylan compiler debug info is designed to be Clang-compatible
@@ -1379,18 +1378,21 @@ static TemplateParameterList *CreateTemplateParameterList(
   const bool parameter_pack = false;
   const bool is_typename = false;
   const unsigned depth = 0;
-  const size_t num_template_params = template_param_infos.args.size();
+  const size_t num_template_params = template_param_infos.Size();
   DeclContext *const decl_context =
       ast.getTranslationUnitDecl(); // Is this the right decl context?,
+
+  auto const &args = template_param_infos.GetArgs();
+  auto const &names = template_param_infos.GetNames();
   for (size_t i = 0; i < num_template_params; ++i) {
-    const char *name = template_param_infos.names[i];
+    const char *name = names[i];
 
     IdentifierInfo *identifier_info = nullptr;
     if (name && name[0])
       identifier_info = &ast.Idents.get(name);
-    if (IsValueParam(template_param_infos.args[i])) {
-      QualType template_param_type =
-          template_param_infos.args[i].getIntegralType();
+    TemplateArgument const &targ = args[i];
+    if (IsValueParam(targ)) {
+      QualType template_param_type = targ.getIntegralType();
       template_param_decls.push_back(NonTypeTemplateParmDecl::Create(
           ast, decl_context, SourceLocation(), SourceLocation(), depth, i,
           identifier_info, template_param_type, parameter_pack,
@@ -1402,16 +1404,16 @@ static TemplateParameterList *CreateTemplateParameterList(
     }
   }
 
-  if (template_param_infos.packed_args) {
+  if (template_param_infos.hasParameterPack()) {
     IdentifierInfo *identifier_info = nullptr;
-    if (template_param_infos.pack_name && template_param_infos.pack_name[0])
-      identifier_info = &ast.Idents.get(template_param_infos.pack_name);
+    if (template_param_infos.HasPackName())
+      identifier_info = &ast.Idents.get(template_param_infos.GetPackName());
     const bool parameter_pack_true = true;
 
-    if (!template_param_infos.packed_args->args.empty() &&
-        IsValueParam(template_param_infos.packed_args->args[0])) {
+    if (!template_param_infos.GetParameterPack().IsEmpty() &&
+        IsValueParam(template_param_infos.GetParameterPack().Front())) {
       QualType template_param_type =
-          template_param_infos.packed_args->args[0].getIntegralType();
+          template_param_infos.GetParameterPack().Front().getIntegralType();
       template_param_decls.push_back(NonTypeTemplateParmDecl::Create(
           ast, decl_context, SourceLocation(), SourceLocation(), depth,
           num_template_params, identifier_info, template_param_type,
@@ -1429,6 +1431,26 @@ static TemplateParameterList *CreateTemplateParameterList(
       ast, SourceLocation(), SourceLocation(), template_param_decls,
       SourceLocation(), requires_clause);
   return template_param_list;
+}
+
+std::string TypeSystemClang::PrintTemplateParams(
+    const TemplateParameterInfos &template_param_infos) {
+  llvm::SmallVector<NamedDecl *, 8> ignore;
+  clang::TemplateParameterList *template_param_list =
+      CreateTemplateParameterList(getASTContext(), template_param_infos,
+                                  ignore);
+  llvm::SmallVector<clang::TemplateArgument, 2> args(
+      template_param_infos.GetArgs());
+  if (template_param_infos.hasParameterPack()) {
+    llvm::ArrayRef<TemplateArgument> pack_args =
+        template_param_infos.GetParameterPackArgs();
+    args.append(pack_args.begin(), pack_args.end());
+  }
+  std::string str;
+  llvm::raw_string_ostream os(str);
+  clang::printTemplateArgumentList(os, args, GetTypePrintingPolicy(),
+                                   template_param_list);
+  return str;
 }
 
 clang::FunctionTemplateDecl *TypeSystemClang::CreateFunctionTemplateDecl(
@@ -1467,8 +1489,8 @@ clang::FunctionTemplateDecl *TypeSystemClang::CreateFunctionTemplateDecl(
 void TypeSystemClang::CreateFunctionTemplateSpecializationInfo(
     FunctionDecl *func_decl, clang::FunctionTemplateDecl *func_tmpl_decl,
     const TemplateParameterInfos &infos) {
-  TemplateArgumentList *template_args_ptr =
-      TemplateArgumentList::CreateCopy(func_decl->getASTContext(), infos.args);
+  TemplateArgumentList *template_args_ptr = TemplateArgumentList::CreateCopy(
+      func_decl->getASTContext(), infos.GetArgs());
 
   func_decl->setFunctionTemplateSpecialization(func_tmpl_decl,
                                                template_args_ptr, nullptr);
@@ -1539,7 +1561,7 @@ static bool ClassTemplateAllowsToInstantiationArgs(
   // The found template needs to have compatible non-pack template arguments.
   // E.g., ensure that <typename, typename> != <typename>.
   // The pack parameters are compared later.
-  if (non_pack_params != instantiation_values.args.size())
+  if (non_pack_params != instantiation_values.Size())
     return false;
 
   // Ensure that <typename...> != <typename>.
@@ -1550,14 +1572,15 @@ static bool ClassTemplateAllowsToInstantiationArgs(
   // parameter value. The special case of having an empty parameter pack value
   // always fits to a pack parameter.
   // E.g., ensure that <int...> != <typename...>.
-  if (pack_parameter && !instantiation_values.packed_args->args.empty() &&
+  if (pack_parameter && !instantiation_values.GetParameterPack().IsEmpty() &&
       !TemplateParameterAllowsValue(
-          *pack_parameter, instantiation_values.packed_args->args.front()))
+          *pack_parameter, instantiation_values.GetParameterPack().Front()))
     return false;
 
   // Compare all the non-pack parameters now.
   // E.g., ensure that <int> != <long>.
-  for (const auto pair : llvm::zip_first(instantiation_values.args, params)) {
+  for (const auto pair :
+       llvm::zip_first(instantiation_values.GetArgs(), params)) {
     const TemplateArgument &passed_arg = std::get<0>(pair);
     NamedDecl *found_param = std::get<1>(pair);
     if (!TemplateParameterAllowsValue(found_param, passed_arg))
@@ -1670,13 +1693,14 @@ TypeSystemClang::CreateClassTemplateSpecializationDecl(
     const TemplateParameterInfos &template_param_infos) {
   ASTContext &ast = getASTContext();
   llvm::SmallVector<clang::TemplateArgument, 2> args(
-      template_param_infos.args.size() +
-      (template_param_infos.packed_args ? 1 : 0));
-  std::copy(template_param_infos.args.begin(), template_param_infos.args.end(),
-            args.begin());
-  if (template_param_infos.packed_args) {
+      template_param_infos.Size() +
+      (template_param_infos.hasParameterPack() ? 1 : 0));
+
+  auto const &orig_args = template_param_infos.GetArgs();
+  std::copy(orig_args.begin(), orig_args.end(), args.begin());
+  if (template_param_infos.hasParameterPack()) {
     args[args.size() - 1] = TemplateArgument::CreatePackCopy(
-        ast, template_param_infos.packed_args->args);
+        ast, template_param_infos.GetParameterPackArgs());
   }
   ClassTemplateSpecializationDecl *class_template_specialization_decl =
       ClassTemplateSpecializationDecl::CreateDeserialized(ast, 0);
@@ -8985,7 +9009,7 @@ static bool DumpEnumValue(const clang::QualType &qual_type, Stream *s,
   for (auto *enumerator : enum_decl->enumerators()) {
     uint64_t val = enumerator->getInitVal().getSExtValue();
     val = llvm::SignExtend64(val, 8*byte_size);
-    if (llvm::countPopulation(val) != 1 && (val & ~covered_bits) != 0)
+    if (llvm::popcount(val) != 1 && (val & ~covered_bits) != 0)
       can_be_bitfield = false;
     covered_bits |= val;
     ++num_enumerators;
@@ -9021,9 +9045,10 @@ static bool DumpEnumValue(const clang::QualType &qual_type, Stream *s,
   // Sort in reverse order of the number of the population count,  so that in
   // `enum {A, B, ALL = A|B }` we visit ALL first. Use a stable sort so that
   // A | C where A is declared before C is displayed in this order.
-  std::stable_sort(values.begin(), values.end(), [](const auto &a, const auto &b) {
-        return llvm::countPopulation(a.first) > llvm::countPopulation(b.first);
-      });
+  std::stable_sort(values.begin(), values.end(),
+                   [](const auto &a, const auto &b) {
+                     return llvm::popcount(a.first) > llvm::popcount(b.first);
+                   });
 
   for (const auto &val : values) {
     if ((remaining_value & val.first) != val.first)

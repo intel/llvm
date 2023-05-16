@@ -7,6 +7,7 @@ add_header_library(
   DEPENDS
     libc.include.stdlib
     libc.src.__support.CPP.bitset
+    libc.src.__support.common
     .memory_utils.memcpy_implementation
     .memory_utils.bzero_implementation
 )
@@ -123,6 +124,17 @@ add_entrypoint_object(
     strcasecmp.h
   DEPENDS
     .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
+)
+
+add_entrypoint_object(
+  strcasestr
+  SRCS
+    strcasestr.cpp
+  HDRS
+    strcasestr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
     libc.src.__support.ctype_utils
 )
 
@@ -329,6 +341,8 @@ add_entrypoint_object(
     strstr.cpp
   HDRS
     strstr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
 )
 
 add_entrypoint_object(

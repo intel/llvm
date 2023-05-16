@@ -109,9 +109,10 @@ private:
     }
   };
 
-  void fuseKernel(llvm::Module &M, llvm::Function &StubFunction,
-                  jit_compiler::SYCLModuleInfo *ModInfo,
-                  llvm::SmallPtrSetImpl<llvm::Function *> &ToCleanUp) const;
+  llvm::Error
+  fuseKernel(llvm::Module &M, llvm::Function &StubFunction,
+             jit_compiler::SYCLModuleInfo *ModInfo,
+             llvm::SmallPtrSetImpl<llvm::Function *> &ToCleanUp) const;
 
   void canonicalizeParameters(
       llvm::SmallVectorImpl<ParameterIdentity> &Params) const;

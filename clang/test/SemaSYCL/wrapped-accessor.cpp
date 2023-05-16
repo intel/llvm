@@ -37,14 +37,14 @@ int main() {
 // argument
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr {{.*}}'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' 'void () noexcept'
+// CHECK-NEXT: InitListExpr {{.*}}'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write>>'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::accessor<int, 1, sycl::access::mode::read_write>':'sycl::accessor<int, 1, sycl::access::mode::read_write>' 'void () noexcept'
 
 // Check that accessor field of the wrapper object is initialized using __init method
 // CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .accessor {{.*}}
-// CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<decltype(acc)>':'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write>':'sycl::accessor<int, 1, sycl::access::mode::read_write>' lvalue .accessor {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<decltype(acc)>':'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write>>' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 
 // Parameters of the _init method
@@ -52,13 +52,13 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_accessor' '__global int *'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>':'const sycl::range<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_AccessRange]]' 'sycl::range<1>'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>':'const sycl::range<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_MemRange]]' 'sycl::range<1>'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'id<1>':'sycl::id<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::id<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const id<1>':'const sycl::id<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::id<1>' lvalue ParmVar {{.*}} '[[_arg_Offset]]' 'sycl::id<1>'

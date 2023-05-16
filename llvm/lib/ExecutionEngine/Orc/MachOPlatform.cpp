@@ -13,6 +13,7 @@
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/ExecutionEngine/Orc/LookupAndRecordAddrs.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ObjectFormats.h"
 #include "llvm/Support/BinaryByteStream.h"
 #include "llvm/Support/Debug.h"
 #include <optional>
@@ -147,8 +148,8 @@ private:
     if (G.getEndianness() != support::endian::system_endianness())
       MachO::swapStruct(Hdr);
 
-    auto HeaderContent = G.allocateString(
-        StringRef(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
+    auto HeaderContent = G.allocateContent(
+        ArrayRef<char>(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
 
     return G.createContentBlock(HeaderSection, HeaderContent, ExecutorAddr(), 8,
                                 0);
@@ -246,24 +247,6 @@ private:
   ExecutorAddr MachOHeaderAddr;
 };
 
-StringRef DataCommonSectionName = "__DATA,__common";
-StringRef DataDataSectionName = "__DATA,__data";
-StringRef EHFrameSectionName = "__TEXT,__eh_frame";
-StringRef ModInitFuncSectionName = "__DATA,__mod_init_func";
-StringRef ObjCClassListSectionName = "__DATA,__objc_classlist";
-StringRef ObjCImageInfoSectionName = "__DATA,__objc_image_info";
-StringRef ObjCSelRefsSectionName = "__DATA,__objc_selrefs";
-StringRef Swift5ProtoSectionName = "__TEXT,__swift5_proto";
-StringRef Swift5ProtosSectionName = "__TEXT,__swift5_protos";
-StringRef Swift5TypesSectionName = "__TEXT,__swift5_types";
-StringRef ThreadBSSSectionName = "__DATA,__thread_bss";
-StringRef ThreadDataSectionName = "__DATA,__thread_data";
-StringRef ThreadVarsSectionName = "__DATA,__thread_vars";
-
-StringRef InitSectionNames[] = {
-    ModInitFuncSectionName, ObjCSelRefsSectionName, ObjCClassListSectionName,
-    Swift5ProtosSectionName, Swift5ProtoSectionName, Swift5TypesSectionName};
-
 } // end anonymous namespace
 
 namespace llvm {
@@ -271,7 +254,8 @@ namespace orc {
 
 Expected<std::unique_ptr<MachOPlatform>>
 MachOPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
-                      JITDylib &PlatformJD, const char *OrcRuntimePath,
+                      JITDylib &PlatformJD,
+                      std::unique_ptr<DefinitionGenerator> OrcRuntime,
                       std::optional<SymbolAliasMap> RuntimeAliases) {
 
   auto &EPC = ES.getExecutorProcessControl();
@@ -300,20 +284,30 @@ MachOPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
              JITSymbolFlags::Exported}}})))
     return std::move(Err);
 
-  // Create a generator for the ORC runtime archive.
-  auto OrcRuntimeArchiveGenerator = StaticLibraryDefinitionGenerator::Load(
-      ObjLinkingLayer, OrcRuntimePath, EPC.getTargetTriple());
-  if (!OrcRuntimeArchiveGenerator)
-    return OrcRuntimeArchiveGenerator.takeError();
-
   // Create the instance.
   Error Err = Error::success();
-  auto P = std::unique_ptr<MachOPlatform>(
-      new MachOPlatform(ES, ObjLinkingLayer, PlatformJD,
-                        std::move(*OrcRuntimeArchiveGenerator), Err));
+  auto P = std::unique_ptr<MachOPlatform>(new MachOPlatform(
+      ES, ObjLinkingLayer, PlatformJD, std::move(OrcRuntime), Err));
   if (Err)
     return std::move(Err);
   return std::move(P);
+}
+
+Expected<std::unique_ptr<MachOPlatform>>
+MachOPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
+                      JITDylib &PlatformJD, const char *OrcRuntimePath,
+                      std::optional<SymbolAliasMap> RuntimeAliases) {
+
+  // Create a generator for the ORC runtime archive.
+  auto OrcRuntimeArchiveGenerator = StaticLibraryDefinitionGenerator::Load(
+      ObjLinkingLayer, OrcRuntimePath,
+      ES.getExecutorProcessControl().getTargetTriple());
+  if (!OrcRuntimeArchiveGenerator)
+    return OrcRuntimeArchiveGenerator.takeError();
+
+  return Create(ES, ObjLinkingLayer, PlatformJD,
+                std::move(*OrcRuntimeArchiveGenerator),
+                std::move(RuntimeAliases));
 }
 
 Error MachOPlatform::setupJITDylib(JITDylib &JD) {
@@ -395,15 +389,6 @@ MachOPlatform::standardRuntimeUtilityAliases() {
 
   return ArrayRef<std::pair<const char *, const char *>>(
       StandardRuntimeUtilityAliases);
-}
-
-bool MachOPlatform::isInitializerSection(StringRef SegName,
-                                         StringRef SectName) {
-  for (auto &Name : InitSectionNames) {
-    if (Name.startswith(SegName) && Name.substr(7) == SectName)
-      return true;
-  }
-  return false;
 }
 
 bool MachOPlatform::supportedTarget(const Triple &TT) {
@@ -901,7 +886,7 @@ Error MachOPlatform::MachOPlatformPlugin::preserveInitSections(
     jitlink::LinkGraph &G, MaterializationResponsibility &MR) {
 
   JITLinkSymbolSet InitSectionSymbols;
-  for (auto &InitSectionName : InitSectionNames) {
+  for (auto &InitSectionName : MachOInitSectionNames) {
     // Skip non-init sections.
     auto *InitSection = G.findSectionByName(InitSectionName);
     if (!InitSection)
@@ -943,7 +928,7 @@ Error MachOPlatform::MachOPlatformPlugin::processObjCImageInfo(
   // OR
   //   (2) We already have a recorded __objc_imageinfo for this JITDylib,
   //       in which case we just verify it.
-  auto *ObjCImageInfo = G.findSectionByName(ObjCImageInfoSectionName);
+  auto *ObjCImageInfo = G.findSectionByName(MachOObjCImageInfoSectionName);
   if (!ObjCImageInfo)
     return Error::success();
 
@@ -951,14 +936,14 @@ Error MachOPlatform::MachOPlatformPlugin::processObjCImageInfo(
 
   // Check that the section is not empty if present.
   if (ObjCImageInfoBlocks.empty())
-    return make_error<StringError>("Empty " + ObjCImageInfoSectionName +
+    return make_error<StringError>("Empty " + MachOObjCImageInfoSectionName +
                                        " section in " + G.getName(),
                                    inconvertibleErrorCode());
 
   // Check that there's only one block in the section.
   if (std::next(ObjCImageInfoBlocks.begin()) != ObjCImageInfoBlocks.end())
     return make_error<StringError>("Multiple blocks in " +
-                                       ObjCImageInfoSectionName +
+                                       MachOObjCImageInfoSectionName +
                                        " section in " + G.getName(),
                                    inconvertibleErrorCode());
 
@@ -970,7 +955,7 @@ Error MachOPlatform::MachOPlatformPlugin::processObjCImageInfo(
         for (auto &E : B->edges())
           if (E.getTarget().isDefined() &&
               &E.getTarget().getBlock().getSection() == ObjCImageInfo)
-            return make_error<StringError>(ObjCImageInfoSectionName +
+            return make_error<StringError>(MachOObjCImageInfoSectionName +
                                                " is referenced within file " +
                                                G.getName(),
                                            inconvertibleErrorCode());
@@ -1023,7 +1008,7 @@ Error MachOPlatform::MachOPlatformPlugin::fixTLVSectionsAndEdges(
     }
 
   // Store key in __thread_vars struct fields.
-  if (auto *ThreadDataSec = G.findSectionByName(ThreadVarsSectionName)) {
+  if (auto *ThreadDataSec = G.findSectionByName(MachOThreadVarsSectionName)) {
     std::optional<uint64_t> Key;
     {
       std::lock_guard<std::mutex> Lock(MP.PlatformMutex);
@@ -1068,16 +1053,92 @@ Error MachOPlatform::MachOPlatformPlugin::fixTLVSectionsAndEdges(
   return Error::success();
 }
 
+std::optional<MachOPlatform::MachOPlatformPlugin::UnwindSections>
+MachOPlatform::MachOPlatformPlugin::findUnwindSectionInfo(
+    jitlink::LinkGraph &G) {
+  using namespace jitlink;
+
+  UnwindSections US;
+
+  // ScanSection records a section range and adds any executable blocks that
+  // that section points to to the CodeBlocks vector.
+  SmallVector<Block *> CodeBlocks;
+  auto ScanUnwindInfoSection = [&](Section &Sec, ExecutorAddrRange &SecRange) {
+    if (Sec.blocks().empty())
+      return;
+    SecRange = (*Sec.blocks().begin())->getRange();
+    for (auto *B : Sec.blocks()) {
+      auto R = B->getRange();
+      SecRange.Start = std::min(SecRange.Start, R.Start);
+      SecRange.End = std::max(SecRange.End, R.End);
+      for (auto &E : B->edges()) {
+        if (!E.getTarget().isDefined())
+          continue;
+        auto &TargetBlock = E.getTarget().getBlock();
+        auto &TargetSection = TargetBlock.getSection();
+        if ((TargetSection.getMemProt() & MemProt::Exec) == MemProt::Exec)
+          CodeBlocks.push_back(&TargetBlock);
+      }
+    }
+  };
+
+  if (Section *EHFrameSec = G.findSectionByName(MachOEHFrameSectionName))
+    ScanUnwindInfoSection(*EHFrameSec, US.DwarfSection);
+
+  if (Section *CUInfoSec =
+          G.findSectionByName(MachOCompactUnwindInfoSectionName))
+    ScanUnwindInfoSection(*CUInfoSec, US.CompactUnwindSection);
+
+  // If we didn't find any pointed-to code-blocks then there's no need to
+  // register any info.
+  if (CodeBlocks.empty())
+    return std::nullopt;
+
+  // We have info to register. Sort the code blocks into address order and
+  // build a list of contiguous address ranges covering them all.
+  llvm::sort(CodeBlocks, [](const Block *LHS, const Block *RHS) {
+    return LHS->getAddress() < RHS->getAddress();
+  });
+  for (auto *B : CodeBlocks) {
+    if (US.CodeRanges.empty() || US.CodeRanges.back().End != B->getAddress())
+      US.CodeRanges.push_back(B->getRange());
+    else
+      US.CodeRanges.back().End = B->getRange().End;
+  }
+
+  LLVM_DEBUG({
+    dbgs() << "MachOPlatform identified unwind info in " << G.getName() << ":\n"
+           << "  DWARF: ";
+    if (US.DwarfSection.Start)
+      dbgs() << US.DwarfSection << "\n";
+    else
+      dbgs() << "none\n";
+    dbgs() << "  Compact-unwind: ";
+    if (US.CompactUnwindSection.Start)
+      dbgs() << US.CompactUnwindSection << "\n";
+    else
+      dbgs() << "none\n"
+             << "for code ranges:\n";
+    for (auto &CR : US.CodeRanges)
+      dbgs() << "  " << CR << "\n";
+    if (US.CodeRanges.size() >= G.sections_size())
+      dbgs() << "WARNING: High number of discontiguous code ranges! "
+                "Padding may be interfering with coalescing.\n";
+  });
+
+  return US;
+}
+
 Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
     jitlink::LinkGraph &G, JITDylib &JD, bool InBootstrapPhase) {
 
   // Get a pointer to the thread data section if there is one. It will be used
   // below.
   jitlink::Section *ThreadDataSection =
-      G.findSectionByName(ThreadDataSectionName);
+      G.findSectionByName(MachOThreadDataSectionName);
 
   // Handle thread BSS section if there is one.
-  if (auto *ThreadBSSSection = G.findSectionByName(ThreadBSSSectionName)) {
+  if (auto *ThreadBSSSection = G.findSectionByName(MachOThreadBSSSectionName)) {
     // If there's already a thread data section in this graph then merge the
     // thread BSS section content into it, otherwise just treat the thread
     // BSS section as the thread data section.
@@ -1090,8 +1151,9 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
   SmallVector<std::pair<StringRef, ExecutorAddrRange>, 8> MachOPlatformSecs;
 
   // Collect data sections to register.
-  StringRef DataSections[] = {DataDataSectionName, DataCommonSectionName,
-                              EHFrameSectionName};
+  StringRef DataSections[] = {MachODataDataSectionName,
+                              MachODataCommonSectionName,
+                              MachOEHFrameSectionName};
   for (auto &SecName : DataSections) {
     if (auto *Sec = G.findSectionByName(SecName)) {
       jitlink::SectionRange R(*Sec);
@@ -1105,16 +1167,16 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
   if (ThreadDataSection) {
     jitlink::SectionRange R(*ThreadDataSection);
     if (!R.empty())
-      MachOPlatformSecs.push_back({ThreadDataSectionName, R.getRange()});
+      MachOPlatformSecs.push_back({MachOThreadDataSectionName, R.getRange()});
   }
 
   // If any platform sections were found then add an allocation action to call
   // the registration function.
   StringRef PlatformSections[] = {
-      ModInitFuncSectionName,   ObjCClassListSectionName,
-      ObjCImageInfoSectionName, ObjCSelRefsSectionName,
-      Swift5ProtoSectionName,   Swift5ProtosSectionName,
-      Swift5TypesSectionName,
+      MachOModInitFuncSectionName,   MachOObjCClassListSectionName,
+      MachOObjCImageInfoSectionName, MachOObjCSelRefsSectionName,
+      MachOSwift5ProtoSectionName,   MachOSwift5ProtosSectionName,
+      MachOSwift5TypesSectionName,
   };
 
   for (auto &SecName : PlatformSections) {
@@ -1128,7 +1190,14 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
     MachOPlatformSecs.push_back({SecName, R.getRange()});
   }
 
-  if (!MachOPlatformSecs.empty()) {
+  std::optional<std::tuple<SmallVector<ExecutorAddrRange>, ExecutorAddrRange,
+                           ExecutorAddrRange>>
+      UnwindInfo;
+  if (auto UI = findUnwindSectionInfo(G))
+    UnwindInfo = std::make_tuple(std::move(UI->CodeRanges), UI->DwarfSection,
+                                 UI->CompactUnwindSection);
+
+  if (!MachOPlatformSecs.empty() || UnwindInfo) {
     ExecutorAddr HeaderAddr;
     {
       std::lock_guard<std::mutex> Lock(MP.PlatformMutex);
@@ -1145,9 +1214,11 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
         dbgs() << "  " << KV.first << ": " << KV.second << "\n";
     });
 
-    using SPSRegisterObjectPlatformSectionsArgs =
-        SPSArgList<SPSExecutorAddr,
-                   SPSSequence<SPSTuple<SPSString, SPSExecutorAddrRange>>>;
+    using SPSRegisterObjectPlatformSectionsArgs = SPSArgList<
+        SPSExecutorAddr,
+        SPSOptional<SPSTuple<SPSSequence<SPSExecutorAddrRange>,
+                             SPSExecutorAddrRange, SPSExecutorAddrRange>>,
+        SPSSequence<SPSTuple<SPSString, SPSExecutorAddrRange>>>;
 
     shared::AllocActions &allocActions = LLVM_LIKELY(!InBootstrapPhase)
                                              ? G.allocActions()
@@ -1156,12 +1227,12 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
     allocActions.push_back(
         {cantFail(
              WrapperFunctionCall::Create<SPSRegisterObjectPlatformSectionsArgs>(
-                 MP.RegisterObjectPlatformSections.Addr, HeaderAddr,
+                 MP.RegisterObjectPlatformSections.Addr, HeaderAddr, UnwindInfo,
                  MachOPlatformSecs)),
          cantFail(
              WrapperFunctionCall::Create<SPSRegisterObjectPlatformSectionsArgs>(
                  MP.DeregisterObjectPlatformSections.Addr, HeaderAddr,
-                 MachOPlatformSecs))});
+                 UnwindInfo, MachOPlatformSecs))});
   }
 
   return Error::success();

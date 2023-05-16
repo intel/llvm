@@ -47,12 +47,14 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
 
 using namespace Fortran::frontend;
@@ -171,8 +173,7 @@ bool CodeGenAction::beginSourceFileAction() {
       ci.getInvocation().getSemanticsContext().targetCharacteristics(),
       ci.getParsing().allCooked(), ci.getInvocation().getTargetOpts().triple,
       kindMap, ci.getInvocation().getLoweringOpts(),
-      ci.getInvocation().getFrontendOpts().envDefaults,
-      getCurrentFileOrBufferName());
+      ci.getInvocation().getFrontendOpts().envDefaults);
 
   // Fetch module from lb, so we can set
   mlirModule = std::make_unique<mlir::ModuleOp>(lb.getModule());
@@ -185,7 +186,8 @@ bool CodeGenAction::beginSourceFileAction() {
   lb.lower(parseTree, ci.getInvocation().getSemanticsContext());
 
   // run the default passes.
-  mlir::PassManager pm(mlirCtx.get(), mlir::OpPassManager::Nesting::Implicit);
+  mlir::PassManager pm((*mlirModule)->getName(),
+                       mlir::OpPassManager::Nesting::Implicit);
   pm.enableVerifier(/*verifyPasses=*/true);
   pm.addPass(std::make_unique<Fortran::lower::VerifierPass>());
 
@@ -536,13 +538,14 @@ void CodeGenAction::generateLLVMIR() {
   fir::support::registerLLVMTranslation(*mlirCtx);
 
   // Set-up the MLIR pass manager
-  mlir::PassManager pm(mlirCtx.get(), mlir::OpPassManager::Nesting::Implicit);
+  mlir::PassManager pm((*mlirModule)->getName(),
+                       mlir::OpPassManager::Nesting::Implicit);
 
   pm.addPass(std::make_unique<Fortran::lower::VerifierPass>());
   pm.enableVerifier(/*verifyPasses=*/true);
 
   // Create the pass pipeline
-  fir::createMLIRToLLVMPassPipeline(pm, level);
+  fir::createMLIRToLLVMPassPipeline(pm, level, opts.StackArrays);
   mlir::applyPassManagerCLOptions(pm);
 
   // run the pass manager
@@ -573,22 +576,6 @@ void CodeGenAction::generateLLVMIR() {
   }
 }
 
-static llvm::CodeGenOpt::Level
-getCGOptLevel(const Fortran::frontend::CodeGenOptions &opts) {
-  switch (opts.OptimizationLevel) {
-  default:
-    llvm_unreachable("Invalid optimization level!");
-  case 0:
-    return llvm::CodeGenOpt::None;
-  case 1:
-    return llvm::CodeGenOpt::Less;
-  case 2:
-    return llvm::CodeGenOpt::Default;
-  case 3:
-    return llvm::CodeGenOpt::Aggressive;
-  }
-}
-
 void CodeGenAction::setUpTargetMachine() {
   CompilerInstance &ci = this->getInstance();
 
@@ -603,7 +590,10 @@ void CodeGenAction::setUpTargetMachine() {
 
   // Create `TargetMachine`
   const auto &CGOpts = ci.getInvocation().getCodeGenOpts();
-  llvm::CodeGenOpt::Level OptLevel = getCGOptLevel(CGOpts);
+  std::optional<llvm::CodeGenOpt::Level> OptLevelOrNone =
+      llvm::CodeGenOpt::getLevel(CGOpts.OptimizationLevel);
+  assert(OptLevelOrNone && "Invalid optimization level!");
+  llvm::CodeGenOpt::Level OptLevel = *OptLevelOrNone;
   std::string featuresStr = llvm::join(targetOpts.featuresAsWritten.begin(),
                                        targetOpts.featuresAsWritten.end(), ",");
   tm.reset(theTarget->createTargetMachine(
@@ -698,8 +688,8 @@ void CodeGenAction::runOptimizationPipeline(llvm::raw_pwrite_stream &os) {
   llvm::PassInstrumentationCallbacks pic;
   llvm::PipelineTuningOptions pto;
   std::optional<llvm::PGOOptions> pgoOpt;
-  llvm::StandardInstrumentations si(
-      llvmModule->getContext(), opts.DebugPassManager);
+  llvm::StandardInstrumentations si(llvmModule->getContext(),
+                                    opts.DebugPassManager);
   si.registerCallbacks(pic, &fam);
   llvm::PassBuilder pb(tm.get(), pto, pgoOpt, &pic);
 
@@ -737,6 +727,25 @@ void CodeGenAction::runOptimizationPipeline(llvm::raw_pwrite_stream &os) {
 
   // Run the passes.
   mpm.run(*llvmModule, mam);
+}
+
+void CodeGenAction::embedOffloadObjects() {
+  CompilerInstance &ci = this->getInstance();
+  const auto &cgOpts = ci.getInvocation().getCodeGenOpts();
+
+  for (llvm::StringRef offloadObject : cgOpts.OffloadObjects) {
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> objectOrErr =
+        llvm::MemoryBuffer::getFileOrSTDIN(offloadObject);
+    if (std::error_code ec = objectOrErr.getError()) {
+      auto diagID = ci.getDiagnostics().getCustomDiagID(
+          clang::DiagnosticsEngine::Error, "could not open '%0' for embedding");
+      ci.getDiagnostics().Report(diagID) << offloadObject;
+      return;
+    }
+    llvm::embedBufferInModule(
+        *llvmModule, **objectOrErr, ".llvm.offloading",
+        llvm::Align(llvm::object::OffloadBinary::getAlignment()));
+  }
 }
 
 void CodeGenAction::executeAction() {
@@ -786,14 +795,19 @@ void CodeGenAction::executeAction() {
     ci.getDiagnostics().Report(clang::diag::warn_fe_override_module)
         << theTriple;
   }
+
   // Always set the triple and data layout, to make sure they match and are set.
   // Note that this overwrites any datalayout stored in the LLVM-IR. This avoids
   // an assert for incompatible data layout when the code-generation happens.
   llvmModule->setTargetTriple(theTriple);
   llvmModule->setDataLayout(tm->createDataLayout());
 
+  // Embed offload objects specified with -fembed-offload-object
+  if (!ci.getInvocation().getCodeGenOpts().OffloadObjects.empty())
+    embedOffloadObjects();
+
   // Run LLVM's middle-end (i.e. the optimizer).
-  runOptimizationPipeline(*os);
+  runOptimizationPipeline(ci.isOutputStreamNull() ? *os : ci.getOutputStream());
 
   if (action == BackendActionTy::Backend_EmitLL) {
     llvmModule->print(ci.isOutputStreamNull() ? *os : ci.getOutputStream(),

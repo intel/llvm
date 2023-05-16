@@ -19,6 +19,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -209,6 +210,19 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
                                             MDNode::get(Ctx, MD));
   }
 
+  // The sycl-single-task attribute currently only has an effect when targeting
+  // SPIR FPGAs, in which case it will generate a "max_global_work_dim" MD node
+  // with a 0 value, similar to applying [[intel::max_global_work_dim(0)]] to
+  // a SYCL single_target kernel.
+  if (AttrKindStr == "sycl-single-task" &&
+      Triple(M.getTargetTriple()).getSubArch() == Triple::SPIRSubArch_fpga) {
+    IntegerType *Ty = Type::getInt32Ty(Ctx);
+    Metadata *MDVal = ConstantAsMetadata::get(Constant::getNullValue(Ty));
+    SmallVector<Metadata *, 1> MD{MDVal};
+    return std::pair<std::string, MDNode *>("max_global_work_dim",
+                                            MDNode::get(Ctx, MD));
+  }
+
   auto getIpInterface = [](const char *Name, LLVMContext &Ctx,
                            const Attribute &Attr) {
     // generate either:
@@ -323,6 +337,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
+    // Compile time properties on kernel arguments
     {
       SmallVector<Metadata *, 8> MDOps;
       MDOps.reserve(F.arg_size());
@@ -331,8 +346,12 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
         SmallVector<Metadata *, 8> MDArgOps;
         for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
           if (MDNode *SPIRVMetadata =
-                  attributeToDecorateMetadata(Ctx, Attribute))
+                  attributeToDecorateMetadata(Ctx, Attribute)) {
+            // sycl-alignment is not collected to SPIRV.ParamDecoration
+            if (Attribute.getKindAsString() == "sycl-alignment")
+              continue;
             MDArgOps.push_back(SPIRVMetadata);
+          }
         }
         if (!MDArgOps.empty())
           FoundKernelProperties = true;

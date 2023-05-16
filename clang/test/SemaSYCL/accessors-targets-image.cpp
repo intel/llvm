@@ -80,4 +80,4 @@ int main() {
 // CHECK: {{.*}}use_image3d_w 'void (__write_only image3d_t)'
 
 // TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows-msvc
+// XFAIL: target=x86_64-pc-windows-msvc

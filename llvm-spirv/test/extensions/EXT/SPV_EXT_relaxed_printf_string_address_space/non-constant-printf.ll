@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-WO-EXT
 
-; RUN: llvm-spirv -spirv-text %t.bc -o %t.spt --spirv-ext=+SPV_EXT_relaxed_printf_string_address_space,+SPV_INTEL_non_constant_addrspace_printf
+; RUN: llvm-spirv -spirv-text %t.bc -o %t.spt --spirv-ext=+SPV_EXT_relaxed_printf_string_address_space
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
@@ -10,10 +10,8 @@
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:
-; CHECK-WO-EXT: Either SPV_EXT_relaxed_printf_string_address_space or SPV_INTEL_non_constant_addrspace_printf extension should be allowed to translate this module, because this LLVM module contains the printf function with format string, whose address space is not equal to 2 (constant).
+; CHECK-WO-EXT: SPV_EXT_relaxed_printf_string_address_space extension should be allowed to translate this module, because this LLVM module contains the printf function with format string, whose address space is not equal to 2 (constant).
 
-; CHECK-SPIRV-NOT: Capability NonConstantAddrspacePrintfINTEL
-; CHECK-SPIRV-NOT: Extension "SPV_INTEL_non_constant_addrspace_printf"
 ; CHECK-SPIRV: Extension "SPV_EXT_relaxed_printf_string_address_space"
 ; CHECK-SPIRV: ExtInstImport [[#ExtInstSetId:]] "OpenCL.std"
 ; CHECK-SPIRV: TypeInt [[#TypeInt8Id:]] 8 0

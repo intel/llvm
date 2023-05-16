@@ -25,7 +25,6 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/Basic/CodeGenOptions.h"
-#include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/CodeGen/SwiftCallingConv.h"
@@ -1976,11 +1975,11 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     FuncAttrs.addAttribute(llvm::Attribute::Convergent);
   }
 
-  // TODO: NoUnwind attribute should be added for other GPU modes OpenCL, HIP,
+  // TODO: NoUnwind attribute should be added for other GPU modes HIP,
   // SYCL, OpenMP offload. AFAIK, none of them support exceptions in device
   // code.
-  if (getLangOpts().CUDA && getLangOpts().CUDAIsDevice) {
-    // Exceptions aren't supported in CUDA device code.
+  if ((getLangOpts().CUDA && getLangOpts().CUDAIsDevice) ||
+      getLangOpts().OpenCL) {
     FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
   }
 
@@ -2827,7 +2826,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
     case ABIArgInfo::IndirectAliased: {
       assert(NumIRArgs == 1);
       Address ParamAddr = Address(Fn->getArg(FirstIRArg), ConvertTypeForMem(Ty),
-                                  ArgI.getIndirectAlign());
+                                  ArgI.getIndirectAlign(), KnownNonNull);
 
       if (!hasScalarEvaluationKind(Ty)) {
         // Aggregates and complex variables are accessed by reference. All we

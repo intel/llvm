@@ -244,31 +244,64 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestStrictPatternDriver)
 
   TestStrictPatternDriver() = default;
-  TestStrictPatternDriver(const TestStrictPatternDriver &other) = default;
+  TestStrictPatternDriver(const TestStrictPatternDriver &other) {
+    strictMode = other.strictMode;
+  }
 
   StringRef getArgument() const final { return "test-strict-pattern-driver"; }
   StringRef getDescription() const final {
-    return "Run strict mode of pattern driver";
+    return "Test strict mode of pattern driver";
   }
 
   void runOnOperation() override {
-    mlir::RewritePatternSet patterns(&getContext());
-    patterns.add<InsertSameOp, ReplaceWithNewOp, EraseOp>(&getContext());
+    MLIRContext *ctx = &getContext();
+    mlir::RewritePatternSet patterns(ctx);
+    patterns.add<
+        // clang-format off
+        InsertSameOp,
+        ReplaceWithNewOp,
+        EraseOp,
+        ChangeBlockOp,
+        ImplicitChangeOp
+        // clang-format on
+        >(ctx);
     SmallVector<Operation *> ops;
     getOperation()->walk([&](Operation *op) {
       StringRef opName = op->getName().getStringRef();
-      if (opName == "test.insert_same_op" ||
+      if (opName == "test.insert_same_op" || opName == "test.change_block_op" ||
           opName == "test.replace_with_new_op" || opName == "test.erase_op") {
         ops.push_back(op);
       }
     });
 
+    GreedyRewriteConfig config;
+    if (strictMode == "AnyOp") {
+      config.strictMode = GreedyRewriteStrictness::AnyOp;
+    } else if (strictMode == "ExistingAndNewOps") {
+      config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
+    } else if (strictMode == "ExistingOps") {
+      config.strictMode = GreedyRewriteStrictness::ExistingOps;
+    } else {
+      llvm_unreachable("invalid strictness option");
+    }
+
     // Check if these transformations introduce visiting of operations that
     // are not in the `ops` set (The new created ops are valid). An invalid
     // operation will trigger the assertion while processing.
-    (void)applyOpPatternsAndFold(ArrayRef(ops), std::move(patterns),
-                                 /*strict=*/true);
+    bool changed = false;
+    bool allErased = false;
+    (void)applyOpPatternsAndFold(ArrayRef(ops), std::move(patterns), config,
+                                 &changed, &allErased);
+    Builder b(ctx);
+    getOperation()->setAttr("pattern_driver_changed", b.getBoolAttr(changed));
+    getOperation()->setAttr("pattern_driver_all_erased",
+                            b.getBoolAttr(allErased));
   }
+
+  Option<std::string> strictMode{
+      *this, "strictness",
+      llvm::cl::desc("Can be {AnyOp, ExistingAndNewOps, ExistingOps}"),
+      llvm::cl::init("AnyOp")};
 
 private:
   // New inserted operation is valid for further transformation.
@@ -317,7 +350,7 @@ private:
     }
   };
 
-  // Remove an operation may introduce the re-visiting of its opreands.
+  // Remove an operation may introduce the re-visiting of its operands.
   class EraseOp : public RewritePattern {
   public:
     EraseOp(MLIRContext *context)
@@ -325,6 +358,55 @@ private:
     LogicalResult matchAndRewrite(Operation *op,
                                   PatternRewriter &rewriter) const override {
       rewriter.eraseOp(op);
+      return success();
+    }
+  };
+
+  // The following two patterns test RewriterBase::replaceAllUsesWith.
+  //
+  // That function replaces all usages of a Block (or a Value) with another one
+  // *and tracks these changes in the rewriter.* The GreedyPatternRewriteDriver
+  // with GreedyRewriteStrictness::AnyOp uses that tracking to construct its
+  // worklist: when an op is modified, it is added to the worklist. The two
+  // patterns below make the tracking observable: ChangeBlockOp replaces all
+  // usages of a block and that pattern is applied because the corresponding ops
+  // are put on the initial worklist (see above). ImplicitChangeOp does an
+  // unrelated change but ops of the corresponding type are *not* on the initial
+  // worklist, so the effect of the second pattern is only visible if the
+  // tracking and subsequent adding to the worklist actually works.
+
+  // Replace all usages of the first successor with the second successor.
+  class ChangeBlockOp : public RewritePattern {
+  public:
+    ChangeBlockOp(MLIRContext *context)
+        : RewritePattern("test.change_block_op", /*benefit=*/1, context) {}
+    LogicalResult matchAndRewrite(Operation *op,
+                                  PatternRewriter &rewriter) const override {
+      if (op->getNumSuccessors() < 2)
+        return failure();
+      Block *firstSuccessor = op->getSuccessor(0);
+      Block *secondSuccessor = op->getSuccessor(1);
+      if (firstSuccessor == secondSuccessor)
+        return failure();
+      // This is the function being tested:
+      rewriter.replaceAllUsesWith(firstSuccessor, secondSuccessor);
+      // Using the following line instead would make the test fail:
+      // firstSuccessor->replaceAllUsesWith(secondSuccessor);
+      return success();
+    }
+  };
+
+  // Changes the successor to the parent block.
+  class ImplicitChangeOp : public RewritePattern {
+  public:
+    ImplicitChangeOp(MLIRContext *context)
+        : RewritePattern("test.implicit_change_op", /*benefit=*/1, context) {}
+    LogicalResult matchAndRewrite(Operation *op,
+                                  PatternRewriter &rewriter) const override {
+      if (op->getNumSuccessors() < 1 || op->getSuccessor(0) == op->getBlock())
+        return failure();
+      rewriter.updateRootInPlace(
+          op, [&]() { op->setSuccessor(op->getBlock(), 0); });
       return success();
     }
   };
@@ -554,7 +636,7 @@ struct TestUndoBlockArgReplace : public ConversionPattern {
     auto illegalOp =
         rewriter.create<ILLegalOpF>(op->getLoc(), rewriter.getF32Type());
     rewriter.replaceUsesOfBlockArgument(op->getRegion(0).getArgument(0),
-                                        illegalOp);
+                                        illegalOp->getResult(0));
     rewriter.updateRootInPlace(op, [] {});
     return success();
   }
@@ -840,7 +922,7 @@ struct TestLegalizePatternDriver
   TestLegalizePatternDriver(ConversionMode mode) : mode(mode) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<func::FuncDialect>();
+    registry.insert<func::FuncDialect, test::TestDialect>();
   }
 
   void runOnOperation() override {
@@ -1608,8 +1690,7 @@ struct TestSelectiveReplacementPatternDriver
     MLIRContext *context = &getContext();
     mlir::RewritePatternSet patterns(context);
     patterns.add<TestSelectiveOpReplacementPattern>(context);
-    (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(),
-                                       std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
 } // namespace

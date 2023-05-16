@@ -466,8 +466,14 @@ XPTI_EXPORT_API void xptiReset();
 /// @brief Force sets internal state to trace enabled
 /// @details This method is currently ONLY used by the tests and is NOT
 /// recommended for use in the instrumentation of applications or runtimes.
-/// The proxy/stub library does not implement this function.
 XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool yesOrNo);
+
+/// @brief Requery check of environment variables to set trace enabled in
+/// runtime
+/// @details This method is currently ONLY used by the tests and is NOT
+/// recommended for use in the instrumentation of applications or runtimes.
+/// The framework does not implement this function, only proxy library.
+XPTI_EXPORT_API void xptiTraceTryToEnable();
 
 typedef xpti::result_t (*xpti_framework_initialize_t)();
 typedef xpti::result_t (*xpti_framework_finalize_t)();
@@ -505,4 +511,5 @@ typedef xpti::result_t (*xpti_add_metadata_t)(xpti::trace_event_data_t *,
                                               const char *, xpti::object_id_t);
 typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
+typedef void (*xpti_force_set_trace_enabled_t)(bool);
 }

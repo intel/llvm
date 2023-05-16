@@ -1199,6 +1199,8 @@ enum NodeType {
   ATOMIC_LOAD_FSUB,
   ATOMIC_LOAD_FMAX,
   ATOMIC_LOAD_FMIN,
+  ATOMIC_LOAD_UINC_WRAP,
+  ATOMIC_LOAD_UDEC_WRAP,
 
   // Masked load and store - consecutive vector load and store operations
   // with additional mask operand that prevents memory accesses to the
@@ -1343,6 +1345,12 @@ std::optional<unsigned> getVPMaskIdx(unsigned Opcode);
 
 /// The operand position of the explicit vector length parameter.
 std::optional<unsigned> getVPExplicitVectorLengthIdx(unsigned Opcode);
+
+/// Translate this VP Opcode to its corresponding non-VP Opcode.
+std::optional<unsigned> getBaseOpcodeForVP(unsigned Opcode, bool hasFPExcept);
+
+/// Translate this non-VP Opcode to its corresponding VP Opcode.
+unsigned getVPForBaseOpcode(unsigned Opcode);
 
 //===--------------------------------------------------------------------===//
 /// MemIndexedMode enum - This enum defines the load / store indexed

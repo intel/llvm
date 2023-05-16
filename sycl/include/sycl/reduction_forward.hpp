@@ -18,7 +18,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar>
+          bool ExplicitIdentity, typename RedOutVar>
 class reduction_impl_algo;
 
 namespace reduction {

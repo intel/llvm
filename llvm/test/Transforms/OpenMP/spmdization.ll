@@ -2,7 +2,9 @@
 ; RUN: opt --mtriple=amdgcn-amd-amdhsa --data-layout=A5 -S -passes=openmp-opt < %s | FileCheck %s --check-prefixes=AMDGPU
 ; RUN: opt --mtriple=nvptx64-- -S -passes=openmp-opt < %s | FileCheck %s --check-prefixes=NVPTX
 ; RUN: opt --mtriple=amdgcn-amd-amdhsa --data-layout=A5 -S -passes=openmp-opt -openmp-opt-disable-spmdization < %s | FileCheck %s --check-prefix=AMDGPU-DISABLED
+; RUN: opt --mtriple=amdgcn-amd-amdhsa --data-layout=A5 -S -passes=openmp-opt-postlink < %s | FileCheck %s --check-prefix=AMDGPU-DISABLED
 ; RUN: opt --mtriple=nvptx64-- -S -passes=openmp-opt -openmp-opt-disable-spmdization < %s | FileCheck %s --check-prefix=NVPTX-DISABLED
+; RUN: opt --mtriple=nvptx64-- -S -passes=openmp-opt-postlink < %s | FileCheck %s --check-prefix=NVPTX-DISABLED
 
 ;; void unknown(void);
 ;; void spmd_amenable(void) __attribute__((assume("ompx_spmd_amenable")));
@@ -113,7 +115,13 @@
 ; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; AMDGPU: @[[LLVM_COMPILER_USED:[a-zA-Z0-9_$"\\.-]+]] = appending global [6 x ptr] [ptr @__omp_offloading_fd02_2044372e_sequential_loop_l5_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_stack_var_l20_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_l35_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_guarded_l50_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_target_l65_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_task_l74_exec_mode], section "llvm.metadata"
+; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_L5__DEBUG_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_STACK_VAR_L20_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_L35_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_GUARDED_L50_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; AMDGPU: @[[GLOB2:[0-9]+]] = private unnamed_addr constant [[STRUCT_IDENT_T:%.*]] { i32 0, i32 2, i32 0, i32 22, ptr @[[GLOB0]] }, align 8
+; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 0
+; AMDGPU: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; AMDGPU: @[[X_SHARED:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; AMDGPU: @[[X_SHARED_1:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; AMDGPU: @[[__OMP_OUTLINED__9_WRAPPER_ID:[a-zA-Z0-9_$"\\.-]+]] = private constant i8 undef
@@ -127,7 +135,13 @@
 ; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; NVPTX: @[[LLVM_COMPILER_USED:[a-zA-Z0-9_$"\\.-]+]] = appending global [6 x ptr] [ptr @__omp_offloading_fd02_2044372e_sequential_loop_l5_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_stack_var_l20_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_l35_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_guarded_l50_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_target_l65_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_task_l74_exec_mode], section "llvm.metadata"
+; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_L5__DEBUG_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_STACK_VAR_L20_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_L35_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_GUARDED_L50_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; NVPTX: @[[GLOB2:[0-9]+]] = private unnamed_addr constant [[STRUCT_IDENT_T:%.*]] { i32 0, i32 2, i32 0, i32 22, ptr @[[GLOB0]] }, align 8
+; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 0
+; NVPTX: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; NVPTX: @[[X_SHARED:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; NVPTX: @[[X_SHARED1:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; NVPTX: @[[__OMP_OUTLINED__9_WRAPPER_ID:[a-zA-Z0-9_$"\\.-]+]] = private constant i8 undef
@@ -141,6 +155,12 @@
 ; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; AMDGPU-DISABLED: @[[LLVM_COMPILER_USED:[a-zA-Z0-9_$"\\.-]+]] = appending global [6 x ptr] [ptr @__omp_offloading_fd02_2044372e_sequential_loop_l5_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_stack_var_l20_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_l35_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_guarded_l50_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_target_l65_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_task_l74_exec_mode], section "llvm.metadata"
+; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_L5__DEBUG_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_STACK_VAR_L20_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_L35_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_GUARDED_L50_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 0
+; AMDGPU-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; AMDGPU-DISABLED: @[[X_SHARED:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; AMDGPU-DISABLED: @[[X_SHARED_1:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; AMDGPU-DISABLED: @[[__OMP_OUTLINED__1_WRAPPER_ID:[a-zA-Z0-9_$"\\.-]+]] = private constant i8 undef
@@ -158,6 +178,12 @@
 ; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; NVPTX-DISABLED: @[[LLVM_COMPILER_USED:[a-zA-Z0-9_$"\\.-]+]] = appending global [6 x ptr] [ptr @__omp_offloading_fd02_2044372e_sequential_loop_l5_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_stack_var_l20_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_l35_exec_mode, ptr @__omp_offloading_fd02_2044372e_sequential_loop_to_shared_var_guarded_l50_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_target_l65_exec_mode, ptr @__omp_offloading_fd02_2044372e_do_not_spmdize_task_l74_exec_mode], section "llvm.metadata"
+; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_L5__DEBUG_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_STACK_VAR_L20_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_L35_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_SEQUENTIAL_LOOP_TO_SHARED_VAR_GUARDED_L50_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
+; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TARGET_L65_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 0
+; NVPTX-DISABLED: @[[__OMP_OFFLOADING_FD02_2044372E_DO_NOT_SPMDIZE_TASK_L74_NESTED_PARALLELISM:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; NVPTX-DISABLED: @[[X_SHARED:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; NVPTX-DISABLED: @[[X_SHARED1:[a-zA-Z0-9_$"\\.-]+]] = internal addrspace(3) global [4 x i8] undef, align 4
 ; NVPTX-DISABLED: @[[__OMP_OUTLINED__1_WRAPPER_ID:[a-zA-Z0-9_$"\\.-]+]] = private constant i8 undef
@@ -2450,9 +2476,6 @@ attributes #11 = { convergent }
 ; AMDGPU: [[META27:![0-9]+]] = !{!"any pointer", !20, i64 0}
 ; AMDGPU: [[LOOP28]] = distinct !{!28, !23, !24}
 ; AMDGPU: [[LOOP29]] = distinct !{!29, !23, !24}
-; AMDGPU: [[META30:![0-9]+]] = !{!31, !27, i64 0}
-; AMDGPU: [[META31:![0-9]+]] = !{!"kmp_task_t_with_privates", !32, i64 0}
-; AMDGPU: [[META32:![0-9]+]] = !{!"kmp_task_t", !27, i64 0, !27, i64 8, !19, i64 16, !20, i64 24, !20, i64 32}
 ;.
 ; NVPTX: [[META0:![0-9]+]] = !{i32 0, i32 64770, i32 541341486, !"do_not_spmdize_task", i32 74, i32 5}
 ; NVPTX: [[META1:![0-9]+]] = !{i32 0, i32 64770, i32 541341486, !"sequential_loop_to_stack_var", i32 20, i32 1}
@@ -2484,9 +2507,6 @@ attributes #11 = { convergent }
 ; NVPTX: [[META27:![0-9]+]] = !{!"any pointer", !20, i64 0}
 ; NVPTX: [[LOOP28]] = distinct !{!28, !23, !24}
 ; NVPTX: [[LOOP29]] = distinct !{!29, !23, !24}
-; NVPTX: [[META30:![0-9]+]] = !{!31, !27, i64 0}
-; NVPTX: [[META31:![0-9]+]] = !{!"kmp_task_t_with_privates", !32, i64 0}
-; NVPTX: [[META32:![0-9]+]] = !{!"kmp_task_t", !27, i64 0, !27, i64 8, !19, i64 16, !20, i64 24, !20, i64 32}
 ;.
 ; AMDGPU-DISABLED: [[META0:![0-9]+]] = !{i32 0, i32 64770, i32 541341486, !"do_not_spmdize_task", i32 74, i32 5}
 ; AMDGPU-DISABLED: [[META1:![0-9]+]] = !{i32 0, i32 64770, i32 541341486, !"sequential_loop_to_stack_var", i32 20, i32 1}
@@ -2518,9 +2538,6 @@ attributes #11 = { convergent }
 ; AMDGPU-DISABLED: [[META27:![0-9]+]] = !{!"any pointer", !20, i64 0}
 ; AMDGPU-DISABLED: [[LOOP28]] = distinct !{!28, !23, !24}
 ; AMDGPU-DISABLED: [[LOOP29]] = distinct !{!29, !23, !24}
-; AMDGPU-DISABLED: [[META30:![0-9]+]] = !{!31, !27, i64 0}
-; AMDGPU-DISABLED: [[META31:![0-9]+]] = !{!"kmp_task_t_with_privates", !32, i64 0}
-; AMDGPU-DISABLED: [[META32:![0-9]+]] = !{!"kmp_task_t", !27, i64 0, !27, i64 8, !19, i64 16, !20, i64 24, !20, i64 32}
 ;.
 ; NVPTX-DISABLED: [[META0:![0-9]+]] = !{i32 0, i32 64770, i32 541341486, !"do_not_spmdize_task", i32 74, i32 5}
 ; NVPTX-DISABLED: [[META1:![0-9]+]] = !{i32 0, i32 64770, i32 541341486, !"sequential_loop_to_stack_var", i32 20, i32 1}
@@ -2552,7 +2569,4 @@ attributes #11 = { convergent }
 ; NVPTX-DISABLED: [[META27:![0-9]+]] = !{!"any pointer", !20, i64 0}
 ; NVPTX-DISABLED: [[LOOP28]] = distinct !{!28, !23, !24}
 ; NVPTX-DISABLED: [[LOOP29]] = distinct !{!29, !23, !24}
-; NVPTX-DISABLED: [[META30:![0-9]+]] = !{!31, !27, i64 0}
-; NVPTX-DISABLED: [[META31:![0-9]+]] = !{!"kmp_task_t_with_privates", !32, i64 0}
-; NVPTX-DISABLED: [[META32:![0-9]+]] = !{!"kmp_task_t", !27, i64 0, !27, i64 8, !19, i64 16, !20, i64 24, !20, i64 32}
 ;.

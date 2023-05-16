@@ -10,7 +10,6 @@
 #define VECTOR_TRANSFORM_OPS
 
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
-include "mlir/Dialect/Transform/IR/TransformEffects.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
 include "mlir/Dialect/PDL/IR/PDLTypes.td"
 include "mlir/Dialect/Vector/Transforms/VectorTransformsBase.td"
@@ -45,6 +44,18 @@ def LowerVectorsOp : Op<Transform_Dialect, "vector.lower_vectors",
      DefaultValuedAttr<BoolAttr, "true">:$unroll_vector_transfers
   );
   let results = (outs PDL_Operation:$results);
+
+  let builders = [
+    OpBuilder<(ins "Type":$resultType, "Value":$target,
+      "const vector::LowerVectorsOptions &":$options), [{
+        return build($_builder, $_state, resultType, target,
+          options.vectorContractLowering,
+          options.vectorMultiReductionLowering, options.vectorTransferSplit,
+          options.vectorTransposeLowering, options.transposeAVX2Lowering,
+          options.unrollVectorTransfers);
+      }]
+    >
+  ];
 
   let assemblyFormat = [{
     $target

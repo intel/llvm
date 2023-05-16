@@ -15,6 +15,7 @@
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
 #include "sycl/detail/pi.h"
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
@@ -40,22 +41,12 @@ namespace sycl {
 const static specialization_id<int> SpecConst1{42};
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-struct MockKernelInfo {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
-};
-
-template <> struct KernelInfo<CacheTestKernel> : public MockKernelInfo {
+template <>
+struct KernelInfo<CacheTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "CacheTestKernel"; }
 };
-template <> struct KernelInfo<CacheTestKernel2> : public MockKernelInfo {
+template <>
+struct KernelInfo<CacheTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "CacheTestKernel2"; }
 };
 template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
@@ -68,7 +59,11 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;
 
+  std::vector<char> SpecConstData;
+  PiProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+
   PiPropertySet PropSet;
+  addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
@@ -256,7 +251,7 @@ TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
   detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
-  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache";
+  EXPECT_EQ(Cache.size(), 2U) << "Expect an entry for each build in the cache.";
 }
 
 // Check that kernel_bundle created through join() is not cached.

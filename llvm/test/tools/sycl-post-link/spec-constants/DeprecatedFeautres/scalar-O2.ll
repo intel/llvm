@@ -1,6 +1,6 @@
-; RUN: sycl-post-link --ir-output-only -spec-const=default %s -S -o - | \
+; RUN: sycl-post-link --ir-output-only -spec-const=default < %s -S -o - | \
 ; RUN:   FileCheck %s -check-prefixes=CHECK,CHECK-DEF
-; RUN: sycl-post-link --ir-output-only -spec-const=rt %s -S -o - | \
+; RUN: sycl-post-link --ir-output-only -spec-const=rt < %s -S -o - | \
 ; RUN:   FileCheck %s -check-prefixes=CHECK,CHECK-RT
 
 ; This test checks that the post link tool is able to correctly transform

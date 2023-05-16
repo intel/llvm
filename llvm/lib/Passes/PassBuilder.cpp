@@ -46,6 +46,7 @@
 #include "llvm/Analysis/InstCount.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/Analysis/Lint.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopCacheAnalysis.h"
@@ -72,6 +73,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/Analysis/UniformityAnalysis.h"
+#include "llvm/CodeGen/HardwareLoops.h"
 #include "llvm/CodeGen/TypePromotion.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
@@ -214,6 +216,7 @@
 #include "llvm/Transforms/Scalar/NaryReassociate.h"
 #include "llvm/Transforms/Scalar/NewGVN.h"
 #include "llvm/Transforms/Scalar/PartiallyInlineLibCalls.h"
+#include "llvm/Transforms/Scalar/PlaceSafepoints.h"
 #include "llvm/Transforms/Scalar/Reassociate.h"
 #include "llvm/Transforms/Scalar/Reg2Mem.h"
 #include "llvm/Transforms/Scalar/RewriteStatepointsForGC.h"
@@ -236,6 +239,7 @@
 #include "llvm/Transforms/Utils/BreakCriticalEdges.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/CanonicalizeFreezeInLoops.h"
+#include "llvm/Transforms/Utils/CountVisits.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/FixIrreducible.h"
@@ -548,6 +552,48 @@ auto parsePassParameters(ParametersParseCallableT &&Parser, StringRef Name,
   return Result;
 }
 
+/// Parser of parameters for HardwareLoops  pass.
+Expected<HardwareLoopOptions> parseHardwareLoopOptions(StringRef Params) {
+  HardwareLoopOptions HardwareLoopOpts;
+
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+    if (ParamName.consume_front("hardware-loop-decrement=")) {
+      int Count;
+      if (ParamName.getAsInteger(0, Count))
+        return make_error<StringError>(
+            formatv("invalid HardwareLoopPass parameter '{0}' ", ParamName).str(),
+            inconvertibleErrorCode());
+      HardwareLoopOpts.setDecrement(Count);
+      continue;
+    }
+    if (ParamName.consume_front("hardware-loop-counter-bitwidth=")) {
+      int Count;
+      if (ParamName.getAsInteger(0, Count))
+        return make_error<StringError>(
+            formatv("invalid HardwareLoopPass parameter '{0}' ", ParamName).str(),
+            inconvertibleErrorCode());
+      HardwareLoopOpts.setCounterBitwidth(Count);
+      continue;
+    }
+    if (ParamName == "force-hardware-loops") {
+      HardwareLoopOpts.setForce(true);
+    } else if (ParamName == "force-hardware-loop-phi") {
+      HardwareLoopOpts.setForcePhi(true);
+    } else if (ParamName == "force-nested-hardware-loop") {
+      HardwareLoopOpts.setForceNested(true);
+    } else if (ParamName == "force-hardware-loop-guard") {
+      HardwareLoopOpts.setForceGuard(true);
+    } else {
+      return make_error<StringError>(
+          formatv("invalid HardwarePass parameter '{0}' ", ParamName).str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return HardwareLoopOpts;
+}
+
 /// Parser of parameters for LoopUnroll pass.
 Expected<LoopUnrollOptions> parseLoopUnrollOptions(StringRef Params) {
   LoopUnrollOptions UnrollOpts;
@@ -743,6 +789,33 @@ Expected<SimplifyCFGOptions> parseSimplifyCFGOptions(StringRef Params) {
   return Result;
 }
 
+Expected<InstCombineOptions> parseInstCombineOptions(StringRef Params) {
+  InstCombineOptions Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    bool Enable = !ParamName.consume_front("no-");
+    if (ParamName == "use-loop-info") {
+      Result.setUseLoopInfo(Enable);
+    } else if (Enable && ParamName.consume_front("max-iterations=")) {
+      APInt MaxIterations;
+      if (ParamName.getAsInteger(0, MaxIterations))
+        return make_error<StringError>(
+            formatv("invalid argument to InstCombine pass max-iterations "
+                    "parameter: '{0}' ",
+                    ParamName).str(),
+            inconvertibleErrorCode());
+      Result.setMaxIterations((unsigned)MaxIterations.getZExtValue());
+    } else {
+      return make_error<StringError>(
+          formatv("invalid InstCombine pass parameter '{0}' ", ParamName).str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return Result;
+}
+
 /// Parser of parameters for LoopVectorize pass.
 Expected<LoopVectorizeOptions> parseLoopVectorizeOptions(StringRef Params) {
   LoopVectorizeOptions Opts;
@@ -902,6 +975,11 @@ Expected<bool> parseDependenceAnalysisPrinterOptions(StringRef Params) {
                                "DependenceAnalysisPrinter");
 }
 
+Expected<bool> parseSeparateConstOffsetFromGEPPassOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "lower-gep",
+                               "SeparateConstOffsetFromGEP");
+}
+
 } // namespace
 
 /// Tests whether a pass name starts with a valid prefix for a default pipeline
@@ -1027,7 +1105,7 @@ static bool isLoopNestPassName(StringRef Name, CallbacksT &Callbacks,
   if (parseRepeatPassName(Name))
     return true;
 
-  if (Name == "lnicm") {
+  if (checkParametrizedPassName(Name, "lnicm")) {
     UseMemorySSA = true;
     return true;
   }
@@ -1049,7 +1127,7 @@ static bool isLoopPassName(StringRef Name, CallbacksT &Callbacks,
   if (parseRepeatPassName(Name))
     return true;
 
-  if (Name == "licm") {
+  if (checkParametrizedPassName(Name, "licm")) {
     UseMemorySSA = true;
     return true;
   }

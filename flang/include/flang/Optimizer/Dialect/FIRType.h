@@ -276,6 +276,9 @@ bool isPointerType(mlir::Type ty);
 /// Return true iff `ty` is the type of an ALLOCATABLE entity or value.
 bool isAllocatableType(mlir::Type ty);
 
+/// Return true iff `ty` is !fir.box<none>.
+bool isBoxNone(mlir::Type ty);
+
 /// Return true iff `ty` is the type of a boxed record type.
 /// e.g. !fir.box<!fir.type<derived>>
 bool isBoxedRecordType(mlir::Type ty);
@@ -339,6 +342,27 @@ inline mlir::Type wrapInClassOrBoxType(mlir::Type eleTy,
   if (isPolymorphic && !isAssumedType)
     return fir::ClassType::get(eleTy);
   return fir::BoxType::get(eleTy);
+}
+
+/// Return the elementType where intrinsic types are replaced with none for
+/// unlimited polymorphic entities.
+///
+/// i32 -> none
+/// !fir.array<2xf32> -> !fir.array<2xnone>
+/// !fir.heap<!fir.array<2xf32>> -> !fir.heap<!fir.array<2xnone>>
+inline mlir::Type updateTypeForUnlimitedPolymorphic(mlir::Type ty) {
+  if (auto seqTy = ty.dyn_cast<fir::SequenceType>())
+    return fir::SequenceType::get(
+        seqTy.getShape(), updateTypeForUnlimitedPolymorphic(seqTy.getEleTy()));
+  if (auto heapTy = ty.dyn_cast<fir::HeapType>())
+    return fir::HeapType::get(
+        updateTypeForUnlimitedPolymorphic(heapTy.getEleTy()));
+  if (auto pointerTy = ty.dyn_cast<fir::PointerType>())
+    return fir::PointerType::get(
+        updateTypeForUnlimitedPolymorphic(pointerTy.getEleTy()));
+  if (!ty.isa<mlir::NoneType, fir::RecordType>())
+    return mlir::NoneType::get(ty.getContext());
+  return ty;
 }
 
 /// Is `t` an address to fir.box or class type?

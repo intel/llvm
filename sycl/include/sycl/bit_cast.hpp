@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/detail/memcpy.hpp>
+
 #include <type_traits>
 
 #if __cpp_lib_bit_cast
@@ -16,11 +18,6 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-
-// forward decl
-namespace detail {
-inline void memcpy(void *Dst, const void *Src, std::size_t Size);
-}
 
 template <typename To, typename From>
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)

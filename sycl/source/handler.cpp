@@ -877,5 +877,10 @@ void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
   setType(detail::CG::CopyFromDeviceGlobal);
 }
 
+const std::shared_ptr<detail::context_impl> &
+handler::getContextImplPtr() const {
+  return MQueue->getContextImplPtr();
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

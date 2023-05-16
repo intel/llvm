@@ -11,6 +11,7 @@
 #include <detail/device_image_impl.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -22,19 +23,11 @@ const static sycl::specialization_id<int> SpecConst1{42};
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<TestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return "SpecializationConstant_TestKernel";
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {

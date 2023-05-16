@@ -245,10 +245,10 @@ struct payload_t {
     source_file = sf;
     line_no = line;
     column_no = col;
-    if (kname) {
+    if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
-    if (sf) {
+    if (sf && sf[0] != '\0') {
       flags |= (uint64_t)payload_flag_t::SourceFileAvailable |
                (uint64_t)payload_flag_t::LineInfoAvailable |
                (uint64_t)payload_flag_t::ColumnInfoAvailable;
@@ -726,6 +726,9 @@ constexpr uint16_t trace_offload_buffer_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_buffer);
 constexpr uint16_t trace_offload_accessor_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_accessor);
+
+constexpr uint16_t trace_diagnostics =
+    static_cast<uint16_t>(xpti::trace_point_type_t::diagnostics);
 } // namespace xpti
 
 using xpti_tp = xpti::trace_point_type_t;

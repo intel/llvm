@@ -280,28 +280,28 @@ void foo() {
 
   // any
   CHECK(int, bool, any, int16_t)
-  CHECK(int, bool, any, int16v)
+  CHECK(int, int, any, int16v)
   CHECK2020(_, bool, any, int16m)
 
   CHECK(int, bool, any, int32_t)
-  CHECK(int, bool, any, int32v)
+  CHECK(int, int, any, int32v)
   CHECK2020(_, bool, any, int32m)
 
   CHECK(int, bool, any, int64_t)
-  CHECK(int, bool, any, int64v)
+  CHECK(int, int, any, int64v)
   CHECK2020(_, bool, any, int64m)
 
   // all
   CHECK(int, bool, all, int16_t)
-  CHECK(int, bool, all, int16v)
+  CHECK(int, int, all, int16v)
   CHECK2020(_, bool, all, int16m)
 
   CHECK(int, bool, all, int32_t)
-  CHECK(int, bool, all, int32v)
+  CHECK(int, int, all, int32v)
   CHECK2020(_, bool, all, int32m)
 
   CHECK(int, bool, all, int64_t)
-  CHECK(int, bool, all, int64v)
+  CHECK(int, int, all, int64v)
   CHECK2020(_, bool, all, int64m)
 
   // bitselect

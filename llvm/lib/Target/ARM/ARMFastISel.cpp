@@ -310,7 +310,7 @@ unsigned ARMFastISel::fastEmitInst_r(unsigned MachineInstOpcode,
                    .addReg(Op0));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -337,7 +337,7 @@ unsigned ARMFastISel::fastEmitInst_rr(unsigned MachineInstOpcode,
                    .addReg(Op1));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -362,7 +362,7 @@ unsigned ARMFastISel::fastEmitInst_ri(unsigned MachineInstOpcode,
                    .addImm(Imm));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -381,7 +381,7 @@ unsigned ARMFastISel::fastEmitInst_i(unsigned MachineInstOpcode,
                    .addImm(Imm));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -1842,7 +1842,7 @@ CCAssignFn *ARMFastISel::CCAssignFnForCall(CallingConv::ID CC,
   case CallingConv::CXX_FAST_TLS:
     // Use target triple & subtarget features to do actual dispatch.
     if (Subtarget->isAAPCS_ABI()) {
-      if (Subtarget->hasVFP2Base() &&
+      if (Subtarget->hasFPRegs() &&
           TM.Options.FloatABIType == FloatABI::Hard && !isVarArg)
         return (Return ? RetCC_ARM_AAPCS_VFP: CC_ARM_AAPCS_VFP);
       else

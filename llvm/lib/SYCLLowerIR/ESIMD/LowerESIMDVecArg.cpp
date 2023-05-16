@@ -213,6 +213,13 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     ReplaceInstWithInst(OldInst, NewInst);
   }
 
+  // Make sure to update any metadata as well
+  if(F.isUsedByMetadata()) {
+    // The old function is about to be destroyed, so
+    // just change its type so all replacement works.
+    F.mutateType(NF->getType());
+    ValueAsMetadata::handleRAUW(&F, NF);
+  }
   F.eraseFromParent();
 
   return NF;
@@ -221,7 +228,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
 // This function creates new global variables of type vector* type
 // when old one is of simd* type.
 void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
-  for (auto &G : M.getGlobalList()) {
+  for (auto &G : M.globals()) {
     Type *GVTy = G.getValueType();
     Type *NewTy = esimd::getVectorTyOrNull(dyn_cast<StructType>(GVTy));
     if (NewTy && !G.user_empty()) {
@@ -236,7 +243,7 @@ void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
       NewGlobalVar->copyAttributesFrom(&G);
       NewGlobalVar->takeName(&G);
       NewGlobalVar->copyMetadata(&G, 0);
-      M.getGlobalList().push_back(NewGlobalVar);
+      M.insertGlobalVariable(NewGlobalVar);
       OldNewGlobal.insert(std::make_pair(&G, NewGlobalVar));
     }
   }

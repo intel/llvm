@@ -23,6 +23,8 @@
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
@@ -130,33 +132,21 @@ struct LowerGpuOpsToROCDLOpsPass
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 
-    // Apply memory space lowering. The target uses 3 for workgroup memory and 5
-    // for private memory.
-    {
-      RewritePatternSet patterns(ctx);
-      TypeConverter typeConverter;
-      typeConverter.addConversion([](Type t) { return t; });
-      gpu::populateMemorySpaceAttributeTypeConversions(
-          typeConverter, [](gpu::AddressSpace space) {
-            switch (space) {
-            case gpu::AddressSpace::Global:
-              return 1;
-            case gpu::AddressSpace::Workgroup:
-              return 3;
-            case gpu::AddressSpace::Private:
-              return 5;
-            }
-            llvm_unreachable("unknown address space enum value");
-            return 0;
-          });
-      ConversionTarget target(getContext());
-      gpu::populateLowerMemorySpaceOpLegality(target);
-      gpu::populateMemorySpaceLoweringPatterns(typeConverter, patterns);
-      if (failed(applyFullConversion(m, target, std::move(patterns))))
-        return signalPassFailure();
-    }
-
     LLVMTypeConverter converter(ctx, options);
+    populateGpuMemorySpaceAttributeConversions(
+        converter, [](gpu::AddressSpace space) {
+          switch (space) {
+          case gpu::AddressSpace::Global:
+            return 1;
+          case gpu::AddressSpace::Workgroup:
+            return 3;
+          case gpu::AddressSpace::Private:
+            return 5;
+          }
+          llvm_unreachable("unknown address space enum value");
+          return 0;
+        });
+
     RewritePatternSet llvmPatterns(ctx);
 
     mlir::arith::populateArithToLLVMConversionPatterns(converter, llvmPatterns);
@@ -165,7 +155,7 @@ struct LowerGpuOpsToROCDLOpsPass
     populateVectorToLLVMConversionPatterns(converter, llvmPatterns);
     cf::populateControlFlowToLLVMConversionPatterns(converter, llvmPatterns);
     populateFuncToLLVMConversionPatterns(converter, llvmPatterns);
-    populateMemRefToLLVMConversionPatterns(converter, llvmPatterns);
+    populateFinalizeMemRefToLLVMConversionPatterns(converter, llvmPatterns);
     populateGpuToROCDLConversionPatterns(converter, llvmPatterns, runtime);
     LLVMConversionTarget target(getContext());
     configureGpuToROCDLConversionLegality(target);

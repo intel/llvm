@@ -11,6 +11,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/type_list.hpp>
+#include <sycl/half_type.hpp>
 
 #include <cstddef>
 
@@ -22,10 +23,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-namespace detail::half_impl {
-class half;
-} // namespace detail::half_impl
-using half = detail::half_impl::half;
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
@@ -502,6 +499,16 @@ using marray_integer_list =
 
 using integer_list =
     type_list<scalar_integer_list, vector_integer_list, marray_integer_list>;
+
+// bool types
+
+using marray_bool_list =
+    type_list<marray<bool, 1>, marray<bool, 2>, marray<bool, 3>,
+              marray<bool, 4>, marray<bool, 8>, marray<bool, 16>>;
+
+using scalar_bool_list = type_list<bool>;
+
+using bool_list = type_list<scalar_bool_list, marray_bool_list>;
 
 // basic types
 using scalar_signed_basic_list =

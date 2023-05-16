@@ -37,8 +37,8 @@ public:
         : FusedName{FusedName}, FusedKernels{FusedKernels},
           ParameterIdentities{ParameterIdentities},
           ParameterInternalization{ParameterInternalization},
-          NDRanges{NDRanges}, FusedNDRange{
-                                  jit_compiler::combineNDRanges(NDRanges)} {}
+          Constants{Constants}, NDRanges{NDRanges},
+          FusedNDRange{jit_compiler::combineNDRanges(NDRanges)} {}
 
     std::string FusedName;
     std::vector<std::string> FusedKernels;

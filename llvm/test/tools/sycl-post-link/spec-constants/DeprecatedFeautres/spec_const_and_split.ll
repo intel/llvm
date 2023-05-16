@@ -6,7 +6,7 @@
 ; constant property correctly: i.e. it doesn't put all specialization constants
 ; into properties of each device image
 
-; RUN: sycl-post-link -split=kernel -spec-const=rt -S %s -o %t.files.table
+; RUN: sycl-post-link -split=kernel -spec-const=rt -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefixes CHECK-IR0
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefixes CHECK-PROP0
 ; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefixes CHECK-IR1

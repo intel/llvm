@@ -35,11 +35,6 @@ def _getSuitableClangTidy(cfg):
     return None
 
 DEFAULT_FEATURES = [
-  Feature(name='fcoroutines-ts',
-          when=lambda cfg: hasCompileFlag(cfg, '-fcoroutines-ts') and
-                           featureTestMacros(cfg, flags='-fcoroutines-ts').get('__cpp_coroutines', 0) >= 201703,
-          actions=[AddCompileFlag('-fcoroutines-ts')]),
-
   Feature(name='thread-safety',
           when=lambda cfg: hasCompileFlag(cfg, '-Werror=thread-safety'),
           actions=[AddCompileFlag('-Werror=thread-safety')]),
@@ -159,9 +154,6 @@ DEFAULT_FEATURES = [
   Feature(name='has-clang-tidy',
           when=lambda cfg: _getSuitableClangTidy(cfg) is not None,
           actions=[AddSubstitution('%{clang-tidy}', lambda cfg: _getSuitableClangTidy(cfg))]),
-  Feature(name='has-clang-query',
-          when=lambda cfg: runScriptExitCode(cfg, ['clang-query-15 --version']) == 0,
-          actions=[AddSubstitution('%{clang-query}', 'clang-query-15')]),
 
   Feature(name='apple-clang',                                                                                                      when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}'.format(**compilerMacros(cfg)),                                          when=_isAppleClang),
@@ -277,7 +269,8 @@ DEFAULT_FEATURES += [
           """), actions=[AddCompileFlag('-DTEST_WINDOWS_DLL')]),
   Feature(name='linux', when=lambda cfg: '__linux__' in compilerMacros(cfg)),
   Feature(name='netbsd', when=lambda cfg: '__NetBSD__' in compilerMacros(cfg)),
-  Feature(name='freebsd', when=lambda cfg: '__FreeBSD__' in compilerMacros(cfg))
+  Feature(name='freebsd', when=lambda cfg: '__FreeBSD__' in compilerMacros(cfg)),
+  Feature(name='LIBCXX-FREEBSD-FIXME', when=lambda cfg: '__FreeBSD__' in compilerMacros(cfg)),
 ]
 
 # Add features representing the build host platform name.

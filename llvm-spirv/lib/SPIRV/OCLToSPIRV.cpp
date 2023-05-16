@@ -811,8 +811,8 @@ void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
                                   .Case("ballot_inclusive_scan", "add")
                                   .Case("ballot_exclusive_scan", "add")
                                   .Default(FuncName.take_back(
-                                      3)); // assumes op is three characters
-          GroupOp.consume_front("_");      // when op is two characters
+                                      3));    // assumes op is three characters
+          (void)(GroupOp.consume_front("_")); // when op is two characters
           assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
           auto OpTy = F->getReturnType();
@@ -1403,7 +1403,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // TODO: these numbers should be obtained from block literal structure
   Type *ParamType = getBlockStructType(BlockLiteral);
   Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
-  Args.push_back(getInt32(M, DL.getPrefTypeAlignment(ParamType)));
+  Args.push_back(getInt32(M, DL.getPrefTypeAlign(ParamType).value()));
 
   // Local sizes arguments: Sizes of block invoke arguments
   // Clang 6.0 and higher generates local size operands as an array,
@@ -1457,7 +1457,7 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
         // Add Param Size and Param Align at the end.
         Args[BlockFIdx] = BlockF;
         Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
-        Args.push_back(getInt32(M, DL.getPrefTypeAlignment(ParamType)));
+        Args.push_back(getInt32(M, DL.getPrefTypeAlign(ParamType).value()));
 
         Op Opcode = OCLSPIRVBuiltinMap::map(DemangledName.str());
         // Adding "__" postfix, so in case we have multiple such

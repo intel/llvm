@@ -219,7 +219,8 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::half")) {
@@ -234,7 +235,8 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::bfloat16")) {

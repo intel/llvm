@@ -26,8 +26,15 @@
 #endif
 #endif // __SYCL_ALWAYS_INLINE
 
-#ifndef SYCL_EXTERNAL
+#ifdef SYCL_EXTERNAL
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#else
+#ifdef __SYCL_DEVICE_ONLY__
+#define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
+#else
+#define __DPCPP_SYCL_EXTERNAL
 #define SYCL_EXTERNAL
+#endif
 #endif
 
 #ifndef __SYCL_ID_QUERIES_FIT_IN_INT__

@@ -1228,8 +1228,7 @@ function(export_executable_symbols target)
           endif()
           get_target_property(transitive_libs ${lib} INTERFACE_LINK_LIBRARIES)
           foreach(transitive_lib ${transitive_libs})
-            list(FIND link_libs ${transitive_lib} idx)
-            if(TARGET ${transitive_lib} AND idx EQUAL -1)
+            if(TARGET ${transitive_lib} AND NOT ${transitive_lib} IN_LIST link_libs)
               list(APPEND newer_libs ${transitive_lib})
               list(APPEND link_libs ${transitive_lib})
             endif()
@@ -1316,6 +1315,10 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     strings
     strip
     )
+  # Build llvm-mt if libxml2 is enabled. Can be used by runtimes.
+  if (LLVM_ENABLE_LIBXML2)
+    list(APPEND LLVM_TOOLCHAIN_TOOLS llvm-mt)
+  endif()
 endif()
 
 macro(llvm_add_tool project name)

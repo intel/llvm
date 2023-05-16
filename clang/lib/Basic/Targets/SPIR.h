@@ -15,10 +15,11 @@
 
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Compiler.h"
 #include "OSTargets.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 namespace clang {
@@ -193,6 +194,8 @@ public:
   bool hasFeature(StringRef Feature) const override {
     return Feature == "spir";
   }
+
+  bool checkArithmeticFenceSupported() const override { return true; }
 };
 
 class LLVM_LIBRARY_VISIBILITY SPIR32TargetInfo : public SPIRTargetInfo {

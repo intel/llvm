@@ -569,6 +569,7 @@ void TypeLocWriter::VisitPackExpansionTypeLoc(PackExpansionTypeLoc TL) {
 
 void TypeLocWriter::VisitObjCInterfaceTypeLoc(ObjCInterfaceTypeLoc TL) {
   addSourceLocation(TL.getNameLoc());
+  addSourceLocation(TL.getNameEndLoc());
 }
 
 void TypeLocWriter::VisitObjCObjectTypeLoc(ObjCObjectTypeLoc TL) {
@@ -4411,6 +4412,14 @@ void ASTWriter::AddToken(const Token &Tok, RecordDataImpl &Record) {
         AddToken(T, Record);
       break;
     }
+    case tok::annot_pragma_pack: {
+      auto *Info =
+          static_cast<Sema::PragmaPackInfo *>(Tok.getAnnotationValue());
+      Record.push_back(static_cast<unsigned>(Info->Action));
+      AddString(Info->SlotLabel, Record);
+      AddToken(Info->Alignment, Record);
+      break;
+    }
     // Some annotation tokens do not use the PtrData field.
     case tok::annot_pragma_openmp:
     case tok::annot_pragma_openmp_end:
@@ -6789,9 +6798,12 @@ void OMPClauseWriter::VisitOMPMapClause(OMPMapClause *C) {
   Record.push_back(C->getTotalComponentListNum());
   Record.push_back(C->getTotalComponentsNum());
   Record.AddSourceLocation(C->getLParenLoc());
+  bool HasIteratorModifier = false;
   for (unsigned I = 0; I < NumberOfOMPMapClauseModifiers; ++I) {
     Record.push_back(C->getMapTypeModifier(I));
     Record.AddSourceLocation(C->getMapTypeModifierLoc(I));
+    if (C->getMapTypeModifier(I) == OMPC_MAP_MODIFIER_iterator)
+      HasIteratorModifier = true;
   }
   Record.AddNestedNameSpecifierLoc(C->getMapperQualifierLoc());
   Record.AddDeclarationNameInfo(C->getMapperIdInfo());
@@ -6802,6 +6814,8 @@ void OMPClauseWriter::VisitOMPMapClause(OMPMapClause *C) {
     Record.AddStmt(E);
   for (auto *E : C->mapperlists())
     Record.AddStmt(E);
+  if (HasIteratorModifier)
+    Record.AddStmt(C->getIteratorModifier());
   for (auto *D : C->all_decls())
     Record.AddDeclRef(D);
   for (auto N : C->all_num_lists())
@@ -7114,6 +7128,12 @@ void OMPClauseWriter::VisitOMPBindClause(OMPBindClause *C) {
   Record.writeEnum(C->getBindKind());
   Record.AddSourceLocation(C->getLParenLoc());
   Record.AddSourceLocation(C->getBindKindLoc());
+}
+
+void OMPClauseWriter::VisitOMPXDynCGroupMemClause(OMPXDynCGroupMemClause *C) {
+  VisitOMPClauseWithPreInit(C);
+  Record.AddStmt(C->getSize());
+  Record.AddSourceLocation(C->getLParenLoc());
 }
 
 void ASTRecordWriter::writeOMPTraitInfo(const OMPTraitInfo *TI) {

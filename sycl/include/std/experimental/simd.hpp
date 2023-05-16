@@ -1652,7 +1652,7 @@ class simd_mask {
 public:
   using value_type = bool;
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
-  using reference = __simd_mask_reference<_Tp, _Abi>;
+  using reference = __simd_mask_reference<element_type, _Abi>;
 #else
   // TODO: this is strawman implementation. Turn it into a proxy type.
   using reference = bool&;
@@ -1682,12 +1682,14 @@ public:
 
   // implicit type conversion constructor
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
-  // TODO inefficient, use this's and __v's storage directly
   template <class _Up>
   simd_mask(const simd_mask<_Up, simd_abi::fixed_size<size()>>& __v) noexcept {
-    for (size_t __i = 0; __i < size(); __i++) {
-      (*this)[__i] = static_cast<element_type>(__v[__i]);
-    }
+    copyElements(__v);
+  }
+
+  template <class _Up>
+  simd_mask(const simd_mask<_Up, abi_type>& __v) noexcept {
+    copyElements(__v);
   }
 #else
   template <class _Up>
@@ -1735,6 +1737,14 @@ public:
 #ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
 private:
   __simd_storage<element_type, _Abi> __s_;
+
+  // TODO inefficient, use this's and __v's storage directly
+  template <class _Up, class _UAbi>
+  inline void copyElements(const simd_mask<_Up, _UAbi> & __v) noexcept {
+    for (size_t __i = 0; __i < size(); __i++) {
+      (*this)[__i] = static_cast<element_type>(__v[__i]);
+    }
+  }
 #endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
 };
 

@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=kernel -symbols -S %s -o %t.files.table
+; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefixes CHECK-MODULE0,CHECK
 ; RUN: FileCheck %s -input-file=%t.files_0.sym --check-prefixes CHECK-MODULE0-TXT
 ; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefixes CHECK-MODULE1,CHECK

@@ -7,14 +7,17 @@ add_flang_library(FIRBuilder
   DoLoopHelper.cpp
   FIRBuilder.cpp
   HLFIRTools.cpp
+  IntrinsicCall.cpp
   LowLevelIntrinsics.cpp
   MutableBox.cpp
+  Runtime/Allocatable.cpp
   Runtime/Assign.cpp
   Runtime/Character.cpp
   Runtime/Command.cpp
   Runtime/Derived.cpp
   Runtime/EnvironmentDefaults.cpp
   Runtime/Inquiry.cpp
+  Runtime/Intrinsics.cpp
   Runtime/Numeric.cpp
   Runtime/Ragged.cpp
   Runtime/Reduction.cpp

@@ -52,10 +52,6 @@ on:
         type: string
         required: false
         default: 'intel'
-      max_parallel:
-        type: number
-        required: false
-        default: 4
       cts_matrix:
         type: string
         required: false
@@ -193,7 +189,6 @@ jobs:
     if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
     name: ${{ matrix.name }}
@@ -241,7 +236,6 @@ jobs:
     if: ${{ inputs.cts_matrix != '' }}
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
       matrix:
         include: ${{ fromJSON(inputs.cts_matrix) }}
     name: ${{ matrix.name }}

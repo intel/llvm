@@ -1397,23 +1397,18 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
                                 MFnI.needsDwarfUnwindInfo(MF));
 
   if (MFnI.shouldSignReturnAddress(MF)) {
-    unsigned PACI;
     if (MFnI.shouldSignWithBKey()) {
       BuildMI(MBB, MBBI, DL, TII->get(AArch64::EMITBKEY))
           .setMIFlag(MachineInstr::FrameSetup);
-      // No SEH opcode for this one; it doesn't materialize into an
-      // instruction on Windows.
-      PACI = Subtarget.hasPAuth() ? AArch64::PACIB : AArch64::PACIBSP;
-    } else {
-      PACI = Subtarget.hasPAuth() ? AArch64::PACIA : AArch64::PACIASP;
     }
 
-    auto MI = BuildMI(MBB, MBBI, DL, TII->get(PACI));
-    if (Subtarget.hasPAuth())
-      MI.addReg(AArch64::LR, RegState::Define)
-          .addReg(AArch64::LR)
-          .addReg(AArch64::SP, RegState::InternalRead);
-    MI.setMIFlag(MachineInstr::FrameSetup);
+    // No SEH opcode for this one; it doesn't materialize into an
+    // instruction on Windows.
+    BuildMI(MBB, MBBI, DL,
+            TII->get(MFnI.shouldSignWithBKey() ? AArch64::PACIBSP
+                                               : AArch64::PACIASP))
+        .setMIFlag(MachineInstr::FrameSetup);
+
     if (EmitCFI) {
       unsigned CFIIndex =
           MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
@@ -3079,9 +3074,18 @@ void AArch64FrameLowering::determineCalleeSaves(MachineFunction &MF,
   // won't include them.
   unsigned EstimatedStackSizeLimit = estimateRSStackSizeLimit(MF);
 
+  // We may address some of the stack above the canonical frame address, either
+  // for our own arguments or during a call. Include that in calculating whether
+  // we have complicated addressing concerns.
+  int64_t CalleeStackUsed = 0;
+  for (int I = MFI.getObjectIndexBegin(); I != 0; ++I) {
+    int64_t FixedOff = MFI.getObjectOffset(I);
+    if (FixedOff > CalleeStackUsed) CalleeStackUsed = FixedOff;
+  }
+
   // Conservatively always assume BigStack when there are SVE spills.
-  bool BigStack = SVEStackSize ||
-                  (EstimatedStackSize + CSStackSize) > EstimatedStackSizeLimit;
+  bool BigStack = SVEStackSize || (EstimatedStackSize + CSStackSize +
+                                   CalleeStackUsed) > EstimatedStackSizeLimit;
   if (BigStack || !CanEliminateFrame || RegInfo->cannotEliminateFrame(MF))
     AFI->setHasStackFrame(true);
 
@@ -3434,7 +3438,11 @@ void TagStoreEdit::emitUnrolled(MachineBasicBlock::iterator InsertI) {
   Register BaseReg = FrameReg;
   int64_t BaseRegOffsetBytes = FrameRegOffset.getFixed();
   if (BaseRegOffsetBytes < kMinOffset ||
-      BaseRegOffsetBytes + (Size - Size % 32) > kMaxOffset) {
+      BaseRegOffsetBytes + (Size - Size % 32) > kMaxOffset ||
+      // BaseReg can be FP, which is not necessarily aligned to 16-bytes. In
+      // that case, BaseRegOffsetBytes will not be aligned to 16 bytes, which
+      // is required for the offset of ST2G.
+      BaseRegOffsetBytes % 16 != 0) {
     Register ScratchReg = MRI->createVirtualRegister(&AArch64::GPR64RegClass);
     emitFrameOffset(*MBB, InsertI, DL, ScratchReg, BaseReg,
                     StackOffset::getFixed(BaseRegOffsetBytes), TII);
@@ -3449,6 +3457,7 @@ void TagStoreEdit::emitUnrolled(MachineBasicBlock::iterator InsertI) {
         InstrSize == 16
             ? (ZeroData ? AArch64::STZGOffset : AArch64::STGOffset)
             : (ZeroData ? AArch64::STZ2GOffset : AArch64::ST2GOffset);
+    assert(BaseRegOffsetBytes % 16 == 0);
     MachineInstr *I = BuildMI(*MBB, InsertI, DL, TII->get(Opcode))
                           .addReg(AArch64::SP)
                           .addReg(BaseReg)
