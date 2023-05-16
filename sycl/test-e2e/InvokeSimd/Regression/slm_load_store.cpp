@@ -1,10 +1,3 @@
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip
-//
-// TODO: enable when Jira issue resolved
-// REQUIRES: TEMPORARY_DISABLED
-//
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
@@ -23,6 +16,10 @@
 #include <iostream>
 #include <type_traits>
 
+// TODO: When gpu driver can pass/accept accessor by value,
+// the work-around undef #ifdef US_ACC_PTR should be removed.
+#define USE_ACC_PTR
+
 /* Subgroup size attribute is optional
  * In case it is absent compiler decides what subgroup size to use
  */
@@ -36,86 +33,113 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 namespace esimd = sycl::ext::intel::esimd;
 
-class Test {};
-
 using dtype = int;
 
 constexpr int VL = 16;
-constexpr int slm_size = 32 * 1024;
+constexpr uint32_t LocalRange = VL * 2;          // 2 sub-groups per 1 group.
+constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.
 
-ESIMD_INLINE void slm_load_store_test(nd_item<1> *ndi, dtype *A,
-                                      dtype *C) SYCL_ESIMD_FUNCTION {
-  /* TODO: SLM needs to be allocated from outside invoke_simd, but the proper
-   * intarface is not yet ready. Current test implementation in this regard is
-   * subject to future changes.
-   */
-  esimd::slm_init<slm_size>();
+ESIMD_INLINE void slm_load_store_test(
+    local_accessor<dtype, 1> LocalAcc, uint32_t LAByteOffset, dtype *A,
+    dtype *C, esimd::simd<uint32_t, VL> GlobalByteOffsets) SYCL_ESIMD_FUNCTION {
 
-  esimd::simd<dtype, VL> src_vec(0);
-  src_vec.copy_from(A);
-  esimd::slm_block_store<dtype, VL>(0, src_vec);
+  uint32_t LocalAccOffset =
+      static_cast<uint32_t>(
+          reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer())) +
+      LAByteOffset;
+  auto Local1 = esimd::slm_block_load<dtype, VL>(LocalAccOffset);
+  auto Local2 = esimd::slm_block_load<dtype, VL>(LocalAccOffset +
+                                                 LocalRange * sizeof(dtype));
 
-  esimd::simd<dtype, VL> dest_vec(0);
-  dest_vec = esimd::slm_block_load<dtype, VL>(0);
-  dest_vec.copy_to(C);
+  auto Global = esimd::gather(A, GlobalByteOffsets);
+  auto Res = Global + Local1 + Local2;
+  esimd::scatter(C, GlobalByteOffsets, Res);
 }
 
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall invoke_slm_load_store_test(
-    nd_item<1> *ndi, dtype *A, dtype *C) SYCL_ESIMD_FUNCTION;
+#ifdef USE_ACC_PTR
+    local_accessor<dtype, 1> *LocalAcc,
+#else
+    local_accessor<dtype, 1> LocalAcc,
+#endif
+    uint32_t SLMByteOffset, dtype *A, dtype *C,
+    simd<uint32_t, VL> GlobalByteOffsets) SYCL_ESIMD_FUNCTION {
+#ifdef USE_ACC_PTR
+  slm_load_store_test(*LocalAcc, SLMByteOffset, A, C, GlobalByteOffsets);
+#else
+  slm_load_store_test(LocalAcc, SLMByteOffset, A, C, GlobalByteOffsets);
+#endif
+}
 
 int main(void) {
-  auto q = queue{gpu_selector_v};
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
-  std::cout << "Local Memory Size: "
-            << q.get_device().get_info<sycl::info::device::local_mem_size>()
+  auto Q = queue{gpu_selector_v};
+  auto Dev = Q.get_device();
+  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << std::endl;
-  auto *A = malloc_shared<dtype>(VL, q);
-  auto *C = malloc_shared<dtype>(VL, q);
+  auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
+  std::cout << "Local Memory Size: " << DeviceSLMSize << std::endl;
 
-  for (auto i = 0; i < VL; i++) {
+  sycl::nd_range<1> NDRange{range<1>{GlobalRange}, range<1>{LocalRange}};
+
+  // The test is going to use (LocalRange * 2) elements of dtype type.
+  if (DeviceSLMSize < LocalRange * 2 * sizeof(dtype)) {
+    // Report an error - the test needs a fix.
+    std::cerr << "Error: Test needs more SLM memory than device has"
+              << std::endl;
+    return 1;
+  }
+
+  auto *A = malloc_shared<dtype>(GlobalRange, Q);
+  auto *C = malloc_shared<dtype>(GlobalRange, Q);
+
+  for (auto i = 0; i < GlobalRange; i++) {
     A[i] = i;
     C[i] = 0;
   }
   try {
-    sycl::nd_range<1> Range({1}, {1});
+    Q.submit([&](handler &CGH) {
+       auto LocalAcc = local_accessor<dtype, 1>(LocalRange * 2, CGH);
+       CGH.parallel_for(NDRange, [=](nd_item<1> Item) SUBGROUP_ATTR {
+         uint32_t GlobalId = Item.get_global_id(0);
+         uint32_t LocalId = Item.get_local_id(0);
+         auto LocalAccCopy = LocalAcc;
+         LocalAccCopy[LocalId] = GlobalId * 100;
+         LocalAccCopy[LocalId + LocalRange] = GlobalId * 10000;
+         Item.barrier();
 
-    auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for<Test>(Range, [=](nd_item<1> item) SUBGROUP_ATTR {
-        sycl::group<1> g = item.get_group();
-        sycl::sub_group sg = item.get_sub_group();
-        invoke_simd(sg, invoke_slm_load_store_test, uniform{&item}, uniform{A},
-                    uniform{C});
-      });
-    });
-    e.wait();
+         uint32_t LAByteOffset = (LocalId / VL) * VL * sizeof(dtype);
+         uint32_t GlobalByteOffset = GlobalId * sizeof(dtype);
+         sycl::sub_group SG = Item.get_sub_group();
+#ifdef USE_ACC_PTR
+         auto LocalAccArg = uniform{&LocalAccCopy};
+#else
+         auto LocalAccArg = uniform{LocalAccCopy};
+#endif
+         invoke_simd(SG, invoke_slm_load_store_test, LocalAccArg,
+                     uniform{LAByteOffset}, uniform{A}, uniform{C},
+                     GlobalByteOffset);
+       });
+     }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(A, q);
-    free(C, q);
+    free(A, Q);
+    free(C, Q);
     return e.code().value();
   }
 
-  bool pass = true;
-  for (auto i = 0; i < VL; i++) {
-    if (A[i] != C[i]) {
-      std::cout << " C[" << i << "]:" << C[i] << ", A[" << i << "]:" << A[i]
-                << std::endl;
-      pass = false;
+  bool Pass = true;
+  for (auto i = 0; i < GlobalRange; i++) {
+    dtype Expected = A[i] + i * (10000 + 100);
+    if (C[i] != Expected) {
+      std::cout << "Error: C[" << i << "]:" << C[i]
+                << " != [expected]:" << Expected << std::endl;
+      Pass = false;
     }
   }
 
-  free(A, q);
-  free(C, q);
+  free(A, Q);
+  free(C, Q);
 
-  std::cout << "Test result: " << (pass ? "Pass" : "Fail") << std::endl;
-  return pass ? 0 : 1;
-}
-
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall invoke_slm_load_store_test(
-    nd_item<1> *ndi, dtype *A, dtype *C) SYCL_ESIMD_FUNCTION {
-  slm_load_store_test(ndi, A, C);
+  std::cout << "Test result: " << (Pass ? "Pass" : "Fail") << std::endl;
+  return Pass ? 0 : 1;
 }

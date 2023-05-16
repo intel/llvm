@@ -1,7 +1,5 @@
-// TODO: enable on Windows once driver is ready
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc && linux
-// UNSUPPORTED: cuda || hip
+// REQUIRES: gpu-intel-pvc
 //
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out

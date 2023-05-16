@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: accelerator
 // Assertion `!MHostPlatform && "Plugin is not available for Host."' failed on
 // Nvidia.
 // XFAIL: hip_nvidia
