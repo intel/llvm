@@ -1,3 +1,6 @@
+// REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to unimplemented sub-group support
 // XFAIL: esimd_emulator
 // RUN: %{build} -o %t.out

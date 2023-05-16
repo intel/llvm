@@ -1,4 +1,5 @@
 // REQUIRES: gpu-intel-pvc
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

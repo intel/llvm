@@ -10,7 +10,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// UNSUPPORTED: libcpp-has-no-incomplete-pstl
+// REQUIRES: with-pstl
 
 // template<class ExecutionPolicy, class ForwardIterator, class T>
 //   void fill(ExecutionPolicy&& exec,
@@ -61,11 +61,9 @@ struct Test {
   }
 };
 
-#ifndef TEST_HAS_NO_EXCEPTIONS
 struct ThrowOnCopy {
   ThrowOnCopy& operator=(const ThrowOnCopy&) { throw int{}; }
 };
-#endif
 
 int main(int, char**) {
   types::for_each(types::forward_iterator_list<int*>{}, TestIteratorWithPolicies<Test>{});

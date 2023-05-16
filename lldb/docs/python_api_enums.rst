@@ -731,7 +731,6 @@ LanguageType
 .. py:data:: eLanguageTypeFortran03
 .. py:data:: eLanguageTypeFortran08
 .. py:data:: eLanguageTypeMipsAssembler
-.. py:data:: eLanguageTypeMojo
 .. py:data:: eLanguageTypeExtRenderScript
 .. py:data:: eNumLanguageTypes
 

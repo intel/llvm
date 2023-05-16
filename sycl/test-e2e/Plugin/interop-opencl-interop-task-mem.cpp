@@ -1,5 +1,4 @@
 // REQUIRES: opencl, opencl_icd
-// REQUIRES: aspect-ext_intel_legacy_image
 
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out

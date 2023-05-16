@@ -8,6 +8,9 @@
 // This is basic test for mixing unnamed SYCL and ESIMD kernels in the same
 // source and in the same program .
 
+// REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip
 // UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

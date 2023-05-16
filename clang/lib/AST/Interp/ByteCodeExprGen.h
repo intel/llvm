@@ -185,7 +185,7 @@ protected:
                         llvm::function_ref<bool(const Expr *)> V);
 
   /// Creates a local primitive value.
-  unsigned allocateLocalPrimitive(DeclTy &&Decl, PrimType Ty, bool IsConst,
+  unsigned allocateLocalPrimitive(DeclTy &&Decl, PrimType Ty, bool IsMutable,
                                   bool IsExtended = false);
 
   /// Allocates a space storing a local given its type.

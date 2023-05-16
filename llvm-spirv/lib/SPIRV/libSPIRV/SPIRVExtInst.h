@@ -262,7 +262,6 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::Expression, "DebugExpression");
   add(SPIRVDebug::Operation, "DebugOperation");
   add(SPIRVDebug::FunctionDefinition, "DebugFunctionDefinition");
-  add(SPIRVDebug::SourceContinued, "DebugSourceContinued");
   add(SPIRVDebug::EntryPoint, "DebugEntryPoint");
 }
 SPIRV_DEF_NAMEMAP(SPIRVDebugExtOpKind, SPIRVDebugExtOpMap)

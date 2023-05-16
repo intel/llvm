@@ -15,6 +15,7 @@ define dso_local i64 @test_xor(ptr nocapture noundef readonly %inp) local_unname
 ; 64BIT-NEXT:    lbz r4, 0(r3)
 ; 64BIT-NEXT:    lbz r3, 1(r3)
 ; 64BIT-NEXT:    xor r3, r3, r4
+; 64BIT-NEXT:    clrldi r3, r3, 56
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_xor:
@@ -42,6 +43,7 @@ define dso_local i64 @test_xor2(ptr nocapture noundef readonly %inp) local_unnam
 ; 64BIT-NEXT:    lbz r3, 2(r3)
 ; 64BIT-NEXT:    xor r4, r5, r4
 ; 64BIT-NEXT:    xor r3, r4, r3
+; 64BIT-NEXT:    clrldi r3, r3, 56
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_xor2:
@@ -72,6 +74,7 @@ define dso_local i64 @test_or(ptr nocapture noundef readonly %inp) local_unnamed
 ; 64BIT-NEXT:    lbz r4, 0(r3)
 ; 64BIT-NEXT:    lbz r3, 1(r3)
 ; 64BIT-NEXT:    or r3, r3, r4
+; 64BIT-NEXT:    clrldi r3, r3, 56
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_or:
@@ -99,6 +102,7 @@ define dso_local i64 @test_or2(ptr nocapture noundef readonly %inp) local_unname
 ; 64BIT-NEXT:    lbz r3, 2(r3)
 ; 64BIT-NEXT:    or r4, r5, r4
 ; 64BIT-NEXT:    or r3, r4, r3
+; 64BIT-NEXT:    clrldi r3, r3, 56
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_or2:
@@ -129,6 +133,7 @@ define dso_local i64 @test_and(ptr nocapture noundef readonly %inp) local_unname
 ; 64BIT-NEXT:    lbz r4, 0(r3)
 ; 64BIT-NEXT:    lbz r3, 1(r3)
 ; 64BIT-NEXT:    and r3, r3, r4
+; 64BIT-NEXT:    clrldi r3, r3, 56
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_and:
@@ -156,6 +161,7 @@ define dso_local i64 @test_and2(ptr nocapture noundef readonly %inp) local_unnam
 ; 64BIT-NEXT:    lbz r3, 2(r3)
 ; 64BIT-NEXT:    and r4, r5, r4
 ; 64BIT-NEXT:    and r3, r4, r3
+; 64BIT-NEXT:    clrldi r3, r3, 56
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_and2:
@@ -190,6 +196,7 @@ define dso_local i64 @test_mixed(ptr nocapture noundef readonly %inp) local_unna
 ; 64BIT-NEXT:    and r4, r5, r4
 ; 64BIT-NEXT:    xor r4, r4, r6
 ; 64BIT-NEXT:    or r3, r4, r3
+; 64BIT-NEXT:    clrldi r3, r3, 56
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_mixed:
@@ -229,6 +236,7 @@ define dso_local i64 @test_mixedtype(ptr nocapture noundef readonly %inp, ptr no
 ; 64BIT-NEXT:    and r5, r6, r5
 ; 64BIT-NEXT:    xor r3, r5, r3
 ; 64BIT-NEXT:    or r3, r3, r4
+; 64BIT-NEXT:    clrldi r3, r3, 48
 ; 64BIT-NEXT:    blr
 ;
 ; 32BIT-LABEL: test_mixedtype:

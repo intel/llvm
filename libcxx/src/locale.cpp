@@ -6,6 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+// On Solaris, we need to define something to make the C99 parts of localeconv
+// visible.
+#ifdef __sun__
+#define _LCONV_C99
+#endif
+
 #include <__utility/unreachable.h>
 #include <algorithm>
 #include <clocale>
@@ -1183,6 +1189,8 @@ ctype<char>::classic_table() noexcept
     return _C_ctype_tab_ + 1;
 #elif defined(__GLIBC__)
     return _LIBCPP_GET_C_LOCALE->__ctype_b;
+#elif defined(__sun__)
+    return __ctype_mask;
 #elif defined(_LIBCPP_MSVCRT) || defined(__MINGW32__)
     return __pctype_func();
 #elif defined(__EMSCRIPTEN__)
@@ -1403,8 +1411,10 @@ ctype_byname<wchar_t>::do_is(const char_type* low, const char_type* high, mask* 
             if (iswxdigit_l(ch, __l_))
                 *vec |= xdigit;
 #endif
+#if !defined(__sun__)
             if (iswblank_l(ch, __l_))
                 *vec |= blank;
+#endif
         }
     }
     return low;

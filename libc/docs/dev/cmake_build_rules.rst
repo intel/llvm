@@ -6,7 +6,7 @@ The libc CMake build system
 
 At the cost of verbosity, we want to keep the build system of LLVM libc
 as simple as possible. We also want to be highly modular with our build
-targets. This makes picking and choosing desired pieces a straightforward
+targets. This makes picking and choosing desired pieces a straighforward
 task.
 
 Targets for entrypoints

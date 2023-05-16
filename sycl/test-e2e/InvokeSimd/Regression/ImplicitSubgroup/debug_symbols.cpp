@@ -1,3 +1,7 @@
+// TODO: enable on Windows once driver is ready
+// REQUIRES: gpu && linux
+// UNSUPPORTED: cuda || hip
+//
 // TODO: enable when Jira ticket resolved
 // XFAIL: gpu
 //

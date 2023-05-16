@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -DVER1 -o %t.out1
 // RUN: %{build} -DVER2 -o %t.out2
 // RUN: %{run} %t.out1

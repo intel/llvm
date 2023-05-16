@@ -420,11 +420,6 @@ public:
 
   void print(raw_ostream &OS) const;
   void dump() const;
-
-private:
-  // Internal helper for getting the initial KnownBits for an `srem` or `urem`
-  // operation with the low-bits set.
-  static KnownBits remGetLowBits(const KnownBits &LHS, const KnownBits &RHS);
 };
 
 inline KnownBits operator&(KnownBits LHS, const KnownBits &RHS) {

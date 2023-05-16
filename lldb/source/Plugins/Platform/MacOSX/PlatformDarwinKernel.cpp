@@ -201,7 +201,10 @@ public:
 
   FileSpecList GetKextDirectories() const {
     const uint32_t idx = ePropertyKextDirectories;
-    return GetPropertyAtIndexAs<FileSpecList>(idx, {});
+    const OptionValueFileSpecList *option_value =
+        m_collection_sp->GetPropertyAtIndexAsOptionValueFileSpecList(idx);
+    assert(option_value);
+    return option_value->GetCurrentValue();
   }
 };
 

@@ -24,7 +24,6 @@ TEST(VPDominatorTreeTest, DominanceNoRegionsTest) {
   //    \    /
   //    VPBB4
   //  }
-  VPBasicBlock *VPPH = new VPBasicBlock("ph");
   VPBasicBlock *VPBB0 = new VPBasicBlock("VPBB0");
   VPBasicBlock *VPBB1 = new VPBasicBlock("VPBB1");
   VPBasicBlock *VPBB2 = new VPBasicBlock("VPBB2");
@@ -40,8 +39,8 @@ TEST(VPDominatorTreeTest, DominanceNoRegionsTest) {
   VPBlockUtils::connectBlocks(VPBB2, VPBB4);
   VPBlockUtils::connectBlocks(VPBB3, VPBB4);
 
-  auto TC = std::make_unique<VPValue>();
-  VPlan Plan(VPPH, &*TC, VPBB0);
+  VPlan Plan;
+  Plan.setEntry(VPBB0);
   VPDominatorTree VPDT;
   VPDT.recalculate(Plan);
 
@@ -91,7 +90,6 @@ TEST(VPDominatorTreeTest, DominanceRegionsTest) {
     //    R2BB2
     // }
     //
-    VPBasicBlock *VPPH = new VPBasicBlock("ph");
     VPBasicBlock *VPBB0 = new VPBasicBlock("VPBB0");
     VPBasicBlock *R1BB1 = new VPBasicBlock();
     VPBasicBlock *R1BB2 = new VPBasicBlock();
@@ -114,8 +112,8 @@ TEST(VPDominatorTreeTest, DominanceRegionsTest) {
     VPBlockUtils::connectBlocks(R2BB1, R2BB2);
     VPBlockUtils::connectBlocks(R1, R2);
 
-    auto TC = std::make_unique<VPValue>();
-    VPlan Plan(VPPH, &*TC, VPBB0);
+    VPlan Plan;
+    Plan.setEntry(VPBB0);
     VPDominatorTree VPDT;
     VPDT.recalculate(Plan);
 
@@ -167,7 +165,6 @@ TEST(VPDominatorTreeTest, DominanceRegionsTest) {
     //   |
     //  VPBB2
     //
-    VPBasicBlock *VPPH = new VPBasicBlock("ph");
     VPBasicBlock *R1BB1 = new VPBasicBlock("R1BB1");
     VPBasicBlock *R1BB2 = new VPBasicBlock("R1BB2");
     VPBasicBlock *R1BB3 = new VPBasicBlock("R1BB3");
@@ -194,8 +191,8 @@ TEST(VPDominatorTreeTest, DominanceRegionsTest) {
     VPBasicBlock *VPBB2 = new VPBasicBlock("VPBB2");
     VPBlockUtils::connectBlocks(R1, VPBB2);
 
-    auto TC = std::make_unique<VPValue>();
-    VPlan Plan(VPPH, &*TC, VPBB1);
+    VPlan Plan;
+    Plan.setEntry(VPBB1);
     VPDominatorTree VPDT;
     VPDT.recalculate(Plan);
 

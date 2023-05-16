@@ -1,5 +1,6 @@
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include <iostream>
 #include <numeric>

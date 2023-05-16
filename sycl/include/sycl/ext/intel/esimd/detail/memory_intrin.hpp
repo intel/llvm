@@ -44,17 +44,13 @@ namespace ext::intel::esimd::detail {
 class AccessorPrivateProxy {
 public:
   template <typename AccessorTy>
-  static auto getQualifiedPtrOrImageObj(const AccessorTy &Acc) {
+  static auto getNativeImageObj(const AccessorTy &Acc) {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (sycl::detail::acc_properties::is_image_accessor_v<AccessorTy>)
-      return Acc.getNativeImageObj();
-    else
-      return Acc.getQualifiedPtr();
+    return Acc.getNativeImageObj();
 #else  // __SYCL_DEVICE_ONLY__
     return Acc;
 #endif // __SYCL_DEVICE_ONLY__
   }
-
 #ifndef __SYCL_DEVICE_ONLY__
   static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getPtr();
@@ -1170,7 +1166,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 
 // \brief Converts given value to a surface index.
 // The input must always be a result of
-//   detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc)
+//   detail::AccessorPrivateProxy::getNativeImageObj(acc)
 // where acc is a buffer or image accessor. If the result is, say, 'obj', then
 // 'obj' is really a value of the surface index kept in a differently typed
 // accessor field. Front-end compilation time type of 'obj' is either
@@ -1187,6 +1183,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 // This intrinsic can be called only from the device code, as
 // accessor => memory handle translation for host is different.
 // @param acc the SYCL accessor.
+//   getNativeImageObj.
 // Returns the binding table index value.
 template <typename MemObjTy>
 __ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)

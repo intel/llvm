@@ -78,12 +78,9 @@ public:
   constexpr bool isNone() const { return KindId == NKI_None; }
 
   /// Returns \c true if \c this is a base kind of (or same as) \c Other.
-  bool isBaseOf(ASTNodeKind Other) const;
-
-  /// Returns \c true if \c this is a base kind of (or same as) \c Other.
   /// \param Distance If non-null, used to return the distance between \c this
   /// and \c Other in the class hierarchy.
-  bool isBaseOf(ASTNodeKind Other, unsigned *Distance) const;
+  bool isBaseOf(ASTNodeKind Other, unsigned *Distance = nullptr) const;
 
   /// String representation of the kind.
   StringRef asStringRef() const;
@@ -168,10 +165,6 @@ private:
 
   /// Use getFromNodeKind<T>() to construct the kind.
   constexpr ASTNodeKind(NodeKindId KindId) : KindId(KindId) {}
-
-  /// Returns \c true if \c Base is a base kind of (or same as) \c
-  ///   Derived.
-  static bool isBaseOf(NodeKindId Base, NodeKindId Derived);
 
   /// Returns \c true if \c Base is a base kind of (or same as) \c
   ///   Derived.

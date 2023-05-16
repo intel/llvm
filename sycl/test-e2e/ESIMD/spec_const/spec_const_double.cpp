@@ -5,9 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: aspect-fp64
+// REQUIRES: gpu, aspect-fp64
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: cuda || hip
 // TODO online_compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator
 

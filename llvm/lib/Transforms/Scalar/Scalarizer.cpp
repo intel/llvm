@@ -341,7 +341,8 @@ Value *Scatterer::operator[](unsigned I) {
         CV[J] = Insert->getOperand(1);
       }
     }
-    CV[I] = Builder.CreateExtractElement(V, I, V->getName() + ".i" + Twine(I));
+    CV[I] = Builder.CreateExtractElement(V, Builder.getInt32(I),
+                                         V->getName() + ".i" + Twine(I));
   }
   return CV[I];
 }
@@ -788,9 +789,9 @@ bool ScalarizerVisitor::visitBitCastInst(BitCastInst &BCI) {
     for (unsigned ResI = 0; ResI < DstNumElems; ++ResI) {
       Value *V = PoisonValue::get(MidTy);
       for (unsigned MidI = 0; MidI < FanIn; ++MidI)
-        V = Builder.CreateInsertElement(V, Op0[Op0I++], MidI,
-                                        BCI.getName() + ".i" + Twine(ResI) +
-                                            ".upto" + Twine(MidI));
+        V = Builder.CreateInsertElement(V, Op0[Op0I++], Builder.getInt32(MidI),
+                                        BCI.getName() + ".i" + Twine(ResI)
+                                        + ".upto" + Twine(MidI));
       Res[ResI] = Builder.CreateBitCast(V, DstVT->getElementType(),
                                         BCI.getName() + ".i" + Twine(ResI));
     }
@@ -993,7 +994,7 @@ bool ScalarizerVisitor::finish() {
         if (isa<PHINode>(Op))
           Builder.SetInsertPoint(BB, BB->getFirstInsertionPt());
         for (unsigned I = 0; I < Count; ++I)
-          Res = Builder.CreateInsertElement(Res, CV[I], I,
+          Res = Builder.CreateInsertElement(Res, CV[I], Builder.getInt32(I),
                                             Op->getName() + ".upto" + Twine(I));
         Res->takeName(Op);
       } else {

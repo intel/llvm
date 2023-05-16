@@ -473,7 +473,8 @@ public:
   /// @{
 
   bool registerSection(MCSection &Section);
-  bool registerSymbol(const MCSymbol &Symbol);
+
+  void registerSymbol(const MCSymbol &Symbol, bool *Created = nullptr);
 
   MutableArrayRef<std::pair<std::string, size_t>> getFileNames() {
     return FileNames;

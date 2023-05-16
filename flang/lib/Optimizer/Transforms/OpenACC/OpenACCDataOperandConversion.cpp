@@ -119,6 +119,7 @@ void OpenACCDataOperandConversion::runOnOperation() {
   patterns.add<LegalizeDataOpForLLVMTranslation<acc::EnterDataOp>>(converter);
   patterns.add<LegalizeDataOpForLLVMTranslation<acc::ExitDataOp>>(converter);
   patterns.add<LegalizeDataOpForLLVMTranslation<acc::ParallelOp>>(converter);
+  patterns.add<LegalizeDataOpForLLVMTranslation<acc::UpdateOp>>(converter);
 
   ConversionTarget target(*context);
   target.addLegalDialect<fir::FIROpsDialect>();
@@ -179,6 +180,12 @@ void OpenACCDataOperandConversion::runOnOperation() {
                allDataOperandsAreConverted(op.getAttachOperands()) &&
                allDataOperandsAreConverted(op.getGangPrivateOperands()) &&
                allDataOperandsAreConverted(op.getGangFirstPrivateOperands());
+      });
+
+  target.addDynamicallyLegalOp<acc::UpdateOp>(
+      [allDataOperandsAreConverted](acc::UpdateOp op) {
+        return allDataOperandsAreConverted(op.getHostOperands()) &&
+               allDataOperandsAreConverted(op.getDeviceOperands());
       });
 
   if (failed(applyPartialConversion(op, target, std::move(patterns))))

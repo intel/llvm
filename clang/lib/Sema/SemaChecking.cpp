@@ -8251,9 +8251,8 @@ bool Sema::SemaBuiltinAssumeAligned(CallExpr *TheCall) {
   {
     ExprResult FirstArgResult =
         DefaultFunctionArrayLvalueConversion(FirstArg);
-    if (checkBuiltinArgument(*this, TheCall, 0))
+    if (FirstArgResult.isInvalid())
       return true;
-    /// In-place updation of FirstArg by checkBuiltinArgument is ignored.
     TheCall->setArg(0, FirstArgResult.get());
   }
 

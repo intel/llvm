@@ -23,7 +23,6 @@ class TilingInterface;
 class RewriterBase;
 
 namespace linalg {
-struct ForallTilingResult;
 class GenericOp;
 class LinalgOp;
 } // namespace linalg
@@ -49,13 +48,12 @@ class DialectRegistry;
 namespace transform {
 
 /// Implementation of tiling operations using `scf.forall`.
-DiagnosedSilenceableFailure
-tileToForallOpImpl(RewriterBase &rewriter, transform::TransformState &state,
-                   TransformOpInterface transformOp, Operation *target,
-                   ArrayRef<OpFoldResult> mixedNumThreads,
-                   ArrayRef<OpFoldResult> mixedTileSizes,
-                   std::optional<ArrayAttr> mapping,
-                   linalg::ForallTilingResult &tilingResult);
+DiagnosedSilenceableFailure tileToForallOpImpl(
+    RewriterBase &rewriter, transform::TransformState &state,
+    TransformOpInterface transformOp, ArrayRef<Operation *> targets,
+    ArrayRef<OpFoldResult> mixedNumThreads,
+    ArrayRef<OpFoldResult> mixedTileSizes, std::optional<ArrayAttr> mapping,
+    SmallVector<Operation *> &tileOps, SmallVector<Operation *> &tiledOps);
 
 } // namespace transform
 } // namespace mlir

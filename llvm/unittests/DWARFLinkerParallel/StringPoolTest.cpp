@@ -19,31 +19,24 @@ namespace {
 TEST(StringPoolTest, TestStringPool) {
   StringPool Strings;
 
-  // StringPool uses PerThreadBumpPtrAllocator which should be accessed from
-  // threads created by ThreadPoolExecutor. Use TaskGroup to run on
-  // ThreadPoolExecutor threads.
-  parallel::TaskGroup tg;
+  std::pair<StringEntry *, bool> Entry = Strings.insert("test");
+  EXPECT_TRUE(Entry.second);
+  EXPECT_TRUE(Entry.first->getKey() == "test");
+  EXPECT_TRUE(Entry.first->second == nullptr);
 
-  tg.spawn([&]() {
-    std::pair<StringEntry *, bool> Entry = Strings.insert("test");
-    EXPECT_TRUE(Entry.second);
-    EXPECT_TRUE(Entry.first->getKey() == "test");
-    EXPECT_TRUE(Entry.first->second == nullptr);
+  StringEntry *EntryPtr = Entry.first;
 
-    StringEntry *EntryPtr = Entry.first;
+  Entry = Strings.insert("test");
+  EXPECT_FALSE(Entry.second);
+  EXPECT_TRUE(Entry.first->getKey() == "test");
+  EXPECT_TRUE(Entry.first->second == nullptr);
+  EXPECT_TRUE(EntryPtr == Entry.first);
 
-    Entry = Strings.insert("test");
-    EXPECT_FALSE(Entry.second);
-    EXPECT_TRUE(Entry.first->getKey() == "test");
-    EXPECT_TRUE(Entry.first->second == nullptr);
-    EXPECT_TRUE(EntryPtr == Entry.first);
-
-    Entry = Strings.insert("test2");
-    EXPECT_TRUE(Entry.second);
-    EXPECT_TRUE(Entry.first->getKey() == "test2");
-    EXPECT_TRUE(Entry.first->second == nullptr);
-    EXPECT_TRUE(EntryPtr != Entry.first);
-  });
+  Entry = Strings.insert("test2");
+  EXPECT_TRUE(Entry.second);
+  EXPECT_TRUE(Entry.first->getKey() == "test2");
+  EXPECT_TRUE(Entry.first->second == nullptr);
+  EXPECT_TRUE(EntryPtr != Entry.first);
 }
 
 TEST(StringPoolTest, TestStringPoolParallel) {

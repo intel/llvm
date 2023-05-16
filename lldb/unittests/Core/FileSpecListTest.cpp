@@ -8,7 +8,7 @@
 
 #include "gtest/gtest.h"
 
-#include "lldb/Utility/FileSpecList.h"
+#include "lldb/Core/FileSpecList.h"
 
 using namespace lldb_private;
 

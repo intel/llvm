@@ -26,8 +26,7 @@ namespace detail {
 /// AccessGroupMetadataOps.
 class LoopAnnotationImporter {
 public:
-  LoopAnnotationImporter(ModuleImport &moduleImport, OpBuilder &builder)
-      : moduleImport(moduleImport), builder(builder) {}
+  explicit LoopAnnotationImporter(OpBuilder &builder) : builder(builder) {}
   LoopAnnotationAttr translateLoopAnnotation(const llvm::MDNode *node,
                                              Location loc);
 
@@ -44,9 +43,6 @@ public:
   /// node. Returns failure, if any of the symbol references cannot be found.
   FailureOr<SmallVector<SymbolRefAttr>>
   lookupAccessGroupAttrs(const llvm::MDNode *node) const;
-
-  /// The ModuleImport owning this instance.
-  ModuleImport &moduleImport;
 
 private:
   /// Returns the LLVM metadata corresponding to a llvm loop metadata attribute.

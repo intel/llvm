@@ -23,7 +23,6 @@
 ??$get_info@Ufree_memory@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@U?$max_work_groups@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$01@23@XZ
 ??$get_info@Usupports_fusion@device@info@experimental@codeplay@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_NXZ
-??$get_info@Umax_registers_per_work_group@device@info@experimental@codeplay@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@U?$max_work_groups@$00@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$00@23@XZ
 ??$get_info@Ugpu_eu_simd_width@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Ugpu_slices@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
@@ -187,7 +186,6 @@
 ??$get_info@Usub_group_independent_forward_progress@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Usub_group_sizes@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ??$get_info@Usupports_fusion@device@info@experimental@codeplay@ext@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
-??$get_info@Umax_registers_per_work_group@device@info@experimental@codeplay@ext@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Uusm_device_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_host_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_restricted_shared_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
@@ -1174,7 +1172,7 @@
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_KV423@@Z
 ?memcpyFromDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_N_K3@Z
 ?memcpyFromDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
-?memcpyFromHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_N_K3@Z
+?memcpyFromHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_K_N22@Z
 ?memcpyToDeviceGlobal@handler@_V1@sycl@@AEAAXPEBX0_N_K2@Z
 ?memcpyToDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?memcpyToHostOnlyDeviceGlobal@handler@_V1@sycl@@AEAAXPEBX0_K_N11@Z

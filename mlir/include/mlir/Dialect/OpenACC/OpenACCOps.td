@@ -84,9 +84,6 @@ def OpenACC_PrivateClause         : I64EnumAttrCase<"acc_private", 13>;
 def OpenACC_FirstPrivateClause    : I64EnumAttrCase<"acc_firstprivate", 14>;
 def OpenACC_IsDevicePtrClause     : I64EnumAttrCase<"acc_deviceptr", 15>;
 def OpenACC_GetDevicePtrClause    : I64EnumAttrCase<"acc_getdeviceptr", 16>;
-def OpenACC_UpdateHost            : I64EnumAttrCase<"acc_update_host", 17>;
-def OpenACC_UpdateSelf            : I64EnumAttrCase<"acc_update_self", 18>;
-def OpenACC_UpdateDevice          : I64EnumAttrCase<"acc_update_device", 19>;
 
 def OpenACC_DataClauseEnum : I64EnumAttr<"DataClause",
     "data clauses supported by OpenACC",
@@ -95,8 +92,7 @@ def OpenACC_DataClauseEnum : I64EnumAttr<"DataClause",
      OpenACC_CreateClause, OpenACC_CreateZeroClause, OpenACC_DeleteClause,
      OpenACC_AttachClause, OpenACC_DetachClause, OpenACC_NoCreateClause,
      OpenACC_PrivateClause, OpenACC_FirstPrivateClause,
-     OpenACC_IsDevicePtrClause, OpenACC_GetDevicePtrClause, OpenACC_UpdateHost,
-     OpenACC_UpdateSelf, OpenACC_UpdateDevice,
+     OpenACC_IsDevicePtrClause, OpenACC_GetDevicePtrClause
     ]> {
   let cppNamespace = "::mlir::acc";
 }
@@ -290,14 +286,6 @@ def OpenACC_GetDevicePtrOp : OpenACC_DataEntryOp<"getdeviceptr",
   let summary = "Gets device address from host address if it exists on device.";
 }
 
-//===----------------------------------------------------------------------===//
-// 2.14.4 device clause
-//===----------------------------------------------------------------------===//
-def OpenACC_UpdateDeviceOp : OpenACC_DataEntryOp<"update_device",
-    "mlir::acc::DataClause::acc_update_device"> {
-  let summary = "Represents acc update device semantics.";
-}
-
 // Data exit operation does not refer to OpenACC spec terminology, but to
 // terminology used in this dialect. It refers to data operations that will appear
 // after data or compute region. It will be used as the base of acc dialect
@@ -305,8 +293,8 @@ def OpenACC_UpdateDeviceOp : OpenACC_DataEntryOp<"update_device",
 class OpenACC_DataExitOp<string mnemonic, string clause, list<Trait> traits = []> :
     OpenACC_Op<mnemonic, !listconcat(traits,
         [AttrSizedOperandSegments])> {
-  let arguments = (ins OpenACC_PointerLikeTypeInterface:$accPtr,
-                       Optional<OpenACC_PointerLikeTypeInterface>:$varPtr,
+  let arguments = (ins Optional<OpenACC_PointerLikeTypeInterface>:$varPtr,
+                       OpenACC_PointerLikeTypeInterface:$accPtr,
                        Variadic<OpenACC_DataBoundsType>:$bounds,
                        DefaultValuedAttr<OpenACC_DataClauseEnum,clause>:$dataClause,
                        DefaultValuedAttr<BoolAttr, "true">:$structured,
@@ -371,20 +359,6 @@ def OpenACC_DeleteOp : OpenACC_DataExitOp<"delete",
 def OpenACC_DetachOp : OpenACC_DataExitOp<"detach",
     "mlir::acc::DataClause::acc_detach"> {
   let summary = "Represents acc detach semantics - reverse of attach.";
-}
-
-//===----------------------------------------------------------------------===//
-// 2.14.4 host clause
-//===----------------------------------------------------------------------===//
-def OpenACC_UpdateHostOp : OpenACC_DataExitOp<"update_host",
-    "mlir::acc::DataClause::acc_update_host"> {
-  let summary = "Represents acc update host semantics.";
-  let extraClassDeclaration = [{
-    /// Check if this is an acc update self.
-    bool isSelf() {
-      return getDataClause() == acc::DataClause::acc_update_self;
-    }
-  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -477,8 +451,6 @@ def OpenACC_ParallelOp : OpenACC_Op<"parallel",
     )
     $region attr-dict-with-keyword
   }];
-
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -564,8 +536,6 @@ def OpenACC_SerialOp : OpenACC_Op<"serial",
     )
     $region attr-dict-with-keyword
   }];
-
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -650,8 +620,6 @@ def OpenACC_KernelsOp : OpenACC_Op<"kernels",
     )
     $region attr-dict-with-keyword
   }];
-
-  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1035,7 +1003,8 @@ def OpenACC_UpdateOp : OpenACC_Op<"update", [AttrSizedOperandSegments]> {
                        UnitAttr:$async,
                        UnitAttr:$wait,
                        Variadic<IntOrIndex>:$deviceTypeOperands,
-                       Variadic<OpenACC_PointerLikeTypeInterface>:$dataClauseOperands,
+                       Variadic<AnyType>:$hostOperands,
+                       Variadic<AnyType>:$deviceOperands,
                        UnitAttr:$ifPresent);
 
   let extraClassDeclaration = [{
@@ -1054,7 +1023,8 @@ def OpenACC_UpdateOp : OpenACC_Op<"update", [AttrSizedOperandSegments]> {
       | `device_type` `(` $deviceTypeOperands `:`
           type($deviceTypeOperands) `)`
       | `wait` `(` $waitOperands `:` type($waitOperands) `)`
-      | `dataOperands` `(` $dataClauseOperands `:` type($dataClauseOperands) `)`
+      | `host` `(` $hostOperands `:` type($hostOperands) `)`
+      | `device` `(` $deviceOperands `:` type($deviceOperands) `)`
     )
     attr-dict-with-keyword
   }];

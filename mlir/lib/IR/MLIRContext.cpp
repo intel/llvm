@@ -802,7 +802,7 @@ OperationName::UnregisteredOpModel::verifyRegionInvariants(Operation *) {
   return success();
 }
 
-std::optional<Attribute>
+Optional<Attribute>
 OperationName::UnregisteredOpModel::getInherentAttr(Operation *op,
                                                     StringRef name) {
   auto dict = dyn_cast_or_null<DictionaryAttr>(getPropertiesAsAttr(op));

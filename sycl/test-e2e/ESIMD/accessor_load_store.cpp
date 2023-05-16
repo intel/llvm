@@ -9,6 +9,9 @@
 // The test checks functionality of the scalar load/store accessor-based ESIMD
 // intrinsics.
 
+// REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

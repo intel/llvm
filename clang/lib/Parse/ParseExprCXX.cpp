@@ -20,7 +20,6 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
-#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/Support/Compiler.h"
@@ -725,7 +724,7 @@ ExprResult Parser::ParseCXXIdExpression(bool isAddressOfOperand) {
 ///         '&' identifier initializer
 ///
 ///       lambda-declarator:
-///         lambda-specifiers     [C++23]
+///         lambda-specifiers     [C++2b]
 ///         '(' parameter-declaration-clause ')' lambda-specifiers
 ///             requires-clause[opt]
 ///
@@ -1205,7 +1204,7 @@ static void tryConsumeLambdaSpecifierToken(Parser &P,
 static void addStaticToLambdaDeclSpecifier(Parser &P, SourceLocation StaticLoc,
                                            DeclSpec &DS) {
   if (StaticLoc.isValid()) {
-    P.Diag(StaticLoc, !P.getLangOpts().CPlusPlus23
+    P.Diag(StaticLoc, !P.getLangOpts().CPlusPlus2b
                           ? diag::err_static_lambda
                           : diag::warn_cxx20_compat_static_lambda);
     const char *PrevSpec = nullptr;
@@ -1362,7 +1361,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
   // or operator template declaration. We accept this as a conforming extension
   // in all language modes that support lambdas.
   if (isCXX11AttributeSpecifier()) {
-    Diag(Tok, getLangOpts().CPlusPlus23
+    Diag(Tok, getLangOpts().CPlusPlus2b
                   ? diag::warn_cxx20_compat_decl_attrs_on_lambda
                   : diag::ext_decl_attrs_on_lambda);
     MaybeParseCXX11Attributes(D);
@@ -1501,7 +1500,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                   tok::kw_requires, tok::kw_noexcept) ||
       (Tok.is(tok::l_square) && NextToken().is(tok::l_square));
 
-  if (HasSpecifiers && !HasParentheses && !getLangOpts().CPlusPlus23) {
+  if (HasSpecifiers && !HasParentheses && !getLangOpts().CPlusPlus2b) {
     // It's common to forget that one needs '()' before 'mutable', an
     // attribute specifier, the result type, or the requires clause. Deal with
     // this.
@@ -1996,7 +1995,7 @@ Parser::ParseAliasDeclarationInInitStatement(DeclaratorContext Context,
   if (!DG)
     return DG;
 
-  Diag(DeclStart, !getLangOpts().CPlusPlus23
+  Diag(DeclStart, !getLangOpts().CPlusPlus2b
                       ? diag::ext_alias_in_init_statement
                       : diag::warn_cxx20_alias_in_init_statement)
       << SourceRange(DeclStart, DeclEnd);
@@ -2911,9 +2910,9 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, ParsedType ObjectType,
       if (!Ty)
         return true;
       Result.setConstructorName(Ty, IdLoc, IdLoc);
-    } else if (getLangOpts().CPlusPlus17 && AllowDeductionGuide &&
-               SS.isEmpty() &&
-               Actions.isDeductionGuideName(getCurScope(), *Id, IdLoc, SS,
+    } else if (getLangOpts().CPlusPlus17 &&
+               AllowDeductionGuide && SS.isEmpty() &&
+               Actions.isDeductionGuideName(getCurScope(), *Id, IdLoc,
                                             &TemplateName)) {
       // We have parsed a template-name naming a deduction guide.
       Result.setDeductionGuideName(TemplateName, IdLoc);

@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %BE_RUN_PLACEHOLDER %t.out
 //
 // XFAIL: hip_nvidia
 

@@ -3381,6 +3381,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
     Known = KnownBits::ashr(Known, Known2);
+    // TODO: Add minimum shift high known sign bits.
     break;
   case ISD::FSHL:
   case ISD::FSHR:
@@ -3943,80 +3944,34 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   return Known;
 }
 
-/// Convert ConstantRange OverflowResult into SelectionDAG::OverflowKind.
-static SelectionDAG::OverflowKind mapOverflowResult(ConstantRange::OverflowResult OR) {
-  switch (OR) {
-  case ConstantRange::OverflowResult::MayOverflow:
-    return SelectionDAG::OFK_Sometime;
-  case ConstantRange::OverflowResult::AlwaysOverflowsLow:
-  case ConstantRange::OverflowResult::AlwaysOverflowsHigh:
-    return SelectionDAG::OFK_Always;
-  case ConstantRange::OverflowResult::NeverOverflows:
-    return SelectionDAG::OFK_Never;
+SelectionDAG::OverflowKind SelectionDAG::computeOverflowKind(SDValue N0,
+                                                             SDValue N1) const {
+  // X + 0 never overflow
+  if (isNullConstant(N1))
+    return OFK_Never;
+
+  KnownBits N1Known = computeKnownBits(N1);
+  if (N1Known.Zero.getBoolValue()) {
+    KnownBits N0Known = computeKnownBits(N0);
+
+    bool overflow;
+    (void)N0Known.getMaxValue().uadd_ov(N1Known.getMaxValue(), overflow);
+    if (!overflow)
+      return OFK_Never;
   }
-  llvm_unreachable("Unknown OverflowResult");
-}
-
-SelectionDAG::OverflowKind
-SelectionDAG::computeOverflowForSignedAdd(SDValue N0, SDValue N1) const {
-  // X + 0 never overflow
-  if (isNullConstant(N1))
-    return OFK_Never;
-
-  // If both operands each have at least two sign bits, the addition
-  // cannot overflow.
-  if (ComputeNumSignBits(N0) > 1 && ComputeNumSignBits(N1) > 1)
-    return OFK_Never;
-
-  // TODO: Add ConstantRange::signedAddMayOverflow handling.
-  return OFK_Sometime;
-}
-
-SelectionDAG::OverflowKind
-SelectionDAG::computeOverflowForUnsignedAdd(SDValue N0, SDValue N1) const {
-  // X + 0 never overflow
-  if (isNullConstant(N1))
-    return OFK_Never;
 
   // mulhi + 1 never overflow
-  KnownBits N1Known = computeKnownBits(N1);
   if (N0.getOpcode() == ISD::UMUL_LOHI && N0.getResNo() == 1 &&
-      N1Known.getMaxValue().ult(2))
+      (N1Known.getMaxValue() & 0x01) == N1Known.getMaxValue())
     return OFK_Never;
 
-  KnownBits N0Known = computeKnownBits(N0);
-  if (N1.getOpcode() == ISD::UMUL_LOHI && N1.getResNo() == 1 &&
-      N0Known.getMaxValue().ult(2))
-    return OFK_Never;
+  if (N1.getOpcode() == ISD::UMUL_LOHI && N1.getResNo() == 1) {
+    KnownBits N0Known = computeKnownBits(N0);
 
-  // Fallback to ConstantRange::unsignedAddMayOverflow handling.
-  ConstantRange N0Range = ConstantRange::fromKnownBits(N0Known, false);
-  ConstantRange N1Range = ConstantRange::fromKnownBits(N1Known, false);
-  return mapOverflowResult(N0Range.unsignedAddMayOverflow(N1Range));
-}
+    if ((N0Known.getMaxValue() & 0x01) == N0Known.getMaxValue())
+      return OFK_Never;
+  }
 
-SelectionDAG::OverflowKind
-SelectionDAG::computeOverflowForSignedSub(SDValue N0, SDValue N1) const {
-  // X - 0 never overflow
-  if (isNullConstant(N1))
-    return OFK_Never;
-
-  // If both operands each have at least two sign bits, the subtraction
-  // cannot overflow.
-  if (ComputeNumSignBits(N0) > 1 && ComputeNumSignBits(N1) > 1)
-    return OFK_Never;
-
-  // TODO: Add ConstantRange::signedSubMayOverflow handling.
-  return OFK_Sometime;
-}
-
-SelectionDAG::OverflowKind
-SelectionDAG::computeOverflowForUnsignedSub(SDValue N0, SDValue N1) const {
-  // X - 0 never overflow
-  if (isNullConstant(N1))
-    return OFK_Never;
-
-  // TODO: Add ConstantRange::unsignedSubMayOverflow handling.
   return OFK_Sometime;
 }
 
@@ -4130,20 +4085,14 @@ unsigned SelectionDAG::ComputeNumSignBits(SDValue Op, const APInt &DemandedElts,
         continue;
 
       SDValue SrcOp = Op.getOperand(i);
-      // BUILD_VECTOR can implicitly truncate sources, we handle this specially
-      // for constant nodes to ensure we only look at the sign bits.
-      if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(SrcOp)) {
-        APInt T = C->getAPIntValue().trunc(VTBits);
-        Tmp2 = T.getNumSignBits();
-      } else {
-        Tmp2 = ComputeNumSignBits(SrcOp, Depth + 1);
+      Tmp2 = ComputeNumSignBits(SrcOp, Depth + 1);
 
-        if (SrcOp.getValueSizeInBits() != VTBits) {
-          assert(SrcOp.getValueSizeInBits() > VTBits &&
-                 "Expected BUILD_VECTOR implicit truncation");
-          unsigned ExtraBits = SrcOp.getValueSizeInBits() - VTBits;
-          Tmp2 = (Tmp2 > ExtraBits ? Tmp2 - ExtraBits : 1);
-        }
+      // BUILD_VECTOR can implicitly truncate sources, we must handle this.
+      if (SrcOp.getValueSizeInBits() != VTBits) {
+        assert(SrcOp.getValueSizeInBits() > VTBits &&
+               "Expected BUILD_VECTOR implicit truncation");
+        unsigned ExtraBits = SrcOp.getValueSizeInBits() - VTBits;
+        Tmp2 = (Tmp2 > ExtraBits ? Tmp2 - ExtraBits : 1);
       }
       Tmp = std::min(Tmp, Tmp2);
     }

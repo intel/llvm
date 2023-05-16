@@ -22,13 +22,8 @@ struct Foo {
   int Values[WgSize];
 };
 
-struct Bar {
-  int Value = 42;
-};
-
 class KernelA;
 class KernelB;
-class KernelC;
 
 using namespace sycl;
 
@@ -51,7 +46,7 @@ int main() {
             // Foo &Ref = *group_local_memory<Foo>(Item.get_group(), ...);
             multi_ptr<Foo, access::address_space::local_space,
                       sycl::access::decorated::legacy>
-                Ptr = sycl::ext::oneapi::group_local_memory<Foo>(
+                Ptr = group_local_memory<Foo>(
                     Item.get_group(), 1,
                     CounterAcc[Item.get_group_linear_id()]);
             Ptr->Values[Item.get_local_linear_id()] *=
@@ -85,8 +80,8 @@ int main() {
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             multi_ptr<int[WgSize], access::address_space::local_space,
                       sycl::access::decorated::legacy>
-                Ptr = sycl::ext::oneapi::group_local_memory_for_overwrite<
-                    int[WgSize]>(Item.get_group());
+                Ptr = group_local_memory_for_overwrite<int[WgSize]>(
+                    Item.get_group());
             (*Ptr)[Item.get_local_linear_id()] = Item.get_local_linear_id();
 
             Item.barrier();
@@ -100,28 +95,5 @@ int main() {
     auto Acc = Buf.get_access<access::mode::read>();
     for (size_t I = 0; I < Size; ++I)
       assert(Acc[I] == I % WgSize);
-  }
-
-  {
-    std::vector<int> Vec(Size, 0);
-    buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
-
-    Q.submit([&](handler &Cgh) {
-      auto Acc = Buf.get_access<access::mode::write>(Cgh);
-      Cgh.parallel_for<KernelC>(
-          nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
-            multi_ptr<Bar, access::address_space::local_space,
-                      sycl::access::decorated::legacy>
-                Ptr = sycl::ext::oneapi::group_local_memory_for_overwrite<Bar>(
-                    Item.get_group());
-            // Make sure that the value is default initialized on all items.
-            Acc[Item.get_global_linear_id()] = Ptr->Value;
-          });
-    });
-
-    auto Acc = Buf.get_access<access::mode::read>();
-    Bar RefBar;
-    for (size_t I = 0; I < Size; ++I)
-      assert(Acc[I] == RefBar.Value);
   }
 }

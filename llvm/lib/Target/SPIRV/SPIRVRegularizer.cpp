@@ -171,9 +171,9 @@ void SPIRVRegularizer::visitCallInst(CallInst &CI) {
     return;
 
   auto MangledName = F->getName();
-  char *NameStr = itaniumDemangle(F->getName().data());
-  if (!NameStr)
-    return;
+  size_t n;
+  int status;
+  char *NameStr = itaniumDemangle(F->getName().data(), nullptr, &n, &status);
   StringRef DemangledName(NameStr);
 
   // TODO: add support for other builtins.

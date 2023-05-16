@@ -92,9 +92,7 @@ ABI getTargetABI(StringRef ABIName) {
   return TargetABI;
 }
 
-// To avoid the BP value clobbered by a function call, we need to choose a
-// callee saved register to save the value. The `last` `S` register (s9) is
-// used for FP. So we choose the previous (s8) as BP.
+// FIXME: other register?
 MCRegister getBPReg() { return LoongArch::R31; }
 
 } // end namespace LoongArchABI
