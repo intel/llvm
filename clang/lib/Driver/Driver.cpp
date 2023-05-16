@@ -4686,6 +4686,10 @@ class OffloadingActionBuilder final {
     /// Flag to signal if the user requested device code split.
     bool DeviceCodeSplit = false;
 
+    /// Flag to signal this builder's purpose is to produce the stub file to be
+    /// used by the host compilation.
+    bool OnlyCreateStubFile = false;
+
     /// List of offload device toolchain, bound arch needed to track for
     /// different binary constructions.
     /// POD to hold information about a SYCL device action.
@@ -4771,9 +4775,10 @@ class OffloadingActionBuilder final {
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs,
-                      OffloadingActionBuilder &OAB)
+                      OffloadingActionBuilder &OAB,
+                      bool OnlyCreateStubFile = false)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
-          SYCLInstallation(C.getDriver()) {}
+          OnlyCreateStubFile(OnlyCreateStubFile), SYCLInstallation(C.getDriver()) {}
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4838,12 +4843,11 @@ class OffloadingActionBuilder final {
         for (auto TargetActionInfo :
              llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
           Action *&A = std::get<0>(TargetActionInfo);
-          auto &TargetInfo = std::get<1>(TargetActionInfo);
           types::ID OutputType = types::TY_LLVM_BC;
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
               Args.hasArg(options::OPT_S))
             OutputType = types::TY_LLVM_IR;
-          if (SYCLDeviceOnly && Args.hasArg(options::OPT_emit_mlir)) {
+          if (!OnlyCreateStubFile && Args.hasArg(options::OPT_emit_mlir)) {
             OutputType = types::TY_MLIR_IR;
           }
           // Use of -fsycl-device-obj=spirv converts the original LLVM-IR
@@ -4865,9 +4869,12 @@ class OffloadingActionBuilder final {
           DeviceCompilerInput = A;
         }
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
-        DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
-               Action::OFK_SYCL);
-        return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
+	bool SYCLRaiseHost = Args.hasArg(options::OPT_fsycl_raise_host);
+        if (!SYCLRaiseHost || OnlyCreateStubFile)
+          DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
+                 Action::OFK_SYCL);
+        return SYCLDeviceOnly && !SYCLRaiseHost ? ABRT_Ignore_Host
+                                                : ABRT_Success;
       }
 
       // Backend/Assemble actions are obsolete for the SYCL device side
@@ -5027,6 +5034,29 @@ class OffloadingActionBuilder final {
         return ABRT_Success;
       }
 
+      if (!SYCLDeviceActions.empty() && !OnlyCreateStubFile &&
+          isa<CompileJobAction>(SYCLDeviceActions.back()) &&
+          isa<CompileJobAction>(HostAction) &&
+          Args.hasArg(options::OPT_fsycl_raise_host)) {
+        // Remove compile action from the list
+	Action *A = SYCLDeviceActions.back();
+        SYCLDeviceActions.pop_back();
+        // Create new compile action using host module
+        HostAction =
+            C.MakeAction<CompileJobAction>(HostAction, types::TY_MLIR_IR);
+        OffloadAction::HostDependence HDep(
+            *HostAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+            /*BoundArch=*/nullptr, Action::OFK_SYCL);
+        const DeviceTargetInfo &TargetInfo = SYCLTargetInfoList.front();
+        OffloadAction::DeviceDependences DDep;
+        DDep.add(*A->getInputs().front(), *TargetInfo.TC, TargetInfo.BoundArch,
+                 Action::OFK_SYCL);
+        HostAction = C.MakeAction<OffloadAction>(HDep, DDep);
+        SYCLDeviceActions.push_back(
+            C.MakeAction<CompileJobAction>(HostAction, A->getType()));
+        return ABRT_Success;
+      }
+
       // If this is an unbundling action use it as is for each SYCL toolchain.
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction)) {
         SYCLDeviceActions.clear();
@@ -5082,7 +5112,10 @@ class OffloadingActionBuilder final {
 
     void appendTopLevelActions(ActionList &AL) override {
       // We should always have an action for each input.
-      if (!SYCLDeviceActions.empty()) {
+      // We should always have an action for each input.
+      // If the only purpose of this builder was to create the stuff file, we
+      // can simply return.
+      if (!OnlyCreateStubFile && !SYCLDeviceActions.empty()) {
         assert(SYCLDeviceActions.size() == SYCLTargetInfoList.size() &&
                "Number of SYCL actions and toolchains/boundarch pairs do not "
                "match.");
@@ -5409,6 +5442,9 @@ class OffloadingActionBuilder final {
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
+      // This action's output should not be used to generate the final image
+      if (OnlyCreateStubFile)
+        return;
       // DeviceLinkerInputs holds binaries per ToolChain (TC) / bound-arch pair
       // The following will loop link and post process for each TC / bound-arch
       // to produce a final binary.
@@ -6271,6 +6307,14 @@ public:
     SpecializedBuilders.push_back(
         new SYCLActionBuilder(C, Args, Inputs, *this));
 
+    // We will need two specialized SYCL builders: one will run before host
+    // compilation just to produce the device stub and other to perform the
+    // actual compilation.
+    if (Args.hasArg(options::OPT_fsycl_raise_host)) {
+      SpecializedBuilders.push_back(new SYCLActionBuilder(
+          C, Args, Inputs, *this, /*OnlyCreateStubFile=*/true));
+    }
+
     //
     // TODO: Build other specialized builders here.
     //
@@ -6556,18 +6600,42 @@ public:
       SB->appendTopLevelActions(OffloadAL);
     }
 
-    // If we can use the bundler, replace the host action by the bundling one in
-    // the resulting list. Otherwise, just append the device actions. For
-    // device only compilation, HostAction is a null pointer, therefore only do
-    // this when HostAction is not a null pointer.
-    if (CanUseBundler && HostAction &&
-        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty()) {
-      // Add the host action to the list in order to create the bundling action.
+    if (const llvm::opt::DerivedArgList &Args = C.getArgs();
+        Args.hasArg(options::OPT_fsycl_raise_host) &&
+        (Args.hasArg(options::OPT_fsycl_device_only) ||
+         Args.hasArg(options::OPT_emit_mlir))) {
+      // The host action will be discarded if it was created for instrumentation
+      // and it is not needed in the output
+      HostAction = nullptr;
+      AL = OffloadAL;
+    } else if (CanUseBundler && HostAction &&
+               HostAction->getType() != types::TY_Nothing &&
+               !OffloadAL.empty()) {
+      // If we can use the bundler, replace the host action by the bundling one
+      // in the resulting list. Otherwise, just append the device actions. For
+      // device only compilation, HostAction is a null pointer, therefore only
+      // do this when HostAction is not a null pointer.
+      bool UseHostActionInput =
+	HostAction->getType() == types::TY_MLIR_IR &&
+	C.getArgs().hasArg(options::OPT_fsycl_raise_host);
+
+      if (UseHostActionInput) {
+        assert(isa<CompileJobAction>(HostAction) &&
+               HostAction->getInputs().front()->getType() ==
+                   types::TY_LLVM_IR &&
+               HostAction->getType() == types::TY_MLIR_IR &&
+               "Expecting an MLIR raising action here");
+        HostAction = HostAction->getInputs().front();
+      }
+
+      // Add the host action to the list in order to create the bundling
+      // action.
       OffloadAL.push_back(HostAction);
 
       // We expect that the host action was just appended to the action list
       // before this method was called.
-      assert(HostAction == AL.back() && "Host action not in the list??");
+      assert((UseHostActionInput || HostAction == AL.back()) &&
+             "Host action not in the list??");
       HostAction = C.MakeAction<OffloadBundlingJobAction>(OffloadAL);
       recordHostAction(HostAction, InputArg);
       AL.back() = HostAction;
@@ -7728,6 +7796,10 @@ Action *Driver::ConstructPhaseAction(
               : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
+    // We will need a compile action before to avoid compiling the host code
+    // twice in this scenario.
+    if (Args.hasArg(options::OPT_fsycl_raise_host))
+      Input = C.MakeAction<CompileJobAction>(Input, types::TY_PP_Asm);
     return C.MakeAction<BackendJobAction>(Input, types::TY_PP_Asm);
   }
   case phases::Assemble:

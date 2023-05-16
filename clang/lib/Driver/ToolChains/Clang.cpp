@@ -7380,7 +7380,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    false))
     CmdArgs.push_back("-fmodules-debuginfo");
 
-  if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
+  // The output of this compilation will be the input to mlir-translate, which
+  // only works with opaque pointers.
+  if (Args.hasArg(options::OPT_fsycl_raise_host))
+    CmdArgs.push_back("-opaque-pointers");
+  else if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
     CmdArgs.push_back("-no-opaque-pointers");
   else if ((Triple.isSPIRV() || Triple.isSPIR()) &&
            !SPIRV_ENABLE_OPAQUE_POINTERS)
@@ -10159,11 +10163,22 @@ void Cgeist::ConstructJob(Compilation &C, const JobAction &JA,
 
   TCArgs.AddAllArgValues(CmdArgs, options::OPT_Xcgeist);
 
+  const InputInfo *HostModule = nullptr;
   for (const InputInfo &I : Inputs) {
-    if (I.isFilename())
+    if (I.getType() == types::TY_MLIR_IR)
+      HostModule = &I;
+    else if (I.isFilename())
       CmdArgs.push_back(I.getFilename());
     else
       I.getInputArg().renderAsInput(TCArgs, CmdArgs);
+  }
+
+  if (HostModule) {
+    // If the output is MLIR, this will avoid dropping host code
+    if (!TCArgs.hasArg(options::OPT_fsycl_device_only))
+      CmdArgs.push_back("-sycl-device-only=false");
+    CmdArgs.push_back("-sycl-use-host-module");
+    CmdArgs.push_back(HostModule->getFilename());
   }
 
   if (Output.isFilename()) {
@@ -10177,6 +10192,37 @@ void Cgeist::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Kill the clang cmd to add ours instead.
   C.getJobs().getJobsForOverride().pop_back();
+
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, Inputs, Output));
+}
+
+void MLIRTranslate::ConstructJob(Compilation &C, const JobAction &JA,
+                                 const InputInfo &Output,
+                                 const InputInfoList &Inputs,
+                                 const llvm::opt::ArgList &TCArgs,
+                                 const char *LinkingOutput) const {
+  ArgStringList CmdArgs;
+
+  assert(Inputs.size() == 1 && "Only one input expected to mlir-translate");
+
+  // Output File
+  assert(Output.getType() == types::TY_MLIR_IR &&
+         "Only supporting LLVM IR to MLIR translation");
+  addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+
+  // Raising to MLIR is the only option accepted for now
+  addArgs(CmdArgs, TCArgs, {"--import-llvm"});
+
+  // Input File
+  for (const auto &I : Inputs) {
+    assert((I.getType() == types::TY_LLVM_IR ||
+            I.getType() == types::TY_LLVM_BC) &&
+           "Only supporting LLVM IR to MLIR translation");
+    addArgs(CmdArgs, TCArgs, {I.getFilename()});
+  }
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),

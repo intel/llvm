@@ -341,6 +341,12 @@ Tool *ToolChain::getCgeist() const {
   return Cgeist.get();
 }
 
+Tool *ToolChain::getMLIRTranslate() const {
+  if (!MLIRTranslate)
+    MLIRTranslate.reset(new tools::MLIRTranslate(*this));
+  return MLIRTranslate.get();
+}
+
 Tool *ToolChain::getFlang() const {
   if (!Flang)
     Flang.reset(new tools::Flang(*this));
@@ -758,6 +764,16 @@ Tool *ToolChain::SelectTool(const JobAction &JA) const {
         (JA.getOffloadingToolChain() &&
          JA.getOffloadingToolChain()->getTriple().getEnvironment() ==
              llvm::Triple::SYCLMLIR)) {
+      const ActionList &Inputs = JA.getInputs();
+      if (Inputs.size() == 1) {
+        switch (Inputs.front()->getType()) {
+        case types::TY_LLVM_IR:
+        case types::TY_LLVM_BC:
+          return getMLIRTranslate();
+        default:
+          break;
+        }
+      }
       return getCgeist();
     }
     return getClang();
