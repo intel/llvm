@@ -2037,6 +2037,11 @@ lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
                                           Transposed, Transformed>();
+  // For Load BlockWidth is padded up to the next power-of-two value.
+  // For Load with Transpose the pre-operation BlockHeight is padded up
+  // to the next power-of-two value.
+  // For Load with Transform pre-operation BlockHeight is padded up to
+  // multiple of K, where K = 4B / sizeof(T).
   constexpr int ElemsPerDword = 4 / sizeof(T);
   constexpr int GRFRowSize = Transposed    ? BlockHeight
                              : Transformed ? BlockWidth * ElemsPerDword
@@ -2075,7 +2080,21 @@ lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
     return Raw;
   } else {
     // HW restrictions force data which is read to contain padding filled with
-    // garbage for 2d lsc loads. This code eliminates such padding.
+    // zeros for 2d lsc loads. This code eliminates such padding.
+
+    // For example, 2D block load of 5 elements of 1 byte data type will
+    // take 8 bytes per row for each block.
+    //
+    // +----+----+----+----+----+----+-----+-----+
+    // | 00 | 01 | 02 | 03 | 04 | 05 | 06* | 07* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 10 | 11 | 12 | 13 | 14 | 15 | 16* | 17* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 20 | 21 | 22 | 23 | 24 | 25 | 26* | 27* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 30 | 31 | 32 | 33 | 34 | 35 | 36* | 37* |
+    // +----+----+----+----+----+----+-----+-----+
+    // * signifies the padded element.
 
     __ESIMD_NS::simd<T, DstElements> Dst;
 
@@ -2209,6 +2228,8 @@ __ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
   if constexpr (BlockHeight * Pitch == N) {
     Raw = Vals;
   } else {
+    // For store with padding, allocate the block with padding, and place
+    // original data there.
     auto Data2D = Vals.template bit_cast_view<T, BlockHeight, BlockWidth>();
     auto Raw2D = Raw.template bit_cast_view<T, BlockHeight, Pitch>();
     Raw2D.template select<BlockHeight, 1, BlockWidth, 1>(0, 0) = Data2D;
@@ -2508,7 +2529,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
     return Raw;
   } else {
     // HW restrictions force data which is read to contain padding filled with
-    // garbage for 2d lsc loads. This code eliminates such padding.
+    // zeros for 2d lsc loads. This code eliminates such padding.
 
     __ESIMD_NS::simd<T, DstElements> Dst;
 
