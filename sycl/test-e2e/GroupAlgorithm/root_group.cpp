@@ -104,7 +104,7 @@ void testRootGroupFunctions() {
           static_assert(
               std::is_same_v<std::remove_cv<decltype(grandchild)>::type,
                              sycl::sub_group>,
-              "get_child_group(sycl::group) must return a sycl::subgroup");
+              "get_child_group(sycl::group) must return a sycl::sub_group");
         }
       });
   q.wait();

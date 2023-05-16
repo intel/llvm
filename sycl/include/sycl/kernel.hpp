@@ -158,8 +158,8 @@ public:
   typename detail::is_kernel_device_specific_info_desc<Param>::return_type
       get_info(const device &Device, const range<3> &WGSize) const;
 
-// TODO: Revisit and align with sycl_ext_oneapi_forward_progress extension once
-// #7598 is merged.
+  // TODO: Revisit and align with sycl_ext_oneapi_forward_progress extension
+  // once #7598 is merged.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(const queue &q) const;
 

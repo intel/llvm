@@ -193,7 +193,7 @@ enum PropKind : uint32_t {
   PipeProtocol = 27,
   ReadyLatency = 28,
   UsesValid = 29,
-  UseRootSync = 30, 
+  UseRootSync = 30,
   // PropKindSize must always be the last value.
   PropKindSize = 31,
 };

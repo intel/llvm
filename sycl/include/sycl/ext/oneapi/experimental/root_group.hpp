@@ -78,9 +78,12 @@ public:
 
   bool leader() const { return get_local_id() == 0; };
 
+private:
+  friend root_group<Dimensions>
+  nd_item<Dimensions>::ext_oneapi_get_root_group() const;
+
   root_group(nd_item<Dimensions> it) : it{it} {}
 
-private:
   sycl::nd_item<Dimensions> it;
 };
 
@@ -96,9 +99,8 @@ template <int Dimensions> sub_group get_child_group(group<Dimensions> g) {
 }
 
 namespace this_kernel {
-template <int Dimensions>
-ext::oneapi::experimental::root_group<Dimensions> get_root_group() {
-  return root_group{ext::oneapi::experimental::this_nd_item<Dimensions>()};
+template <int Dimensions> root_group<Dimensions> get_root_group() {
+  return this_nd_item<Dimensions>().ext_oneapi_get_root_group();
 }
 } // namespace this_kernel
 
