@@ -11,7 +11,7 @@
 #include <thread>
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = int;
 
@@ -26,38 +26,36 @@ int main() {
   auto DataB2 = DataB;
   auto DataC2 = DataC;
 
-  exp_ext::command_graph GraphA{TestQueue.get_context(),
-                                TestQueue.get_device()};
+  exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Size, TestQueue);
-  T *PtrB = malloc_device<T>(Size, TestQueue);
-  T *PtrC = malloc_device<T>(Size, TestQueue);
+  T *PtrA = malloc_device<T>(Size, Queue);
+  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrC = malloc_device<T>(Size, Queue);
 
-  TestQueue.copy(DataA.data(), PtrA, Size);
-  TestQueue.copy(DataB.data(), PtrB, Size);
-  TestQueue.copy(DataC.data(), PtrC, Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA.data(), PtrA, Size);
+  Queue.copy(DataB.data(), PtrB, Size);
+  Queue.copy(DataC.data(), PtrC, Size);
+  Queue.wait_and_throw();
 
-  GraphA.begin_recording(TestQueue);
-  run_kernels_usm(TestQueue, Size, PtrA, PtrB, PtrC);
+  GraphA.begin_recording(Queue);
+  run_kernels_usm(Queue, Size, PtrA, PtrB, PtrC);
   GraphA.end_recording();
 
   auto GraphExec = GraphA.finalize();
 
-  exp_ext::command_graph GraphB{TestQueue.get_context(),
-                                TestQueue.get_device()};
+  exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA2 = malloc_device<T>(Size, TestQueue);
-  T *PtrB2 = malloc_device<T>(Size, TestQueue);
-  T *PtrC2 = malloc_device<T>(Size, TestQueue);
+  T *PtrA2 = malloc_device<T>(Size, Queue);
+  T *PtrB2 = malloc_device<T>(Size, Queue);
+  T *PtrC2 = malloc_device<T>(Size, Queue);
 
-  TestQueue.copy(DataA2.data(), PtrA2, Size);
-  TestQueue.copy(DataB2.data(), PtrB2, Size);
-  TestQueue.copy(DataC2.data(), PtrC2, Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA2.data(), PtrA2, Size);
+  Queue.copy(DataB2.data(), PtrB2, Size);
+  Queue.copy(DataC2.data(), PtrC2, Size);
+  Queue.wait_and_throw();
 
-  GraphB.begin_recording(TestQueue);
-  run_kernels_usm(TestQueue, Size, PtrA2, PtrB2, PtrC2);
+  GraphB.begin_recording(Queue);
+  run_kernels_usm(Queue, Size, PtrA2, PtrB2, PtrC2);
   GraphB.end_recording();
 
   auto UpdateGraph = [&]() { GraphExec.update(GraphB); };
@@ -73,9 +71,9 @@ int main() {
     Threads[i].join();
   }
 
-  free(PtrA, TestQueue);
-  free(PtrB, TestQueue);
-  free(PtrC, TestQueue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
 
   return 0;
 }

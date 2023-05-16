@@ -11,16 +11,16 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   bool Success = false;
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
-  Graph.begin_recording(TestQueue);
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  Graph.begin_recording(Queue);
 
-  queue TestQueue2;
+  queue Queue2;
   try {
-    Graph.begin_recording(TestQueue2);
+    Graph.begin_recording(Queue2);
   } catch (sycl::exception &E) {
     auto StdErrc = E.code().value();
     if (StdErrc == static_cast<int>(errc::invalid)) {

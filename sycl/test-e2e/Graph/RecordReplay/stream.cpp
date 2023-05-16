@@ -10,7 +10,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = int;
 
@@ -19,14 +19,14 @@ int main() {
 
   std::iota(DataIn.begin(), DataIn.end(), 1);
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrIn = malloc_device<T>(WorkItems, TestQueue);
-  TestQueue.copy(DataIn.data(), PtrIn, WorkItems);
+  T *PtrIn = malloc_device<T>(WorkItems, Queue);
+  Queue.copy(DataIn.data(), PtrIn, WorkItems);
 
-  Graph.begin_recording(TestQueue);
+  Graph.begin_recording(Queue);
 
-  TestQueue.submit([&](handler &CGH) {
+  Queue.submit([&](handler &CGH) {
     sycl::stream Out(WorkItems * 16, 16, CGH);
     CGH.parallel_for(range<1>(WorkItems), [=](item<1> id) {
       Out << "Val: " << PtrIn[id.get_linear_id()] << sycl::endl;
@@ -36,13 +36,13 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  TestQueue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+  Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
 
-  TestQueue.wait_and_throw();
+  Queue.wait_and_throw();
 
-  TestQueue.copy(PtrIn, DataIn.data(), Size);
+  Queue.copy(PtrIn, DataIn.data(), Size);
 
-  free(PtrIn, TestQueue);
+  free(PtrIn, Queue);
 
   return 0;
 }

@@ -10,11 +10,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = int;
 
-  if (!TestQueue.get_device().has(sycl::aspect::usm_shared_allocations)) {
+  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
     return 0;
   }
 
@@ -32,27 +32,27 @@ int main() {
     }
   }
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Size, TestQueue);
-  T *PtrB = malloc_device<T>(Size, TestQueue);
-  T *PtrC = malloc_shared<T>(Size, TestQueue);
+  T *PtrA = malloc_device<T>(Size, Queue);
+  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrC = malloc_shared<T>(Size, Queue);
 
-  TestQueue.copy(DataA.data(), PtrA, Size);
-  TestQueue.copy(DataB.data(), PtrB, Size);
-  TestQueue.copy(DataC.data(), PtrC, Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA.data(), PtrA, Size);
+  Queue.copy(DataB.data(), PtrB, Size);
+  Queue.copy(DataC.data(), PtrC, Size);
+  Queue.wait_and_throw();
 
-  Graph.begin_recording(TestQueue);
+  Graph.begin_recording(Queue);
 
   // Vector add to output
-  event Node1 = TestQueue.submit([&](handler &CGH) {
+  event Node1 = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> id) { PtrC[id] += PtrA[id] + PtrB[id]; });
   });
 
   // Modify the output values in a host_task
-  auto Node2 = TestQueue.submit([&](handler &CGH) {
+  auto Node2 = Queue.submit([&](handler &CGH) {
     CGH.depends_on(Node1);
     CGH.host_task([=]() {
       for (size_t i = 0; i < Size; i++) {
@@ -62,7 +62,7 @@ int main() {
   });
 
   // Modify temp buffer and write to output buffer
-  TestQueue.submit([&](handler &CGH) {
+  Queue.submit([&](handler &CGH) {
     CGH.depends_on(Node2);
     CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
   });
@@ -72,19 +72,19 @@ int main() {
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = TestQueue.submit([&](handler &CGH) {
+    Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
   }
-  TestQueue.wait_and_throw();
+  Queue.wait_and_throw();
 
-  TestQueue.copy(PtrC, DataC.data(), Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(PtrC, DataC.data(), Size);
+  Queue.wait_and_throw();
 
-  free(PtrA, TestQueue);
-  free(PtrB, TestQueue);
-  free(PtrC, TestQueue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
 
   assert(ReferenceC == DataC);
 

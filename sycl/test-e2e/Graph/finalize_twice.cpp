@@ -7,10 +7,10 @@
 #include "graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
-  ext::oneapi::experimental::command_graph Graph{TestQueue.get_context(),
-                                                 TestQueue.get_device()};
+  ext::oneapi::experimental::command_graph Graph{Queue.get_context(),
+                                                 Queue.get_device()};
   auto GraphExec = Graph.finalize();
   auto GraphExec2 = Graph.finalize();
 

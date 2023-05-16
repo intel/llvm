@@ -11,12 +11,12 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   bool Success = false;
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
-  Graph.begin_recording(TestQueue);
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  Graph.begin_recording(Queue);
 
   try {
     Graph.add([&](handler &CGH) {});

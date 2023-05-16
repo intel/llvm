@@ -12,7 +12,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = int;
 
@@ -35,48 +35,47 @@ int main() {
   calculate_reference_data(Iterations, Size, ReferenceA2, ReferenceB2,
                            ReferenceC2);
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Size, TestQueue);
-  T *PtrB = malloc_device<T>(Size, TestQueue);
-  T *PtrC = malloc_device<T>(Size, TestQueue);
+  T *PtrA = malloc_device<T>(Size, Queue);
+  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrC = malloc_device<T>(Size, Queue);
 
-  T *PtrA2 = malloc_device<T>(Size, TestQueue);
-  T *PtrB2 = malloc_device<T>(Size, TestQueue);
-  T *PtrC2 = malloc_device<T>(Size, TestQueue);
+  T *PtrA2 = malloc_device<T>(Size, Queue);
+  T *PtrB2 = malloc_device<T>(Size, Queue);
+  T *PtrC2 = malloc_device<T>(Size, Queue);
 
-  TestQueue.copy(DataA.data(), PtrA, Size);
-  TestQueue.copy(DataB.data(), PtrB, Size);
-  TestQueue.copy(DataC.data(), PtrC, Size);
+  Queue.copy(DataA.data(), PtrA, Size);
+  Queue.copy(DataB.data(), PtrB, Size);
+  Queue.copy(DataC.data(), PtrC, Size);
 
-  TestQueue.copy(DataA2.data(), PtrA, Size);
-  TestQueue.copy(DataB2.data(), PtrB, Size);
-  TestQueue.copy(DataC2.data(), PtrC, Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA2.data(), PtrA, Size);
+  Queue.copy(DataB2.data(), PtrB, Size);
+  Queue.copy(DataC2.data(), PtrC, Size);
+  Queue.wait_and_throw();
 
-  Graph.begin_recording(TestQueue);
-  run_kernels_usm(TestQueue, Size, PtrA, PtrB, PtrC);
+  Graph.begin_recording(Queue);
+  run_kernels_usm(Queue, Size, PtrA, PtrB, PtrC);
   Graph.end_recording();
 
   auto ExecGraph = Graph.finalize();
 
   // Create second graph using other buffer set
-  exp_ext::command_graph GraphUpdate{TestQueue.get_context(),
-                                     TestQueue.get_device()};
-  GraphUpdate.begin_recording(TestQueue);
-  run_kernels_usm(TestQueue, Size, PtrA2, PtrB2, PtrC2);
+  exp_ext::command_graph GraphUpdate{Queue.get_context(), Queue.get_device()};
+  GraphUpdate.begin_recording(Queue);
+  run_kernels_usm(Queue, Size, PtrA2, PtrB2, PtrC2);
   GraphUpdate.end_recording();
 
   event Event;
   for (size_t i = 0; i < Iterations; i++) {
-    Event = TestQueue.submit([&](handler &CGH) {
+    Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(ExecGraph);
     });
     // Update to second set of buffers
     ExecGraph.update(GraphUpdate);
 
-    Event = TestQueue.submit([&](handler &CGH) {
+    Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(ExecGraph);
     });
@@ -84,24 +83,24 @@ int main() {
     ExecGraph.update(Graph);
   }
 
-  TestQueue.wait_and_throw();
+  Queue.wait_and_throw();
 
-  TestQueue.copy(PtrA, DataA.data(), Size);
-  TestQueue.copy(PtrB, DataB.data(), Size);
-  TestQueue.copy(PtrC, DataC.data(), Size);
+  Queue.copy(PtrA, DataA.data(), Size);
+  Queue.copy(PtrB, DataB.data(), Size);
+  Queue.copy(PtrC, DataC.data(), Size);
 
-  TestQueue.copy(PtrA2, DataA2.data(), Size);
-  TestQueue.copy(PtrB2, DataB2.data(), Size);
-  TestQueue.copy(PtrC2, DataC2.data(), Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(PtrA2, DataA2.data(), Size);
+  Queue.copy(PtrB2, DataB2.data(), Size);
+  Queue.copy(PtrC2, DataC2.data(), Size);
+  Queue.wait_and_throw();
 
-  free(PtrA, TestQueue);
-  free(PtrB, TestQueue);
-  free(PtrC, TestQueue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
 
-  free(PtrA2, TestQueue);
-  free(PtrB2, TestQueue);
-  free(PtrC2, TestQueue);
+  free(PtrA2, Queue);
+  free(PtrB2, Queue);
+  free(PtrC2, Queue);
 
   assert(ReferenceA == DataA);
   assert(ReferenceB == DataB);

@@ -11,15 +11,14 @@
 #include <thread>
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   const unsigned NumThreads = std::thread::hardware_concurrency();
 
   auto RecordGraph = [&]() {
-    exp_ext::command_graph Graph{TestQueue.get_context(),
-                                 TestQueue.get_device()};
+    exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
     try {
-      Graph.begin_recording(TestQueue);
+      Graph.begin_recording(Queue);
     } catch (sycl::exception &E) {
       // Can throw if graph is already being recorded to
     }

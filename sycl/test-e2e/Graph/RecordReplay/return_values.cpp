@@ -8,16 +8,16 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
+  queue Queue;
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   bool ChangedState = Graph.end_recording();
   assert(ChangedState == false);
 
-  ChangedState = Graph.begin_recording(TestQueue);
+  ChangedState = Graph.begin_recording(Queue);
   assert(ChangedState == true);
 
-  ChangedState = Graph.begin_recording(TestQueue);
+  ChangedState = Graph.begin_recording(Queue);
   assert(ChangedState == false);
 
   ChangedState = Graph.end_recording();

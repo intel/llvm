@@ -9,7 +9,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = unsigned int;
 
@@ -31,23 +31,23 @@ int main() {
     }
   }
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Size, TestQueue);
-  T *PtrB = malloc_device<T>(Size, TestQueue);
-  T *PtrC = malloc_device<T>(Size, TestQueue);
-  T *PtrOut = malloc_device<T>(Size, TestQueue);
+  T *PtrA = malloc_device<T>(Size, Queue);
+  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrC = malloc_device<T>(Size, Queue);
+  T *PtrOut = malloc_device<T>(Size, Queue);
 
-  TestQueue.copy(DataA.data(), PtrA, Size);
-  TestQueue.copy(DataB.data(), PtrB, Size);
-  TestQueue.copy(DataC.data(), PtrC, Size);
-  TestQueue.copy(DataOut.data(), PtrOut, Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA.data(), PtrA, Size);
+  Queue.copy(DataB.data(), PtrB, Size);
+  Queue.copy(DataC.data(), PtrC, Size);
+  Queue.copy(DataOut.data(), PtrOut, Size);
+  Queue.wait_and_throw();
 
-  Graph.begin_recording(TestQueue);
+  Graph.begin_recording(Queue);
 
   // Vector add to some buffer
-  auto Event = TestQueue.submit([&](handler &CGH) {
+  auto Event = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> id) { PtrC[id] += PtrA[id] + PtrB[id]; });
   });
@@ -55,7 +55,7 @@ int main() {
   auto GraphExec = Graph.finalize();
 
   // Read and modify previous output and write to output buffer
-  Event = TestQueue.submit([&](handler &CGH) {
+  Event = Queue.submit([&](handler &CGH) {
     CGH.depends_on(Event);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> id) { PtrOut[id] += PtrC[id] + 1; });
@@ -67,28 +67,28 @@ int main() {
 
   // Execute several iterations of the graph
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = TestQueue.submit([&](handler &CGH) {
+    Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
   }
   // Execute the extended graph.
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = TestQueue.submit([&](handler &CGH) {
+    Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExecAdditional);
     });
   }
-  TestQueue.wait_and_throw();
+  Queue.wait_and_throw();
 
-  TestQueue.copy(PtrC, DataC.data(), Size);
-  TestQueue.copy(PtrOut, DataOut.data(), Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(PtrC, DataC.data(), Size);
+  Queue.copy(PtrOut, DataOut.data(), Size);
+  Queue.wait_and_throw();
 
-  free(PtrA, TestQueue);
-  free(PtrB, TestQueue);
-  free(PtrC, TestQueue);
-  free(PtrOut, TestQueue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
+  free(PtrOut, Queue);
 
   assert(ReferenceC == DataC);
   assert(ReferenceOut == DataOut);

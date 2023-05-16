@@ -10,7 +10,7 @@
 #include <thread>
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = int;
 
@@ -22,16 +22,16 @@ int main() {
   std::iota(DataB.begin(), DataB.end(), 10);
   std::iota(DataC.begin(), DataC.end(), 1000);
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Elements, TestQueue);
-  T *PtrB = malloc_device<T>(Elements, TestQueue);
-  T *PtrC = malloc_device<T>(Elements, TestQueue);
+  T *PtrA = malloc_device<T>(Elements, Queue);
+  T *PtrB = malloc_device<T>(Elements, Queue);
+  T *PtrC = malloc_device<T>(Elements, Queue);
 
-  TestQueue.copy(DataA.data(), PtrA, Elements);
-  TestQueue.copy(DataB.data(), PtrB, Elements);
-  TestQueue.copy(DataC.data(), PtrC, Elements);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA.data(), PtrA, Elements);
+  Queue.copy(DataB.data(), PtrB, Elements);
+  Queue.copy(DataC.data(), PtrC, Elements);
+  Queue.wait_and_throw();
 
   auto AddNodesToGraph = [&]() {
     add_kernels_usm(Graph, Elements, PtrA, PtrB, PtrC);
@@ -47,9 +47,9 @@ int main() {
     Threads[i].join();
   }
 
-  free(PtrA, TestQueue);
-  free(PtrB, TestQueue);
-  free(PtrC, TestQueue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
 
   return 0;
 }

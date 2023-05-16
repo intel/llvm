@@ -8,7 +8,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = short;
 
@@ -36,19 +36,18 @@ int main() {
     }
   }
 
-  exp_ext::command_graph SubGraph{TestQueue.get_context(),
-                                  TestQueue.get_device()};
+  exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Size, TestQueue);
-  T *PtrB = malloc_device<T>(Size, TestQueue);
-  T *PtrC = malloc_device<T>(Size, TestQueue);
-  T *PtrOut = malloc_device<T>(Size, TestQueue);
+  T *PtrA = malloc_device<T>(Size, Queue);
+  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrC = malloc_device<T>(Size, Queue);
+  T *PtrOut = malloc_device<T>(Size, Queue);
 
-  TestQueue.copy(DataA.data(), PtrA, Size);
-  TestQueue.copy(DataB.data(), PtrB, Size);
-  TestQueue.copy(DataC.data(), PtrC, Size);
-  TestQueue.copy(DataOut.data(), PtrOut, Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA.data(), PtrA, Size);
+  Queue.copy(DataB.data(), PtrB, Size);
+  Queue.copy(DataC.data(), PtrC, Size);
+  Queue.copy(DataOut.data(), PtrOut, Size);
+  Queue.wait_and_throw();
 
   // Add some operations to a graph which will later be submitted as part
   // of another graph.
@@ -69,8 +68,7 @@ int main() {
 
   auto SubGraphExec = SubGraph.finalize();
 
-  exp_ext::command_graph MainGraph{TestQueue.get_context(),
-                                   TestQueue.get_device()};
+  exp_ext::command_graph MainGraph{Queue.get_context(), Queue.get_device()};
 
   // Modify the input values.
   auto NodeMainA = MainGraph.add([&](handler &CGH) {
@@ -97,23 +95,23 @@ int main() {
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = TestQueue.submit([&](handler &CGH) {
+    Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(MainGraphExec);
     });
   }
-  TestQueue.wait_and_throw();
+  Queue.wait_and_throw();
 
-  TestQueue.copy(PtrA, DataA.data(), Size);
-  TestQueue.copy(PtrB, DataB.data(), Size);
-  TestQueue.copy(PtrC, DataC.data(), Size);
-  TestQueue.copy(PtrOut, DataOut.data(), Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(PtrA, DataA.data(), Size);
+  Queue.copy(PtrB, DataB.data(), Size);
+  Queue.copy(PtrC, DataC.data(), Size);
+  Queue.copy(PtrOut, DataOut.data(), Size);
+  Queue.wait_and_throw();
 
-  free(PtrA, TestQueue);
-  free(PtrB, TestQueue);
-  free(PtrC, TestQueue);
-  free(PtrOut, TestQueue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
+  free(PtrOut, Queue);
 
   assert(ReferenceA == DataA);
   assert(ReferenceB == DataB);

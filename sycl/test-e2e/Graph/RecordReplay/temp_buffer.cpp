@@ -11,7 +11,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = int;
 
@@ -29,8 +29,7 @@ int main() {
   }
 
   {
-    exp_ext::command_graph Graph{TestQueue.get_context(),
-                                 TestQueue.get_device()};
+    exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
     buffer<T> BufferA{DataA.data(), range<1>{DataA.size()}};
     BufferA.set_write_back(false);
     buffer<T> BufferB{DataB.data(), range<1>{DataB.size()}};
@@ -38,7 +37,7 @@ int main() {
     buffer<T> BufferC{DataC.data(), range<1>{DataC.size()}};
     BufferC.set_write_back(false);
 
-    Graph.begin_recording(TestQueue);
+    Graph.begin_recording(Queue);
 
     // Create a temporary output buffer to use between kernels.
     {
@@ -46,7 +45,7 @@ int main() {
       BufferTemp.set_write_back(false);
 
       // Vector add to temporary output buffer
-      TestQueue.submit([&](handler &CGH) {
+      Queue.submit([&](handler &CGH) {
         auto PtrA = BufferA.get_access<access::mode::read>(CGH);
         auto PtrB = BufferB.get_access<access::mode::read>(CGH);
         auto PtrOut = BufferTemp.get_access<access::mode::write>(CGH);
@@ -55,7 +54,7 @@ int main() {
       });
 
       // Modify temp buffer and write to output buffer
-      TestQueue.submit([&](handler &CGH) {
+      Queue.submit([&](handler &CGH) {
         auto PtrTemp = BufferTemp.get_access<access::mode::read>(CGH);
         auto PtrOut = BufferC.get_access<access::mode::write>(CGH);
         CGH.parallel_for(range<1>(Size),
@@ -67,12 +66,12 @@ int main() {
 
     event Event;
     for (unsigned n = 0; n < Iterations; n++) {
-      Event = TestQueue.submit([&](handler &CGH) {
+      Event = Queue.submit([&](handler &CGH) {
         CGH.depends_on(Event);
         CGH.ext_oneapi_graph(GraphExec);
       });
     }
-    TestQueue.wait_and_throw();
+    Queue.wait_and_throw();
 
     host_accessor HostAccC(BufferC);
     for (size_t i = 0; i < Size; i++) {

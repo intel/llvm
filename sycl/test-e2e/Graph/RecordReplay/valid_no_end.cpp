@@ -8,9 +8,9 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
-  exp_ext::command_graph Graph{TestQueue.get_context(), TestQueue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   {
     queue MyQueue;
     Graph.begin_recording(MyQueue);
@@ -18,10 +18,10 @@ int main() {
 
   try {
     auto GraphExec = Graph.finalize();
-    TestQueue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   } catch (sycl::exception &E) {
     assert(false && "Exception thrown on finalize or submission.\n");
   }
-  TestQueue.wait();
+  Queue.wait();
   return 0;
 }

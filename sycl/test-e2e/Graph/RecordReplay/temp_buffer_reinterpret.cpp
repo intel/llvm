@@ -10,7 +10,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = int;
 
@@ -25,33 +25,32 @@ int main() {
                            ReferenceC);
 
   {
-    exp_ext::command_graph Graph{TestQueue.get_context(),
-                                 TestQueue.get_device()};
+    exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
     buffer<T> BufferA{DataA.data(), range<1>{DataA.size()}};
     buffer<T> BufferB{DataB.data(), range<1>{DataB.size()}};
     buffer<T> BufferC{DataC.data(), range<1>{DataC.size()}};
 
-    Graph.begin_recording(TestQueue);
+    Graph.begin_recording(Queue);
     {
       // Create some temporary buffers only for recording
       auto BufferA2 = BufferA.reinterpret<T, 1>(BufferA.get_range());
       auto BufferB2 = BufferB.reinterpret<T, 1>(BufferB.get_range());
       auto BufferC2 = BufferC.reinterpret<T, 1>(BufferC.get_range());
 
-      run_kernels(TestQueue, Size, BufferA2, BufferB2, BufferC2);
+      run_kernels(Queue, Size, BufferA2, BufferB2, BufferC2);
     }
     Graph.end_recording();
     auto GraphExec = Graph.finalize();
 
     event Event;
     for (unsigned n = 0; n < Iterations; n++) {
-      Event = TestQueue.submit([&](handler &CGH) {
+      Event = Queue.submit([&](handler &CGH) {
         CGH.depends_on(Event);
         CGH.ext_oneapi_graph(GraphExec);
       });
     }
     // Perform a wait on all graph submissions.
-    TestQueue.wait_and_throw();
+    Queue.wait_and_throw();
   }
 
   assert(ReferenceA == DataA);

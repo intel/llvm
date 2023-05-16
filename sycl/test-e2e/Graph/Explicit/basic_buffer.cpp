@@ -8,7 +8,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = unsigned short;
 
@@ -23,8 +23,7 @@ int main() {
                            ReferenceC);
 
   {
-    exp_ext::command_graph Graph{TestQueue.get_context(),
-                                 TestQueue.get_device()};
+    exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
     buffer<T> BufferA{DataA.data(), range<1>{DataA.size()}};
     BufferA.set_write_back(false);
     buffer<T> BufferB{DataB.data(), range<1>{DataB.size()}};
@@ -39,12 +38,12 @@ int main() {
 
     event Event;
     for (unsigned n = 0; n < Iterations; n++) {
-      Event = TestQueue.submit([&](handler &CGH) {
+      Event = Queue.submit([&](handler &CGH) {
         CGH.depends_on(Event);
         CGH.ext_oneapi_graph(GraphExec);
       });
     }
-    TestQueue.wait_and_throw();
+    Queue.wait_and_throw();
 
     host_accessor HostAccA(BufferA);
     host_accessor HostAccB(BufferB);

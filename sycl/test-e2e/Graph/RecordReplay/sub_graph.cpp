@@ -8,7 +8,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   using T = short;
 
@@ -35,32 +35,31 @@ int main() {
     }
   }
 
-  exp_ext::command_graph SubGraph{TestQueue.get_context(),
-                                  TestQueue.get_device()};
+  exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
 
-  T *PtrA = malloc_device<T>(Size, TestQueue);
-  T *PtrB = malloc_device<T>(Size, TestQueue);
-  T *PtrC = malloc_device<T>(Size, TestQueue);
-  T *PtrOut = malloc_device<T>(Size, TestQueue);
+  T *PtrA = malloc_device<T>(Size, Queue);
+  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrC = malloc_device<T>(Size, Queue);
+  T *PtrOut = malloc_device<T>(Size, Queue);
 
-  TestQueue.copy(DataA.data(), PtrA, Size);
-  TestQueue.copy(DataB.data(), PtrB, Size);
-  TestQueue.copy(DataC.data(), PtrC, Size);
-  TestQueue.copy(DataOut.data(), PtrOut, Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(DataA.data(), PtrA, Size);
+  Queue.copy(DataB.data(), PtrB, Size);
+  Queue.copy(DataC.data(), PtrC, Size);
+  Queue.copy(DataOut.data(), PtrOut, Size);
+  Queue.wait_and_throw();
 
   // Record some operations to a graph which will later be submitted as part
   // of another graph.
-  SubGraph.begin_recording(TestQueue);
+  SubGraph.begin_recording(Queue);
 
   // Vector add two values
-  auto NodeSubA = TestQueue.submit([&](handler &CGH) {
+  auto NodeSubA = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> id) { PtrC[id] = PtrA[id] + PtrB[id]; });
   });
 
   // Modify the output value with some other value
-  TestQueue.submit([&](handler &CGH) {
+  Queue.submit([&](handler &CGH) {
     CGH.depends_on(NodeSubA);
     CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] -= ModValue; });
   });
@@ -69,26 +68,25 @@ int main() {
 
   auto SubGraphExec = SubGraph.finalize();
 
-  exp_ext::command_graph MainGraph{TestQueue.get_context(),
-                                   TestQueue.get_device()};
+  exp_ext::command_graph MainGraph{Queue.get_context(), Queue.get_device()};
 
-  MainGraph.begin_recording(TestQueue);
+  MainGraph.begin_recording(Queue);
 
   // Modify the input values.
-  auto NodeMainA = TestQueue.submit([&](handler &CGH) {
+  auto NodeMainA = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size), [=](item<1> id) {
       PtrA[id] += ModValue;
       PtrB[id] += ModValue;
     });
   });
 
-  auto NodeMainB = TestQueue.submit([&](handler &CGH) {
+  auto NodeMainB = Queue.submit([&](handler &CGH) {
     CGH.depends_on(NodeMainA);
     CGH.ext_oneapi_graph(SubGraphExec);
   });
 
   // Copy to another output buffer.
-  TestQueue.submit([&](handler &CGH) {
+  Queue.submit([&](handler &CGH) {
     CGH.depends_on(NodeMainB);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> id) { PtrOut[id] = PtrC[id] + ModValue; });
@@ -101,22 +99,21 @@ int main() {
 
   // Execute several iterations of the graph
   for (unsigned n = 0; n < Iterations; n++) {
-    TestQueue.submit(
-        [&](handler &CGH) { CGH.ext_oneapi_graph(MainGraphExec); });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(MainGraphExec); });
   }
   // Perform a wait on all graph submissions.
-  TestQueue.wait_and_throw();
+  Queue.wait_and_throw();
 
-  TestQueue.copy(PtrA, DataA.data(), Size);
-  TestQueue.copy(PtrB, DataB.data(), Size);
-  TestQueue.copy(PtrC, DataC.data(), Size);
-  TestQueue.copy(PtrOut, DataOut.data(), Size);
-  TestQueue.wait_and_throw();
+  Queue.copy(PtrA, DataA.data(), Size);
+  Queue.copy(PtrB, DataB.data(), Size);
+  Queue.copy(PtrC, DataC.data(), Size);
+  Queue.copy(PtrOut, DataOut.data(), Size);
+  Queue.wait_and_throw();
 
-  free(PtrA, TestQueue);
-  free(PtrB, TestQueue);
-  free(PtrC, TestQueue);
-  free(PtrOut, TestQueue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
+  free(PtrOut, Queue);
 
   assert(ReferenceA == DataA);
   assert(ReferenceB == DataB);

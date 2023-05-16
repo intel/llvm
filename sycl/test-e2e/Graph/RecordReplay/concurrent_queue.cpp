@@ -8,18 +8,16 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
   bool Success = false;
 
-  exp_ext::command_graph GraphA{TestQueue.get_context(),
-                                TestQueue.get_device()};
-  GraphA.begin_recording(TestQueue);
+  exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
+  GraphA.begin_recording(Queue);
 
   try {
-    exp_ext::command_graph GraphB{TestQueue.get_context(),
-                                  TestQueue.get_device()};
-    GraphB.begin_recording(TestQueue);
+    exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
+    GraphB.begin_recording(Queue);
   } catch (sycl::exception &E) {
     auto StdErrc = E.code().value();
     if (StdErrc == static_cast<int>(errc::invalid)) {

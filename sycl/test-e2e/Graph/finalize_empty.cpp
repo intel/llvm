@@ -7,14 +7,14 @@
 #include "graph_common.hpp"
 
 int main() {
-  queue TestQueue;
+  queue Queue;
 
-  ext::oneapi::experimental::command_graph Graph{TestQueue.get_context(),
-                                                 TestQueue.get_device()};
+  ext::oneapi::experimental::command_graph Graph{Queue.get_context(),
+                                                 Queue.get_device()};
   auto GraphExec = Graph.finalize();
 
-  TestQueue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
-  TestQueue.wait_and_throw();
+  Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+  Queue.wait_and_throw();
 
   return 0;
 }
