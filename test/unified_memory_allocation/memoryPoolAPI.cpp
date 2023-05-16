@@ -8,6 +8,7 @@
 #include "provider.hpp"
 
 #include "memoryPool.hpp"
+#include "uma/memory_provider.h"
 
 #include <array>
 #include <string>
@@ -30,8 +31,9 @@ TEST_F(test, memoryPoolTrace) {
         uma::poolMakeUnique<uma_test::proxy_pool>(&provider, 1);
     ASSERT_EQ(ret, UMA_RESULT_SUCCESS);
 
-    auto tracingPool =
-        uma_test::wrapPoolUnique(tracePoolCreate(proxyPool.get(), tracePool));
+    uma_memory_provider_handle_t providerDesc = nullProviderCreate();
+    auto tracingPool = uma_test::wrapPoolUnique(
+        tracePoolCreate(proxyPool.get(), providerDesc, tracePool));
 
     size_t pool_call_count = 0;
     size_t provider_call_count = 0;
@@ -84,6 +86,8 @@ TEST_F(test, memoryPoolTrace) {
 
     ASSERT_EQ(providerCalls["get_last_result"], 1);
     ASSERT_EQ(providerCalls.size(), ++provider_call_count);
+
+    umaMemoryProviderDestroy(providerDesc);
 }
 
 TEST_F(test, memoryPoolWithCustomProviders) {
