@@ -3134,14 +3134,6 @@ struct TriviallyEqualityComparable {
 };
 static_assert(__is_trivially_equality_comparable(TriviallyEqualityComparable), "");
 
-struct TriviallyEqualityComparableNonTriviallyCopyable {
-  TriviallyEqualityComparableNonTriviallyCopyable(const TriviallyEqualityComparableNonTriviallyCopyable&);
-  ~TriviallyEqualityComparableNonTriviallyCopyable();
-  bool operator==(const TriviallyEqualityComparableNonTriviallyCopyable&) const = default;
-  int i;
-};
-static_assert(__is_trivially_equality_comparable(TriviallyEqualityComparableNonTriviallyCopyable));
-
 struct NotTriviallyEqualityComparableHasPadding {
   short i;
   int j;

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++23 -verify %s
+// RUN: %clang_cc1 -std=c++2b -verify %s
 
 // Ensure we substitute into instantiation-dependent but non-dependent
 // constructs. The poster-child for this is...

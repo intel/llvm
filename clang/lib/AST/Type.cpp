@@ -2663,8 +2663,7 @@ bool QualType::isTriviallyEqualityComparableType(
       return false;
   }
 
-  return Context.hasUniqueObjectRepresentations(
-      CanonicalType, /*CheckIfTriviallyCopyable=*/false);
+  return Context.hasUniqueObjectRepresentations(CanonicalType);
 }
 
 bool QualType::isNonWeakInMRRWithObjCWeak(const ASTContext &Context) const {

@@ -57,8 +57,9 @@ Context &getContext() {
 void verifyEncoding(MCDwarfLineTableParams Params, int LineDelta, int AddrDelta,
                     ArrayRef<uint8_t> ExpectedEncoding) {
   SmallString<16> Buffer;
-  MCDwarfLineAddr::encode(getContext(), Params, LineDelta, AddrDelta,
-                          Buffer);
+  raw_svector_ostream EncodingOS(Buffer);
+  MCDwarfLineAddr::Encode(getContext(), Params, LineDelta, AddrDelta,
+                          EncodingOS);
   EXPECT_EQ(ExpectedEncoding, arrayRefFromStringRef(Buffer));
 }
 

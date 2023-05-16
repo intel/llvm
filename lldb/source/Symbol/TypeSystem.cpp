@@ -217,21 +217,11 @@ void TypeSystemMap::Clear() {
 
 void TypeSystemMap::ForEach(
     std::function<bool(lldb::TypeSystemSP)> const &callback) {
-
-  // The callback may call into this function again causing
-  // us to lock m_mutex twice if we held it across the callback.
-  // Since we just care about guarding access to 'm_map', make
-  // a local copy and iterate over that instead.
-  collection map_snapshot;
-  {
-      std::lock_guard<std::mutex> guard(m_mutex);
-      map_snapshot = m_map;
-  }
-
+  std::lock_guard<std::mutex> guard(m_mutex);
   // Use a std::set so we only call the callback once for each unique
   // TypeSystem instance.
   llvm::DenseSet<TypeSystem *> visited;
-  for (auto &pair : map_snapshot) {
+  for (auto &pair : m_map) {
     TypeSystem *type_system = pair.second.get();
     if (!type_system || visited.count(type_system))
       continue;

@@ -78,12 +78,9 @@ static inline uint64_t ScaleAddrDelta(MCContext &Context, uint64_t AddrDelta) {
 
 MCDwarfLineStr::MCDwarfLineStr(MCContext &Ctx) {
   UseRelocs = Ctx.getAsmInfo()->doesDwarfUseRelocationsAcrossSections();
-  if (UseRelocs) {
-    MCSection *DwarfLineStrSection =
-        Ctx.getObjectFileInfo()->getDwarfLineStrSection();
-    assert(DwarfLineStrSection && "DwarfLineStrSection must not be NULL");
-    LineStrLabel = DwarfLineStrSection->getBeginSymbol();
-  }
+  if (UseRelocs)
+    LineStrLabel =
+        Ctx.getObjectFileInfo()->getDwarfLineStrSection()->getBeginSymbol();
 }
 
 //
@@ -670,8 +667,9 @@ void MCDwarfLineAddr::Emit(MCStreamer *MCOS, MCDwarfLineTableParams Params,
                            int64_t LineDelta, uint64_t AddrDelta) {
   MCContext &Context = MCOS->getContext();
   SmallString<256> Tmp;
-  MCDwarfLineAddr::encode(Context, Params, LineDelta, AddrDelta, Tmp);
-  MCOS->emitBytes(Tmp);
+  raw_svector_ostream OS(Tmp);
+  MCDwarfLineAddr::Encode(Context, Params, LineDelta, AddrDelta, OS);
+  MCOS->emitBytes(OS.str());
 }
 
 /// Given a special op, return the address skip amount (in units of
@@ -681,10 +679,9 @@ static uint64_t SpecialAddr(MCDwarfLineTableParams Params, uint64_t op) {
 }
 
 /// Utility function to encode a Dwarf pair of LineDelta and AddrDeltas.
-void MCDwarfLineAddr::encode(MCContext &Context, MCDwarfLineTableParams Params,
+void MCDwarfLineAddr::Encode(MCContext &Context, MCDwarfLineTableParams Params,
                              int64_t LineDelta, uint64_t AddrDelta,
-                             SmallVectorImpl<char> &Out) {
-  uint8_t Buf[16];
+                             raw_ostream &OS) {
   uint64_t Temp, Opcode;
   bool NeedCopy = false;
 
@@ -699,14 +696,14 @@ void MCDwarfLineAddr::encode(MCContext &Context, MCDwarfLineTableParams Params,
   // end_sequence to emit the matrix entry.
   if (LineDelta == INT64_MAX) {
     if (AddrDelta == MaxSpecialAddrDelta)
-      Out.push_back(dwarf::DW_LNS_const_add_pc);
+      OS << char(dwarf::DW_LNS_const_add_pc);
     else if (AddrDelta) {
-      Out.push_back(dwarf::DW_LNS_advance_pc);
-      Out.append(Buf, Buf + encodeULEB128(AddrDelta, Buf));
+      OS << char(dwarf::DW_LNS_advance_pc);
+      encodeULEB128(AddrDelta, OS);
     }
-    Out.push_back(dwarf::DW_LNS_extended_op);
-    Out.push_back(1);
-    Out.push_back(dwarf::DW_LNE_end_sequence);
+    OS << char(dwarf::DW_LNS_extended_op);
+    OS << char(1);
+    OS << char(dwarf::DW_LNE_end_sequence);
     return;
   }
 
@@ -717,8 +714,8 @@ void MCDwarfLineAddr::encode(MCContext &Context, MCDwarfLineTableParams Params,
   // it with DW_LNS_advance_line.
   if (Temp >= Params.DWARF2LineRange ||
       Temp + Params.DWARF2LineOpcodeBase > 255) {
-    Out.push_back(dwarf::DW_LNS_advance_line);
-    Out.append(Buf, Buf + encodeSLEB128(LineDelta, Buf));
+    OS << char(dwarf::DW_LNS_advance_line);
+    encodeSLEB128(LineDelta, OS);
 
     LineDelta = 0;
     Temp = 0 - Params.DWARF2LineBase;
@@ -727,7 +724,7 @@ void MCDwarfLineAddr::encode(MCContext &Context, MCDwarfLineTableParams Params,
 
   // Use DW_LNS_copy instead of a "line +0, addr +0" special opcode.
   if (LineDelta == 0 && AddrDelta == 0) {
-    Out.push_back(dwarf::DW_LNS_copy);
+    OS << char(dwarf::DW_LNS_copy);
     return;
   }
 
@@ -739,28 +736,28 @@ void MCDwarfLineAddr::encode(MCContext &Context, MCDwarfLineTableParams Params,
     // Try using a special opcode.
     Opcode = Temp + AddrDelta * Params.DWARF2LineRange;
     if (Opcode <= 255) {
-      Out.push_back(Opcode);
+      OS << char(Opcode);
       return;
     }
 
     // Try using DW_LNS_const_add_pc followed by special op.
     Opcode = Temp + (AddrDelta - MaxSpecialAddrDelta) * Params.DWARF2LineRange;
     if (Opcode <= 255) {
-      Out.push_back(dwarf::DW_LNS_const_add_pc);
-      Out.push_back(Opcode);
+      OS << char(dwarf::DW_LNS_const_add_pc);
+      OS << char(Opcode);
       return;
     }
   }
 
   // Otherwise use DW_LNS_advance_pc.
-  Out.push_back(dwarf::DW_LNS_advance_pc);
-  Out.append(Buf, Buf + encodeULEB128(AddrDelta, Buf));
+  OS << char(dwarf::DW_LNS_advance_pc);
+  encodeULEB128(AddrDelta, OS);
 
   if (NeedCopy)
-    Out.push_back(dwarf::DW_LNS_copy);
+    OS << char(dwarf::DW_LNS_copy);
   else {
     assert(Temp <= 255 && "Buggy special opcode encoding.");
-    Out.push_back(Temp);
+    OS << char(Temp);
   }
 }
 
@@ -1928,9 +1925,18 @@ void MCDwarfFrameEmitter::Emit(MCObjectStreamer &Streamer, MCAsmBackend *MAB,
   }
 }
 
-void MCDwarfFrameEmitter::encodeAdvanceLoc(MCContext &Context,
+void MCDwarfFrameEmitter::EmitAdvanceLoc(MCObjectStreamer &Streamer,
+                                         uint64_t AddrDelta) {
+  MCContext &Context = Streamer.getContext();
+  SmallString<256> Tmp;
+  raw_svector_ostream OS(Tmp);
+  MCDwarfFrameEmitter::EncodeAdvanceLoc(Context, AddrDelta, OS);
+  Streamer.emitBytes(OS.str());
+}
+
+void MCDwarfFrameEmitter::EncodeAdvanceLoc(MCContext &Context,
                                            uint64_t AddrDelta,
-                                           SmallVectorImpl<char> &Out) {
+                                           raw_ostream &OS) {
   // Scale the address delta by the minimum instruction length.
   AddrDelta = ScaleAddrDelta(Context, AddrDelta);
   if (AddrDelta == 0)
@@ -1941,16 +1947,16 @@ void MCDwarfFrameEmitter::encodeAdvanceLoc(MCContext &Context,
 
   if (isUIntN(6, AddrDelta)) {
     uint8_t Opcode = dwarf::DW_CFA_advance_loc | AddrDelta;
-    Out.push_back(Opcode);
+    OS << Opcode;
   } else if (isUInt<8>(AddrDelta)) {
-    Out.push_back(dwarf::DW_CFA_advance_loc1);
-    Out.push_back(AddrDelta);
+    OS << uint8_t(dwarf::DW_CFA_advance_loc1);
+    OS << uint8_t(AddrDelta);
   } else if (isUInt<16>(AddrDelta)) {
-    Out.push_back(dwarf::DW_CFA_advance_loc2);
-    support::endian::write<uint16_t>(Out, AddrDelta, E);
+    OS << uint8_t(dwarf::DW_CFA_advance_loc2);
+    support::endian::write<uint16_t>(OS, AddrDelta, E);
   } else {
     assert(isUInt<32>(AddrDelta));
-    Out.push_back(dwarf::DW_CFA_advance_loc4);
-    support::endian::write<uint32_t>(Out, AddrDelta, E);
+    OS << uint8_t(dwarf::DW_CFA_advance_loc4);
+    support::endian::write<uint32_t>(OS, AddrDelta, E);
   }
 }

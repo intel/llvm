@@ -1,5 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: accelerator
 
 //==------------- info.cpp - SYCL sub_group parameters test ----*- C++ -*---==//
 //

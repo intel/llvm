@@ -5,8 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu
 // Recursion is not supported in ESIMD (intel/llvm PR#3390)
 // REQUIRES: TEMPORARY_DISBLED
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
 //

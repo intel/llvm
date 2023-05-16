@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu
+// UNSUPPORTED: cuda || hip
 // UNSUPPORTED: esimd_emulator
 // Temporary disable everywhere until "Unsupported required sub group size" is
 // fixed in some configurations.

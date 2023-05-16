@@ -464,13 +464,14 @@ void MCAsmLayout::layoutFragment(MCFragment *F) {
   }
 }
 
-bool MCAssembler::registerSymbol(const MCSymbol &Symbol) {
-  bool Changed = !Symbol.isRegistered();
-  if (Changed) {
+void MCAssembler::registerSymbol(const MCSymbol &Symbol, bool *Created) {
+  bool New = !Symbol.isRegistered();
+  if (Created)
+    *Created = New;
+  if (New) {
     Symbol.setIsRegistered(true);
     Symbols.push_back(&Symbol);
   }
-  return Changed;
 }
 
 void MCAssembler::writeFragmentPadding(raw_ostream &OS,
@@ -990,11 +991,18 @@ bool MCAssembler::relaxInstruction(MCAsmLayout &Layout,
   getBackend().relaxInstruction(Relaxed, *F.getSubtargetInfo());
 
   // Encode the new instruction.
+  //
+  // FIXME-PERF: If it matters, we could let the target do this. It can
+  // probably do so more efficiently in many cases.
+  SmallVector<MCFixup, 4> Fixups;
+  SmallString<256> Code;
+  getEmitter().encodeInstruction(Relaxed, Code, Fixups, *F.getSubtargetInfo());
+
+  // Update the fragment.
   F.setInst(Relaxed);
-  F.getFixups().clear();
-  F.getContents().clear();
-  getEmitter().encodeInstruction(Relaxed, F.getContents(), F.getFixups(),
-                                 *F.getSubtargetInfo());
+  F.getContents() = Code;
+  F.getFixups() = Fixups;
+
   return true;
 }
 
@@ -1096,10 +1104,11 @@ bool MCAssembler::relaxDwarfLineAddr(MCAsmLayout &Layout,
   LineDelta = DF.getLineDelta();
   SmallVectorImpl<char> &Data = DF.getContents();
   Data.clear();
+  raw_svector_ostream OSE(Data);
   DF.getFixups().clear();
 
-  MCDwarfLineAddr::encode(Context, getDWARFLinetableParams(), LineDelta,
-                          AddrDelta, Data);
+  MCDwarfLineAddr::Encode(Context, getDWARFLinetableParams(), LineDelta,
+                          AddrDelta, OSE);
   return OldSize != Data.size();
 }
 
@@ -1117,9 +1126,10 @@ bool MCAssembler::relaxDwarfCallFrameFragment(MCAsmLayout &Layout,
   (void) Abs;
   SmallVectorImpl<char> &Data = DF.getContents();
   Data.clear();
+  raw_svector_ostream OSE(Data);
   DF.getFixups().clear();
 
-  MCDwarfFrameEmitter::encodeAdvanceLoc(Context, AddrDelta, Data);
+  MCDwarfFrameEmitter::EncodeAdvanceLoc(Context, AddrDelta, OSE);
   return OldSize != Data.size();
 }
 

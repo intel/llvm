@@ -64,8 +64,7 @@ protected:
   VPlanPtr buildHCFG(BasicBlock *LoopHeader) {
     doAnalysis(*LoopHeader->getParent());
 
-    auto Plan = VPlan::createInitialVPlan(
-        SE->getBackedgeTakenCount(LI->getLoopFor(LoopHeader)), *SE);
+    auto Plan = std::make_unique<VPlan>();
     VPlanHCFGBuilder HCFGBuilder(LI->getLoopFor(LoopHeader), LI.get(), *Plan);
     HCFGBuilder.buildHierarchicalCFG();
     return Plan;
@@ -75,10 +74,10 @@ protected:
   VPlanPtr buildPlainCFG(BasicBlock *LoopHeader) {
     doAnalysis(*LoopHeader->getParent());
 
-    auto Plan = VPlan::createInitialVPlan(
-        SE->getBackedgeTakenCount(LI->getLoopFor(LoopHeader)), *SE);
+    auto Plan = std::make_unique<VPlan>();
     VPlanHCFGBuilder HCFGBuilder(LI->getLoopFor(LoopHeader), LI.get(), *Plan);
-    HCFGBuilder.buildPlainCFG();
+    VPBasicBlock *EntryVPBB = HCFGBuilder.buildPlainCFG();
+    Plan->setEntry(EntryVPBB);
     return Plan;
   }
 };

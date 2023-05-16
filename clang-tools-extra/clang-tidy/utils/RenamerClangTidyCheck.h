@@ -102,26 +102,24 @@ public:
     NamingCheckFailure() = default;
   };
 
-  using NamingCheckId = std::pair<SourceLocation, StringRef>;
+  using NamingCheckId = std::pair<SourceLocation, std::string>;
 
   using NamingCheckFailureMap =
       llvm::DenseMap<NamingCheckId, NamingCheckFailure>;
 
   /// Check Macros for style violations.
-  void checkMacro(const SourceManager &SourceMgr, const Token &MacroNameTok,
+  void checkMacro(SourceManager &SourceMgr, const Token &MacroNameTok,
                   const MacroInfo *MI);
 
   /// Add a usage of a macro if it already has a violation.
   void expandMacro(const Token &MacroNameTok, const MacroInfo *MI);
 
   void addUsage(const RenamerClangTidyCheck::NamingCheckId &Decl,
-                SourceRange Range, const SourceManager *SourceMgr = nullptr);
+                SourceRange Range, SourceManager *SourceMgr = nullptr);
 
   /// Convenience method when the usage to be added is a NamedDecl.
   void addUsage(const NamedDecl *Decl, SourceRange Range,
-                const SourceManager *SourceMgr = nullptr);
-
-  void checkNamedDecl(const NamedDecl *Decl, const SourceManager &SourceMgr);
+                SourceManager *SourceMgr = nullptr);
 
 protected:
   /// Overridden by derived classes, returns information about if and how a Decl

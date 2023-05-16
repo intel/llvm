@@ -990,12 +990,14 @@ public:
     for (Level l = 0; l < lvlRank; l++) {
       // TODO: provide utility function for loop sequences that only contains
       // one for loop?
-      const SmallVector<TensorLevel, 1> tidLvls{
-          loopEmitter.makeTensorLevel(0, l)};
-      loopEmitter.enterNewLoopSeq(rewriter, loc, tidLvls);
+      // FIXME(wrengr): what is this "ld" supposed to be really?
+      const Level ld = op.getOrder() ? op.getOrder()->getDimPosition(l) : l;
+      const SmallVector<TensorId, 1> tids{0};
+      loopEmitter.enterNewLoopSeq(rewriter, loc, tids, ld);
       // Note that reduc will be taken care of by loop emitter and get updated
       // in place.
-      loopEmitter.enterLoopOverTensorAtLvl(rewriter, loc, tidLvls, reduc);
+
+      loopEmitter.enterLoopOverTensorAtLvl(rewriter, loc, tids, l, reduc);
     }
 
     SmallVector<Value> lcvs;

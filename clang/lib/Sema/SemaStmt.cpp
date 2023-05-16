@@ -3364,7 +3364,7 @@ Sema::ActOnBreakStmt(SourceLocation BreakLoc, Scope *CurScope) {
 /// might be modified by the implementation.
 ///
 /// \param Mode Overrides detection of current language mode
-/// and uses the rules for C++23.
+/// and uses the rules for C++2b.
 ///
 /// \returns An aggregate which contains the Candidate and isMoveEligible
 /// and isCopyElidable methods. If Candidate is non-null, it means
@@ -3385,7 +3385,7 @@ Sema::NamedReturnInfo Sema::getNamedReturnInfo(Expr *&E,
   if (Res.Candidate && !E->isXValue() &&
       (Mode == SimplerImplicitMoveMode::ForceOn ||
        (Mode != SimplerImplicitMoveMode::ForceOff &&
-        getLangOpts().CPlusPlus23))) {
+        getLangOpts().CPlusPlus2b))) {
     E = ImplicitCastExpr::Create(Context, VD->getType().getNonReferenceType(),
                                  CK_NoOp, E, nullptr, VK_XValue,
                                  FPOptionsOverride());
@@ -3529,7 +3529,7 @@ ExprResult Sema::PerformMoveOrCopyInitialization(
     const InitializedEntity &Entity, const NamedReturnInfo &NRInfo, Expr *Value,
     bool SupressSimplerImplicitMoves) {
   if (getLangOpts().CPlusPlus &&
-      (!getLangOpts().CPlusPlus23 || SupressSimplerImplicitMoves) &&
+      (!getLangOpts().CPlusPlus2b || SupressSimplerImplicitMoves) &&
       NRInfo.isMoveEligible()) {
     ImplicitCastExpr AsRvalue(ImplicitCastExpr::OnStack, Value->getType(),
                               CK_NoOp, Value, VK_XValue, FPOptionsOverride());
@@ -3902,7 +3902,7 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
 
 static bool CheckSimplerImplicitMovesMSVCWorkaround(const Sema &S,
                                                     const Expr *E) {
-  if (!E || !S.getLangOpts().CPlusPlus23 || !S.getLangOpts().MSVCCompat)
+  if (!E || !S.getLangOpts().CPlusPlus2b || !S.getLangOpts().MSVCCompat)
     return false;
   const Decl *D = E->getReferencedDeclOfCallee();
   if (!D || !S.SourceMgr.isInSystemHeader(D->getLocation()))

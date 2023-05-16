@@ -3,7 +3,7 @@
 // UNSUPPORTED: hip
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
-// UNSUPPORTED: ze_debug
+// UNSUPPORTED: ze_debug-1,ze_debug4
 
 //==- GroupSize.cpp - sub-group mask dependency on group size --*- C++ -*---==//
 //

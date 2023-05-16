@@ -361,14 +361,6 @@ def HasStdExtCOrZcf
                                    "'C' (Compressed Instructions) or "
                                    "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
 
-def FeatureStdExtZcmp
-    : SubtargetFeature<"experimental-zcmp", "HasStdExtZcmp", "true",
-                       "'Zcmp' (sequenced instuctions for code-size reduction)", 
-                       [FeatureStdExtZca]>;
-def HasStdExtZcmp : Predicate<"Subtarget->hasStdExtZcmp() && !Subtarget->hasStdExtC()">,
-                               AssemblerPredicate<(all_of FeatureStdExtZcmp, (not FeatureStdExtC)),
-                               "'Zcmp' (sequenced instuctions for code-size reduction)">;
-
 def FeatureStdExtZcmt
     : SubtargetFeature<"experimental-zcmt", "HasStdExtZcmt", "true",
                        "'Zcmt' (table jump instuctions for code-size reduction)", 
@@ -405,7 +397,7 @@ def FeatureStdExtZve32f
     : SubtargetFeature<"zve32f", "HasStdExtZve32f", "true",
                        "'Zve32f' (Vector Extensions for Embedded Processors "
                        "with maximal 32 EEW and F extension)",
-                       [FeatureStdExtZve32x, FeatureStdExtF]>;
+                       [FeatureStdExtZve32x]>;
 
 def FeatureStdExtZve64x
     : SubtargetFeature<"zve64x", "HasStdExtZve64x", "true",
@@ -423,12 +415,13 @@ def FeatureStdExtZve64d
     : SubtargetFeature<"zve64d", "HasStdExtZve64d", "true",
                        "'Zve64d' (Vector Extensions for Embedded Processors "
                        "with maximal 64 EEW, F and D extension)",
-                       [FeatureStdExtZve64f, FeatureStdExtD]>;
+                       [FeatureStdExtZve64f]>;
 
 def FeatureStdExtV
     : SubtargetFeature<"v", "HasStdExtV", "true",
                        "'V' (Vector Extension for Application Processors)",
-                       [FeatureStdExtZvl128b, FeatureStdExtZve64d]>;
+                       [FeatureStdExtZvl128b, FeatureStdExtZve64d,
+                        FeatureStdExtF, FeatureStdExtD]>;
 
 def HasVInstructions    : Predicate<"Subtarget->hasVInstructions()">,
       AssemblerPredicate<

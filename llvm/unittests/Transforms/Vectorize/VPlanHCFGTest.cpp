@@ -106,19 +106,14 @@ node [shape=rect, fontname=Courier, fontsize=30]
 edge [fontname=Courier, fontsize=30]
 compound=true
   N0 [label =
-    "ph:\l" +
-    "  EMIT vp\<%1\> = EXPAND SCEV (-1 + %N)\l" +
-    "No successors\l"
-  ]
-  N1 [label =
     "vector.ph:\l" +
     "Successor(s): for.body\l"
   ]
-  N1 -> N2 [ label="" lhead=cluster_N3]
-  subgraph cluster_N3 {
+  N0 -> N1 [ label="" lhead=cluster_N2]
+  subgraph cluster_N2 {
     fontname=Courier
     label="\<x1\> for.body"
-    N2 [label =
+    N1 [label =
       "vector.body:\l" +
       "  WIDEN-PHI ir\<%indvars.iv\> = phi ir\<0\>, ir\<%indvars.iv.next\>\l" +
       "  EMIT ir\<%arr.idx\> = getelementptr ir\<%A\> ir\<%indvars.iv\>\l" +
@@ -131,8 +126,8 @@ compound=true
       "No successors\l"
     ]
   }
-  N2 -> N4 [ label="" ltail=cluster_N3]
-  N4 [label =
+  N1 -> N3 [ label="" ltail=cluster_N2]
+  N3 [label =
     "for.end:\l" +
     "No successors\l"
   ]

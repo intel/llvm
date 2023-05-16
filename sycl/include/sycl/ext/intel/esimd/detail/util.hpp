@@ -181,8 +181,8 @@ public:
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 /// Returns the address referenced by the accessor \p Acc and
 /// the byte offset \p Offset.
-template <typename T, typename AccessorTy, typename OffsetTy = uint32_t>
-T *accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
+template <typename T, typename AccessorTy>
+T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
   auto BytePtr = reinterpret_cast<char *>(Acc.get_pointer().get()) + Offset;
   return reinterpret_cast<T *>(BytePtr);
 }

@@ -464,8 +464,6 @@ public:
   }
 
   DIEValue &operator=(const DIEValue &X) {
-    if (this == &X)
-      return *this;
     destroyVal();
     Ty = X.Ty;
     Attribute = X.Attribute;

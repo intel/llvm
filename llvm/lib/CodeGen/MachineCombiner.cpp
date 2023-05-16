@@ -502,8 +502,8 @@ bool MachineCombiner::preservesResourceLen(
 ///                          otherwise invalidate the trace
 static void insertDeleteInstructions(
     MachineBasicBlock *MBB, MachineInstr &MI,
-    SmallVectorImpl<MachineInstr *> &InsInstrs,
-    SmallVectorImpl<MachineInstr *> &DelInstrs,
+    SmallVector<MachineInstr *, 16> InsInstrs,
+    SmallVector<MachineInstr *, 16> DelInstrs,
     MachineTraceMetrics::Ensemble *TraceEnsemble,
     SparseSet<LiveRegUnit> &RegUnits, const TargetInstrInfo *TII,
     MachineCombinerPattern Pattern, bool IncrementalUpdate) {

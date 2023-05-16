@@ -943,6 +943,7 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
 
 void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              const void *DeviceGlobalPtr,
+                                             size_t DeviceGlobalTSize,
                                              bool IsDeviceImageScoped,
                                              size_t NumBytes, size_t Offset) {
   const std::shared_ptr<detail::context_impl> &ContextImpl =
@@ -954,8 +955,8 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
     // alive in the capture of this operation as we must be able to correctly
     // copy the value to the user-specified pointer.
     ContextImpl->memcpyFromHostOnlyDeviceGlobal(
-        DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
-        Offset);
+        DeviceImpl, Dest, DeviceGlobalPtr, DeviceGlobalTSize,
+        IsDeviceImageScoped, NumBytes, Offset);
   });
 }
 

@@ -1,5 +1,5 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %BE_RUN_PLACEHOLDER %t.out
 //
 // hip_nvidia has problems constructing queues due to `No device of requested
 // type available`.

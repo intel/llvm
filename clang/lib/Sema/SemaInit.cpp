@@ -20,7 +20,6 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/Designator.h"
-#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/SemaInternal.h"
@@ -394,15 +393,12 @@ class InitListChecker {
 
   /// Diagnose that OldInit (or part thereof) has been overridden by NewInit.
   void diagnoseInitOverride(Expr *OldInit, SourceRange NewInitRange,
-                            bool UnionOverride = false,
                             bool FullyOverwritten = true) {
     // Overriding an initializer via a designator is valid with C99 designated
     // initializers, but ill-formed with C++20 designated initializers.
-    unsigned DiagID =
-        SemaRef.getLangOpts().CPlusPlus
-            ? (UnionOverride ? diag::ext_initializer_union_overrides
-                             : diag::ext_initializer_overrides)
-            : diag::warn_initializer_overrides;
+    unsigned DiagID = SemaRef.getLangOpts().CPlusPlus
+                          ? diag::ext_initializer_overrides
+                          : diag::warn_initializer_overrides;
 
     if (InOverloadResolution && SemaRef.getLangOpts().CPlusPlus) {
       // In overload resolution, we have to strictly enforce the rules, and so
@@ -2549,7 +2545,6 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
         // subobject [0].b.
         diagnoseInitOverride(ExistingInit,
                              SourceRange(D->getBeginLoc(), DIE->getEndLoc()),
-                             /*UnionOverride=*/false,
                              /*FullyOverwritten=*/false);
 
         if (!VerifyOnly) {
@@ -2695,10 +2690,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
           if (ExistingInit) {
             // We're about to throw away an initializer, emit warning.
             diagnoseInitOverride(
-                ExistingInit, SourceRange(D->getBeginLoc(), DIE->getEndLoc()),
-                /*UnionOverride=*/true,
-                /*FullyOverwritten=*/SemaRef.getLangOpts().CPlusPlus ? false
-                                                                     : true);
+                ExistingInit, SourceRange(D->getBeginLoc(), DIE->getEndLoc()));
           }
 
           // remove existing initializer

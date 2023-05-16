@@ -4,7 +4,6 @@ add_flang_library(HLFIRTransforms
   BufferizeHLFIR.cpp
   ConvertToFIR.cpp
   LowerHLFIRIntrinsics.cpp
-  LowerHLFIROrderedAssignments.cpp
   SimplifyHLFIRIntrinsics.cpp
 
   DEPENDS

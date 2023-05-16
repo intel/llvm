@@ -2871,8 +2871,10 @@ bool ASTContext::hasUniqueObjectRepresentations(
   if (Ty->isPointerType())
     return true;
 
-  if (const auto *MPT = Ty->getAs<MemberPointerType>())
+  if (Ty->isMemberPointerType()) {
+    const auto *MPT = Ty->getAs<MemberPointerType>();
     return !ABI->getMemberPointerInfo(MPT).HasPadding;
+  }
 
   if (Ty->isRecordType()) {
     const RecordDecl *Record = Ty->castAs<RecordType>()->getDecl();

@@ -70,7 +70,6 @@ static_library("MCTargetDesc") {
     "X86ATTInstPrinter.cpp",
     "X86AsmBackend.cpp",
     "X86ELFObjectWriter.cpp",
-    "X86EncodingOptimization.cpp",
     "X86InstComments.cpp",
     "X86InstPrinterCommon.cpp",
     "X86InstrRelaxTables.cpp",

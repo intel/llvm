@@ -3,6 +3,7 @@
 
 // Temporarily disabled on HIP, CUDA and L0 due to sporadic failures.
 // UNSUPPORTED: hip, level_zero, cuda
+// UNSUPPORTED: accelerator
 
 #include <iostream>
 #include <stdlib.h>

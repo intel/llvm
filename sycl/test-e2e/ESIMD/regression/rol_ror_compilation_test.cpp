@@ -1,4 +1,5 @@
 // REQUIRES: gpu-intel-gen11
+// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: esimd_emulator

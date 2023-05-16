@@ -23,8 +23,7 @@ struct LoopMetadataConversion {
   /// Converts this structs loop metadata node into a LoopAnnotationAttr.
   LoopAnnotationAttr convert();
 
-  /// Initializes the shared state for the conversion member functions.
-  LogicalResult initConversionState();
+  LogicalResult initPropertyMap();
 
   /// Helper function to get and erase a property.
   const llvm::MDNode *lookupAndEraseProperty(StringRef name);
@@ -54,10 +53,7 @@ struct LoopMetadataConversion {
   FailureOr<LoopPeeledAttr> convertPeeledAttr();
   FailureOr<LoopUnswitchAttr> convertUnswitchAttr();
   FailureOr<SmallVector<SymbolRefAttr>> convertParallelAccesses();
-  FusedLoc convertStartLoc();
-  FailureOr<FusedLoc> convertEndLoc();
 
-  llvm::SmallVector<llvm::DILocation *, 2> locations;
   llvm::StringMap<const llvm::MDNode *> propertyMap;
   const llvm::MDNode *node;
   Location loc;
@@ -66,17 +62,16 @@ struct LoopMetadataConversion {
 };
 } // namespace
 
-LogicalResult LoopMetadataConversion::initConversionState() {
+LogicalResult LoopMetadataConversion::initPropertyMap() {
   // Check if it's a valid node.
   if (node->getNumOperands() == 0 ||
       dyn_cast<llvm::MDNode>(node->getOperand(0)) != node)
     return emitWarning(loc) << "invalid loop node";
 
   for (const llvm::MDOperand &operand : llvm::drop_begin(node->operands())) {
-    if (auto *diLoc = dyn_cast<llvm::DILocation>(operand)) {
-      locations.push_back(diLoc);
+    // Skip over DILocations.
+    if (isa<llvm::DILocation>(operand))
       continue;
-    }
 
     auto *property = dyn_cast<llvm::MDNode>(operand);
     if (!property)
@@ -410,25 +405,8 @@ LoopMetadataConversion::convertParallelAccesses() {
   return refs;
 }
 
-FusedLoc LoopMetadataConversion::convertStartLoc() {
-  if (locations.empty())
-    return {};
-  return dyn_cast<FusedLoc>(
-      loopAnnotationImporter.moduleImport.translateLoc(locations[0]));
-}
-
-FailureOr<FusedLoc> LoopMetadataConversion::convertEndLoc() {
-  if (locations.size() < 2)
-    return FusedLoc();
-  if (locations.size() > 2)
-    return emitError(loc)
-           << "expected loop metadata to have at most two DILocations";
-  return dyn_cast<FusedLoc>(
-      loopAnnotationImporter.moduleImport.translateLoc(locations[1]));
-}
-
 LoopAnnotationAttr LoopMetadataConversion::convert() {
-  if (failed(initConversionState()))
+  if (failed(initPropertyMap()))
     return {};
 
   FailureOr<BoolAttr> disableNonForced =
@@ -455,14 +433,10 @@ LoopAnnotationAttr LoopMetadataConversion::convert() {
     return {};
   }
 
-  FailureOr<FusedLoc> startLoc = convertStartLoc();
-  FailureOr<FusedLoc> endLoc = convertEndLoc();
-
   return createIfNonNull<LoopAnnotationAttr>(
       ctx, disableNonForced, vecAttr, interleaveAttr, unrollAttr,
       unrollAndJamAttr, licmAttr, distributeAttr, pipelineAttr, peeledAttr,
-      unswitchAttr, mustProgress, isVectorized, parallelAccesses, startLoc,
-      endLoc);
+      unswitchAttr, mustProgress, isVectorized, parallelAccesses);
 }
 
 LoopAnnotationAttr

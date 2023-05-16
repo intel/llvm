@@ -6,6 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 //
+// REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
+// UNSUPPORTED: cuda || hip
+// CUDA and HIP don't support printf.
 //
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
