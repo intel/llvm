@@ -4778,7 +4778,8 @@ class OffloadingActionBuilder final {
                       OffloadingActionBuilder &OAB,
                       bool OnlyCreateStubFile = false)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
-          OnlyCreateStubFile(OnlyCreateStubFile), SYCLInstallation(C.getDriver()) {}
+          OnlyCreateStubFile(OnlyCreateStubFile),
+          SYCLInstallation(C.getDriver()) {}
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4869,7 +4870,7 @@ class OffloadingActionBuilder final {
           DeviceCompilerInput = A;
         }
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
-	bool SYCLRaiseHost = Args.hasArg(options::OPT_fsycl_raise_host);
+        bool SYCLRaiseHost = Args.hasArg(options::OPT_fsycl_raise_host);
         if (!SYCLRaiseHost || OnlyCreateStubFile)
           DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
                  Action::OFK_SYCL);
@@ -5039,7 +5040,7 @@ class OffloadingActionBuilder final {
           isa<CompileJobAction>(HostAction) &&
           Args.hasArg(options::OPT_fsycl_raise_host)) {
         // Remove compile action from the list
-	Action *A = SYCLDeviceActions.back();
+        Action *A = SYCLDeviceActions.back();
         SYCLDeviceActions.pop_back();
         // Create new compile action using host module
         HostAction =
@@ -6616,8 +6617,8 @@ public:
       // device only compilation, HostAction is a null pointer, therefore only
       // do this when HostAction is not a null pointer.
       bool UseHostActionInput =
-	HostAction->getType() == types::TY_MLIR_IR &&
-	C.getArgs().hasArg(options::OPT_fsycl_raise_host);
+          HostAction->getType() == types::TY_MLIR_IR &&
+          C.getArgs().hasArg(options::OPT_fsycl_raise_host);
 
       if (UseHostActionInput) {
         assert(isa<CompileJobAction>(HostAction) &&
