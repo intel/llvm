@@ -164,8 +164,10 @@ enum uma_result_t traceGetLastResult(void *pool, const char **ppMsg) {
     return umaPoolGetLastResult(tracePool->params.hUpstreamPool, ppMsg);
 }
 
-uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
-                                         void (*trace)(const char *)) {
+uma_memory_pool_handle_t
+tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
+                uma_memory_provider_handle_t providerDesc,
+                void (*trace)(const char *)) {
     struct uma_memory_pool_ops_t ops = {.version = UMA_VERSION_CURRENT,
                                         .initialize = traceInitialize,
                                         .finalize = traceFinalize,
@@ -180,8 +182,6 @@ uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
 
     struct traceParams params = {.hUpstreamPool = hUpstreamPool,
                                  .trace = trace};
-
-    uma_memory_provider_handle_t providerDesc = nullProviderCreate();
 
     uma_memory_pool_handle_t hPool;
     enum uma_result_t ret =
