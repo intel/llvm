@@ -193,7 +193,6 @@ attributeToExecModeMetadata(Function &F, const Attribute &Attr) {
   if (!Attr.isStringAttribute())
     return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
-
   // Early exit if it is not a sycl-* attribute.
   if (!AttrKindStr.startswith("sycl-"))
     return std::nullopt;
