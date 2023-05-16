@@ -92,11 +92,7 @@ static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
 
 /// Remove conversion like operations in the incoming expression if any.
 static Value removeConversions(Value expr) {
-  if (matchPattern(expr, m_Op<arith::ExtUIOp>()) ||
-      matchPattern(expr, m_Op<arith::ExtSIOp>()) ||
-      matchPattern(expr, m_Op<arith::TruncIOp>()) ||
-      matchPattern(expr, m_Op<arith::IndexCastOp>()) ||
-      matchPattern(expr, m_Op<arith::IndexCastUIOp>()))
+  if (isa<CastOpInterface>(expr.getDefiningOp()))
     return expr.getDefiningOp()->getOperand(0);
   return expr;
 }
@@ -792,15 +788,12 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   //  - base operand equal to the result of a sycl accessor subscript, and
   //  - a single index with zero value.
   MemRefAccess access(memoryOp);
-  if (!isa<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp()) ||
-      !hasZeroIndex(access))
+  auto accessorSubscriptOp =
+      dyn_cast<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp());
+  if (!accessorSubscriptOp || !hasZeroIndex(access))
     return;
 
   LLVM_DEBUG(llvm::errs() << "Candidate op:" << memoryOp << "\n");
-
-  auto accessorSubscriptOp =
-      cast<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp());
-  Value accSubIndex = accessorSubscriptOp.getIndex();
 
   // Try to determine the underlying value(s) of the accessor subscript index
   // operand. The number of underlying values should be equal to the
@@ -818,6 +811,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
     return;
   }
 
+  Value accSubIndex = accessorSubscriptOp.getIndex();
   assert(
       sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
       "Number of underlying values should be equal to dimensionality of the id "
@@ -930,14 +924,14 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
       .Case([&](sycl::SYCLConstructorOp constructorOp) {
         assert(
             sycl::isIDPtrType(
-                constructorOp.getOperand(constructorOp.getMemRefOperandIndex())
+                constructorOp.getOperand(constructorOp.getOutputOperandIndex())
                     .getType()) &&
             "add support for other types of sycl constructors");
 
         // Collect the underlying values of the sycl.constructor inputs.
         SmallVector<Value> vec;
         for (unsigned i = 0; i < constructorOp.getNumOperands(); ++i) {
-          if (i == constructorOp.getMemRefOperandIndex())
+          if (i == constructorOp.getOutputOperandIndex())
             continue;
 
           auto vals = getUnderlyingValues(i, constructorOp, solver);

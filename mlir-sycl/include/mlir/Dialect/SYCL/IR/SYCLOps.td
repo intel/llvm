@@ -290,8 +290,8 @@ def SYCLConstructorOp : SYCL_Op<"constructor",
     void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
                         ::mlir::MemoryEffects::Effect>> &effects);
 
-    /// Returns the index of the accessor operand.
-    unsigned getMemRefOperandIndex() const { return 0; }
+    /// Returns the index of the SYCL object being created.
+    unsigned getOutputOperandIndex() const { return 0; }
   }];
 
   let assemblyFormat = [{
