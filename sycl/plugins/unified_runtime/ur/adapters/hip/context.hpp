@@ -11,10 +11,6 @@
 #include "device.hpp"
 #include "platform.hpp"
 
-// We need this declaration temporarily while UR and PI share ScopedContext
-class _pi_context;
-using pi_context = _pi_context *;
-
 typedef void (*ur_context_extended_deleter_t)(void *user_data);
 
 struct ur_context_handle_t_ {
@@ -84,10 +80,6 @@ class ScopedContext {
   bool needToRecover_;
 
 public:
-  // TODO(ur): Needed for compatibility with PI; once the HIP PI plugin is
-  // fully moved over we can drop this constructor
-  ScopedContext(pi_context ctxt);
-
   ScopedContext(ur_context_handle_t ctxt)
       : placedContext_{ctxt}, needToRecover_{false} {
 

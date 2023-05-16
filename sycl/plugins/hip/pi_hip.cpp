@@ -47,6 +47,109 @@ pi_result map_error(hipError_t result) {
   }
 }
 
+// TODO(ur) - this can be removed once more of pi entry points are ported to UR.
+pi_result map_ur_error(ur_result_t result) {
+
+  switch (result) {
+#define CASE(UR_ERR, PI_ERR)                                                   \
+  case UR_ERR:                                                                 \
+    return PI_ERR;
+
+    CASE(UR_RESULT_SUCCESS, PI_SUCCESS)
+    CASE(UR_RESULT_ERROR_INVALID_OPERATION, PI_ERROR_INVALID_OPERATION)
+    CASE(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
+         PI_ERROR_INVALID_QUEUE_PROPERTIES)
+    CASE(UR_RESULT_ERROR_INVALID_QUEUE, PI_ERROR_INVALID_QUEUE)
+    CASE(UR_RESULT_ERROR_INVALID_VALUE, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_INVALID_CONTEXT, PI_ERROR_INVALID_CONTEXT)
+    CASE(UR_RESULT_ERROR_INVALID_PLATFORM, PI_ERROR_INVALID_PLATFORM)
+    CASE(UR_RESULT_ERROR_INVALID_BINARY, PI_ERROR_INVALID_BINARY)
+    CASE(UR_RESULT_ERROR_INVALID_PROGRAM, PI_ERROR_INVALID_BINARY)
+    CASE(UR_RESULT_ERROR_INVALID_SAMPLER, PI_ERROR_INVALID_SAMPLER)
+    CASE(UR_RESULT_ERROR_INVALID_BUFFER_SIZE, PI_ERROR_INVALID_BUFFER_SIZE)
+    CASE(UR_RESULT_ERROR_INVALID_MEM_OBJECT, PI_ERROR_INVALID_MEM_OBJECT)
+    CASE(UR_RESULT_ERROR_INVALID_EVENT, PI_ERROR_INVALID_EVENT)
+    CASE(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
+         PI_ERROR_INVALID_EVENT_WAIT_LIST)
+    CASE(UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET,
+         PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
+    CASE(UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE,
+         PI_ERROR_INVALID_WORK_GROUP_SIZE)
+    CASE(UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE,
+         PI_ERROR_COMPILER_NOT_AVAILABLE)
+    CASE(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE,
+         PI_ERROR_PROFILING_INFO_NOT_AVAILABLE)
+    CASE(UR_RESULT_ERROR_DEVICE_NOT_FOUND, PI_ERROR_DEVICE_NOT_FOUND)
+    CASE(UR_RESULT_ERROR_INVALID_DEVICE, PI_ERROR_INVALID_DEVICE)
+    CASE(UR_RESULT_ERROR_DEVICE_LOST, PI_ERROR_DEVICE_NOT_AVAILABLE)
+    // UR_RESULT_ERROR_DEVICE_REQUIRES_RESET
+    // UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE
+    CASE(UR_RESULT_ERROR_DEVICE_PARTITION_FAILED,
+         PI_ERROR_DEVICE_PARTITION_FAILED)
+    CASE(UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT,
+         PI_ERROR_INVALID_DEVICE_PARTITION_COUNT)
+    CASE(UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE,
+         PI_ERROR_INVALID_WORK_ITEM_SIZE)
+    CASE(UR_RESULT_ERROR_INVALID_WORK_DIMENSION,
+         PI_ERROR_INVALID_WORK_DIMENSION)
+    CASE(UR_RESULT_ERROR_INVALID_KERNEL_ARGS, PI_ERROR_INVALID_KERNEL_ARGS)
+    CASE(UR_RESULT_ERROR_INVALID_KERNEL, PI_ERROR_INVALID_KERNEL)
+    CASE(UR_RESULT_ERROR_INVALID_KERNEL_NAME, PI_ERROR_INVALID_KERNEL_NAME)
+    CASE(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+         PI_ERROR_INVALID_ARG_INDEX)
+    CASE(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
+         PI_ERROR_INVALID_ARG_SIZE)
+    // UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE
+    CASE(UR_RESULT_ERROR_INVALID_IMAGE_SIZE, PI_ERROR_INVALID_IMAGE_SIZE)
+    CASE(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR,
+         PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR)
+    CASE(UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED,
+         PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED)
+    CASE(UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE,
+         PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE)
+    CASE(UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE,
+         PI_ERROR_INVALID_PROGRAM_EXECUTABLE)
+    CASE(UR_RESULT_ERROR_UNINITIALIZED, PI_ERROR_UNINITIALIZED)
+    CASE(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY, PI_ERROR_OUT_OF_HOST_MEMORY)
+    CASE(UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY, PI_ERROR_OUT_OF_RESOURCES)
+    CASE(UR_RESULT_ERROR_OUT_OF_RESOURCES, PI_ERROR_OUT_OF_RESOURCES)
+    CASE(UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE, PI_ERROR_BUILD_PROGRAM_FAILURE)
+    CASE(UR_RESULT_ERROR_PROGRAM_LINK_FAILURE, PI_ERROR_LINK_PROGRAM_FAILURE)
+    // UR_RESULT_ERROR_UNSUPPORTED_VERSION
+    // UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+    CASE(UR_RESULT_ERROR_INVALID_ARGUMENT, PI_ERROR_INVALID_ARG_VALUE)
+    CASE(UR_RESULT_ERROR_INVALID_NULL_HANDLE, PI_ERROR_INVALID_VALUE)
+    // UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE
+    CASE(UR_RESULT_ERROR_INVALID_NULL_POINTER, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_INVALID_SIZE, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_UNSUPPORTED_SIZE, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_INVALID_ENUMERATION, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT,
+         PI_ERROR_IMAGE_FORMAT_MISMATCH)
+    CASE(UR_RESULT_ERROR_INVALID_NATIVE_BINARY, PI_ERROR_INVALID_BINARY)
+    CASE(UR_RESULT_ERROR_INVALID_GLOBAL_NAME, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_INVALID_FUNCTION_NAME, PI_ERROR_INVALID_VALUE)
+    CASE(UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
+         PI_ERROR_INVALID_WORK_GROUP_SIZE)
+    CASE(UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION,
+         PI_ERROR_INVALID_GLOBAL_WORK_SIZE)
+    // UR_RESULT_ERROR_PROGRAM_UNLINKED
+    // UR_RESULT_ERROR_OVERLAPPING_REGIONS
+    CASE(UR_RESULT_ERROR_INVALID_HOST_PTR, PI_ERROR_INVALID_HOST_PTR)
+    // UR_RESULT_ERROR_INVALID_USM_SIZE
+    CASE(UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE,
+         PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE)
+    CASE(UR_RESULT_ERROR_ADAPTER_SPECIFIC, PI_ERROR_PLUGIN_SPECIFIC_ERROR)
+
+#undef CASE
+  default:
+    return PI_ERROR_UNKNOWN;
+  }
+}
+
 // Global variables for PI_ERROR_PLUGIN_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
 thread_local pi_result ErrorMessageCode = PI_SUCCESS;
@@ -82,51 +185,6 @@ pi_result hip_piPluginGetBackendOption(pi_platform, const char *frontend_option,
     return PI_SUCCESS;
   }
   return PI_ERROR_INVALID_VALUE;
-}
-
-// Iterates over the event wait list, returns correct pi_result error codes.
-// Invokes the callback for the latest event of each queue in the wait list.
-// The callback must take a single pi_event argument and return a pi_result.
-template <typename Func>
-pi_result forLatestEvents(const pi_event *event_wait_list,
-                          std::size_t num_events_in_wait_list, Func &&f) {
-
-  if (event_wait_list == nullptr || num_events_in_wait_list == 0) {
-    return PI_ERROR_INVALID_EVENT_WAIT_LIST;
-  }
-
-  // Fast path if we only have a single event
-  if (num_events_in_wait_list == 1) {
-    return f(event_wait_list[0]);
-  }
-
-  std::vector<pi_event> events{event_wait_list,
-                               event_wait_list + num_events_in_wait_list};
-  std::sort(events.begin(), events.end(), [](pi_event e0, pi_event e1) {
-    // Tiered sort creating sublists of streams (smallest value first) in which
-    // the corresponding events are sorted into a sequence of newest first.
-    return e0->get_stream() < e1->get_stream() ||
-           (e0->get_stream() == e1->get_stream() &&
-            e0->get_event_id() > e1->get_event_id());
-  });
-
-  bool first = true;
-  hipStream_t lastSeenStream = 0;
-  for (pi_event event : events) {
-    if (!event || (!first && event->get_stream() == lastSeenStream)) {
-      continue;
-    }
-
-    first = false;
-    lastSeenStream = event->get_stream();
-
-    auto result = f(event);
-    if (result != PI_SUCCESS) {
-      return result;
-    }
-  }
-
-  return PI_SUCCESS;
 }
 
 /// Converts HIP error into PI error codes, and outputs error information
@@ -224,29 +282,6 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
                       param_value_size_ret, value);
 }
 
-ScopedContext::ScopedContext(pi_context ctxt)
-    : placedContext_{ctxt}, needToRecover_{false} {
-  if (!placedContext_) {
-    throw PI_ERROR_INVALID_CONTEXT;
-  }
-
-  hipCtx_t desired = placedContext_->get();
-  PI_CHECK_ERROR(hipCtxGetCurrent(&original_));
-  if (original_ != desired) {
-    // Sets the desired context as the active one for the thread
-    PI_CHECK_ERROR(hipCtxSetCurrent(desired));
-    if (original_ == nullptr) {
-      // No context is installed on the current thread
-      // This is the most common case. We can activate the context in the
-      // thread and leave it there until all the PI context referring to the
-      // same underlying HIP context are destroyed. This emulates
-      // the behaviour of the HIP runtime api, and avoids costly context
-      // switches. No action is required on this side of the if.
-    } else {
-      needToRecover_ = true;
-    }
-  }
-}
 /// \endcond
 
 void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
@@ -282,15 +317,16 @@ pi_result enqueueEventsWait(pi_queue command_queue, hipStream_t stream,
   try {
     ScopedContext active(command_queue->get_context());
 
-    auto result = forLatestEvents(
-        event_wait_list, num_events_in_wait_list,
-        [stream](pi_event event) -> pi_result {
+    auto result = map_ur_error(forLatestEvents(
+        reinterpret_cast<const ur_event_handle_t *>(event_wait_list),
+        num_events_in_wait_list,
+        [stream](ur_event_handle_t event) -> ur_result_t {
           if (event->get_stream() == stream) {
-            return PI_SUCCESS;
+            return UR_RESULT_SUCCESS;
           } else {
-            return PI_CHECK_ERROR(hipStreamWaitEvent(stream, event->get(), 0));
+            return UR_CHECK_ERROR(hipStreamWaitEvent(stream, event->get(), 0));
           }
-        });
+        }));
 
     if (result != PI_SUCCESS) {
       return result;
@@ -349,270 +385,9 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
                                              pi_uint32 num_events_in_wait_list,
                                              const pi_event *event_wait_list,
                                              pi_event *event);
-pi_result hip_piEventRelease(pi_event event);
-pi_result hip_piEventRetain(pi_event event);
-
 } // extern "C"
 
 /// \endcond
-
-void _pi_queue::compute_stream_wait_for_barrier_if_needed(hipStream_t stream,
-                                                          pi_uint32 stream_i) {
-  if (barrier_event_ && !compute_applied_barrier_[stream_i]) {
-    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
-    compute_applied_barrier_[stream_i] = true;
-  }
-}
-
-void _pi_queue::transfer_stream_wait_for_barrier_if_needed(hipStream_t stream,
-                                                           pi_uint32 stream_i) {
-  if (barrier_event_ && !transfer_applied_barrier_[stream_i]) {
-    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
-    transfer_applied_barrier_[stream_i] = true;
-  }
-}
-
-hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
-  pi_uint32 stream_i;
-  pi_uint32 token;
-  while (true) {
-    if (num_compute_streams_ < compute_streams_.size()) {
-      // the check above is for performance - so as not to lock mutex every time
-      std::lock_guard<std::mutex> guard(compute_stream_mutex_);
-      // The second check is done after mutex is locked so other threads can not
-      // change num_compute_streams_ after that
-      if (num_compute_streams_ < compute_streams_.size()) {
-        PI_CHECK_ERROR(hipStreamCreateWithFlags(
-            &compute_streams_[num_compute_streams_++], flags_));
-      }
-    }
-    token = compute_stream_idx_++;
-    stream_i = token % compute_streams_.size();
-    // if a stream has been reused before it was next selected round-robin
-    // fashion, we want to delay its next use and instead select another one
-    // that is more likely to have completed all the enqueued work.
-    if (delay_compute_[stream_i]) {
-      delay_compute_[stream_i] = false;
-    } else {
-      break;
-    }
-  }
-  if (stream_token) {
-    *stream_token = token;
-  }
-  hipStream_t res = compute_streams_[stream_i];
-  compute_stream_wait_for_barrier_if_needed(res, stream_i);
-  return res;
-}
-
-hipStream_t _pi_queue::get_next_compute_stream(
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    _pi_stream_guard &guard, pi_uint32 *stream_token) {
-  for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
-    pi_uint32 token = event_wait_list[i]->get_compute_stream_token();
-    if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
-      std::unique_lock<std::mutex> compute_sync_guard(
-          compute_stream_sync_mutex_);
-      // redo the check after lock to avoid data races on
-      // last_sync_compute_streams_
-      if (can_reuse_stream(token)) {
-        pi_uint32 stream_i = token % delay_compute_.size();
-        delay_compute_[stream_i] = true;
-        if (stream_token) {
-          *stream_token = token;
-        }
-        guard = _pi_stream_guard{std::move(compute_sync_guard)};
-        hipStream_t res = event_wait_list[i]->get_stream();
-        compute_stream_wait_for_barrier_if_needed(res, stream_i);
-        return res;
-      }
-    }
-  }
-  guard = {};
-  return get_next_compute_stream(stream_token);
-}
-
-hipStream_t _pi_queue::get_next_transfer_stream() {
-  if (transfer_streams_.empty()) { // for example in in-order queue
-    return get_next_compute_stream();
-  }
-  if (num_transfer_streams_ < transfer_streams_.size()) {
-    // the check above is for performance - so as not to lock mutex every time
-    std::lock_guard<std::mutex> guard(transfer_stream_mutex_);
-    // The second check is done after mutex is locked so other threads can not
-    // change num_transfer_streams_ after that
-    if (num_transfer_streams_ < transfer_streams_.size()) {
-      PI_CHECK_ERROR(hipStreamCreateWithFlags(
-          &transfer_streams_[num_transfer_streams_++], flags_));
-    }
-  }
-  pi_uint32 stream_i = transfer_stream_idx_++ % transfer_streams_.size();
-  hipStream_t res = transfer_streams_[stream_i];
-  transfer_stream_wait_for_barrier_if_needed(res, stream_i);
-  return res;
-}
-
-_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
-                     hipStream_t stream, pi_uint32 stream_token)
-    : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false},
-      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
-
-  assert(type != PI_COMMAND_TYPE_USER);
-
-  bool profilingEnabled = queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE;
-
-  PI_CHECK_ERROR(hipEventCreateWithFlags(
-      &evEnd_, profilingEnabled ? hipEventDefault : hipEventDisableTiming));
-
-  if (profilingEnabled) {
-    PI_CHECK_ERROR(hipEventCreateWithFlags(&evQueued_, hipEventDefault));
-    PI_CHECK_ERROR(hipEventCreateWithFlags(&evStart_, hipEventDefault));
-  }
-
-  if (queue_ != nullptr) {
-    hip_piQueueRetain(queue_);
-  }
-  pi2ur::piContextRetain(context_);
-}
-
-_pi_event::~_pi_event() {
-  if (queue_ != nullptr) {
-    hip_piQueueRelease(queue_);
-  }
-  pi2ur::piContextRelease(context_);
-}
-
-pi_result _pi_event::start() {
-  assert(!is_started());
-  pi_result result = PI_SUCCESS;
-
-  try {
-    if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
-      // NOTE: This relies on the default stream to be unused.
-      PI_CHECK_ERROR(hipEventRecord(evQueued_, 0));
-      PI_CHECK_ERROR(hipEventRecord(evStart_, queue_->get()));
-    }
-  } catch (pi_result error) {
-    result = error;
-  }
-
-  isStarted_ = true;
-  return result;
-}
-
-bool _pi_event::is_completed() const noexcept {
-  if (!isRecorded_) {
-    return false;
-  }
-  if (!hasBeenWaitedOn_) {
-    const hipError_t ret = hipEventQuery(evEnd_);
-    if (ret != hipSuccess && ret != hipErrorNotReady) {
-      PI_CHECK_ERROR(ret);
-      return false;
-    }
-    if (ret == hipErrorNotReady) {
-      return false;
-    }
-  }
-  return true;
-}
-
-pi_uint64 _pi_event::get_queued_time() const {
-  float miliSeconds = 0.0f;
-  assert(is_started());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
-  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
-
-  PI_CHECK_ERROR(hipEventElapsedTime(&miliSeconds, evStart_, evEnd_));
-  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
-}
-
-pi_uint64 _pi_event::get_start_time() const {
-  float miliSeconds = 0.0f;
-  assert(is_started());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
-  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
-
-  PI_CHECK_ERROR(
-      hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
-  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
-}
-
-pi_uint64 _pi_event::get_end_time() const {
-  float miliSeconds = 0.0f;
-  assert(is_started() && is_recorded());
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
-  PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
-
-  PI_CHECK_ERROR(
-      hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
-  return static_cast<pi_uint64>(miliSeconds * 1.0e6);
-}
-
-pi_result _pi_event::record() {
-
-  if (is_recorded() || !is_started()) {
-    return PI_ERROR_INVALID_EVENT;
-  }
-
-  pi_result result = PI_ERROR_INVALID_OPERATION;
-
-  if (!queue_) {
-    return PI_ERROR_INVALID_QUEUE;
-  }
-
-  try {
-    eventId_ = queue_->get_next_event_id();
-    if (eventId_ == 0) {
-      sycl::detail::pi::die(
-          "Unrecoverable program state reached in event identifier overflow");
-    }
-    result = PI_CHECK_ERROR(hipEventRecord(evEnd_, stream_));
-  } catch (pi_result error) {
-    result = error;
-  }
-
-  if (result == PI_SUCCESS) {
-    isRecorded_ = true;
-  }
-
-  return result;
-}
-
-pi_result _pi_event::wait() {
-  pi_result retErr;
-  try {
-    retErr = PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
-    hasBeenWaitedOn_ = true;
-  } catch (pi_result error) {
-    retErr = error;
-  }
-
-  return retErr;
-}
-
-pi_result _pi_event::release() {
-  assert(queue_ != nullptr);
-  PI_CHECK_ERROR(hipEventDestroy(evEnd_));
-
-  if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
-    PI_CHECK_ERROR(hipEventDestroy(evQueued_));
-    PI_CHECK_ERROR(hipEventDestroy(evStart_));
-  }
-
-  return PI_SUCCESS;
-}
 
 // makes all future work submitted to queue wait for all work captured in event.
 pi_result enqueueEventWait(pi_queue queue, pi_event event) {
@@ -686,216 +461,6 @@ pi_result hip_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
   return retError;
 }
 
-/// Creates a `pi_queue` object on the HIP backend.
-/// Valid properties
-/// * __SYCL_PI_HIP_USE_DEFAULT_STREAM -> hipStreamDefault
-/// * __SYCL_PI_HIP_SYNC_WITH_DEFAULT -> hipStreamNonBlocking
-/// \return Pi queue object mapping to a HIPStream
-///
-pi_result hip_piQueueCreate(pi_context context, pi_device device,
-                            pi_queue_properties properties, pi_queue *queue) {
-  try {
-    std::unique_ptr<_pi_queue> queueImpl{nullptr};
-
-    if (context->get_device() != device) {
-      *queue = nullptr;
-      return PI_ERROR_INVALID_DEVICE;
-    }
-
-    unsigned int flags = 0;
-
-    const bool is_out_of_order =
-        properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-
-    std::vector<hipStream_t> computeHipStreams(
-        is_out_of_order ? _pi_queue::default_num_compute_streams : 1);
-    std::vector<hipStream_t> transferHipStreams(
-        is_out_of_order ? _pi_queue::default_num_transfer_streams : 0);
-
-    queueImpl = std::unique_ptr<_pi_queue>(new _pi_queue{
-        std::move(computeHipStreams), std::move(transferHipStreams), context,
-        device, properties, flags});
-
-    *queue = queueImpl.release();
-
-    return PI_SUCCESS;
-  } catch (pi_result err) {
-
-    return err;
-
-  } catch (...) {
-
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
-}
-pi_result hip_piextQueueCreate(pi_context Context, pi_device Device,
-                               pi_queue_properties *Properties,
-                               pi_queue *Queue) {
-  assert(Properties);
-  // Expect flags mask to be passed first.
-  assert(Properties[0] == PI_QUEUE_FLAGS);
-  if (Properties[0] != PI_QUEUE_FLAGS)
-    return PI_ERROR_INVALID_VALUE;
-  pi_queue_properties Flags = Properties[1];
-  // Extra data isn't supported yet.
-  assert(Properties[2] == 0);
-  if (Properties[2] != 0)
-    return PI_ERROR_INVALID_VALUE;
-  return hip_piQueueCreate(Context, Device, Flags, Queue);
-}
-
-pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
-                             size_t param_value_size, void *param_value,
-                             size_t *param_value_size_ret) {
-  assert(command_queue != nullptr);
-
-  switch (param_name) {
-  case PI_QUEUE_INFO_CONTEXT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->context_);
-  case PI_QUEUE_INFO_DEVICE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->device_);
-  case PI_QUEUE_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->get_reference_count());
-  case PI_QUEUE_INFO_PROPERTIES:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->properties_);
-  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
-    bool IsReady = command_queue->all_of([](hipStream_t s) -> bool {
-      const hipError_t ret = hipStreamQuery(s);
-      if (ret == hipSuccess)
-        return true;
-
-      if (ret == hipErrorNotReady)
-        return false;
-
-      PI_CHECK_ERROR(ret);
-      return false;
-    });
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   IsReady);
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Queue info request not implemented");
-  return {};
-}
-
-pi_result hip_piQueueRetain(pi_queue command_queue) {
-  assert(command_queue != nullptr);
-  assert(command_queue->get_reference_count() > 0);
-
-  command_queue->increment_reference_count();
-  return PI_SUCCESS;
-}
-
-pi_result hip_piQueueRelease(pi_queue command_queue) {
-  assert(command_queue != nullptr);
-
-  if (command_queue->decrement_reference_count() > 0) {
-    return PI_SUCCESS;
-  }
-
-  try {
-    std::unique_ptr<_pi_queue> queueImpl(command_queue);
-
-    ScopedContext active(command_queue->get_context());
-
-    command_queue->for_each_stream([](hipStream_t s) {
-      PI_CHECK_ERROR(hipStreamSynchronize(s));
-      PI_CHECK_ERROR(hipStreamDestroy(s));
-    });
-
-    return PI_SUCCESS;
-  } catch (pi_result err) {
-    return err;
-  } catch (...) {
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
-}
-
-pi_result hip_piQueueFinish(pi_queue command_queue) {
-
-  // set default result to a negative result (avoid false-positve tests)
-  pi_result result = PI_ERROR_OUT_OF_HOST_MEMORY;
-
-  try {
-
-    assert(command_queue !=
-           nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
-    ScopedContext active(command_queue->get_context());
-
-    command_queue->sync_streams<true>([&result](hipStream_t s) {
-      result = PI_CHECK_ERROR(hipStreamSynchronize(s));
-    });
-
-  } catch (pi_result err) {
-
-    result = err;
-
-  } catch (...) {
-
-    result = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  return result;
-}
-
-// There is no HIP counterpart for queue flushing and we don't run into the
-// same problem of having to flush cross-queue dependencies as some of the
-// other plugins, so it can be left as no-op.
-pi_result hip_piQueueFlush(pi_queue command_queue) {
-  (void)command_queue;
-  return PI_SUCCESS;
-}
-
-/// Gets the native HIP handle of a PI queue object
-///
-/// \param[in] queue The PI queue to get the native HIP object of.
-/// \param[out] nativeHandle Set to the native handle of the PI queue object.
-///
-/// \return PI_SUCCESS
-pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
-                                        pi_native_handle *nativeHandle,
-                                        int32_t *NativeHandleDesc) {
-  *NativeHandleDesc = 0;
-  ScopedContext active(queue->get_context());
-  *nativeHandle =
-      reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
-  return PI_SUCCESS;
-}
-
-/// Created a PI queue object from a HIP queue handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI queue object from.
-/// \param[in] context is the PI context of the queue.
-/// \param[out] queue Set to the PI queue object created from native handle.
-/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
-///        the native handle, if it can.
-///
-///
-/// \return TBD
-pi_result hip_piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
-    pi_queue *queue) {
-  (void)nativeHandle;
-  (void)NativeHandleDesc;
-  (void)context;
-  (void)device;
-  (void)ownNativeHandle;
-  (void)Properties;
-  (void)queue;
-  sycl::detail::pi::die(
-      "Creation of PI queue from native handle not implemented");
-  return {};
-}
-
 pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                                       pi_bool blocking_write, size_t offset,
                                       size_t size, void *ptr,
@@ -925,7 +490,7 @@ pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                            ptr, size, hipStream));
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_write) {
@@ -970,7 +535,7 @@ pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
         hipStream));
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_read) {
@@ -985,41 +550,6 @@ pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     retErr = err;
   }
   return retErr;
-}
-
-pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
-
-  try {
-    assert(num_events != 0);
-    assert(event_list);
-    if (num_events == 0) {
-      return PI_ERROR_INVALID_VALUE;
-    }
-
-    if (!event_list) {
-      return PI_ERROR_INVALID_EVENT;
-    }
-
-    auto context = event_list[0]->get_context();
-    ScopedContext active(context);
-
-    auto waitFunc = [context](pi_event event) -> pi_result {
-      if (!event) {
-        return PI_ERROR_INVALID_EVENT;
-      }
-
-      if (event->get_context() != context) {
-        return PI_ERROR_INVALID_CONTEXT;
-      }
-
-      return event->wait();
-    };
-    return forLatestEvents(event_list, num_events, waitFunc);
-  } catch (pi_result err) {
-    return err;
-  } catch (...) {
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
 }
 
 pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
@@ -1109,14 +639,16 @@ pi_result hip_piEnqueueKernelLaunch(
 
   {
     pi_result retError = pi2ur::piDeviceGetInfo(
-        command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-        sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
+        reinterpret_cast<pi_device>(command_queue->device_),
+        PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(maxThreadsPerBlock),
+        maxThreadsPerBlock, nullptr);
     assert(retError == PI_SUCCESS);
     (void)retError;
 
     retError = pi2ur::piDeviceGetInfo(
-        command_queue->device_, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-        sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
+        reinterpret_cast<pi_device>(command_queue->device_),
+        PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupSize),
+        &maxWorkGroupSize, nullptr);
     assert(retError == PI_SUCCESS);
     // The maxWorkGroupsSize = 1024 for AMD GPU
     // The maxThreadsPerBlock = {1024, 1024, 1024}
@@ -1168,7 +700,9 @@ pi_result hip_piEnqueueKernelLaunch(
     pi_uint32 stream_token;
     _pi_stream_guard guard;
     hipStream_t hipStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+        num_events_in_wait_list,
+        reinterpret_cast<const ur_event_handle_t *>(event_wait_list), guard,
+        &stream_token);
     hipFunction_t hipFunc = kernel->get();
 
     retError = enqueueEventsWait(command_queue, hipStream,
@@ -1228,7 +762,7 @@ pi_result hip_piEnqueueKernelLaunch(
     kernel->clear_local_size();
 
     if (event) {
-      retError = retImplEv->record();
+      retError = map_ur_error(retImplEv->record());
       *event = retImplEv.release();
     }
   } catch (pi_result err) {
@@ -1257,136 +791,6 @@ hip_piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
 
   sycl::detail::pi::die("Not implemented in HIP backend");
   return {};
-}
-
-//
-// Events
-//
-pi_result hip_piEventCreate(pi_context context, pi_event *event) {
-  (void)context;
-  (void)event;
-
-  sycl::detail::pi::die("PI Event Create not implemented in HIP backend");
-}
-
-pi_result hip_piEventGetInfo(pi_event event, pi_event_info param_name,
-                             size_t param_value_size, void *param_value,
-                             size_t *param_value_size_ret) {
-  assert(event != nullptr);
-
-  switch (param_name) {
-  case PI_EVENT_INFO_COMMAND_QUEUE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_queue());
-  case PI_EVENT_INFO_COMMAND_TYPE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_command_type());
-  case PI_EVENT_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_reference_count());
-  case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<pi_event_status>(event->get_execution_status()));
-  }
-  case PI_EVENT_INFO_CONTEXT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_context());
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-
-  return PI_ERROR_INVALID_EVENT;
-}
-
-/// Obtain profiling information from PI HIP events
-/// Timings from HIP are only elapsed time.
-pi_result hip_piEventGetProfilingInfo(pi_event event,
-                                      pi_profiling_info param_name,
-                                      size_t param_value_size,
-                                      void *param_value,
-                                      size_t *param_value_size_ret) {
-
-  assert(event != nullptr);
-
-  pi_queue queue = event->get_queue();
-  if (queue == nullptr ||
-      !(queue->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE)) {
-    return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
-  }
-
-  switch (param_name) {
-  case PI_PROFILING_INFO_COMMAND_QUEUED:
-  case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // Note: No user for this case
-    return getInfo<pi_uint64>(param_value_size, param_value,
-                              param_value_size_ret, event->get_queued_time());
-  case PI_PROFILING_INFO_COMMAND_START:
-    return getInfo<pi_uint64>(param_value_size, param_value,
-                              param_value_size_ret, event->get_start_time());
-  case PI_PROFILING_INFO_COMMAND_END:
-    return getInfo<pi_uint64>(param_value_size, param_value,
-                              param_value_size_ret, event->get_end_time());
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Event Profiling info request not implemented");
-  return {};
-}
-
-pi_result hip_piEventSetCallback(pi_event event,
-                                 pi_int32 command_exec_callback_type,
-                                 pfn_notify notify, void *user_data) {
-  (void)event;
-  (void)command_exec_callback_type;
-  (void)notify;
-  (void)user_data;
-
-  sycl::detail::pi::die("Event Callback not implemented in HIP backend");
-  return PI_SUCCESS;
-}
-
-pi_result hip_piEventSetStatus(pi_event event, pi_int32 execution_status) {
-  (void)event;
-  (void)execution_status;
-
-  sycl::detail::pi::die("Event Set Status not implemented in HIP backend");
-  return PI_ERROR_INVALID_VALUE;
-}
-
-pi_result hip_piEventRetain(pi_event event) {
-  assert(event != nullptr);
-
-  const auto refCount = event->increment_reference_count();
-
-  sycl::detail::pi::assertion(
-      refCount != 0, "Reference count overflow detected in hip_piEventRetain.");
-
-  return PI_SUCCESS;
-}
-
-pi_result hip_piEventRelease(pi_event event) {
-  assert(event != nullptr);
-
-  // double delete or someone is messing with the ref count.
-  // either way, cannot safely proceed.
-  sycl::detail::pi::assertion(
-      event->get_reference_count() != 0,
-      "Reference count overflow detected in hip_piEventRelease.");
-
-  // decrement ref count. If it is 0, delete the event.
-  if (event->decrement_reference_count() == 0) {
-    std::unique_ptr<_pi_event> event_ptr{event};
-    pi_result result = PI_ERROR_INVALID_EVENT;
-    try {
-      ScopedContext active(event->get_context());
-      result = event->release();
-    } catch (...) {
-      result = PI_ERROR_OUT_OF_RESOURCES;
-    }
-    return result;
-  }
-
-  return PI_SUCCESS;
 }
 
 /// Enqueues a wait on the given queue for all events.
@@ -1424,7 +828,9 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     pi_uint32 stream_token;
     _pi_stream_guard guard;
     hipStream_t hipStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+        num_events_in_wait_list,
+        reinterpret_cast<const ur_event_handle_t *>(event_wait_list), guard,
+        &stream_token);
     {
       std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
       if (command_queue->barrier_event_ == nullptr) {
@@ -1443,16 +849,18 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
               }
             });
       } else { // wait just on given events
-        forLatestEvents(event_wait_list, num_events_in_wait_list,
-                        [hipStream](pi_event event) -> pi_result {
-                          if (event->get_queue()->has_been_synchronized(
-                                  event->get_compute_stream_token())) {
-                            return PI_SUCCESS;
-                          } else {
-                            return PI_CHECK_ERROR(
-                                hipStreamWaitEvent(hipStream, event->get(), 0));
-                          }
-                        });
+        forLatestEvents(
+            reinterpret_cast<const ur_event_handle_t *>(event_wait_list),
+            num_events_in_wait_list,
+            [hipStream](ur_event_handle_t event) -> ur_result_t {
+              if (event->get_queue()->has_been_synchronized(
+                      event->get_compute_stream_token())) {
+                return UR_RESULT_SUCCESS;
+              } else {
+                return UR_CHECK_ERROR(
+                    hipStreamWaitEvent(hipStream, event->get(), 0));
+              }
+            });
       }
 
       result = PI_CHECK_ERROR(
@@ -1483,40 +891,6 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-}
-
-/// Gets the native HIP handle of a PI event object
-///
-/// \param[in] event The PI event to get the native HIP object of.
-/// \param[out] nativeHandle Set to the native handle of the PI event object.
-///
-/// \return PI_SUCCESS on success. PI_ERROR_INVALID_EVENT if given a user event.
-pi_result hip_piextEventGetNativeHandle(pi_event event,
-                                        pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
-  return PI_SUCCESS;
-}
-
-/// Created a PI event object from a HIP event handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI event object from.
-/// \param[out] event Set to the PI event object created from native handle.
-///
-/// \return TBD
-pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                               pi_context context,
-                                               bool ownNativeHandle,
-                                               pi_event *event) {
-  (void)nativeHandle;
-  (void)context;
-  (void)ownNativeHandle;
-  (void)event;
-
-  sycl::detail::pi::die(
-      "Creation of PI event from native handle not implemented");
-  return {};
 }
 
 /// General 3D memory copy operation.
@@ -1612,7 +986,7 @@ pi_result hip_piEnqueueMemBufferReadRect(
         host_offset, host_row_pitch, host_slice_pitch);
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_read) {
@@ -1662,7 +1036,7 @@ pi_result hip_piEnqueueMemBufferWriteRect(
         buffer_row_pitch, buffer_slice_pitch);
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_write) {
@@ -1704,7 +1078,7 @@ pi_result hip_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
           PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue, stream));
-      result = retImplEv->start();
+      result = map_ur_error(retImplEv->start());
     }
 
     auto src = src_buffer->mem_.buffer_mem_.get_with_offset(src_offset);
@@ -1713,7 +1087,7 @@ pi_result hip_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     result = PI_CHECK_ERROR(hipMemcpyDtoDAsync(dst, src, size, stream));
 
     if (event) {
-      result = retImplEv->record();
+      result = map_ur_error(retImplEv->record());
       *event = retImplEv.release();
     }
 
@@ -1808,7 +1182,7 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
           PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue, stream));
-      result = retImplEv->start();
+      result = map_ur_error(retImplEv->start());
     }
 
     auto dstDevice = buffer->mem_.buffer_mem_.get_with_offset(offset);
@@ -1870,7 +1244,7 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     }
 
     if (event) {
-      result = retImplEv->record();
+      result = map_ur_error(retImplEv->record());
       *event = retImplEv.release();
     }
 
@@ -2372,7 +1746,9 @@ pi_result hip_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     pi_uint32 stream_token;
     _pi_stream_guard guard;
     hipStream_t hipStream = queue->get_next_compute_stream(
-        num_events_in_waitlist, events_waitlist, guard, &stream_token);
+        num_events_in_waitlist,
+        reinterpret_cast<const ur_event_handle_t *>(events_waitlist), guard,
+        &stream_token);
     result = enqueueEventsWait(queue, hipStream, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
@@ -2384,7 +1760,7 @@ pi_result hip_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
         hipMemsetD8Async(reinterpret_cast<hipDeviceptr_t>(ptr),
                          (unsigned char)value & 0xFF, count, hipStream));
     if (event) {
-      result = event_ptr->record();
+      result = map_ur_error(event_ptr->record());
       *event = event_ptr.release();
     }
   } catch (pi_result err) {
@@ -2420,7 +1796,7 @@ pi_result hip_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
     result = PI_CHECK_ERROR(
         hipMemcpyAsync(dst_ptr, src_ptr, size, hipMemcpyDefault, hipStream));
     if (event) {
-      result = event_ptr->record();
+      result = map_ur_error(event_ptr->record());
     }
     if (blocking) {
       result = PI_CHECK_ERROR(hipStreamSynchronize(hipStream));
@@ -2461,7 +1837,7 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
     result = PI_CHECK_ERROR(hipMemPrefetchAsync(
         ptr, size, queue->get_context()->get_device()->get(), hipStream));
     if (event) {
-      result = event_ptr->record();
+      result = map_ur_error(event_ptr->record());
       *event = event_ptr.release();
     }
   } catch (pi_result err) {
@@ -2714,15 +2090,20 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextContextCreateWithNativeHandle,
          pi2ur::piextContextCreateWithNativeHandle)
   // Queue
-  _PI_CL(piQueueCreate, hip_piQueueCreate)
-  _PI_CL(piextQueueCreate, hip_piextQueueCreate)
-  _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
-  _PI_CL(piQueueFinish, hip_piQueueFinish)
-  _PI_CL(piQueueFlush, hip_piQueueFlush)
-  _PI_CL(piQueueRetain, hip_piQueueRetain)
-  _PI_CL(piQueueRelease, hip_piQueueRelease)
-  _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle, hip_piextQueueCreateWithNativeHandle)
+  _PI_CL(piQueueCreate, pi2ur::piQueueCreate)
+  _PI_CL(piextQueueCreate, pi2ur::piextQueueCreate)
+  _PI_CL(piextQueueCreate2, pi2ur::piextQueueCreate2)
+  _PI_CL(piQueueGetInfo, pi2ur::piQueueGetInfo)
+  _PI_CL(piQueueFinish, pi2ur::piQueueFinish)
+  _PI_CL(piQueueFlush, pi2ur::piQueueFlush)
+  _PI_CL(piQueueRetain, pi2ur::piQueueRetain)
+  _PI_CL(piQueueRelease, pi2ur::piQueueRelease)
+  _PI_CL(piextQueueGetNativeHandle, pi2ur::piextQueueGetNativeHandle)
+  _PI_CL(piextQueueGetNativeHandle2, pi2ur::piextQueueGetNativeHandle2)
+  _PI_CL(piextQueueCreateWithNativeHandle,
+         pi2ur::piextQueueCreateWithNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle2,
+         pi2ur::piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, pi2ur::piMemBufferCreate)
   _PI_CL(piMemImageCreate, pi2ur::piMemImageCreate)
@@ -2760,16 +2141,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelSetExecInfo, pi2ur::piKernelSetExecInfo)
   _PI_CL(piextKernelSetArgPointer, pi2ur::piKernelSetArgPointer)
   // Event
-  _PI_CL(piEventCreate, hip_piEventCreate)
-  _PI_CL(piEventGetInfo, hip_piEventGetInfo)
-  _PI_CL(piEventGetProfilingInfo, hip_piEventGetProfilingInfo)
-  _PI_CL(piEventsWait, hip_piEventsWait)
-  _PI_CL(piEventSetCallback, hip_piEventSetCallback)
-  _PI_CL(piEventSetStatus, hip_piEventSetStatus)
-  _PI_CL(piEventRetain, hip_piEventRetain)
-  _PI_CL(piEventRelease, hip_piEventRelease)
-  _PI_CL(piextEventGetNativeHandle, hip_piextEventGetNativeHandle)
-  _PI_CL(piextEventCreateWithNativeHandle, hip_piextEventCreateWithNativeHandle)
+  _PI_CL(piEventCreate, pi2ur::piEventCreate)
+  _PI_CL(piEventGetInfo, pi2ur::piEventGetInfo)
+  _PI_CL(piEventGetProfilingInfo, pi2ur::piEventGetProfilingInfo)
+  _PI_CL(piEventsWait, pi2ur::piEventsWait)
+  _PI_CL(piEventSetCallback, pi2ur::piEventSetCallback)
+  _PI_CL(piEventSetStatus, pi2ur::piEventSetStatus)
+  _PI_CL(piEventRetain, pi2ur::piEventRetain)
+  _PI_CL(piEventRelease, pi2ur::piEventRelease)
+  _PI_CL(piextEventGetNativeHandle, pi2ur::piextEventGetNativeHandle)
+  _PI_CL(piextEventCreateWithNativeHandle,
+         pi2ur::piextEventCreateWithNativeHandle)
   // Sampler
   _PI_CL(piSamplerCreate, pi2ur::piSamplerCreate)
   _PI_CL(piSamplerGetInfo, pi2ur::piSamplerGetInfo)

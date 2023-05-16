@@ -183,6 +183,8 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/context.hpp"
       "ur/adapters/hip/device.cpp"
       "ur/adapters/hip/device.hpp"
+      "ur/adapters/hip/event.cpp"
+      "ur/adapters/hip/event.hpp"
       "ur/adapters/hip/platform.cpp"
       "ur/adapters/hip/platform.hpp"
       "ur/adapters/hip/memory.cpp"
@@ -194,6 +196,8 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/program.hpp"
       "ur/adapters/hip/kernel.cpp"
       "ur/adapters/hip/kernel.hpp"
+      "ur/adapters/hip/queue.cpp"
+      "ur/adapters/hip/queue.hpp"
       "ur/adapters/hip/ur_interface_loader.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
