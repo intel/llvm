@@ -41,24 +41,24 @@ public:
                     size_t NumBytes)
       : MDevice(getSyclObjImpl(SyclDevice)),
         MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes) {
-    const plugin &Plugin = MContext->getPlugin();
-    Plugin.call<PiApiKind::piextPhysicalMemCreate>(MContext->getHandleRef(),
-                                                   MDevice->getHandleRef(),
-                                                   MNumBytes, &MPhysicalMem);
+    const PluginPtr &Plugin = MContext->getPlugin();
+    Plugin->call<PiApiKind::piextPhysicalMemCreate>(MContext->getHandleRef(),
+                                                    MDevice->getHandleRef(),
+                                                    MNumBytes, &MPhysicalMem);
   }
 
   ~physical_mem_impl() {
-    const plugin &Plugin = MContext->getPlugin();
-    Plugin.call<PiApiKind::piextPhysicalMemRelease>(MPhysicalMem);
+    const PluginPtr &Plugin = MContext->getPlugin();
+    Plugin->call<PiApiKind::piextPhysicalMemRelease>(MPhysicalMem);
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
             ext::oneapi::experimental::address_access_mode Mode,
             size_t Offset) const {
     RT::PiVirtualAccessFlags AccessFlags = AccessModeToVirtualAccessFlags(Mode);
-    const plugin &Plugin = MContext->getPlugin();
+    const PluginPtr &Plugin = MContext->getPlugin();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
-    Plugin.call<PiApiKind::piextVirtualMemMap>(
+    Plugin->call<PiApiKind::piextVirtualMemMap>(
         MContext->getHandleRef(), ResultPtr, NumBytes, MPhysicalMem, Offset,
         AccessFlags);
     return ResultPtr;
