@@ -2432,7 +2432,7 @@ public:
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
-                  (Dims == 1 || isImageOrImageArray(AccessTarget))) {
+                  (Dims <= 1 || isImageOrImageArray(AccessTarget))) {
       setType(detail::CG::Fill);
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -2445,6 +2445,11 @@ public:
       MPattern.resize(sizeof(T));
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
+    } else if constexpr (Dims == 0) {
+      // Special case for zero-dim accessors.
+      parallel_for<
+          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+          range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
       range<Dims> Range = Dst.get_range();
       parallel_for<
@@ -2793,8 +2798,8 @@ public:
     if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
       // If the corresponding device_global isn't used in any kernels, we fall
       // back to doing the memory operation on host-only.
-      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, sizeof(T), IsDeviceImageScoped,
-                                     NumBytes, SrcOffset);
+      memcpyFromHostOnlyDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
+                                     SrcOffset);
       return;
     }
 
@@ -3124,7 +3129,6 @@ private:
 
   // Implementation of memcpy from an unregistered device_global.
   void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
-                                      size_t DeviceGlobalTSize,
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 

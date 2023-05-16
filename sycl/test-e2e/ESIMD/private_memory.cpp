@@ -5,15 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu && !gpu-intel-pvc
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: gpu-intel-pvc
 
 // TODO online_compiler check fails for esimd_emulator.
 // XFAIL: esimd_emulator
 
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 // The test verifies that basic ESIMD API works properly with
 // private memory allocated on stack.

@@ -1,8 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_bfloat16_math_functions
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %if cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out
+// RUN: %{run} %t.out
 // Currently the feature isn't supported on FPGA.
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: accelerator
 #include <sycl/sycl.hpp>
 
 #include <cmath>

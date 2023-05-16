@@ -9,4 +9,4 @@
 // RUN:   %S/split-per-source-main.cpp \
 // RUN:   %S/Inputs/split-per-source-second-file.cpp \
 // RUN:   -fsycl-dead-args-optimization
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out

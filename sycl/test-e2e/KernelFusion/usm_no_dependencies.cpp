@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion, aspect-usm_shared_allocations
+// REQUIRES: fusion
+// REQUIRES: aspect-usm_shared_allocations
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{run} %t.out
 
 // Test complete fusion using USM pointers.
 

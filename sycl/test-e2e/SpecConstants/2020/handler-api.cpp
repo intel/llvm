@@ -7,12 +7,10 @@
 // - test that specialization constant values can be set within command group
 //   scope and correctly retrieved within a kernel
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out \
-// RUN:          -fsycl-dead-args-optimization
-// FIXME: SYCL 2020 specialization constants are not supported on host device
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -fsycl-dead-args-optimization
+// RUN: %{run} %t.out
 // FIXME: ACC devices use emulation path, which is not yet supported
+// UNSUPPORTED: accelerator
 // UNSUPPORTED: hip
 
 #include <cstdlib>

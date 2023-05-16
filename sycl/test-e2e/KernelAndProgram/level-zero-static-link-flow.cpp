@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck %s
 // REQUIRES: level_zero
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 //==--- level-zero-static-link-flow.cpp.cpp - Check L0 static link flow --==//
 //

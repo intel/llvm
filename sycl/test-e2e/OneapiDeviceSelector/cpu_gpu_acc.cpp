@@ -1,6 +1,6 @@
 // REQUIRES: cpu, gpu, accelerator, opencl
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{build} -o %t.out
 
 // RUN: env ONEAPI_DEVICE_SELECTOR=opencl:fpga %t.out | FileCheck %s --check-prefixes=CHECK-ACC-ONLY
 // RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out | FileCheck %s --check-prefixes=CHECK-GPU-ONLY

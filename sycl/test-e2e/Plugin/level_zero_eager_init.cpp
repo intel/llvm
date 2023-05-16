@@ -1,7 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ZE_DEBUG=1 SYCL_EAGER_INIT=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: env ZE_DEBUG=1 SYCL_EAGER_INIT=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // The test is to check that under SYCL_EAGER_INIT=1 there is no calls to
 // heavy L0 initialization in the hot reportable path.
