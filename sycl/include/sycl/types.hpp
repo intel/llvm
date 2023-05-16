@@ -578,6 +578,12 @@ template <typename Type, int NumElements> class vec {
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
+  // CP
+  static constexpr bool IsHostHalf =
+      std::is_same<DataT, sycl::detail::half_impl::half>::value &&
+      std::is_same<sycl::detail::half_impl::StorageT,
+                   sycl::detail::host_half_impl::half>::value;
+
   static constexpr int getNumElements() { return NumElements; }
 
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
@@ -769,17 +775,10 @@ public:
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
-  using EnableIfNotHostHalf = typename std::enable_if_t<
-      !std::is_same_v<DataT, sycl::detail::half_impl::half> ||
-          !std::is_same_v<sycl::detail::half_impl::StorageT,
-                          sycl::detail::host_half_impl::half>,
-      T>;
+  using EnableIfNotHostHalf = typename std::enable_if_t<!IsHostHalf, T>;
+
   template <typename T = void>
-  using EnableIfHostHalf = typename std::enable_if_t<
-      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
-          std::is_same_v<sycl::detail::half_impl::StorageT,
-                         sycl::detail::host_half_impl::half>,
-      T>;
+  using EnableIfHostHalf = typename std::enable_if_t<IsHostHalf, T>;
 
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
