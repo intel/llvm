@@ -5631,18 +5631,7 @@ pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
                                      pi_device peer_device, pi_peer_attr attr,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
-
-  std::ignore = command_device;
-  std::ignore = peer_device;
-  std::ignore = attr;
-  std::ignore = param_value_size;
-  std::ignore = param_value;
-  std::ignore = param_value_size_ret;
-
-  setErrorMessage("piextPeerAccessGetInfo not "
-                  "implemented in hip backend",
-                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  return getInfo(param_value_size, param_value, param_value_size_ret, 0);
 }
 
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;

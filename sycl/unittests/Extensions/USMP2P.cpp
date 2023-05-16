@@ -56,7 +56,7 @@ pi_result redefinedPeerAccessGetInfo(pi_device command_device,
 
 TEST(USMP2PTest, USMP2PTest) {
 
-  sycl::unittest::PiMock Mock(sycl::backend::ext_oneapi_cuda);
+  sycl::unittest::PiMock Mock;
 
   Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
   Mock.redefine<sycl::detail::PiApiKind::piextEnablePeerAccess>(

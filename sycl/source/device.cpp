@@ -249,11 +249,7 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     return true;
   }
 
-  if (peer.get_backend() != backend::ext_oneapi_cuda) {
-    return false;
-  }
-
-  size_t return_size;
+  size_t returnSize;
   int value;
 
   RT::PiPeerAttr PiAttr = [&]() {
@@ -269,7 +265,7 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
   auto Plugin = impl->getPlugin();
   pi_result result =
       Plugin->call_nocheck<detail::PiApiKind::piextPeerAccessGetInfo>(
-          Device, Peer, PiAttr, sizeof(int), &value, &return_size);
+          Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
 
   if (result != PI_SUCCESS) {
     char *message = nullptr;

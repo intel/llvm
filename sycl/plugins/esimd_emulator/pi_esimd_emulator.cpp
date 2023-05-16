@@ -2200,17 +2200,8 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
                                  size_t param_value_size, void *param_value,
                                  size_t *param_value_size_ret) {
 
-  std::ignore = command_device;
-  std::ignore = peer_device;
-  std::ignore = attr;
-  std::ignore = param_value_size;
-  std::ignore = param_value;
-  std::ignore = param_value_size_ret;
-
-  setErrorMessage("piextPeerAccessGetInfo not "
-                  "implemented in esimd_emulator backend",
-                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  return ReturnValue(0);
 }
 
 #ifdef _WIN32

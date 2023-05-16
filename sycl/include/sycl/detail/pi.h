@@ -92,6 +92,8 @@
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 // 12.31 Added PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP device
 // info query.
+// 12.32 Added piextEnablePeerAccess, piextDisablePeerAccess,
+// piextPeerAccessGetInfo, and pi_peer_attr enum.
 
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 32
@@ -1023,8 +1025,8 @@ using pi_image_desc = _pi_image_desc;
 typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
 
 typedef enum {
-  PI_PEER_ACCESS_SUPPORTED,
-  PI_PEER_ATOMICS_SUPPORTED
+  PI_PEER_ACCESS_SUPPORTED = 0x0,
+  PI_PEER_ATOMICS_SUPPORTED = 0x1
 } _pi_peer_attr;
 
 using pi_mem_info = _pi_mem_info;

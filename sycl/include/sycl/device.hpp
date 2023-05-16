@@ -42,8 +42,8 @@ namespace ext::oneapi {
 class filter_selector;
 
 enum class peer_access {
-  access_supported,
-  atomics_supported,
+  access_supported = 0x0,
+  atomics_supported = 0x1,
 };
 
 } // namespace ext::oneapi
