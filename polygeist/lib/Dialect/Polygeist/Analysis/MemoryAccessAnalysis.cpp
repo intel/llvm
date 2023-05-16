@@ -965,7 +965,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
       !hasZeroIndex(access))
     return;
 
-  LLVM_DEBUG(llvm::errs() << "Candidate op:" << memoryOp << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Candidate op:" << memoryOp << "\n");
 
   auto accessorSubscriptOp =
       cast<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp());
