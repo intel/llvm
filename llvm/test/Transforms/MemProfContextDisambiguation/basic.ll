@@ -1,5 +1,5 @@
 ;; Test callsite context graph generation for simple call graph with
-;; two memprof contexts and no inlining.
+;; two memprof contexts and no inlining, as well as graph and IR cloning.
 ;;
 ;; Original code looks like:
 ;;
@@ -31,14 +31,28 @@
 ;;
 ;; The IR was then reduced using llvm-reduce with the expected FileCheck input.
 
-; RUN: opt -passes=memprof-context-disambiguation \
+;; -stats requires asserts
+; REQUIRES: asserts
+
+; RUN: opt -passes=memprof-context-disambiguation -supports-hot-cold-new \
 ; RUN:	-memprof-verify-ccg -memprof-verify-nodes -memprof-dump-ccg \
 ; RUN:	-memprof-export-to-dot -memprof-dot-file-path-prefix=%t. \
-; RUN:	%s -S 2>&1 | FileCheck %s --check-prefix=DUMP
+; RUN:	-stats -pass-remarks=memprof-context-disambiguation \
+; RUN:	%s -S 2>&1 | FileCheck %s --check-prefix=DUMP --check-prefix=IR \
+; RUN:	--check-prefix=STATS --check-prefix=REMARKS
 
 ; RUN:	cat %t.ccg.postbuild.dot | FileCheck %s --check-prefix=DOT
 ;; We should have cloned bar, baz, and foo, for the cold memory allocation.
 ; RUN:	cat %t.ccg.cloned.dot | FileCheck %s --check-prefix=DOTCLONED
+
+;; Check again without -supports-hot-cold-new and ensure all MIB are cold and
+;; that there is no cloning.
+; RUN: opt -passes=memprof-context-disambiguation \
+; RUN:	-memprof-verify-ccg -memprof-verify-nodes -memprof-dump-ccg \
+; RUN:	-memprof-export-to-dot -memprof-dot-file-path-prefix=%t. \
+; RUN:	-stats -pass-remarks=memprof-context-disambiguation \
+; RUN:	%s -S 2>&1 | FileCheck %s --implicit-check-not="Callsite Context Graph" \
+; RUN:	--implicit-check-not="created clone"
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -220,6 +234,48 @@ attributes #6 = { builtin }
 ; DUMP: 	CallerEdges:
 ; DUMP: 		Edge from Callee [[BAR2]] to Caller: [[BAZ2]] AllocTypes: Cold ContextIds: 2
 ; DUMP:		Clone of [[BAR]]
+
+
+; REMARKS: created clone _Z3barv.memprof.1
+; REMARKS: created clone _Z3bazv.memprof.1
+; REMARKS: created clone _Z3foov.memprof.1
+; REMARKS: call in clone main assigned to call function clone _Z3foov.memprof.1
+; REMARKS: call in clone _Z3foov.memprof.1 assigned to call function clone _Z3bazv.memprof.1
+; REMARKS: call in clone _Z3bazv.memprof.1 assigned to call function clone _Z3barv.memprof.1
+; REMARKS: call in clone _Z3barv.memprof.1 marked with memprof allocation attribute cold
+; REMARKS: call in clone main assigned to call function clone _Z3foov
+; REMARKS: call in clone _Z3foov assigned to call function clone _Z3bazv
+; REMARKS: call in clone _Z3bazv assigned to call function clone _Z3barv
+; REMARKS: call in clone _Z3barv marked with memprof allocation attribute notcold
+
+
+; IR: define {{.*}} @main
+;; The first call to foo does not allocate cold memory. It should call the
+;; original functions, which ultimately call the original allocation decorated
+;; with a "notcold" attribute.
+; IR:   call {{.*}} @_Z3foov()
+;; The second call to foo allocates cold memory. It should call cloned functions
+;; which ultimately call a cloned allocation decorated with a "cold" attribute.
+; IR:   call {{.*}} @_Z3foov.memprof.1()
+; IR: define internal {{.*}} @_Z3barv()
+; IR:   call {{.*}} @_Znam(i64 noundef 10) #[[NOTCOLD:[0-9]+]]
+; IR: define internal {{.*}} @_Z3bazv()
+; IR:   call {{.*}} @_Z3barv()
+; IR: define internal {{.*}} @_Z3foov()
+; IR:   call {{.*}} @_Z3bazv()
+; IR: define internal {{.*}} @_Z3barv.memprof.1()
+; IR:   call {{.*}} @_Znam(i64 noundef 10) #[[COLD:[0-9]+]]
+; IR: define internal {{.*}} @_Z3bazv.memprof.1()
+; IR:   call {{.*}} @_Z3barv.memprof.1()
+; IR: define internal {{.*}} @_Z3foov.memprof.1()
+; IR:   call {{.*}} @_Z3bazv.memprof.1()
+; IR: attributes #[[NOTCOLD]] = { builtin "memprof"="notcold" }
+; IR: attributes #[[COLD]] = { builtin "memprof"="cold" }
+
+
+; STATS: 1 memprof-context-disambiguation - Number of cold static allocations (possibly cloned)
+; STATS: 1 memprof-context-disambiguation - Number of not cold static allocations (possibly cloned)
+; STATS: 3 memprof-context-disambiguation - Number of function clones created during whole program analysis
 
 
 ; DOT: digraph "postbuild" {

@@ -2359,11 +2359,11 @@ def fir_CallOp : fir_Op<"call",
     }
 
     /// Set the callee for this operation.
-    void setCalleeFromCallable(CallInterfaceCallable callee) {
+    void setCalleeFromCallable(mlir::CallInterfaceCallable callee) {
       if (auto calling =
           (*this)->getAttrOfType<mlir::SymbolRefAttr>(getCalleeAttrName()))
-        (*this)->setAttr(getCalleeAttrName(), callee.get<SymbolRefAttr>());
-      setOperand(0, callee.get<Value>());
+        (*this)->setAttr(getCalleeAttrName(), callee.get<mlir::SymbolRefAttr>());
+      setOperand(0, callee.get<mlir::Value>());
     }
   }];
 }

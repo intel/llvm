@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -DUSE_REF -I%S/.. -o %t.ref.out
 // RUN: %{run} %t.ref.out 3 2 1
 //
