@@ -22,12 +22,12 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/intel/experimental/kernel_properties.hpp>
 #include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <sycl/stl.hpp>
 
@@ -382,18 +382,14 @@ static void appendCompileOptionsForRegAllocMode(std::string &CompileOpts,
   if (!Prop)
     return;
   uint32_t PropVal = DeviceBinaryProperty(Prop).asUint32();
-  if (PropVal ==
-      static_cast<uint32_t>(
-          ext::intel::experimental::register_alloc_mode_enum::large)) {
+  if (PropVal == static_cast<uint32_t>(register_alloc_mode_enum::large)) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // TODO: Support Auto GRF for ESIMD once vc supports it.
-  if (PropVal ==
-          static_cast<uint32_t>(
-              ext::intel::experimental::register_alloc_mode_enum::automatic) &&
+  if (PropVal == static_cast<uint32_t>(register_alloc_mode_enum::automatic) &&
       !IsEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";

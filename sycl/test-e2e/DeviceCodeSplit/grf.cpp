@@ -26,9 +26,11 @@
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
+#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+using namespace sycl::detail;
 using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::oneapi::experimental;
 

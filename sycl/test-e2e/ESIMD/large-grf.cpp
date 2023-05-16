@@ -24,10 +24,12 @@
 #include "esimd_test_utils.hpp"
 
 #include <iostream>
+#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+using namespace sycl::detail;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
@@ -121,8 +123,7 @@ int main(void) {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
     queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
     sycl::ext::oneapi::experimental::properties prop{
-        sycl::ext::intel::experimental::register_alloc_mode<
-            sycl::ext::intel::experimental::register_alloc_mode_enum::large>};
+        register_alloc_mode<register_alloc_mode_enum::large>};
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
