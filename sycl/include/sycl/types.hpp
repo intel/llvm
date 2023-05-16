@@ -1357,13 +1357,15 @@ private:
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {
-    m_Data.s[Index] = vec_data<DataT>::get(Value);
+    // CP .s
+    m_Data[Index] = vec_data<DataT>::get(Value);
   }
 
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr DataT getValue(int Index, int) const {
-    return vec_data<DataT>::get(m_Data.s[Index]);
+    // CP .s
+    return vec_data<DataT>::get(m_Data[Index]);
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
@@ -2165,18 +2167,33 @@ template <typename T, int N, typename V> struct VecStorage {
   static_assert(!std::is_same_v<V, void>, "Incorrect data type for sycl::vec");
 };
 
-#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+// CP
+//#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+#ifdef __SYCL_DEVICE_ONLY__
+ // device always has ext vector support
 template <typename T, int N> struct VecStorageImpl {
   using DataType = T __attribute__((ext_vector_type(N)));
+  using VectorDataType = T __attribute__((ext_vector_type(N)));
 };
-#else
+#else  // __SYCL_DEVICE_ONLY__
 // When ext_vector_type is not available, we rely on cl_* types from CL/cl.h
 // to represent vec storage.
+#ifdef __HAS_EXT_VECTOR_TYPE__
 template <typename T, int N> struct VecStorageImpl;
 #define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
   template <> struct VecStorageImpl<type, num> {                               \
-    using DataType = ::cl_##cl_type##num;                                      \
+    using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
+    using VectorDataType = type __attribute__((ext_vector_type(num)));         \
   };
+#else //__HAS_EXT_VECTOR_TYPE__
+template <typename T, int N> struct VecStorageImpl;
+#define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
+  template <> struct VecStorageImpl<type, num> {                               \
+    using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
+    using VectorDataType = std::array<type, (num == 3) ? 4 : num>;             \
+  };
+#endif //__HAS_EXT_VECTOR_TYPE__
+
 #define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type)                  \
   __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 2)                              \
   __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 3)                              \
