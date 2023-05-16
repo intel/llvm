@@ -56,9 +56,8 @@ void OpenACCDialect::initialize() {
 LogicalResult acc::DataBoundsOp::verify() {
   auto extent = getExtent();
   auto upperbound = getUpperbound();
-  if (!extent && !upperbound) {
+  if (!extent && !upperbound)
     return emitError("expected extent or upperbound.");
-  }
   return success();
 }
 
@@ -66,10 +65,9 @@ LogicalResult acc::DataBoundsOp::verify() {
 // DevicePtrOp
 //===----------------------------------------------------------------------===//
 LogicalResult acc::DevicePtrOp::verify() {
-  if (getDataClause() != acc::DataClause::acc_deviceptr) {
+  if (getDataClause() != acc::DataClause::acc_deviceptr)
     return emitError("data clause associated with deviceptr operation must "
                      "match its intent");
-  }
   return success();
 }
 
@@ -77,10 +75,9 @@ LogicalResult acc::DevicePtrOp::verify() {
 // PresentOp
 //===----------------------------------------------------------------------===//
 LogicalResult acc::PresentOp::verify() {
-  if (getDataClause() != acc::DataClause::acc_present) {
+  if (getDataClause() != acc::DataClause::acc_present)
     return emitError(
         "data clause associated with present operation must match its intent");
-  }
   return success();
 }
 
@@ -91,11 +88,10 @@ LogicalResult acc::CopyinOp::verify() {
   // Test for all clauses this operation can be decomposed from:
   if (getDataClause() != acc::DataClause::acc_copyin &&
       getDataClause() != acc::DataClause::acc_copyin_readonly &&
-      getDataClause() != acc::DataClause::acc_copy) {
+      getDataClause() != acc::DataClause::acc_copy)
     return emitError(
         "data clause associated with copyin operation must match its intent"
         " or specify original clause this operation was decomposed from");
-  }
   return success();
 }
 
@@ -111,11 +107,10 @@ LogicalResult acc::CreateOp::verify() {
   if (getDataClause() != acc::DataClause::acc_create &&
       getDataClause() != acc::DataClause::acc_create_zero &&
       getDataClause() != acc::DataClause::acc_copyout &&
-      getDataClause() != acc::DataClause::acc_copyout_zero) {
+      getDataClause() != acc::DataClause::acc_copyout_zero)
     return emitError(
         "data clause associated with create operation must match its intent"
         " or specify original clause this operation was decomposed from");
-  }
   return success();
 }
 
@@ -129,10 +124,9 @@ bool acc::CreateOp::isCreateZero() {
 // NoCreateOp
 //===----------------------------------------------------------------------===//
 LogicalResult acc::NoCreateOp::verify() {
-  if (getDataClause() != acc::DataClause::acc_no_create) {
+  if (getDataClause() != acc::DataClause::acc_no_create)
     return emitError("data clause associated with no_create operation must "
                      "match its intent");
-  }
   return success();
 }
 
@@ -140,10 +134,9 @@ LogicalResult acc::NoCreateOp::verify() {
 // AttachOp
 //===----------------------------------------------------------------------===//
 LogicalResult acc::AttachOp::verify() {
-  if (getDataClause() != acc::DataClause::acc_attach) {
+  if (getDataClause() != acc::DataClause::acc_attach)
     return emitError(
         "data clause associated with attach operation must match its intent");
-  }
   return success();
 }
 
@@ -157,9 +150,9 @@ LogicalResult acc::GetDevicePtrOp::verify() {
   if (getDataClause() != acc::DataClause::acc_getdeviceptr &&
       getDataClause() != acc::DataClause::acc_copyout &&
       getDataClause() != acc::DataClause::acc_delete &&
-      getDataClause() != acc::DataClause::acc_detach) {
+      getDataClause() != acc::DataClause::acc_detach &&
+      getDataClause() != acc::DataClause::acc_update_host)
     return emitError("getDevicePtr mismatch");
-  }
   return success();
 }
 
@@ -170,14 +163,12 @@ LogicalResult acc::CopyoutOp::verify() {
   // Test for all clauses this operation can be decomposed from:
   if (getDataClause() != acc::DataClause::acc_copyout &&
       getDataClause() != acc::DataClause::acc_copyout_zero &&
-      getDataClause() != acc::DataClause::acc_copy) {
+      getDataClause() != acc::DataClause::acc_copy)
     return emitError(
         "data clause associated with copyout operation must match its intent"
         " or specify original clause this operation was decomposed from");
-  }
-  if (!getVarPtr() || !getAccPtr()) {
+  if (!getVarPtr() || !getAccPtr())
     return emitError("must have both host and device pointers");
-  }
   return success();
 }
 
@@ -192,14 +183,12 @@ LogicalResult acc::DeleteOp::verify() {
   // Test for all clauses this operation can be decomposed from:
   if (getDataClause() != acc::DataClause::acc_delete &&
       getDataClause() != acc::DataClause::acc_create &&
-      getDataClause() != acc::DataClause::acc_create_zero) {
+      getDataClause() != acc::DataClause::acc_create_zero)
     return emitError(
         "data clause associated with delete operation must match its intent"
         " or specify original clause this operation was decomposed from");
-  }
-  if (!getVarPtr() && !getAccPtr()) {
+  if (!getVarPtr() && !getAccPtr())
     return emitError("must have either host or device pointer");
-  }
   return success();
 }
 
@@ -209,14 +198,39 @@ LogicalResult acc::DeleteOp::verify() {
 LogicalResult acc::DetachOp::verify() {
   // Test for all clauses this operation can be decomposed from:
   if (getDataClause() != acc::DataClause::acc_detach &&
-      getDataClause() != acc::DataClause::acc_attach) {
+      getDataClause() != acc::DataClause::acc_attach)
     return emitError(
         "data clause associated with detach operation must match its intent"
         " or specify original clause this operation was decomposed from");
-  }
-  if (!getVarPtr() && !getAccPtr()) {
+  if (!getVarPtr() && !getAccPtr())
     return emitError("must have either host or device pointer");
-  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// HostOp
+//===----------------------------------------------------------------------===//
+LogicalResult acc::UpdateHostOp::verify() {
+  // Test for all clauses this operation can be decomposed from:
+  if (getDataClause() != acc::DataClause::acc_update_host &&
+      getDataClause() != acc::DataClause::acc_update_self)
+    return emitError(
+        "data clause associated with host operation must match its intent"
+        " or specify original clause this operation was decomposed from");
+  if (!getVarPtr() || !getAccPtr())
+    return emitError("must have both host and device pointers");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// DeviceOp
+//===----------------------------------------------------------------------===//
+LogicalResult acc::UpdateDeviceOp::verify() {
+  // Test for all clauses this operation can be decomposed from:
+  if (getDataClause() != acc::DataClause::acc_update_device)
+    return emitError(
+        "data clause associated with device operation must match its intent"
+        " or specify original clause this operation was decomposed from");
   return success();
 }
 
@@ -228,10 +242,9 @@ static ParseResult parseRegions(OpAsmParser &parser, OperationState &state,
   for (unsigned i = 0; i < nRegions; ++i)
     regions.push_back(state.addRegion());
 
-  for (Region *region : regions) {
+  for (Region *region : regions)
     if (parser.parseRegion(*region, /*arguments=*/{}, /*argTypes=*/{}))
       return failure();
-  }
 
   return success();
 }
@@ -272,6 +285,21 @@ struct RemoveConstantIfCondition : public OpRewritePattern<OpTy> {
 // ParallelOp
 //===----------------------------------------------------------------------===//
 
+/// Check dataOperands for acc.parallel, acc.serial and acc.kernels.
+template <typename Op>
+static LogicalResult checkDataOperands(Op op,
+                                       const mlir::ValueRange &operands) {
+  for (mlir::Value operand : operands)
+    if (!mlir::isa<acc::AttachOp, acc::CopyinOp, acc::CopyoutOp, acc::CreateOp,
+                   acc::DeleteOp, acc::DetachOp, acc::DevicePtrOp,
+                   acc::GetDevicePtrOp, acc::NoCreateOp, acc::PresentOp>(
+            operand.getDefiningOp()))
+      return op.emitError(
+          "expect data entry/exit operation or acc.getdeviceptr "
+          "as defining op");
+  return success();
+}
+
 unsigned ParallelOp::getNumDataOperands() {
   return getReductionOperands().size() + getCopyOperands().size() +
          getCopyinOperands().size() + getCopyinReadonlyOperands().size() +
@@ -291,6 +319,10 @@ Value ParallelOp::getDataOperand(unsigned i) {
   numOptional += getIfCond() ? 1 : 0;
   numOptional += getSelfCond() ? 1 : 0;
   return getOperand(getWaitOperands().size() + numOptional + i);
+}
+
+LogicalResult acc::ParallelOp::verify() {
+  return checkDataOperands<acc::ParallelOp>(*this, getDataClauseOperands());
 }
 
 //===----------------------------------------------------------------------===//
@@ -315,6 +347,10 @@ Value SerialOp::getDataOperand(unsigned i) {
   return getOperand(getWaitOperands().size() + numOptional + i);
 }
 
+LogicalResult acc::SerialOp::verify() {
+  return checkDataOperands<acc::SerialOp>(*this, getDataClauseOperands());
+}
+
 //===----------------------------------------------------------------------===//
 // KernelsOp
 //===----------------------------------------------------------------------===//
@@ -333,6 +369,10 @@ Value KernelsOp::getDataOperand(unsigned i) {
   numOptional += getIfCond() ? 1 : 0;
   numOptional += getSelfCond() ? 1 : 0;
   return getOperand(getWaitOperands().size() + numOptional + i);
+}
+
+LogicalResult acc::KernelsOp::verify() {
+  return checkDataOperands<acc::KernelsOp>(*this, getDataClauseOperands());
 }
 
 //===----------------------------------------------------------------------===//
@@ -467,6 +507,15 @@ LogicalResult acc::DataOp::verify() {
   if (getOperands().empty() && !getDefaultAttr())
     return emitError("at least one operand or the default attribute "
                      "must appear on the data operation");
+
+  for (mlir::Value operand : getDataClauseOperands())
+    if (!mlir::isa<acc::AttachOp, acc::CopyinOp, acc::CopyoutOp, acc::CreateOp,
+                   acc::DeleteOp, acc::DetachOp, acc::DevicePtrOp,
+                   acc::GetDevicePtrOp, acc::NoCreateOp, acc::PresentOp>(
+            operand.getDefiningOp()))
+      return emitError("expect data entry/exit operation or acc.getdeviceptr "
+                       "as defining op");
+
   return success();
 }
 
@@ -559,6 +608,11 @@ LogicalResult acc::EnterDataOp::verify() {
   if (getWaitDevnum() && getWaitOperands().empty())
     return emitError("wait_devnum cannot appear without waitOperands");
 
+  for (mlir::Value operand : getDataClauseOperands())
+    if (!mlir::isa<acc::AttachOp, acc::CreateOp, acc::CopyinOp>(
+            operand.getDefiningOp()))
+      return emitError("expect data entry operation as defining op");
+
   return success();
 }
 
@@ -610,9 +664,8 @@ LogicalResult acc::ShutdownOp::verify() {
 
 LogicalResult acc::UpdateOp::verify() {
   // At least one of host or device should have a value.
-  if (getHostOperands().empty() && getDeviceOperands().empty())
-    return emitError(
-        "at least one value must be present in hostOperands or deviceOperands");
+  if (getDataClauseOperands().empty())
+    return emitError("at least one value must be present in dataOperands");
 
   // The async attribute represent the async clause without value. Therefore the
   // attribute and operand cannot appear at the same time.
@@ -627,11 +680,17 @@ LogicalResult acc::UpdateOp::verify() {
   if (getWaitDevnum() && getWaitOperands().empty())
     return emitError("wait_devnum cannot appear without waitOperands");
 
+  for (mlir::Value operand : getDataClauseOperands())
+    if (!mlir::isa<acc::UpdateDeviceOp, acc::UpdateHostOp, acc::GetDevicePtrOp>(
+            operand.getDefiningOp()))
+      return emitError("expect data entry/exit operation or acc.getdeviceptr "
+                       "as defining op");
+
   return success();
 }
 
 unsigned UpdateOp::getNumDataOperands() {
-  return getHostOperands().size() + getDeviceOperands().size();
+  return getDataClauseOperands().size();
 }
 
 Value UpdateOp::getDataOperand(unsigned i) {
