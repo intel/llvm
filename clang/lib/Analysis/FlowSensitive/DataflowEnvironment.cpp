@@ -245,16 +245,16 @@ void Environment::initFieldsGlobalsAndFuncs(const FunctionDecl *FuncDecl) {
   DACtx->addModeledFields(Fields);
 
   for (const VarDecl *D : Vars) {
-    if (getStorageLocation(*D, SkipPast::None) != nullptr)
+    if (getStorageLocation(*D) != nullptr)
       continue;
-    auto &Loc = createStorageLocation(*D);
+    auto &Loc = createStorageLocation(D->getType().getNonReferenceType());
     setStorageLocation(*D, Loc);
-    if (auto *Val = createValue(D->getType()))
+    if (auto *Val = createValue(D->getType().getNonReferenceType()))
       setValue(Loc, *Val);
   }
 
   for (const FunctionDecl *FD : Funcs) {
-    if (getStorageLocation(*FD, SkipPast::None) != nullptr)
+    if (getStorageLocation(*FD) != nullptr)
       continue;
     auto &Loc = createStorageLocation(FD->getType());
     setStorageLocation(*FD, Loc);
@@ -291,10 +291,16 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
 
     for (const auto *ParamDecl : FuncDecl->parameters()) {
       assert(ParamDecl != nullptr);
-      auto &ParamLoc = createStorageLocation(*ParamDecl);
+      // References aren't objects, so the reference itself doesn't have a
+      // storage location. Instead, the storage location for a reference refers
+      // directly to an object of the referenced type -- so strip off any
+      // reference from the type.
+      auto &ParamLoc =
+          createStorageLocation(ParamDecl->getType().getNonReferenceType());
       setStorageLocation(*ParamDecl, ParamLoc);
-      if (Value *ParamVal = createValue(ParamDecl->getType()))
-        setValue(ParamLoc, *ParamVal);
+      if (Value *ParamVal =
+              createValue(ParamDecl->getType().getNonReferenceType()))
+          setValue(ParamLoc, *ParamVal);
     }
 
     QualType ReturnType = FuncDecl->getReturnType();
@@ -376,17 +382,19 @@ void Environment::pushCallInternal(const FunctionDecl *FuncDecl,
       continue;
 
     const VarDecl *Param = *ParamIt;
-    auto &Loc = createStorageLocation(*Param);
-    setStorageLocation(*Param, Loc);
 
     QualType ParamType = Param->getType();
     if (ParamType->isReferenceType()) {
-      auto &Val = DACtx->arena().create<ReferenceValue>(*ArgLoc);
-      setValue(Loc, Val);
-    } else if (auto *ArgVal = getValue(*ArgLoc)) {
-      setValue(Loc, *ArgVal);
-    } else if (Value *Val = createValue(ParamType)) {
-      setValue(Loc, *Val);
+      setStorageLocation(*Param, *ArgLoc);
+    } else {
+      auto &Loc = createStorageLocation(*Param);
+      setStorageLocation(*Param, Loc);
+
+      if (auto *ArgVal = getValue(*ArgLoc)) {
+        setValue(Loc, *ArgVal);
+      } else if (Value *Val = createValue(ParamType)) {
+        setValue(Loc, *Val);
+      }
     }
   }
 }
@@ -518,6 +526,10 @@ LatticeJoinEffect Environment::join(const Environment &Other,
   JoinedEnv.ReturnLoc = ReturnLoc;
   JoinedEnv.ThisPointeeLoc = ThisPointeeLoc;
 
+  // FIXME: Once we're able to remove declarations from `DeclToLoc` when their
+  // lifetime ends, add an assertion that there aren't any entries in
+  // `DeclToLoc` and `Other.DeclToLoc` that map the same declaration to
+  // different storage locations.
   JoinedEnv.DeclToLoc = intersectDenseMaps(DeclToLoc, Other.DeclToLoc);
   if (DeclToLoc.size() != JoinedEnv.DeclToLoc.size())
     Effect = LatticeJoinEffect::Changed;
@@ -589,13 +601,20 @@ StorageLocation &Environment::createStorageLocation(const Expr &E) {
 
 void Environment::setStorageLocation(const ValueDecl &D, StorageLocation &Loc) {
   assert(!DeclToLoc.contains(&D));
+  assert(!isa_and_nonnull<ReferenceValue>(getValue(Loc)));
   DeclToLoc[&D] = &Loc;
 }
 
-StorageLocation *Environment::getStorageLocation(const ValueDecl &D,
-                                                 SkipPast SP) const {
+StorageLocation *Environment::getStorageLocation(const ValueDecl &D) const {
   auto It = DeclToLoc.find(&D);
-  return It == DeclToLoc.end() ? nullptr : &skip(*It->second, SP);
+  if (It == DeclToLoc.end())
+    return nullptr;
+
+  StorageLocation *Loc = It->second;
+
+  assert(!isa_and_nonnull<ReferenceValue>(getValue(*Loc)));
+
+  return Loc;
 }
 
 void Environment::setStorageLocation(const Expr &E, StorageLocation &Loc) {
@@ -662,7 +681,9 @@ Value *Environment::getValue(const StorageLocation &Loc) const {
 }
 
 Value *Environment::getValue(const ValueDecl &D, SkipPast SP) const {
-  auto *Loc = getStorageLocation(D, SP);
+  assert(SP != SkipPast::ReferenceThenPointer);
+
+  auto *Loc = getStorageLocation(D);
   if (Loc == nullptr)
     return nullptr;
   return getValue(*Loc);

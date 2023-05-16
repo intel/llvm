@@ -176,6 +176,7 @@ ESIMD/acc_gather_scatter_rgba_stateless.cpp
 ESIMD/accessor.cpp
 ESIMD/accessor_gather_scatter.cpp
 ESIMD/accessor_gather_scatter_stateless.cpp
+ESIMD/accessor_global.cpp
 ESIMD/accessor_load_store.cpp
 ESIMD/accessor_load_store_stateless.cpp
 ESIMD/accessor_stateless.cpp
@@ -311,6 +312,7 @@ GroupAlgorithm/SYCL2020/group_broadcast.cpp
 GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
 GroupAlgorithm/SYCL2020/sort.cpp
 GroupAlgorithm/broadcast.cpp
+GroupAlgorithm/different_types.cpp
 GroupAlgorithm/exclusive_scan_sycl2020.cpp
 GroupAlgorithm/inclusive_scan_sycl2020.cpp
 GroupAlgorithm/reduce_sycl2020.cpp
@@ -349,6 +351,7 @@ InvokeSimd/Regression/call_vadd_1d_spill.cpp
 InvokeSimd/Regression/matrix_add.cpp
 InvokeSimd/Regression/matrix_multiply_USM.cpp
 InvokeSimd/Regression/matrix_multiply_accessor_get_pointer.cpp
+InvokeSimd/Regression/slm_load_store.cpp
 InvokeSimd/Regression/tiled_matrix_multiplication.cpp
 InvokeSimd/Spec/ESIMD_to_unmarked_function.cpp
 InvokeSimd/Spec/clang_run_error/sycl_marray_argument.cpp
