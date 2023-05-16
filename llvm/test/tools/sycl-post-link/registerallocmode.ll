@@ -19,11 +19,11 @@
 ; CHECK: {{.*}}_esimd_1.ll|{{.*}}_esimd_1.prop|{{.*}}_esimd_1.sym
 
 ; CHECK-ESIMD-LargeGRF-PROP: isEsimdImage=1|1
-; CHECK-ESIMD-LargeGRF-PROP: RegisterAllocMode=1|2
+; CHECK-ESIMD-LargeGRF-PROP: sycl-register-alloc-mode=1|2
 
-; CHECK-SYCL-LargeGRF-PROP: RegisterAllocMode=1|2
+; CHECK-SYCL-LargeGRF-PROP: sycl-register-alloc-mode=1|2
 
-; CHECK-SYCL-PROP-NOT: RegisterAllocMode
+; CHECK-SYCL-PROP-NOT: sycl-register-alloc-mode
 
 ; CHECK-SYCL-SYM: __SYCL_kernel
 ; CHECK-SYCL-SYM-EMPTY:
@@ -34,7 +34,7 @@
 ; CHECK-ESIMD-SYM: __ESIMD_kernel
 ; CHECK-ESIMD-SYM-EMPTY:
 
-; CHECK-ESIMD-PROP-NOT: RegisterAllocMode
+; CHECK-ESIMD-PROP-NOT: sycl-register-alloc-mode
 
 ; CHECK-ESIMD-LargeGRF-SYM: __ESIMD_large_grf_kernel
 ; CHECK-ESIMD-LargeGRF-SYM-EMPTY:
@@ -68,7 +68,7 @@ entry:
 }
 
 attributes #0 = { "sycl-module-id"="a.cpp" }
-attributes #1 = { "sycl-module-id"="a.cpp" "RegisterAllocMode"="2" }
+attributes #1 = { "sycl-module-id"="a.cpp" "sycl-register-alloc-mode"="2" }
 
 !0 = !{}
 !1 = !{i32 1}
