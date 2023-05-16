@@ -7231,21 +7231,38 @@ enum class USMAllocationForceResidencyType {
   // Force memory resident on the device of allocation at allocation time.
   // For host allocation force residency on all devices in a context.
   Device = 1,
-  // [Default] Force memory resident on all devices in the context with P2P
+  // Force memory resident on all devices in the context with P2P
   // access to the device of allocation.
   // For host allocation force residency on all devices in a context.
   P2PDevices = 2
 };
 
 // Returns the desired USM residency setting
-static USMAllocationForceResidencyType USMAllocationForceResidency = [] {
+// Input value is of the form 0xHSD, where:
+//   4-bits of D control device allocations
+//   4-bits of S control shared allocations
+//   4-bits of H control host allocations
+// Each 4-bit value is holding a USMAllocationForceResidencyType enum value.
+// The default is 0x2, i.e. force full residency for device allocations only.
+//
+static uint32_t USMAllocationForceResidency = [] {
   const char *UrRet = std::getenv("UR_L0_USM_RESIDENT");
   const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USM_RESIDENT");
   const char *Str = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
+  try {
+    if (Str) {
+      // Auto-detect radix to allow more convinient hex base
+      return std::stoi(Str, nullptr, 0);
+    }
+  } catch (...) {
+  }
+  return 0x2;
+}();
 
-  if (!Str)
-    return USMAllocationForceResidencyType::P2PDevices;
-  switch (std::atoi(Str)) {
+// Convert from an integer value to USMAllocationForceResidencyType enum value
+static USMAllocationForceResidencyType
+USMAllocationForceResidencyConvert(uint32_t Val) {
+  switch (Val) {
   case 1:
     return USMAllocationForceResidencyType::Device;
   case 2:
@@ -7253,26 +7270,38 @@ static USMAllocationForceResidencyType USMAllocationForceResidency = [] {
   default:
     return USMAllocationForceResidencyType::None;
   };
+}
+
+static USMAllocationForceResidencyType USMHostAllocationForceResidency = [] {
+  return USMAllocationForceResidencyConvert(
+      (USMAllocationForceResidency & 0xf00) >> 8);
+}();
+static USMAllocationForceResidencyType USMSharedAllocationForceResidency = [] {
+  return USMAllocationForceResidencyConvert(
+      (USMAllocationForceResidency & 0x0f0) >> 4);
+}();
+static USMAllocationForceResidencyType USMDeviceAllocationForceResidency = [] {
+  return USMAllocationForceResidencyConvert(
+      (USMAllocationForceResidency & 0x00f));
 }();
 
 // Make USM allocation resident as requested
 static pi_result
-USMAllocationMakeResident(pi_context Context,
+USMAllocationMakeResident(USMAllocationForceResidencyType ForceResidency,
+                          pi_context Context,
                           pi_device Device, // nullptr for host allocation
                           void *Ptr, size_t Size) {
+  if (ForceResidency == USMAllocationForceResidencyType::None)
+    return PI_SUCCESS;
 
   std::list<pi_device> Devices;
-
-  if (USMAllocationForceResidency == USMAllocationForceResidencyType::None)
-    return PI_SUCCESS;
-  else if (!Device) {
+  if (!Device) {
     // Host allocation, make it resident on all devices in the context
     Devices.insert(Devices.end(), Context->Devices.begin(),
                    Context->Devices.end());
   } else {
     Devices.push_back(Device);
-    if (USMAllocationForceResidency ==
-        USMAllocationForceResidencyType::P2PDevices) {
+    if (ForceResidency == USMAllocationForceResidencyType::P2PDevices) {
       ze_bool_t P2P;
       for (const auto &D : Context->Devices) {
         if (D == Device)
@@ -7322,7 +7351,8 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
-  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
+  USMAllocationMakeResident(USMDeviceAllocationForceResidency, Context, Device,
+                            *ResultPtr, Size);
   return PI_SUCCESS;
 }
 
@@ -7353,7 +7383,8 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
-  USMAllocationMakeResident(Context, Device, *ResultPtr, Size);
+  USMAllocationMakeResident(USMSharedAllocationForceResidency, Context, Device,
+                            *ResultPtr, Size);
 
   // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
   return PI_SUCCESS;
@@ -7379,7 +7410,8 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
-  USMAllocationMakeResident(Context, nullptr, *ResultPtr, Size);
+  USMAllocationMakeResident(USMHostAllocationForceResidency, Context, nullptr,
+                            *ResultPtr, Size);
   return PI_SUCCESS;
 }
 

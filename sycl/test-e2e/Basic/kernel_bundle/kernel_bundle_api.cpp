@@ -271,7 +271,7 @@ int main() {
     });
 
     {
-      auto HostAcc = Buf.get_access<sycl::access::mode::write>();
+      sycl::host_accessor HostAcc(Buf, sycl::write_only);
       assert(HostAcc[0] == 42);
     }
   }
