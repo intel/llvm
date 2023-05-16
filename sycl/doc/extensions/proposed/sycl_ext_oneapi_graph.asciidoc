@@ -295,7 +295,7 @@ executable graph object is added to the graph as a node.
 namespace sycl {
 namespace ext::oneapi::experimental {
 
-// State of a queue, returned by info::queue::state
+// State of a queue, returned by queue::ext_oneapi_get_state()
 enum class queue_state {
   executing,
   recording
@@ -307,7 +307,7 @@ namespace graph {
 
 class no_cycle_check {
   public:
-    no_cycle_check() = default; 
+    no_cycle_check() = default;
 };
 
 } // namespace graph
@@ -331,7 +331,7 @@ enum class graph_state {
   executable
 };
 
-namespace property { 
+namespace property {
 namespace graph {
 
 class no_host_copy {
@@ -382,6 +382,10 @@ public:
 using namespace ext::oneapi::experimental;
 class queue {
 public:
+
+  ext::oneapi::experimental::queue_state
+  ext_oneapi_get_state() const;
+
   /* -- graph convenience shortcuts -- */
 
   event ext_oneapi_graph(command_graph<graph_state::executable>& graph);
@@ -874,8 +878,6 @@ submitted immediately for execution.
 
 ==== Queue State
 
-:queue-info-table: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.queue.info
-
 The `sycl::queue` object can be in either of two states. The default
 `queue_state::executing` state is where the queue has its normal semantics of
 submitted command-groups being immediately scheduled for asynchronous execution.
@@ -884,7 +886,8 @@ The alternative `queue_state::recording` state is used for graph construction.
 Instead of being scheduled for execution, command-groups submitted to the queue
 are recorded to a graph object as new nodes for each submission. After recording
 has finished and the queue returns to the executing state, the recorded commands are
-not then executed, they are transparent to any following queue operations.
+not then executed, they are transparent to any following queue operations. The state
+of a queue can be queried with `queue::ext_oneapi_get_state()`.
 
 .Queue State Diagram
 [source, mermaid]
@@ -893,21 +896,6 @@ graph LR
     Executing -->|Begin Recording| Recording
     Recording -->|End Recording| Executing
 ....
-
-The state of a queue can be queried with `queue::get_info` using template
-parameter `info::queue::state`. The following entry is added to the
-{queue-info-table}[queue info table] to define this query:
-
-Table {counter: tableNumber}. Queue info query
-[cols="2a,a,a"]
-|===
-| Queue Descriptors | Return Type | Description
-
-| `info::queue::state`
-| `ext::oneapi::experimental::queue_state`
-| Returns the state of the queue
-
-|===
 
 Events returned from queue submissions when a queue is in the recording state
 may only be used as parameters to `handler::depends_on()` or as dependent
@@ -962,6 +950,18 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::queue` c
 |===
 |Member function|Description
 
+|
+[source,c++]
+----
+queue_state queue::ext_oneapi_get_state() const;
+----
+
+| Query the <<queue-state, recording state>> of the queue.
+
+Returns: If the queue is in the default state where commands are scheduled
+immediately for execution, `queue_state::executing` is returned. Otherwise,
+`queue_state::recording` is returned where commands are redirected to a `command_graph`
+object.
 |
 [source,c++]
 ----
@@ -1052,9 +1052,9 @@ graph is undefined. If user code enforces a total order on the queue
 events, then the behavior is well-defined, and will match the observable
 total order.
 
-The returned value from the `info::queue::state` should be considered
-immediately stale in multi-threaded usage, as another thread could have
-preemptively changed the state of the queue.
+The returned value from the `queue::ext_oneapi_get_state()` should be
+considered immediately stale in multi-threaded usage, as another thread could
+have preemptively changed the state of the queue.
 
 === Exception Safety
 
