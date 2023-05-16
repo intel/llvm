@@ -91,9 +91,9 @@ int main(void) {
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
 #ifdef USE_AUTO_GRF
-    properties prop{register_alloc_mode<RegisterAllocMode::AUTO>};
+    properties prop{register_alloc_mode<register_alloc_mode_enum::automatic>};
 #else
-    properties prop{register_alloc_mode<RegisterAllocMode::LARGE>};
+    properties prop{register_alloc_mode<register_alloc_mode_enum::large>};
 #endif
     queue q(sycl::gpu_selector_v, exceptionHandlerHelper);
 

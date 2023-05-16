@@ -122,7 +122,7 @@ int main(void) {
     queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
     sycl::ext::oneapi::experimental::properties prop{
         sycl::ext::intel::experimental::register_alloc_mode<
-            sycl::ext::intel::experimental::RegisterAllocMode::LARGE>};
+            sycl::ext::intel::experimental::register_alloc_mode_enum::large>};
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 

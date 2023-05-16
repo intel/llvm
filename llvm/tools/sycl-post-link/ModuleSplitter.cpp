@@ -848,7 +848,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     // Optional features
     // Note: Add more rules at the end of the list to avoid chaning orders of
     // output files in existing tests.
-    Categorizer.registerSimpleStringAttributeRule("RegisterAllocMode");
+    Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
     Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
     Categorizer.registerSimpleStringAttributeRule(

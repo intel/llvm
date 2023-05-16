@@ -30,6 +30,6 @@ entry:
 }
 
 attributes #0 = { convergent norecurse }
-attributes #1 = { convergent norecurse "RegisterAllocMode"="2" }
+attributes #1 = { convergent norecurse "sycl-register-alloc-mode"="2" }
 
 !1 = !{}

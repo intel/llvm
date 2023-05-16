@@ -455,7 +455,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   }
 
   {
-    StringRef RegAllocModeAttr = "RegisterAllocMode";
+    StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
     uint32_t RegAllocModeVal;
 
     bool HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {

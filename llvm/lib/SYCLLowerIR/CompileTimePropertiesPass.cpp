@@ -28,7 +28,7 @@ namespace {
 
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
-constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "RegisterAllocMode";
+constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
@@ -194,15 +194,6 @@ attributeToExecModeMetadata(Function &F, const Attribute &Attr) {
     return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
 
-  if (AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR &&
-      !llvm::esimd::isESIMD(F)) {
-    uint32_t RegAllocModeVal = getAttributeAsInteger<uint32_t>(Attr);
-    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(Constant::getIntegerValue(
-        Type::getInt32Ty(Ctx), APInt(32, RegAllocModeVal)))};
-    return std::pair<std::string, MDNode *>(AttrKindStr.str(),
-                                            MDNode::get(Ctx, AttrMDArgs));
-  }
-
   // Early exit if it is not a sycl-* attribute.
   if (!AttrKindStr.startswith("sycl-"))
     return std::nullopt;
@@ -279,6 +270,15 @@ attributeToExecModeMetadata(Function &F, const Attribute &Attr) {
   if (AttrKindStr == "sycl-register-map-interface")
     return std::pair<std::string, MDNode *>("ip_interface",
                                             getIpInterface("csr", Ctx, Attr));
+
+  if (AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR &&
+      !llvm::esimd::isESIMD(F)) {
+    uint32_t RegAllocModeVal = getAttributeAsInteger<uint32_t>(Attr);
+    Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(Constant::getIntegerValue(
+        Type::getInt32Ty(Ctx), APInt(32, RegAllocModeVal)))};
+    return std::pair<std::string, MDNode *>("RegisterAllocMode",
+                                            MDNode::get(Ctx, AttrMDArgs));
+  }
 
   return std::nullopt;
 }

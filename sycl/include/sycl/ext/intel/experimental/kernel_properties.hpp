@@ -16,28 +16,25 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
-namespace intel {
-namespace experimental {
+namespace intel::experimental {
 
-enum class RegisterAllocMode : uint32_t {
-  AUTO = 0,
-  LARGE = 2,
+enum class register_alloc_mode_enum : uint32_t {
+  automatic = 0,
+  large = 2,
 };
 
 struct register_alloc_mode_key {
-  template <RegisterAllocMode Mode>
+  template <register_alloc_mode_enum Mode>
   using value_t = oneapi::experimental::property_value<
-      register_alloc_mode_key, std::integral_constant<RegisterAllocMode, Mode>>;
+      register_alloc_mode_key,
+      std::integral_constant<register_alloc_mode_enum, Mode>>;
 };
 
-template <RegisterAllocMode Mode>
+template <register_alloc_mode_enum Mode>
 inline constexpr register_alloc_mode_key::value_t<Mode> register_alloc_mode;
-} // namespace experimental
-} // namespace intel
+} // namespace intel::experimental
 
-namespace oneapi {
-namespace experimental {
-
+namespace oneapi::experimental {
 template <>
 struct is_property_key<intel::experimental::register_alloc_mode_key>
     : std::true_type {};
@@ -52,16 +49,15 @@ template <>
 struct IsCompileTimeProperty<intel::experimental::register_alloc_mode_key>
     : std::true_type {};
 
-template <intel::experimental::RegisterAllocMode Mode>
+template <intel::experimental::register_alloc_mode_enum Mode>
 struct PropertyMetaInfo<
     intel::experimental::register_alloc_mode_key::value_t<Mode>> {
-  static constexpr const char *name = "RegisterAllocMode";
-  static constexpr intel::experimental::RegisterAllocMode value = Mode;
+  static constexpr const char *name = "sycl-register-alloc-mode";
+  static constexpr intel::experimental::register_alloc_mode_enum value = Mode;
 };
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
+} // namespace oneapi::experimental
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
