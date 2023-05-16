@@ -961,6 +961,13 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
+// Control if wait with barrier is implemented by signal of an event
+// as opposed by true barrier command for in-order queue.
+static const bool InOrderBarrierBySignal = [] {
+  const char *UrRet = std::getenv("UR_L0_IN_ORDER_BARRIER_BY_SIGNAL");
+  return (UrRet ? std::atoi(UrRet) : true);
+}();
+
 _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
@@ -5757,7 +5764,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // For in-order queue we don't need a real barrier, just add a "barrier"
     // event signal because it is already guaranteed that previous commands
     // are completed when the signal is started.
-    if (Queue->isInOrderQueue()) {
+    // TODO: this and other special handling of in-order queues to be
+    // updated when/if Level Zero adds native support for in-order queues.
+    //
+    if (Queue->isInOrderQueue() && InOrderBarrierBySignal) {
       ZE_CALL(zeCommandListAppendSignalEvent, (CmdList->first, Event->ZeEvent));
     } else {
       ZE_CALL(zeCommandListAppendBarrier,
