@@ -1,7 +1,6 @@
 // Test intended to run on PVC only
 // REQUIRES: gpu-intel-pvc
 //
-//
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} not %t.out 2>&1 | FileCheck %s
