@@ -30,3 +30,4 @@
 #include "ur_level_zero_program.hpp"
 #include "ur_level_zero_queue.hpp"
 #include "ur_level_zero_sampler.hpp"
+#include "ur_level_zero_usm.hpp"

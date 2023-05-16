@@ -96,6 +96,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_program.hpp"
     "ur/adapters/level_zero/ur_level_zero_queue.hpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
+    "ur/adapters/level_zero/ur_level_zero_usm.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_level_zero_common.cpp"
     "ur/adapters/level_zero/ur_level_zero_context.cpp"
@@ -107,6 +108,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_program.cpp"
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
+    "ur/adapters/level_zero/ur_level_zero_usm.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES

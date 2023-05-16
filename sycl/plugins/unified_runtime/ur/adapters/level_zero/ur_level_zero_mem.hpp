@@ -56,15 +56,6 @@ ur_result_t enqueueMemCopyRectHelper(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
 
-// Exception type to pass allocation errors
-class UsmAllocationException {
-  const ur_result_t Error;
-
-public:
-  UsmAllocationException(ur_result_t Err) : Error{Err} {}
-  ur_result_t getError() const { return Error; }
-};
-
 struct ur_mem_handle_t_ : _ur_object {
   // Keeps the PI context of this memory handle.
   ur_context_handle_t UrContext;
@@ -219,92 +210,3 @@ struct _ur_image final : ur_mem_handle_t_ {
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
 };
-
-// Implements memory allocation via L0 RT for USM allocator interface.
-class USMMemoryAllocBase : public SystemMemory {
-protected:
-  ur_context_handle_t Context;
-  ur_device_handle_t Device;
-  // Internal allocation routine which must be implemented for each allocation
-  // type
-  virtual ur_result_t allocateImpl(void **ResultPtr, size_t Size,
-                                   uint32_t Alignment) = 0;
-
-public:
-  USMMemoryAllocBase(ur_context_handle_t Ctx, ur_device_handle_t Dev)
-      : Context{Ctx}, Device{Dev} {}
-  void *allocate(size_t Size) override final;
-  void *allocate(size_t Size, size_t Alignment) override final;
-  void deallocate(void *Ptr) override final;
-};
-
-// Allocation routines for shared memory type
-class USMSharedMemoryAlloc : public USMMemoryAllocBase {
-protected:
-  ur_result_t allocateImpl(void **ResultPtr, size_t Size,
-                           uint32_t Alignment) override;
-
-public:
-  USMSharedMemoryAlloc(ur_context_handle_t Ctx, ur_device_handle_t Dev)
-      : USMMemoryAllocBase(Ctx, Dev) {}
-};
-
-// Allocation routines for shared memory type that is only modified from host.
-class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
-protected:
-  ur_result_t allocateImpl(void **ResultPtr, size_t Size,
-                           uint32_t Alignment) override;
-
-public:
-  USMSharedReadOnlyMemoryAlloc(ur_context_handle_t Ctx, ur_device_handle_t Dev)
-      : USMMemoryAllocBase(Ctx, Dev) {}
-};
-
-// Allocation routines for device memory type
-class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
-protected:
-  ur_result_t allocateImpl(void **ResultPtr, size_t Size,
-                           uint32_t Alignment) override;
-
-public:
-  USMDeviceMemoryAlloc(ur_context_handle_t Ctx, ur_device_handle_t Dev)
-      : USMMemoryAllocBase(Ctx, Dev) {}
-};
-
-// Allocation routines for host memory type
-class USMHostMemoryAlloc : public USMMemoryAllocBase {
-protected:
-  ur_result_t allocateImpl(void **ResultPtr, size_t Size,
-                           uint32_t Alignment) override;
-
-public:
-  USMHostMemoryAlloc(ur_context_handle_t Ctx)
-      : USMMemoryAllocBase(Ctx, nullptr) {}
-};
-
-ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t Device,
-                               ur_usm_device_mem_flags_t *Flags, size_t Size,
-                               uint32_t Alignment);
-
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t Device,
-                               ur_usm_host_mem_flags_t *,
-                               ur_usm_device_mem_flags_t *, size_t Size,
-                               uint32_t Alignment);
-
-ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                             ur_usm_host_mem_flags_t *Flags, size_t Size,
-                             uint32_t Alignment);
-
-// If indirect access tracking is not enabled then this functions just performs
-// zeMemFree. If indirect access tracking is enabled then reference counting is
-// performed.
-ur_result_t ZeMemFreeHelper(ur_context_handle_t Context, void *Ptr);
-
-ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
-                          bool OwnZeMemHandle = true);
-
-bool ShouldUseUSMAllocator();
-
-extern const bool UseUSMAllocator;
