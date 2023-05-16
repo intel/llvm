@@ -21,31 +21,27 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT size_t get_minimum_mem_granularity(const device &SyclDevice,
-                                                 const context &SyclContext);
+enum class granularity_mode : char {
+  minimum = 0,
+  recommended = 1,
+};
 
-inline size_t get_minimum_mem_granularity(const queue &SyclQueue) {
-  return get_minimum_mem_granularity(SyclQueue.get_device(),
-                                     SyclQueue.get_context());
-}
+__SYCL_EXPORT size_t
+get_mem_granularity(const device &SyclDevice, const context &SyclContext,
+                    granularity_mode Mode = granularity_mode::recommended);
 
-inline size_t get_minimum_mem_granularity(const physical_mem &SyclPhysicalMem) {
-  return get_minimum_mem_granularity(SyclPhysicalMem.get_device(),
-                                     SyclPhysicalMem.get_context());
-}
-
-__SYCL_EXPORT size_t get_recommended_mem_granularity(
-    const device &SyclDevice, const context &SyclContext);
-
-inline size_t get_recommended_mem_granularity(const queue &SyclQueue) {
-  return get_recommended_mem_granularity(SyclQueue.get_device(),
-                                         SyclQueue.get_context());
+inline size_t
+get_mem_granularity(const queue &SyclQueue,
+                    granularity_mode Mode = granularity_mode::recommended) {
+  return get_mem_granularity(SyclQueue.get_device(), SyclQueue.get_context(),
+                             Mode);
 }
 
 inline size_t
-get_recommended_mem_granularity(const physical_mem &SyclPhysicalMem) {
-  return get_recommended_mem_granularity(SyclPhysicalMem.get_device(),
-                                         SyclPhysicalMem.get_context());
+get_mem_granularity(const physical_mem &SyclPhysicalMem,
+                    granularity_mode Mode = granularity_mode::recommended) {
+  return get_mem_granularity(SyclPhysicalMem.get_device(),
+                             SyclPhysicalMem.get_context(), Mode);
 }
 
 __SYCL_EXPORT uintptr_t reserve_virtual_mem(uintptr_t Start, size_t NumBytes,

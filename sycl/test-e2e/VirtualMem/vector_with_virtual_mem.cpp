@@ -142,7 +142,7 @@ int main() {
   // To better test the functionality, try to allocate below the granularity
   // but enough to require more memory for some iterations.
   size_t SizeIncrement = 11;
-  size_t MinSizeGran = syclext::get_minimum_mem_granularity(Q) / sizeof(int);
+  size_t MinSizeGran = syclext::get_mem_granularity(Q) / sizeof(int);
   SizeIncrement = std::max(MinSizeGran / 2 - 1, SizeIncrement);
 
   // Each work-item will work on multiple elements.

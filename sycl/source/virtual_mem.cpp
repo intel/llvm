@@ -15,12 +15,24 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT size_t get_minimum_mem_granularity(const device &SyclDevice,
-                                                 const context &SyclContext) {
+__SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
+                                         const context &SyclContext,
+                                         granularity_mode Mode) {
   if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Device does not support aspect::ext_oneapi_virtual_mem.");
+
+  pi_virtual_mem_granularity_info GranularityQuery = [=]() {
+    switch (Mode) {
+    case granularity_mode::minimum:
+      return PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM;
+    case granularity_mode::recommended:
+      return PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED;
+    }
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unrecognized granularity mode.");
+  }();
 
   std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
       sycl::detail::getSyclObjImpl(SyclDevice);
@@ -30,46 +42,15 @@ __SYCL_EXPORT size_t get_minimum_mem_granularity(const device &SyclDevice,
 #ifndef NDEBUG
   size_t InfoOutputSize;
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
-      PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, 0, nullptr,
-      &InfoOutputSize);
+      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
+      0, nullptr, &InfoOutputSize);
   assert(InfoOutputSize == sizeof(size_t) &&
          "Unexpected output size of granularity info query.");
 #endif // NDEBUG
   size_t Granularity;
   Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
-      PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(size_t),
-      &Granularity, nullptr);
-  return Granularity;
-}
-
-__SYCL_EXPORT size_t get_recommended_mem_granularity(
-    const device &SyclDevice, const context &SyclContext) {
-  if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device does not support aspect::ext_oneapi_virtual_mem.");
-
-  std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
-      sycl::detail::getSyclObjImpl(SyclDevice);
-  std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-      sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
-#ifndef NDEBUG
-  size_t InfoOutputSize;
-  Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
-      PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED, 0, nullptr,
-      &InfoOutputSize);
-  assert(InfoOutputSize == sizeof(size_t) &&
-         "Unexpected output size of granularity info query.");
-#endif // NDEBUG
-  size_t Granularity;
-  Plugin.call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
-      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(),
-      PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED, sizeof(size_t),
-      &Granularity, nullptr);
+      ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
+      sizeof(size_t), &Granularity, nullptr);
   return Granularity;
 }
 

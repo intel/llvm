@@ -122,13 +122,17 @@ The interfaces for querying these granularities are defined as:
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-size_t get_minimum_mem_granularity(const device &syclDevice, const context &syclContext);
-size_t get_minimum_mem_granularity(const queue &syclQueue);
-size_t get_minimum_mem_granularity(const physical_mem &syclPhysicalMem);
+enum class granularity_mode : /*unspecified*/ {
+  minimum,
+  recommended
+};
 
-size_t get_recommended_mem_granularity(const device &syclDevice, const context &syclContext);
-size_t get_recommended_mem_granularity(const queue &syclQueue);
-size_t get_recommended_mem_granularity(const physical_mem &syclPhysicalMem);
+size_t get_mem_granularity(const device &syclDevice, const context &syclContext,
+                           granularity_mode mode = granularity_mode::recommended);
+size_t get_mem_granularity(const queue &syclQueue,
+                           granularity_mode mode = granularity_mode::recommended);
+size_t get_mem_granularity(const physical_mem &syclPhysicalMem,
+                           granularity_mode mode = granularity_mode::recommended);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -137,42 +141,30 @@ size_t get_recommended_mem_granularity(const physical_mem &syclPhysicalMem);
 |=====================
 |Function |Description
 
-|`size_t get_minimum_mem_granularity(const device &syclDevice, const context &syclContext)` |
-Returns the minimum granularity of physical and virtual memory allocations on
-`syclDevice` in the `syclContext`.
+|`size_t get_mem_granularity(const device &syclDevice, const context &syclContext, granularity_mode mode = granularity_mode::recommended)` |
+Returns the granularity of physical and virtual memory allocations on
+`syclDevice` in the `syclContext`. The `mode` arugments specifies whether the
+query is for the minimum or recommended granularity.
 
 If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
 an exception with `errc::feature_not_supported`.
 
-|`size_t get_minimum_mem_granularity(const queue &syclQueue)` |
-Same as `get_minimum_mem_granularity(syclQueue.get_device(), syclQueue.get_context())`.
+|`size_t get_mem_granularity(const queue &syclQueue, granularity_mode mode = granularity_mode::recommended)` |
+Same as `get_mem_granularity(syclQueue.get_device(), syclQueue.get_context(), mode)`.
 
-|`size_t get_minimum_mem_granularity(const physical_mem &syclPhysicalMem)` |
-Same as `get_minimum_mem_granularity(syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
-
-|`size_t get_recommended_mem_granularity(const device &syclDevice, const context &syclContext)` |
-Returns the recommended granularity of physical and virtual memory allocations
-on `syclDevice` in the `syclContext`.
-
-If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
-an exception with `errc::feature_not_supported`.
-
-|`size_t get_recommended_mem_granularity(const queue &syclQueue)` |
-Same as `get_recommended_mem_granularity(syclQueue.get_device(), syclQueue.get_context())`.
-
-|`size_t get_recommended_mem_granularity(const physical_mem &syclPhysicalMem)` |
-Same as `get_recommended_mem_granularity(syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
+|`size_t get_mem_granularity(const physical_mem &syclPhysicalMem, granularity_mode mode = granularity_mode::recommended)` |
+Same as `get_mem_granularity(syclPhysicalMem.get_device(), syclPhysicalMem.get_context(), mode)`.
 
 |=====================
 
 === Reserving virtual address ranges
 
 Virtual address ranges are represented by a `uintptr_t` and a number of bytes
-reserved for it. The `uintptr_t` must be aligned in accordance with the minimum
-granularity, as queried through `get_minimum_mem_granularity`, and likewise the
-number of bytes must be a multiple of this granularity. It is the responsibility
-of the user to manage the constituents of any virtual address range they
-reserve.
+reserved for it. The `uintptr_t` must be aligned in accordance with either the
+minimum or recommended granularity, as queried through `get_mem_granularity`,
+and likewise the number of bytes must be a multiple of this granularity. It is
+the responsibility of the user to manage the constituents of any virtual address
+range they reserve.
 
 The interfaces for reserving, freeing, and manipulating the access mode of a
 virtual address range are defined as:
@@ -199,10 +191,10 @@ Reserves a virtual memory range in `syclContext` with `numBytes` bytes.
 reservation. If the implementation is unable to reserve the virtual memory range
 at the specified address, the implementation will pick another suitable address.
 
-`start` must be aligned in accordance with the minimum granularity, as returned
-by a call to `get_minimum_mem_granularity`. Likewise, `numBytes` must be a
-multiple of the granularity. Attempting to call this function without meeting
-these requirements results in undefined behavior.
+`start` must be aligned in accordance with either the minimum or recommended
+granularity, as returned by a call to `get_mem_granularity`. Likewise,
+`numBytes` must be a multiple of the granularity. Attempting to call this
+function without meeting these requirements results in undefined behavior.
 
 If any of the devices in `syclContext` does not have
 `aspect::ext_oneapi_virtual_mem` the call throws an exception with
@@ -272,8 +264,8 @@ device of some device that is contained by that context, otherwise this function
 throws a synchronous exception with the `errc::invalid` error code.
 
 This will allocate `numBytes` of physical memory on the device. `numBytes` must
-be a multiple of the minimum granularity, as returned by a call to
-`get_minimum_mem_granularity`.
+be a multiple of the granularity, as returned by a call to
+`get_mem_granularity`.
 
 If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
 an exception with `errc::feature_not_supported`.
