@@ -253,20 +253,19 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     return false;
   }
 
-  RT::PiPeerAttr PiAttr;
   size_t return_size;
   int value;
 
-  switch (attr) {
-  case ext::oneapi::peer_access::access_supported: {
-    PiAttr = PI_PEER_ACCESS_SUPPORTED;
-    break;
-  }
-  case ext::oneapi::peer_access::atomics_supported: {
-    PiAttr = PI_PEER_ATOMICS_SUPPORTED;
-    break;
-  }
-  }
+  RT::PiPeerAttr PiAttr = [&]() {
+    switch (attr) {
+    case ext::oneapi::peer_access::access_supported:
+      return PI_PEER_ACCESS_SUPPORTED;
+    case ext::oneapi::peer_access::atomics_supported:
+      return PI_PEER_ATOMICS_SUPPORTED;
+    }
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unrecognized peer access attribute.");
+  }();
   auto Plugin = impl->getPlugin();
   pi_result result =
       Plugin->call_nocheck<detail::PiApiKind::piextPeerAccessGetInfo>(
