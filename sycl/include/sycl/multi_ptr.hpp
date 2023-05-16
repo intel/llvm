@@ -121,7 +121,7 @@ public:
                                std::remove_const_t<ElementType>>>>
   explicit multi_ptr(
       multi_ptr<NonConstElementType, Space, DecorateAddress> MPtr)
-      : m_Pointer(detail::cast_AS<decorated_type *>(MPtr.get())) {}
+      : m_Pointer(MPtr.get_decorated()) {}
 
   // Only if Space is in
   // {global_space, ext_intel_global_device_space, generic_space}
@@ -186,8 +186,7 @@ public:
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()) {}
 
   // Only if Space == local_space || generic_space and element type is const
   template <int Dimensions, access::mode Mode,
