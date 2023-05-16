@@ -32,7 +32,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   pi::PiDevice PiDevice;
-  Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
       NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
 
   return detail::createSyclObjFromImpl<device>(
@@ -51,7 +51,7 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
   for (auto Dev : DeviceList) {
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
-  Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextContextCreateWithNativeHandle>(
       NativeHandle, DeviceHandles.size(), DeviceHandles.data(), !KeepOwnership,
       &PiContext);
   // Construct the SYCL context from PI context.

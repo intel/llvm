@@ -1970,6 +1970,22 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                             false);
   }
 
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    // Maximum number of 32-bit registers available to a thread block.
+    // Note: This number is shared by all thread blocks simultaneously resident
+    // on a multiprocessor.
+    int max_registers{-1};
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_registers,
+                              hipDeviceAttributeMaxRegistersPerBlock,
+                              device->get()) == hipSuccess);
+
+    sycl::detail::pi::assertion(max_registers >= 0);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(max_registers));
+  }
+
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:

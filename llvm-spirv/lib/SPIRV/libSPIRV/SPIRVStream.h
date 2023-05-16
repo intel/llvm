@@ -78,6 +78,7 @@ public:
   void ignoreInstruction();
   std::vector<SPIRVEntry *>
   getContinuedInstructions(const spv::Op ContinuedOpCode);
+  std::vector<SPIRVEntry *> getSourceContinuedInstructions();
 
   std::istream &IS;
   SPIRVModule &M;

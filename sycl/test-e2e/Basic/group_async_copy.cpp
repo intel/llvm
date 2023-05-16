@@ -120,23 +120,29 @@ template <typename T> int test(size_t Stride) {
        size_t Offset = GrId * WorkGroupSize;
        if (Stride == 1) { // Check the version without stride arg.
          auto E = NDId.async_work_group_copy(
-             local_ptr<T>(Local), In.get_pointer() + Offset, NElemsToCopy);
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             In.template get_multi_ptr<access::decorated::yes>() + Offset,
+             NElemsToCopy);
          E.wait();
        } else {
-         auto E = NDId.async_work_group_copy(local_ptr<T>(Local),
-                                             In.get_pointer() + Offset,
-                                             NElemsToCopy, Stride);
+         auto E = NDId.async_work_group_copy(
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             In.template get_multi_ptr<access::decorated::yes>() + Offset,
+             NElemsToCopy, Stride);
          E.wait();
        }
 
        if (Stride == 1) { // Check the version without stride arg.
          auto E = Group.async_work_group_copy(
-             Out.get_pointer() + Offset, local_ptr<T>(Local), NElemsToCopy);
+             Out.template get_multi_ptr<access::decorated::yes>() + Offset,
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             NElemsToCopy);
          Group.wait_for(E);
        } else {
-         auto E = Group.async_work_group_copy(Out.get_pointer() + Offset,
-                                              local_ptr<T>(Local), NElemsToCopy,
-                                              Stride);
+         auto E = Group.async_work_group_copy(
+             Out.template get_multi_ptr<access::decorated::yes>() + Offset,
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             NElemsToCopy, Stride);
          Group.wait_for(E);
        }
      });
