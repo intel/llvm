@@ -403,7 +403,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
     OptPM.addPass(mlir::createCSEPass());
     if (EnableLICM)
       OptPM.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing()}));
+          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -455,6 +455,9 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
+  polygeist::LICMOptions LICMOpt{options.getCgeistOpts().getRelaxedAliasing(),
+                                 UseOpaquePointers};
+
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
@@ -476,8 +479,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   NOptPM2.addPass(mlir::createCSEPass());
   if (EnableLICM)
-    NOptPM2.addPass(polygeist::createLICMPass(
-        {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+    NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
   else
     NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -485,8 +487,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createCanonicalizeForPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      NOptPM2.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+      NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -500,8 +501,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createMem2RegPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      NOptPM2.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+      NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());

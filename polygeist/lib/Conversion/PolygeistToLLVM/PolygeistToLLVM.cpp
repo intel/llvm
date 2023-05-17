@@ -1662,15 +1662,15 @@ struct ConvertPolygeistToLLVMPass
         // translated to the corresponding LLVM types, for example the element
         // type attribute of GEP or alloca.
         std::optional<bool> noTyAttrConversion;
-        if (useOpaquePointers)
+        if (useOpaquePointers) {
           noTyAttrConversion = std::transform_reduce(
               op->getAttrs().begin(), op->getAttrs().end(),
               std::optional<bool>{true},
               [](std::optional<bool> b1,
                  std::optional<bool> b2) -> std::optional<bool> {
-                if (!b1.has_value() || !b2.has_value()) {
+                if (!b1.has_value() || !b2.has_value())
                   return std::nullopt;
-                }
+
                 return b1.value() && b2.value();
               },
               [&](const NamedAttribute &Attr) -> std::optional<bool> {
@@ -1683,7 +1683,7 @@ struct ConvertPolygeistToLLVMPass
                 }
                 return true;
               });
-        else
+        } else
           noTyAttrConversion = true;
 
         // Type conversion of at least one type attribute failed.
