@@ -16,13 +16,12 @@
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
-#include <optional>
-#include <variant>
 
 #define DEBUG_TYPE "memory-access-analysis"
 
@@ -107,11 +106,7 @@ template <typename T> static SetVector<T> getParentsOfType(Block *block) {
 
 /// Remove conversion like operations in the incoming expression if any.
 static Value removeConversions(Value expr) {
-  if (matchPattern(expr, m_Op<arith::ExtUIOp>()) ||
-      matchPattern(expr, m_Op<arith::ExtSIOp>()) ||
-      matchPattern(expr, m_Op<arith::TruncIOp>()) ||
-      matchPattern(expr, m_Op<arith::IndexCastOp>()) ||
-      matchPattern(expr, m_Op<arith::IndexCastUIOp>()))
+  if (isa<CastOpInterface>(expr.getDefiningOp()))
     return expr.getDefiningOp()->getOperand(0);
   return expr;
 }
@@ -932,8 +927,8 @@ void MemoryAccessAnalysis::build() {
   DataFlowSolver solver;
   solver.load<dataflow::DeadCodeAnalysis>();
   solver.load<dataflow::SparseConstantPropagation>();
-  solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
   solver.load<dataflow::IntegerRangeAnalysis>();
+  solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
 
   Operation *op = getOperation();
   if (failed(solver.initializeAndRun(op))) {
@@ -944,7 +939,7 @@ void MemoryAccessAnalysis::build() {
   // Try to construct the memory access matrix for affine memory operation of
   // interest.
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    TypeSwitch<Operation *>(op).Case<AffineLoadOp, AffineStoreOp>(
+    TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
         [&](auto memoryOp) { build(memoryOp, solver); });
   });
 }
@@ -961,15 +956,12 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   //  - base operand equal to the result of a sycl accessor subscript, and
   //  - a single index with zero value.
   MemRefAccess access(memoryOp);
-  if (!isa<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp()) ||
-      !hasZeroIndex(access))
+  auto accessorSubscriptOp =
+      dyn_cast<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp());
+  if (!accessorSubscriptOp || !hasZeroIndex(access))
     return;
 
-  LLVM_DEBUG(llvm::dbgs() << "Candidate op:" << memoryOp << "\n");
-
-  auto accessorSubscriptOp =
-      cast<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp());
-  Value accSubIndex = accessorSubscriptOp.getIndex();
+  LLVM_DEBUG(llvm::errs() << "Candidate op:" << memoryOp << "\n");
 
   // Try to determine the underlying value(s) of the accessor subscript index
   // operand. The number of underlying values should be equal to the
@@ -977,8 +969,8 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // operation. Example:
   //   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
   //   %sub = sycl.accessor.subscript %acc[%id] ...
-  // Here the underlying values for '%id' are {%i, %j}. The number of
-  // underlying values matches the dimensionality of the sycl id.
+  // Here the underlying values for '%id' are {%i, %j}. The number of underlying
+  // values matches the dimensionality of the sycl id.
   SmallVector<Value> underlyingVals = getUnderlyingValues(
       accessorSubscriptOp.getOffsetOperandIndex(), accessorSubscriptOp, solver);
   if (underlyingVals.empty()) {
@@ -987,20 +979,21 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
     return;
   }
 
-  assert(sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
-         "Number of underlying values should be equal to dimensionality of "
-         "the id "
-         "used to index the accessor");
+  Value accSubIndex = accessorSubscriptOp.getIndex();
+  assert(
+      sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
+      "Number of underlying values should be equal to dimensionality of the id "
+      "used to index the accessor");
   LLVM_DEBUG({
     for (Value val : underlyingVals)
       llvm::dbgs() << "Underlying val: " << val << "\n";
   });
 
   // Construct the memory access matrix. The number of rows is equal to the
-  // dimensionality of the sycl.id used by the accessor subscript operation.
-  // The number of columns is equal to the number of loops surrounding the
-  // memory access plus (TODO) the dimensionality of the sycl item received by
-  // the kernel.
+  // dimensionality of the sycl.id used by the accessor subscript operation. The
+  // number of columns is equal to the number of loops surrounding the memory
+  // access plus (TODO) the dimensionality of the sycl item received by the
+  // kernel.
   SetVector<AffineForOp> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
@@ -1058,7 +1051,7 @@ MemoryAccessAnalysis::getUniqueDefinition(unsigned opIndex, Operation *op,
   if (pMods.has_value() && !pMods->empty())
     return std::nullopt;
 
-  if (!mods.has_value() || mods->empty())
+  if (!mods.has_value() || mods->size() != 1)
     return std::nullopt;
 
   return *mods->begin();
@@ -1067,13 +1060,12 @@ MemoryAccessAnalysis::getUniqueDefinition(unsigned opIndex, Operation *op,
 SmallVector<Value>
 MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
                                           DataFlowSolver &solver) const {
-  Value operand = op->getOperand(opIndex);
   std::optional<Definition> def = getUniqueDefinition(opIndex, op, solver);
   if (!def.has_value())
-    return {operand};
+    return {op->getOperand(opIndex)};
 
   LLVM_DEBUG({
-    llvm::dbgs() << "operand: " << operand << "\n";
+    llvm::dbgs() << "operand: " << op->getOperand(opIndex) << "\n";
     llvm::dbgs() << "operand definition: " << *def << "\n";
   });
 
@@ -1089,8 +1081,8 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
           return getUnderlyingValues(storeOp.getStoredValOperandIndex(),
                                      storeOp, solver);
 
-        // Try to determine the underlying value of the memory pointed to by
-        // the memref operand of a load.
+        // Try to determine the underlying value of the memory pointed to by the
+        // memref operand of a load.
         AffineLoadOp loadOp = cast<AffineLoadOp>(storedVal.getDefiningOp());
         MemRefAccess loadAccess(loadOp);
         assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
@@ -1099,9 +1091,18 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
                                    solver);
       })
       .Case([&](sycl::SYCLConstructorOp constructorOp) {
+        assert(
+            sycl::isIDPtrType(
+                constructorOp.getOperand(constructorOp.getOutputOperandIndex())
+                    .getType()) &&
+            "add support for other types of sycl constructors");
+
         // Collect the underlying values of the sycl.constructor inputs.
         SmallVector<Value> vec;
-        for (unsigned i = 1; i < constructorOp.getNumOperands(); ++i) {
+        for (unsigned i = 0; i < constructorOp.getNumOperands(); ++i) {
+          if (i == constructorOp.getOutputOperandIndex())
+            continue;
+
           auto vals = getUnderlyingValues(i, constructorOp, solver);
           assert(vals.size() == 1 && "Expecting single value");
           vec.push_back(vals.front());

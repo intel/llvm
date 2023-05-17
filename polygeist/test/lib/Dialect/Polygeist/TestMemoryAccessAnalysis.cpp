@@ -37,16 +37,15 @@ struct TestMemoryAccessAnalysisPass
       if (!tag)
         return;
 
-      assert(
-          (isa<affine::AffineLoadOp>(op) || isa<affine::AffineStoreOp>(op)) &&
-          "expecting affine load/store operation");
+      assert((isa<affine::AffineLoadOp, affine::AffineStoreOp>(op)) &&
+             "expecting affine load/store operation");
 
       llvm::errs() << "test_tag: " << tag.getValue() << ":\n";
 
       affine::MemRefAccess access(op);
       const std::optional<MemoryAccessMatrix> matrix =
           memAccessAnalysis.getMemoryAccessMatrix(access);
-      assert(matrix.has_value() && "expected a m,emory access matrix");
+      assert(matrix.has_value() && "expected a memory access matrix");
 
       llvm::errs() << "matrix:\n" << *matrix << "\n";
     });
