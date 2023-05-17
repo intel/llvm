@@ -182,7 +182,10 @@ struct _ur_device_handle_t : _ur_object {
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Is this a Data Center GPU Max series (aka PVC).
-  bool isPVC() { return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0; }
+  bool isPVC() {
+    return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0 ||
+           (ZeDeviceProperties->deviceId & 0xff0) == 0xb60;
+  }
 
   // Does this device represent a single compute slice?
   bool isCCS() const {
