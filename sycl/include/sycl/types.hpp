@@ -1103,7 +1103,7 @@ public:
 #else // __SYCL_DEVICE_ONLY__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   vec operator BINOP(const vec &Rhs) const {                                   \
-    vec Ret;                                                                   \
+    vec Ret{};                                                                 \
     if constexpr (NativeVec)                                                   \
       Ret.getAsVector() = getAsVector() BINOP Rhs.getAsVector();               \
     else                                                                       \
