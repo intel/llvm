@@ -15,7 +15,6 @@
 
 #include "mlir/Analysis/DataFlow/DenseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/AliasUtils.h"
-#include <memory>
 #include <set>
 #include <variant>
 

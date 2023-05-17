@@ -16,15 +16,22 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/Support/raw_ostream.h"
 #include <set>
 
 namespace mlir {
 
+namespace affine {
+struct MemRefAccess;
+} // namespace affine
 class DataFlowSolver;
 
 namespace polygeist {
+
+class Definition;
+class ReachingDefinition;
 
 /// Classify array access patterns.
 enum MemoryAccessPattern : uint32_t {
@@ -115,7 +122,7 @@ class MemoryAccessMatrix {
   friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
 
 public:
-  MemoryAccessMatrix() = delete;
+  MemoryAccessMatrix() = default;
   MemoryAccessMatrix(MemoryAccessMatrix &&) = default;
   MemoryAccessMatrix(const MemoryAccessMatrix &) = default;
   MemoryAccessMatrix &operator=(MemoryAccessMatrix &&) = default;
@@ -285,16 +292,6 @@ private:
   SmallVector<Value> data;
 };
 
-inline raw_ostream &operator<<(raw_ostream &os,
-                               const MemoryAccessMatrix &matrix) {
-  for (size_t row = 0; row < matrix.getNumRows(); ++row) {
-    llvm::interleave(
-        matrix.getRow(row), os, [&os](Value elem) { os << elem; }, " ");
-    os << '\n';
-  }
-  return os;
-}
-
 /// A column vector representing offsets used to access an array.
 /// The size is equal to the number of array dimensions. The first vector
 /// element corresponds to the leftmost array dimension.
@@ -433,6 +430,56 @@ inline raw_ostream &operator<<(raw_ostream &os,
   os << "\n------------------\n";
   return os;
 }
+
+class MemoryAccessAnalysis {
+public:
+  MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
+
+  bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa);
+
+  /// Returns the operation this analysis was constructed from.
+  Operation *getOperation() const { return operation; }
+
+  std::optional<MemoryAccessMatrix>
+  getMemoryAccessMatrix(const affine::MemRefAccess &access) const;
+
+private:
+  /// Construct the access map for the operation associated with the
+  /// analysis.
+  void build();
+
+  /// Attempt tp construct the access map entry for the given memory
+  /// operation \p memoryOp.
+  template <typename T> void build(T memoryOp, DataFlowSolver &solver);
+
+  /// Returns true if the memory access \p access has a single subscript that is
+  /// zero, and false otherwise.
+  bool hasZeroIndex(const affine::MemRefAccess &access) const;
+
+  /// Returns the unique definition for the operand at index \p opIndex in
+  /// operation \p op, or std::nullopt if it does not have a unique definition.
+  std::optional<Definition> getUniqueDefinition(unsigned opIndex, Operation *op,
+                                                DataFlowSolver &solver) const;
+
+  /// Collect the underlying value(s) of the operand at index \p opIndex in
+  /// operation \p op.
+  /// For example given:
+  ///
+  ///   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
+  ///   %subscr = sycl.accessor.subscript %acc[%id] ...
+  ///
+  /// The underlying values for '%id' are {%i, %j}.
+  SmallVector<Value> getUnderlyingValues(unsigned opIndex, Operation *op,
+                                         DataFlowSolver &solver) const;
+
+private:
+  /// The operation associated with the analysis.
+  Operation *operation;
+  /// A map from memory accesses to their memory access matrix.
+  DenseMap<Operation *, MemoryAccessMatrix> accessMap;
+  /// The analysis manager.
+  AnalysisManager &am;
+};
 
 } // namespace polygeist
 } // namespace mlir

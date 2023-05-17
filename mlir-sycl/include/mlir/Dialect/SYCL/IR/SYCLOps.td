@@ -42,7 +42,7 @@ class SYCLMethodOpInterfaceImpl<
   list<string> memberFunctionNames = methodNames;
   int arrSize = !size(memberFunctionNames);
 
-  let extraClassDeclaration = [{
+  code extraClassDeclarationBase = [{
     static constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> methods{{ }] #
       !interleave(!foreach(name, memberFunctionNames, "\"" # name # "\""), ", ") # [{
      }};
@@ -289,7 +289,10 @@ def SYCLConstructorOp : SYCL_Op<"constructor",
     /// otherwise.
     void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
                         ::mlir::MemoryEffects::Effect>> &effects);
-  }];      
+
+    /// Returns the index of the SYCL object being created.
+    unsigned getOutputOperandIndex() const { return 0; }
+  }];
 
   let assemblyFormat = [{
     $TypeName `(` $Dst (`,` $Args^)?`)` attr-dict `:` `(` type($Dst) (`,` type($Args)^)? `)`
@@ -422,6 +425,8 @@ def SYCLAccessorGetPointerOp
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let hasVerifier = 1;
 
   let results = (outs AnyMemRef:$result);
@@ -441,6 +446,8 @@ def SYCLAccessorGetRangeOp
   }];
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc);
+
+  let extraClassDeclaration = extraClassDeclarationBase;  
 
   let hasVerifier = 1;
 
@@ -462,6 +469,8 @@ def SYCLAccessorSizeOp
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs IndexType:$Res);
 }
 
@@ -481,8 +490,15 @@ def SYCLAccessorSubscriptOp
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
                        Arg<SYCLAccessorSubscriptIndex, "The offset", [MemRead]>:$Index);
-
   let results = (outs AnyType:$Res);
+
+  let extraClassDeclaration =  extraClassDeclarationBase # [{
+    /// Returns the index of the accessor operand.
+    unsigned getMemRefOperandIndex() const { return 0; }
+
+    /// Returns the index of the offset operand.
+    unsigned getOffsetOperandIndex() const { return 1; }
+  }];
 
   let hasVerifier = 1;
 
@@ -507,6 +523,8 @@ def SYCLRangeGetOp
   let arguments = (ins Arg<RangeMemRef, "The input range", [MemRead]>:$Range,
                        I32:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetResult:$Res);
 
   let assemblyFormat = [{
@@ -528,6 +546,8 @@ def SYCLRangeSizeOp
 
   let arguments = (ins Arg<RangeMemRef, "The input range", [MemRead]>:$Range);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs I64:$Res);
 }
 
@@ -544,6 +564,8 @@ def SYCLNdRangeGetGlobalRange
   }];
 
   let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCL_RangeType:$Res);
 }
@@ -562,6 +584,8 @@ def SYCLNdRangeGetLocalRange
 
   let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCL_RangeType:$Res);
 }
 
@@ -578,6 +602,8 @@ def SYCLNdRangeGetGroupRange
   }];
 
   let arguments = (ins Arg<NDRangeMemRef, "The input ND-range", [MemRead]>:$ND);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCL_RangeType:$Res);
 }
@@ -597,6 +623,8 @@ def SYCLIDGetOp
 
   let arguments = (ins Arg<IDMemRef, "The input ID", [MemRead]>:$ID,
                        Optional<I32>:$Index);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCLGetResult:$Res);
 
@@ -621,6 +649,8 @@ def SYCLItemGetIDOp
   let arguments = (ins Arg<ItemMemRef, "The input item", [MemRead]>:$Item,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetIDResult:$Res);
 }
 
@@ -640,6 +670,8 @@ def SYCLItemGetRangeOp
   let arguments = (ins Arg<ItemMemRef, "The input item", [MemRead]>:$Item,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetRangeResult:$Res);
 }
 
@@ -656,6 +688,8 @@ def SYCLItemGetLinearIDOp
   }];
 
   let arguments = (ins Arg<ItemMemRef, "The input item", [MemRead]>:$Item);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs I64:$Res);
 }
@@ -676,6 +710,8 @@ def SYCLNDItemGetGlobalIDOp
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetIDResult:$Res);
 }
 
@@ -692,6 +728,8 @@ def SYCLNDItemGetGlobalLinearIDOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs I64:$Res);
 }
@@ -712,6 +750,8 @@ def SYCLNDItemGetLocalIDOp
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetIDResult:$Res);
 }
 
@@ -728,6 +768,8 @@ def SYCLNDItemGetLocalLinearIDOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs I64:$Res);
 }
@@ -748,6 +790,8 @@ def SYCLNDItemGetGroupOp
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs AnyTypeOf<[I64, SYCL_GroupType]>:$Res);
 }
 
@@ -764,6 +808,8 @@ def SYCLNDItemGetGroupLinearIDOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs I64:$Res);
 }
@@ -784,6 +830,8 @@ def SYCLNDItemGetGroupRangeOp
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetRangeResult:$Res);
 }
 
@@ -802,6 +850,8 @@ def SYCLNDItemGetGlobalRangeOp
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
                        Optional<I32>:$Index);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCLGetRangeResult:$Res);
 }
@@ -822,6 +872,8 @@ def SYCLNDItemGetLocalRangeOp
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetRangeResult:$Res);
 }
 
@@ -838,6 +890,8 @@ def SYCLNDItemGetNdRangeOp
   }];
 
   let arguments = (ins Arg<NDItemMemRef, "The input ND-item", [MemRead]>:$NDItem);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCL_NdRangeType:$Res);
 }
@@ -858,6 +912,8 @@ def SYCLGroupGetGroupIDOp
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetIDResult:$Res);
 }
 
@@ -876,6 +932,8 @@ def SYCLGroupGetLocalIDOp
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
                        Optional<I32>:$Index);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCLGetIDResult:$Res);
 }
@@ -896,6 +954,8 @@ def SYCLGroupGetLocalRangeOp
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetRangeResult:$Res);
 }
 
@@ -915,6 +975,8 @@ def SYCLGroupGetGroupRangeOp
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group,
                        Optional<I32>:$Index);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs SYCLGetRangeResult:$Res);
 }
 
@@ -931,6 +993,8 @@ def SYCLGroupGetMaxLocalRangeOp
   }];
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs SYCL_RangeType:$Res);
 }
@@ -949,6 +1013,8 @@ def SYCLGroupGetGroupLinearIDOp
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs I64:$Res);
 }
 
@@ -965,6 +1031,8 @@ def SYCLGroupGetLocalLinearIDOp
   }];
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs I64:$Res);
 }
@@ -983,6 +1051,8 @@ def SYCLGroupGetLocalLinearIDOp
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
 
+  let extraClassDeclaration = extraClassDeclarationBase;
+
   let results = (outs I64:$Res);
 }
 
@@ -999,6 +1069,8 @@ def SYCLGroupGetLocalLinearRangeOp
   }];
 
   let arguments = (ins Arg<GroupMemRef, "The input group", [MemRead]>:$Group);
+
+  let extraClassDeclaration = extraClassDeclarationBase;
 
   let results = (outs I64:$Res);
 }
