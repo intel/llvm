@@ -521,6 +521,8 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 ///   \c float.
 /// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
 /// @tparam AccessorTy The accessor type.
+/// @tparam Toffset The offset type.
+/// @tparam Tgloboffset The global offset type.
 /// @param acc The accessor to gather from.
 /// @param offsets Per-element offsets in bytes.
 /// @param glob_offset Offset in bytes added to each individual element's offset
@@ -529,22 +531,23 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 ///   predicate are not accessed, their values in the resulting vector are
 ///   undefined.
 ///
-template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
-                                 (N == 1 || N == 8 || N == 16 || N == 32) &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<T, N>>
-gather(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-       simd<uint64_t, N> offsets, uint64_t glob_offset = 0,
-#else
-       simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
-#endif
+template <typename T, int N, typename AccessorTy, typename Toffset,
+          typename Tgloboffset = uint32_t>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+        std::is_integral_v<Tgloboffset>,
+    simd<T, N>>
+gather(AccessorTy acc, simd<Toffset, N> offsets, Tgloboffset glob_offset = 0,
        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
                       offsets, mask);
 #else
+#ifdef __SYCL_DEVICE_ONLY__
+  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
+  static_assert(sizeof(Tgloboffset) <= 4, "Unsupported global offset type");
+#endif
   return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, mask);
 #endif
 }
@@ -559,6 +562,8 @@ gather(AccessorTy acc,
 ///   \c float.
 /// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
 /// @tparam AccessorTy The accessor type.
+/// @tparam Toffset The offset type.
+/// @tparam Tgloboffset The global offset type.
 /// @param acc The accessor to scatter to.
 /// @param offsets Per-element offsets in bytes.
 /// @param vals Values to write.
@@ -568,21 +573,22 @@ gather(AccessorTy acc,
 ///   predicate are not accessed.
 ///
 ///
-template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
-                             (N == 1 || N == 8 || N == 16 || N == 32) &&
-                             !std::is_pointer<AccessorTy>::value>
-scatter(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-        simd<uint64_t, N> offsets, simd<T, N> vals, uint64_t glob_offset = 0,
-#else
-        simd<uint32_t, N> offsets, simd<T, N> vals, uint32_t glob_offset = 0,
-#endif
-        simd_mask<N> mask = 1) {
+template <typename T, int N, typename AccessorTy, typename Toffset,
+          typename Tgloboffset = uint32_t>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+    std::is_integral_v<Tgloboffset>>
+scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
+        Tgloboffset glob_offset = 0, simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
                 vals, mask);
 #else
+#ifdef __SYCL_DEVICE_ONLY__
+  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
+  static_assert(sizeof(Tgloboffset) <= 4, "Unsupported global offset type");
+#endif
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 #endif
 }
