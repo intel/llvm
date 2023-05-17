@@ -347,7 +347,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED < propName) {
+        if (UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
