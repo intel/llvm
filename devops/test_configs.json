@@ -1,8 +1,8 @@
 {
   "lts": [
     {
-      "config": "l0_ocl_gen9",
-      "name": "L0/OCL GEN9 LLVM Test Suite",
+      "config": "lin_gen9",
+      "name": "SYCL End-to-End tests on Intel GEN9 GPU on Linux",
       "runs-on": [
         "Linux",
         "gen9"
