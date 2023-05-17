@@ -55,37 +55,17 @@ if(NOT SYCL_TEST_E2E_STANDALONE)
   )
 endif() # Standalone.
 
-if(SYCL_TEST_E2E_TARGETS)
-  message("Configure iterative execution on multiple backends")
-  add_custom_target(check-sycl-e2e)
-  foreach(TARGET_STR ${SYCL_TEST_E2E_TARGETS})
-    string(REPLACE ":" ";" TARGET_LIST ${TARGET_STR})
-    list (GET TARGET_LIST 0 TARGET_BE)
-    list (GET TARGET_LIST 1 TARGET_DEVICES)
+if(NOT SYCL_TEST_E2E_TARGETS)
+  set(SYCL_TEST_E2E_TARGETS "all")
+endif()
 
-    if ("${TARGET_BE}" STREQUAL "")
-      message(FATAL_ERROR
-        "invalid empty target backend specification in SYCL_TEST_E2E_TARGETS")
-    elseif("${TARGET_DEVICES}" STREQUAL "")
-      message(FATAL_ERROR
-        "invalid empty target device specification in SYCL_TEST_E2E_TARGETS")
-    endif()
-    message("Run on ${TARGET_DEVICES} for ${TARGET_BE}")
-
-    string(REPLACE "," "_" TARGET check-sycl-e2e-${TARGET_BE}-${TARGET_DEVICES})
-
-    add_custom_target(${TARGET}
-      COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
-      COMMENT "Running the SYCL tests for ${TARGET} backend"
-      DEPENDS ${SYCL_E2E_TEST_DEPS}
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      USES_TERMINAL
-    )
-    set_target_properties(${TARGET} PROPERTIES FOLDER "SYCL Level Zero tests")
-    add_dependencies(check-sycl-e2e ${TARGET})
-
-  endforeach()
-endif(SYCL_TEST_E2E_TARGETS)
+add_custom_target(check-sycl-e2e
+  COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} .
+  COMMENT "Running SYCL End-to-End tests"
+  DEPENDS ${SYCL_E2E_TEST_DEPS}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  USES_TERMINAL
+)
 
 add_subdirectory(External)
 add_subdirectory(ExtraTests)
