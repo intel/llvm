@@ -36,7 +36,7 @@ int main() {
     CGH.run_on_host_intel([=]() { copyAndAdd(SrcAcc, DstAcc, Var); });
   });
 
-  auto DstAcc = DstBuf.template get_access<sycl::access::mode::read_write>();
+  sycl::host_accessor DstAcc(DstBuf, sycl::read_only);
   const int Expected = 42;
   for (int I = 0; I < DstAcc.get_count(); ++I)
     if (DstAcc[I] != Expected) {

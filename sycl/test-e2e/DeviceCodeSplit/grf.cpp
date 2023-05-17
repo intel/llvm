@@ -5,14 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This test verifies effect of
-//   set_kernel_properties(kernel_properties::use_double_grf);
+// This test verifies effect of the register_alloc_mode kernel property
 // API call in device code:
 // - ESIMD/SYCL splitting happens as usual
-// - SYCL module is further split into callgraphs for entry points requesting
-//   "double GRF" and callgraphs for entry points which are not
-// - SYCL device binary images requesting "double GRF" must be compiled with
-//   -ze-opt-large-register-file option
+// - SYCL module is further split into callgraphs for entry points for
+//   each value
+// - SYCL device binary images are compiled with the corresponding
+//   compiler option
 
 // REQUIRES: gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
@@ -22,17 +21,18 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_LARGE_GRF=1 -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1  | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-
+// RUN: %{build} -DUSE_AUTO_GRF=1 -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
-#include <sycl/ext/intel/experimental/kernel_properties.hpp>
+#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+using namespace sycl::detail;
 using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
 
 bool checkResult(const std::vector<float> &A, int Inc) {
   int err_cnt = 0;
@@ -54,16 +54,6 @@ bool checkResult(const std::vector<float> &A, int Inc) {
   return true;
 }
 
-// Make the double GRF request from non-inlineable function - compiler should
-// mark the caller kernel as "double GRF" anyway.
-__attribute__((noinline)) void double_grf_marker() {
-#ifdef USE_LARGE_GRF
-  set_kernel_properties(kernel_properties::use_large_grf);
-#else
-  set_kernel_properties(kernel_properties::use_double_grf);
-#endif
-}
-
 int main(void) {
   constexpr unsigned Size = 32;
   constexpr unsigned VL = 16;
@@ -79,7 +69,8 @@ int main(void) {
     queue q(sycl::gpu_selector_v, exceptionHandlerHelper);
 
     auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+    std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+              << "\n";
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
@@ -101,17 +92,21 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
+#ifdef USE_AUTO_GRF
+    properties prop{register_alloc_mode<register_alloc_mode_enum::automatic>};
+#else
+    properties prop{register_alloc_mode<register_alloc_mode_enum::large>};
+#endif
     queue q(sycl::gpu_selector_v, exceptionHandlerHelper);
 
     auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+    std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+              << "\n";
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<class SYCLKernelDoubleGRF>(Size, [=](id<1> i) {
-        double_grf_marker();
-        PA[i] += 2;
-      });
+      cgh.parallel_for<class SYCLKernelSpecifiedGRF>(
+          Size, prop, [=](id<1> i) { PA[i] += 2; });
     });
     e.wait();
   } catch (sycl::exception const &e) {
@@ -120,9 +115,9 @@ int main(void) {
   }
 
   if (checkResult(A, 4)) {
-    std::cout << "DoubleGRF kernel passed\n";
+    std::cout << "SpecifiedGRF kernel passed\n";
   } else {
-    std::cout << "DoubleGRF kernel failed\n";
+    std::cout << "SpecifiedGRF kernel failed\n";
     return 1;
   }
 
@@ -140,7 +135,9 @@ int main(void) {
 // CHECK-LABEL: ---> piProgramBuild(
 // CHECK-NO-VAR: -ze-opt-large-register-file
 // CHECK-WITH-VAR: -g -ze-opt-large-register-file
+// CHECK-AUTO-NO-VAR: -ze-intel-enable-auto-large-GRF-mode
+// CHECK-AUTO-WITH-VAR: -g -ze-intel-enable-auto-large-GRF-mode
 // CHECK: ) ---> pi_result : PI_SUCCESS
 // CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}DoubleGRF
+// CHECK: <const char *>: {{.*}}SpecifiedGRF
 // CHECK: ) ---> pi_result : PI_SUCCESS

@@ -1969,8 +1969,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      assert(!Name.startswith("__sycl_set_kernel_properties") &&
-             "__sycl_set_kernel_properties must have been lowered");
 
       if (Name.empty() ||
           (!Name.startswith(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))
