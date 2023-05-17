@@ -152,7 +152,8 @@ public:
       std::map<std::string, mlir::LLVM::GlobalOp> &LLVMGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &LLVMFunctions,
       clang::Preprocessor &PP, clang::ASTContext &AstContext,
-      mlir::OwningOpRef<mlir::ModuleOp> &Module, clang::SourceManager &SM, std::unique_ptr<llvm::LLVMContext>&& LCtx,
+      mlir::OwningOpRef<mlir::ModuleOp> &Module, clang::SourceManager &SM,
+      std::unique_ptr<llvm::LLVMContext> &&LCtx,
       clang::CodeGenOptions &Codegenops, std::string ModuleId)
       : EmitIfFound(EmitIfFound), Done(Done),
         LLVMStringGlobals(LLVMStringGlobals), Globals(Globals),
