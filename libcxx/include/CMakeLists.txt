@@ -79,6 +79,7 @@ set(files
   __algorithm/pstl_backends/cpu_backends/for_each.h
   __algorithm/pstl_backends/cpu_backends/serial.h
   __algorithm/pstl_backends/cpu_backends/transform.h
+  __algorithm/pstl_copy.h
   __algorithm/pstl_fill.h
   __algorithm/pstl_find.h
   __algorithm/pstl_for_each.h
@@ -462,6 +463,7 @@ set(files
   __locale_dir/locale_base_api/bsd_locale_fallbacks.h
   __locale_dir/locale_base_api/locale_guard.h
   __mbstate_t.h
+  __mdspan/extents.h
   __memory/addressof.h
   __memory/align.h
   __memory/aligned_alloc.h
@@ -627,6 +629,9 @@ set(files
   __ranges/zip_view.h
   __split_buffer
   __std_mbstate_t.h
+  __stop_token/atomic_unique_lock.h
+  __stop_token/intrusive_list_view.h
+  __stop_token/intrusive_shared_ptr.h
   __string/char_traits.h
   __string/constexpr_c_functions.h
   __string/extern_template_lists.h
@@ -912,6 +917,7 @@ set(files
   locale.h
   map
   math.h
+  mdspan
   memory
   memory_resource
   mutex

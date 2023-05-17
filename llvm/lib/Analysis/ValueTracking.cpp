@@ -668,8 +668,7 @@ static void computeKnownBitsFromCmp(const Value *V, const ICmpInst *Cmp,
     if (match(Cmp, m_c_ICmp(Pred, m_V, m_Value(A)))) {
       KnownBits RHSKnown =
           computeKnownBits(A, Depth + 1, QueryNoAC).anyextOrTrunc(BitWidth);
-      Known.Zero |= RHSKnown.Zero;
-      Known.One |= RHSKnown.One;
+      Known = Known.unionWith(RHSKnown);
       // assume(v & b = a)
     } else if (match(Cmp,
                      m_c_ICmp(Pred, m_c_And(m_V, m_Value(B)), m_Value(A)))) {
@@ -758,9 +757,8 @@ static void computeKnownBitsFromCmp(const Value *V, const ICmpInst *Cmp,
       // For those bits in RHS that are known, we can propagate them to known
       // bits in V shifted to the right by C.
       RHSKnown.Zero.lshrInPlace(C);
-      Known.Zero |= RHSKnown.Zero;
       RHSKnown.One.lshrInPlace(C);
-      Known.One |= RHSKnown.One;
+      Known = Known.unionWith(RHSKnown);
       // assume(~(v << c) = a)
     } else if (match(Cmp, m_c_ICmp(Pred, m_Not(m_Shl(m_V, m_ConstantInt(C))),
                                    m_Value(A))) &&
@@ -1053,8 +1051,8 @@ static void computeKnownBitsFromShiftOperator(
         continue;
     }
 
-    Known = KnownBits::commonBits(
-        Known, KF(Known2, KnownBits::makeConstant(APInt(32, ShiftAmt))));
+    Known = Known.intersectWith(
+        KF(Known2, KnownBits::makeConstant(APInt(32, ShiftAmt))));
   }
 
   // If the known bits conflict, the result is poison. Return a 0 and hope the
@@ -1210,7 +1208,15 @@ static void computeKnownBitsFromOperator(const Operator *I,
   case Instruction::UDiv: {
     computeKnownBits(I->getOperand(0), Known, Depth + 1, Q);
     computeKnownBits(I->getOperand(1), Known2, Depth + 1, Q);
-    Known = KnownBits::udiv(Known, Known2);
+    Known =
+        KnownBits::udiv(Known, Known2, Q.IIQ.isExact(cast<BinaryOperator>(I)));
+    break;
+  }
+  case Instruction::SDiv: {
+    computeKnownBits(I->getOperand(0), Known, Depth + 1, Q);
+    computeKnownBits(I->getOperand(1), Known2, Depth + 1, Q);
+    Known =
+        KnownBits::sdiv(Known, Known2, Q.IIQ.isExact(cast<BinaryOperator>(I)));
     break;
   }
   case Instruction::Select: {
@@ -1242,7 +1248,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
     computeKnownBits(I->getOperand(1), Known2, Depth + 1, Q);
 
     // Only known if known in both the LHS and RHS.
-    Known = KnownBits::commonBits(Known, Known2);
+    Known = Known.intersectWith(Known2);
 
     if (SPF == SPF_ABS) {
       // RHS from matchSelectPattern returns the negation part of abs pattern.
@@ -1621,7 +1627,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
 
     // Otherwise take the unions of the known bit sets of the operands,
     // taking conservative care to avoid excessive recursion.
-    if (Depth < MaxAnalysisRecursionDepth - 1 && !Known.Zero && !Known.One) {
+    if (Depth < MaxAnalysisRecursionDepth - 1 && Known.isUnknown()) {
       // Skip if every incoming value references to ourself.
       if (isa_and_nonnull<UndefValue>(P->hasConstantValue()))
         break;
@@ -1680,7 +1686,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
           }
         }
 
-        Known = KnownBits::commonBits(Known, Known2);
+        Known = Known.intersectWith(Known2);
         // If all bits have been ruled out, there's no need to check
         // more operands.
         if (Known.isUnknown())
@@ -1699,8 +1705,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
       computeKnownBitsFromRangeMetadata(*MD, Known);
     if (const Value *RV = cast<CallBase>(I)->getReturnedArgOperand()) {
       computeKnownBits(RV, Known2, Depth + 1, Q);
-      Known.Zero |= Known2.Zero;
-      Known.One |= Known2.One;
+      Known = Known.unionWith(Known2);
     }
     if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
       switch (II->getIntrinsicID()) {
@@ -1872,7 +1877,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
     if (!!DemandedRHS) {
       const Value *RHS = Shuf->getOperand(1);
       computeKnownBits(RHS, DemandedRHS, Known2, Depth + 1, Q);
-      Known = KnownBits::commonBits(Known, Known2);
+      Known = Known.intersectWith(Known2);
     }
     break;
   }
@@ -1905,7 +1910,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
     DemandedVecElts.clearBit(EltIdx);
     if (!!DemandedVecElts) {
       computeKnownBits(Vec, DemandedVecElts, Known2, Depth + 1, Q);
-      Known = KnownBits::commonBits(Known, Known2);
+      Known = Known.intersectWith(Known2);
     }
     break;
   }
@@ -2887,7 +2892,13 @@ bool isKnownNonZero(const Value *V, const APInt &DemandedElts, unsigned Depth,
       return XKnown.isNonZero() ||
              isKnownNonZero(I->getOperand(0), DemandedElts, Depth, Q);
 
-    return KnownBits::mul(XKnown, YKnown).isNonZero();
+    // If there exists any subset of X (sX) and subset of Y (sY) s.t sX * sY is
+    // non-zero, then X * Y is non-zero. We can find sX and sY by just taking
+    // the the lowest known One of X and Y. If they are non-zero, the result
+    // must be non-zero. We can check if LSB(X) * LSB(Y) != 0 by doing
+    // X.CountLeadingZeros + Y.CountLeadingZeros < BitWidth.
+    return (XKnown.countMaxTrailingZeros() + YKnown.countMaxTrailingZeros()) <
+           BitWidth;
   }
   case Instruction::Select:
     // (C ? X : Y) != 0 if X != 0 and Y != 0.
@@ -3835,9 +3846,9 @@ bool llvm::CannotBeNegativeZero(const Value *V, const TargetLibraryInfo *TLI,
 /// standard ordered compare. e.g. make -0.0 olt 0.0 be true because of the sign
 /// bit despite comparing equal.
 static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
+                                            const DataLayout &DL,
                                             const TargetLibraryInfo *TLI,
-                                            bool SignBitOnly,
-                                            unsigned Depth) {
+                                            bool SignBitOnly, unsigned Depth) {
   // TODO: This function does not do the right thing when SignBitOnly is true
   // and we're lowering to a hypothetical IEEE 754-compliant-but-evil platform
   // which flips the sign bits of NaNs.  See
@@ -3886,9 +3897,9 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
       return true;
 
     // Set SignBitOnly for RHS, because X / -0.0 is -Inf (or NaN).
-    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly,
-                                           Depth + 1) &&
-           cannotBeOrderedLessThanZeroImpl(I->getOperand(1), TLI,
+    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                           SignBitOnly, Depth + 1) &&
+           cannotBeOrderedLessThanZeroImpl(I->getOperand(1), DL, TLI,
                                            /*SignBitOnly*/ true, Depth + 1);
   case Instruction::FMul:
     // X * X is always non-negative or a NaN.
@@ -3899,26 +3910,26 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
     [[fallthrough]];
   case Instruction::FAdd:
   case Instruction::FRem:
-    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly,
-                                           Depth + 1) &&
-           cannotBeOrderedLessThanZeroImpl(I->getOperand(1), TLI, SignBitOnly,
-                                           Depth + 1);
+    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                           SignBitOnly, Depth + 1) &&
+           cannotBeOrderedLessThanZeroImpl(I->getOperand(1), DL, TLI,
+                                           SignBitOnly, Depth + 1);
   case Instruction::Select:
-    return cannotBeOrderedLessThanZeroImpl(I->getOperand(1), TLI, SignBitOnly,
-                                           Depth + 1) &&
-           cannotBeOrderedLessThanZeroImpl(I->getOperand(2), TLI, SignBitOnly,
-                                           Depth + 1);
+    return cannotBeOrderedLessThanZeroImpl(I->getOperand(1), DL, TLI,
+                                           SignBitOnly, Depth + 1) &&
+           cannotBeOrderedLessThanZeroImpl(I->getOperand(2), DL, TLI,
+                                           SignBitOnly, Depth + 1);
   case Instruction::FPExt:
   case Instruction::FPTrunc:
     // Widening/narrowing never change sign.
-    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly,
-                                           Depth + 1);
+    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                           SignBitOnly, Depth + 1);
   case Instruction::ExtractElement:
     // Look through extract element. At the moment we keep this simple and skip
     // tracking the specific element. But at least we might find information
     // valid for all elements of the vector.
-    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly,
-                                           Depth + 1);
+    return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                           SignBitOnly, Depth + 1);
   case Instruction::Call:
     const auto *CI = cast<CallInst>(I);
     Intrinsic::ID IID = getIntrinsicForCallSite(*CI, TLI);
@@ -3935,7 +3946,8 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
     case Intrinsic::round:
     case Intrinsic::roundeven:
     case Intrinsic::fptrunc_round:
-      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly, Depth + 1);
+      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                             SignBitOnly, Depth + 1);
     case Intrinsic::maxnum: {
       Value *V0 = I->getOperand(0), *V1 = I->getOperand(1);
       auto isPositiveNum = [&](Value *V) {
@@ -3950,8 +3962,8 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
 
         // -0.0 compares equal to 0.0, so if this operand is at least -0.0,
         // maxnum can't be ordered-less-than-zero.
-        return isKnownNeverNaN(V, TLI) &&
-               cannotBeOrderedLessThanZeroImpl(V, TLI, false, Depth + 1);
+        return isKnownNeverNaN(V, DL, TLI) &&
+               cannotBeOrderedLessThanZeroImpl(V, DL, TLI, false, Depth + 1);
       };
 
       // TODO: This could be improved. We could also check that neither operand
@@ -3960,23 +3972,23 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
     }
 
     case Intrinsic::maximum:
-      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly,
-                                             Depth + 1) ||
-             cannotBeOrderedLessThanZeroImpl(I->getOperand(1), TLI, SignBitOnly,
-                                             Depth + 1);
+      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                             SignBitOnly, Depth + 1) ||
+             cannotBeOrderedLessThanZeroImpl(I->getOperand(1), DL, TLI,
+                                             SignBitOnly, Depth + 1);
     case Intrinsic::minnum:
     case Intrinsic::minimum:
-      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly,
-                                             Depth + 1) &&
-             cannotBeOrderedLessThanZeroImpl(I->getOperand(1), TLI, SignBitOnly,
-                                             Depth + 1);
+      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                             SignBitOnly, Depth + 1) &&
+             cannotBeOrderedLessThanZeroImpl(I->getOperand(1), DL, TLI,
+                                             SignBitOnly, Depth + 1);
     case Intrinsic::exp:
     case Intrinsic::exp2:
     case Intrinsic::fabs:
       return true;
     case Intrinsic::copysign:
       // Only the sign operand matters.
-      return cannotBeOrderedLessThanZeroImpl(I->getOperand(1), TLI, true,
+      return cannotBeOrderedLessThanZeroImpl(I->getOperand(1), DL, TLI, true,
                                              Depth + 1);
     case Intrinsic::sqrt:
       // sqrt(x) is always >= -0 or NaN.  Moreover, sqrt(x) == -0 iff x == -0.
@@ -4004,33 +4016,33 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
       // but we must return false if x == -0.  Unfortunately we do not currently
       // have a way of expressing this constraint.  See details in
       // https://llvm.org/bugs/show_bug.cgi?id=31702.
-      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly,
-                                             Depth + 1);
+      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), DL, TLI,
+                                             SignBitOnly, Depth + 1);
 
     case Intrinsic::fma:
     case Intrinsic::fmuladd:
       // x*x+y is non-negative if y is non-negative.
       return I->getOperand(0) == I->getOperand(1) &&
              (!SignBitOnly || cast<FPMathOperator>(I)->hasNoNaNs()) &&
-             cannotBeOrderedLessThanZeroImpl(I->getOperand(2), TLI, SignBitOnly,
-                                             Depth + 1);
+             cannotBeOrderedLessThanZeroImpl(I->getOperand(2), DL, TLI,
+                                             SignBitOnly, Depth + 1);
     }
     break;
   }
   return false;
 }
 
-bool llvm::CannotBeOrderedLessThanZero(const Value *V,
+bool llvm::CannotBeOrderedLessThanZero(const Value *V, const DataLayout &DL,
                                        const TargetLibraryInfo *TLI) {
-  return cannotBeOrderedLessThanZeroImpl(V, TLI, false, 0);
+  return cannotBeOrderedLessThanZeroImpl(V, DL, TLI, false, 0);
 }
 
-bool llvm::SignBitMustBeZero(const Value *V, const TargetLibraryInfo *TLI) {
-  return cannotBeOrderedLessThanZeroImpl(V, TLI, true, 0);
-}
-
-bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
-                                unsigned Depth) {
+bool llvm::isKnownNeverInfinity(const Value *V, const DataLayout &DL,
+                                const TargetLibraryInfo *TLI, unsigned Depth,
+                                AssumptionCache *AC, const Instruction *CtxI,
+                                const DominatorTree *DT,
+                                OptimizationRemarkEmitter *ORE,
+                                bool UseInstrInfo) {
   assert(V->getType()->isFPOrFPVectorTy() && "Querying for Inf on non-FP type");
 
   // If we're told that infinities won't happen, assume they won't.
@@ -4060,8 +4072,8 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
   if (auto *Inst = dyn_cast<Instruction>(V)) {
     switch (Inst->getOpcode()) {
     case Instruction::Select: {
-      return isKnownNeverInfinity(Inst->getOperand(1), TLI, Depth + 1) &&
-             isKnownNeverInfinity(Inst->getOperand(2), TLI, Depth + 1);
+      return isKnownNeverInfinity(Inst->getOperand(1), DL, TLI, Depth + 1) &&
+             isKnownNeverInfinity(Inst->getOperand(2), DL, TLI, Depth + 1);
     }
     case Instruction::SIToFP:
     case Instruction::UIToFP: {
@@ -4080,7 +4092,7 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
     case Instruction::FNeg:
     case Instruction::FPExt: {
       // Peek through to source op. If it is not infinity, this is not infinity.
-      return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
+      return isKnownNeverInfinity(Inst->getOperand(0), DL, TLI, Depth + 1);
     }
     case Instruction::FPTrunc: {
       // Need a range check.
@@ -4102,7 +4114,7 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
       case Intrinsic::copysign:
       case Intrinsic::arithmetic_fence:
       case Intrinsic::trunc:
-        return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
+        return isKnownNeverInfinity(Inst->getOperand(0), DL, TLI, Depth + 1);
       case Intrinsic::floor:
       case Intrinsic::ceil:
       case Intrinsic::rint:
@@ -4112,7 +4124,7 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
         // PPC_FP128 is a special case.
         if (V->getType()->isMultiUnitFPType())
           return false;
-        return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
+        return isKnownNeverInfinity(Inst->getOperand(0), DL, TLI, Depth + 1);
       case Intrinsic::fptrunc_round:
         // Requires knowing the value range.
         return false;
@@ -4120,8 +4132,8 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
       case Intrinsic::maxnum:
       case Intrinsic::minimum:
       case Intrinsic::maximum:
-        return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1) &&
-               isKnownNeverInfinity(Inst->getOperand(1), TLI, Depth + 1);
+        return isKnownNeverInfinity(Inst->getOperand(0), DL, TLI, Depth + 1) &&
+               isKnownNeverInfinity(Inst->getOperand(1), DL, TLI, Depth + 1);
       case Intrinsic::log:
       case Intrinsic::log10:
       case Intrinsic::log2:
@@ -4169,8 +4181,16 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
   return false;
 }
 
-bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
-                           unsigned Depth) {
+bool llvm::SignBitMustBeZero(const Value *V, const DataLayout &DL,
+                             const TargetLibraryInfo *TLI) {
+  return cannotBeOrderedLessThanZeroImpl(V, DL, TLI, true, 0);
+}
+
+bool llvm::isKnownNeverNaN(const Value *V, const DataLayout &DL,
+                           const TargetLibraryInfo *TLI, unsigned Depth,
+                           AssumptionCache *AC, const Instruction *CtxI,
+                           const DominatorTree *DT,
+                           OptimizationRemarkEmitter *ORE, bool UseInstrInfo) {
   assert(V->getType()->isFPOrFPVectorTy() && "Querying for NaN on non-FP type");
 
   // If we're told that NaNs won't happen, assume they won't.
@@ -4203,18 +4223,18 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
     case Instruction::FAdd:
     case Instruction::FSub:
       // Adding positive and negative infinity produces NaN.
-      return isKnownNeverNaN(Inst->getOperand(0), TLI, Depth + 1) &&
-             isKnownNeverNaN(Inst->getOperand(1), TLI, Depth + 1) &&
-             (isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1) ||
-              isKnownNeverInfinity(Inst->getOperand(1), TLI, Depth + 1));
+      return isKnownNeverNaN(Inst->getOperand(0), DL, TLI, Depth + 1) &&
+             isKnownNeverNaN(Inst->getOperand(1), DL, TLI, Depth + 1) &&
+             (isKnownNeverInfinity(Inst->getOperand(0), DL, TLI, Depth + 1) ||
+              isKnownNeverInfinity(Inst->getOperand(1), DL, TLI, Depth + 1));
 
     case Instruction::FMul:
       // Zero multiplied with infinity produces NaN.
       // FIXME: If neither side can be zero fmul never produces NaN.
-      return isKnownNeverNaN(Inst->getOperand(0), TLI, Depth + 1) &&
-             isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1) &&
-             isKnownNeverNaN(Inst->getOperand(1), TLI, Depth + 1) &&
-             isKnownNeverInfinity(Inst->getOperand(1), TLI, Depth + 1);
+      return isKnownNeverNaN(Inst->getOperand(0), DL, TLI, Depth + 1) &&
+             isKnownNeverInfinity(Inst->getOperand(0), DL, TLI, Depth + 1) &&
+             isKnownNeverNaN(Inst->getOperand(1), DL, TLI, Depth + 1) &&
+             isKnownNeverInfinity(Inst->getOperand(1), DL, TLI, Depth + 1);
 
     case Instruction::FDiv:
     case Instruction::FRem:
@@ -4222,8 +4242,8 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
       return false;
 
     case Instruction::Select: {
-      return isKnownNeverNaN(Inst->getOperand(1), TLI, Depth + 1) &&
-             isKnownNeverNaN(Inst->getOperand(2), TLI, Depth + 1);
+      return isKnownNeverNaN(Inst->getOperand(1), DL, TLI, Depth + 1) &&
+             isKnownNeverNaN(Inst->getOperand(2), DL, TLI, Depth + 1);
     }
     case Instruction::SIToFP:
     case Instruction::UIToFP:
@@ -4231,7 +4251,7 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
     case Instruction::FPTrunc:
     case Instruction::FPExt:
     case Instruction::FNeg:
-      return isKnownNeverNaN(Inst->getOperand(0), TLI, Depth + 1);
+      return isKnownNeverNaN(Inst->getOperand(0), DL, TLI, Depth + 1);
     default:
       break;
     }
@@ -4252,15 +4272,15 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
     case Intrinsic::round:
     case Intrinsic::roundeven:
     case Intrinsic::arithmetic_fence:
-      return isKnownNeverNaN(II->getArgOperand(0), TLI, Depth + 1);
+      return isKnownNeverNaN(II->getArgOperand(0), DL, TLI, Depth + 1);
     case Intrinsic::sqrt:
-      return isKnownNeverNaN(II->getArgOperand(0), TLI, Depth + 1) &&
-             CannotBeOrderedLessThanZero(II->getArgOperand(0), TLI);
+      return isKnownNeverNaN(II->getArgOperand(0), DL, TLI, Depth + 1) &&
+             CannotBeOrderedLessThanZero(II->getArgOperand(0), DL, TLI);
     case Intrinsic::minnum:
     case Intrinsic::maxnum:
       // If either operand is not NaN, the result is not NaN.
-      return isKnownNeverNaN(II->getArgOperand(0), TLI, Depth + 1) ||
-             isKnownNeverNaN(II->getArgOperand(1), TLI, Depth + 1);
+      return isKnownNeverNaN(II->getArgOperand(0), DL, TLI, Depth + 1) ||
+             isKnownNeverNaN(II->getArgOperand(1), DL, TLI, Depth + 1);
     default:
       return false;
     }
@@ -4296,9 +4316,54 @@ static bool inputDenormalIsIEEE(const Function &F, const Type *Ty) {
   return F.getDenormalMode(Ty->getFltSemantics()).Input == DenormalMode::IEEE;
 }
 
+static bool inputDenormalIsIEEEOrPosZero(const Function &F, const Type *Ty) {
+  Ty = Ty->getScalarType();
+  DenormalMode Mode = F.getDenormalMode(Ty->getFltSemantics());
+  return Mode.Input == DenormalMode::IEEE ||
+         Mode.Input == DenormalMode::PositiveZero;
+}
+
+static bool outputDenormalIsIEEEOrPosZero(const Function &F, const Type *Ty) {
+  Ty = Ty->getScalarType();
+  DenormalMode Mode = F.getDenormalMode(Ty->getFltSemantics());
+  return Mode.Output == DenormalMode::IEEE ||
+         Mode.Output == DenormalMode::PositiveZero;
+}
+
 bool KnownFPClass::isKnownNeverLogicalZero(const Function &F, Type *Ty) const {
   return isKnownNeverZero() &&
          (isKnownNeverSubnormal() || inputDenormalIsIEEE(F, Ty));
+}
+
+bool KnownFPClass::isKnownNeverLogicalNegZero(const Function &F,
+                                              Type *Ty) const {
+  return isKnownNeverNegZero() &&
+         (isKnownNeverNegSubnormal() || inputDenormalIsIEEEOrPosZero(F, Ty));
+}
+
+bool KnownFPClass::isKnownNeverLogicalPosZero(const Function &F,
+                                              Type *Ty) const {
+  if (!isKnownNeverPosZero())
+    return false;
+
+  // If we know there are no denormals, nothing can be flushed to zero.
+  if (isKnownNeverSubnormal())
+    return true;
+
+  DenormalMode Mode = F.getDenormalMode(Ty->getScalarType()->getFltSemantics());
+  switch (Mode.Input) {
+  case DenormalMode::IEEE:
+    return true;
+  case DenormalMode::PreserveSign:
+    // Negative subnormal won't flush to +0
+    return isKnownNeverPosSubnormal();
+  case DenormalMode::PositiveZero:
+  default:
+    // Both positive and negative subnormal could flush to +0
+    return false;
+  }
+
+  llvm_unreachable("covered switch over denormal mode");
 }
 
 /// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
@@ -4714,6 +4779,39 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
           Known.knownNot(fcNegative);
         break;
       }
+      case Intrinsic::sqrt: {
+        KnownFPClass KnownSrc;
+        FPClassTest InterestedSrcs = InterestedClasses;
+        if (InterestedClasses & fcNan)
+          InterestedSrcs |= KnownFPClass::OrderedLessThanZeroMask;
+
+        computeKnownFPClass(II->getArgOperand(0), DemandedElts,
+                            InterestedSrcs, KnownSrc, Depth + 1, Q, TLI);
+
+        if (KnownSrc.isKnownNeverPosInfinity())
+          Known.knownNot(fcPosInf);
+        if (KnownSrc.isKnownNever(fcSNan))
+          Known.knownNot(fcSNan);
+
+        // Any negative value besides -0 returns a nan.
+        if (KnownSrc.isKnownNeverNaN() &&
+            KnownSrc.cannotBeOrderedLessThanZero())
+          Known.knownNot(fcNan);
+
+        // The only negative value that can be returned is -0 for -0 inputs.
+        Known.knownNot(fcNegInf | fcNegSubnormal | fcNegNormal);
+
+        // If the input denormal mode could be PreserveSign, a negative
+        // subnormal input could produce a negative zero output.
+        if (KnownSrc.isKnownNeverLogicalNegZero(*II->getFunction(),
+                                                II->getType())) {
+          Known.knownNot(fcNegZero);
+          if (KnownSrc.isKnownNeverNaN())
+            Known.SignBit = false;
+        }
+
+        break;
+      }
       case Intrinsic::sin:
       case Intrinsic::cos: {
         // Return NaN on infinite inputs.
@@ -4972,16 +5070,35 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
     KnownFPClass KnownLHS, KnownRHS;
     computeKnownFPClass(Op->getOperand(1), DemandedElts, fcNan | fcInf,
                         KnownRHS, Depth + 1, Q, TLI);
-    if (KnownRHS.isKnownNeverNaN()) {
+
+    if (KnownRHS.isKnownNeverNaN() || KnownRHS.isKnownNeverNegZero() ||
+        (Opc == Instruction::FSub && KnownRHS.isKnownNeverPosZero())) {
       // RHS is canonically cheaper to compute. Skip inspecting the LHS if
       // there's no point.
       computeKnownFPClass(Op->getOperand(0), DemandedElts, fcNan | fcInf,
                           KnownLHS, Depth + 1, Q, TLI);
       // Adding positive and negative infinity produces NaN.
       // TODO: Check sign of infinities.
-      if (KnownLHS.isKnownNeverNaN() &&
+      if (KnownLHS.isKnownNeverNaN() && KnownRHS.isKnownNeverNaN() &&
           (KnownLHS.isKnownNeverInfinity() || KnownRHS.isKnownNeverInfinity()))
         Known.knownNot(fcNan);
+
+      const Function *F = cast<Instruction>(Op)->getFunction();
+      if (Op->getOpcode() == Instruction::FAdd) {
+        // (fadd x, 0.0) is guaranteed to return +0.0, not -0.0.
+        if ((KnownLHS.isKnownNeverLogicalNegZero(*F, Op->getType()) ||
+             KnownRHS.isKnownNeverLogicalNegZero(*F, Op->getType())) &&
+            // Make sure output negative denormal can't flush to -0
+            outputDenormalIsIEEEOrPosZero(*F, Op->getType()))
+          Known.knownNot(fcNegZero);
+      } else {
+        // Only fsub -0, +0 can return -0
+        if ((KnownLHS.isKnownNeverLogicalNegZero(*F, Op->getType()) ||
+             KnownRHS.isKnownNeverLogicalPosZero(*F, Op->getType())) &&
+            // Make sure output negative denormal can't flush to -0
+            outputDenormalIsIEEEOrPosZero(*F, Op->getType()))
+          Known.knownNot(fcNegZero);
+      }
     }
 
     break;
@@ -5085,6 +5202,12 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
       }
 
       // The sign for frem is the same as the first operand.
+      if (KnownLHS.cannotBeOrderedLessThanZero())
+        Known.knownNot(KnownFPClass::OrderedLessThanZeroMask);
+      if (KnownLHS.cannotBeOrderedGreaterThanZero())
+        Known.knownNot(KnownFPClass::OrderedGreaterThanZeroMask);
+
+      // See if we can be more aggressive about the sign of 0.
       if (KnownLHS.isKnownNever(fcNegative))
         Known.knownNot(fcNegative);
       if (KnownLHS.isKnownNever(fcPositive))

@@ -251,6 +251,37 @@ TEST(KnownBitsTest, BinaryExhaustive) {
       checkCorrectnessOnlyBinary);
   testBinaryOpExhaustive(
       [](const KnownBits &Known1, const KnownBits &Known2) {
+        return KnownBits::udiv(Known1, Known2, /*Exact*/ true);
+      },
+      [](const APInt &N1, const APInt &N2) -> std::optional<APInt> {
+        if (N2.isZero() || !N1.urem(N2).isZero())
+          return std::nullopt;
+        return N1.udiv(N2);
+      },
+      checkCorrectnessOnlyBinary);
+  testBinaryOpExhaustive(
+      [](const KnownBits &Known1, const KnownBits &Known2) {
+        return KnownBits::sdiv(Known1, Known2);
+      },
+      [](const APInt &N1, const APInt &N2) -> std::optional<APInt> {
+        if (N2.isZero() || (N1.isMinSignedValue() && N2.isAllOnes()))
+          return std::nullopt;
+        return N1.sdiv(N2);
+      },
+      checkCorrectnessOnlyBinary);
+  testBinaryOpExhaustive(
+      [](const KnownBits &Known1, const KnownBits &Known2) {
+        return KnownBits::sdiv(Known1, Known2, /*Exact*/ true);
+      },
+      [](const APInt &N1, const APInt &N2) -> std::optional<APInt> {
+        if (N2.isZero() || (N1.isMinSignedValue() && N2.isAllOnes()) ||
+            !N1.srem(N2).isZero())
+          return std::nullopt;
+        return N1.sdiv(N2);
+      },
+      checkCorrectnessOnlyBinary);
+  testBinaryOpExhaustive(
+      [](const KnownBits &Known1, const KnownBits &Known2) {
         return KnownBits::urem(Known1, Known2);
       },
       [](const APInt &N1, const APInt &N2) -> std::optional<APInt> {
@@ -270,7 +301,6 @@ TEST(KnownBitsTest, BinaryExhaustive) {
       },
       checkCorrectnessOnlyBinary);
 
-  // TODO: Make optimal for non-constant cases.
   testBinaryOpExhaustive(
       [](const KnownBits &Known1, const KnownBits &Known2) {
         return KnownBits::shl(Known1, Known2);
@@ -279,9 +309,6 @@ TEST(KnownBitsTest, BinaryExhaustive) {
         if (N2.uge(N2.getBitWidth()))
           return std::nullopt;
         return N1.shl(N2);
-      },
-      [](const KnownBits &, const KnownBits &Known) {
-        return Known.isConstant();
       });
   testBinaryOpExhaustive(
       [](const KnownBits &Known1, const KnownBits &Known2) {
@@ -291,9 +318,6 @@ TEST(KnownBitsTest, BinaryExhaustive) {
         if (N2.uge(N2.getBitWidth()))
           return std::nullopt;
         return N1.lshr(N2);
-      },
-      [](const KnownBits &, const KnownBits &Known) {
-        return Known.isConstant();
       });
   testBinaryOpExhaustive(
       [](const KnownBits &Known1, const KnownBits &Known2) {
@@ -303,9 +327,6 @@ TEST(KnownBitsTest, BinaryExhaustive) {
         if (N2.uge(N2.getBitWidth()))
           return std::nullopt;
         return N1.ashr(N2);
-      },
-      [](const KnownBits &, const KnownBits &Known) {
-        return Known.isConstant();
       });
 
   testBinaryOpExhaustive(
@@ -360,6 +381,20 @@ TEST(KnownBitsTest, UnaryExhaustive) {
         return KnownBits::mul(Known, Known, /*SelfMultiply*/ true);
       },
       [](const APInt &N) { return N * N; }, checkCorrectnessOnlyUnary);
+}
+
+TEST(KnownBitsTest, WideShifts) {
+  unsigned BitWidth = 128;
+  KnownBits Unknown(BitWidth);
+  KnownBits AllOnes = KnownBits::makeConstant(APInt::getAllOnes(BitWidth));
+
+  KnownBits ShlResult(BitWidth);
+  ShlResult.makeNegative();
+  EXPECT_EQ(KnownBits::shl(AllOnes, Unknown), ShlResult);
+  KnownBits LShrResult(BitWidth);
+  LShrResult.One.setBit(0);
+  EXPECT_EQ(KnownBits::lshr(AllOnes, Unknown), LShrResult);
+  EXPECT_EQ(KnownBits::ashr(AllOnes, Unknown), AllOnes);
 }
 
 TEST(KnownBitsTest, ICmpExhaustive) {

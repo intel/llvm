@@ -411,13 +411,15 @@ def AArch64mla_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
                               (add node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0)))]>;
 // pattern for generating pseudo for MLA_ZPmZZ/MAD_ZPmZZ
 def AArch64mla_p : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
-                            [(add node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
+                            [(int_aarch64_sve_mla_u node:$pred, node:$op1, node:$op2, node:$op3),
+                             (add node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
 def AArch64mls_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
                              [(int_aarch64_sve_mls node:$pred, node:$op1, node:$op2, node:$op3),
                               // sub(a, select(mask, mul(b, c), splat(0))) -> mls(a, mask, b, c)
                               (sub node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0)))]>;
 def AArch64mls_p : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
-                             [(sub node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
+                             [(int_aarch64_sve_mls_u node:$pred, node:$op1, node:$op2, node:$op3),
+                              (sub node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3))]>;
 def AArch64eor3 : PatFrags<(ops node:$op1, node:$op2, node:$op3),
                            [(int_aarch64_sve_eor3 node:$op1, node:$op2, node:$op3),
                             (xor node:$op1, (xor node:$op2, node:$op3))]>;
@@ -3752,7 +3754,7 @@ defm SDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"sdot", 0b0, int_aarch64_sve_sdot_l
 defm UDOT_ZZZI_HtoS : sve2p1_two_way_dot_vvi<"udot", 0b1, int_aarch64_sve_udot_lane_x2>;
 
 defm CNTP_XCI : sve2p1_pcount_pn<"cntp", 0b000>;
-defm PEXT_PCI : sve2p1_pred_as_ctr_to_mask<"pext">;
+defm PEXT_PCI : sve2p1_pred_as_ctr_to_mask<"pext", int_aarch64_sve_pext>;
 defm PEXT_2PCI : sve2p1_pred_as_ctr_to_mask_pair<"pext">;
 defm PTRUE_C  : sve2p1_ptrue_pn<"ptrue">;
 

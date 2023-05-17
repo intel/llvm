@@ -144,6 +144,8 @@ private:
     if (Previous.Previous) {
       if (Previous.Previous->Tok.isLiteral())
         return false;
+      if (Previous.Previous->is(tok::r_brace))
+        return false;
       if (Previous.Previous->is(tok::r_paren) && Contexts.size() > 1 &&
           (!Previous.Previous->MatchingParen ||
            !Previous.Previous->MatchingParen->is(
@@ -3312,6 +3314,8 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) const {
       if (Prev->is(BK_BracedInit) && Prev->opensScope()) {
         Current->SpacesRequiredBefore =
             (Style.Cpp11BracedListStyle && !Style.SpacesInParentheses) ? 0 : 1;
+      } else if (Prev->is(TT_VerilogMultiLineListLParen)) {
+        Current->SpacesRequiredBefore = 0;
       } else {
         Current->SpacesRequiredBefore = Style.SpacesBeforeTrailingComments;
       }

@@ -38751,11 +38751,11 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     KnownBits Known2;
     if (!!DemandedLHS) {
       Known2 = DAG.computeKnownBits(Op.getOperand(0), DemandedLHS, Depth + 1);
-      Known = KnownBits::commonBits(Known, Known2);
+      Known = Known.intersectWith(Known2);
     }
     if (!!DemandedRHS) {
       Known2 = DAG.computeKnownBits(Op.getOperand(1), DemandedRHS, Depth + 1);
-      Known = KnownBits::commonBits(Known, Known2);
+      Known = Known.intersectWith(Known2);
     }
 
     if (Known.countMinLeadingZeros() < BitWidth)
@@ -38842,7 +38842,7 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     KnownBits Known2 = DAG.computeKnownBits(Op.getOperand(0), Depth + 1);
 
     // Only known if known in both the LHS and RHS.
-    Known = KnownBits::commonBits(Known, Known2);
+    Known = Known.intersectWith(Known2);
     break;
   }
   case X86ISD::BEXTR:
@@ -38952,7 +38952,7 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
           break;
         }
         KnownBits Known2 = KnownBits::makeConstant(EltBits[I]);
-        Known = KnownBits::commonBits(Known, Known2);
+        Known = Known.intersectWith(Known2);
       }
       return;
     }
@@ -39003,7 +39003,7 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
             continue;
           KnownBits Known2 =
               DAG.computeKnownBits(Ops[i], DemandedOps[i], Depth + 1);
-          Known = KnownBits::commonBits(Known, Known2);
+          Known = Known.intersectWith(Known2);
         }
       }
     }
@@ -43947,7 +43947,7 @@ bool X86TargetLowering::SimplifyDemandedBitsForTargetNode(
         return true;
 
       KnownScl = KnownScl.trunc(VecVT.getScalarSizeInBits());
-      Known = KnownBits::commonBits(KnownVec, KnownScl);
+      Known = KnownVec.intersectWith(KnownScl);
       return false;
     }
     break;
@@ -54523,6 +54523,59 @@ static SDValue combineSext(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+// Inverting a constant vector is profitable if it can be eliminated and the
+// inverted vector is already present in DAG. Otherwise, it will be loaded
+// anyway.
+//
+// We determine which of the values can be completely eliminated and invert it.
+// If both are eliminable, select a vector with the first negative element.
+static SDValue getInvertedVectorForFMA(SDValue V, SelectionDAG &DAG) {
+  assert(ISD::isBuildVectorOfConstantFPSDNodes(V.getNode()) &&
+         "ConstantFP build vector expected");
+  // Check if we can eliminate V. We assume if a value is only used in FMAs, we
+  // can eliminate it. Since this function is invoked for each FMA with this
+  // vector.
+  auto IsNotFMA = [](SDNode *Use) {
+    return Use->getOpcode() != ISD::FMA && Use->getOpcode() != ISD::STRICT_FMA;
+  };
+  if (llvm::any_of(V->uses(), IsNotFMA))
+    return SDValue();
+
+  SmallVector<SDValue, 8> Ops;
+  EVT VT = V.getValueType();
+  EVT EltVT = VT.getVectorElementType();
+  for (auto Op : V->op_values()) {
+    if (auto *Cst = dyn_cast<ConstantFPSDNode>(Op)) {
+      Ops.push_back(DAG.getConstantFP(-Cst->getValueAPF(), SDLoc(Op), EltVT));
+    } else {
+      assert(Op.isUndef());
+      Ops.push_back(DAG.getUNDEF(EltVT));
+    }
+  }
+
+  SDNode *NV = DAG.getNodeIfExists(ISD::BUILD_VECTOR, DAG.getVTList(VT), Ops);
+  if (!NV)
+    return SDValue();
+
+  // If an inverted version cannot be eliminated, choose it instead of the
+  // original version.
+  if (llvm::any_of(NV->uses(), IsNotFMA))
+    return SDValue(NV, 0);
+
+  // If the inverted version also can be eliminated, we have to consistently
+  // prefer one of the values. We prefer a constant with a negative value on
+  // the first place.
+  // N.B. We need to skip undefs that may precede a value.
+  for (auto op : V->op_values()) {
+    if (auto *Cst = dyn_cast<ConstantFPSDNode>(op)) {
+      if (Cst->isNegative())
+        return SDValue();
+      break;
+    }
+  }
+  return SDValue(NV, 0);
+}
+
 static SDValue combineFMA(SDNode *N, SelectionDAG &DAG,
                           TargetLowering::DAGCombinerInfo &DCI,
                           const X86Subtarget &Subtarget) {
@@ -54574,7 +54627,13 @@ static SDValue combineFMA(SDNode *N, SelectionDAG &DAG,
         return true;
       }
     }
-
+    // Lookup if there is an inverted version of constant vector V in DAG.
+    if (ISD::isBuildVectorOfConstantFPSDNodes(V.getNode())) {
+      if (SDValue NegV = getInvertedVectorForFMA(V, DAG)) {
+        V = NegV;
+        return true;
+      }
+    }
     return false;
   };
 
@@ -54852,8 +54911,8 @@ static SDValue combineSetCC(SDNode *N, SelectionDAG &DAG,
   if (VT.isVector() && OpVT.isVector() && OpVT.isInteger()) {
     bool CanMakeSigned = false;
     if (ISD::isUnsignedIntSetCC(CC)) {
-      KnownBits CmpKnown = KnownBits::commonBits(DAG.computeKnownBits(LHS),
-                                                 DAG.computeKnownBits(RHS));
+      KnownBits CmpKnown =
+          DAG.computeKnownBits(LHS).intersectWith(DAG.computeKnownBits(RHS));
       // If we know LHS/RHS share the same sign bit at each element we can
       // make this signed.
       // NOTE: `computeKnownBits` on a vector type aggregates common bits
