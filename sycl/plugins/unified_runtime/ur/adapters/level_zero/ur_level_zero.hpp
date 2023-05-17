@@ -181,7 +181,10 @@ struct _ur_device_handle_t : _ur_object {
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
-  // Is this a Data Center GPU Max series (aka PVC).
+  // Is this a Data Center GPU Max series (aka PVC)?
+  // TODO: change to use
+  // https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t
+  // when that is stable.
   bool isPVC() {
     return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0 ||
            (ZeDeviceProperties->deviceId & 0xff0) == 0xb60;
