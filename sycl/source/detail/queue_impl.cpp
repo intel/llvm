@@ -517,22 +517,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
-pi_native_handle queue_impl::getNative() const {
+pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
   const PluginPtr &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
     Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
   pi_native_handle Handle{};
-  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle);
-  return Handle;
-}
-
-pi_native_handle queue_impl::getNative2(int32_t &NativeHandleDesc) const {
-  const PluginPtr &Plugin = getPlugin();
-  if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
-  pi_native_handle Handle{};
-  Plugin->call<PiApiKind::piextQueueGetNativeHandle2>(MQueues[0], &Handle,
-                                                      &NativeHandleDesc);
+  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
+                                                     &NativeHandleDesc);
   return Handle;
 }
 
