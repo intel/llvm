@@ -876,7 +876,7 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
 /// 512.
 /// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
-/// equal to 128, 16 bit data and \c NElts equal to 128, 8 bit data and \c
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
 /// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
@@ -979,7 +979,7 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
 /// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
 /// 512.
 /// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
-/// equal to 128, 16 bit data and \c NElts equal to 128, 8 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c NElts
 /// equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
@@ -1023,7 +1023,7 @@ lsc_block_load(const T *p, FlagsT flags) {
 /// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
 /// 512.
 /// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
-/// equal to 128, 16 bit data and \c NElts equal to 128, 8 bit data and \c
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
 /// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
