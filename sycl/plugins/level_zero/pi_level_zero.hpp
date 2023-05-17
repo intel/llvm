@@ -140,13 +140,7 @@ struct _pi_device : _ur_device_handle_t {
 // descriptor is unavailable so a dummy descriptor is used, marked with the
 // IsDummy flag.
 struct pi_command_list_desc_t {
-  // Ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
-  uint32_t Ordinal{0};
-  // Index of the ZeQueue queue group.
-  uint32_t Index{0};
-  ze_command_queue_flags_t Flags{0};
-  ze_command_queue_mode_t Mode{ZE_COMMAND_QUEUE_MODE_DEFAULT};
-  ze_command_queue_priority_t Priority{ZE_COMMAND_QUEUE_PRIORITY_NORMAL};
+  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   bool IsDummy{false};
 };
 
