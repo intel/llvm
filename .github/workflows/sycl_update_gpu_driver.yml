@@ -26,5 +26,5 @@ jobs:
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" || exit 0   # exit if commit is empty
-        git push https://$GITHUB_TOKEN@github.com/${{ github.repository }} ${BRANCH}
+        git push -f https://$GITHUB_TOKEN@github.com/${{ github.repository }} ${BRANCH}
         gh pr create --head $BRANCH --title "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" --body "Scheduled drivers uplift"
