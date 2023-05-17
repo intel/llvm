@@ -1253,17 +1253,63 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolDestroy
-__urdlllocal ur_result_t UR_APICALL urUSMPoolDestroy(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
+/// @brief Intercept function for urUSMPoolRetain
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnPoolDestroy = d_context.urDdiTable.USM.pfnPoolDestroy;
-    if (nullptr != pfnPoolDestroy) {
-        result = pfnPoolDestroy(hContext, pPool);
+    auto pfnPoolRetain = d_context.urDdiTable.USM.pfnPoolRetain;
+    if (nullptr != pfnPoolRetain) {
+        result = pfnPoolRetain(pPool);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolRelease
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnPoolRelease = d_context.urDdiTable.USM.pfnPoolRelease;
+    if (nullptr != pfnPoolRelease) {
+        result = pfnPoolRelease(pPool);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetInfo
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
+    ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
+    size_t propSize, ///< [in] size in bytes of the pool property value provided
+    void *
+        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
+    size_t
+        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnPoolGetInfo = d_context.urDdiTable.USM.pfnPoolGetInfo;
+    if (nullptr != pfnPoolGetInfo) {
+        result =
+            pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
     } else {
         // generic implementation
     }
@@ -3975,7 +4021,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
 
     pDdiTable->pfnPoolCreate = driver::urUSMPoolCreate;
 
-    pDdiTable->pfnPoolDestroy = driver::urUSMPoolDestroy;
+    pDdiTable->pfnPoolRetain = driver::urUSMPoolRetain;
+
+    pDdiTable->pfnPoolRelease = driver::urUSMPoolRelease;
+
+    pDdiTable->pfnPoolGetInfo = driver::urUSMPoolGetInfo;
 
     return result;
 } catch (...) {
