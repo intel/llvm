@@ -23,7 +23,7 @@ template <typename T> void check(queue &Queue) {
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
         ext::oneapi::sub_group SG = NdItem.get_sub_group();
         /*Broadcast GID of element with SGLID == SGID % SGMLR*/
-        syclacc[NdItem.get_global_id()] = ext::oneapi::broadcast(
+        syclacc[NdItem.get_global_id()] = group_broadcast(
             SG, T(NdItem.get_global_id(0)),
             SG.get_group_id() % SG.get_max_local_range()[0]);
         if (NdItem.get_global_id(0) == 0)

@@ -30,14 +30,14 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
           NdRange, [=](nd_item<1> NdItem) {
             ext::oneapi::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
-              exacc[NdItem.get_global_id(0)] = ext::oneapi::exclusive_scan(
-                  sg, T(NdItem.get_global_id(0)), op);
-              inacc[NdItem.get_global_id(0)] = ext::oneapi::inclusive_scan(
-                  sg, T(NdItem.get_global_id(0)), op);
+              exacc[NdItem.get_global_id(0)] =
+                  exclusive_scan_over_group(sg, T(NdItem.get_global_id(0)), op);
+              inacc[NdItem.get_global_id(0)] =
+                  inclusive_scan_over_group(sg, T(NdItem.get_global_id(0)), op);
             } else {
-              exacc[NdItem.get_global_id(0)] = ext::oneapi::exclusive_scan(
+              exacc[NdItem.get_global_id(0)] = exclusive_scan_over_group(
                   sg, T(NdItem.get_global_id(0)), init, op);
-              inacc[NdItem.get_global_id(0)] = ext::oneapi::inclusive_scan(
+              inacc[NdItem.get_global_id(0)] = inclusive_scan_over_group(
                   sg, T(NdItem.get_global_id(0)), op, init);
             }
             if (NdItem.get_global_id(0) == 0)
