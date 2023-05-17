@@ -670,7 +670,7 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 
 using pi_virtual_access_flags = pi_bitfield;
 constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_RW = (1 << 0);
-constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_READ_ONLY = (1 << 2);
+constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_READ_ONLY = (1 << 1);
 
 typedef enum {
   // No preference for SLM or data cache.
