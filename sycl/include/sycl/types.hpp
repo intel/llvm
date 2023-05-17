@@ -48,9 +48,6 @@
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 
-// CP -- are these needed on host generally? or only when not using
-// ext_vector_type?
-// #ifndef __SYCL_USE_EXT_VECTOR_TYPE__
 #if !defined(__HAS_EXT_VECTOR_TYPE__)
 #include <sycl/detail/cl.h>
 #endif
