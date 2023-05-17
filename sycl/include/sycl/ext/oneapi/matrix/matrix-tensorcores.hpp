@@ -8,6 +8,7 @@
 // ===-------------------------------------------------------------------=== //
 
 #pragma once
+#include "utils.hpp"
 #include "matrix-unified-utils.hpp"
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
