@@ -76,18 +76,17 @@ static void setErrorMessage(const char *message, pi_result error_code) {
 }
 
 void setPluginSpecificMessage(CUresult cu_res) {
-    const char *error_string;
-    const char *error_name;
-    cuGetErrorName(cu_res, &error_name);
-    cuGetErrorString(cu_res, &error_string);
-    char *message =
-        (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
-    strcpy(message, error_name);
-    strcat(message, "\n");
-    strcat(message, error_string);
+  const char *error_string;
+  const char *error_name;
+  cuGetErrorName(cu_res, &error_name);
+  cuGetErrorString(cu_res, &error_string);
+  char *message = (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
+  strcpy(message, error_name);
+  strcat(message, "\n");
+  strcat(message, error_string);
 
-    setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
-    free(message);
+  setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+  free(message);
 }
 
 // Returns plugin specific error and warning messages
