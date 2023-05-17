@@ -64,7 +64,7 @@ int main() {
   });
 
   {
-    auto acc = buf_i.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc(buf_i, sycl::read_only);
     if (acc[0] != UINT_MAX) {
       std::cout << acc[0] << std::endl;
       std::cout << "line: " << __LINE__ << " array[" << 0 << "] is " << acc[0]
@@ -90,7 +90,7 @@ int main() {
   });
 
   {
-    auto acc = buf_1d.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc(buf_1d, sycl::read_only);
     for (auto i = 0u; i < r1d.size(); i++) {
       size_t expected = (i % 4) ? 0 : 1;
       if (acc[i] != expected) {

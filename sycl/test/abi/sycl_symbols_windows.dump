@@ -13,10 +13,10 @@
 ??$create_sub_devices@$0BAIH@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@_KV?$allocator@_K@std@@@4@@Z
 ??$create_sub_devices@$0BAII@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
 ??$create_sub_devices@$0BAIJ@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
-??$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBVplugin@123@XZ
-??$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBVplugin@123@XZ
-??$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@123@XZ
-??$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBVplugin@123@XZ
+??$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
+??$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
+??$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
+??$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ??$getPluginOpaqueData@$04@detail@_V1@sycl@@YAPEAXPEAX@Z
 ??$get_info@Umemory_clock_rate@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Umemory_bus_width@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
@@ -984,7 +984,7 @@
 ?getOrWaitEvents@detail@_V1@sycl@@YA?AV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@std@@V?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@5@V?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@5@@Z
 ?getPixelCoordLinearFiltMode@detail@_V1@sycl@@YA?AV?$vec@H$07@23@V?$vec@M$03@23@W4addressing_mode@23@V?$range@$02@23@AEAV523@@Z
 ?getPixelCoordNearestFiltMode@detail@_V1@sycl@@YA?AV?$vec@H$03@23@V?$vec@M$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
-?getPlugin@SYCLMemObjT@detail@_V1@sycl@@QEBAAEBVplugin@234@XZ
+?getPlugin@SYCLMemObjT@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ?getPropList@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBVproperty_list@34@XZ
 ?getPropList@LocalAccessorBaseHost@detail@_V1@sycl@@QEBAAEBVproperty_list@34@XZ
 ?getPtr@AccessorBaseHost@detail@_V1@sycl@@QEAAPEAXXZ
