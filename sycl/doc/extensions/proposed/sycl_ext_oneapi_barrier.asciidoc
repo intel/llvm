@@ -258,9 +258,9 @@ q.parallel_for(..., [=](sycl::nd_item it) {
 
 ===== Device scope
 
-Barriers at device scope must be allocated in global memory (including various
-kinds of USM). It is recommended that device scope barriers are initialized on
-the device that will use the barrier.
+Barriers at device scope are normally allocated in global memory (including
+various kinds of USM). It is recommended that device scope barriers are
+initialized on the device that will use the barrier.
 
 [source,c++]
 ----
@@ -300,8 +300,9 @@ extension.
 
 ===== System scope
 
-Barriers at system scope must be allocated in host, shared, or system USM. Such
-barriers can be constructed on the host.
+Barriers at system scope are normally allocated in host, shared, or system USM.
+Such barriers can be constructed on the host, if allocated in memory that is
+accessible by the host.
 
 [source,c++]
 ----
