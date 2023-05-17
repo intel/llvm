@@ -23,12 +23,13 @@ int main() {
 
   sycl::host_accessor HostAccessor{Buffer, sycl::read_only};
 
-  for (size_t I = 0; I < dim; I++) {
-    for (size_t J = 0; J < dim; J++) {
-      for (size_t K = 0; K < dim; K++) {
+  for (size_t I = 0; I < NumOfWorkItems[0]; I++) {
+    for (size_t J = 0; J < NumOfWorkItems[1]; J++) {
+      for (size_t K = 0; K < NumOfWorkItems[2]; K++) {
         auto t = HostAccessor[I][J][K];
-        if (std::get<0>(t) != dim || std::get<1>(t) != dim + 1 ||
-            std::get<2>(t) != dim + 2) {
+        if (std::get<0>(t) != NumOfWorkItems[0] ||
+            std::get<1>(t) != NumOfWorkItems[1] ||
+            std::get<2>(t) != NumOfWorkItems[2]) {
           std::cout << "Mismatch at element " << I << ", " << J << ", " << K
                     << "\n";
           return 1;

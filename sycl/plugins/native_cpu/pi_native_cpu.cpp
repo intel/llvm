@@ -820,7 +820,7 @@ pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device,
                      size_t(max_threads));
     }
     case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-      size_t group_size[3] = {64, 64, 64};
+      size_t group_size[3] = {1, 1, 1};
       return getInfoArray(3, param_value_size, param_value,
                           param_value_size_ret, group_size);
     }
@@ -1046,23 +1046,25 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // TODO: add proper event dep management
   sycl::detail::NDRDescT ndr =
       getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
-  nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
-                        ndr.GlobalSize[2]);
-  for (unsigned dim0 = 0; dim0 < ndr.GlobalSize[0]; dim0++) {
-    for (unsigned dim1 = 0; dim1 < ndr.GlobalSize[1]; dim1++) {
-      for (unsigned dim2 = 0; dim2 < ndr.GlobalSize[2]; dim2++) {
-        // todo: this is quite bad for performances since we are calling into
-        // the kernel shared object file at each iteration of the work item
-        // loop. We could emit at least the work-item loop in the device
-        // compiler so that the kernel is inlined in it.
-        state.MGlobal_id[0] = dim0;
-        state.MGlobal_id[1] = dim1;
-        state.MGlobal_id[2] = dim2;
-        Kernel->_subhandler(Kernel->_args, &state);
+  nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2],
+                        ndr.LocalSize[0], ndr.LocalSize[1], ndr.LocalSize[2]);
+  auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
+  auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
+  auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
+  for (unsigned g0 = 0; g0 < numWG0; g0++) {
+    for (unsigned g1 = 0; g1 < numWG1; g1++) {
+      for (unsigned g2 = 0; g2 < numWG2; g2++) {
+        for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
+          for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
+            for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
+              state.update(g0, g1, g2, local0, local1, local2);
+              Kernel->_subhandler(Kernel->_args, &state);
+            }
+          }
+        }
       }
     }
   }
-
   return PI_SUCCESS;
 }
 

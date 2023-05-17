@@ -96,6 +96,11 @@ Function *cloneFunctionAndAddParam(Function *oldF, Type *T) {
 static std::map<std::string, std::string> BuiltinNamesMap{
     {"__spirv_BuiltInGlobalInvocationId",
      "_Z13get_global_idmP15nativecpu_state"},
+    {"__spirv_BuiltInWorkgroupSize", "_Z13get_wg_sizemP15nativecpu_state"},
+    {"__spirv_BuiltInWorkgroupId", "_Z13get_wgid_mP15nativecpu_state"},
+    {"__spirv_BuiltInLocalInvocationId",
+     "_Z13get_local_id_mP15nativecpu_state"},
+    {"__spirv_BuiltInNumWorkgroups", "_Z13get_num_groupsmP15nativecpu_state"},
     {"__spirv_BuiltInGlobalSize", "_Z13get_global_rangemP15nativecpu_state"}};
 
 Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
