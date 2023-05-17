@@ -135,8 +135,12 @@ This extension provides a feature-test macro as described in the core SYCL speci
 === API
 
 ```c++
+namespace sycl::ext::oneapi {
+
 template <typename Group, typename T>
-T sycl::ext::oneapi::append_and_shift_group_left(Group g, T x, T to_append, Group::linear_id_type delta=1);
+T append_and_shift_group_left(Group g, T x, T to_append, Group::linear_id_type delta=1)
+
+} // namespace sycl::ext::oneapi
 ```
 
 _Constraints_: Available only if `std::is_same_v<std::decay_t<Group>, sub_group>` is true and `T` is a trivially copyable type.
@@ -148,8 +152,12 @@ _Returns_: The value `x` of the work-item with group local id `id+delta`, where 
 
 
 ```c++
+namespace sycl::ext::oneapi {
+
 template <typename Group, typename T>
-T sycl::ext::oneapi::prepend_and_shift_group_right(Group g, T x, T to_prepend, Group::linear_id_type delta=1);
+T prepend_and_shift_group_right(Group g, T x, T to_prepend, Group::linear_id_type delta=1)
+
+} // namespace sycl::ext::oneapi
 ```
 _Constraints_: Available only if `std::is_same_v<std::decay_t<Group>, sub_group>` is true and `T` is a trivially copyable type.
 
