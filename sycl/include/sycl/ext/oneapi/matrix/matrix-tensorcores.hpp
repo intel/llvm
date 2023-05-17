@@ -149,43 +149,45 @@ void load_accumulator_layoutT(
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride) {
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *srcPtr = sycl::detail::getDecorated<DecorT>(src);
   if constexpr (std::is_same_v<S, int32_t>) {
-    auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+    auto dstPtr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
-      __imma_m16n16k16_ld_c(destptr, src.get(), stride,
+      __imma_m16n16k16_ld_c(dstPtr, srcPtr, stride,
                             get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 32) {
-      __imma_m8n32k16_ld_c(destptr, src.get(), stride, get_layout_id<Layout>());
+      __imma_m8n32k16_ld_c(dstPtr, srcPtr, stride, get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 8) {
-      __imma_m32n8k16_ld_c(destptr, src.get(), stride, get_layout_id<Layout>());
+      __imma_m32n8k16_ld_c(dstPtr, srcPtr, stride, get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, float>) {
-    auto dstptr = reinterpret_cast<float *>(&res.wi_marray);
+    auto dstPtr = reinterpret_cast<float *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
-      __hmma_m16n16k16_ld_c_f32(dstptr, src.get(), stride,
+      __hmma_m16n16k16_ld_c_f32(dstPtr, srcPtr, stride,
                                 get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 32) {
-      __hmma_m8n32k16_ld_c_f32(dstptr, src.get(), stride,
+      __hmma_m8n32k16_ld_c_f32(dstPtr, srcPtr, stride,
                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 8) {
-      __hmma_m32n8k16_ld_c_f32(dstptr, src.get(), stride,
+      __hmma_m32n8k16_ld_c_f32(dstPtr, srcPtr, stride,
                                get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, half>) {
-    auto tileptr = reinterpret_cast<const int32_t *>(src.get());
-    auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+    auto tilePtr = reinterpret_cast<const int32_t *>(srcPtr);
+    auto dstPtr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 32 && NumCols == 8) {
-      __hmma_m32n8k16_ld_c_f16(dstptr, tileptr, stride,
+      __hmma_m32n8k16_ld_c_f16(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 32) {
-      __hmma_m8n32k16_ld_c_f16(dstptr, tileptr, stride,
+      __hmma_m8n32k16_ld_c_f16(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 16) {
-      __hmma_m16n16k16_ld_c_f16(dstptr, tileptr, stride,
+      __hmma_m16n16k16_ld_c_f16(dstPtr, tilePtr, stride,
                                 get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, double>) {
-    __dmma_m8n8k4_ld_c(reinterpret_cast<double *>(&res.wi_marray), src.get(),
+    __dmma_m8n8k4_ld_c(reinterpret_cast<double *>(&res.wi_marray), srcPtr,
                        stride, get_layout_id<Layout>());
   }
 };
@@ -227,119 +229,121 @@ template <
 void load_multiplicand_cuda(
     joint_matrix_cuda<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride) {
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *srcPtr = sycl::detail::getDecorated<DecorT>(src);
   if constexpr (std::is_same_v<S, sycl::ext::oneapi::bfloat16>) {
-    auto tileptr = reinterpret_cast<const int32_t *>(src.get());
-    auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+    auto tilePtr = reinterpret_cast<const int32_t *>(srcPtr);
+    auto dstPtr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       if constexpr (Use == sycl::ext::oneapi::experimental::matrix::use::a) {
-        __mma_bf16_m16n16k16_ld_a(destptr, tileptr, stride,
+        __mma_bf16_m16n16k16_ld_a(dstPtr, tilePtr, stride,
                                   get_layout_id<Layout>());
       } else if constexpr (Use ==
                            sycl::ext::oneapi::experimental::matrix::use::b) {
-        __mma_bf16_m16n16k16_ld_b(destptr, tileptr, stride,
+        __mma_bf16_m16n16k16_ld_b(dstPtr, tilePtr, stride,
                                   get_layout_id<Layout>());
       }
     } else if constexpr (NumRows == 8 && NumCols == 16) {
-      __mma_bf16_m8n32k16_ld_a(destptr, tileptr, stride,
+      __mma_bf16_m8n32k16_ld_a(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 32) {
-      __mma_bf16_m8n32k16_ld_b(destptr, tileptr, stride,
+      __mma_bf16_m8n32k16_ld_b(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 16) {
-      __mma_bf16_m32n8k16_ld_a(destptr, tileptr, stride,
+      __mma_bf16_m32n8k16_ld_a(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 8) {
-      __mma_bf16_m32n8k16_ld_b(destptr, tileptr, stride,
+      __mma_bf16_m32n8k16_ld_b(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, uint8_t>) {
-    auto tileptr = reinterpret_cast<const int32_t *>(src.get());
-    auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+    auto tilePtr = reinterpret_cast<const int32_t *>(srcPtr);
+    auto dstPtr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       if constexpr (Use == sycl::ext::oneapi::experimental::matrix::use::a) {
-        __imma_m16n16k16_ld_a_u8(destptr, tileptr, stride,
+        __imma_m16n16k16_ld_a_u8(dstPtr, tilePtr, stride,
                                  get_layout_id<Layout>());
       } else if constexpr (Use ==
                            sycl::ext::oneapi::experimental::matrix::use::b) {
-        __imma_m16n16k16_ld_b_u8(destptr, tileptr, stride,
+        __imma_m16n16k16_ld_b_u8(dstPtr, tilePtr, stride,
                                  get_layout_id<Layout>());
       }
     } else if constexpr (NumRows == 8 && NumCols == 16) {
-      __imma_m8n32k16_ld_a_u8(destptr, tileptr, stride,
+      __imma_m8n32k16_ld_a_u8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 32) {
-      __imma_m8n32k16_ld_b_u8(destptr, tileptr, stride,
+      __imma_m8n32k16_ld_b_u8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 16) {
-      __imma_m32n8k16_ld_a_u8(destptr, tileptr, stride,
+      __imma_m32n8k16_ld_a_u8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 8) {
-      __imma_m32n8k16_ld_b_u8(destptr, tileptr, stride,
+      __imma_m32n8k16_ld_b_u8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, int8_t>) {
-    auto tileptr = reinterpret_cast<const int32_t *>(src.get());
-    auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+    auto tilePtr = reinterpret_cast<const int32_t *>(srcPtr);
+    auto dstPtr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       if constexpr (Use == sycl::ext::oneapi::experimental::matrix::use::a) {
-        __imma_m16n16k16_ld_a_s8(destptr, tileptr, stride,
+        __imma_m16n16k16_ld_a_s8(dstPtr, tilePtr, stride,
                                  get_layout_id<Layout>());
       } else if constexpr (Use ==
                            sycl::ext::oneapi::experimental::matrix::use::b) {
-        __imma_m16n16k16_ld_b_s8(destptr, tileptr, stride,
+        __imma_m16n16k16_ld_b_s8(dstPtr, tilePtr, stride,
                                  get_layout_id<Layout>());
       }
     } else if constexpr (NumRows == 8 && NumCols == 16) {
-      __imma_m8n32k16_ld_a_s8(destptr, tileptr, stride,
+      __imma_m8n32k16_ld_a_s8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 32) {
-      __imma_m8n32k16_ld_b_s8(destptr, tileptr, stride,
+      __imma_m8n32k16_ld_b_s8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 16) {
-      __imma_m32n8k16_ld_a_s8(destptr, tileptr, stride,
+      __imma_m32n8k16_ld_a_s8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 8) {
-      __imma_m32n8k16_ld_b_s8(destptr, tileptr, stride,
+      __imma_m32n8k16_ld_b_s8(dstPtr, tilePtr, stride,
                               get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, half>) {
-    auto tileptr = reinterpret_cast<const int32_t *>(src.get());
-    auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+    auto tilePtr = reinterpret_cast<const int32_t *>(srcPtr);
+    auto dstPtr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       if constexpr (Use == sycl::ext::oneapi::experimental::matrix::use::a) {
-        __hmma_m16n16k16_ld_a(dstptr, tileptr, stride, get_layout_id<Layout>());
+        __hmma_m16n16k16_ld_a(dstPtr, tilePtr, stride, get_layout_id<Layout>());
       } else if constexpr (Use ==
                            sycl::ext::oneapi::experimental::matrix::use::b) {
-        __hmma_m16n16k16_ld_b(dstptr, tileptr, stride, get_layout_id<Layout>());
+        __hmma_m16n16k16_ld_b(dstPtr, tilePtr, stride, get_layout_id<Layout>());
       }
     } else if constexpr (NumRows == 8 && NumCols == 16) {
-      __hmma_m8n32k16_ld_a(dstptr, tileptr, stride, get_layout_id<Layout>());
+      __hmma_m8n32k16_ld_a(dstPtr, tilePtr, stride, get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 32) {
-      __hmma_m8n32k16_ld_b(dstptr, tileptr, stride, get_layout_id<Layout>());
+      __hmma_m8n32k16_ld_b(dstPtr, tilePtr, stride, get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 16) {
-      __hmma_m32n8k16_ld_a(dstptr, tileptr, stride, get_layout_id<Layout>());
+      __hmma_m32n8k16_ld_a(dstPtr, tilePtr, stride, get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 8) {
-      __hmma_m32n8k16_ld_b(dstptr, tileptr, stride, get_layout_id<Layout>());
+      __hmma_m32n8k16_ld_b(dstPtr, tilePtr, stride, get_layout_id<Layout>());
     }
 
   } else if constexpr (std::is_same_v<S, sycl::ext::oneapi::experimental::
                                              matrix::precision::tf32>) {
-    auto tileptr = reinterpret_cast<const int32_t *>(src.get());
-    auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+    auto tilePtr = reinterpret_cast<const int32_t *>(srcPtr);
+    auto dstPtr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 8) {
-      __mma_tf32_m16n16k8_ld_a(dstptr, tileptr, stride,
+      __mma_tf32_m16n16k8_ld_a(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 16) {
-      __mma_tf32_m16n16k8_ld_b(dstptr, tileptr, stride,
+      __mma_tf32_m16n16k8_ld_b(dstPtr, tilePtr, stride,
                                get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, double>) {
-    auto dstptr = reinterpret_cast<double *>(&res.wi_marray);
+    auto dstPtr = reinterpret_cast<double *>(&res.wi_marray);
     if constexpr (Use == sycl::ext::oneapi::experimental::matrix::use::a) {
-      __dmma_m8n8k4_ld_a(dstptr, src.get(), stride, get_layout_id<Layout>());
+      __dmma_m8n8k4_ld_a(dstPtr, srcPtr, stride, get_layout_id<Layout>());
     } else if constexpr (Use ==
                          sycl::ext::oneapi::experimental::matrix::use::b) {
-      __dmma_m8n8k4_ld_b(dstptr, src.get(), stride, get_layout_id<Layout>());
+      __dmma_m8n8k4_ld_b(dstPtr, srcPtr, stride, get_layout_id<Layout>());
     }
   }
 }
@@ -352,50 +356,52 @@ void store_layoutT(
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *dstPtr = sycl::detail::getDecorated<DecorT>(dst);
   if constexpr (NumRows == 16 && NumCols == 16) {
     if constexpr (std::is_same_v<T, float>) {
-      __hmma_m16n16k16_st_c_f32(dst.get(),
+      __hmma_m16n16k16_st_c_f32(dstPtr,
                                 reinterpret_cast<float *>(&src.wi_marray),
                                 stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
-      __imma_m16n16k16_st_c_i32(dst.get(),
+      __imma_m16n16k16_st_c_i32(dstPtr,
                                 reinterpret_cast<int32_t *>(&src.wi_marray),
                                 stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
-      __hmma_m16n16k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
+      __hmma_m16n16k16_st_c_f16(reinterpret_cast<int32_t *>(dstPtr),
                                 reinterpret_cast<int32_t *>(&src.wi_marray),
                                 stride, get_layout_id<Layout>());
     }
   } else if constexpr (NumRows == 8 && NumCols == 32) {
     if constexpr (std::is_same_v<T, float>) {
-      __hmma_m8n32k16_st_c_f32(dst.get(),
+      __hmma_m8n32k16_st_c_f32(dstPtr,
                                reinterpret_cast<float *>(&src.wi_marray),
                                stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
-      __imma_m8n32k16_st_c_i32(dst.get(),
+      __imma_m8n32k16_st_c_i32(dstPtr,
                                reinterpret_cast<int32_t *>(&src.wi_marray),
                                stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
-      __hmma_m8n32k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
+      __hmma_m8n32k16_st_c_f16(reinterpret_cast<int32_t *>(dstPtr),
                                reinterpret_cast<int32_t *>(&src.wi_marray),
                                stride, get_layout_id<Layout>());
     }
   } else if constexpr (NumRows == 32 && NumCols == 8) {
     if constexpr (std::is_same_v<T, float>) {
-      __hmma_m32n8k16_st_c_f32(dst.get(),
+      __hmma_m32n8k16_st_c_f32(dstPtr,
                                reinterpret_cast<float *>(&src.wi_marray),
                                stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
-      __imma_m32n8k16_st_c_i32(dst.get(),
+      __imma_m32n8k16_st_c_i32(dstPtr,
                                reinterpret_cast<int32_t *>(&src.wi_marray),
                                stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
-      __hmma_m32n8k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
+      __hmma_m32n8k16_st_c_f16(reinterpret_cast<int32_t *>(dstPtr),
                                reinterpret_cast<int32_t *>(&src.wi_marray),
                                stride, get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<T, double>) {
-    __dmma_m8n8k4_st_c_f64(dst.get(),
+    __dmma_m8n8k4_st_c_f64(dstPtr,
                            reinterpret_cast<double *>(&src.wi_marray), stride,
                            get_layout_id<Layout>());
   }
