@@ -1393,9 +1393,7 @@ inline pi_result piextContextCreateWithNativeHandle(
     pi_native_handle NativeHandle, pi_uint32 NumDevices,
     const pi_device *Devices, bool OwnNativeHandle, pi_context *RetContext) {
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(Devices, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(RetContext, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(NumDevices, PI_ERROR_INVALID_VALUE);
 
   ur_native_handle_t NativeContext =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
@@ -1404,8 +1402,10 @@ inline pi_result piextContextCreateWithNativeHandle(
   ur_context_handle_t *UrContext =
       reinterpret_cast<ur_context_handle_t *>(RetContext);
 
-  ur_context_native_properties_t Properties{};
-  Properties.isNativeHandleOwned = OwnNativeHandle;
+  ur_context_native_properties_t Properties{
+      UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr,
+      OwnNativeHandle};
+
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
       NativeContext, NumDevices, UrDevices, &Properties, UrContext));
 
