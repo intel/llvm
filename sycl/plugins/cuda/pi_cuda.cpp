@@ -5908,16 +5908,16 @@ pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
   int value;
-  CUdevice_P2PAttribute CUattr;
+  CUdevice_P2PAttribute cu_attr;
   try {
     ScopedContext active(command_device->get_context());
     switch (attr) {
     case PI_PEER_ACCESS_SUPPORTED: {
-      CUattr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
+      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
       break;
     }
     case PI_PEER_ATOMICS_SUPPORTED: {
-      CUattr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
+      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
       break;
     }
     default: {
@@ -5926,7 +5926,7 @@ pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
     }
 
     CUresult cu_res = cuDeviceGetP2PAttribute(
-        &value, CUattr, command_device->get(), peer_device->get());
+        &value, cu_attr, command_device->get(), peer_device->get());
     if (cu_res != CUDA_SUCCESS) {
       const char *error_string;
       const char *error_name;

@@ -5634,6 +5634,7 @@ pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
   std::ignore = attr;
+  // Zero return value indicates that all of the queries currently return false.
   return getInfo(param_value_size, param_value, param_value_size_ret, 0);
 }
 

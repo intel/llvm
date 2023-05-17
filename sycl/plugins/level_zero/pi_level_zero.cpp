@@ -8879,6 +8879,7 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
   std::ignore = attr;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  // Zero return value indicates that all of the queries currently return false.
   return ReturnValue(0);
 }
 
