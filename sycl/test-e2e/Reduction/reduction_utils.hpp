@@ -29,7 +29,7 @@ void initInputData(buffer<T, 1> &InBuf, std::optional<T> &ExpectedOut,
                    IdFilterFuncT IdFilterFunc = {}) {
   size_t N = Range.size();
   assert(N != 0);
-  auto In = InBuf.template get_access<access::mode::write>();
+  host_accessor In(InBuf, write_only);
   for (int I = 0; I < N; ++I) {
     if (std::is_same_v<BinaryOperation, std::multiplies<T>> ||
         std::is_same_v<BinaryOperation, std::multiplies<>>)
@@ -58,7 +58,7 @@ void initInputData(buffer<T, 2> &InBuf, std::optional<T> &ExpectedOut,
                    BinaryOperation BOp, range<2> Range,
                    IdFilterFuncT IdFilterFunc = {}) {
   assert(Range.size() != 0);
-  auto In = InBuf.template get_access<access::mode::write>();
+  host_accessor In(InBuf, write_only);
   for (int J = 0; J < Range[0]; ++J) {
     for (int I = 0; I < Range[1]; ++I) {
       if (std::is_same_v<BinaryOperation, std::multiplies<T>> ||
@@ -89,7 +89,7 @@ void initInputData(buffer<T, 3> &InBuf, std::optional<T> &ExpectedOut,
                    BinaryOperation BOp, range<3> Range,
                    IdFilterFuncT IdFilterFunc = {}) {
   assert(Range.size() != 0);
-  auto In = InBuf.template get_access<access::mode::write>();
+  host_accessor In(InBuf, write_only);
   for (int K = 0; K < Range[0]; ++K) {
     for (int J = 0; J < Range[1]; ++J) {
       for (int I = 0; I < Range[2]; ++I) {
@@ -363,7 +363,7 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
 
   // The value assigned here must be discarded (if IsReadWrite is true).
   // Verify that it is really discarded and assign some value.
-  (OutBuf.template get_access<access::mode::write>())[0] = Init;
+  host_accessor(OutBuf, write_only)[0] = Init;
 
   // Compute.
   Q.submit([&](handler &CGH) {
@@ -392,7 +392,7 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
   });
 
   // Check correctness.
-  auto Out = OutBuf.template get_access<access::mode::read>();
+  host_accessor Out(OutBuf, read_only);
   T ComputedOut = *(Out.get_pointer());
   return checkResults(Q, BOp, Range, ComputedOut, *CorrectOut);
 }
@@ -506,7 +506,7 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
        CGH.single_task<TName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();
-    ComputedOut = (Buf.template get_access<access::mode::read>())[0];
+    ComputedOut = host_accessor(Buf, read_only)[0];
   } else {
     ComputedOut = *ReduVarPtr;
   }

@@ -131,9 +131,9 @@ class SANITIZER_MUTEX HwasanThreadList {
 
   void ReleaseThread(Thread *t) SANITIZER_EXCLUDES(free_list_mutex_) {
     RemoveThreadStats(t);
+    RemoveThreadFromLiveList(t);
     t->Destroy();
     DontNeedThread(t);
-    RemoveThreadFromLiveList(t);
     SpinMutexLock l(&free_list_mutex_);
     free_list_.push_back(t);
   }
@@ -157,7 +157,7 @@ class SANITIZER_MUTEX HwasanThreadList {
   }
 
   template <class CB>
-  Thread *FindThreadLocked(CB cb) SANITIZER_CHECK_LOCKED(stats_mutex_) {
+  Thread *FindThreadLocked(CB cb) SANITIZER_CHECK_LOCKED(live_list_mutex_) {
     CheckLocked();
     for (Thread *t : live_list_)
       if (cb(t))
@@ -199,7 +199,7 @@ class SANITIZER_MUTEX HwasanThreadList {
     CHECK(IsAligned(free_space_, align));
     Thread *t = (Thread *)(free_space_ + ring_buffer_size_);
     free_space_ += thread_alloc_size_;
-    CHECK(free_space_ <= free_space_end_ && "out of thread memory");
+    CHECK_LE(free_space_, free_space_end_);
     return t;
   }
 
