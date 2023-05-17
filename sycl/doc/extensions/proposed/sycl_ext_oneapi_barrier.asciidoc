@@ -368,6 +368,13 @@ These functions use an unspecified `group_arrival_token` in place of
 tracking information specific to `group_arrive` and `group_wait`.
 ====
 
+[NOTE]
+====
+The type trait `is_barrier` is shown in the synopsis above only to help define
+the constraints for these functions. This extension does not add a type trait
+named `is_barrier`.
+====
+
 [source,c++]
 ----
 template <typename Group, typename Barrier>
