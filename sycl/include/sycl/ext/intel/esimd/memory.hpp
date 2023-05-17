@@ -546,7 +546,6 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, Tgloboffset glob_offset = 0,
 #else
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-  static_assert(sizeof(Tgloboffset) <= 4, "Unsupported global offset type");
 #endif
   return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, mask);
 #endif
@@ -587,7 +586,6 @@ scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
 #else
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-  static_assert(sizeof(Tgloboffset) <= 4, "Unsupported global offset type");
 #endif
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 #endif
