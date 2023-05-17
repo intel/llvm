@@ -75,6 +75,21 @@ static void setErrorMessage(const char *message, pi_result error_code) {
   ErrorMessageCode = error_code;
 }
 
+void setPluginSpecificMessage(CUresult cu_res) {
+    const char *error_string;
+    const char *error_name;
+    cuGetErrorName(cu_res, &error_name);
+    cuGetErrorString(cu_res, &error_string);
+    char *message =
+        (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
+    strcpy(message, error_name);
+    strcat(message, "\n");
+    strcat(message, error_string);
+
+    setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+    free(message);
+}
+
 // Returns plugin specific error and warning messages
 pi_result cuda_piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
@@ -5850,22 +5865,9 @@ pi_result cuda_piextEnablePeerAccess(pi_device command_device,
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(command_device->get_context());
-
     CUresult cu_res = cuCtxEnablePeerAccess(peer_device->get_context(), 0);
     if (cu_res != CUDA_SUCCESS) {
-      const char *error_string = nullptr;
-      const char *error_name = nullptr;
-      cuGetErrorName(cu_res, &error_name);
-      cuGetErrorString(cu_res, &error_string);
-      char *message =
-          (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
-      strcpy(message, error_name);
-      strcat(message, "\n");
-      strcat(message, error_string);
-
-      setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
-      free(message);
-
+      setPluginSpecificMessage(cu_res);
       result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
   } catch (pi_result err) {
@@ -5879,21 +5881,9 @@ pi_result cuda_piextDisablePeerAccess(pi_device command_device,
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(command_device->get_context());
-
     CUresult cu_res = cuCtxDisablePeerAccess(peer_device->get_context());
     if (cu_res != CUDA_SUCCESS) {
-      const char *error_string;
-      const char *error_name;
-      cuGetErrorName(cu_res, &error_name);
-      cuGetErrorString(cu_res, &error_string);
-      char *message =
-          (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
-      strcpy(message, error_name);
-      strcat(message, "\n");
-      strcat(message, error_string);
-
-      setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
-      free(message);
+      setPluginSpecificMessage(cu_res);
       result = PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
   } catch (pi_result err) {
@@ -5928,18 +5918,7 @@ pi_result cuda_piextPeerAccessGetInfo(pi_device command_device,
     CUresult cu_res = cuDeviceGetP2PAttribute(
         &value, cu_attr, command_device->get(), peer_device->get());
     if (cu_res != CUDA_SUCCESS) {
-      const char *error_string;
-      const char *error_name;
-      cuGetErrorName(cu_res, &error_name);
-      cuGetErrorString(cu_res, &error_string);
-      char *message =
-          (char *)malloc(2 + strlen(error_string) + strlen(error_name));
-      strcpy(message, error_name);
-      strcat(message, "\n");
-      strcat(message, error_string);
-
-      setErrorMessage(message, PI_ERROR_PLUGIN_SPECIFIC_ERROR);
-      free(message);
+      setPluginSpecificMessage(cu_res);
       return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
   } catch (pi_result err) {
