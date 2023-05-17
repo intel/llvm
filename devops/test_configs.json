@@ -2,7 +2,7 @@
   "lts": [
     {
       "config": "lin_gen9",
-      "name": "SYCL End-to-End tests on Intel GEN9 GPU on Linux",
+      "name": "SYCL E2E on Intel GEN9 GPU",
       "runs-on": [
         "Linux",
         "gen9"
