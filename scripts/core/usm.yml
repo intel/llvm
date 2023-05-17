@@ -393,23 +393,74 @@ params:
       name: ppPool
       desc: "[out] pointer to USM memory pool"
 returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy USM memory pool"
+desc: "Get a reference to the pool handle. Increment its reference count"
 class: $xUSM
-name: PoolDestroy
+name: PoolRetain
 ordinal: "0"
-details:
-    - "All allocation belonging to the pool should be freed before calling this function."
-    - "This functions returns all memory reserved by the pool to the driver."
 params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
     - type: $x_usm_pool_handle_t
       name: pPool
       desc: "[in] pointer to USM memory pool"
 returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the pool's reference count and delete the pool if the reference count becomes zero."
+class: $xUSM
+name: PoolRelease
+ordinal: "0"
+details:
+    - "All allocation belonging to the pool must be freed prior to the the
+      reference count becoming zero."
+    - "If the pool is deleted, this function returns all its reserved memory to the driver."
+params:
+    - type: $x_usm_pool_handle_t
+      name: pPool
+      desc: "[in] pointer to USM memory pool"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get USM memory pool information"
+class: $xUSM
+name: $x_usm_pool_info_t
+typed_etors: True
+etors:
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the pool object.
+            The reference count returned should be considered immediately stale. 
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] USM memory pool context info"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a USM memory pool"
+class: $xUSM
+name: PoolGetInfo
+ordinal: "0"
+params:
+    - type: $x_usm_pool_handle_t
+      name: hPool
+      desc: "[in] handle of the USM memory pool"
+    - type: "$x_usm_pool_info_t"
+      name: propName
+      desc: "[in] name of the pool property to query"
+    - type: "size_t"
+      name: propSize
+      desc: "[in] size in bytes of the pool property value provided"
+    - type: "void*"
+      name: pPropValue
+      desc: "[out][typename(propName, propSize)] value of the pool property"
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: "[out] size in bytes returned in pool property value"
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_ENUMERATION
     - $X_RESULT_ERROR_INVALID_VALUE

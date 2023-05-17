@@ -1308,10 +1308,23 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolCreate_t)(
     ur_usm_pool_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urUSMPoolDestroy
-typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolDestroy_t)(
-    ur_context_handle_t,
+/// @brief Function-pointer for urUSMPoolRetain
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolRetain_t)(
     ur_usm_pool_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolRelease
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolRelease_t)(
+    ur_usm_pool_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolGetInfo
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetInfo_t)(
+    ur_usm_pool_handle_t,
+    ur_usm_pool_info_t,
+    size_t,
+    void *,
+    size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USM functions pointers
@@ -1322,7 +1335,9 @@ typedef struct ur_usm_dditable_t {
     ur_pfnUSMFree_t pfnFree;
     ur_pfnUSMGetMemAllocInfo_t pfnGetMemAllocInfo;
     ur_pfnUSMPoolCreate_t pfnPoolCreate;
-    ur_pfnUSMPoolDestroy_t pfnPoolDestroy;
+    ur_pfnUSMPoolRetain_t pfnPoolRetain;
+    ur_pfnUSMPoolRelease_t pfnPoolRelease;
+    ur_pfnUSMPoolGetInfo_t pfnPoolGetInfo;
 } ur_usm_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1421,24 +1421,77 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolDestroy
-__urdlllocal ur_result_t UR_APICALL urUSMPoolDestroy(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
+/// @brief Intercept function for urUSMPoolRetain
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
 ) {
-    auto pfnPoolDestroy = context.urDdiTable.USM.pfnPoolDestroy;
+    auto pfnPoolRetain = context.urDdiTable.USM.pfnPoolRetain;
 
-    if (nullptr == pfnPoolDestroy) {
+    if (nullptr == pfnPoolRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_usm_pool_destroy_params_t params = {&hContext, &pPool};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_DESTROY,
-                                             "urUSMPoolDestroy", &params);
+    ur_usm_pool_retain_params_t params = {&pPool};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_RETAIN,
+                                             "urUSMPoolRetain", &params);
 
-    ur_result_t result = pfnPoolDestroy(hContext, pPool);
+    ur_result_t result = pfnPoolRetain(pPool);
 
-    context.notify_end(UR_FUNCTION_USM_POOL_DESTROY, "urUSMPoolDestroy",
+    context.notify_end(UR_FUNCTION_USM_POOL_RETAIN, "urUSMPoolRetain", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolRelease
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+) {
+    auto pfnPoolRelease = context.urDdiTable.USM.pfnPoolRelease;
+
+    if (nullptr == pfnPoolRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_usm_pool_release_params_t params = {&pPool};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_RELEASE,
+                                             "urUSMPoolRelease", &params);
+
+    ur_result_t result = pfnPoolRelease(pPool);
+
+    context.notify_end(UR_FUNCTION_USM_POOL_RELEASE, "urUSMPoolRelease",
+                       &params, &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetInfo
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
+    ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
+    size_t propSize, ///< [in] size in bytes of the pool property value provided
+    void *
+        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
+    size_t
+        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+) {
+    auto pfnPoolGetInfo = context.urDdiTable.USM.pfnPoolGetInfo;
+
+    if (nullptr == pfnPoolGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_usm_pool_get_info_params_t params = {&hPool, &propName, &propSize,
+                                            &pPropValue, &pPropSizeRet};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_POOL_GET_INFO,
+                                             "urUSMPoolGetInfo", &params);
+
+    ur_result_t result =
+        pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
+
+    context.notify_end(UR_FUNCTION_USM_POOL_GET_INFO, "urUSMPoolGetInfo",
                        &params, &result, instance);
 
     return result;
@@ -4569,8 +4622,14 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     dditable.pfnPoolCreate = pDdiTable->pfnPoolCreate;
     pDdiTable->pfnPoolCreate = ur_tracing_layer::urUSMPoolCreate;
 
-    dditable.pfnPoolDestroy = pDdiTable->pfnPoolDestroy;
-    pDdiTable->pfnPoolDestroy = ur_tracing_layer::urUSMPoolDestroy;
+    dditable.pfnPoolRetain = pDdiTable->pfnPoolRetain;
+    pDdiTable->pfnPoolRetain = ur_tracing_layer::urUSMPoolRetain;
+
+    dditable.pfnPoolRelease = pDdiTable->pfnPoolRelease;
+    pDdiTable->pfnPoolRelease = ur_tracing_layer::urUSMPoolRelease;
+
+    dditable.pfnPoolGetInfo = pDdiTable->pfnPoolGetInfo;
+    pDdiTable->pfnPoolGetInfo = ur_tracing_layer::urUSMPoolGetInfo;
 
     return result;
 }

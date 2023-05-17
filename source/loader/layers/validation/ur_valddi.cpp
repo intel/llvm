@@ -1680,32 +1680,102 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 
     ur_result_t result = pfnPoolCreate(hContext, pPoolDesc, ppPool);
 
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*ppPool);
+    }
+
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolDestroy
-__urdlllocal ur_result_t UR_APICALL urUSMPoolDestroy(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
+/// @brief Intercept function for urUSMPoolRetain
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
 ) {
-    auto pfnPoolDestroy = context.urDdiTable.USM.pfnPoolDestroy;
+    auto pfnPoolRetain = context.urDdiTable.USM.pfnPoolRetain;
 
-    if (nullptr == pfnPoolDestroy) {
+    if (nullptr == pfnPoolRetain) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == pPool) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
 
-    ur_result_t result = pfnPoolDestroy(hContext, pPool);
+    ur_result_t result = pfnPoolRetain(pPool);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(pPool);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolRelease
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+) {
+    auto pfnPoolRelease = context.urDdiTable.USM.pfnPoolRelease;
+
+    if (nullptr == pfnPoolRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == pPool) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnPoolRelease(pPool);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(pPool);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetInfo
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
+    ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
+    size_t propSize, ///< [in] size in bytes of the pool property value provided
+    void *
+        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
+    size_t
+        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+) {
+    auto pfnPoolGetInfo = context.urDdiTable.USM.pfnPoolGetInfo;
+
+    if (nullptr == pfnPoolGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hPool) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pPropValue) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pPropSizeRet) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_USM_POOL_INFO_CONTEXT < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    ur_result_t result =
+        pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -5511,8 +5581,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
     dditable.pfnPoolCreate = pDdiTable->pfnPoolCreate;
     pDdiTable->pfnPoolCreate = ur_validation_layer::urUSMPoolCreate;
 
-    dditable.pfnPoolDestroy = pDdiTable->pfnPoolDestroy;
-    pDdiTable->pfnPoolDestroy = ur_validation_layer::urUSMPoolDestroy;
+    dditable.pfnPoolRetain = pDdiTable->pfnPoolRetain;
+    pDdiTable->pfnPoolRetain = ur_validation_layer::urUSMPoolRetain;
+
+    dditable.pfnPoolRelease = pDdiTable->pfnPoolRelease;
+    pDdiTable->pfnPoolRelease = ur_validation_layer::urUSMPoolRelease;
+
+    dditable.pfnPoolGetInfo = pDdiTable->pfnPoolGetInfo;
+    pDdiTable->pfnPoolGetInfo = ur_validation_layer::urUSMPoolGetInfo;
 
     return result;
 }

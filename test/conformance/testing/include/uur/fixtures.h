@@ -4,6 +4,7 @@
 #ifndef UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
 
+#include "ur_api.h"
 #include <uur/checks.h>
 #include <uur/environment.h>
 #include <uur/utils.h>
@@ -449,6 +450,45 @@ struct urUSMDeviceAllocTest : urQueueTest {
 
     size_t allocation_size = sizeof(int);
     void *ptr = nullptr;
+};
+
+struct urUSMPoolTest : urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
+                                     UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
+        ur_usm_pool_handle_t pool = nullptr;
+        ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
+    }
+
+    void TearDown() override {
+        if (pool) {
+            EXPECT_SUCCESS(urUSMPoolRelease(pool));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    ur_usm_pool_handle_t pool;
+};
+
+template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
+                                     UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
+        ur_usm_pool_handle_t pool = nullptr;
+        ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
+    }
+
+    void TearDown() override {
+        if (pool) {
+            EXPECT_SUCCESS(urUSMPoolRelease(pool));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+    }
+
+    ur_usm_pool_handle_t pool;
 };
 
 template <class T>

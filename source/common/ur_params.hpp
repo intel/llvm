@@ -72,6 +72,10 @@ serializeTaggedTyped_ur_usm_alloc_info_t(std::ostream &os, const void *ptr,
                                          size_t size);
 inline void serializeFlag_ur_usm_advice_flags_t(std::ostream &os,
                                                 ur_usm_advice_flags_t flag);
+inline void
+serializeTaggedTyped_ur_usm_pool_info_t(std::ostream &os, const void *ptr,
+                                        enum ur_usm_pool_info_t value,
+                                        size_t size);
 inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
                                                    const void *ptr,
                                                    enum ur_program_info_t value,
@@ -224,6 +228,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_usm_pool_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_usm_pool_limits_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_pool_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_metadata_type_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -5744,6 +5750,68 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_usm_pool_info_t value) {
+    switch (value) {
+
+    case UR_USM_POOL_INFO_REFERENCE_COUNT:
+        os << "UR_USM_POOL_INFO_REFERENCE_COUNT";
+        break;
+
+    case UR_USM_POOL_INFO_CONTEXT:
+        os << "UR_USM_POOL_INFO_CONTEXT";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur_params {
+inline void
+serializeTaggedTyped_ur_usm_pool_info_t(std::ostream &os, const void *ptr,
+                                        enum ur_usm_pool_info_t value,
+                                        size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_USM_POOL_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_USM_POOL_INFO_CONTEXT: {
+        const ur_context_handle_t *tptr = (const ur_context_handle_t *)ptr;
+        if (sizeof(ur_context_handle_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        ur_params::serializePtr(os, *tptr);
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+}
+} // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_metadata_type_t value) {
     switch (value) {
 
@@ -7874,10 +7942,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_USM_POOL_CREATE";
         break;
 
-    case UR_FUNCTION_USM_POOL_DESTROY:
-        os << "UR_FUNCTION_USM_POOL_DESTROY";
-        break;
-
     case UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION:
         os << "UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION";
         break;
@@ -7892,6 +7956,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE:
         os << "UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE";
+        break;
+
+    case UR_FUNCTION_USM_POOL_RETAIN:
+        os << "UR_FUNCTION_USM_POOL_RETAIN";
+        break;
+
+    case UR_FUNCTION_USM_POOL_RELEASE:
+        os << "UR_FUNCTION_USM_POOL_RELEASE";
+        break;
+
+    case UR_FUNCTION_USM_POOL_GET_INFO:
+        os << "UR_FUNCTION_USM_POOL_GET_INFO";
         break;
     default:
         os << "unknown enumerator";
@@ -11346,17 +11422,53 @@ operator<<(std::ostream &os, const struct ur_usm_pool_create_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_usm_pool_destroy_params_t *params) {
+operator<<(std::ostream &os, const struct ur_usm_pool_retain_params_t *params) {
 
-    os << ".hContext = ";
-
-    ur_params::serializePtr(os, *(params->phContext));
-
-    os << ", ";
     os << ".pPool = ";
 
     ur_params::serializePtr(os, *(params->ppPool));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_usm_pool_release_params_t *params) {
+
+    os << ".pPool = ";
+
+    ur_params::serializePtr(os, *(params->ppPool));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_usm_pool_get_info_params_t *params) {
+
+    os << ".hPool = ";
+
+    ur_params::serializePtr(os, *(params->phPool));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur_params::serializeTaggedTyped_ur_usm_pool_info_t(
+        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }
@@ -11939,8 +12051,14 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_USM_POOL_CREATE: {
         os << (const struct ur_usm_pool_create_params_t *)params;
     } break;
-    case UR_FUNCTION_USM_POOL_DESTROY: {
-        os << (const struct ur_usm_pool_destroy_params_t *)params;
+    case UR_FUNCTION_USM_POOL_RETAIN: {
+        os << (const struct ur_usm_pool_retain_params_t *)params;
+    } break;
+    case UR_FUNCTION_USM_POOL_RELEASE: {
+        os << (const struct ur_usm_pool_release_params_t *)params;
+    } break;
+    case UR_FUNCTION_USM_POOL_GET_INFO: {
+        os << (const struct ur_usm_pool_get_info_params_t *)params;
     } break;
     case UR_FUNCTION_DEVICE_GET: {
         os << (const struct ur_device_get_params_t *)params;

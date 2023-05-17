@@ -12,7 +12,7 @@ TEST_P(urUSMPoolCreateTest, Success) {
     ur_usm_pool_handle_t pool = nullptr;
     ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
     ASSERT_NE(pool, nullptr);
-    EXPECT_SUCCESS(urUSMPoolDestroy(context, pool));
+    EXPECT_SUCCESS(urUSMPoolRelease(pool));
 }
 
 TEST_P(urUSMPoolCreateTest, InvalidNullHandleContext) {
