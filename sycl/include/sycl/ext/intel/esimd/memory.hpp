@@ -546,9 +546,6 @@ gather(AccessorTy acc, simd<Toffset, N> offsets,
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
                       offsets, mask);
 #else
-#ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-#endif
   return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, mask);
 #endif
 }
@@ -588,9 +585,6 @@ scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
                 vals, mask);
 #else
-#ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-#endif
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 #endif
 }
