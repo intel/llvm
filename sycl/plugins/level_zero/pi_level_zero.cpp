@@ -1841,7 +1841,7 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
           Item.ZeCommandQueueDesc.flags == ZeCommandQueueDesc.flags &&
           Item.ZeCommandQueueDesc.mode == ZeCommandQueueDesc.mode &&
           Item.ZeCommandQueueDesc.priority == ZeCommandQueueDesc.priority &&
-          !Item.IsDummy) {
+          Item.CanReuse) {
         ZeCommandList = (*ZeCommandListIt).first;
         ZeCommandListCache.erase(ZeCommandListIt);
         break;
@@ -3111,7 +3111,7 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
   // descriptor information. Create a dummy with the CmdList set to nullptr to
   // indicate that this is a dummy descriptor.
   pi_command_list_desc_t Desc;
-  Desc.IsDummy = true;
+  Desc.CanReuse = false;
   ImmCmdLists = std::vector<pi_command_list_ptr_t>(
       1,
       Queue->CommandListMap

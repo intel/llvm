@@ -137,11 +137,11 @@ struct _pi_device : _ur_device_handle_t {
 // reused from the context's cache. Immediate command lists are recycled
 // across queues and then all fields are used. For standard command lists only
 // the ordinal is used. For queues created through the make_queue API the
-// descriptor is unavailable so a dummy descriptor is used, marked with the
-// IsDummy flag.
+// descriptor is unavailable so a dummy descriptor is used and then this cache
+// entry is marked as not eligible for recycling via the CanReuse flag.
 struct pi_command_list_desc_t {
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  bool IsDummy{false};
+  bool CanReuse{true};
 };
 
 // Structure describing the specific use of a command-list in a queue.
