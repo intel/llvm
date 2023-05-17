@@ -5,8 +5,8 @@
 // bug is fixed on Windows Gen9
 // UNSUPPORTED: gpu-intel-gen9 && windows
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck %s
+// RUN: %{build} -o %t.out
+// RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <numeric>
 #include <sycl/sycl.hpp>

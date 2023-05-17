@@ -1204,32 +1204,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
-          // Warn about deprecated `sycldevice` environment component.
-          llvm::Triple TT(MakeSYCLDeviceTriple(UserTargetName));
-          if (TT.getEnvironmentName() == "sycldevice") {
-            // Build a string with suggested target triple.
-            std::string SuggestedTriple = TT.getArchName().str();
-            if (TT.getOS() != llvm::Triple::UnknownOS) {
-              SuggestedTriple += '-';
-              if (TT.getVendor() != llvm::Triple::UnknownVendor)
-                SuggestedTriple += TT.getVendorName();
-              SuggestedTriple += Twine("-" + TT.getOSName()).str();
-            } else if (TT.getVendor() != llvm::Triple::UnknownVendor)
-              SuggestedTriple += Twine("-" + TT.getVendorName()).str();
-            Diag(clang::diag::warn_drv_deprecated_arg)
-                << TT.str() << SuggestedTriple;
-            // Drop environment component.
-            std::string EffectiveTriple =
-                Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
-                      TT.getOSName())
-                    .str();
-            TT.setTriple(EffectiveTriple);
-          }
-
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(TT);
+          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -1734,8 +1712,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   const Arg *Std = Args.getLastArg(options::OPT_std_EQ);
   ModulesModeCXX20 =
       !Args.hasArg(options::OPT_fmodules) && Std &&
-      (Std->containsValue("c++20") || Std->containsValue("c++2b") ||
-       Std->containsValue("c++2a") || Std->containsValue("c++latest"));
+      (Std->containsValue("c++20") || Std->containsValue("c++2a") ||
+       Std->containsValue("c++23") || Std->containsValue("c++2b") ||
+       Std->containsValue("c++latest"));
 
   // Process -fmodule-header{=} flags.
   if (Arg *A = Args.getLastArg(options::OPT_fmodule_header_EQ,
@@ -5516,6 +5495,8 @@ class OffloadingActionBuilder final {
         //   s - device code split requested
         //   r - relocatable device code is requested
         //   f - link object output type is TY_Tempfilelist (fat archive)
+        //   e - Embedded IR for fusion (-fsycl-embed-ir) was requested
+        //       and target is NVPTX.
         //   * - "all other cases"
         //     - no condition means output/input is "always" present
         // First symbol indicates output/input type
@@ -5535,58 +5516,58 @@ class OffloadingActionBuilder final {
         //                |             |
         //                |             |
         //         .---------------------------------------.
-        //         |               PostLink                |
-        //         .---------------------------------------.
-        //                           [+*]                [+]
-        //                             |                  |
-        //                             |                  |
-        //                             |---------         |
-        //                             |        |         |
-        //                             |        |         |
-        //                             |      [+!rf]      |
-        //                             |  .-------------. |
-        //                             |  | llvm-foreach| |
-        //                             |  .-------------. |
-        //                             |        |         |
-        //                            [+*]    [+!rf]      |
-        //                      .-----------------.       |
-        //                      | FileTableTform  |       |
-        //                      | (extract "Code")|       |
-        //                      .-----------------.       |
-        //                              [-]               |-----------
-        //           --------------------|                           |
-        //           |                   |                           |
-        //           |                   |-----------------          |
-        //           |                   |                |          |
-        //           |                   |               [-!rf]      |
-        //           |                   |         .--------------.  |
-        //           |                   |         |FileTableTform|  |
-        //           |                   |         |   (merge)    |  |
-        //           |                   |         .--------------.  |
-        //           |                   |               [-]         |-------
-        //           |                   |                |          |      |
-        //           |                   |                |    ------|      |
-        //           |                   |        --------|    |            |
-        //          [.]                 [-*]   [-!rf]        [+!rf]         |
-        //   .---------------.  .-------------------. .--------------.      |
-        //   | finalizeNVPTX  | |  SPIRVTranslator  | |FileTableTform|      |
-        //   | finalizeAMDGCN | |                   | |   (merge)    |      |
-        //   .---------------.  .-------------------. . -------------.      |
-        //          [.]             [-as]      [-!a]         |              |
-        //           |                |          |           |              |
-        //           |              [-s]         |           |              |
-        //           |       .----------------.  |           |              |
-        //           |       | BackendCompile |  |           |              |
-        //           |       .----------------.  |     ------|              |
-        //           |              [-s]         |     |                    |
-        //           |                |          |     |                    |
-        //           |              [-a]      [-!a]  [-!rf]                 |
-        //           |              .--------------------.                  |
-        //           -----------[-n]|   FileTableTform   |[+*]--------------|
-        //                          |  (replace "Code")  |
-        //                          .--------------------.
-        //                                      |
-        //                                    [+*]
+        //         |               PostLink                |[+e]----------------
+        //         .---------------------------------------.                   |
+        //                           [+*]                [+]                   |
+        //                             |                  |                    |
+        //                             |                  |                    |
+        //                             |---------         |                    |
+        //                             |        |         |                    |
+        //                             |        |         |                    |
+        //                             |      [+!rf]      |                    |
+        //                             |  .-------------. |                    |
+        //                             |  | llvm-foreach| |                    |
+        //                             |  .-------------. |                    |
+        //                             |        |         |                    |
+        //                            [+*]    [+!rf]      |                    |
+        //                      .-----------------.       |                    |
+        //                      | FileTableTform  |       |                    |
+        //                      | (extract "Code")|       |                    |
+        //                      .-----------------.       |                    |
+        //                              [-]               |-----------         |
+        //           --------------------|                           |         |
+        //           |                   |                           |         |
+        //           |                   |-----------------          |         |
+        //           |                   |                |          |         |
+        //           |                   |               [-!rf]      |         |
+        //           |                   |         .--------------.  |         |
+        //           |                   |         |FileTableTform|  |         |
+        //           |                   |         |   (merge)    |  |         |
+        //           |                   |         .--------------.  |         |
+        //           |                   |               [-]         |-------  |
+        //           |                   |                |          |      |  |
+        //           |                   |                |    ------|      |  |
+        //           |                   |        --------|    |            |  |
+        //          [.]                 [-*]   [-!rf]        [+!rf]         |  |
+        //   .---------------.  .-------------------. .--------------.      |  |
+        //   | finalizeNVPTX  | |  SPIRVTranslator  | |FileTableTform|      |  |
+        //   | finalizeAMDGCN | |                   | |   (merge)    |      |  |
+        //   .---------------.  .-------------------. . -------------.      |  |
+        //          [.]             [-as]      [-!a]         |              |  |
+        //           |                |          |           |              |  |
+        //           |              [-s]         |           |              |  |
+        //           |       .----------------.  |           |              |  |
+        //           |       | BackendCompile |  |           |              |  |
+        //           |       .----------------.  |     ------|              |  |
+        //           |              [-s]         |     |                    |  |
+        //           |                |          |     |                    |  |
+        //           |              [-a]      [-!a]  [-!rf]                 |  |
+        //           |              .--------------------.                  |  |
+        //           -----------[-n]|   FileTableTform   |[+*]--------------|  |
+        //                          |  (replace "Code")  |                     |
+        //                          .--------------------.                     |
+        //                                      |      -------------------------
+        //                                    [+*]     | [+e]
         //         .--------------------------------------.
         //         |            OffloadWrapper            |
         //         .--------------------------------------.
@@ -5693,6 +5674,16 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
+          if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
+            // When compiling for Nvidia/CUDA devices and the user requested the
+            // IR to be embedded in the application (via option), run the output
+            // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
+            // through the offload wrapper and link the resulting object to the
+            // application.
+            auto *WrapBitcodeAction = C.MakeAction<OffloadWrapperJobAction>(
+                PostLinkAction, types::TY_Object, true);
+            DA.add(*WrapBitcodeAction, *TC, BoundArch, Action::OFK_SYCL);
+          }
           bool NoRDCFatStaticArchive =
               !IsRDC &&
               FullDeviceLinkAction->getType() == types::TY_Tempfilelist;

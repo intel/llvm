@@ -1,7 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_srgb, aspect-ext_intel_legacy_image
-// RUN: %clangxx -fsycl  -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -64,7 +63,7 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
     Q.wait_and_throw();
 
     // REPORT RESULTS
-    auto test_acc = testResults.get_access<access::mode::read>();
+    host_accessor test_acc(testResults, read_only);
     for (int i = 0, idx = 0; i < numTests; i++, idx++) {
       if (i == 0) {
         idx = 0;

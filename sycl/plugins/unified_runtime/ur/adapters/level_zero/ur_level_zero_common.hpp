@@ -335,13 +335,17 @@ extern const bool UseUSMAllocator;
 
 // Controls support of the indirect access kernels and deferred memory release.
 const bool IndirectAccessTrackingEnabled = [] {
-  return std::getenv("SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY") !=
-         nullptr;
+  char *UrRet = std::getenv("UR_L0_TRACK_INDIRECT_ACCESS_MEMORY");
+  char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY");
+  const bool RetVal = UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0);
+  return RetVal;
 }();
 
 const bool ExposeCSliceInAffinityPartitioning = [] {
-  const char *Flag =
+  char *UrRet = std::getenv("UR_L0_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
+  char *PiRet =
       std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
+  const char *Flag = UrRet ? UrRet : (PiRet ? PiRet : 0);
   return Flag ? std::atoi(Flag) != 0 : false;
 }();
 

@@ -11,8 +11,8 @@
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // TODO: esimd_emulator doesn't support xchg operation
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
@@ -186,14 +186,14 @@ template <int N> inline bool any(simd_mask<N> m, simd_mask<N> ignore_mask) {
 }
 
 // ----------------- The main test function
-
+#ifndef USE_ACCESSORS
 template <class T, int N, template <class, int> class ImplF>
 bool test(queue q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
 
-  std::cout << "Testing mode=" << MODE << " op=" << to_string(op)
+  std::cout << "USM Testing mode=" << MODE << " op=" << to_string(op)
             << " full barrier=" << (USE_FULL_BARRIER ? "yes" : "no")
             << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
             << cfg << "...";
@@ -300,6 +300,125 @@ bool test(queue q, const Config &cfg) {
 #endif // USE_FULL_BARRIER
   return err_cnt == 0;
 }
+#else
+template <class T, int N, template <class, int> class ImplF>
+bool test(queue q, const Config &cfg) {
+  constexpr auto op = ImplF<T, N>::atomic_op;
+  using CurAtomicOpT = decltype(op);
+  constexpr int n_args = ImplF<T, N>::n_args;
+
+  std::cout << "Accessor Testing mode=" << MODE << " op=" << to_string(op)
+            << " full barrier=" << (USE_FULL_BARRIER ? "yes" : "no")
+            << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
+            << cfg << "...";
+
+  size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
+  T *arr = new T[size];
+
+#if USE_FULL_BARRIER
+  uint32_t *flag_ptr = malloc_shared<uint32_t>(1, q);
+  *flag_ptr = 0;
+#endif // USE_FULL_BARRIER
+  int n_threads = cfg.threads_per_group * cfg.n_groups;
+
+  for (int i = 0; i < size; ++i) {
+    arr[i] = ImplF<T, N>::init(i, cfg);
+  }
+
+  range<1> glob_rng(n_threads);
+  range<1> loc_rng(cfg.threads_per_group);
+  nd_range<1> rng(glob_rng, loc_rng);
+  auto mask = cfg.masked_lane;
+  auto repeat = cfg.repeat;
+  auto start = cfg.start_ind;
+  auto stride = cfg.stride;
+  try {
+    buffer<T, 1> buf(arr, range<1>(size));
+    auto e = q.submit([&](handler &cgh) {
+      auto accessor = buf.template get_access<access::mode::read_write>(cgh);
+      cgh.parallel_for<TestID<T, N, ImplF>>(
+          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
+            int i = ii;
+#ifndef USE_SCALAR_OFFSET
+            simd<Toffset, N> offsets(start * sizeof(T), stride * sizeof(T));
+#else
+            Toffset offsets = 0;
+#endif
+            simd_mask<N> m = 1;
+            if (mask < N)
+              m[mask] = 0;
+          // barrier to achieve better contention:
+#if USE_FULL_BARRIER
+            // Full global barrier, works only with LSC atomics
+            // (+ ND range should fit into the available h/w threads).
+            atomic_update<LSCAtomicOp::inc, uint32_t, 1>(flag_ptr, 0, 1);
+            for (uint32_t x = atomic_load(flag_ptr); x < n_threads;
+                 x = atomic_load(flag_ptr))
+              ;
+#else
+        // Intra-work group barrier.
+        barrier();
+#endif // USE_FULL_BARRIER
+
+            // the atomic operation itself applied in a loop:
+            for (int cnt = 0; cnt < repeat; ++cnt) {
+              if constexpr (n_args == 0) {
+                simd<T, N> res = atomic_update<op, T, N>(accessor, offsets, m);
+              } else if constexpr (n_args == 1) {
+                simd<T, N> v0 = ImplF<T, N>::arg0(i);
+                atomic_update<op, T, N>(accessor, offsets, v0, m);
+              } else if constexpr (n_args == 2) {
+                simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
+                simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
+                // do compare-and-swap in a loop until we get expected value;
+                // arg0 and arg1 must provide values which guarantee the loop
+                // is not endless:
+                for (auto old_val = atomic_update<op, T, N>(
+                         accessor, offsets, new_val, exp_val, m);
+                     any(old_val < exp_val, !m);
+                     old_val = atomic_update<op, T, N>(accessor, offsets,
+                                                       new_val, exp_val, m))
+                  ;
+              }
+            }
+          });
+    });
+    e.wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    delete[] arr;
+#if USE_FULL_BARRIER
+    free(flag_ptr, q);
+#endif // USE_FULL_BARRIER
+    return false;
+  }
+  int err_cnt = 0;
+
+  for (int i = 0; i < size; ++i) {
+    T gold = ImplF<T, N>::gold(i, cfg);
+    T test = arr[i];
+    if ((gold != test) && (++err_cnt < 10)) {
+      if (err_cnt == 1) {
+        std::cout << "\n";
+      }
+      std::cout << "  failed at index " << i << ": " << test << " != " << gold
+                << "(gold)\n";
+    }
+  }
+  if (err_cnt > 0) {
+    std::cout << "  FAILED\n  pass rate: "
+              << ((float)(size - err_cnt) / (float)size) * 100.0f << "% ("
+              << (size - err_cnt) << "/" << size << ")\n";
+  } else {
+    std::cout << " passed\n";
+  }
+#if USE_FULL_BARRIER
+  free(flag_ptr, q);
+#endif // USE_FULL_BARRIER
+  delete[] arr;
+  return err_cnt == 0;
+}
+#endif
 
 // ----------------- Functions providing input and golden values for atomic
 // ----------------- operations.
@@ -598,11 +717,13 @@ bool test_int_types(queue q, const Config &cfg) {
     // passed &= test<int8_t, N, Op>(q, cfg);
 
     passed &= test<int32_t, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
     passed &= test<int64_t, N, Op>(q, cfg);
     if constexpr (!std::is_same_v<signed long, int64_t> &&
                   !std::is_same_v<signed long, int32_t>) {
       passed &= test<signed long, N, Op>(q, cfg);
     }
+#endif
   }
 
   if constexpr (SignMask & Unsigned) {
@@ -613,16 +734,17 @@ bool test_int_types(queue q, const Config &cfg) {
     // passed &= test<uint8_t, N, Op>(q, cfg);
 
     passed &= test<uint32_t, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
     passed &= test<uint64_t, N, Op>(q, cfg);
     if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
                   !std::is_same_v<unsigned long, uint32_t>) {
       passed &= test<unsigned long, N, Op>(q, cfg);
     }
+#endif
   }
   return passed;
 }
 
-#ifndef USE_DWORD_ATOMICS
 template <int N, template <class, int> class Op>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
@@ -631,19 +753,26 @@ bool test_fp_types(queue q, const Config &cfg) {
   // passed &= test<sycl::half, N, Op>(q, cfg);
 
   passed &= test<float, N, Op>(q, cfg);
-  passed &= test<double, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
+#ifndef CMPXCHG_TEST
+  if (q.get_device().has(sycl::aspect::atomic64) &&
+      q.get_device().has(sycl::aspect::fp64)) {
+    // Disable double data type for fcmpxchg operation as D64 data is not
+    // supported for that operation.
+    passed &= test<double, N, Op>(q, cfg);
+  }
+#endif
+#endif
   return passed;
 }
-#endif // !USE_DWORD_ATOMICS
 
 template <template <class, int> class Op, int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
-#ifndef USE_DWORD_ATOMICS
+
   passed &= test_int_types<1, Op, SignMask>(q, cfg);
   passed &= test_int_types<2, Op, SignMask>(q, cfg);
   passed &= test_int_types<4, Op, SignMask>(q, cfg);
-#endif // !USE_DWORD_ATOMICS
 
   passed &= test_int_types<8, Op, SignMask>(q, cfg);
 
@@ -655,19 +784,21 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
   return passed;
 }
 
-#ifndef USE_DWORD_ATOMICS
 template <template <class, int> class Op>
 bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
+
   passed &= test_fp_types<1, Op>(q, cfg);
   passed &= test_fp_types<2, Op>(q, cfg);
   passed &= test_fp_types<4, Op>(q, cfg);
+
   passed &= test_fp_types<8, Op>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
   passed &= test_fp_types<16, Op>(q, cfg);
   passed &= test_fp_types<32, Op>(q, cfg);
+#endif // !USE_DWORD_ATOMICS
   return passed;
 }
-#endif // !USE_DWORD_ATOMICS
 
 int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
@@ -717,18 +848,20 @@ int main(void) {
   passed &= test_fp_types_and_sizes<ImplLSCFcmpwr>(q, cfg);
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
-
-  // Check load/store operations
-  passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
+#ifndef CMPXCHG_TEST
+  // TODO: Investigate test failures on emulator
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
+    // Check load/store operations
+    passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
+    passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
+  }
 #ifndef USE_SCALAR_OFFSET
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
     passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
-#ifndef USE_DWORD_ATOMICS
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
     passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
-#endif // USE_DWORD_ATOMICS
+  }
 #endif
-
+#endif
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }

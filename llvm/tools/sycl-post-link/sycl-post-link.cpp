@@ -35,11 +35,11 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
-#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -455,14 +455,22 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   }
 
   {
-    // check for large GRF property
-    bool HasLargeGRF = llvm::any_of(MD.entries(), [](const Function *F) {
-      return F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF);
-    });
+    StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
+    uint32_t RegAllocModeVal;
 
-    if (HasLargeGRF)
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
+    bool HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
+      if (!F->hasFnAttribute(RegAllocModeAttr))
+        return false;
+      const auto &Attr = F->getFnAttribute(RegAllocModeAttr);
+      RegAllocModeVal = getAttributeAsInteger<uint32_t>(Attr);
+      return true;
+    });
+    if (HasRegAllocMode) {
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
+          {RegAllocModeAttr, RegAllocModeVal});
+    }
   }
+
   // FIXME: Remove 'if' below when possible
   // GPU backend has a problem with accepting optimization level options in form
   // described by Level Zero specification (-ze-opt-level=1) when 'invoke_simd'
@@ -789,11 +797,6 @@ processInputModule(std::unique_ptr<Module> M) {
   }
   Modified |= InvokeSimdMet;
 
-  // Lower kernel properties setting APIs before "large GRF" splitting, as:
-  // - the latter uses the result of the former
-  // - saves processing time
-  Modified |= runModulePass<SYCLLowerKernelPropsPass>(*M);
-
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
 
   // -ir-output-only assumes single module output thus no code splitting.
@@ -855,8 +858,6 @@ processInputModule(std::unique_ptr<Module> M) {
 
       if (!MDesc2.isSYCL() && LowerEsimd) {
         assert(MDesc2.isESIMD() && "NYI");
-        // ESIMD lowering also detects large-GRF kernels, so it must happen
-        // before large-GRF split.
         Modified |= lowerEsimdConstructs(MDesc2);
       }
       MMs.emplace_back(std::move(MDesc2));
