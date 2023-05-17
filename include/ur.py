@@ -560,6 +560,7 @@ class ur_device_info_v(IntEnum):
     MEM_CHANNEL_SUPPORT = 110                       ## [::ur_bool_t] return true if specifying memory channels is supported
     HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueing commands to
                                                     ## read and write pipes from the host.
+    MAX_REGISTERS_PER_WORK_GROUP = 112              ## [uint32_t] The maximum number of registers available per block.
 
 class ur_device_info_t(c_int):
     def __str__(self):
