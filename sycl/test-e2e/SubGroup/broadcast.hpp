@@ -30,8 +30,8 @@ template <typename T> void check(queue &Queue) {
           sgsizeacc[0] = SG.get_max_local_range()[0];
       });
     });
-    auto syclacc = syclbuf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor syclacc(syclbuf);
+    host_accessor sgsizeacc(sgsizebuf);
     size_t sg_size = sgsizeacc[0];
     if (sg_size == 0)
       sg_size = L;
