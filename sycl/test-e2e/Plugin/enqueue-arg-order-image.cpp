@@ -166,7 +166,7 @@ void testcopyH2DImage() {
                                  ImgSize_1D);
     sycl::image<1> image_to_1D(data_to_1D.data(), ChanOrder, ChanType,
                                ImgSize_1D);
-    device Dev{default_selector{}};
+    device Dev;
     context Ctx{Dev};
     context otherCtx{Dev};
 
