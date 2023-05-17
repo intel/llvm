@@ -4874,8 +4874,8 @@ class OffloadingActionBuilder final {
         if (!SYCLRaiseHost || OnlyCreateStubFile)
           DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
                  Action::OFK_SYCL);
-        return SYCLDeviceOnly && !SYCLRaiseHost ? ABRT_Ignore_Host
-                                                : ABRT_Success;
+        return (SYCLDeviceOnly && !SYCLRaiseHost) ? ABRT_Ignore_Host
+                                                  : ABRT_Success;
       }
 
       // Backend/Assemble actions are obsolete for the SYCL device side
@@ -5114,8 +5114,8 @@ class OffloadingActionBuilder final {
     void appendTopLevelActions(ActionList &AL) override {
       // We should always have an action for each input.
       // We should always have an action for each input.
-      // If the only purpose of this builder was to create the stuff file, we
-      // can simply return.
+      // If the only purpose of this builder was to create the stub file, we can
+      // simply return.
       if (!OnlyCreateStubFile && !SYCLDeviceActions.empty()) {
         assert(SYCLDeviceActions.size() == SYCLTargetInfoList.size() &&
                "Number of SYCL actions and toolchains/boundarch pairs do not "
