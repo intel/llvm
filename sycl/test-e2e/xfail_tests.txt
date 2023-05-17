@@ -92,7 +92,6 @@ Basic/half_builtins.cpp
 Basic/half_type.cpp
 Basic/image/image.cpp
 Basic/image/image_accessor_readsampler.cpp
-Basic/image/image_accessor_readwrite.cpp
 Basic/image/image_accessor_readwrite_half.cpp
 Basic/image/image_array.cpp
 Basic/image/image_max_size.cpp
