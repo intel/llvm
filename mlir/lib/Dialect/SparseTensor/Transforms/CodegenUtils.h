@@ -75,11 +75,16 @@ StringRef primaryTypeFunctionSuffix(Type elemTp);
 /// Add type casting between arith and index types when needed.
 Value genCast(OpBuilder &builder, Location loc, Value value, Type dstTy);
 
+/// Generates a pointer/index load from the sparse storage scheme. Narrower
+/// data types need to be zero extended before casting the value into the
+/// index type used for looping and indexing.
+Value genIndexLoad(OpBuilder &builder, Location loc, Value mem, Value s);
+
 /// Generates a 1-valued attribute of the given type.  This supports
 /// all the same types as `getZeroAttr`; however, unlike `getZeroAttr`,
 /// for unsupported types we raise `llvm_unreachable` rather than
 /// returning a null attribute.
-Attribute getOneAttr(Builder &builder, Type tp);
+TypedAttr getOneAttr(Builder &builder, Type tp);
 
 /// Generates the comparison `v != 0` where `v` is of numeric type.
 /// For floating types, we use the "unordered" comparator (i.e., returns
@@ -116,7 +121,8 @@ func::CallOp createFuncCall(OpBuilder &builder, Location loc, StringRef name,
 
 /// Returns the equivalent of `void*` for opaque arguments to the
 /// execution engine.
-Type getOpaquePointerType(OpBuilder &builder);
+Type getOpaquePointerType(MLIRContext *ctx);
+Type getOpaquePointerType(Builder &builder);
 
 /// Generates an uninitialized temporary buffer of the given size and
 /// type, but returns it as type `memref<? x $tp>` (rather than as type

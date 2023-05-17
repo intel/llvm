@@ -567,14 +567,14 @@ public:
 
   /// Applies simd_obj_impl::any operation to the target region.
   template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+            typename = std::enable_if_t<std::is_integral_v<T1>, T2>>
   uint16_t any() {
     return read().any();
   }
 
   /// Applies simd_obj_impl::all operation to the target region.
   template <typename T1 = element_type, typename T2 = BaseTy,
-            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
+            typename = std::enable_if_t<std::is_integral_v<T1>, T2>>
   uint16_t all() {
     return read().all();
   }

@@ -138,8 +138,8 @@ class __SYCL_TYPE(accessor_property_list) accessor_property_list
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
       : std::conditional_t<
-            std::is_base_of<sycl::detail::DataLessPropertyBase, T>::value ||
-                std::is_base_of<sycl::detail::PropertyWithDataBase, T>::value ||
+            std::is_base_of_v<sycl::detail::DataLessPropertyBase, T> ||
+                std::is_base_of_v<sycl::detail::PropertyWithDataBase, T> ||
                 sycl::detail::IsCompileTimePropertyInstance<T>::value,
             AllProperties<Tail...>, std::false_type> {};
 

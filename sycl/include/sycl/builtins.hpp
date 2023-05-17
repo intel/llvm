@@ -113,6 +113,7 @@ __SYCL_MATH_FUNCTION_OVERLOAD(logb)
 __SYCL_MATH_FUNCTION_OVERLOAD(rint)
 __SYCL_MATH_FUNCTION_OVERLOAD(round)
 __SYCL_MATH_FUNCTION_OVERLOAD(trunc)
+__SYCL_MATH_FUNCTION_OVERLOAD(fabs)
 
 #undef __SYCL_MATH_FUNCTION_OVERLOAD
 
@@ -137,7 +138,6 @@ __SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(fabs)
 
 #undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
 #undef __SYCL_MATH_FUNCTION_OVERLOAD_IMPL
@@ -2066,8 +2066,9 @@ std::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
                (SizeT == 4 || SizeT == 8)),
               long, // long and ulong are 32-bit on
                     // Windows and 64-bit on Linux
-              std::conditional_t<SizeT == 4, int,
-                                 std::conditional_t<SizeT == 8, long, void>>>>>;
+              std::conditional_t<
+                  SizeT == 4, int,
+                  std::conditional_t<SizeT == 8, long long, void>>>>>;
 
   return __sycl_std::__invoke_select<T>(
       a, b, static_cast<get_select_opencl_builtin_c_arg_type>(c));
@@ -2707,6 +2708,7 @@ extern __DPCPP_SYCL_EXTERNAL long long int __imf_mul64hi(long long int x,
                                                          long long int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
 __imf_umul64hi(unsigned long long int x, unsigned long long int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_abs(int x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_saturatef(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf(float x, float y, float z);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fabsf(float x);

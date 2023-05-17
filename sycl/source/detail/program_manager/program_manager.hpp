@@ -279,9 +279,9 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &DeviceImages,
-       const std::vector<device> &Devs, const property_list &PropList);
+  std::vector<device_image_plain> link(const device_image_plain &DeviceImages,
+                                       const std::vector<device> &Devs,
+                                       const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state

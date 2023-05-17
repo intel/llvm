@@ -11,6 +11,7 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/device_info.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_impl.hpp>
@@ -142,9 +143,7 @@ public:
                               "discard_events and enable_profiling.");
       if (!MDevice->has(aspect::queue_profiling)) {
         // TODO temporary workaround, see MLimitedProfiling
-        if (MDevice->is_accelerator() &&
-            checkNativeQueueProfiling(MDevice->getHandleRef(),
-                                      Context->getPlugin())) {
+        if (MDevice->is_accelerator() && checkNativeQueueProfiling(MDevice)) {
           MLimitedProfiling = true;
         } else {
           throw sycl::exception(
@@ -167,8 +166,7 @@ public:
             "device's number of available compute queue indices.");
     }
     if (!Context->isDeviceValid(Device)) {
-      if (!Context->is_host() &&
-          Context->getPlugin().getBackend() == backend::opencl)
+      if (!Context->is_host() && Context->getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
             "Queue cannot be constructed with the given context and device "
             "since the device is not a member of the context (descendants of "
@@ -232,9 +230,9 @@ private:
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
     RT::PiDevice DevicePI{};
-    const detail::plugin &Plugin = getPlugin();
+    const PluginPtr &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piQueueGetInfo>(
+    Plugin->call<PiApiKind::piQueueGetInfo>(
         MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DevicePI);
     if (MDevice == nullptr) {
@@ -299,7 +297,7 @@ public:
 #endif
     throw_asynchronous();
     if (!MHostQueue) {
-      getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
+      getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
     }
   }
 
@@ -310,7 +308,7 @@ public:
           "This instance of queue doesn't support OpenCL interoperability",
           PI_ERROR_INVALID_QUEUE);
     }
-    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
+    getPlugin()->call<PiApiKind::piQueueRetain>(MQueues[0]);
     return pi::cast<cl_command_queue>(MQueues[0]);
   }
 
@@ -319,7 +317,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const plugin &getPlugin() const { return MContext->getPlugin(); }
+  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
@@ -482,9 +480,8 @@ public:
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
-    const detail::plugin &Plugin = getPlugin();
+    const PluginPtr &Plugin = getPlugin();
 
-    assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
     RT::PiQueueProperties Properties[] = {
         PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
     if (has_property<ext::intel::property::queue::compute_index>()) {
@@ -494,9 +491,9 @@ public:
       Properties[3] = static_cast<RT::PiQueueProperties>(Idx);
     }
     RT::PiResult Error =
-        MBackend_L0_V3 ? Plugin.call_nocheck<PiApiKind::piextQueueCreate>(
+        MBackend_L0_V3 ? Plugin->call_nocheck<PiApiKind::piextQueueCreate>(
                              Context, Device, Properties, &Queue)
-                       : Plugin.call_nocheck<PiApiKind::piextQueueCreate2>(
+                       : Plugin->call_nocheck<PiApiKind::piextQueueCreate2>(
                              Context, Device, Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
@@ -506,7 +503,7 @@ public:
       MEmulateOOO = true;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
-      Plugin.checkPiResult(Error);
+      Plugin->checkPiResult(Error);
     }
 
     return Queue;
@@ -538,7 +535,7 @@ public:
     if (!ReuseQueue)
       *PIQ = createQueue(QueueOrder::Ordered);
     else
-      getPlugin().call<PiApiKind::piQueueFinish>(*PIQ);
+      getPlugin()->call<PiApiKind::piQueueFinish>(*PIQ);
 
     return *PIQ;
   }

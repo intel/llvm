@@ -1,4 +1,4 @@
-add_libc_testsuite(libc_stdio_unittests)
+add_custom_target(libc_stdio_unittests)
 
 add_libc_unittest(
   fileop_test
@@ -112,7 +112,7 @@ add_libc_unittest(
     LibcMemoryHelpers
 )
 
-add_libc_unittest(
+add_fp_unittest(
   sprintf_test
   SUITE
     libc_stdio_unittests
@@ -317,6 +317,10 @@ add_libc_unittest(
     libc.src.stdio.fwrite
     libc.src.stdio.setvbuf
 )
+
+if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+  return()
+endif()
 
 add_subdirectory(printf_core)
 add_subdirectory(scanf_core)

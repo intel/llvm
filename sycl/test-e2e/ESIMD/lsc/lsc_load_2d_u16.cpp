@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "Inputs/lsc_load_prefetch_2d.hpp"
 
@@ -17,9 +17,6 @@ using T = uint16_t;
 int main(void) {
   srand(seed);
   bool passed = true;
-
-  // These parameters require unpadding. It is not implemented yet
-  // passed &= test<0, T, 2, 2, 2, 2>(16, 4, 16, 1, 1);
 
   // non transposed, non transformed
   passed &= test<1, T, 1, 1, 16, 32>(24, 64, 64, 6, 21);

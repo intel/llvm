@@ -1794,10 +1794,10 @@ public:
     Put('\n');
   }
   void Unparse(const CompilerDirective::IgnoreTKR &x) {
-    const auto &list{std::get<std::list<const char *>>(x.t)};
-    if (!list.empty()) {
+    if (const auto &maybeList{
+            std::get<std::optional<std::list<const char *>>>(x.t)}) {
       Put("(");
-      for (const char *tkr : list) {
+      for (const char *tkr : *maybeList) {
         Put(*tkr);
       }
       Put(") ");
@@ -2325,6 +2325,14 @@ public:
     EndOpenMP();
   }
   void Unparse(const OpenMPExecutableAllocate &x) {
+    const auto &fields =
+        std::get<std::optional<std::list<parser::OpenMPDeclarativeAllocate>>>(
+            x.t);
+    if (fields) {
+      for (const auto &decl : *fields) {
+        Walk(decl);
+      }
+    }
     BeginOpenMP();
     Word("!$OMP ALLOCATE");
     Walk(" (", std::get<std::optional<OmpObjectList>>(x.t), ")");

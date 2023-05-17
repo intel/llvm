@@ -185,7 +185,7 @@ protected:
                         llvm::function_ref<bool(const Expr *)> V);
 
   /// Creates a local primitive value.
-  unsigned allocateLocalPrimitive(DeclTy &&Decl, PrimType Ty, bool IsMutable,
+  unsigned allocateLocalPrimitive(DeclTy &&Decl, PrimType Ty, bool IsConst,
                                   bool IsExtended = false);
 
   /// Allocates a space storing a local given its type.
@@ -201,7 +201,7 @@ private:
   friend class ArrayIndexScope<Emitter>;
 
   /// Emits a zero initializer.
-  bool visitZeroInitializer(PrimType T, const Expr *E);
+  bool visitZeroInitializer(QualType QT, const Expr *E);
 
   enum class DerefKind {
     /// Value is read and pushed to stack.

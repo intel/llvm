@@ -17,6 +17,7 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaDiagnostic.h"
@@ -280,12 +281,6 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
       ConsumeToken();
     return nullptr;
   }
-
-  llvm::TimeTraceScope TimeScope("ParseTemplate", [&]() {
-    return std::string(DeclaratorInfo.getIdentifier() != nullptr
-                           ? DeclaratorInfo.getIdentifier()->getName()
-                           : "<unknown>");
-  });
 
   LateParsedAttrList LateParsedAttrs(true);
   if (DeclaratorInfo.isFunctionDeclarator()) {

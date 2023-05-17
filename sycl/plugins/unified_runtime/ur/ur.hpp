@@ -43,6 +43,7 @@ const int UR_EXT_DEVICE_INFO_FREE_MEMORY = UR_EXT_DEVICE_INFO_END - 13;
 // const int ZER_EXT_DEVICE_INFO_DEVICE_ID = UR_EXT_DEVICE_INFO_END - 14;
 // const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
 //     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
+const int UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT = UR_EXT_DEVICE_INFO_END - 15;
 
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
@@ -66,8 +67,9 @@ const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
 // overhead from mutex locking. Default value is 0 which means that single
 // thread mode is disabled.
 static const bool SingleThreadMode = [] {
-  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
-  const bool RetVal = Ret ? std::stoi(Ret) : 0;
+  const char *UrRet = std::getenv("UR_L0_SINGLE_THREAD_MODE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
+  const bool RetVal = UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0);
   return RetVal;
 }();
 

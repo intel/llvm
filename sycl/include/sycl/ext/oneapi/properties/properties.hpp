@@ -245,8 +245,8 @@ struct ValueOrDefault<
 template <typename PropertiesT>
 struct is_device_copyable<
     ext::oneapi::experimental::properties<PropertiesT>,
-    std::enable_if_t<!std::is_trivially_copyable<
-        ext::oneapi::experimental::properties<PropertiesT>>::value>>
+    std::enable_if_t<!std::is_trivially_copyable_v<
+        ext::oneapi::experimental::properties<PropertiesT>>>>
     : is_device_copyable<PropertiesT> {};
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

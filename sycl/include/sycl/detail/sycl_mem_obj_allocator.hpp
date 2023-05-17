@@ -67,11 +67,11 @@ protected:
 private:
   template <typename T>
   using EnableIfDefaultAllocator = std::enable_if_t<
-      std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
+      std::is_same_v<T, sycl_memory_object_allocator<OwnerDataT>>>;
 
   template <typename T>
   using EnableIfNonDefaultAllocator = std::enable_if_t<
-      !std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
+      !std::is_same_v<T, sycl_memory_object_allocator<OwnerDataT>>>;
 
   template <typename T = AllocatorT>
   EnableIfNonDefaultAllocator<T> setAlignImpl(std::size_t) {

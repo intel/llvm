@@ -69,7 +69,7 @@ public:
   /// \param Plugin is the reference to the underlying Plugin that this
   /// context is associated with.
   context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
-               const plugin &Plugin);
+               const PluginPtr &Plugin);
 
   ~context_impl();
 
@@ -106,7 +106,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Plugin associated with the platform of this context.
-  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
+  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// \return the PlatformImpl associated with this context.
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
@@ -173,7 +173,7 @@ public:
     // OpenCL does not support using descendants of context members within that
     // context yet.
     // TODO remove once this limitation is lifted
-    if (!is_host() && getPlugin().getBackend() == backend::opencl)
+    if (!is_host() && Device->getBackend() == backend::opencl)
       return hasDevice(Device);
 
     while (!hasDevice(Device)) {
@@ -185,6 +185,9 @@ public:
 
     return true;
   }
+
+  // Returns the backend of this context
+  backend getBackend() const { return MPlatform->getBackend(); }
 
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
@@ -210,6 +213,17 @@ public:
   std::vector<RT::PiEvent>
   initializeDeviceGlobals(pi::PiProgram NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
+
+  void memcpyToHostOnlyDeviceGlobal(
+      const std::shared_ptr<device_impl> &DeviceImpl,
+      const void *DeviceGlobalPtr, const void *Src, size_t DeviceGlobalTSize,
+      bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
+
+  void
+  memcpyFromHostOnlyDeviceGlobal(const std::shared_ptr<device_impl> &DeviceImpl,
+                                 void *Dest, const void *DeviceGlobalPtr,
+                                 bool IsDeviceImageScoped, size_t NumBytes,
+                                 size_t Offset);
 
   /// Gets a program associated with a device global from the cache.
   std::optional<RT::PiProgram>
@@ -252,7 +266,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const plugin &Plugin);
+    void ClearEvents(const PluginPtr &Plugin);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;
@@ -277,6 +291,16 @@ private:
   std::map<std::pair<RT::PiProgram, RT::PiDevice>, DeviceGlobalInitializer>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
+
+  // For device_global variables that are not used in any kernel code we still
+  // allow copy operations on them. MDeviceGlobalUnregisteredData stores the
+  // associated writes.
+  // The key to this map is a combination of a the pointer to the device_global
+  // and optionally a device if the device_global has device image scope.
+  std::map<std::pair<const void *, std::optional<RT::PiDevice>>,
+           std::unique_ptr<std::byte[]>>
+      MDeviceGlobalUnregisteredData;
+  std::mutex MDeviceGlobalUnregisteredDataMutex;
 };
 
 template <typename T, typename Capabilities>

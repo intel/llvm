@@ -45,7 +45,7 @@ private:
   class __private_class;
 
   template <typename N, typename T>
-  using EnableIfIntegral = std::enable_if_t<std::is_integral<N>::value, T>;
+  using EnableIfIntegral = std::enable_if_t<std::is_integral_v<N>, T>;
   template <bool B, typename T>
   using EnableIfT = std::conditional_t<B, T, __private_class>;
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__

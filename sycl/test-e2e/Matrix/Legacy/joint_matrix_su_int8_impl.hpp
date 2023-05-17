@@ -144,4 +144,6 @@ int main() {
     std::cout << "passed\n";
   else
     std::cout << "failed\n";
+
+  return !res;
 }

@@ -31,7 +31,7 @@ using iterator_pointer_t = typename std::iterator_traits<T>::pointer;
 
 template <typename T>
 using iterator_to_const_type_t =
-    std::is_const<typename std::remove_pointer<iterator_pointer_t<T>>::type>;
+    std::is_const<std::remove_pointer_t<iterator_pointer_t<T>>>;
 
 // TODO Align with C++ named requirements: LegacyOutputIterator
 // https://en.cppreference.com/w/cpp/named_req/OutputIterator

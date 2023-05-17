@@ -1,11 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple /MD -o %t1.exe %s
-// RUN: %CPU_RUN_PLACEHOLDER %t1.exe
-// RUN: %GPU_RUN_PLACEHOLDER %t1.exe
-// RUN: %ACC_RUN_PLACEHOLDER %t1.exe
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple /MDd -o %t2.exe %s
-// RUN: %CPU_RUN_PLACEHOLDER %t2.exe
-// RUN: %GPU_RUN_PLACEHOLDER %t2.exe
-// RUN: %ACC_RUN_PLACEHOLDER %t2.exe
+// RUN: %{build} /MD -o %t1.exe
+// RUN: %{run} %t1.exe
+// RUN: %{build} /MDd -o %t2.exe
+// RUN: %{run} %t2.exe
 // REQUIRES: system-windows, cl_options
 //==-------------- msvc_crt.cpp - SYCL MSVC CRT test -----------------------==//
 //

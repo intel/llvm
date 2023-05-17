@@ -600,7 +600,7 @@ public:
   ///
   /// @return 1 if any element is non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t any() const {
     return __esimd_any<Ty, N>(data());
   }
@@ -609,7 +609,7 @@ public:
   ///
   /// @return 1 if all elements are non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t all() const {
     return __esimd_all<Ty, N>(data());
   }

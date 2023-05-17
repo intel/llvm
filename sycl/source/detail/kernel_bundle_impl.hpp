@@ -213,10 +213,9 @@ public:
                          }))
           continue;
 
-        const std::vector<device_image_plain> VectorOfOneImage{DeviceImage};
         std::vector<device_image_plain> LinkedResults =
-            detail::ProgramManager::getInstance().link(VectorOfOneImage,
-                                                       MDevices, PropList);
+            detail::ProgramManager::getInstance().link(DeviceImage, MDevices,
+                                                       PropList);
         MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
                              LinkedResults.end());
       }

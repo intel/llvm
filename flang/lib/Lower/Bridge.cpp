@@ -313,12 +313,7 @@ public:
               [&](Fortran::lower::pft::FunctionLikeUnit &f) { lowerFunc(f); },
               [&](Fortran::lower::pft::ModuleLikeUnit &m) { lowerMod(m); },
               [&](Fortran::lower::pft::BlockDataUnit &b) {},
-              [&](Fortran::lower::pft::CompilerDirectiveUnit &d) {
-                setCurrentPosition(
-                    d.get<Fortran::parser::CompilerDirective>().source);
-                mlir::emitWarning(toLocation(),
-                                  "ignoring all compiler directives");
-              },
+              [&](Fortran::lower::pft::CompilerDirectiveUnit &d) {},
           },
           u);
     }
@@ -2003,7 +1998,7 @@ private:
   }
 
   void genFIR(const Fortran::parser::CompilerDirective &) {
-    mlir::emitWarning(toLocation(), "ignoring all compiler directives");
+    // TODO
   }
 
   void genFIR(const Fortran::parser::OpenACCConstruct &acc) {
@@ -2988,6 +2983,42 @@ private:
     }
   }
 
+  /// Given converted LHS and RHS of the assignment, generate
+  /// explicit type conversion for implicit Logical<->Integer
+  /// conversion. Return Value representing the converted RHS,
+  /// if the implicit Logical<->Integer is detected, otherwise,
+  /// return nullptr. The caller is responsible for inserting
+  /// DestroyOp in case the returned value has hlfir::ExprType.
+  mlir::Value
+  genImplicitLogicalConvert(const Fortran::evaluate::Assignment &assign,
+                            hlfir::Entity lhs, hlfir::Entity rhs) {
+    mlir::Type fromTy = rhs.getFortranElementType();
+    mlir::Type toTy = lhs.getFortranElementType();
+    if (fromTy == toTy)
+      return nullptr;
+
+    if (!fromTy.isa<mlir::IntegerType, fir::LogicalType>())
+      return nullptr;
+    if (!toTy.isa<mlir::IntegerType, fir::LogicalType>())
+      return nullptr;
+
+    mlir::Location loc = toLocation();
+    auto &builder = getFirOpBuilder();
+    if (assign.rhs.Rank() == 0)
+      return builder.createConvert(loc, toTy, rhs);
+
+    mlir::Value shape = hlfir::genShape(loc, builder, rhs);
+    auto genKernel =
+        [&rhs, &toTy](mlir::Location loc, fir::FirOpBuilder &builder,
+                      mlir::ValueRange oneBasedIndices) -> hlfir::Entity {
+      auto elementPtr = hlfir::getElementAt(loc, builder, rhs, oneBasedIndices);
+      auto val = hlfir::loadTrivialScalar(loc, builder, elementPtr);
+      return hlfir::EntityWithAttributes{builder.createConvert(loc, toTy, val)};
+    };
+    return hlfir::genElementalOp(loc, builder, toTy, shape, /*typeParams=*/{},
+                                 genKernel);
+  }
+
   /// Shared for both assignments and pointer assignments.
   void genAssignment(const Fortran::evaluate::Assignment &assign) {
     mlir::Location loc = toLocation();
@@ -2999,6 +3030,8 @@ private:
           Fortran::common::visitors{
               // [1] Plain old assignment.
               [&](const Fortran::evaluate::Assignment::Intrinsic &) {
+                if (Fortran::evaluate::HasVectorSubscript(assign.lhs))
+                  TODO(loc, "assignment to vector subscripted entity");
                 Fortran::lower::StatementContext stmtCtx;
                 hlfir::Entity rhs = Fortran::lower::convertExprToHLFIR(
                     loc, *this, assign.rhs, localSymbols, stmtCtx);
@@ -3023,9 +3056,24 @@ private:
                   // Dereference pointer LHS: the target is being assigned to.
                   lhs = hlfir::derefPointersAndAllocatables(loc, builder, lhs);
                 }
+
+                // Logical<->Integer assignments are allowed as an extension,
+                // but there is no explicit Convert expression for the RHS.
+                // Recognize the type mismatch here and insert explicit
+                // scalar convert or ElementalOp for array assignment.
+                mlir::Value logicalConvert =
+                    genImplicitLogicalConvert(assign, lhs, rhs);
+                if (logicalConvert)
+                  rhs = hlfir::EntityWithAttributes{logicalConvert};
+
                 builder.create<hlfir::AssignOp>(
                     loc, rhs, lhs, isWholeAllocatableAssignment,
                     keepLhsLengthInAllocatableAssignment);
+
+                // Mark the end of life range of the ElementalOp's result.
+                if (logicalConvert &&
+                    logicalConvert.getType().isa<hlfir::ExprType>())
+                  builder.create<hlfir::DestroyOp>(loc, rhs);
               },
               // [2] User defined assignment. If the context is a scalar
               // expression then call the procedure.

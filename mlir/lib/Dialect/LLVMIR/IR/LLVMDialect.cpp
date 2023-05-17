@@ -732,7 +732,7 @@ static bool isTypeCompatibleWithAtomicOp(Type type, bool isPointerTypeAllowed) {
   if (type.isa<LLVMPointerType>())
     return isPointerTypeAllowed;
 
-  std::optional<unsigned> bitWidth = std::nullopt;
+  std::optional<unsigned> bitWidth;
   if (auto floatType = type.dyn_cast<FloatType>()) {
     if (!isCompatibleFloatingPointType(type))
       return false;
@@ -931,6 +931,16 @@ CallInterfaceCallable CallOp::getCallableForCallee() {
     return calleeAttr;
   // Indirect call, callee Value is the first operand.
   return getOperand(0);
+}
+
+void CallOp::setCalleeFromCallable(CallInterfaceCallable callee) {
+  // Direct call.
+  if (FlatSymbolRefAttr calleeAttr = getCalleeAttr()) {
+    auto symRef = callee.get<SymbolRefAttr>();
+    return setCalleeAttr(cast<FlatSymbolRefAttr>(symRef));
+  }
+  // Indirect call, callee Value is the first operand.
+  return setOperand(0, callee.get<Value>());
 }
 
 Operation::operand_range CallOp::getArgOperands() {
@@ -1155,6 +1165,16 @@ CallInterfaceCallable InvokeOp::getCallableForCallee() {
     return calleeAttr;
   // Indirect call, callee Value is the first operand.
   return getOperand(0);
+}
+
+void InvokeOp::setCalleeFromCallable(CallInterfaceCallable callee) {
+  // Direct call.
+  if (FlatSymbolRefAttr calleeAttr = getCalleeAttr()) {
+    auto symRef = callee.get<SymbolRefAttr>();
+    return setCalleeAttr(cast<FlatSymbolRefAttr>(symRef));
+  }
+  // Indirect call, callee Value is the first operand.
+  return setOperand(0, callee.get<Value>());
 }
 
 Operation::operand_range InvokeOp::getArgOperands() {
