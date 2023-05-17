@@ -1837,11 +1837,11 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       const auto &Item = (*ZeCommandListIt).second;
-      if (Item.ZeCommandQueueDesc.index == ZeCommandQueueDesc.index &&
+      if (Item.CanReuse &&
+          Item.ZeCommandQueueDesc.index == ZeCommandQueueDesc.index &&
           Item.ZeCommandQueueDesc.flags == ZeCommandQueueDesc.flags &&
           Item.ZeCommandQueueDesc.mode == ZeCommandQueueDesc.mode &&
-          Item.ZeCommandQueueDesc.priority == ZeCommandQueueDesc.priority &&
-          Item.CanReuse) {
+          Item.ZeCommandQueueDesc.priority == ZeCommandQueueDesc.priority) {
         ZeCommandList = (*ZeCommandListIt).first;
         ZeCommandListCache.erase(ZeCommandListIt);
         break;
