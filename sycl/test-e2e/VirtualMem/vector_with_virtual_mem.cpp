@@ -11,8 +11,7 @@ template <typename T> class VirtualVector {
 public:
   VirtualVector(sycl::queue &Q)
       : MDevice{Q.get_device()}, MContext{Q.get_context()},
-        MGranularity{
-            syclext::get_minimum_mem_granularity(MDevice, MContext)} {};
+        MGranularity{syclext::get_mem_granularity(MDevice, MContext)} {};
 
   ~VirtualVector() {
     // Free all mapped ranges.
@@ -31,7 +30,7 @@ public:
       return;
     }
 
-    // Align the size by the minimum granularity.
+    // Align the size by the granularity.
     size_t AlignedNewByteSize = AlignByteSize(NewByteSize);
     size_t AlignedNewVARangeSize = AlignedNewByteSize - MByteSize;
 
