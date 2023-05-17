@@ -1182,7 +1182,7 @@ public:
 #else
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
-    vec<rel_t, NumElements> Ret;                                               \
+    vec<rel_t, NumElements> Ret{};                                             \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       Ret.setValue(I, -(vec_data<DataT>::get(getValue(I))                      \
                             RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));  \
@@ -1242,7 +1242,7 @@ public:
     }
     return Ret;
 #else
-    vec Ret;
+    vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, ~getValue(I));
     }
@@ -1257,7 +1257,7 @@ public:
     return vec<rel_t, NumElements>{
         (typename vec<rel_t, NumElements>::DataType) !m_Data};
 #else
-    vec<rel_t, NumElements> Ret;
+    vec<rel_t, NumElements> Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
     }
@@ -1271,7 +1271,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return vec{+m_Data};
 #else
-    vec Ret;
+    vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, vec_data<DataT>::get(+vec_data<DataT>::get(getValue(I))));
     return Ret;
@@ -1284,7 +1284,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return vec{-m_Data};
 #else
-    vec Ret;
+    vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
     return Ret;
