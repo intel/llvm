@@ -35,12 +35,10 @@ template <typename T> void check() {
 }
 
 SYCL_EXTERNAL void foo() {
-// CP
-//#ifdef __SYCL_DEVICE_ONLY__
+
   check<int>();
   check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
   check<SomeStructure>();
-//#endif
   check<sycl::int4>();
   check<sycl::long16>();
   check<SomeMarrayStructure>();
