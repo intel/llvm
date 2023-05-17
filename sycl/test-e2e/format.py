@@ -7,13 +7,13 @@ import os
 
 def get_triple(test, backend):
     if backend == 'ext_oneapi_cuda':
-        return 'nvptx64-nvidia-cuda'
+        return 'nvptx64-nvidia-cuda-syclmlir'
     if backend == 'ext_oneapi_hip':
         if test.config.hip_platform == 'NVIDIA':
-            return 'nvptx64-nvidia-cuda'
+            return 'nvptx64-nvidia-cuda-syclmlir'
         else:
-            return 'amdgcn-amd-amdhsa'
-    return 'spir64'
+            return 'amdgcn-amd-amdhsa-syclmlir'
+    return 'spir64-unknown-unknown-syclmlir'
 
 class SYCLEndToEndTest(lit.formats.ShTest):
     def parseTestScript(self, test):
@@ -97,7 +97,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
-        substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s'))
+        substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%{sycl_triple} -w %s'))
 
         def get_extra_env(sycl_devices):
             # Note: It's possible that the system has a device from below but
