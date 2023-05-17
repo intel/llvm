@@ -3,7 +3,7 @@ name: SYCL Pre Commit
 on:
   pull_request_target:
     branches:
-    - sycl
+    - fused-l0-ocl-precommit
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
