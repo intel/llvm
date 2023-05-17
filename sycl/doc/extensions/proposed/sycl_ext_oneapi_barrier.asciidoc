@@ -171,6 +171,19 @@ function, and begins the first phase of the barrier.
 
 [source,c++]
 ----
+~barrier();
+----
+_Preconditions_: If `Scope` is `memory_scope::work_group`, the calling thread
+of execution must be a work-item belonging to the same work-group as the
+work-item that constructed the barrier. If `Scope` is `memory_scope::device`,
+the calling thread of execution must be executing on the same device as the
+thread of execution that constructed the barrier. If `Scope` is
+`memory_scope::system`, the calling thread of execution can be any host or
+device thread. Two or more threads of execution calling the destructor
+concurrently introduces a data race.
+
+[source,c++]
+----
 [[nodiscard]] arrival_token arrive(ptrdiff_t update = 1);
 ----
 _Effects_: The calling thread of execution arrives at the barrier and decreases
