@@ -373,9 +373,17 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
         for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
           if (MDNode *SPIRVMetadata =
                   attributeToDecorateMetadata(Ctx, Attribute)) {
-            // sycl-alignment is not collected to SPIRV.ParamDecoration
-            if (Attribute.getKindAsString() == "sycl-alignment")
+            if (Attribute.getKindAsString() == "sycl-alignment") {
+              // apply alignment on kernel argument
+              uint32_t AttrVal = getAttributeAsInteger<uint32_t>(Attribute);
+              assert(llvm::isPowerOf2_64(AttrVal) &&
+                     "sycl-alignment attribute is not a power of 2");
+              auto attr =
+                  Attribute::getWithAlignment(Ctx, llvm::Align(AttrVal));
+              F.addParamAttr(I, attr);
+              // sycl-alignment is not collected to SPIRV.ParamDecoration
               continue;
+            }
             MDArgOps.push_back(SPIRVMetadata);
           }
         }
@@ -461,6 +469,16 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
+template <typename T>
+void searchUserIgnoringCast(Value *V, SmallVector<Instruction *, 4> &list) {
+  for (auto User : V->users()) {
+    if (auto Inst = dyn_cast<T>(User))
+      list.push_back(Inst);
+    else if (isa<BitCastInst>(User) || isa<AddrSpaceCastInst>(User))
+      searchUserIgnoringCast<T>(User, list);
+  }
+}
+
 void CompileTimePropertiesPass::parseAlignmentAndApply(
     Module &M, IntrinsicInst *IntrInst) {
   // Get the global variable with the annotation string.
@@ -479,22 +497,24 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
 
-  SmallVector<Value *, 8> UserList;
-  SmallVector<Instruction *, 4> InstList;
-  // check if used by a load or store instructions
-  for (auto Val : IntrInst->users()) {
-    // if castInst, push successors
-    if (auto CInst = dyn_cast<CastInst>(Val)) {
-      for (auto Successor : CInst->users())
-        UserList.push_back(Successor);
-    } else {
-      UserList.push_back(Val);
-    }
-  }
-
-  for (auto &Value : UserList) {
-    if (isa<LoadInst>(Value) || isa<StoreInst>(Value))
-      InstList.push_back(cast<Instruction>(Value));
+  SmallVector<Instruction *, 4> PtrLoadInstList;
+  SmallVector<Instruction *, 4> TargetedInstList;
+  /*
+   * Clang gurantuee that the ptr.annotation is generated close
+   * to the global level
+   * For an aggregate type, the ptr.annotation will be close
+   * to GEP, the form of the IR is guranteed to be
+   * %0 = getelementptr AGG_TYPE, %x, x, x
+   * %1 = ptr.annotation %0, ...
+   * %2 = load TYPE, %1      (loading the pointer to member)
+   * %3 = load/store ... %2  (actual memory access of the annotated member)
+   * The form of the IR is guranteed by clang's unit test and sycl header
+   */
+  // search load/store followed by a load
+  searchUserIgnoringCast<LoadInst>(IntrInst, PtrLoadInstList);
+  for (auto V : PtrLoadInstList) {
+    searchUserIgnoringCast<LoadInst>(V, TargetedInstList);
+    searchUserIgnoringCast<StoreInst>(V, TargetedInstList);
   }
 
   for (auto &Property : Properties) {
@@ -514,7 +534,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
              "sycl-alignment attribute is not a power of 2");
 
       // apply alignment attributes to load/store
-      for (auto Inst : InstList) {
+      for (auto Inst : TargetedInstList) {
         if (auto LInst = dyn_cast<LoadInst>(Inst))
           LInst->setAlignment(Align(AttrVal));
         else if (auto SInst = dyn_cast<StoreInst>(Inst))
