@@ -2897,6 +2897,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
 /// @brief Intercept function for urQueueGetNativeHandle
 __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
+    ur_queue_native_desc_t
+        *pDesc, ///< [in][optional] pointer to native descriptor
     ur_native_handle_t
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
 ) {
@@ -2916,7 +2918,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
         }
     }
 
-    ur_result_t result = pfnGetNativeHandle(hQueue, phNativeQueue);
+    ur_result_t result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
 
     return result;
 }
