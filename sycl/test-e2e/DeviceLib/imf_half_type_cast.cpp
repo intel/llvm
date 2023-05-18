@@ -20,10 +20,6 @@ _iml_half_internal __imf_ushort2half_rd(unsigned short);
 _iml_half_internal __imf_ushort2half_rn(unsigned short);
 _iml_half_internal __imf_ushort2half_ru(unsigned short);
 _iml_half_internal __imf_ushort2half_rz(unsigned short);
-_iml_half_internal __imf_int2half_rd(int);
-_iml_half_internal __imf_int2half_rn(int);
-_iml_half_internal __imf_int2half_ru(int);
-_iml_half_internal __imf_int2half_rz(int);
 _iml_half_internal __imf_uint2half_rd(unsigned int);
 _iml_half_internal __imf_uint2half_rn(unsigned int);
 _iml_half_internal __imf_uint2half_ru(unsigned int);
@@ -553,17 +549,25 @@ int main() {
         0,      0xD640, 0x5848, 0x6845, 0xEB82, 0x70E2, 0xF532,
         0x73FF, 0x7BFF, 0xFBDC, 0x7BFE, 0x7BFF, 0xFBFF, 0x7BFF};
 
-    test_host(input_vals, ref_vals_rd, F_Half2(__imf_int2half_rd));
-    test(device_queue, input_vals, ref_vals_rd, F_Half2(__imf_int2half_rd));
+    test_host(input_vals, ref_vals_rd,
+              FT(uint16_t, sycl::ext::intel::math::int2half_rd));
+    test(device_queue, input_vals, ref_vals_rd,
+         FT(uint16_t, sycl::ext::intel::math::int2half_rd));
 
-    test_host(input_vals, ref_vals_rn, F_Half2(__imf_int2half_rn));
-    test(device_queue, input_vals, ref_vals_rn, F_Half2(__imf_int2half_rn));
+    test_host(input_vals, ref_vals_rn,
+              FT(uint16_t, sycl::ext::intel::math::int2half_rn));
+    test(device_queue, input_vals, ref_vals_rn,
+         FT(uint16_t, sycl::ext::intel::math::int2half_rn));
 
-    test_host(input_vals, ref_vals_ru, F_Half2(__imf_int2half_ru));
-    test(device_queue, input_vals, ref_vals_ru, F_Half2(__imf_int2half_ru));
+    test_host(input_vals, ref_vals_ru,
+              FT(uint16_t, sycl::ext::intel::math::int2half_ru));
+    test(device_queue, input_vals, ref_vals_ru,
+         FT(uint16_t, sycl::ext::intel::math::int2half_ru));
 
-    test_host(input_vals, ref_vals_rz, F_Half2(__imf_int2half_rz));
-    test(device_queue, input_vals, ref_vals_rz, F_Half2(__imf_int2half_rz));
+    test_host(input_vals, ref_vals_rz,
+              FT(uint16_t, sycl::ext::intel::math::int2half_rz));
+    test(device_queue, input_vals, ref_vals_rz,
+         FT(uint16_t, sycl::ext::intel::math::int2half_rz));
   }
 
   {
