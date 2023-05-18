@@ -9,7 +9,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-template <class VecT, int EndIdx = VecT::get_count(), int StartIdx = 0>
+template <class VecT, int EndIdx = VecT::size(), int StartIdx = 0>
 class VecPrinter {
 public:
   VecPrinter(const VecT &Vec) : MVec(Vec) {}
@@ -40,7 +40,7 @@ private:
   VecT MVec;
 };
 
-template <class VecT, int EndIdx = VecT::get_count(), int StartIdx = 0>
+template <class VecT, int EndIdx = VecT::size(), int StartIdx = 0>
 VecPrinter<VecT, EndIdx, StartIdx> printableVec(const VecT &Vec) {
   return VecPrinter<VecT, EndIdx, StartIdx>(Vec);
 }
