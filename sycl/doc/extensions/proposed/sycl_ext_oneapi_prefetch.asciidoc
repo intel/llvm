@@ -190,15 +190,19 @@ void prefetch(T* ptr, Properties properties = {});
 template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(T* ptr, size_t count, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 &&
-// (Accessor::access_mode == read || Accessor::access_mode == read_write)
-template <typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void prefetch(Accessor* acc, size_t offset, Properties properties = {});
+// Only available if Dimensions == 1 && (AccessMode == read || AccessMode == read_write)
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::properties<>>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              size_t offset, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 &&
-// (Accessor::access_mode == read || Accessor::access_mode == read_write)
-template <typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void prefetch(Accessor* acc, size_t offset, size_t count, Properties properties = {});
+// Only available if Dimensions == 1 && (AccessMode == read || AccessMode == read_write)
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::properties<>>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              size_t offset, size_t count, Properties properties = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -237,19 +241,31 @@ _Effects_: Equivalent to `prefetch((void*) ptr, count * sizeof(T), properties)`.
 
 [source,c++]
 ----
-template <typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void prefetch(Accessor* acc, size_t offset, Properties properties = {});
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::properties<>>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              size_t offset, Properties properties = {});
 ----
+_Constraints_: Available only if `Dimensions == 1 && (AccessMode == read ||
+AccessMode == read_write)` is `true`.
+
 _Effects_: Equivalent to `prefetch((void*) (acc.get_pointer() + offset),
-sizeof(Accessor::value_type), properties)`.
+sizeof(DataT), properties)`.
 
 [source,c++]
 ----
-template <typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void prefetch(Accessor* acc, size_t offset, size_t count, Properties properties = {});
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::properties<>>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              size_t offset, size_t count, Properties properties = {});
 ----
+_Constraints_: Available only if `Dimensions == 1 && (AccessMode == read ||
+AccessMode == read_write)` is `true`.
+
 _Effects_: Equivalent to `prefetch((void*) (acc.get_pointer() + offset), count
-* sizeof(Accessor::value_type), properties)`.
+* sizeof(DataT), properties)`.
 
 
 ==== Usage examples
@@ -308,15 +324,19 @@ void joint_prefetch(Group g, T* ptr, Properties properties = {});
 template <typename Group, typename T, typename Properties = ext::oneapi::experimental::properties<>>
 void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 &&
-// (Accessor::access_mode == read || Accessor::access_mode == read_write)
-template <typename Group, typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void joint_prefetch(Group g, Accessor* acc, size_t offset, Properties properties = {});
+// Only available if Dimensions == 1 && (AccessMode == read || AccessMode == read_write)
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::properties<>>
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 &&
-// (Accessor::access_mode == read || Accessor::access_mode == read_write)
-template <typename Group, typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void joint_prefetch(Group g, Accessor* acc, size_t offset, size_t count, Properties properties = {});
+// Only available if Dimensions == 1 && (AccessMode == read || AccessMode == read_write)
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::properties<>>
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, size_t count, Properties properties = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -382,10 +402,13 @@ properties)`.
 [source,c++]
 ----
 template <typename Group, typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void joint_prefetch(Group g, Accessor* acc, size_t offset, Properties properties = {});
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
-`true`.
+`true` and `Dimensions == 1 && (AccessMode == read || AccessMode ==
+read_write)` is `true`.
+
 
 _Preconditions_: `acc`, `offset` and `properties` must be the same for all
 work-items in group `g`.
@@ -396,10 +419,12 @@ offset), sizeof(Accessor::value_type), properties)`.
 [source,c++]
 ----
 template <typename Group, typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
-void joint_prefetch(Group g, Accessor* acc, size_t offset, size_t count, Properties properties = {});
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, size_t count, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
-`true`.
+`true` and `Dimensions == 1 && (AccessMode == read || AccessMode ==
+read_write)` is `true`.
 
 _Preconditions_: `acc`, `offset`, `count` and `properties` must be the same for
 all work-items in group `g`.
