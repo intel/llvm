@@ -391,3 +391,9 @@
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "dg1" "-DDG1"
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL"
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL2"
+
+/// Check driver sets "auto" GRF mode for PVC target.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc \
+// RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK_GRF_MODE
+// CHECK_GRF_MODE: ocloc{{.*}} "-ze-intel-enable-auto-large-GRF-mode"

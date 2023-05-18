@@ -981,6 +981,9 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       }
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
+      // Use "auto" GRF mode for PVC.
+      if (DepInfo.equals("pvc"))
+        BeArgs.push_back("-ze-intel-enable-auto-large-GRF-mode");
     }
     // -ftarget-compile-fast
     if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
