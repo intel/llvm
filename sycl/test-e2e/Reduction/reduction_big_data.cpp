@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // Group algorithms are not supported on Nvidia.
 // XFAIL: hip_nvidia
@@ -45,7 +43,7 @@ int test(queue &Q, T Identity) {
 
   buffer<T, 1> InBuf(NWorkItems);
   buffer<T, 1> OutBuf(1);
-  (OutBuf.template get_access<access::mode::write>())[0] = Identity;
+  host_accessor(OutBuf, write_only)[0] = Identity;
 
   // Initialize.
   BinaryOperation BOp;
@@ -64,7 +62,7 @@ int test(queue &Q, T Identity) {
   });
 
   // Check correctness.
-  auto Out = OutBuf.template get_access<access::mode::read>();
+  host_accessor Out(OutBuf, read_only);
   T ComputedOut = *(Out.get_pointer());
   return checkResults(Q, BOp, NDRange, ComputedOut, CorrectOut);
 }

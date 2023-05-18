@@ -56,6 +56,9 @@ enum {
   InstFormatShift = 0,
 
   ConstraintShift = InstFormatShift + 5,
+  VS2Constraint = 0b001 << ConstraintShift,
+  VS1Constraint = 0b010 << ConstraintShift,
+  VMConstraint  = 0b100 << ConstraintShift,
   ConstraintMask = 0b111 << ConstraintShift,
 
   VLMulShift = ConstraintShift + 3,
@@ -111,14 +114,6 @@ enum {
   IsSignExtendingOpWMask = 1ULL << IsSignExtendingOpWShift,
 };
 
-// Match with the definitions in RISCVInstrFormats.td
-enum VConstraintType {
-  NoConstraint = 0,
-  VS2Constraint = 0b001,
-  VS1Constraint = 0b010,
-  VMConstraint = 0b100,
-};
-
 enum VLMUL : uint8_t {
   LMUL_1 = 0,
   LMUL_2,
@@ -140,11 +135,6 @@ enum {
 /// \returns the format of the instruction.
 static inline unsigned getFormat(uint64_t TSFlags) {
   return (TSFlags & InstFormatMask) >> InstFormatShift;
-}
-/// \returns the constraint for the instruction.
-static inline VConstraintType getConstraint(uint64_t TSFlags) {
-  return static_cast<VConstraintType>((TSFlags & ConstraintMask) >>
-                                      ConstraintShift);
 }
 /// \returns the LMUL for the instruction.
 static inline VLMUL getLMul(uint64_t TSFlags) {
@@ -252,6 +242,7 @@ enum OperandType : unsigned {
   OPERAND_UIMM8_LSB00,
   OPERAND_UIMM8,
   OPERAND_UIMM8_LSB000,
+  OPERAND_UIMM8_GE32,
   OPERAND_UIMM9_LSB000,
   OPERAND_UIMM10_LSB00_NONZERO,
   OPERAND_UIMM12,
@@ -420,7 +411,7 @@ enum ABI {
 
 // Returns the target ABI, or else a StringError if the requested ABIName is
 // not supported for the given TT and FeatureBits combination.
-ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
+ABI computeTargetABI(const Triple &TT, const FeatureBitset &FeatureBits,
                      StringRef ABIName);
 
 ABI getTargetABI(StringRef ABIName);
@@ -501,6 +492,124 @@ namespace RISCVRVC {
 bool compress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
 bool uncompress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
 } // namespace RISCVRVC
+
+namespace RISCVZC {
+enum RLISTENCODE {
+  RA = 4,
+  RA_S0,
+  RA_S0_S1,
+  RA_S0_S2,
+  RA_S0_S3,
+  RA_S0_S4,
+  RA_S0_S5,
+  RA_S0_S6,
+  RA_S0_S7,
+  RA_S0_S8,
+  RA_S0_S9,
+  // note - to include s10, s11 must also be included
+  RA_S0_S11,
+  INVALID_RLIST,
+};
+
+inline unsigned encodeRlist(MCRegister EndReg, bool IsRV32E = false) {
+  assert((!IsRV32E || EndReg <= RISCV::X9) && "Invalid Rlist for RV32E");
+  switch (EndReg) {
+  case RISCV::X1:
+    return RLISTENCODE::RA;
+  case RISCV::X8:
+    return RLISTENCODE::RA_S0;
+  case RISCV::X9:
+    return RLISTENCODE::RA_S0_S1;
+  case RISCV::X18:
+    return RLISTENCODE::RA_S0_S2;
+  case RISCV::X19:
+    return RLISTENCODE::RA_S0_S3;
+  case RISCV::X20:
+    return RLISTENCODE::RA_S0_S4;
+  case RISCV::X21:
+    return RLISTENCODE::RA_S0_S5;
+  case RISCV::X22:
+    return RLISTENCODE::RA_S0_S6;
+  case RISCV::X23:
+    return RLISTENCODE::RA_S0_S7;
+  case RISCV::X24:
+    return RLISTENCODE::RA_S0_S8;
+  case RISCV::X25:
+    return RLISTENCODE::RA_S0_S9;
+  case RISCV::X26:
+    return RLISTENCODE::INVALID_RLIST;
+  case RISCV::X27:
+    return RLISTENCODE::RA_S0_S11;
+  default:
+    llvm_unreachable("Undefined input.");
+  }
+}
+
+inline static unsigned getStackAdjBase(unsigned RlistVal, bool IsRV64,
+                                       bool IsEABI) {
+  assert(RlistVal != RLISTENCODE::INVALID_RLIST &&
+         "{ra, s0-s10} is not supported, s11 must be included.");
+  if (IsEABI)
+    return 16;
+  if (!IsRV64) {
+    switch (RlistVal) {
+    case RLISTENCODE::RA:
+    case RLISTENCODE::RA_S0:
+    case RLISTENCODE::RA_S0_S1:
+    case RLISTENCODE::RA_S0_S2:
+      return 16;
+    case RLISTENCODE::RA_S0_S3:
+    case RLISTENCODE::RA_S0_S4:
+    case RLISTENCODE::RA_S0_S5:
+    case RLISTENCODE::RA_S0_S6:
+      return 32;
+    case RLISTENCODE::RA_S0_S7:
+    case RLISTENCODE::RA_S0_S8:
+    case RLISTENCODE::RA_S0_S9:
+      return 48;
+    case RLISTENCODE::RA_S0_S11:
+      return 64;
+    }
+  } else {
+    switch (RlistVal) {
+    case RLISTENCODE::RA:
+    case RLISTENCODE::RA_S0:
+      return 16;
+    case RLISTENCODE::RA_S0_S1:
+    case RLISTENCODE::RA_S0_S2:
+      return 32;
+    case RLISTENCODE::RA_S0_S3:
+    case RLISTENCODE::RA_S0_S4:
+      return 48;
+    case RLISTENCODE::RA_S0_S5:
+    case RLISTENCODE::RA_S0_S6:
+      return 64;
+    case RLISTENCODE::RA_S0_S7:
+    case RLISTENCODE::RA_S0_S8:
+      return 80;
+    case RLISTENCODE::RA_S0_S9:
+      return 96;
+    case RLISTENCODE::RA_S0_S11:
+      return 112;
+    }
+  }
+  llvm_unreachable("Unexpected RlistVal");
+}
+
+inline static bool getSpimm(unsigned RlistVal, unsigned &SpimmVal,
+                            int64_t StackAdjustment, bool IsRV64, bool IsEABI) {
+  if (RlistVal == RLISTENCODE::INVALID_RLIST)
+    return false;
+  unsigned stackAdj = getStackAdjBase(RlistVal, IsRV64, IsEABI);
+  SpimmVal = (StackAdjustment - stackAdj) / 16;
+  if (SpimmVal > 3)
+    return false;
+  return true;
+}
+
+void printRlist(unsigned SlistEncode, raw_ostream &OS);
+void printSpimm(int64_t Spimm, raw_ostream &OS);
+} // namespace RISCVZC
 
 } // namespace llvm
 

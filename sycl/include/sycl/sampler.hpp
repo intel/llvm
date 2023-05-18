@@ -124,6 +124,14 @@ private:
             access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
+
+// SYCL 2020 image_sampler struct
+struct image_sampler {
+  addressing_mode addressing;
+  coordinate_normalization_mode coordinate;
+  filtering_mode filtering;
+};
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

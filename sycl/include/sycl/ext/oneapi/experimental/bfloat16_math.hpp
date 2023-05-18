@@ -33,7 +33,7 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 // According to bfloat16 format, NAN value's exponent field is 0xFF and
 // significand has non-zero bits.
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, bool> isnan(T x) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, bool> isnan(T x) {
   oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
   return (((XBits & 0x7F80) == 0x7F80) && (XBits & 0x7F)) ? true : false;
 }
@@ -47,7 +47,7 @@ template <size_t N> sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
   return oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
@@ -86,7 +86,7 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
   oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
@@ -139,7 +139,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 }
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
   oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
@@ -191,7 +191,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 }
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
   oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
@@ -232,6 +232,53 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   return res;
 }
 
+#define BFLOAT16_MATH_FP32_WRAPPERS(op)                                        \
+  template <typename T>                                                        \
+  std::enable_if_t<std::is_same<T, bfloat16>::value, T> op(T x) {              \
+    return sycl::ext::oneapi::bfloat16{sycl::op(float{x})};                    \
+  }
+
+#define BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(op)                                 \
+  template <size_t N>                                                          \
+  sycl::marray<bfloat16, N> op(sycl::marray<bfloat16, N> x) {                  \
+    sycl::marray<bfloat16, N> res;                                             \
+    for (size_t i = 0; i < N; i++) {                                           \
+      res[i] = op(x[i]);                                                       \
+    }                                                                          \
+    return res;                                                                \
+  }
+
+BFLOAT16_MATH_FP32_WRAPPERS(ceil)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(ceil)
+BFLOAT16_MATH_FP32_WRAPPERS(cos)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(cos)
+BFLOAT16_MATH_FP32_WRAPPERS(exp)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp)
+BFLOAT16_MATH_FP32_WRAPPERS(exp10)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp10)
+BFLOAT16_MATH_FP32_WRAPPERS(exp2)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp2)
+BFLOAT16_MATH_FP32_WRAPPERS(floor)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(floor)
+BFLOAT16_MATH_FP32_WRAPPERS(log)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log)
+BFLOAT16_MATH_FP32_WRAPPERS(log2)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log2)
+BFLOAT16_MATH_FP32_WRAPPERS(log10)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log10)
+BFLOAT16_MATH_FP32_WRAPPERS(rint)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(rint)
+BFLOAT16_MATH_FP32_WRAPPERS(rsqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(rsqrt)
+BFLOAT16_MATH_FP32_WRAPPERS(sin)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(sin)
+BFLOAT16_MATH_FP32_WRAPPERS(sqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(sqrt)
+BFLOAT16_MATH_FP32_WRAPPERS(trunc)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(trunc)
+
+#undef BFLOAT16_MATH_FP32_WRAPPERS
+#undef BFLOAT16_MATH_FP32_WRAPPERS_MARRAY
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -232,9 +232,8 @@ template <typename T> struct LShift {
 };
 
 template <typename T, typename R>
-using is_int_to_int =
-    std::integral_constant<bool, std::is_integral<T>::value &&
-                                     std::is_integral<R>::value>;
+using is_int_to_int = std::integral_constant<bool, std::is_integral_v<T> &&
+                                                       std::is_integral_v<R>>;
 
 template <typename T, typename R>
 using is_sint_to_sint =
@@ -252,25 +251,24 @@ using is_sint_to_from_uint = std::integral_constant<
               (is_sigeninteger<T>::value && is_sugeninteger<R>::value)>;
 
 template <typename T, typename R>
-using is_sint_to_float =
-    std::integral_constant<bool, std::is_integral<T>::value &&
-                                     !(std::is_unsigned<T>::value) &&
-                                     detail::is_floating_point<R>::value>;
+using is_sint_to_float = std::integral_constant<
+    bool, std::is_integral_v<T> &&
+              !(std::is_unsigned_v<T>)&&detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_uint_to_float =
-    std::integral_constant<bool, std::is_unsigned<T>::value &&
+    std::integral_constant<bool, std::is_unsigned_v<T> &&
                                      detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_int_to_float =
-    std::integral_constant<bool, std::is_integral<T>::value &&
+    std::integral_constant<bool, std::is_integral_v<T> &&
                                      detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_float_to_int =
     std::integral_constant<bool, detail::is_floating_point<T>::value &&
-                                     std::is_integral<R>::value>;
+                                     std::is_integral_v<R>>;
 
 template <typename T, typename R>
 using is_float_to_float =
@@ -282,7 +280,7 @@ using is_standard_type =
 
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
-std::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
+std::enable_if_t<std::is_same_v<T, R>, R> convertImpl(T Value) {
   return Value;
 }
 
@@ -292,9 +290,9 @@ std::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
 // implemented for host that takes care of the precision requirements.
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
-std::enable_if_t<!std::is_same<T, R>::value && (is_int_to_int<T, R>::value ||
-                                                is_int_to_float<T, R>::value ||
-                                                is_float_to_float<T, R>::value),
+std::enable_if_t<!std::is_same_v<T, R> && (is_int_to_int<T, R>::value ||
+                                           is_int_to_float<T, R>::value ||
+                                           is_float_to_float<T, R>::value),
                  R>
 convertImpl(T Value) {
   return static_cast<R>(Value);
@@ -761,10 +759,9 @@ public:
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
-  typename std::enable_if_t<
-      !std::is_same<Ty, rel_t>::value &&
-          std::is_convertible<vec_data_t<Ty>, rel_t>::value,
-      vec &>
+  typename std::enable_if_t<!std::is_same_v<Ty, rel_t> &&
+                                std::is_convertible_v<vec_data_t<Ty>, rel_t>,
+                            vec &>
   operator=(const vec<rel_t, NumElements> &Rhs) {
     *this = Rhs.template as<vec>();
     return *this;
@@ -773,15 +770,15 @@ public:
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if_t<
-      !std::is_same<DataT, sycl::detail::half_impl::half>::value ||
-          !std::is_same<sycl::detail::half_impl::StorageT,
-                        sycl::detail::host_half_impl::half>::value,
+      !std::is_same_v<DataT, sycl::detail::half_impl::half> ||
+          !std::is_same_v<sycl::detail::half_impl::StorageT,
+                          sycl::detail::host_half_impl::half>,
       T>;
   template <typename T = void>
   using EnableIfHostHalf = typename std::enable_if_t<
-      std::is_same<DataT, sycl::detail::half_impl::half>::value &&
-          std::is_same<sycl::detail::half_impl::StorageT,
-                       sycl::detail::host_half_impl::half>::value,
+      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
+          std::is_same_v<sycl::detail::half_impl::StorageT,
+                         sycl::detail::host_half_impl::half>,
       T>;
 
   template <typename Ty = DataT>
@@ -790,8 +787,8 @@ public:
 
   template <typename Ty = DataT>
   typename std::enable_if_t<
-      std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename std::remove_const_t<Ty>, half>::value,
+      std::is_fundamental_v<vec_data_t<Ty>> ||
+          std::is_same_v<typename std::remove_const_t<Ty>, half>,
       vec &>
   operator=(const EnableIfNotHostHalf<Ty> &Rhs) {
     m_Data = (DataType)vec_data<Ty>::get(Rhs);
@@ -806,8 +803,8 @@ public:
 
   template <typename Ty = DataT>
   typename std::enable_if_t<
-      std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename std::remove_const_t<Ty>, half>::value,
+      std::is_fundamental_v<vec_data_t<Ty>> ||
+          std::is_same_v<typename std::remove_const_t<Ty>, half>,
       vec &>
   operator=(const EnableIfHostHalf<Ty> &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
@@ -842,7 +839,7 @@ public:
   // number of elements.
   template <int IdxNum, typename T = void>
   using EnableIfMultipleElems = typename std::enable_if_t<
-      std::is_convertible<T, DataT>::value && NumElements == IdxNum, DataT>;
+      std::is_convertible_v<T, DataT> && NumElements == IdxNum, DataT>;
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<2, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1)
@@ -1226,12 +1223,16 @@ public:
   // Available only when: dataT != cl_float && dataT != cl_double
   // && dataT != cl_half
   template <typename T = DataT>
-  typename std::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec>
+  typename std::enable_if_t<std::is_integral_v<vec_data_t<T>>, vec>
   operator~() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
-    return vec{(typename vec::DataType) ~m_Data};
+    vec Ret{(typename vec::DataType) ~m_Data};
+    if constexpr (std::is_same<Type, bool>::value) {
+      Ret.ConvertToDataT();
+    }
+    return Ret;
 #else
     vec Ret;
     for (size_t I = 0; I < NumElements; ++I) {
@@ -1411,7 +1412,7 @@ private:
 #ifdef __cpp_deduction_guides
 // all compilers supporting deduction guides also support fold expressions
 template <class T, class... U,
-          class = std::enable_if_t<(std::is_same<T, U>::value && ...)>>
+          class = std::enable_if_t<(std::is_same_v<T, U> && ...)>>
 vec(T, U...) -> vec<T, sizeof...(U) + 1>;
 #endif
 
@@ -1423,9 +1424,8 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp {
   using DataT = typename VecT::element_type;
-  using CommonDataT =
-      typename std::common_type<typename OperationLeftT::DataT,
-                                typename OperationRightT::DataT>::type;
+  using CommonDataT = std::common_type_t<typename OperationLeftT::DataT,
+                                         typename OperationRightT::DataT>;
   static constexpr int getNumElements() { return sizeof...(Indexes); }
 
   using rel_t = detail::rel_t<DataT>;
@@ -1463,15 +1463,15 @@ class SwizzleOp {
 
   template <typename T>
   using EnableIfScalarType = typename std::enable_if_t<
-      std::is_convertible<DataT, T>::value &&
-      (std::is_fundamental<vec_data_t<T>>::value ||
-       std::is_same<typename std::remove_const_t<T>, half>::value)>;
+      std::is_convertible_v<DataT, T> &&
+      (std::is_fundamental_v<vec_data_t<T>> ||
+       std::is_same_v<typename std::remove_const_t<T>, half>)>;
 
   template <typename T>
   using EnableIfNoScalarType = typename std::enable_if_t<
-      !std::is_convertible<DataT, T>::value ||
-      !(std::is_fundamental<vec_data_t<T>>::value ||
-        std::is_same<typename std::remove_const_t<T>, half>::value)>;
+      !std::is_convertible_v<DataT, T> ||
+      !(std::is_fundamental_v<vec_data_t<T>> ||
+        std::is_same_v<typename std::remove_const_t<T>, half>)>;
 
   template <int... Indices>
   using Swizzle =
@@ -1584,7 +1584,7 @@ public:
 #undef __SYCL_UOP
 
   template <typename T = DataT>
-  typename std::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec_t>
+  typename std::enable_if_t<std::is_integral_v<vec_data_t<T>>, vec_t>
   operator~() {
     vec_t Tmp = *this;
     return ~Tmp;
@@ -1619,6 +1619,16 @@ public:
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     m_Vector->setValue(Idxs[0], Rhs);
+    return *this;
+  }
+
+  template <int IdxNum = getNumElements(),
+            EnableIfMultipleIndexes<IdxNum, bool> = true>
+  SwizzleOp &operator=(const DataT &Rhs) {
+    std::array<int, IdxNum> Idxs{Indexes...};
+    for (auto Idx : Idxs) {
+      m_Vector->setValue(Idx, Rhs);
+    }
     return *this;
   }
 
@@ -1683,6 +1693,21 @@ public:
   NewLHOp<RhsOperation, std::divides, Indexes...>
   operator/(const RhsOperation &Rhs) const {
     return NewLHOp<RhsOperation, std::divides, Indexes...>(m_Vector, *this,
+                                                           Rhs);
+  }
+
+  template <typename T, typename = EnableIfScalarType<T>>
+  NewLHOp<GetScalarOp<T>, std::modulus, Indexes...>
+  operator%(const T &Rhs) const {
+    return NewLHOp<GetScalarOp<T>, std::modulus, Indexes...>(
+        m_Vector, *this, GetScalarOp<T>(Rhs));
+  }
+
+  template <typename RhsOperation,
+            typename = EnableIfNoScalarType<RhsOperation>>
+  NewLHOp<RhsOperation, std::modulus, Indexes...>
+  operator%(const RhsOperation &Rhs) const {
+    return NewLHOp<RhsOperation, std::modulus, Indexes...>(m_Vector, *this,
                                                            Rhs);
   }
 
@@ -2058,6 +2083,7 @@ __SYCL_BINOP(+)
 __SYCL_BINOP(-)
 __SYCL_BINOP(*)
 __SYCL_BINOP(/)
+__SYCL_BINOP(%)
 __SYCL_BINOP(&)
 __SYCL_BINOP(|)
 __SYCL_BINOP(^)
@@ -2253,8 +2279,7 @@ struct is_device_copyable : std::false_type {};
 // so that they are candidates only for non-trivially-copyable types.
 // Otherwise, there are several candidates and the compiler can't decide.
 template <typename T>
-struct is_device_copyable<
-    T, std::enable_if_t<std::is_trivially_copyable<T>::value>>
+struct is_device_copyable<T, std::enable_if_t<std::is_trivially_copyable_v<T>>>
     : std::true_type {};
 
 template <typename T>
@@ -2268,14 +2293,14 @@ struct is_device_copyable<std::array<T, 0>> : std::true_type {};
 template <typename T, std::size_t N>
 struct is_device_copyable<
     std::array<T, N>,
-    std::enable_if_t<!std::is_trivially_copyable<std::array<T, N>>::value>>
+    std::enable_if_t<!std::is_trivially_copyable_v<std::array<T, N>>>>
     : is_device_copyable<T> {};
 
 // std::optional<T> is implicitly device copyable type if T is device copyable
 template <typename T>
 struct is_device_copyable<
     std::optional<T>,
-    std::enable_if_t<!std::is_trivially_copyable<std::optional<T>>::value>>
+    std::enable_if_t<!std::is_trivially_copyable_v<std::optional<T>>>>
     : is_device_copyable<T> {};
 
 // std::pair<T1, T2> is implicitly device copyable type if T1 and T2 are device
@@ -2283,7 +2308,7 @@ struct is_device_copyable<
 template <typename T1, typename T2>
 struct is_device_copyable<
     std::pair<T1, T2>,
-    std::enable_if_t<!std::is_trivially_copyable<std::pair<T1, T2>>::value>>
+    std::enable_if_t<!std::is_trivially_copyable_v<std::pair<T1, T2>>>>
     : std::bool_constant<is_device_copyable<T1>::value &&
                          is_device_copyable<T2>::value> {};
 
@@ -2295,7 +2320,7 @@ template <> struct is_device_copyable<std::tuple<>> : std::true_type {};
 template <typename T, typename... Ts>
 struct is_device_copyable<
     std::tuple<T, Ts...>,
-    std::enable_if_t<!std::is_trivially_copyable<std::tuple<T, Ts...>>::value>>
+    std::enable_if_t<!std::is_trivially_copyable_v<std::tuple<T, Ts...>>>>
     : std::bool_constant<is_device_copyable<T>::value &&
                          is_device_copyable<std::tuple<Ts...>>::value> {};
 
@@ -2307,27 +2332,27 @@ template <> struct is_device_copyable<std::variant<>> : std::true_type {};
 template <typename... Ts>
 struct is_device_copyable<
     std::variant<Ts...>,
-    std::enable_if_t<!std::is_trivially_copyable<std::variant<Ts...>>::value>>
+    std::enable_if_t<!std::is_trivially_copyable_v<std::variant<Ts...>>>>
     : std::bool_constant<(is_device_copyable<Ts>::value && ...)> {};
 
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray
 // is device copyable by default).
 template <typename T, std::size_t N>
-struct is_device_copyable<
-    sycl::marray<T, N>, std::enable_if_t<is_device_copyable<T>::value &&
-                                         !std::is_trivially_copyable<T>::value>>
+struct is_device_copyable<sycl::marray<T, N>,
+                          std::enable_if_t<is_device_copyable<T>::value &&
+                                           !std::is_trivially_copyable_v<T>>>
     : std::true_type {};
 
 // array is device copyable if element type is device copyable
 template <typename T, std::size_t N>
-struct is_device_copyable<
-    T[N], std::enable_if_t<!std::is_trivially_copyable<T>::value>>
+struct is_device_copyable<T[N],
+                          std::enable_if_t<!std::is_trivially_copyable_v<T>>>
     : is_device_copyable<T> {};
 
 template <typename T>
 struct is_device_copyable<
-    T, std::enable_if_t<!std::is_trivially_copyable<T>::value &&
+    T, std::enable_if_t<!std::is_trivially_copyable_v<T> &&
                         (std::is_const_v<T> || std::is_volatile_v<T>)>>
     : is_device_copyable<std::remove_cv_t<T>> {};
 
@@ -2340,8 +2365,8 @@ struct IsDeprecatedDeviceCopyable : std::false_type {};
 template <typename T>
 struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
     IsDeprecatedDeviceCopyable<
-        T, std::enable_if_t<std::is_trivially_copy_constructible<T>::value &&
-                            std::is_trivially_destructible<T>::value &&
+        T, std::enable_if_t<std::is_trivially_copy_constructible_v<T> &&
+                            std::is_trivially_destructible_v<T> &&
                             !is_device_copyable<T>::value>> : std::true_type {};
 
 template <typename T, int N>

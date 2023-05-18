@@ -61,7 +61,7 @@ using is_svgenfloat = is_contained<T, gtl::scalar_vector_floating_list>;
 
 template <typename T>
 using is_mgenfloat = std::bool_constant<
-    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    std::is_same_v<T, sycl::marray<marray_element_t<T>, T::size()>> &&
     is_svgenfloat<marray_element_t<T>>::value>;
 
 template <typename T>
@@ -244,7 +244,7 @@ using is_genintptr = std::bool_constant<
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
 using is_genintptr_marray = std::bool_constant<
-    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    std::is_same_v<T, sycl::marray<marray_element_t<T>, T::size()>> &&
     is_genint<marray_element_t<remove_pointer_t<T>>>::value &&
     is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
                                gvl::nonconst_address_space_list>::value &&
@@ -341,7 +341,7 @@ template <typename T> class TryToGetPointerT {
 public:
   using type = decltype(check(T()));
   static constexpr bool value =
-      std::is_pointer<T>::value || !std::is_same<T, type>::value;
+      std::is_pointer_v<T> || !std::is_same_v<T, type>;
 };
 
 // TryToGetElementType<T>::type is T::element_type or T::value_type if those
@@ -353,7 +353,7 @@ template <typename T> class TryToGetElementType {
 
 public:
   using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same<T, type>::value;
+  static constexpr bool value = !std::is_same_v<T, type>;
 };
 
 // TryToGetVectorT<T>::type is T::vector_t if that exists, otherwise T.
@@ -363,7 +363,7 @@ template <typename T> class TryToGetVectorT {
 
 public:
   using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same<T, type>::value;
+  static constexpr bool value = !std::is_same_v<T, type>;
 };
 
 // Try to get pointer_t (if pointer_t indicates on the type with_remainder
@@ -483,15 +483,15 @@ using select_cl_scalar_float_t =
 
 template <typename T>
 using select_cl_scalar_complex_or_T_t = std::conditional_t<
-    std::is_same<T, std::complex<float>>::value, __spv::complex_float,
-    std::conditional_t<
-        std::is_same<T, std::complex<double>>::value, __spv::complex_double,
-        std::conditional_t<std::is_same<T, std::complex<half>>::value,
-                           __spv::complex_half, T>>>;
+    std::is_same_v<T, std::complex<float>>, __spv::complex_float,
+    std::conditional_t<std::is_same_v<T, std::complex<double>>,
+                       __spv::complex_double,
+                       std::conditional_t<std::is_same_v<T, std::complex<half>>,
+                                          __spv::complex_half, T>>>;
 
 template <typename T>
 using select_cl_scalar_integral_t =
-    std::conditional_t<std::is_signed<T>::value,
+    std::conditional_t<std::is_signed_v<T>,
                        select_cl_scalar_integral_signed_t<T>,
                        select_cl_scalar_integral_unsigned_t<T>>;
 
@@ -499,13 +499,13 @@ using select_cl_scalar_integral_t =
 // scalar T or returns T if T is not scalar.
 template <typename T>
 using select_cl_scalar_t = std::conditional_t<
-    std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
+    std::is_integral_v<T>, select_cl_scalar_integral_t<T>,
     std::conditional_t<
-        std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
+        std::is_floating_point_v<T>, select_cl_scalar_float_t<T>,
         // half is a special case: it is implemented differently on
         // host and device and therefore, might lower to different
         // types
-        std::conditional_t<std::is_same<T, half>::value,
+        std::conditional_t<is_half<T>::value,
                            sycl::detail::half_impl::BIsRepresentationT,
                            select_cl_scalar_complex_or_T_t<T>>>>;
 
@@ -522,24 +522,23 @@ struct select_cl_vector_or_scalar_or_ptr<
       // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
       // class with _Float16 DataType, which is not expected there
       // So, leave vector<half, N> as-is
-      vec<std::conditional_t<
-              std::is_same<mptr_or_vec_elem_type_t<T>, half>::value,
-              mptr_or_vec_elem_type_t<T>,
-              select_cl_scalar_t<mptr_or_vec_elem_type_t<T>>>,
+      vec<std::conditional_t<is_half<mptr_or_vec_elem_type_t<T>>::value,
+                             mptr_or_vec_elem_type_t<T>,
+                             select_cl_scalar_t<mptr_or_vec_elem_type_t<T>>>,
           T::size()>;
 };
 
 template <typename T>
 struct select_cl_vector_or_scalar_or_ptr<
     T, typename std::enable_if_t<!is_vgentype<T>::value &&
-                                 !std::is_pointer<T>::value>> {
+                                 !std::is_pointer_v<T>>> {
   using type = select_cl_scalar_t<T>;
 };
 
 template <typename T>
 struct select_cl_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<!is_vgentype<T>::value &&
-                                 std::is_pointer<T>::value>> {
+    T,
+    typename std::enable_if_t<!is_vgentype<T>::value && std::is_pointer_v<T>>> {
   using elem_ptr_type = typename select_cl_vector_or_scalar_or_ptr<
       std::remove_pointer_t<T>>::type *;
 #ifdef __SYCL_DEVICE_ONLY__
@@ -568,12 +567,24 @@ template <> struct TypeHelper<std::byte> {
 };
 #endif
 
+template <typename T> struct TypeHelper<const T> {
+  using RetType = const typename TypeHelper<T>::RetType;
+};
+
+template <typename T> struct TypeHelper<volatile T> {
+  using RetType = volatile typename TypeHelper<T>::RetType;
+};
+
+template <typename T> struct TypeHelper<const volatile T> {
+  using RetType = const volatile typename TypeHelper<T>::RetType;
+};
+
 template <typename T> using type_helper = typename TypeHelper<T>::RetType;
 
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<is_genptr<T>::value &&
-                                 !std::is_pointer<T>::value>> {
+    T,
+    typename std::enable_if_t<is_genptr<T>::value && !std::is_pointer_v<T>>> {
   using type = multi_ptr<typename select_cl_vector_or_scalar_or_ptr<
                              type_helper<mptr_or_vec_elem_type_t<T>>>::type,
                          T::address_space, access::decorated::yes>;
@@ -581,8 +592,8 @@ struct select_cl_mptr_or_vector_or_scalar_or_ptr<
 
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<!is_genptr<T>::value ||
-                                 std::is_pointer<T>::value>> {
+    T,
+    typename std::enable_if_t<!is_genptr<T>::value || std::is_pointer_v<T>>> {
   using type = typename select_cl_vector_or_scalar_or_ptr<T>::type;
 };
 

@@ -26,7 +26,7 @@ template <int dimensions = 1> class range : public detail::array<dimensions> {
                 "range can only be 1, 2, or 3 dimensional.");
   using base = detail::array<dimensions>;
   template <typename N, typename T>
-  using IntegralType = std::enable_if_t<std::is_integral<N>::value, T>;
+  using IntegralType = std::enable_if_t<std::is_integral_v<N>, T>;
 
 public:
   /* The following constructor is only available in the range class

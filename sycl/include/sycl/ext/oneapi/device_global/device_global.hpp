@@ -129,11 +129,11 @@ class
 public:
   using element_type = std::remove_extent_t<T>;
 
-  static_assert(std::is_trivially_default_constructible<T>::value,
+  static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
 
-  static_assert(std::is_trivially_destructible<T>::value,
+  static_assert(std::is_trivially_destructible_v<T>,
                 "Type T must be trivially destructible.");
 
   static_assert(is_property_list<property_list_t>::value,
@@ -190,18 +190,18 @@ public:
 
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
-                       std::is_pointer<RelayT>::value,
-                   RelayT>
-      &operator->() noexcept {
+                       std::is_pointer_v<RelayT>,
+                   RelayT> &
+  operator->() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }
 
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
-                       std::is_pointer<RelayT>::value,
-                   const RelayT>
-      &operator->() const noexcept {
+                       std::is_pointer_v<RelayT>,
+                   const RelayT> &
+  operator->() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }

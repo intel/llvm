@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// UNSUPPORTED: gpu
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 //==------------------- buffer_location.cpp - USM buffer location ----------==//
 //

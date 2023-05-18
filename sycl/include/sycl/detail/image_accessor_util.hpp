@@ -79,20 +79,20 @@ convertToFloat4(vec<T, 4> Coords) {
 // Retured offset is used to find the address location of a pixel from a base
 // ptr.
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const T &Coords, const id<3>, const uint8_t ElementSize) {
   return Coords * ElementSize;
 }
 
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const vec<T, 2> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0];
 }
 
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0] +

@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // `Group algorithms are not supported on host device` on Nvidia.
 // XFAIL: hip_nvidia
@@ -67,7 +65,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
        CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();
-    ComputedOut = (Buf.template get_access<access::mode::read>())[0];
+    ComputedOut = host_accessor(Buf, read_only)[0];
   } else {
     ComputedOut = *ReduVarPtr;
   }

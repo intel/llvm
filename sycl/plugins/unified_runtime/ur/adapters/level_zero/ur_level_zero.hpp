@@ -175,14 +175,20 @@ struct _ur_device_handle_t : _ur_object {
   ImmCmdlistMode ImmCommandListUsed{};
 
   // Scope of events used for events on the device
-  // Can be adjusted with SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS
+  // Can be adjusted with UR_DEVICE_SCOPE_EVENTS
   // for non-immediate command lists
   EventsScope ZeEventsScope = AllHostVisible;
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
-  // Is this a Data Center GPU Max series (aka PVC).
-  bool isPVC() { return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0; }
+  // Is this a Data Center GPU Max series (aka PVC)?
+  // TODO: change to use
+  // https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t
+  // when that is stable.
+  bool isPVC() {
+    return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0 ||
+           (ZeDeviceProperties->deviceId & 0xff0) == 0xb60;
+  }
 
   // Does this device represent a single compute slice?
   bool isCCS() const {

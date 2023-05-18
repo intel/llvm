@@ -39,11 +39,10 @@ using memory_order = sycl::memory_order;
 
 template <typename T> struct IsValidAtomicType {
   static constexpr bool value =
-      (std::is_same<T, int>::value || std::is_same<T, unsigned int>::value ||
-       std::is_same<T, long>::value || std::is_same<T, unsigned long>::value ||
-       std::is_same<T, long long>::value ||
-       std::is_same<T, unsigned long long>::value ||
-       std::is_same<T, float>::value);
+      (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+       std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
+       std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
+       std::is_same_v<T, float>);
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicAddressSpace {
@@ -247,7 +246,7 @@ public:
         cl_int, addressSpace, access::decorated::yes>::pointer>(Ptr);
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
-    cl_float ResVal = bit_cast<cl_float>(TmpVal);
+    cl_float ResVal = sycl::bit_cast<cl_float>(TmpVal);
     return ResVal;
   }
 #else

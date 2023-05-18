@@ -1,12 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out > %t.log 2>&1
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC < %t.log
+// REQUIRES: aspect-ext_intel_device_id
+// REQUIRES: level_zero
+// RUN: %{build} -o %t.out
+// RUN: env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 //
 // Same with Immediate CommandLists
-// RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out > %t.log 2>&1
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC < %t.log
-
-// REQUIRES: level_zero
+// RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 #include <sycl/sycl.hpp>
 
@@ -16,8 +14,6 @@ void test_pvc(device &d) {
   std::cout << "Test PVC Begin" << std::endl;
   // CHECK-PVC: Test PVC Begin
   bool IsPVC = [&]() {
-    if (!d.has(aspect::ext_intel_device_id))
-      return false;
     return (d.get_info<ext::intel::info::device::device_id>() & 0xff0) == 0xbd0;
   }();
   std::cout << "IsPVC: " << std::boolalpha << IsPVC << std::endl;

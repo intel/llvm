@@ -6,16 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 // >> ---- compile src1
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -c %s -o %t-same-kernel-a.o
+// RUN: %{build} -c -o %t-same-kernel-a.o
 //
 // >> ---- compile src2
-// RUN: %clangxx -DB_CPP=1 -fsycl -fsycl-targets=%sycl_triple -c %s -o %t-same-kernel-b.o
+// RUN: %{build} -DB_CPP=1 -c -o %t-same-kernel-b.o
 //
 // >> ---- link the full hetero app
-// RUN: %clangxx %t-same-kernel-a.o %t-same-kernel-b.o -o %t-same-kernel.exe -fsycl -fsycl-targets=%sycl_triple
-// RUN: %CPU_RUN_PLACEHOLDER %t-same-kernel.exe
-// RUN: %GPU_RUN_PLACEHOLDER %t-same-kernel.exe
-// RUN: %ACC_RUN_PLACEHOLDER %t-same-kernel.exe
+// RUN: %clangxx %t-same-kernel-a.o %t-same-kernel-b.o -o %t-same-kernel.exe -fsycl -fsycl-targets=%{sycl_triple}
+// RUN: %{run} %t-same-kernel.exe
 
 #include <sycl/sycl.hpp>
 

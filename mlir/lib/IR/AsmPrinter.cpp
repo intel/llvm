@@ -44,8 +44,8 @@
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/Threading.h"
 
-#include <tuple>
 #include <optional>
+#include <tuple>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -225,8 +225,8 @@ OpPrintingFlags &OpPrintingFlags::printGenericOpForm() {
 }
 
 /// Always skip Regions.
-OpPrintingFlags &OpPrintingFlags::skipRegions() {
-  skipRegionsFlag = true;
+OpPrintingFlags &OpPrintingFlags::skipRegions(bool skip) {
+  skipRegionsFlag = skip;
   return *this;
 }
 
@@ -2575,7 +2575,6 @@ void AsmPrinter::Impl::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
   if (!filteredAttrs.empty())
     printFilteredAttributesFn(filteredAttrs);
 }
-
 void AsmPrinter::Impl::printNamedAttribute(NamedAttribute attr) {
   // Print the name without quotes if possible.
   ::printKeywordOrString(attr.getName().strref(), os);
@@ -3355,6 +3354,13 @@ void OperationPrinter::printGenericOp(Operation *op, bool printOpName) {
     os << ']';
   }
 
+  // Print the properties.
+  if (Attribute prop = op->getPropertiesAsAttribute()) {
+    os << " <";
+    Impl::printAttribute(prop);
+    os << '>';
+  }
+
   // Print regions.
   if (op->getNumRegions() != 0) {
     os << " (";
@@ -3365,7 +3371,7 @@ void OperationPrinter::printGenericOp(Operation *op, bool printOpName) {
     os << ')';
   }
 
-  auto attrs = op->getAttrs();
+  auto attrs = op->getDiscardableAttrs();
   printOptionalAttrDict(attrs);
 
   // Print the type signature of the operation.
@@ -3509,6 +3515,10 @@ void OperationPrinter::printRegion(Region &region, bool printEntryBlockArgs,
 
 void OperationPrinter::printAffineMapOfSSAIds(AffineMapAttr mapAttr,
                                               ValueRange operands) {
+  if (!mapAttr) {
+    os << "<<NULL AFFINE MAP>>";
+    return;
+  }
   AffineMap map = mapAttr.getValue();
   unsigned numDims = map.getNumDims();
   auto printValueName = [&](unsigned pos, bool isSymbol) {
@@ -3663,10 +3673,7 @@ void Value::printAsOperand(raw_ostream &os, AsmState &state) {
                                                  os);
 }
 
-void Operation::print(raw_ostream &os, const OpPrintingFlags &printerFlags) {
-  // Find the operation to number from based upon the provided flags.
-  Operation *op = this;
-  bool shouldUseLocalScope = printerFlags.shouldUseLocalScope();
+static Operation *findParent(Operation *op, bool shouldUseLocalScope) {
   do {
     // If we are printing local scope, stop at the first operation that is
     // isolated from above.
@@ -3679,7 +3686,28 @@ void Operation::print(raw_ostream &os, const OpPrintingFlags &printerFlags) {
       break;
     op = parentOp;
   } while (true);
+  return op;
+}
 
+void Value::printAsOperand(raw_ostream &os, const OpPrintingFlags &flags) {
+  Operation *op;
+  if (auto result = dyn_cast<OpResult>()) {
+    op = result.getOwner();
+  } else {
+    op = cast<BlockArgument>().getOwner()->getParentOp();
+    if (!op) {
+      os << "<<UNKNOWN SSA VALUE>>";
+      return;
+    }
+  }
+  op = findParent(op, flags.shouldUseLocalScope());
+  AsmState state(op, flags);
+  printAsOperand(os, state);
+}
+
+void Operation::print(raw_ostream &os, const OpPrintingFlags &printerFlags) {
+  // Find the operation to number from based upon the provided flags.
+  Operation *op = findParent(this, printerFlags.shouldUseLocalScope());
   AsmState state(op, printerFlags);
   print(os, state);
 }

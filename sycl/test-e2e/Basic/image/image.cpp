@@ -1,7 +1,7 @@
-// UNSUPPORTED: hip || gpu-intel-pvc
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //

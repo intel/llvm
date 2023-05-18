@@ -1,11 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 //
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out &> %t.txt || true
-// RUN: %CPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out &> %t.txt || true
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
-// RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out &> %t.txt || true
-// RUN: %ACC_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // The test checks that the last parameter is `nullptr` for
 // piEnqueueKernelLaunch for USM kernel using local accessor, but
@@ -55,6 +50,7 @@ int main(int Argc, const char *Argv[]) {
       sycl::property::queue::in_order{},
       sycl::ext::oneapi::property::queue::discard_events{}};
   sycl::queue Q(props);
+  sycl::nd_range<1> NDRange(BUFFER_SIZE, BUFFER_SIZE);
   sycl::range<1> Range(BUFFER_SIZE);
 
   RunKernelHelper(Q, [&](int *Harray) {
@@ -63,7 +59,7 @@ int main(int Argc, const char *Argv[]) {
       sycl::local_accessor<int, 1> LocalAcc(LocalMemSize, CGH);
 
       CGH.parallel_for<class kernel_using_local_memory>(
-          Range, [=](sycl::item<1> itemID) {
+          NDRange, [=](sycl::item<1> itemID) {
             size_t i = itemID.get_id(0);
             int *Ptr = LocalAcc.get_pointer();
             Ptr[i] = i + 5;
@@ -87,7 +83,7 @@ int main(int Argc, const char *Argv[]) {
     Q.wait();
 
     // Checks result
-    auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor HostAcc(Buf, sycl::read_only);
     for (size_t i = 0; i < BUFFER_SIZE; ++i) {
       size_t expected = i + 20;
       assert(HostAcc[i] == expected);

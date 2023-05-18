@@ -180,7 +180,7 @@ ESIMD_INLINE
     return readRegion<BT1, BN1>(Base1, Region.first);
   else {
     static_assert(T::Is_2D);
-    static_assert(std::is_same<ElemTy, __st<BT1>>::value);
+    static_assert(std::is_same_v<ElemTy, __st<BT1>>);
     // To read a 2D region, we need the parent region
     // Read full rows with non-trivial vertical and horizontal stride = 1.
     constexpr int M = T::Size_y * PaTy::Size_x;

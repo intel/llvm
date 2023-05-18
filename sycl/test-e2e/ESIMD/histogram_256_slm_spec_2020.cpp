@@ -1,10 +1,9 @@
 // TODO enable on Windows
-// REQUIRES: linux && gpu
-// UNSUPPORTED: cuda || hip
+// REQUIRES: linux
 // TODO online_compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 16
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out 16
 
 #include "esimd_test_utils.hpp"
 

@@ -67,7 +67,7 @@ struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {
 
 // ---- sort_over_group
 template <typename Group, typename T, typename Sorter>
-typename std::enable_if<detail::is_sorter<Sorter, Group, T>::value, T>::type
+std::enable_if_t<detail::is_sorter<Sorter, Group, T>::value, T>
 sort_over_group(Group group, T value, Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sorter(group, value);
@@ -82,7 +82,7 @@ sort_over_group(Group group, T value, Sorter sorter) {
 }
 
 template <typename Group, typename T, typename Compare, size_t Extent>
-typename std::enable_if<!detail::is_sorter<Compare, Group, T>::value, T>::type
+std::enable_if_t<!detail::is_sorter<Compare, Group, T>::value, T>
 sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value, Compare comp) {
   return sort_over_group(
@@ -91,7 +91,7 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
 }
 
 template <typename Group, typename T, size_t Extent>
-typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, T>::type
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, T>
 sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value) {
   return sort_over_group(exec.get_group(), value,
@@ -100,8 +100,7 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
 
 // ---- joint_sort
 template <typename Group, typename Iter, typename Sorter>
-typename std::enable_if<detail::is_sorter<Sorter, Group, Iter>::value,
-                        void>::type
+std::enable_if_t<detail::is_sorter<Sorter, Group, Iter>::value, void>
 joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
 #ifdef __SYCL_DEVICE_ONLY__
   sorter(group, first, last);
@@ -117,8 +116,7 @@ joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
 }
 
 template <typename Group, typename Iter, typename Compare, size_t Extent>
-typename std::enable_if<!detail::is_sorter<Compare, Group, Iter>::value,
-                        void>::type
+std::enable_if_t<!detail::is_sorter<Compare, Group, Iter>::value, void>
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last, Compare comp) {
   joint_sort(exec.get_group(), first, last,
@@ -126,7 +124,7 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 }
 
 template <typename Group, typename Iter, size_t Extent>
-typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, void>::type
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last) {
   joint_sort(exec.get_group(), first, last,

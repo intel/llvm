@@ -4,11 +4,9 @@
 //
 // The test checks that the scenario works correctly.
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O2 -c -o %t.o
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.o -O0 -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -O2 -c -o %t.o
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.o -O0 -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>
