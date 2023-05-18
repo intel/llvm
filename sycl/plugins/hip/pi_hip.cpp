@@ -403,64 +403,6 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 //-- PI API implementation
 extern "C" {
 
-/// \return If available, the first binary that is PTX
-///
-pi_result hip_piextDeviceSelectBinary(pi_device device,
-                                      pi_device_binary *binaries,
-                                      pi_uint32 num_binaries,
-                                      pi_uint32 *selected_binary) {
-  (void)device;
-  if (!binaries) {
-    sycl::detail::pi::die("No list of device images provided");
-  }
-  if (num_binaries < 1) {
-    sycl::detail::pi::die("No binary images in the list");
-  }
-
-  // Look for an image for the HIP target, and return the first one that is
-  // found
-#if defined(__HIP_PLATFORM_AMD__)
-  const char *binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
-#elif defined(__HIP_PLATFORM_NVIDIA__)
-  const char *binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
-#else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
-#endif
-
-  for (pi_uint32 i = 0; i < num_binaries; i++) {
-    if (strcmp(binaries[i]->DeviceTargetSpec, binary_type) == 0) {
-      *selected_binary = i;
-      return PI_SUCCESS;
-    }
-  }
-
-  // No image can be loaded for the given device
-  return PI_ERROR_INVALID_BINARY;
-}
-
-pi_result hip_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
-                                            pi_program program,
-                                            const char *func_name,
-                                            pi_uint64 *func_pointer_ret) {
-  // Check if device passed is the same the device bound to the context
-  assert(device == program->get_context()->get_device());
-  assert(func_pointer_ret != nullptr);
-
-  hipFunction_t func;
-  hipError_t ret = hipModuleGetFunction(&func, program->get(), func_name);
-  *func_pointer_ret = reinterpret_cast<pi_uint64>(func);
-  pi_result retError = PI_SUCCESS;
-
-  if (ret != hipSuccess && ret != hipErrorNotFound)
-    retError = PI_CHECK_ERROR(ret);
-  if (ret == hipErrorNotFound) {
-    *func_pointer_ret = 0;
-    retError = PI_ERROR_INVALID_KERNEL_NAME;
-  }
-
-  return retError;
-}
-
 pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                                       pi_bool blocking_write, size_t offset,
                                       size_t size, void *ptr,
@@ -2014,37 +1956,6 @@ pi_result hip_piextEnqueueWriteHostPipe(
   return {};
 }
 
-pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
-                                      uint64_t *HostTime) {
-  if (!DeviceTime && !HostTime)
-    return PI_SUCCESS;
-
-  _pi_event::native_type event;
-
-  ScopedContext active(Device->get_context());
-
-  if (DeviceTime) {
-    PI_CHECK_ERROR(hipEventCreateWithFlags(&event, hipEventDefault));
-    PI_CHECK_ERROR(hipEventRecord(event));
-  }
-  if (HostTime) {
-    using namespace std::chrono;
-    *HostTime =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
-  }
-
-  if (DeviceTime) {
-    PI_CHECK_ERROR(hipEventSynchronize(event));
-
-    float elapsedTime = 0.0f;
-    PI_CHECK_ERROR(hipEventElapsedTime(&elapsedTime,
-                                       ur_platform_handle_t_::evBase_, event));
-    *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
-  }
-  return PI_SUCCESS;
-}
-
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -2075,8 +1986,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDevicePartition, pi2ur::piDevicePartition)
   _PI_CL(piDeviceRetain, pi2ur::piDeviceRetain)
   _PI_CL(piDeviceRelease, pi2ur::piDeviceRelease)
-  _PI_CL(piextDeviceSelectBinary, hip_piextDeviceSelectBinary)
-  _PI_CL(piextGetDeviceFunctionPointer, hip_piextGetDeviceFunctionPointer)
+  _PI_CL(piextDeviceSelectBinary, pi2ur::piextDeviceSelectBinary)
+  _PI_CL(piextGetDeviceFunctionPointer, pi2ur::piextGetDeviceFunctionPointer)
   _PI_CL(piextDeviceGetNativeHandle, pi2ur::piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          pi2ur::piextDeviceCreateWithNativeHandle)
@@ -2202,7 +2113,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, pi2ur::piTearDown)
-  _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
+  _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)
   _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
 
 #undef _PI_CL
