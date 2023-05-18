@@ -280,7 +280,8 @@ q.parallel_for(N, [=](auto i) {
 === Group prefetches
 
 The functions in this section allow groups of work-items to cooperatively
-prefetch the same data.
+prefetch the same data. These functions are all group functions, as defined
+in Section 4.17.3 of the SYCL specification.
 
 [NOTE]
 ====
