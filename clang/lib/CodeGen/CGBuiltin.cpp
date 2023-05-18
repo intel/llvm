@@ -513,15 +513,14 @@ Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
 }
 
 bool hasAccuracyRequirement(CodeGenFunction &CGF, StringRef Name) {
-  bool HasRequirement = false;
   if (!CGF.getLangOpts().FPAccuracyVal.empty())
-    HasRequirement = true;
+    return true;
   if (!CGF.getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
-      HasRequirement = true;
+      return true;
   }
-  return HasRequirement;
+  return false;
 }
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
@@ -539,13 +538,12 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
         Diags.Report(E->getBeginLoc(),
                      diag::err_incompatible_fp_accuracy_options);
       } else {
-        unsigned BuiltinID = CGF.getCurrentBuiltinID();
-        StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
-        Function *Func;
+        StringRef Name =
+            CGF.CGM.getContext().BuiltinInfo.getName(CGF.getCurrentBuiltinID());
         // Use fpbuiltin intrinsic only when needed.
-        bool HasAccuracyRequirement = hasAccuracyRequirement(CGF, Name);
-        Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
-                            HasAccuracyRequirement);
+        Function *Func =
+            getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
+                         hasAccuracyRequirement(CGF, Name));
         return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0},
                                          FPAccuracyIntrinsicID);
       }
@@ -570,13 +568,11 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
   llvm::Value *Src1 = CGF.EmitScalarExpr(E->getArg(1));
   if (CGF.CGM.getCodeGenOpts().FPAccuracy) {
-    unsigned BuiltinID = CGF.getCurrentBuiltinID();
-    StringRef Name = CGF.CGM.getContext().BuiltinInfo.getName(BuiltinID);
-    Function *Func;
+    StringRef Name =
+        CGF.CGM.getContext().BuiltinInfo.getName(CGF.getCurrentBuiltinID());
     // Use fpbuiltin intrinsic only when needed.
-    bool HasAccuracyRequirement = hasAccuracyRequirement(CGF, Name);
-    Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
-                        HasAccuracyRequirement);
+    Function *Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
+                                  hasAccuracyRequirement(CGF, Name));
     return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0, Src1},
                                      FPAccuracyIntrinsicID);
   }
@@ -21930,7 +21926,10 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     Name = CGM.getContext().BuiltinInfo.getName(BuiltinID);
     switch (BuiltinID) {
     default:
-      break;
+      // If the function has a clang builtin but doesn't have an
+      // fpbuiltin, it will be generated with no 'fpbuiltin-max-error'
+      // attribute.
+      return nullptr;
     case Builtin::BItan:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tan;
       break;
@@ -21999,11 +21998,6 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
       break;
     }
   }
-  if (FPAccuracyIntrinsicID == 0)
-    // If the function has a clang builtin but doesn't have an
-    // fpbuiltin, it will be generated with no 'fpbuiltin-max-error'
-    // attribute.
-    return nullptr;
   Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
   if (IRArgs.size() == 1)
     CI = CreateBuiltinCallWithAttr(*this, Name, Func, {IRArgs[0]},
