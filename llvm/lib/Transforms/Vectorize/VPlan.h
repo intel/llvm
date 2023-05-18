@@ -398,10 +398,6 @@ struct VPTransformState {
   /// Pointer to the VPlan code is generated for.
   VPlan *Plan;
 
-  /// Holds recipes that may generate a poison value that is used after
-  /// vectorization, even when their operands are not poison.
-  SmallPtrSet<VPRecipeBase *, 16> MayGeneratePoisonRecipes;
-
   /// The loop object for the current parent region, or nullptr.
   Loop *CurrentVectorLoop = nullptr;
 
@@ -411,6 +407,10 @@ struct VPTransformState {
   /// This is currently only used to add no-alias metadata based on the
   /// memchecks.  The actually versioning is performed manually.
   LoopVersioning *LVer = nullptr;
+
+  /// Map SCEVs to their expanded values. Populated when executing
+  /// VPExpandSCEVRecipes.
+  DenseMap<const SCEV *, Value *> ExpandedSCEVs;
 };
 
 /// VPBlockBase is the building block of the Hierarchical Control-Flow Graph.
@@ -942,6 +942,7 @@ class VPRecipeWithIRFlags : public VPRecipeBase {
   enum class OperationType : unsigned char {
     OverflowingBinOp,
     PossiblyExactOp,
+    GEPOp,
     FPMathOp,
     Other
   };
@@ -951,6 +952,9 @@ class VPRecipeWithIRFlags : public VPRecipeBase {
   };
   struct ExactFlagsTy {
     char IsExact : 1;
+  };
+  struct GEPFlagsTy {
+    char IsInBounds : 1;
   };
   struct FastMathFlagsTy {
     char AllowReassoc : 1;
@@ -967,6 +971,7 @@ class VPRecipeWithIRFlags : public VPRecipeBase {
   union {
     WrapFlagsTy WrapFlags;
     ExactFlagsTy ExactFlags;
+    GEPFlagsTy GEPFlags;
     FastMathFlagsTy FMFs;
     unsigned char AllFlags;
   };
@@ -990,6 +995,9 @@ public:
     } else if (auto *Op = dyn_cast<PossiblyExactOperator>(&I)) {
       OpType = OperationType::PossiblyExactOp;
       ExactFlags.IsExact = Op->isExact();
+    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(&I)) {
+      OpType = OperationType::GEPOp;
+      GEPFlags.IsInBounds = GEP->isInBounds();
     } else if (auto *Op = dyn_cast<FPMathOperator>(&I)) {
       OpType = OperationType::FPMathOp;
       FastMathFlags FMF = Op->getFastMathFlags();
@@ -1004,7 +1012,9 @@ public:
   }
 
   static inline bool classof(const VPRecipeBase *R) {
-    return R->getVPDefID() == VPRecipeBase::VPWidenSC;
+    return R->getVPDefID() == VPRecipeBase::VPWidenSC ||
+           R->getVPDefID() == VPRecipeBase::VPWidenGEPSC ||
+           R->getVPDefID() == VPRecipeBase::VPReplicateSC;
   }
 
   /// Drop all poison-generating flags.
@@ -1018,6 +1028,9 @@ public:
       break;
     case OperationType::PossiblyExactOp:
       ExactFlags.IsExact = false;
+      break;
+    case OperationType::GEPOp:
+      GEPFlags.IsInBounds = false;
       break;
     case OperationType::FPMathOp:
       FMFs.NoNaNs = false;
@@ -1038,6 +1051,9 @@ public:
     case OperationType::PossiblyExactOp:
       I->setIsExact(ExactFlags.IsExact);
       break;
+    case OperationType::GEPOp:
+      cast<GetElementPtrInst>(I)->setIsInBounds(GEPFlags.IsInBounds);
+      break;
     case OperationType::FPMathOp:
       I->setHasAllowReassoc(FMFs.AllowReassoc);
       I->setHasNoNaNs(FMFs.NoNaNs);
@@ -1050,6 +1066,12 @@ public:
     case OperationType::Other:
       break;
     }
+  }
+
+  bool isInBounds() const {
+    assert(OpType == OperationType::GEPOp &&
+           "recipe doesn't have inbounds flag");
+    return GEPFlags.IsInBounds;
   }
 };
 
@@ -1177,7 +1199,7 @@ struct VPWidenSelectRecipe : public VPRecipeBase, public VPValue {
 };
 
 /// A recipe for handling GEP instructions.
-class VPWidenGEPRecipe : public VPRecipeBase, public VPValue {
+class VPWidenGEPRecipe : public VPRecipeWithIRFlags, public VPValue {
   bool isPointerLoopInvariant() const {
     return getOperand(0)->isDefinedOutsideVectorRegions();
   }
@@ -1195,7 +1217,8 @@ class VPWidenGEPRecipe : public VPRecipeBase, public VPValue {
 public:
   template <typename IterT>
   VPWidenGEPRecipe(GetElementPtrInst *GEP, iterator_range<IterT> Operands)
-      : VPRecipeBase(VPDef::VPWidenGEPSC, Operands), VPValue(this, GEP) {}
+      : VPRecipeWithIRFlags(VPDef::VPWidenGEPSC, Operands, *GEP),
+        VPValue(this, GEP) {}
 
   ~VPWidenGEPRecipe() override = default;
 
@@ -1697,7 +1720,7 @@ public:
 /// copies of the original scalar type, one per lane, instead of producing a
 /// single copy of widened type for all lanes. If the instruction is known to be
 /// uniform only one copy, per lane zero, will be generated.
-class VPReplicateRecipe : public VPRecipeBase, public VPValue {
+class VPReplicateRecipe : public VPRecipeWithIRFlags, public VPValue {
   /// Indicator if only a single replica per lane is needed.
   bool IsUniform;
 
@@ -1708,8 +1731,8 @@ public:
   template <typename IterT>
   VPReplicateRecipe(Instruction *I, iterator_range<IterT> Operands,
                     bool IsUniform, VPValue *Mask = nullptr)
-      : VPRecipeBase(VPDef::VPReplicateSC, Operands), VPValue(this, I),
-        IsUniform(IsUniform), IsPredicated(Mask) {
+      : VPRecipeWithIRFlags(VPDef::VPReplicateSC, Operands, *I),
+        VPValue(this, I), IsUniform(IsUniform), IsPredicated(Mask) {
     if (Mask)
       addOperand(Mask);
   }

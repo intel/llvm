@@ -99,7 +99,7 @@ static cl::opt<cl::boolOrDefault>
 EnableShrinkWrapOpt("enable-shrink-wrap", cl::Hidden,
                     cl::desc("enable the shrink-wrapping pass"));
 static cl::opt<bool> EnablePostShrinkWrapOpt(
-    "enable-shrink-wrap-region-split", cl::init(true), cl::Hidden,
+    "enable-shrink-wrap-region-split", cl::init(false), cl::Hidden,
     cl::desc("enable splitting of the restore block if possible"));
 
 namespace {
@@ -288,8 +288,8 @@ INITIALIZE_PASS_END(ShrinkWrap, DEBUG_TYPE, "Shrink Wrap Pass", false, false)
 bool ShrinkWrap::useOrDefCSROrFI(const MachineInstr &MI,
                                  RegScavenger *RS) const {
   /// Check if \p Op is known to access an address not on the function's stack .
-  /// At the moment, accesses where the underlying object is a global or a
-  /// function argument are considered non-stack accesses. Note that the
+  /// At the moment, accesses where the underlying object is a global, function
+  /// argument, or jump table are considered non-stack accesses. Note that the
   /// caller's stack may get accessed when passing an argument via the stack,
   /// but not the stack of the current function.
   ///
@@ -302,6 +302,8 @@ bool ShrinkWrap::useOrDefCSROrFI(const MachineInstr &MI,
         return !Arg->hasPassPointeeByValueCopyAttr();
       return isa<GlobalValue>(UO);
     }
+    if (const PseudoSourceValue *PSV = Op->getPseudoValue())
+      return PSV->isJumpTable();
     return false;
   };
   // This prevents premature stack popping when occurs a indirect stack
@@ -309,8 +311,9 @@ bool ShrinkWrap::useOrDefCSROrFI(const MachineInstr &MI,
   // TODO:
   //       - Further, data dependency and alias analysis can validate
   //         that load and stores never derive from the stack pointer.
-  if (MI.mayLoadOrStore() && (MI.isCall() || MI.hasUnmodeledSideEffects() ||
-                              !all_of(MI.memoperands(), IsKnownNonStackPtr)))
+  if (MI.mayLoadOrStore() &&
+      (MI.isCall() || MI.hasUnmodeledSideEffects() || MI.memoperands_empty() ||
+       !all_of(MI.memoperands(), IsKnownNonStackPtr)))
     return true;
 
   if (MI.getOpcode() == FrameSetupOpcode ||
