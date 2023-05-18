@@ -2,6 +2,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+# Please follow GDB coding standards and use 'black' for formatting:
+# https://sourceware.org/gdb/wiki/Internals%20GDB-Python-Coding-Standards
+
+
 import re
 import gdb
 import gdb.xmethod
@@ -45,14 +49,16 @@ class Accessor:
         return result
 
     def value(self, arg):
-        return self.data().cast(self.result_type.pointer())[self.index(arg)]
+        return self.data()[self.index(arg)]
 
 
 class HostAccessor(Accessor):
     """For Host device memory layout"""
 
     def memory_range(self, dim):
-        eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getMemoryRange()"
+        eval_string = (
+            "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getMemoryRange()"
+        )
         return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def offset(self, dim):
@@ -62,6 +68,7 @@ class HostAccessor(Accessor):
     def data(self):
         eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getPtr()"
         return gdb.parse_and_eval(eval_string)
+
 
 class HostAccessorLocal(HostAccessor):
     """For Host device memory layout"""
@@ -75,10 +82,9 @@ class HostAccessorLocal(HostAccessor):
             return int(arg)
         result = 0
         for dim in range(self.depth):
-            result = (
-                result * self.memory_range(dim) + arg["common_array"][dim]
-            )
+            result = result * self.memory_range(dim) + arg["common_array"][dim]
         return result
+
 
 class DeviceAccessor(Accessor):
     """For CPU/GPU memory layout"""
@@ -125,7 +131,7 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
             except:
                 pass
 
-        print("Failed to call '%s.operator[](%s)" % (obj.type, arg.type))
+        print("Failed to call '%s.operator[](%s)'" % (obj.type, arg.type))
 
         return None
 
@@ -197,7 +203,9 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
             self,
             obj,
         ):
-            result = re.match("^sycl::_V1::detail::ItemBase<(.+), (.+)>$", str(obj.type))
+            result = re.match(
+                "^sycl::_V1::detail::ItemBase<(.+), (.+)>$", str(obj.type)
+            )
             self.dim = int(result[1])
             self.with_offset = result[2] == "true"
             self.obj = obj
@@ -253,6 +261,7 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
             eval_string = "((" + str(obj.type) + ")" + str(obj) + ")->Val.get()"
             return gdb.parse_and_eval(eval_string)[index]
 
+
 class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
     """Entry point for sycl::_V1::private_memory"""
 
@@ -264,7 +273,8 @@ class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
             return None
 
         result = re.match(
-            "^sycl::_V1::private_memory<((cl::)?(sycl::_V1::)?id<.+>), (.+)>$", class_type.tag
+            "^sycl::_V1::private_memory<((cl::)?(sycl::_V1::)?id<.+>), (.+)>$",
+            class_type.tag,
         )
         if result is None:
             return None
@@ -301,12 +311,13 @@ class SyclArrayPrinter:
             return ("[%d]" % count, elt)
 
     def __init__(self, value):
-        if value.type.code == gdb.TYPE_CODE_REF:
-            if hasattr(gdb.Value, "referenced_value"):
-                value = value.referenced_value()
 
         self.value = value
-        self.type = value.type.unqualified().strip_typedefs()
+        if self.value.type.code == gdb.TYPE_CODE_REF:
+            self.type = value.referenced_value().type.unqualified().strip_typedefs()
+        else:
+            self.type = value.type.unqualified().strip_typedefs()
+
         self.dimensions = self.type.template_argument(0)
 
     def children(self):
@@ -324,6 +335,10 @@ class SyclArrayPrinter:
             # error message otherwise. Individual array element access failures
             # will be caught by iterator itself.
             _ = self.value["common_array"]
+            if self.value.type.code == gdb.TYPE_CODE_REF:
+                return "({tag} &) @{address}: {tag}".format(
+                    tag=self.type.tag, address=self.value.address
+                )
             return self.type.tag
         except:
             return "<error reading variable>"
@@ -337,7 +352,11 @@ class SyclBufferPrinter:
 
     def __init__(self, value):
         self.value = value
-        self.type = value.type.unqualified().strip_typedefs()
+        if self.value.type.code == gdb.TYPE_CODE_REF:
+            self.type = value.referenced_value().type.unqualified().strip_typedefs()
+        else:
+            self.type = value.type.unqualified().strip_typedefs()
+
         self.elt_type = value.type.template_argument(0)
         self.dimensions = value.type.template_argument(1)
         self.typeregex = re.compile("^([a-zA-Z0-9_:]+)(<.*>)?$")
@@ -346,16 +365,21 @@ class SyclBufferPrinter:
         match = self.typeregex.match(self.type.tag)
         if not match:
             return "<error parsing type>"
-        return "%s<%s, %s> = {impl=%s}" % (
-            match.group(1),
-            self.elt_type,
-            self.dimensions,
-            self.value["impl"].address,
+        r_value = "{{impl={address}}}".format(address=self.value["impl"].address)
+        r_type = "{group}<{elt_type}, {dim}>".format(
+            group=match.group(1), elt_type=self.elt_type, dim=self.dimensions
         )
+        if self.value.type.code == gdb.TYPE_CODE_REF:
+            return "({type} &) @{address}: {type} = {value}".format(
+                type=r_type, address=self.value.address, value=r_value
+            )
+        return "{type} = {value}".format(type=r_type, value=r_value)
 
 
 sycl_printer = gdb.printing.RegexpCollectionPrettyPrinter("SYCL")
 sycl_printer.add_printer("sycl::_V1::id", "^sycl::_V1::id<.*$", SyclArrayPrinter)
 sycl_printer.add_printer("sycl::_V1::range", "^sycl::_V1::range<.*$", SyclArrayPrinter)
-sycl_printer.add_printer("sycl::_V1::buffer", "^sycl::_V1::buffer<.*$", SyclBufferPrinter)
+sycl_printer.add_printer(
+    "sycl::_V1::buffer", "^sycl::_V1::buffer<.*$", SyclBufferPrinter
+)
 gdb.printing.register_pretty_printer(None, sycl_printer, True)

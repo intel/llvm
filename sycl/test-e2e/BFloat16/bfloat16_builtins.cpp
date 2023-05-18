@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_bfloat16_math_functions
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %if cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out
 // RUN: %{run} %t.out
 // Currently the feature isn't supported on FPGA.
 // UNSUPPORTED: accelerator
@@ -37,8 +37,9 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
+        float ABF16 = float{bfloat16{A[index]}};                               \
         if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]}),   \
-                  sycl::NAME(A[index]))) {                                     \
+                  sycl::NAME(ABF16))) {                                        \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -61,7 +62,8 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<RETTY, SZ> res = NAME(arg);                                     \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], sycl::NAME(A[index][i]))) {                        \
+          float ABF16 = float{bfloat16{A[index][i]}};                          \
+          if (check(res[i], sycl::NAME(ABF16))) {                              \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -90,8 +92,10 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
+        float ABF16 = float{bfloat16{A[index]}};                               \
+        float BBF16 = float{bfloat16{B[index]}};                               \
         if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]}),                \
-                  NAME(A[index], B[index]))) {                                 \
+                  NAME(ABF16, BBF16))) {                                       \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -118,7 +122,9 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<bfloat16, SZ> res = NAME(arg0, arg1);                           \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], NAME(A[index][i], B[index][i]))) {                 \
+          float ABF16 = float{bfloat16{A[index][i]}};                          \
+          float BBF16 = float{bfloat16{B[index][i]}};                          \
+          if (check(res[i], NAME(ABF16, BBF16))) {                             \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -150,9 +156,12 @@ bool check(bool a, bool b) { return (a != b); }
                                                                      cgh);     \
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
+        float ABF16 = float{bfloat16{A[index]}};                               \
+        float BBF16 = float{bfloat16{B[index]}};                               \
+        float CBF16 = float{bfloat16{C[index]}};                               \
         if (check(NAME(bfloat16{A[index]}, bfloat16{B[index]},                 \
                        bfloat16{C[index]}),                                    \
-                  NAME(A[index], B[index], C[index]))) {                       \
+                  NAME(ABF16, BBF16, CBF16))) {                                \
           ERR[0] = 1;                                                          \
         }                                                                      \
       });                                                                      \
@@ -183,7 +192,10 @@ bool check(bool a, bool b) { return (a != b); }
         }                                                                      \
         marray<bfloat16, SZ> res = NAME(arg0, arg1, arg2);                     \
         for (int i = 0; i < SZ; i++) {                                         \
-          if (check(res[i], NAME(A[index][i], B[index][i], C[index][i]))) {    \
+          float ABF16 = float{bfloat16{A[index][i]}};                          \
+          float BBF16 = float{bfloat16{B[index][i]}};                          \
+          float CBF16 = float{bfloat16{C[index][i]}};                          \
+          if (check(res[i], NAME(ABF16, BBF16, CBF16))) {                      \
             ERR[0] = 1;                                                        \
           }                                                                    \
         }                                                                      \
@@ -244,6 +256,36 @@ int main() {
   // Insert NAN value in a to test isnan
   a[0] = a[N - 1] = NAN;
   TEST_BUILTIN_1(isnan, bool);
+
+  // Orignal input 'a[0...N-1]' are in range [-0.5, 0.5),
+  // need to update it for generic math testing.
+  // sin, cos testing
+  for (int i = 0; i < N; ++i) {
+    a[i] = (i / (float)(N - 1)) * 6.28;
+    if ((i & 0x1) == 0x1)
+      a[i] = -a[i];
+  }
+  TEST_BUILTIN_1(cos, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(sin, sycl::ext::oneapi::bfloat16);
+
+  // ceil, floor, trunc, exp, exp2, exp10, rint testing
+  TEST_BUILTIN_1(ceil, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(floor, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(trunc, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(exp, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(exp10, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(exp2, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(rint, sycl::ext::oneapi::bfloat16);
+
+  // log, log2, log10, sqrt, rsqrt testing, the input
+  // must be positive.
+  for (int i = 0; i < N; ++i)
+    a[i] = a[i] + 8.5;
+  TEST_BUILTIN_1(sqrt, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(rsqrt, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(log, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(log2, sycl::ext::oneapi::bfloat16);
+  TEST_BUILTIN_1(log10, sycl::ext::oneapi::bfloat16);
 
   return 0;
 }
