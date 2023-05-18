@@ -17,7 +17,7 @@ using pi_context = _pi_context *;
 
 typedef void (*ur_context_extended_deleter_t)(void *user_data);
 
-struct ur_context_handle_t_ : public _ur_object {
+struct ur_context_handle_t_ {
 
   struct deleter_data {
     ur_context_extended_deleter_t function;
