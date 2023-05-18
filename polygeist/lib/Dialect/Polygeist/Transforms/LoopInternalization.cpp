@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -50,7 +51,7 @@ void getPerfectlyNestedLoops(SmallVector<T> &nestedLoops, T root) {
 }
 
 bool isOutermostLoop(LoopLikeOpInterface loop) {
-  return !loop->getParentRegion()->getParentOfType<LoopLikeOpInterface>();
+  return !loop->getParentOfType<LoopLikeOpInterface>();
 }
 
 /// A loop is a candidate when it is the outermost affine or scf for loop.
@@ -82,52 +83,65 @@ LogicalResult getTileSizes(const SmallVector<T> &nestedLoops,
 }
 
 LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
-                   ArrayRef<Value> tileSizes) {
-  return tilePerfectlyNestedParametric(nestedLoops, tileSizes);
+
+                   ArrayRef<Value> tileSizes,
+                   SmallVectorImpl<affine::AffineForOp> &tiledNest) {
+  return tilePerfectlyNestedParametric(nestedLoops, tileSizes, &tiledNest);
 }
-LogicalResult tile(MutableArrayRef<scf::ForOp> nestedLoops,
-                   ArrayRef<Value> tileSizes) {
+LogicalResult tile(SmallVectorImpl<scf::ForOp> &nestedLoops,
+                   ArrayRef<Value> tileSizes,
+                   SmallVectorImpl<scf::ForOp> &tiledNest) {
   tile(nestedLoops, tileSizes, nestedLoops.back());
+  tiledNest = nestedLoops;
   return success();
 }
 
 template <typename T, typename = std::enable_if_t<llvm::is_one_of<
                           T, affine::AffineForOp, scf::ForOp>::value>>
-LogicalResult transform(T loop) {
+void transform(T loop) {
+  FunctionOpInterface func =
+      loop->template getParentOfType<FunctionOpInterface>();
   SmallVector<T> nestedLoops;
   getPerfectlyNestedLoops(nestedLoops, loop);
   SmallVector<Value> tileSizes;
   if (getTileSizes(nestedLoops, tileSizes).failed())
-    return failure();
-  if (tile(nestedLoops, tileSizes).failed())
-    return failure();
+    return;
+  SmallVector<T> tiledNest;
+  LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
+  LLVM_DEBUG({
+    if (res.succeeded())
+      llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n";
+    else
+      llvm::dbgs() << "Tile NOT performed\n";
+  });
   // TODO: promote loop accesses to local memory.
-  return success();
 }
 
 void transform(LoopLikeOpInterface loop) {
   TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
-      [&](auto loop) {
-        LogicalResult res = transform(loop);
-        assert(res.succeeded() && "Expecting transform to be successful");
-      });
+      [&](auto loop) { transform(loop); });
 }
 
 struct LoopInternalization
     : public polygeist::impl::LoopInternalizationBase<LoopInternalization> {
   void runOnOperation() override {
-    LoopLikeOpInterface loop = getOperation();
-    LLVM_DEBUG(llvm::dbgs()
-               << "LoopInternalization: Visiting " << loop << "\n");
+    getOperation()->walk([&](LoopLikeOpInterface loop) {
+      LLVM_DEBUG({
+        FunctionOpInterface func = loop->getParentOfType<FunctionOpInterface>();
+        llvm::dbgs() << "LoopInternalization: Visiting Function "
+                     << func.getName() << "\n Loop: ";
+        loop.dump();
+      });
 
-    if (!isCandidate(loop))
-      return;
+      if (!isCandidate(loop))
+        return;
 
-    transform(loop);
+      transform(loop);
+    });
   }
 };
 } // namespace
 
-std::unique_ptr<Pass> polygeist::createLoopInternalization() {
+std::unique_ptr<Pass> polygeist::createLoopInternalizationPass() {
   return std::make_unique<LoopInternalization>();
 }

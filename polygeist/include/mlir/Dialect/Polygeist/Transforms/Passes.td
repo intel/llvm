@@ -124,13 +124,13 @@ def LLVMLegalizeForSPIRV : Pass<"legalize-for-spirv"> {
   let dependentDialects = ["LLVM::LLVMDialect"];  
 }
 
-def LoopInternalization : InterfacePass<"loop-internalization", "LoopLikeOpInterface"> {
+def LoopInternalization : Pass<"loop-internalization"> {
   let summary = "Promote SYCL memory accesses in a loop nest to shared local memory";
   let description = [{
     SYCL memory accesses in perfectly nested loops are promoted to shared local
     memory by leveraging the loop tiling infrastructure.
   }];
-  let constructor = "mlir::polygeist::createLoopInternalization()";
+  let constructor = "mlir::polygeist::createLoopInternalizationPass()";
   let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect"];
 }
 
