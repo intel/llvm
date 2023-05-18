@@ -930,17 +930,17 @@ struct LLVMOpLowering : public ConversionPattern {
     // With opaque pointers, type attributes also might need to be
     // translated to the corresponding LLVM types, for example the element
     // type attribute of GEP or alloca.
-    bool noTyAttrConversion =
-        llvm::all_of(op->getAttrs(), [&](const NamedAttribute &Attr) {
-          if (auto TyAttr = dyn_cast<TypeAttr>(Attr.getValue())) {
-            return converter->convertType(TyAttr.getValue()) ==
-                   TyAttr.getValue();
-          }
-          return true;
+    bool needsTyAttrConversion =
+        llvm::any_of(op->getAttrs(), [&](const NamedAttribute &Attr) {
+          if (auto TyAttr = dyn_cast<TypeAttr>(Attr.getValue()))
+            return !converter->isLegal(TyAttr.getValue());
+
+          return false;
         });
 
     if (convertedResultTypes == op->getResultTypes() &&
-        convertedOperandTypes == op->getOperandTypes() && noTyAttrConversion) {
+        convertedOperandTypes == op->getOperandTypes() &&
+        !needsTyAttrConversion) {
       return failure();
     }
     if (isa<UnrealizedConversionCastOp>(op))
@@ -949,17 +949,21 @@ struct LLVMOpLowering : public ConversionPattern {
     OperationState state(op->getLoc(), op->getName());
     state.addOperands(operands);
     state.addTypes(convertedResultTypes);
-    SmallVector<NamedAttribute> Attrs;
-    for (const auto &NA : op->getAttrs()) {
-      if (auto tyAttr = dyn_cast<TypeAttr>(NA.getValue())) {
-        auto convTy = converter->convertType(tyAttr.getValue());
-        assert(convTy);
-        Attrs.emplace_back(NA.getName(), TypeAttr::get(convTy));
-      } else {
-        Attrs.push_back(NA);
+    if (needsTyAttrConversion) {
+      SmallVector<NamedAttribute> Attrs;
+      for (const auto &NA : op->getAttrs()) {
+        if (auto tyAttr = dyn_cast<TypeAttr>(NA.getValue())) {
+          auto convTy = converter->convertType(tyAttr.getValue());
+          assert(convTy);
+          Attrs.emplace_back(NA.getName(), TypeAttr::get(convTy));
+        } else {
+          Attrs.push_back(NA);
+        }
       }
+      state.addAttributes(Attrs);
+    } else {
+      state.addAttributes(op->getAttrs());
     }
-    state.addAttributes(Attrs);
     state.addSuccessors(op->getSuccessors());
     for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
       state.addRegion();
