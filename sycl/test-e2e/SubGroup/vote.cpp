@@ -56,8 +56,8 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
         }
       });
     });
-    auto sganyacc = sganybuf.get_access<access::mode::read_write>();
-    auto sgallacc = sgallbuf.get_access<access::mode::read_write>();
+    host_accessor sganyacc(sganybuf);
+    host_accessor sgallacc(sgallbuf);
     for (int j = 0; j < G; j++) {
       exit_if_not_equal(sganyacc[j], (int)(D > R), "any");
       exit_if_not_equal(sgallacc[j], (int)(D <= R), "all");
