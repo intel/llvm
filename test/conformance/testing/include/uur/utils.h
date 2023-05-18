@@ -4,6 +4,7 @@
 #ifndef UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
 
+#include "ur_api.h"
 #include <optional>
 #include <string>
 #include <uur/environment.h>
@@ -106,6 +107,12 @@ auto GetProgramInfo =
     };
 
 template <class T>
+auto GetPoolInfo =
+    [](ur_usm_pool_handle_t pool, ur_usm_pool_info_t info, T &out_value) {
+        return GetInfo(pool, info, urUSMPoolGetInfo, out_value);
+    };
+
+template <class T>
 ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
     if constexpr (std::is_same_v<T, ur_context_handle_t>) {
         return GetContextInfo<uint32_t>(object, UR_CONTEXT_INFO_REFERENCE_COUNT,
@@ -134,6 +141,10 @@ ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
     if constexpr (std::is_same_v<T, ur_program_handle_t>) {
         return GetProgramInfo<uint32_t>(object, UR_PROGRAM_INFO_REFERENCE_COUNT,
                                         out_ref_count);
+    }
+    if constexpr (std::is_same_v<T, ur_usm_pool_handle_t>) {
+        return GetPoolInfo<uint32_t>(object, UR_USM_POOL_INFO_REFERENCE_COUNT,
+                                     out_ref_count);
     }
     return UR_RESULT_ERROR_INVALID_VALUE;
 }
