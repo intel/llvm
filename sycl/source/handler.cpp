@@ -40,174 +40,6 @@ bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   return DGEntry && !DGEntry->MImageIdentifiers.empty();
 }
 
-std::shared_ptr<event_impl> createCommandAndEnqueue(
-    CG::CGTYPE Type, std::shared_ptr<detail::queue_impl> Queue,
-    NDRDescT NDRDesc, std::unique_ptr<detail::HostKernelBase> HostKernel,
-    std::unique_ptr<detail::HostTask> HostTaskPtr,
-    std::unique_ptr<detail::InteropTask> InteropTask,
-    std::shared_ptr<detail::kernel_impl> Kernel, std::string KernelName,
-    KernelBundleImplPtr KernelBundle,
-    std::vector<std::vector<char>> ArgsStorage,
-    std::vector<detail::AccessorImplPtr> AccStorage,
-    std::vector<detail::LocalAccessorImplPtr> LocalAccStorage,
-    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage,
-    std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-    std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-    std::vector<detail::ArgDesc> Args, void *SrcPtr, void *DstPtr,
-    size_t Length, std::vector<char> Pattern, size_t SrcPitch, size_t DstPitch,
-    size_t Width, size_t Height, size_t Offset, bool IsDeviceImageScoped,
-    const std::string &HostPipeName, void *HostPipePtr, bool HostPipeBlocking,
-    size_t HostPipeTypeSize, bool HostPipeRead, pi_mem_advice Advice,
-    std::vector<detail::AccessorImplHost *> Requirements,
-    std::vector<detail::EventImplPtr> Events,
-    std::vector<detail::EventImplPtr> EventsWaitWithBarrier,
-    detail::OSModuleHandle OSModHandle,
-    detail::RT::PiKernelCacheConfig KernelCacheConfig,
-    detail::code_location CodeLoc) {
-  std::unique_ptr<detail::CG> CommandGroup;
-  switch (Type) {
-  case detail::CG::Kernel:
-  case detail::CG::RunOnHostIntel: {
-    // Copy kernel name here instead of move so that it's available after
-    // running of this method by reductions implementation. This allows for
-    // assert feature to check if kernel uses assertions
-    CommandGroup.reset(new detail::CGExecKernel(
-        std::move(NDRDesc), std::move(HostKernel), std::move(Kernel),
-        std::move(KernelBundle), std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        std::move(Args), KernelName, OSModHandle, std::move(StreamStorage),
-        std::move(AuxiliaryResources), Type, KernelCacheConfig, CodeLoc));
-    break;
-  }
-  case detail::CG::CodeplayInteropTask:
-    CommandGroup.reset(new detail::CGInteropTask(
-        std::move(InteropTask), std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        Type, CodeLoc));
-    break;
-  case detail::CG::CopyAccToPtr:
-  case detail::CG::CopyPtrToAcc:
-  case detail::CG::CopyAccToAcc:
-    CommandGroup.reset(new detail::CGCopy(
-        Type, SrcPtr, DstPtr, std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        CodeLoc));
-    break;
-  case detail::CG::Fill:
-    CommandGroup.reset(new detail::CGFill(
-        std::move(Pattern), DstPtr, std::move(ArgsStorage),
-        std::move(AccStorage), std::move(SharedPtrStorage),
-        std::move(Requirements), std::move(Events), CodeLoc));
-    break;
-  case detail::CG::UpdateHost:
-    CommandGroup.reset(new detail::CGUpdateHost(
-        DstPtr, std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        CodeLoc));
-    break;
-  case detail::CG::CopyUSM:
-    CommandGroup.reset(new detail::CGCopyUSM(
-        SrcPtr, DstPtr, Length, std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        CodeLoc));
-    break;
-  case detail::CG::FillUSM:
-    CommandGroup.reset(new detail::CGFillUSM(
-        std::move(Pattern), DstPtr, Length, std::move(ArgsStorage),
-        std::move(AccStorage), std::move(SharedPtrStorage),
-        std::move(Requirements), std::move(Events), CodeLoc));
-    break;
-  case detail::CG::PrefetchUSM:
-    CommandGroup.reset(new detail::CGPrefetchUSM(
-        DstPtr, Length, std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        CodeLoc));
-    break;
-  case detail::CG::AdviseUSM:
-    CommandGroup.reset(new detail::CGAdviseUSM(
-        DstPtr, Length, Advice, std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        Type, CodeLoc));
-    break;
-  case detail::CG::Copy2DUSM:
-    CommandGroup.reset(new detail::CGCopy2DUSM(
-        SrcPtr, DstPtr, SrcPitch, DstPitch, Width,
-        Height, std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements),
-        std::move(Events), CodeLoc));
-    break;
-  case detail::CG::Fill2DUSM:
-    CommandGroup.reset(new detail::CGFill2DUSM(
-        std::move(Pattern), DstPtr, DstPitch, Width,
-        Height, std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements),
-        std::move(Events), CodeLoc));
-    break;
-  case detail::CG::Memset2DUSM:
-    CommandGroup.reset(new detail::CGMemset2DUSM(
-        Pattern[0], DstPtr, DstPitch, Width, Height,
-        std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements),
-        std::move(Events), CodeLoc));
-    break;
-  case detail::CG::CodeplayHostTask:
-    CommandGroup.reset(new detail::CGHostTask(
-        std::move(HostTaskPtr), Queue, Queue->getContextImplPtr(),
-        std::move(Args), std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements), std::move(Events),
-        Type, CodeLoc));
-    break;
-  case detail::CG::Barrier:
-  case detail::CG::BarrierWaitlist:
-    CommandGroup.reset(new detail::CGBarrier(
-        std::move(EventsWaitWithBarrier), std::move(ArgsStorage),
-        std::move(AccStorage), std::move(SharedPtrStorage),
-        std::move(Requirements), std::move(Events), Type, CodeLoc));
-    break;
-  case detail::CG::CopyToDeviceGlobal: {
-    CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
-        SrcPtr, DstPtr, IsDeviceImageScoped, Length, Offset,
-        std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements),
-        std::move(Events), OSModHandle, CodeLoc));
-    break;
-  }
-  case detail::CG::CopyFromDeviceGlobal: {
-    CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
-        SrcPtr, DstPtr, IsDeviceImageScoped, Length, Offset,
-        std::move(ArgsStorage), std::move(AccStorage),
-        std::move(SharedPtrStorage), std::move(Requirements),
-        std::move(Events), OSModHandle, CodeLoc));
-    break;
-  }
-  case detail::CG::ReadWriteHostPipe: {
-    CommandGroup.reset(new detail::CGReadWriteHostPipe(
-        HostPipeName, HostPipeBlocking, HostPipePtr,
-        HostPipeTypeSize, HostPipeRead, std::move(ArgsStorage),
-        std::move(AccStorage), std::move(SharedPtrStorage),
-        std::move(Requirements), std::move(Events), CodeLoc));
-    break;
-  }
-  case detail::CG::ExecCommandBuffer:
-    assert(false && "Error: Command graph submission should not be finalized");
-    break;
-  case detail::CG::None:
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      std::cout << "WARNING: An empty command group is submitted." << std::endl;
-    }
-    return std::make_shared<sycl::detail::event_impl>();
-  }
-
-  if (!CommandGroup)
-    throw sycl::runtime_error(
-        "Internal Error. Command group cannot be constructed.",
-        PI_ERROR_INVALID_OPERATION);
-
-  detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(Queue));
-
-  return Event;
-}
 } // namespace detail
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
@@ -278,29 +110,16 @@ event handler::finalize() {
   if (MIsFinalized)
     return MLastEvent;
   MIsFinalized = true;
-  // If the queue has a graph impl we are in recording mode
-  if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = std::make_shared<detail::event_impl>();
 
-    // If we have a subgraph node that means that a subgraph was recorded as
-    // part of this queue submission, so we skip adding a new node here since
-    // they have already been added, and return the event associated with the
-    // subgraph node.
-    if (MSubgraphNode) {
+  // If we have a subgraph node that means that a subgraph was recorded as
+  // part of this queue submission, so we skip adding a new node here since
+  // they have already been added, and return the event associated with the
+  // subgraph node.
+  if (MQueue && MQueue->getCommandGraph() && MSubgraphNode) {
+    {
       return detail::createSyclObjFromImpl<event>(
-          GraphImpl->get_event_for_node(MSubgraphNode));
+          MQueue->getCommandGraph()->get_event_for_node(MSubgraphNode));
     }
-    // Extract relevant data from the handler and pass to graph to create a new
-    // node representing this command group.
-    auto NodeImpl =
-        GraphImpl->add(MKernel, MNDRDesc, MOSModuleHandle, MKernelName,
-                       MAccStorage, MLocalAccStorage, MCGType, MArgs,
-                       MImpl->MAuxiliaryResources, {}, MEvents);
-
-    // Create and associated an event with this new node
-    GraphImpl->add_event_for_node(EventImpl, NodeImpl);
-
-    return detail::createSyclObjFromImpl<event>(EventImpl);
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
@@ -376,7 +195,8 @@ event handler::finalize() {
       }
     }
 
-    if (!MQueue->is_in_fusion_mode() &&
+    if (MQueue && !MQueue->getCommandGraph() && !MGraph && !MSubgraphNode &&
+        !MQueue->is_in_fusion_mode() &&
         MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
@@ -448,22 +268,185 @@ event handler::finalize() {
       return MLastEvent;
     }
   }
-  detail::EventImplPtr EventImpl = createCommandAndEnqueue(
-      type, MQueue, MNDRDesc, std::move(MHostKernel), std::move(MHostTask),
-      std::move(MInteropTask), std::move(MKernel), MKernelName,
-      std::move(MImpl->MKernelBundle), std::move(MArgsStorage),
-      std::move(MAccStorage), std::move(MLocalAccStorage),
-      std::move(MStreamStorage), std::move(MSharedPtrStorage),
-      std::move(MImpl->MAuxiliaryResources), std::move(MArgs), MSrcPtr, MDstPtr,
-      MLength, std::move(MPattern), MImpl->MSrcPitch, MImpl->MDstPitch,
-      MImpl->MWidth, MImpl->MHeight, MImpl->MOffset,
-      MImpl->MIsDeviceImageScoped, MImpl->HostPipeName, MImpl->HostPipePtr,
-      MImpl->HostPipeBlocking, MImpl->HostPipeTypeSize, MImpl->HostPipeRead,
-      MImpl->MAdvice, std::move(MRequirements), std::move(MEvents),
-      std::move(MEventsWaitWithBarrier), MOSModuleHandle,
-      MImpl->MKernelCacheConfig, MCodeLoc);
 
-  MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
+  std::unique_ptr<detail::CG> CommandGroup;
+  switch (type) {
+  case detail::CG::Kernel:
+  case detail::CG::RunOnHostIntel: {
+    // Copy kernel name here instead of move so that it's available after
+    // running of this method by reductions implementation. This allows for
+    // assert feature to check if kernel uses assertions
+    CommandGroup.reset(new detail::CGExecKernel(
+        std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
+        std::move(MImpl->MKernelBundle), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), std::move(MArgs),
+        MKernelName, MOSModuleHandle, std::move(MStreamStorage),
+        std::move(MImpl->MAuxiliaryResources), MCGType,
+        MImpl->MKernelCacheConfig, MCodeLoc));
+    break;
+  }
+  case detail::CG::CodeplayInteropTask:
+    CommandGroup.reset(new detail::CGInteropTask(
+        std::move(MInteropTask), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    break;
+  case detail::CG::CopyAccToPtr:
+  case detail::CG::CopyPtrToAcc:
+  case detail::CG::CopyAccToAcc:
+    CommandGroup.reset(new detail::CGCopy(
+        MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::Fill:
+    CommandGroup.reset(new detail::CGFill(
+        std::move(MPattern), MDstPtr, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::UpdateHost:
+    CommandGroup.reset(new detail::CGUpdateHost(
+        MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::CopyUSM:
+    CommandGroup.reset(new detail::CGCopyUSM(
+        MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::FillUSM:
+    CommandGroup.reset(new detail::CGFillUSM(
+        std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::PrefetchUSM:
+    CommandGroup.reset(new detail::CGPrefetchUSM(
+        MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::AdviseUSM:
+    CommandGroup.reset(new detail::CGAdviseUSM(
+        MDstPtr, MLength, MImpl->MAdvice, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    break;
+  case detail::CG::Copy2DUSM:
+    CommandGroup.reset(new detail::CGCopy2DUSM(
+        MSrcPtr, MDstPtr, MImpl->MSrcPitch, MImpl->MDstPitch, MImpl->MWidth,
+        MImpl->MHeight, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::Fill2DUSM:
+    CommandGroup.reset(new detail::CGFill2DUSM(
+        std::move(MPattern), MDstPtr, MImpl->MDstPitch, MImpl->MWidth,
+        MImpl->MHeight, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::Memset2DUSM:
+    CommandGroup.reset(new detail::CGMemset2DUSM(
+        MPattern[0], MDstPtr, MImpl->MDstPitch, MImpl->MWidth, MImpl->MHeight,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::CodeplayHostTask:
+    CommandGroup.reset(new detail::CGHostTask(
+        std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
+        std::move(MArgs), std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCGType, MCodeLoc));
+    break;
+  case detail::CG::Barrier:
+  case detail::CG::BarrierWaitlist:
+    CommandGroup.reset(new detail::CGBarrier(
+        std::move(MEventsWaitWithBarrier), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    break;
+  case detail::CG::CopyToDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
+  case detail::CG::CopyFromDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
+  case detail::CG::ReadWriteHostPipe: {
+    CommandGroup.reset(new detail::CGReadWriteHostPipe(
+        MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    break;
+  }
+  case detail::CG::ExecCommandBuffer:
+    // If we have a subgraph node we don't want to actually execute this command
+    // graph submission.
+    if (!MSubgraphNode) {
+      event GraphCompletionEvent = MExecGraph->exec(MQueue);
+      MLastEvent = GraphCompletionEvent;
+      return MLastEvent;
+    }
+    break;
+  case detail::CG::None:
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+      std::cout << "WARNING: An empty command group is submitted." << std::endl;
+    }
+    detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
+    MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+    return MLastEvent;
+  }
+
+  if (!MSubgraphNode && !CommandGroup)
+    throw sycl::runtime_error(
+        "Internal Error. Command group cannot be constructed.",
+        PI_ERROR_INVALID_OPERATION);
+
+  // If there is a graph associated with the handler we are in the explicit
+  // graph mode, so we store the CG instead of submitting it to the scheduler,
+  // so it can be retrieved by the graph later.
+  if (MGraph) {
+    MGraphNodeCG = std::move(CommandGroup);
+    return detail::createSyclObjFromImpl<event>(
+        std::make_shared<detail::event_impl>());
+  }
+
+  // If the queue has an associated graph then we need to take the CG and pass
+  // it to the graph to create a node, rather than submit it to the scheduler.
+  if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
+    auto EventImpl = std::make_shared<detail::event_impl>();
+
+    // Extract relevant data from the handler and pass to graph to create a
+    // new node representing this command group.
+    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
+        GraphImpl->add(MCGType, std::move(CommandGroup));
+
+    // Associate an event with this new node and return the event.
+    GraphImpl->add_event_for_node(EventImpl, NodeImpl);
+
+    return detail::createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
+      std::move(CommandGroup), std::move(MQueue));
+
+  MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
 }
 
@@ -1040,6 +1023,7 @@ void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<
         ext::oneapi::experimental::graph_state::executable>
         Graph) {
+  MCGType = detail::CG::ExecCommandBuffer;
   auto GraphImpl = detail::getSyclObjImpl(Graph);
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
   if (MQueue) {
@@ -1057,9 +1041,8 @@ void handler::ext_oneapi_graph(
     auto SubgraphEvent = std::make_shared<event_impl>();
     ParentGraph->add_event_for_node(SubgraphEvent, MSubgraphNode);
   } else {
-    auto GraphCompletionEvent = GraphImpl->exec(MQueue);
-    auto EventImpl = detail::getSyclObjImpl(GraphCompletionEvent);
-    MLastEvent = GraphCompletionEvent;
+    // Set the exec graph for execution during finalize.
+    MExecGraph = GraphImpl;
   }
 }
 

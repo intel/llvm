@@ -37,35 +37,10 @@ public:
   ///
   /// Using weak_ptr here to prevent circular references between nodes.
   std::vector<std::weak_ptr<node_impl>> MPredecessors;
-  /// Kernel to be executed by this node.
-  std::shared_ptr<sycl::detail::kernel_impl> MKernel;
-  /// Description of the kernel global and local sizes as well as offset.
-  sycl::detail::NDRDescT MNDRDesc;
-  /// Module handle for the kernel to be executed.
-  sycl::detail::OSModuleHandle MOSModuleHandle =
-      sycl::detail::OSUtil::ExeModuleHandle;
-  /// Kernel name inside the module.
-  std::string MKernelName;
-
-  /// Accessor storage for node arguments.
-  std::vector<sycl::detail::AccessorImplPtr> MAccStorage;
-  /// Local accessor storage for node arguments.
-  std::vector<sycl::detail::LocalAccessorImplPtr> MLocalAccStorage;
-  // Streams associated with the node.
-  std::vector<std::shared_ptr<sycl::detail::stream_impl>> MStreamStorage;
-  /// The list of requirements to the node for the scheduling.
-  std::vector<sycl::detail::AccessorImplHost *> MRequirements;
   /// Type of the command-group for the node.
   sycl::detail::CG::CGTYPE MCGType = sycl::detail::CG::None;
-
-  /// Store arg descriptors for the kernel arguments.
-  std::vector<sycl::detail::ArgDesc> MArgs;
-  /// We need to store local copies of the values pointed to by MArgs since they
-  /// may go out of scope before execution.
-  std::vector<std::vector<char>> MArgStorage;
-
-  /// Stores auxiliary resources used by internal operations.
-  std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
+  /// Command group object which stores all args etc needed to enqueue the node
+  std::unique_ptr<sycl::detail::CG> MCommandGroup;
 
   /// True if an empty node, false otherwise.
   bool MIsEmpty = false;
@@ -92,46 +67,11 @@ public:
   node_impl() : MIsEmpty(true) {}
 
   /// Construct a node representing a command-group.
-  /// @param Kernel Kernel to run when node executes.
-  /// @param NDRDesc NDRange description for kernel.
-  /// @param OSModuleHandle Module handle for the kernel to be executed.
-  /// @param KernelName Name of kernel.
-  /// @param AccStorage Accessor storage for node arguments.
-  /// @param LocalAccStorage Local accessor storage for node arguments.
   /// @param CGType Type of the command-group.
-  /// @param Args Kernel arguments.
-  /// @param AuxiliaryResources Auxiliary resources used by internal operations.
-  node_impl(
-      std::shared_ptr<sycl::detail::kernel_impl> Kernel,
-      sycl::detail::NDRDescT NDRDesc,
-      sycl::detail::OSModuleHandle OSModuleHandle, std::string KernelName,
-      const std::vector<sycl::detail::AccessorImplPtr> &AccStorage,
-      const std::vector<sycl::detail::LocalAccessorImplPtr> &LocalAccStorage,
-      sycl::detail::CG::CGTYPE CGType,
-      const std::vector<sycl::detail::ArgDesc> &Args,
-      const std::vector<std::shared_ptr<const void>> &AuxiliaryResources)
-      : MKernel(Kernel), MNDRDesc(NDRDesc), MOSModuleHandle(OSModuleHandle),
-        MKernelName(KernelName), MAccStorage(AccStorage),
-        MLocalAccStorage(LocalAccStorage), MRequirements(), MCGType(CGType),
-        MArgs(Args), MArgStorage(), MAuxiliaryResources(AuxiliaryResources) {
-
-    // Need to copy the arg values to node local storage so that they don't go
-    // out of scope before execution
-    for (size_t i = 0; i < MArgs.size(); i++) {
-      auto &CurrentArg = MArgs[i];
-      MArgStorage.emplace_back(CurrentArg.MSize);
-      auto StoragePtr = MArgStorage.back().data();
-      if (CurrentArg.MPtr)
-        std::memcpy(StoragePtr, CurrentArg.MPtr, CurrentArg.MSize);
-      // Set the arg descriptor to point to the new storage
-      CurrentArg.MPtr = StoragePtr;
-      if (CurrentArg.MType ==
-          sycl::detail::kernel_param_kind_t::kind_accessor) {
-        MRequirements.push_back(
-            static_cast<sycl::detail::AccessorImplHost *>(CurrentArg.MPtr));
-      }
-    }
-  }
+  /// @param CommandGroup The CG which stores the command information for this node.
+  node_impl(sycl::detail::CG::CGTYPE CGType,
+            std::unique_ptr<sycl::detail::CG> &&CommandGroup)
+      : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}
 
   /// Recursively add nodes to execution stack.
   /// @param NodeImpl Node to schedule.
@@ -153,7 +93,11 @@ public:
   /// @param Arg Argument to lookup.
   /// @return True if \p Arg is used in node, false otherwise.
   bool has_arg(const sycl::detail::ArgDesc &Arg) {
-    for (auto &NodeArg : MArgs) {
+    // TODO: Handle types other than exec kernel
+    assert(MCGType == sycl::detail::CG::Kernel);
+    const auto &Args =
+        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())->MArgs;
+    for (auto &NodeArg : Args) {
       if (Arg.MType == NodeArg.MType && Arg.MSize == NodeArg.MSize) {
         // Args are actually void** so we need to dereference them to compare
         // actual values
@@ -170,9 +114,80 @@ public:
   /// Query if this is an empty node.
   /// @return True if this is an empty node, false otherwise.
   bool is_empty() const { return MIsEmpty; }
+
+  /// Get a deep copy of this node's command group
+  /// @return A unique ptr to the new command group object.
+  std::unique_ptr<sycl::detail::CG> getCGCopy() const {
+    switch (MCGType) {
+    case sycl::detail::CG::Kernel:
+    case sycl::detail::CG::RunOnHostIntel:
+      return createCGCopy<sycl::detail::CGExecKernel>();
+    case sycl::detail::CG::CodeplayInteropTask:
+      assert(false);
+    // TODO: Uncomment this once we implement support for interop task so we can
+    // test required changes to the CG class.
+
+    // return createCGCopy<sycl::detail::CGInteropTask>();
+    case sycl::detail::CG::CopyAccToPtr:
+    case sycl::detail::CG::CopyPtrToAcc:
+    case sycl::detail::CG::CopyAccToAcc:
+      return createCGCopy<sycl::detail::CGCopy>();
+    case sycl::detail::CG::Fill:
+      return createCGCopy<sycl::detail::CGFill>();
+    case sycl::detail::CG::UpdateHost:
+      return createCGCopy<sycl::detail::CGUpdateHost>();
+    case sycl::detail::CG::CopyUSM:
+      return createCGCopy<sycl::detail::CGCopyUSM>();
+    case sycl::detail::CG::FillUSM:
+      return createCGCopy<sycl::detail::CGFillUSM>();
+    case sycl::detail::CG::PrefetchUSM:
+      return createCGCopy<sycl::detail::CGPrefetchUSM>();
+    case sycl::detail::CG::AdviseUSM:
+      return createCGCopy<sycl::detail::CGAdviseUSM>();
+    case sycl::detail::CG::Copy2DUSM:
+      return createCGCopy<sycl::detail::CGCopy2DUSM>();
+    case sycl::detail::CG::Fill2DUSM:
+      return createCGCopy<sycl::detail::CGFill2DUSM>();
+    case sycl::detail::CG::Memset2DUSM:
+      return createCGCopy<sycl::detail::CGMemset2DUSM>();
+    case sycl::detail::CG::CodeplayHostTask:
+      assert(false);
+      // TODO: Uncomment this once we implement support for host task so we can
+      // test required changes to the CG class.
+
+      // return createCGCopy<sycl::detail::CGHostTask>();
+    case sycl::detail::CG::Barrier:
+    case sycl::detail::CG::BarrierWaitlist:
+      return createCGCopy<sycl::detail::CGBarrier>();
+    case sycl::detail::CG::CopyToDeviceGlobal:
+      return createCGCopy<sycl::detail::CGCopyToDeviceGlobal>();
+    case sycl::detail::CG::CopyFromDeviceGlobal:
+      return createCGCopy<sycl::detail::CGCopyFromDeviceGlobal>();
+    case sycl::detail::CG::ReadWriteHostPipe:
+      return createCGCopy<sycl::detail::CGReadWriteHostPipe>();
+    case sycl::detail::CG::ExecCommandBuffer:
+      assert(false &&
+             "Error: Command graph submission should not be a node in a graph");
+      break;
+    case sycl::detail::CG::None:
+      assert(false &&
+             "Error: Empty nodes should not be enqueue to a command buffer");
+      break;
+    }
+    return nullptr;
+  }
+
+private:
+  /// Creates a copy of the node's CG by casting to it's actual type, then using
+  /// that to copy construct and create a new unique ptr from that copy.
+  /// @tparam CGT The derived type of the CG.
+  /// @return A new unique ptr to the copied CG.
+  template <typename CGT> std::unique_ptr<CGT> createCGCopy() const {
+    return std::make_unique<CGT>(*static_cast<CGT *>(MCommandGroup.get()));
+  }
 };
 
-/// Class resenting implementation details of command_graph<modifiable>.
+/// Class representing implementation details of command_graph<modifiable>.
 class graph_impl {
 public:
   /// Constructor.
@@ -191,30 +206,14 @@ public:
   void remove_root(const std::shared_ptr<node_impl> &Root);
 
   /// Create a kernel node in the graph.
-  /// @param Kernel Kernel to run when node executes.
-  /// @param NDRDesc NDRange description for kernel.
-  /// @param OSModuleHandle Module handle for the kernel to be executed.
-  /// @param KernelName Name of kernel.
-  /// @param AccStorage Accessor storage for node arguments.
-  /// @param LocalAccStorage Local accessor storage for node arguments.
   /// @param CGType Type of the command-group.
-  /// @param Args Node arguments.
-  /// @param AuxiliaryResources Auxiliary resources used by internal operations.
+  /// @param CommandGroup The CG which stores all information for this node.
   /// @param Dep Dependencies of the created node.
-  /// @param DepEvents Dependent events of the created node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(std::shared_ptr<sycl::detail::kernel_impl> Kernel,
-      sycl::detail::NDRDescT NDRDesc,
-      sycl::detail::OSModuleHandle OSModuleHandle, std::string KernelName,
-      const std::vector<sycl::detail::AccessorImplPtr> &AccStorage,
-      const std::vector<sycl::detail::LocalAccessorImplPtr> &LocalAccStorage,
-      sycl::detail::CG::CGTYPE CGType,
-      const std::vector<sycl::detail::ArgDesc> &Args,
-      const std::vector<std::shared_ptr<const void>> &AuxiliaryResources,
-      const std::vector<std::shared_ptr<node_impl>> &Dep = {},
-      const std::vector<std::shared_ptr<sycl::detail::event_impl>> &DepEvents =
-          {});
+  add(sycl::detail::CG::CGTYPE CGType,
+      std::unique_ptr<sycl::detail::CG> CommandGroup,
+      const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create a CGF node in the graph.
   /// @param Impl Graph implementation pointer to create a handler with.

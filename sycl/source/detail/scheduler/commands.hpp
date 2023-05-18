@@ -719,10 +719,7 @@ private:
 // Enqueues a given kernel to a RT::PiExtCommandBuffer
 pi_int32 enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl, RT::PiExtCommandBuffer CommandBuffer,
-    NDRDescT NDRDesc, std::vector<ArgDesc> Args,
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
+    const CGExecKernel &CommandGroup,
     std::vector<RT::PiExtSyncPoint> &SyncPoints,
     RT::PiExtSyncPoint *OutSyncPoint,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);

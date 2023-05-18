@@ -2236,10 +2236,7 @@ void DispatchNativeKernel(void *Blob) {
 
 pi_int32 enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl, RT::PiExtCommandBuffer CommandBuffer,
-    NDRDescT NDRDesc, std::vector<ArgDesc> Args,
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
+    const CGExecKernel &CommandGroup,
     std::vector<RT::PiExtSyncPoint> &SyncPoints,
     RT::PiExtSyncPoint *OutSyncPoint,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
@@ -2249,14 +2246,15 @@ pi_int32 enqueueImpCommandBufferKernel(
   std::mutex *KernelMutex = nullptr;
   pi_program PiProgram = nullptr;
 
-  auto Kernel = SyclKernel;
+  auto Kernel = CommandGroup.MSyclKernel;
   const KernelArgMask *EliminatedArgMask;
   if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
   } else {
     std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
+            CommandGroup.MOSModuleHandle, ContextImpl, DeviceImpl,
+            CommandGroup.MKernelName, nullptr);
   }
 
   auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
@@ -2267,12 +2265,15 @@ pi_int32 enqueueImpCommandBufferKernel(
         ,
         getMemAllocationFunc, Ctx, false, Arg, NextTrueIndex);
   };
-
+  // Copy args for modification
+  auto Args = CommandGroup.MArgs;
   sycl::detail::applyFuncOnFilteredArgs(EliminatedArgMask, Args, SetFunc);
 
   // Remember this information before the range dimensions are reversed
-  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+  const bool HasLocalSize = (CommandGroup.MNDRDesc.LocalSize[0] != 0);
 
+  // Copy NDRDesc for modification
+  auto NDRDesc = CommandGroup.MNDRDesc;
   // Reverse kernel dims
   sycl::detail::ReverseRangeDimensionsForKernel(NDRDesc);
 
@@ -2489,24 +2490,17 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   case CG::CGTYPE::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
-    NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
-    std::vector<ArgDesc> &Args = ExecKernel->MArgs;
-
     auto getMemAllocationFunc = [this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       return AllocaCmd->getMemAllocation();
     };
 
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel =
-        ExecKernel->MSyclKernel;
-    const std::string &KernelName = ExecKernel->MKernelName;
-    const detail::OSModuleHandle &OSModuleHandle = ExecKernel->MOSModuleHandle;
-
     if (!Event) {
       // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert = !(SyclKernel && SyclKernel->isInterop()) &&
-                              ProgramManager::getInstance().kernelUsesAssert(
-                                  OSModuleHandle, KernelName);
+      bool KernelUsesAssert =
+          !(ExecKernel->MSyclKernel && ExecKernel->MSyclKernel->isInterop()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              ExecKernel->MOSModuleHandle, ExecKernel->MKernelName);
       if (KernelUsesAssert) {
         Event = &MEvent->getHandleRef();
       }
@@ -2514,8 +2508,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     RT::PiExtSyncPoint OutSyncPoint;
     auto result = enqueueImpCommandBufferKernel(
         MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
-        NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel, KernelName,
-        OSModuleHandle, MSyncPointDeps, &OutSyncPoint, getMemAllocationFunc);
+        *ExecKernel, MSyncPointDeps, &OutSyncPoint, getMemAllocationFunc);
     MEvent->setSyncPoint(OutSyncPoint);
     return result;
   }
@@ -2626,15 +2619,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     std::vector<Requirement *> *CopyReqs =
         new std::vector<Requirement *>(HostTask->MRequirements);
 
-    // Not actually a copy, but move. Should be OK as it's not expected that
-    // MHostKernel will be used elsewhere.
-    std::unique_ptr<HostKernelBase> *CopyHostKernel =
-        new std::unique_ptr<HostKernelBase>(std::move(HostTask->MHostKernel));
+    std::shared_ptr<HostKernelBase> CopyHostKernel = HostTask->MHostKernel;
 
     NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
 
     ArgsBlob[0] = (void *)CopyReqs;
-    ArgsBlob[1] = (void *)CopyHostKernel;
+    ArgsBlob[1] = (void *)CopyHostKernel.get();
     ArgsBlob[2] = (void *)CopyNDRDesc;
 
     void **NextArg = ArgsBlob.data() + 3;
