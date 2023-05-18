@@ -1,6 +1,18 @@
 {
   "lts": [
     {
+      "config": "lin_gen9",
+      "name": "SYCL E2E on Intel GEN9 GPU",
+      "runs-on": [
+        "Linux",
+        "gen9"
+      ],
+      "image": "${{ inputs.intel_drivers_image }}",
+      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
+      "targets": "ext_oneapi_level_zero:gpu;opencl:gpu",
+      "cmake_args": ""
+    },
+    {
       "config": "l0_gen9",
       "name": "L0 GEN9 LLVM Test Suite",
       "runs-on": [
