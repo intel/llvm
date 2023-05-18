@@ -190,11 +190,13 @@ void prefetch(T* ptr, Properties properties = {});
 template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(T* ptr, size_t count, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 and Accessor::access_mode != write
+// Only available if Accessor::dimensions == 1 &&
+// (Accessor::access_mode == read || Accessor::access_mode == read_write)
 template <typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(Accessor* acc, size_t offset, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 and Accessor::access_mode != write
+// Only available if Accessor::dimensions == 1 &&
+// (Accessor::access_mode == read || Accessor::access_mode == read_write)
 template <typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(Accessor* acc, size_t offset, size_t count, Properties properties = {});
 
@@ -306,11 +308,13 @@ void joint_prefetch(Group g, T* ptr, Properties properties = {});
 template <typename Group, typename T, typename Properties = ext::oneapi::experimental::properties<>>
 void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 and Accessor::access_mode != write
+// Only available if Accessor::dimensions == 1 &&
+// (Accessor::access_mode == read || Accessor::access_mode == read_write)
 template <typename Group, typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
 void joint_prefetch(Group g, Accessor* acc, size_t offset, Properties properties = {});
 
-// Only available if Accessor::dimensions == 1 and Accessor::access_mode != write
+// Only available if Accessor::dimensions == 1 &&
+// (Accessor::access_mode == read || Accessor::access_mode == read_write)
 template <typename Group, typename Accessor, typename Properties = ext::oneapi::experimental::properties<>>
 void joint_prefetch(Group g, Accessor* acc, size_t offset, size_t count, Properties properties = {});
 
