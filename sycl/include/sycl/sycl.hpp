@@ -79,7 +79,6 @@
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/ext/oneapi/group_algorithm.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/owner_less.hpp>

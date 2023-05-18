@@ -1,6 +1,6 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build}  -o %t.out
 // RUN: env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=0 ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-DISABLED %s

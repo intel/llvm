@@ -47,19 +47,6 @@ possibly_dangerous_env_vars = ['COMPILER_PATH', 'RC_DEBUG_OPTIONS',
                                'LIBCLANG_RESOURCE_USAGE',
                                'LIBCLANG_CODE_COMPLETION_LOGGING']
 
-if not config.sycl_be:
-     lit_config.error("SYCL backend is not specified")
-
-# Replace deprecated backend names
-deprecated_names_mapping = {'cuda'       : 'ext_oneapi_cuda',
-                            'hip'        : 'ext_oneapi_hip',
-                            'level_zero' : 'ext_oneapi_level_zero',
-                            'esimd_cpu'  : 'ext_intel_esimd_emulator'}
-if config.sycl_be in deprecated_names_mapping.keys():
-    config.sycl_be = deprecated_names_mapping[config.sycl_be]
-
-lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
-
 # Clang/Win32 may refer to %INCLUDE%. vsvarsall.bat sets it.
 if platform.system() != 'Windows':
     possibly_dangerous_env_vars.append('INCLUDE')
@@ -237,23 +224,36 @@ if not config.gpu_aot_target_opts:
 config.substitutions.append( ('%gpu_aot_target_opts',  config.gpu_aot_target_opts ) )
 
 if config.dump_ir_supported:
-   config.available_features.add('dump_ir')
+    config.available_features.add('dump_ir')
 
-supported_sycl_be = ['opencl',
-                     'ext_oneapi_cuda',
-                     'ext_oneapi_hip',
-                     'ext_oneapi_level_zero',
-                     'ext_intel_esimd_emulator']
+lit_config.note("Targeted devices: {}".format(', '.join(config.sycl_devices)))
 
-if config.sycl_be not in supported_sycl_be:
-   lit_config.error("Unknown SYCL BE specified '" +
-                    config.sycl_be +
-                    "'. Supported values are {}".format(', '.join(supported_sycl_be)))
+if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
+    devices = set()
+    sp = subprocess.getstatusoutput('sycl-ls')
+    for line in sp[1].split('\n'):
+        (backend, device, _) = line[1:].split(':', 2)
+        devices.add('{}:{}'.format(backend, device))
+    config.sycl_devices = list(devices)
+
+if len(config.sycl_devices) > 1:
+    lit_config.note('Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices')
+
+available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
+                     'ext_oneapi_cuda':('gpu'),
+                     'ext_oneapi_level_zero':('gpu'),
+                     'ext_oneapi_hip':('gpu'),
+                     'ext_intel_esimd_emulator':('gpu')}
+for d in config.sycl_devices:
+     be, dev = d.split(':')
+     if be not in available_devices or dev not in available_devices[be]:
+          lit_config.error('Unsupported device {}'.format(d))
 
 # Run only tests in ESIMD subforlder for the ext_intel_esimd_emulator
-if config.sycl_be == 'ext_intel_esimd_emulator':
-   config.test_source_root += "/ESIMD"
-   config.test_exec_root += "/ESIMD"
+# TODO: Can it work in multiple devices configuration at all?
+if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'ext_intel_esimd_emulator:gpu':
+     config.test_source_root += "/ESIMD"
+     config.test_exec_root += "/ESIMD"
 
 # If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
 supported_hip_platforms=["AMD", "NVIDIA"]
@@ -263,10 +263,10 @@ if config.hip_platform not in supported_hip_platforms:
     lit_config.error("Unknown HIP platform '" + config.hip_platform + "' supported platforms are " + ', '.join(supported_hip_platforms))
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
-if config.sycl_be == "ext_oneapi_hip" and config.hip_platform == "AMD":
+if "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
     config.available_features.add('hip_amd')
     arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=' + config.amd_arch
-elif config.sycl_be == "ext_oneapi_hip" and config.hip_platform == "NVIDIA":
+elif "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
     config.available_features.add('hip_nvidia')
     arch_flag = ""
 else:
@@ -281,31 +281,11 @@ else:
 
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 
-supported_device_types=['cpu', 'gpu', 'acc']
-for target_device in config.target_devices.split(','):
-    if ( target_device not in supported_device_types ):
-        lit_config.error("Unknown SYCL target device type specified '" +
-                         target_device +
-                         "' supported devices are " + ', '.join(supported_device_types))
-
 if lit_config.params.get('ze_debug'):
     config.available_features.add('ze_debug')
 
-config.sycl_devices = ['{}:{}'.format(config.sycl_be, dev)
-                       for dev in config.target_devices.split(',')]
-lit_config.note("Targeted devices: {}".format(', '.join(config.sycl_devices)))
-if len(config.sycl_devices) > 1:
-    lit_config.note('Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices')
-
 if config.run_launcher:
     config.substitutions.append(('%e2e_tests_root', config.test_source_root))
-
-if config.sycl_be == 'ext_oneapi_cuda' or (config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'NVIDIA'):
-    config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda" ) )
-elif config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'AMD':
-    config.substitutions.append( ('%sycl_triple',  "amdgcn-amd-amdhsa" ) )
-else:
-    config.substitutions.append( ('%sycl_triple',  "spir64" ) )
 
 # TODO properly set XPTIFW include and runtime dirs
 xptifw_lib_dir = os.path.join(config.dpcpp_root_dir, 'lib')
@@ -422,7 +402,7 @@ for sycl_device in config.sycl_devices:
 
     features = set('aspect-' + a for a in aspects)
     be, dev = sycl_device.split(':')
-    features.add(dev)
+    features.add(dev.replace('acc', 'accelerator'))
     # Use short names for LIT rules.
     features.add(be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
 
