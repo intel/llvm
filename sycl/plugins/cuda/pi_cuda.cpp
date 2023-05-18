@@ -42,8 +42,6 @@ std::string getCudaVersionString() {
   return stream.str();
 }
 
-
-
 pi_result map_error(CUresult result) {
   switch (result) {
   case CUDA_SUCCESS:
