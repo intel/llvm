@@ -186,8 +186,8 @@ public:
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
-            Accessor.template get_multi_ptr<DecorateAddress>().get())) {}
+      : m_Pointer(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == local_space || generic_space and element type is const
   template <int Dimensions, access::mode Mode,
