@@ -248,6 +248,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
     UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
     UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4035,6 +4036,22 @@ urQueueRelease(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor for ::urQueueGetNativeHandle and
+///        ::urQueueCreateWithNativeHandle.
+///
+/// @details
+///     - Specify this descriptor in ::urQueueGetNativeHandle directly or
+///       ::urQueueCreateWithNativeHandle via ::ur_queue_native_properties_t as
+///       part of a `pNext` chain.
+typedef struct ur_queue_native_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    void *pNativeData;         ///< [in][optional] Adapter-specific metadata needed to create the handle.
+
+} ur_queue_native_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Return queue native queue handle.
 ///
 /// @details
@@ -4057,6 +4074,7 @@ urQueueRelease(
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(
     ur_queue_handle_t hQueue,         ///< [in] handle of the queue.
+    ur_queue_native_desc_t *pDesc,    ///< [in][optional] pointer to native descriptor
     ur_native_handle_t *phNativeQueue ///< [out] a pointer to the native handle of the queue.
 );
 
@@ -6940,6 +6958,7 @@ typedef struct ur_queue_release_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_queue_get_native_handle_params_t {
     ur_queue_handle_t *phQueue;
+    ur_queue_native_desc_t **ppDesc;
     ur_native_handle_t **pphNativeQueue;
 } ur_queue_get_native_handle_params_t;
 
