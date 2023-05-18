@@ -121,6 +121,9 @@ struct ur_queue_handle_t_ : _ur_object {
     // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
+    // This function sets an immediate commandlist from the interop interface.
+    void setImmCmdList(ze_command_list_handle_t);
+
     // This function returns the next immediate commandlist to use.
     ur_command_list_ptr_t &getImmCmdList();
 
@@ -194,6 +197,12 @@ struct ur_queue_handle_t_ : _ur_object {
   // This field is only set at _pi_queue creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_queue.
   const ur_device_handle_t Device;
+
+  // A queue may use either standard or immediate commandlists. At queue
+  // construction time this is set based on the device and any env var settings
+  // that change the default for the device type. When an interop queue is
+  // constructed, the caller chooses the type of commandlists to use.
+  bool UsingImmCmdLists = false;
 
   // Keeps track of the event associated with the last enqueued command into
   // this queue. this is used to add dependency with the last command to add

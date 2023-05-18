@@ -109,28 +109,6 @@ __SYCL_EXPORT pi_result piextQueueCreate(pi_context Context, pi_device Device,
   return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
 }
 
-__SYCL_EXPORT pi_result piextQueueCreate2(pi_context Context, pi_device Device,
-                                          pi_queue_properties *Properties,
-                                          pi_queue *Queue) {
-  return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
-}
-
-__SYCL_EXPORT pi_result piextQueueGetNativeHandle2(
-    pi_queue Queue, pi_native_handle *NativeHandle, int32_t *NativeHandleDesc) {
-  std::ignore = NativeHandleDesc;
-  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
-}
-
-__SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle NativeHandle, int32_t NativeHandleDesc, pi_context Context,
-    pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
-    pi_queue *Queue) {
-  std::ignore = NativeHandleDesc;
-  std::ignore = Properties;
-  return pi2ur::piextQueueCreateWithNativeHandle(NativeHandle, Context, Device,
-                                                 OwnNativeHandle, Queue);
-}
-
 __SYCL_EXPORT pi_result piQueueRelease(pi_queue Queue) {
   return pi2ur::piQueueRelease(Queue);
 }
@@ -724,16 +702,19 @@ __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
       NativeHandle, NumDevices, Devices, OwnNativeHandle, RetContext);
 }
 
-__SYCL_EXPORT pi_result
-piextQueueGetNativeHandle(pi_queue Queue, pi_native_handle *NativeHandle) {
-  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
+__SYCL_EXPORT pi_result piextQueueGetNativeHandle(
+    pi_queue Queue, pi_native_handle *NativeHandle, int32_t *NativeHandleDesc) {
+  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle,
+                                          NativeHandleDesc);
 }
 
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle NativeHandle, pi_context Context, pi_device Device,
-    bool OwnNativeHandle, pi_queue *Queue) {
-  return pi2ur::piextQueueCreateWithNativeHandle(NativeHandle, Context, Device,
-                                                 OwnNativeHandle, Queue);
+    pi_native_handle NativeHandle, int32_t NativeHandleDesc, pi_context Context,
+    pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
+    pi_queue *Queue) {
+  return pi2ur::piextQueueCreateWithNativeHandle(
+      NativeHandle, NativeHandleDesc, Context, Device, OwnNativeHandle,
+      Properties, Queue);
 }
 
 __SYCL_EXPORT pi_result piMemRelease(pi_mem Mem) {
@@ -1068,9 +1049,6 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piQueueFlush)
   _PI_API(piextQueueGetNativeHandle)
   _PI_API(piextQueueCreateWithNativeHandle)
-  _PI_API(piextQueueCreate2)
-  _PI_API(piextQueueGetNativeHandle2)
-  _PI_API(piextQueueCreateWithNativeHandle2)
 
   _PI_API(piProgramCreate)
   _PI_API(piProgramBuild)

@@ -463,32 +463,66 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-  auto ZeQueue = ur_cast<ze_command_queue_handle_t *>(NativeQueue);
-
-  // Extract a Level Zero compute queue handle from the given PI queue
+  // Get handle to this thread's queue group.
   auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
-  uint32_t QueueGroupOrdinalUnused;
-  *ZeQueue = QueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
+
+  if (Queue->UsingImmCmdLists) {
+    auto ZeCmdList = ur_cast<ze_command_list_handle_t *>(NativeQueue);
+    // Extract the Level Zero command list handle from the given PI queue
+    *ZeCmdList = QueueGroup.getImmCmdList()->first;
+    // TODO: How to pass this up in the urQueueGetNativeHandle interface?
+    // *NativeHandleDesc = true;
+  } else {
+    auto ZeQueue = ur_cast<ze_command_queue_handle_t *>(NativeQueue);
+
+    // Extract a Level Zero compute queue handle from the given PI queue
+    auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
+    uint32_t QueueGroupOrdinalUnused;
+    *ZeQueue = QueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
+    // TODO: How to pass this up in the urQueueGetNativeHandle interface?
+    // *NativeHandleDesc = false;
+  }
 
   return UR_RESULT_SUCCESS;
+}
+
+void ur_queue_handle_t_::pi_queue_group_t::setImmCmdList(
+    ze_command_list_handle_t ZeCommandList) {
+  ImmCmdLists = std::vector<ur_command_list_ptr_t>(
+      1,
+      Queue->CommandListMap
+          .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
+              ZeCommandList, {nullptr, true, false, nullptr, 0}})
+          .first);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t NativeQueue, ///< [in] the native handle of the queue.
     ur_context_handle_t Context,    ///< [in] handle of the context object
     ur_device_handle_t Device,      ///
-    const ur_queue_native_properties_t *Properties, ///
+    const ur_queue_native_properties_t *NativeProperties, ///
     ur_queue_handle_t
         *RetQueue ///< [out] pointer to the handle of the queue object created.
 ) {
-  auto ZeQueue = ur_cast<ze_command_queue_handle_t>(NativeQueue);
-  // Assume this is the "0" index queue in the compute command-group.
-  std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
+  bool OwnNativeHandle = false;
+  ur_queue_flags_t Flags{};
 
-  // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue. Currently we will send
-  // all commands to the "ZeQueue".
-  std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
+  if (NativeProperties) {
+    OwnNativeHandle = NativeProperties->isNativeHandleOwned;
+    if (NativeProperties->pNext) {
+      const ur_base_properties_t *extendedProperties =
+          reinterpret_cast<const ur_base_properties_t *>(
+              NativeProperties->pNext);
+      if (extendedProperties->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
+        const ur_queue_properties_t *UrProperties =
+            reinterpret_cast<const ur_queue_properties_t *>(extendedProperties);
+        Flags = UrProperties->flags;
+      }
+    }
+  }
+
+  // TODO: How to pass this up in the urQueueCreateWithNativeHandle interface?
+  int32_t NativeHandleDesc = 0;
 
   // Get the device handle from first device in the platform
   // Maybe this is not completely correct.
@@ -502,15 +536,42 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
                         nullptr));
   }
 
-  try {
-    ur_queue_handle_t_ *Queue =
-        new ur_queue_handle_t_(ZeQueues, ZeroCopyQueues, Context, UrDevice,
-                               Properties->isNativeHandleOwned);
-    *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
+  // The NativeHandleDesc has value if if the native handle is an immediate
+  // command list.
+  if (NativeHandleDesc == 1) {
+    std::vector<ze_command_queue_handle_t> ComputeQueues{nullptr};
+    std::vector<ze_command_queue_handle_t> CopyQueues;
+
+    try {
+      ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
+          ComputeQueues, CopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
+      *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+    } catch (const std::bad_alloc &) {
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    } catch (...) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+    auto &InitialGroup = (*RetQueue)->ComputeQueueGroupsByTID.begin()->second;
+    InitialGroup.setImmCmdList(ur_cast<ze_command_list_handle_t>(NativeQueue));
+  } else {
+    auto ZeQueue = ur_cast<ze_command_queue_handle_t>(NativeQueue);
+    // Assume this is the "0" index queue in the compute command-group.
+    std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
+
+    // TODO: see what we can do to correctly initialize PI queue for
+    // compute vs. copy Level-Zero queue. Currently we will send
+    // all commands to the "ZeQueue".
+    std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
+
+    try {
+      ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
+          ZeQueues, ZeroCopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
+      *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+    } catch (const std::bad_alloc &) {
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    } catch (...) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
   }
 
   return UR_RESULT_SUCCESS;
@@ -757,6 +818,8 @@ ur_queue_handle_t_::ur_queue_handle_t_(
     bool OwnZeCommandQueue, ur_queue_flags_t Properties, int ForceComputeIndex)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(Properties) {
+  // Set the type of commandlists the queue will use.
+  UsingImmCmdLists = Device->useImmediateCommandLists();
   // Compute group initialization.
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
@@ -766,7 +829,7 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   ComputeQueueGroup.ZeQueues = ComputeQueues;
   // Create space to hold immediate commandlists corresponding to the
   // ZeQueues
-  if (Device->ImmCommandListUsed) {
+  if (UsingImmCmdLists) {
     ComputeQueueGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
         ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
   }
@@ -798,7 +861,7 @@ ur_queue_handle_t_::ur_queue_handle_t_(
       die("No compute queue available/allowed.");
     }
   }
-  if (Device->ImmCommandListUsed) {
+  if (UsingImmCmdLists) {
     // Create space to hold immediate commandlists corresponding to the
     // ZeQueues
     ComputeQueueGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(

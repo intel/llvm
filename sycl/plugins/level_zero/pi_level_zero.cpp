@@ -179,28 +179,6 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
   return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
 }
 
-pi_result piextQueueCreate2(pi_context Context, pi_device Device,
-                            pi_queue_properties *Properties, pi_queue *Queue) {
-  return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
-}
-
-pi_result piextQueueGetNativeHandle2(pi_queue Queue,
-                                     pi_native_handle *NativeHandle,
-                                     int32_t *NativeHandleDesc) {
-  std::ignore = NativeHandleDesc;
-  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
-}
-
-pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle NativeHandle, int32_t NativeHandleDesc, pi_context Context,
-    pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
-    pi_queue *Queue) {
-  std::ignore = NativeHandleDesc;
-  std::ignore = Properties;
-  return pi2ur::piextQueueCreateWithNativeHandle(NativeHandle, Context, Device,
-                                                 OwnNativeHandle, Queue);
-}
-
 pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
                          size_t ParamValueSize, void *ParamValue,
                          size_t *ParamValueSizeRet) {
@@ -220,18 +198,23 @@ pi_result piQueueFinish(pi_queue Queue) { return pi2ur::piQueueFinish(Queue); }
 pi_result piQueueFlush(pi_queue Queue) { return pi2ur::piQueueFlush(Queue); }
 
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
-                                    pi_native_handle *NativeHandle) {
+                                    pi_native_handle *NativeHandle,
+                                    int32_t *NativeHandleDesc) {
 
-  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
+  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle,
+                                          NativeHandleDesc);
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           int32_t NativeHandleDesc,
                                            pi_context Context, pi_device Device,
                                            bool OwnNativeHandle,
+                                           pi_queue_properties *Properties,
                                            pi_queue *Queue) {
 
-  return pi2ur::piextQueueCreateWithNativeHandle(NativeHandle, Context, Device,
-                                                 OwnNativeHandle, Queue);
+  return pi2ur::piextQueueCreateWithNativeHandle(
+      NativeHandle, NativeHandleDesc, Context, Device, OwnNativeHandle,
+      Properties, Queue);
 }
 
 pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,

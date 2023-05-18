@@ -1326,17 +1326,10 @@ inline pi_result piQueueCreate(pi_context Context, pi_device Device,
   return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
 }
 
-inline pi_result piextQueueCreate2(pi_context context, pi_device device,
-                                   pi_queue_properties *properties,
-                                   pi_queue *queue) {
-  return pi2ur::piextQueueCreate(context, device, properties, queue);
-}
-
-inline pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                                  pi_context Context,
-                                                  pi_device Device,
-                                                  bool OwnNativeHandle,
-                                                  pi_queue *Queue) {
+inline pi_result piextQueueCreateWithNativeHandle(
+    pi_native_handle NativeHandle, int32_t NativeHandleDesc, pi_context Context,
+    pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
+    pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
@@ -1348,28 +1341,44 @@ inline pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_native_handle_t UrNativeHandle =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   ur_queue_handle_t *UrQueue = reinterpret_cast<ur_queue_handle_t *>(Queue);
-  ur_queue_native_properties_t Properties{};
-  Properties.isNativeHandleOwned = OwnNativeHandle;
-  HANDLE_ERRORS(urQueueCreateWithNativeHandle(UrNativeHandle, UrContext,
-                                              UrDevice, &Properties, UrQueue));
+  ur_queue_native_properties_t UrNativeProperties{};
+  UrNativeProperties.isNativeHandleOwned = OwnNativeHandle;
+
+  ur_queue_properties_t UrProperties{};
+  UrProperties.stype = UR_STRUCTURE_TYPE_QUEUE_PROPERTIES;
+  if (Properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)
+    UrProperties.flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+  if (Properties[1] & PI_QUEUE_FLAG_PROFILING_ENABLE)
+    UrProperties.flags |= UR_QUEUE_FLAG_PROFILING_ENABLE;
+  if (Properties[1] & PI_QUEUE_FLAG_ON_DEVICE)
+    UrProperties.flags |= UR_QUEUE_FLAG_ON_DEVICE;
+  if (Properties[1] & PI_QUEUE_FLAG_ON_DEVICE_DEFAULT)
+    UrProperties.flags |= UR_QUEUE_FLAG_ON_DEVICE_DEFAULT;
+  if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)
+    UrProperties.flags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
+  if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW)
+    UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_LOW;
+  if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)
+    UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
+
+  UrNativeProperties.pNext = &UrProperties;
+
+  // TODO: How to pass this up in the urQueueCreateWithNativeHandle interface?
+  std::ignore = NativeHandleDesc;
+  HANDLE_ERRORS(urQueueCreateWithNativeHandle(
+      UrNativeHandle, UrContext, UrDevice, &UrNativeProperties, UrQueue));
   return PI_SUCCESS;
 }
 
-inline pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
-    pi_device device, bool pluginOwnsNativeHandle,
-    pi_queue_properties *Properties, pi_queue *queue) {
-  (void)nativeHandleDesc;
-  (void)Properties;
-  return pi2ur::piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                                 pluginOwnsNativeHandle, queue);
-}
-
 inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
-                                           pi_native_handle *NativeHandle) {
+                                           pi_native_handle *NativeHandle,
+                                           int32_t *NativeHandleDesc) {
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+
+  // TODO: How to pass this up in the urQueueGetNativeHandle interface?
+  std::ignore = NativeHandleDesc;
 
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
@@ -1379,14 +1388,6 @@ inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
   *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeQueue);
 
   return PI_SUCCESS;
-}
-
-inline pi_result piextQueueGetNativeHandle2(pi_queue Queue,
-                                            pi_native_handle *NativeHandle,
-                                            int32_t *NativeHandleDesc) {
-
-  (void)NativeHandleDesc;
-  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
 }
 
 inline pi_result piQueueRelease(pi_queue Queue) {
