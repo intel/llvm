@@ -114,6 +114,14 @@ END-SCRIPT
 #include <__algorithm/partition_point.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/partition_point.h'}}
 #include <__algorithm/pop_heap.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pop_heap.h'}}
 #include <__algorithm/prev_permutation.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/prev_permutation.h'}}
+#include <__algorithm/pstl_backends/cpu_backend.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backend.h'}}
+#include <__algorithm/pstl_backends/cpu_backends/any_of.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backends/any_of.h'}}
+#include <__algorithm/pstl_backends/cpu_backends/backend.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backends/backend.h'}}
+#include <__algorithm/pstl_backends/cpu_backends/fill.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backends/fill.h'}}
+#include <__algorithm/pstl_backends/cpu_backends/find_if.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backends/find_if.h'}}
+#include <__algorithm/pstl_backends/cpu_backends/for_each.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backends/for_each.h'}}
+#include <__algorithm/pstl_backends/cpu_backends/serial.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backends/serial.h'}}
+#include <__algorithm/pstl_backends/cpu_backends/transform.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/pstl_backends/cpu_backends/transform.h'}}
 #include <__algorithm/push_heap.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/push_heap.h'}}
 #include <__algorithm/ranges_adjacent_find.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_adjacent_find.h'}}
 #include <__algorithm/ranges_all_of.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_all_of.h'}}
@@ -196,6 +204,7 @@ END-SCRIPT
 #include <__algorithm/ranges_sort_heap.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_sort_heap.h'}}
 #include <__algorithm/ranges_stable_partition.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_stable_partition.h'}}
 #include <__algorithm/ranges_stable_sort.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_stable_sort.h'}}
+#include <__algorithm/ranges_starts_with.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_starts_with.h'}}
 #include <__algorithm/ranges_swap_ranges.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_swap_ranges.h'}}
 #include <__algorithm/ranges_transform.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_transform.h'}}
 #include <__algorithm/ranges_unique.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_unique.h'}}
@@ -424,7 +433,6 @@ END-SCRIPT
 #include <__functional/reference_wrapper.h> // expected-error@*:* {{use of private header from outside its module: '__functional/reference_wrapper.h'}}
 #include <__functional/unary_function.h> // expected-error@*:* {{use of private header from outside its module: '__functional/unary_function.h'}}
 #include <__functional/unary_negate.h> // expected-error@*:* {{use of private header from outside its module: '__functional/unary_negate.h'}}
-#include <__functional/unwrap_ref.h> // expected-error@*:* {{use of private header from outside its module: '__functional/unwrap_ref.h'}}
 #include <__functional/weak_result_type.h> // expected-error@*:* {{use of private header from outside its module: '__functional/weak_result_type.h'}}
 #include <__fwd/array.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/array.h'}}
 #include <__fwd/fstream.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/fstream.h'}}
@@ -580,6 +588,7 @@ END-SCRIPT
 #include <__ranges/as_rvalue_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/as_rvalue_view.h'}}
 #include <__ranges/common_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/common_view.h'}}
 #include <__ranges/concepts.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/concepts.h'}}
+#include <__ranges/container_compatible_range.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/container_compatible_range.h'}}
 #include <__ranges/copyable_box.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/copyable_box.h'}}
 #include <__ranges/counted.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/counted.h'}}
 #include <__ranges/dangling.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/dangling.h'}}
@@ -592,6 +601,7 @@ END-SCRIPT
 #include <__ranges/enable_borrowed_range.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/enable_borrowed_range.h'}}
 #include <__ranges/enable_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/enable_view.h'}}
 #include <__ranges/filter_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/filter_view.h'}}
+#include <__ranges/from_range.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/from_range.h'}}
 #include <__ranges/iota_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/iota_view.h'}}
 #include <__ranges/istream_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/istream_view.h'}}
 #include <__ranges/join_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/join_view.h'}}
@@ -767,6 +777,7 @@ END-SCRIPT
 #include <__type_traits/type_identity.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/type_identity.h'}}
 #include <__type_traits/type_list.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/type_list.h'}}
 #include <__type_traits/underlying_type.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/underlying_type.h'}}
+#include <__type_traits/unwrap_ref.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/unwrap_ref.h'}}
 #include <__type_traits/void_t.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/void_t.h'}}
 #include <__utility/as_const.h> // expected-error@*:* {{use of private header from outside its module: '__utility/as_const.h'}}
 #include <__utility/auto_cast.h> // expected-error@*:* {{use of private header from outside its module: '__utility/auto_cast.h'}}

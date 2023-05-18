@@ -2124,21 +2124,10 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = std::enable_if_t<
                 (AccessTarget_ == access::target::host_buffer) ||
-                (AccessTarget_ == access::target::host_task)>>
-#if SYCL_LANGUAGE_VERSION >= 202001
-  std::add_pointer_t<value_type> get_pointer() const noexcept
-#else
-  DataT *get_pointer() const
-#endif
-  {
+                (AccessTarget_ == access::target::host_task) ||
+                (AccessTarget_ == access::target::device)>>
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
-  }
-
-  template <
-      access::target AccessTarget_ = AccessTarget,
-      typename = std::enable_if_t<AccessTarget_ == access::target::device>>
-  global_ptr<DataT> get_pointer() const {
-    return global_ptr<DataT>(getPointerAdjusted());
   }
 
   template <access::target AccessTarget_ = AccessTarget,

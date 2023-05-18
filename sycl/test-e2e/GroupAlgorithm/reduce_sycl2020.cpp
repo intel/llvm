@@ -36,14 +36,16 @@ void test(queue q, InputContainer input, OutputContainer output,
             int lid = it.get_local_id(0);
             out[0] = reduce_over_group(g, in[lid], binary_op);
             out[1] = reduce_over_group(g, in[lid], init, binary_op);
-            out[2] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  binary_op);
-            out[3] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  init, binary_op);
-            out[4] = joint_reduce(sg, in.get_pointer(), in.get_pointer() + N,
-                                  binary_op);
-            out[5] = joint_reduce(sg, in.get_pointer(), in.get_pointer() + N,
-                                  init, binary_op);
+            out[2] = joint_reduce(g, global_ptr<const InputT>(in),
+                                  global_ptr<const InputT>(in) + N, binary_op);
+            out[3] =
+                joint_reduce(g, global_ptr<const InputT>(in),
+                             global_ptr<const InputT>(in) + N, init, binary_op);
+            out[4] = joint_reduce(sg, global_ptr<const InputT>(in),
+                                  global_ptr<const InputT>(in) + N, binary_op);
+            out[5] =
+                joint_reduce(sg, global_ptr<const InputT>(in),
+                             global_ptr<const InputT>(in) + N, init, binary_op);
           });
     });
   }
