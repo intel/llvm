@@ -42,6 +42,8 @@ std::string getCudaVersionString() {
   return stream.str();
 }
 
+
+
 pi_result map_error(CUresult result) {
   switch (result) {
   case CUDA_SUCCESS:
@@ -6088,7 +6090,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
-
   _PI_CL(piPluginGetBackendOption, cuda_piPluginGetBackendOption)
 
   // Peer to Peer

@@ -5624,7 +5624,6 @@ pi_result hip_piextDisablePeerAccess(pi_device command_device,
                   "implemented in hip backend",
                   PI_ERROR_PLUGIN_SPECIFIC_ERROR);
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-  return {};
 }
 
 pi_result hip_piextPeerAccessGetInfo(pi_device command_device,
@@ -5794,7 +5793,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
-
   _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
 
   // Peer to Peer
