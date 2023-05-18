@@ -8,8 +8,6 @@
 
 static bool PrintPiTrace = true;
 
-struct _pi_platform {};
-
 struct _pi_object {
   _pi_object() : RefCount{1} {}
 
@@ -20,6 +18,10 @@ struct _pi_device : _pi_object {
   _pi_device(pi_platform ArgPlt) : Platform{ArgPlt} {}
 
   pi_platform Platform;
+};
+
+struct _pi_platform {
+  _pi_device TheDevice{this};
 };
 
 struct _pi_mem : _pi_object {
@@ -183,7 +185,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_SUCCESS;
   }
   if (Platforms && NumEntries > 0) {
-    *Platforms = new _pi_platform();
+    static _pi_platform ThePlatform;
+    *Platforms = &ThePlatform;
   }
   return PI_SUCCESS;
 }
@@ -265,7 +268,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   if (Devices) {
-    Devices[0] = new _pi_device(Platform);
+    Devices[0] = &Platform->TheDevice;
   }
 
   return PI_SUCCESS;
