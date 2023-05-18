@@ -4744,6 +4744,9 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
         if ((Known.KnownFPClasses & fcZero) != fcNone &&
             !Known.isKnownNeverSubnormal()) {
           const Function *Parent = II->getFunction();
+          if (!Parent)
+            break;
+
           DenormalMode Mode = Parent->getDenormalMode(
               II->getType()->getScalarType()->getFltSemantics());
           if (Mode != DenormalMode::getIEEE())
