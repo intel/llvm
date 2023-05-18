@@ -43,6 +43,79 @@ bool isRecursiveStruct(Type *T, Type *Meta, SmallPtrSetImpl<Type *> &Seen) {
   return false;
 }
 
+bool isRecursiveStruct(
+    clang::QualType QT,
+    SmallPtrSetImpl<const clang::Type *> &RecordEncountered) {
+
+  std::optional<bool> isRecursive =
+      TypeSwitch<clang::QualType, std::optional<bool>>(QT)
+          .Case<clang::ElaboratedType>([&](const auto *ET) {
+            return isRecursiveStruct(ET->getNamedType(), RecordEncountered);
+          })
+          .Case<clang::UsingType>([&](const auto *UT) {
+            return isRecursiveStruct(UT->getUnderlyingType(),
+                                     RecordEncountered);
+          })
+          .Case<clang::ParenType>([&](const auto *PT) {
+            return isRecursiveStruct(PT->getInnerType(), RecordEncountered);
+          })
+          .Case<clang::DeducedType>([&](const auto *DT) {
+            return isRecursiveStruct(DT->getDeducedType(), RecordEncountered);
+          })
+          .Case<clang::SubstTemplateTypeParmType>([&](const auto *STT) {
+            return isRecursiveStruct(STT->getReplacementType(),
+                                     RecordEncountered);
+          })
+          .Case<clang::TemplateSpecializationType, clang::TypedefType,
+                clang::DecltypeType>([&](const auto *T) {
+            return isRecursiveStruct(T->desugar(), RecordEncountered);
+          })
+          .Case<clang::DecayedType>([&](const auto *DT) {
+            return isRecursiveStruct(DT->getOriginalType(), RecordEncountered);
+          })
+          .Case<clang::ComplexType>([&](const auto *CT) {
+            return isRecursiveStruct(CT->getElementType(), RecordEncountered);
+          })
+          .Case<clang::RecordType>([&](const auto *RT) {
+            if (RecordEncountered.count(RT))
+              return true;
+
+            RecordEncountered.insert(RT);
+            auto *CXRD = dyn_cast<clang::CXXRecordDecl>(RT->getDecl());
+            if (CXRD && CXRD->hasDefinition())
+              for (auto B : CXRD->bases())
+                if (isRecursiveStruct(B.getType(), RecordEncountered))
+                  return true;
+
+            for (auto *F : RT->getDecl()->fields())
+              if (isRecursiveStruct(F->getType(), RecordEncountered))
+                return true;
+
+            RecordEncountered.erase(RT);
+            return false;
+          })
+          .Default([](auto) { return std::nullopt; });
+
+  if (isRecursive.has_value()) {
+    return *isRecursive;
+  }
+
+  const clang::Type *T = QT->getUnqualifiedDesugaredType();
+
+  if (T->isBuiltinType())
+    return false;
+
+  return TypeSwitch<const clang::Type *, bool>(T)
+      .Case<clang::ArrayType, clang::VectorType>([&](const auto *VAT) {
+        return isRecursiveStruct(VAT->getElementType(), RecordEncountered);
+      })
+      .Case<clang::FunctionProtoType, clang::FunctionNoProtoType,
+            clang::EnumType>([&](const auto *T) { return false; })
+      .Case<clang::PointerType, clang::ReferenceType>([&](const auto *T) {
+        return isRecursiveStruct(T->getPointeeType(), RecordEncountered);
+      });
+}
+
 Type *anonymize(Type *T) {
   if (auto *PT = dyn_cast<PointerType>(T)) {
     if (PT->isOpaque())

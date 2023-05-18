@@ -461,7 +461,7 @@ func.func private @subindexop_memref_same_dim(%arg0: memref<4x4xf32>, %arg1: ind
 // CHECK-SAME:                                        %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(0 : index) : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], %[[VAL_1]]] : (!llvm.ptr, i64, i64) -> !llvm.ptr, f32
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], 0] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<(f32)>
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT:    }
 
@@ -477,7 +477,7 @@ func.func private @subindexop_memref_struct(%arg0: memref<4x!llvm.struct<(f32)>>
 // CHECK-SAME:                                               %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(0 : index) : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], %[[VAL_2]], %[[VAL_1]]] : (!llvm.ptr, i64, i64, i64) -> !llvm.ptr, f32
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], 0, 0] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<(struct<(f32)>)>
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT:    }
 
@@ -493,7 +493,7 @@ func.func private @subindexop_memref_nested_struct(%arg0: memref<4x!llvm.struct<
 // CHECK-SAME:     %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr
 // CHECK-NEXT:     %[[VAL_1:.*]] = llvm.mlir.constant(0 : index) : i64
 // CHECK-NEXT:     %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:     %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], %[[VAL_1]]] : (!llvm.ptr, i64, i64) -> !llvm.ptr, !llvm.ptr
+// CHECK-NEXT:     %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], 0] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<(ptr)>
 // CHECK-NEXT:     llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT: }
 
@@ -509,7 +509,7 @@ func.func private @subindexop_memref_nested_ptr(%arg0: memref<4x!llvm.struct<(pt
 // CHECK-SAME:                                                     %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(0 : index) : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], %[[VAL_2]], %[[VAL_2]], %[[VAL_1]]] : (!llvm.ptr, i64, i64, i64, i64) -> !llvm.ptr, f32
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], 0, %[[VAL_2]], 0] : (!llvm.ptr, i64, i64) -> !llvm.ptr,  !llvm.struct<(array<4 x struct<(f32)>>)>
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK-NEXT:    }
 

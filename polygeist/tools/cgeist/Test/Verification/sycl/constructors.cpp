@@ -1,5 +1,5 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefixes=CHECK
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
 
 #include <sycl/aliases.hpp>
 #include <sycl/sycl.hpp>
@@ -83,14 +83,14 @@
 // CHECK-SAME:     attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 // CHECK-NEXT:   %0 = sycl.cast %arg0 : memref<?x!sycl_range_1_, 4> to memref<?x!sycl_array_1_, 4>
 
-// CHECK-LLVM: define spir_func void @cons_0([[ID_TYPE:%"class.sycl::_V1::id.1"]]* noundef byval(%"class.sycl::_V1::id.1") align 8 [[ARG0:%.*]], 
-// CHECK-LLVM-SAME:                          [[RANGE_TYPE:%"class.sycl::_V1::range.1"]]* noundef byval(%"class.sycl::_V1::range.1") align 8 [[ARG1:%.*]]) #[[FUNCATTRS:[0-9]+]]
+// CHECK-LLVM: define spir_func void @cons_0(ptr noundef byval([[ID_TYPE:%"class.sycl::_V1::id.1"]]) align 8 [[ARG0:%.*]], 
+// CHECK-LLVM-SAME:                          ptr noundef byval([[RANGE_TYPE:%"class.sycl::_V1::range.1"]]) align 8 [[ARG1:%.*]]) #[[FUNCATTRS:[0-9]+]]
 // CHECK-LLVM-DAG: [[RANGE:%.*]] = alloca [[RANGE_TYPE]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]
-// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi1EEC1ERKS2_([[ID_TYPE]] addrspace(4)* [[ID1_AS]], 
-// CHECK-LLVM: [[RANGE1_AS:%.*]] = addrspacecast [[RANGE_TYPE]]* [[RANGE]] to [[RANGE_TYPE]] addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V15rangeILi1EEC1ERKS2_([[RANGE_TYPE]] addrspace(4)* [[RANGE1_AS]],
+// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi1EEC1ERKS2_(ptr addrspace(4) [[ID1_AS]], 
+// CHECK-LLVM: [[RANGE1_AS:%.*]] = addrspacecast ptr [[RANGE]] to ptr addrspace(4)
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V15rangeILi1EEC1ERKS2_(ptr addrspace(4) [[RANGE1_AS]],
 
 extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
   auto id = sycl::id<1>{i};
@@ -113,10 +113,9 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-LLVM-LABEL: define spir_func void @cons_1()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]
 // CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]
-// CHECK-LLVM: [[CAST1:%.*]] = bitcast [[ID_TYPE]]* %1 to i8*
-// CHECK-LLVM: call void @llvm.memset.p0i8.i64(i8* %2, i8 0, i64 16, i1 false)
-// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID1]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1Ev([[ID_TYPE]] addrspace(4)* [[ID1_AS]])  
+// CHECK-LLVM: call void @llvm.memset.p0.i64(ptr [[ID1]], i8 0, i64 16, i1 false)
+// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast ptr [[ID1]] to ptr addrspace(4)
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1Ev(ptr addrspace(4) [[ID1_AS]])  
 
 extern "C" SYCL_EXTERNAL void cons_1() {
   auto id = sycl::id<2>{};
@@ -132,8 +131,8 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 // CHECK-LLVM-LABEL: define spir_func void @cons_2(i64 noundef %0, i64 noundef %1)
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]
 // CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]
-// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID1]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm([[ID_TYPE]] addrspace(4)* [[ID1_AS]], i64 %0, i64 %1)
+// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast ptr [[ID1]] to ptr addrspace(4)
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm(ptr addrspace(4) [[ID1_AS]], i64 %0, i64 %1)
 
 extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
   auto id = sycl::id<2>{a, b};
@@ -148,11 +147,11 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-NEXT: %memspacecast_0 = memref.memory_space_cast %arg0 : memref<?x![[ITEM]]> to memref<?x![[ITEM]], 4>
 // CHECK-NEXT: sycl.constructor @id(%memspacecast, %memspacecast_0) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE} : (memref<?x!sycl_id_2_, 4>, memref<?x![[ITEM]], 4>)
 
-// CHECK-LLVM: define spir_func void @cons_3([[ITEM_TYPE:%"class.sycl::_V1::item.2.true"]]* noundef byval(%"class.sycl::_V1::item.2.true") align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
+// CHECK-LLVM: define spir_func void @cons_3(ptr noundef byval([[ITEM_TYPE:%"class.sycl::_V1::item.2.true"]]) align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]  
-// CHECK-LLVM: [[ID_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: [[ITEM_AS:%.*]] = addrspacecast [[ITEM_TYPE]]* [[ARG0]] to [[ITEM_TYPE]] addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE([[ID_TYPE]] addrspace(4)* [[ID_AS]], [[ITEM_TYPE]] addrspace(4)* [[ITEM_AS]])
+// CHECK-LLVM: [[ID_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
+// CHECK-LLVM: [[ITEM_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE(ptr addrspace(4) [[ID_AS]], ptr addrspace(4) [[ITEM_AS]])
 
 extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
   auto id = sycl::id<2>{val};
@@ -166,11 +165,11 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-NEXT: %memspacecast_0 = memref.memory_space_cast %arg0 : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
 // CHECK-NEXT: sycl.constructor @id(%memspacecast, %memspacecast_0) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ERKS2_} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>)
 
-// CHECK-LLVM: define spir_func void @cons_4([[ID_TYPE:%"class.sycl::_V1::id.2"]]*  noundef byval(%"class.sycl::_V1::id.2") align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
+// CHECK-LLVM: define spir_func void @cons_4(ptr noundef byval([[ID_TYPE:%"class.sycl::_V1::id.2"]]) align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]
-// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: [[ID2_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ARG0]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1ERKS2_([[ID_TYPE]] addrspace(4)* [[ID1_AS]], [[ID_TYPE]] addrspace(4)* [[ID2_AS]])
+// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
+// CHECK-LLVM: [[ID2_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1ERKS2_(ptr addrspace(4) [[ID1_AS]], ptr addrspace(4) [[ID2_AS]])
 
 extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
   auto id = sycl::id<2>{val};
@@ -184,8 +183,8 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]
 // CHECK-LLVM: [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
-// CHECK-LLVM: [[ACAST:%.*]] = addrspacecast %"class.sycl::_V1::accessor.1"* [[ACCESSOR]] to %"class.sycl::_V1::accessor.1" addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]])
+// CHECK-LLVM: [[ACAST:%.*]] = addrspacecast ptr [[ACCESSOR]] to ptr addrspace(4)
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(ptr addrspace(4) [[ACAST]])
 
 extern "C" SYCL_EXTERNAL void cons_5() {
   auto accessor = sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write>{};
@@ -199,8 +198,8 @@ extern "C" SYCL_EXTERNAL void cons_5() {
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_6(
 // CHECK-LLVM-SAME:                                i32 noundef %{{.*}}) #[[FUNCATTRS]]
-// CHECK-LLVM:         call spir_func void @[[VEC_SPLAT_CTR:.*]](%"class.sycl::_V1::vec" addrspace(4)* %{{.*}}, i32 addrspace(4)* %{{.*}})
-// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_SPLAT_CTR]](%"class.sycl::_V1::vec" addrspace(4)* noundef align 32 dereferenceable_or_null(32) %{{.*}}, i32 addrspace(4)* noundef align 4 dereferenceable(4) %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:         call spir_func void @[[VEC_SPLAT_CTR:.*]](ptr addrspace(4) %{{.*}}, ptr addrspace(4) %{{.*}})
+// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_SPLAT_CTR]](ptr addrspace(4) noundef align 32 dereferenceable_or_null(32) %{{.*}}, ptr addrspace(4) noundef align 4 dereferenceable(4) %{{.*}}) #[[FUNCATTRS]] {
 // CHECK-LLVM:         %[[VECINIT:.*]] = insertelement <8 x i32> undef, i32 %{{.*}}, i32 0
 // CHECK-LLVM:         %{{.*}} = shufflevector <8 x i32> %[[VECINIT]], <8 x i32> undef, <8 x i32> zeroinitializer
 
@@ -215,8 +214,8 @@ extern "C" SYCL_EXTERNAL void cons_6(int Arg) {
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_7(
 // CHECK-LLVM-SAME:                                float noundef %[[ARG0:.*]], float noundef %[[ARG1:.*]], float noundef %[[ARG2:.*]], float noundef %[[ARG3:.*]]) #[[FUNCATTRS]]
-// CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_CTR:.*]](%"class.sycl::_V1::vec.1" addrspace(4)* %{{.*}}, float %[[ARG0]], float %[[ARG1]], float %[[ARG2]], float %[[ARG3]])
-// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_CTR]](%"class.sycl::_V1::vec.1" addrspace(4)* noundef align 16 {{.*}}, float noundef {{.*}}, float noundef {{.*}}, float noundef {{.*}}, float noundef {{.*}}) #[[FUNCATTRS]]
+// CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_CTR:.*]](ptr addrspace(4) %{{.*}}, float %[[ARG0]], float %[[ARG1]], float %[[ARG2]], float %[[ARG3]])
+// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_CTR]](ptr addrspace(4) noundef align 16 {{.*}}, float noundef {{.*}}, float noundef {{.*}}, float noundef {{.*}}, float noundef {{.*}}) #[[FUNCATTRS]]
 extern "C" SYCL_EXTERNAL void cons_7(float A, float B, float C, float D) {
   auto vec = sycl::vec<sycl::cl_float, 4>{A, B, C, D};
 }
@@ -227,9 +226,9 @@ extern "C" SYCL_EXTERNAL void cons_7(float A, float B, float C, float D) {
 // CHECK:       func.func @[[VEC_COPY_CTR]](%{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_8(
-// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 dereferenceable(128) %[[ARG0:.*]]) #[[FUNCATTRS]] {
-// CHECK-LLVM:          call spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.2" addrspace(4)* %[[ARG0]])
-// CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 dereferenceable_or_null(128) %{{.*}}, %{{.*}}class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 dereferenceable(128) %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM-SAME:                                 ptr addrspace(4) noundef align 128 dereferenceable(128) %[[ARG0:.*]]) #[[FUNCATTRS]] {
+// CHECK-LLVM:          call spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(ptr addrspace(4) %{{.*}}, ptr addrspace(4) %[[ARG0]])
+// CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(ptr addrspace(4) noundef align 128 dereferenceable_or_null(128) %{{.*}}, ptr addrspace(4) noundef align 128 dereferenceable(128) %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other) {
   auto vec = sycl::vec<sycl::cl_double, 16>{Other};
 }
@@ -241,8 +240,8 @@ extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_9(
 // CHECK-LLVM-SAME:                                 <3 x i8> noundef %[[ARG0:.*]]) #[[FUNCATTRS]] {
-// CHECK-LLVM:          call spir_func void @[[VEC_NATIVE_CTR:.*]](%"class.sycl::_V1::vec.3" addrspace(4)* %{{.*}}, <3 x i8> %[[ARG0]])
-// CHECK-LLVM:        define linkonce_odr spir_func void @[[VEC_NATIVE_CTR]](%"class.sycl::_V1::vec.3" addrspace(4)* noundef align 4 dereferenceable_or_null(4) %{{.*}}, <3 x i8> noundef %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:          call spir_func void @[[VEC_NATIVE_CTR:.*]](ptr addrspace(4) %{{.*}}, <3 x i8> %[[ARG0]])
+// CHECK-LLVM:        define linkonce_odr spir_func void @[[VEC_NATIVE_CTR]](ptr addrspace(4) noundef align 4 dereferenceable_or_null(4) %{{.*}}, <3 x i8> noundef %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t Native) {
   auto vec = sycl::vec<sycl::cl_char, 3>{Native};
 }
@@ -253,9 +252,9 @@ extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t
 // CHECK:       func.func @[[VEC_INITLIST_VEC_CTR]](%{{.*}}: memref<?x!sycl_vec_i64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_8_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_4_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_2_, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_10(
-// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.4" addrspace(4)* noundef align 64 dereferenceable(64) %[[ARG0:.*]], %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 32 dereferenceable(32) %[[ARG1:.*]], %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 16 dereferenceable(16) %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #[[FUNCATTRS]] {
-// CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_VEC_CTR:.*]](%"class.sycl::_V1::vec.7" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.4" addrspace(4)* %[[ARG0]], %"class.sycl::_V1::vec.5" addrspace(4)* %[[ARG1]], %"class.sycl::_V1::vec.6" addrspace(4)* %[[ARG2]], i64 addrspace(4)* %{{.*}}, i64 addrspace(4)* %{{.*}})
-// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](%"class.sycl::_V1::vec.7" addrspace(4)* noundef align 128 dereferenceable_or_null(128) %{{.*}}, %"class.sycl::_V1::vec.4" addrspace(4)* noundef align 64 dereferenceable(64) %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 32 dereferenceable(32) %{{.*}}, %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 16 dereferenceable(16) %{{.*}}, i64 addrspace(4)* noundef align 8 dereferenceable(8) %{{.*}}, i64 addrspace(4)* noundef align 8 dereferenceable(8) %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM-SAME:                                 ptr addrspace(4) noundef align 64 dereferenceable(64) %[[ARG0:.*]], ptr addrspace(4) noundef align 32 dereferenceable(32) %[[ARG1:.*]], ptr addrspace(4) noundef align 16 dereferenceable(16) %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_VEC_CTR:.*]](ptr addrspace(4) %{{.*}}, ptr addrspace(4) %[[ARG0]], ptr addrspace(4) %[[ARG1]], ptr addrspace(4) %[[ARG2]], ptr addrspace(4) %{{.*}}, ptr addrspace(4) %{{.*}})
+// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](ptr addrspace(4) noundef align 128 dereferenceable_or_null(128) %{{.*}}, ptr addrspace(4) noundef align 64 dereferenceable(64) %{{.*}}, ptr addrspace(4) noundef align 32 dereferenceable(32) %{{.*}}, ptr addrspace(4) noundef align 16 dereferenceable(16) %{{.*}}, ptr addrspace(4) noundef align 8 dereferenceable(8) %{{.*}}, ptr addrspace(4) noundef align 8 dereferenceable(8) %{{.*}}) #[[FUNCATTRS]] {
 
 extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 				      const sycl::long4 &B,
@@ -277,9 +276,8 @@ extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_11()
 // CHECK-LLVM-SAME:                                    #[[FUNCATTRS]] {
-// CHECK-LLVM:          %[[VAL1:.*]] = alloca %"class.sycl::_V1::vec.8", align 16
-// CHECK-LLVM:          %[[VAL2:.*]] = bitcast %"class.sycl::_V1::vec.8"* %[[VAL1]] to i8*
-// CHECK-LLVM:          call void @llvm.memset.p0i8.i64(i8* %[[VAL2]], i8 0, i64 16, i1 false)
+// CHECK-LLVM:          %[[VAL1:.*]] = alloca %"class.sycl::_V1::vec.5", align 16
+// CHECK-LLVM:          call void @llvm.memset.p0.i64(ptr %[[VAL1]], i8 0, i64 16, i1 false)
 
 extern "C" SYCL_EXTERNAL void cons_11() {
   auto vec = sycl::vec<sycl::cl_int, 4>{};

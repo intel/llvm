@@ -387,7 +387,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
   if (OptLevel != llvm::OptimizationLevel::O0) {
     PM.addPass(polygeist::createArgumentPromotionPass());
     PM.addPass(polygeist::createKernelDisjointSpecializationPass(
-        {options.getCgeistOpts().getRelaxedAliasing()}));
+        {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
 
     mlir::OpPassManager &OptPM = PM.nestAny();
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -403,13 +403,13 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
     OptPM.addPass(mlir::createCSEPass());
     if (EnableLICM)
       OptPM.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing()}));
+          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (DetectReduction)
       OptPM.addPass(polygeist::createDetectReductionPass(
-          {options.getCgeistOpts().getRelaxedAliasing()}));
+          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
 
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
@@ -455,6 +455,9 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
+  polygeist::LICMOptions LICMOpt{options.getCgeistOpts().getRelaxedAliasing(),
+                                 UseOpaquePointers};
+
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
@@ -462,7 +465,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   mlir::OpPassManager &OptPM = PM.nestAny();
   OptPM.addPass(mlir::createLowerAffinePass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-  PM.addPass(polygeist::createParallelLowerPass());
+  PM.addPass(polygeist::createParallelLowerPass({UseOpaquePointers}));
   PM.addPass(mlir::createSymbolDCEPass());
   mlir::OpPassManager &NOptPM = PM.nestAny();
   NOptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -476,8 +479,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   NOptPM2.addPass(mlir::createCSEPass());
   if (EnableLICM)
-    NOptPM2.addPass(polygeist::createLICMPass(
-        {options.getCgeistOpts().getRelaxedAliasing()}));
+    NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
   else
     NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
   NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -485,8 +487,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createCanonicalizeForPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      NOptPM2.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing()}));
+      NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -500,8 +501,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
     NOptPM2.addPass(polygeist::createMem2RegPass());
     NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
-      NOptPM2.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing()}));
+      NOptPM2.addPass(polygeist::createLICMPass(LICMOpt));
     else
       NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -597,7 +597,7 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
       OptPM.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing()}));
+          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -687,7 +687,9 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
 
     mlir::PassManager PM2(&Ctx);
     if (SCFOpenMP) {
-      PM2.addPass(createConvertSCFToOpenMPPass());
+      ConvertSCFToOpenMPPassOptions Options;
+      Options.useOpaquePointers = UseOpaquePointers;
+      PM2.addPass(createConvertSCFToOpenMPPass(Options));
     }
     PM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (OpenMPOpt) {
@@ -718,6 +720,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
       mlir::PassManager PM3(&Ctx);
       ConvertPolygeistToLLVMOptions ConvertOptions;
       ConvertOptions.dataLayout = DL.getStringRepresentation();
+      ConvertOptions.useOpaquePointers = UseOpaquePointers;
       if (options.getCgeistOpts().getSYCLIsDevice()) {
         ConvertOptions.syclImplementation = SYCLImplementation;
         ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
@@ -878,6 +881,7 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
   } else {
     // Generate LLVM IR.
     llvm::LLVMContext LLVMCtx;
+    LLVMCtx.setOpaquePointers(UseOpaquePointers);
     auto LLVMModule =
         mlir::translateModuleToLLVMIR(Module.get(), LLVMCtx, ModuleId);
     if (!LLVMModule) {
