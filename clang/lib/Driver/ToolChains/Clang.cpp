@@ -949,8 +949,9 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
   // like we warn about -fsyntax-only -E.
   (void)(Args.hasArg(options::OPT_c) || Args.hasArg(options::OPT_S));
 
-  // Put the .gcno and .gcda files (if needed) next to the object file or
-  // bitcode file in the case of LTO.
+  // Put the .gcno and .gcda files (if needed) next to the primary output file,
+  // or fall back to a file in the current directory for `clang -c --coverage
+  // d/a.c` in the absence of -o.
   if (EmitCovNotes || EmitCovData) {
     SmallString<128> CoverageFilename;
     if (Arg *DumpDir = Args.getLastArgNoClaim(options::OPT_dumpdir)) {
@@ -974,7 +975,7 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
 
     if (EmitCovData) {
       if (FProfileDir) {
-        SmallString<128> Gcno = CoverageFilename;
+        SmallString<128> Gcno = std::move(CoverageFilename);
         CoverageFilename = FProfileDir->getValue();
         llvm::sys::path::append(CoverageFilename, Gcno);
       }
