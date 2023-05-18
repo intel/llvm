@@ -177,14 +177,14 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
 /// Tries to generate a SPIR-V execution mode metadata node from an attribute.
 /// If the attribute is unknown \c None will be returned.
 ///
-/// @param F     [in] the LLVM function.
 /// @param Attr  [in] the LLVM attribute to generate metadata for.
+/// @param F     [in] the LLVM function.
 ///
 /// @returns a pair with the name of the resulting metadata and a pointer to
 ///          the metadata node with its values if the attribute has a
 ///          corresponding SPIR-V execution mode. Otherwise \c None is returned.
 std::optional<std::pair<std::string, MDNode *>>
-attributeToExecModeMetadata(Function &F, const Attribute &Attr) {
+attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
   Module &M = *F.getParent();
   LLVMContext &Ctx = M.getContext();
   const DataLayout &DLayout = M.getDataLayout();
@@ -432,7 +432,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       } else if (MDNode *SPIRVMetadata =
                      attributeToDecorateMetadata(Ctx, Attribute))
         MDOps.push_back(SPIRVMetadata);
-      else if (auto NamedMetadata = attributeToExecModeMetadata(F, Attribute))
+      else if (auto NamedMetadata = attributeToExecModeMetadata(Attribute, F))
         NamedMDOps.push_back(*NamedMetadata);
     }
 
