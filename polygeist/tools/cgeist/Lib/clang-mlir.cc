@@ -2669,7 +2669,6 @@ public:
       : Module(Module), ModuleId(ModuleId) {
     EmitIfFound.insert(Fn);
   }
-  bool hasIRSupport() const final { return true; }
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI, StringRef InFile) override {
     return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
