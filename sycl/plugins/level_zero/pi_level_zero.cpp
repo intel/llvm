@@ -2901,10 +2901,7 @@ pi_result piQueueRelease(pi_queue Queue) {
           // destroyed since it cannot be recycled.
           ze_command_list_handle_t ZeCommandList = it->first;
           if (ZeCommandList) {
-            auto ZeResult =
-                ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
-            if (ZeResult)
-              return mapError(ZeResult);
+            ZE_CALL(zeCommandListDestroy, (ZeCommandList));
           }
         }
       }
