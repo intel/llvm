@@ -7380,11 +7380,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    false))
     CmdArgs.push_back("-fmodules-debuginfo");
 
-  // The output of this compilation will be the input to mlir-translate, which
-  // only works with opaque pointers.
-  if (Args.hasArg(options::OPT_fsycl_raise_host))
-    CmdArgs.push_back("-opaque-pointers");
-  else if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
+  if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
     CmdArgs.push_back("-no-opaque-pointers");
   else if ((Triple.isSPIRV() || Triple.isSPIR()) &&
            !SPIRV_ENABLE_OPAQUE_POINTERS)

@@ -13,7 +13,7 @@
 
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-LLVM-RAISE %s
 
@@ -44,7 +44,7 @@
 
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir -emit-mlir %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-MLIR-RAISE %s
 //
@@ -75,7 +75,7 @@
 
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown -emit-mlir %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-MLIR-NO-TRIPLE-RAISE %s
 
@@ -103,7 +103,7 @@
 
 // RUN: %clangxx -ccc-print-bindings --sysroot=%S/Inputs/SYCL           \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-BINDINGS-LLVM-RAISE %s
 
@@ -123,7 +123,7 @@
 // RUN: %clangxx -ccc-print-bindings --sysroot=%S/Inputs/SYCL           \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir -emit-mlir %s 2>&1 \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: | FileCheck -check-prefix=CHK-BINDINGS-MLIR-RAISE %s
 
 // CHK-BINDINGS-MLIR-RAISE: # "spir64-unknown-unknown-syclmlir" - "cgeist", inputs: ["{{.*}}.cpp"], output: "{{.*}}.bc"
@@ -144,7 +144,7 @@
 
 // RUN: %clangxx -ccc-print-bindings --sysroot=%S/Inputs/SYCL      \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c                 \
-// RUN: -fsycl-raise-host                                          \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                          \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1     \
 // RUN: | FileCheck -check-prefix=CHK-BINDINGS-FULL-LLVM-RAISE %s
 //
@@ -168,7 +168,7 @@
 
 // RUN: %clangxx -ccc-print-bindings --sysroot=%S/Inputs/SYCL           \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c                      \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir -emit-mlir %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-BINDINGS-FULL-MLIR-RAISE %s
 
@@ -187,7 +187,7 @@
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c                      \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-LLVM-BC-RAISE %s
 //
@@ -204,7 +204,7 @@
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c                      \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-LLVM-RAISE %s
 //
@@ -222,7 +222,7 @@
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only      \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -emit-mlir          \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s              \
-// RUN: -fsycl-raise-host                                              \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                              \
 // RUN: -o foo.mlir 2>&1                                               \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-MLIR-RAISE %s
 //
@@ -239,10 +239,18 @@
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
-// RUN: -fsycl-raise-host                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-ARG-PASS-RAISE %s
 
 // CHK-INVOKE-ARG-PASS-RAISE: "{{.*}}cgeist" "-emit-llvm" "-S" "{{.*}}.cpp" "-o" "{{.*}}.bc" "--args" "-cc1"
 // CHK-INVOKE-ARG-PASS-RAISE: "{{.*}}mlir-translate" "-o" "{{.*}}.mlir" "--import-llvm" "{{.*}}.bc"
 // CHK-INVOKE-ARG-PASS-RAISE:  "{{.*}}cgeist" "-emit-llvm" "-S" "{{.*}}.cpp" "-sycl-use-host-module" "{{.*}}.mlir"
+
+// RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
+// RUN: -fsycl-raise-host -Xclang -no-opaque-pointers                   \
+// RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
+// RUN: | FileCheck -check-prefix=CHK-RAISE-TYPED-PTR %s
+
+// CHK-RAISE-TYPED-PTR: error: invalid argument '-fsycl-raise-host' only allowed with '-Xclang -opaque-pointers'

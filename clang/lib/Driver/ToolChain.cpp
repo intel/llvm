@@ -764,6 +764,8 @@ Tool *ToolChain::SelectTool(const JobAction &JA) const {
         (JA.getOffloadingToolChain() &&
          JA.getOffloadingToolChain()->getTriple().getEnvironment() ==
              llvm::Triple::SYCLMLIR)) {
+      // Compile jobs with a single LLVM input and MLIR output are handled by
+      // mlir-translate.
       const ActionList &Inputs = JA.getInputs();
       if (Inputs.size() == 1) {
         switch (Inputs.front()->getType()) {

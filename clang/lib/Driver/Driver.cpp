@@ -115,6 +115,25 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
+static bool shouldRaiseHost(const ArgList &Args) {
+  // Host raising only works with opaque pointers.
+  const auto UseOpaquePointers = [&]() {
+    constexpr llvm::StringLiteral Pos = "-opaque-pointers";
+    constexpr llvm::StringLiteral Neg = "-no-opaque-pointers";
+
+    // Search for -Xclang -[no-]opaque-pointers
+    const auto FilteredArgs = Args.filtered_reverse(options::OPT_Xclang);
+    const auto Iter =
+        llvm::find_if(Args.filtered_reverse(options::OPT_Xclang), [=](Arg *A) {
+          const char *Val = A->getValue();
+          return Val == Pos || Val == Neg;
+        });
+    constexpr bool Default = CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL;
+    return (Iter == FilteredArgs.end()) ? Default : Pos == (*Iter)->getValue();
+  };
+  return Args.hasArg(options::OPT_fsycl_raise_host) && UseOpaquePointers();
+}
+
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
                                                           const ArgList &Args) {
   auto OffloadTargets = Args.getAllArgValues(options::OPT_offload_EQ);
@@ -4870,7 +4889,7 @@ class OffloadingActionBuilder final {
           DeviceCompilerInput = A;
         }
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
-        bool SYCLRaiseHost = Args.hasArg(options::OPT_fsycl_raise_host);
+        bool SYCLRaiseHost = shouldRaiseHost(Args);
         if (!SYCLRaiseHost || OnlyCreateStubFile)
           DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
                  Action::OFK_SYCL);
@@ -5037,8 +5056,7 @@ class OffloadingActionBuilder final {
 
       if (!SYCLDeviceActions.empty() && !OnlyCreateStubFile &&
           isa<CompileJobAction>(SYCLDeviceActions.back()) &&
-          isa<CompileJobAction>(HostAction) &&
-          Args.hasArg(options::OPT_fsycl_raise_host)) {
+          isa<CompileJobAction>(HostAction) && shouldRaiseHost(Args)) {
         // Remove compile action from the list
         Action *A = SYCLDeviceActions.back();
         SYCLDeviceActions.pop_back();
@@ -5112,10 +5130,8 @@ class OffloadingActionBuilder final {
     }
 
     void appendTopLevelActions(ActionList &AL) override {
-      // We should always have an action for each input.
-      // We should always have an action for each input.
-      // If the only purpose of this builder was to create the stub file, we can
-      // simply return.
+      // We should always have an action for each input unless the only purpose
+      // of this builder was to create the stub file.
       if (!OnlyCreateStubFile && !SYCLDeviceActions.empty()) {
         assert(SYCLDeviceActions.size() == SYCLTargetInfoList.size() &&
                "Number of SYCL actions and toolchains/boundarch pairs do not "
@@ -6312,8 +6328,14 @@ public:
     // compilation just to produce the device stub and other to perform the
     // actual compilation.
     if (Args.hasArg(options::OPT_fsycl_raise_host)) {
-      SpecializedBuilders.push_back(new SYCLActionBuilder(
-          C, Args, Inputs, *this, /*OnlyCreateStubFile=*/true));
+      if (shouldRaiseHost(Args)) {
+        SpecializedBuilders.push_back(new SYCLActionBuilder(
+            C, Args, Inputs, *this, /*OnlyCreateStubFile=*/true));
+      } else {
+        C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
+            << "-fsycl-raise-host"
+            << "-Xclang -opaque-pointers";
+      }
     }
 
     //
@@ -6602,9 +6624,8 @@ public:
     }
 
     if (const llvm::opt::DerivedArgList &Args = C.getArgs();
-        Args.hasArg(options::OPT_fsycl_raise_host) &&
-        (Args.hasArg(options::OPT_fsycl_device_only) ||
-         Args.hasArg(options::OPT_emit_mlir))) {
+        shouldRaiseHost(Args) && (Args.hasArg(options::OPT_fsycl_device_only) ||
+                                  Args.hasArg(options::OPT_emit_mlir))) {
       // The host action will be discarded if it was created for instrumentation
       // and it is not needed in the output
       HostAction = nullptr;
@@ -6617,8 +6638,7 @@ public:
       // device only compilation, HostAction is a null pointer, therefore only
       // do this when HostAction is not a null pointer.
       bool UseHostActionInput =
-          HostAction->getType() == types::TY_MLIR_IR &&
-          C.getArgs().hasArg(options::OPT_fsycl_raise_host);
+          HostAction->getType() == types::TY_MLIR_IR && shouldRaiseHost(Args);
 
       if (UseHostActionInput) {
         assert(isa<CompileJobAction>(HostAction) &&
@@ -7799,7 +7819,7 @@ Action *Driver::ConstructPhaseAction(
     }
     // We will need a compile action before to avoid compiling the host code
     // twice in this scenario.
-    if (Args.hasArg(options::OPT_fsycl_raise_host))
+    if (shouldRaiseHost(Args))
       Input = C.MakeAction<CompileJobAction>(Input, types::TY_PP_Asm);
     return C.MakeAction<BackendJobAction>(Input, types::TY_PP_Asm);
   }
