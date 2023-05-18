@@ -1,4 +1,4 @@
-//===- SYCLInternalization.cpp - Promote loop access to local memory ------===//
+//===- LoopInternalization.cpp - Promote memory access to local memory ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass attempts to tile loops that are considered profitable to have some
-// of their loop memory access to local memory.
+// This pass tiles perfect loop nests to 'prefetch' memory accesses in shared
+// local memory.
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,20 +19,16 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 
-#define DEBUG_TYPE "sycl-internalization"
+#define DEBUG_TYPE "loop-internalization"
 
 namespace mlir {
 namespace polygeist {
-#define GEN_PASS_DEF_SYCLINTERNALIZATION
+#define GEN_PASS_DEF_LOOPINTERNALIZATION
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
 } // namespace polygeist
 } // namespace mlir
 
 using namespace mlir;
-
-//===----------------------------------------------------------------------===//
-// SYCLInternalizationPass
-//===----------------------------------------------------------------------===//
 
 namespace {
 /// Collect perfectly nested loops starting from \p root.  Loops are
@@ -57,6 +53,7 @@ bool isOutermostLoop(LoopLikeOpInterface loop) {
   return !loop->getParentRegion()->getParentOfType<LoopLikeOpInterface>();
 }
 
+/// A loop is a candidate when it is the outermost affine or scf for loop.
 bool isCandidate(LoopLikeOpInterface loop) {
   if (!isOutermostLoop(loop)) {
     LLVM_DEBUG(llvm::dbgs() << "not candidate: not outermost loop\n");
@@ -116,12 +113,12 @@ void transform(LoopLikeOpInterface loop) {
       });
 }
 
-struct SYCLInternalization
-    : public polygeist::impl::SYCLInternalizationBase<SYCLInternalization> {
+struct LoopInternalization
+    : public polygeist::impl::LoopInternalizationBase<LoopInternalization> {
   void runOnOperation() override {
     LoopLikeOpInterface loop = getOperation();
     LLVM_DEBUG(llvm::dbgs()
-               << "SYCLInternalization: Visiting " << loop << "\n");
+               << "LoopInternalization: Visiting " << loop << "\n");
 
     if (!isCandidate(loop))
       return;
@@ -131,6 +128,6 @@ struct SYCLInternalization
 };
 } // namespace
 
-std::unique_ptr<Pass> polygeist::createSYCLInternalization() {
-  return std::make_unique<SYCLInternalization>();
+std::unique_ptr<Pass> polygeist::createLoopInternalization() {
+  return std::make_unique<LoopInternalization>();
 }

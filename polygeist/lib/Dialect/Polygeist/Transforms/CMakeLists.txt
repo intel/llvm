@@ -9,13 +9,13 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   KernelDisjointSpecialization.cpp
   LegalizeForSPIRV.cpp  
   LICM.cpp
+  LoopInternalization.cpp
   LoopRestructure.cpp
   Mem2Reg.cpp
   OpenMPOpt.cpp
   ParallelLoopDistribute.cpp
   ParallelLower.cpp
   RaiseToAffine.cpp
-  SYCLInternalization.cpp
   TrivialUse.cpp
 
   ADDITIONAL_HEADER_DIRS

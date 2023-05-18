@@ -124,6 +124,16 @@ def LLVMLegalizeForSPIRV : Pass<"legalize-for-spirv"> {
   let dependentDialects = ["LLVM::LLVMDialect"];  
 }
 
+def LoopInternalization : InterfacePass<"loop-internalization", "LoopLikeOpInterface"> {
+  let summary = "Promote SYCL memory accesses in a loop nest to shared local memory";
+  let description = [{
+    SYCL memory accesses in perfectly nested loops are promoted to shared local
+    memory by leveraging the loop tiling infrastructure.
+  }];
+  let constructor = "mlir::polygeist::createLoopInternalization()";
+  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect"];
+}
+
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
@@ -144,15 +154,6 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
            /*default=*/"false", 
            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
   ];
-}
-
-def SYCLInternalization : InterfacePass<"sycl-internalization", "LoopLikeOpInterface"> {
-  let summary = "Perform local promotion of loop memory accesses";
-  let description = [{
-    Loop tiling is first performed to fit some loop memory accesses in local memory.
-  }];
-  let constructor = "mlir::polygeist::createSYCLInternalization()";
-  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect"];
 }
 
 def LICM : Pass<"licm"> {
