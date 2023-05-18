@@ -323,7 +323,7 @@ struct KnownFPClass {
   ///   x > +0 --> true
   ///   x < -0 --> false
   bool cannotBeOrderedLessThanZero() const {
-  return isKnownNever(OrderedLessThanZeroMask);
+    return isKnownNever(OrderedLessThanZeroMask);
   }
 
   /// Return true if we can prove that the analyzed floating-point value is
@@ -393,6 +393,18 @@ struct KnownFPClass {
       KnownFPClasses &= (fcPositive | fcNan);
   }
 
+  // Propagate knowledge that a non-NaN source implies the result can also not
+  // be a NaN. For unconstrained operations, signaling nans are not guaranteed
+  // to be quieted but cannot be introduced.
+  void propagateNaN(const KnownFPClass &Src, bool PreserveSign = false) {
+    if (Src.isKnownNever(fcNan)) {
+      knownNot(fcNan);
+      if (PreserveSign)
+        SignBit = Src.SignBit;
+    } else if (Src.isKnownNever(fcSNan))
+      knownNot(fcSNan);
+  }
+
   void resetAll() { *this = KnownFPClass(); }
 };
 
@@ -449,13 +461,18 @@ bool CannotBeOrderedLessThanZero(const Value *V, const DataLayout &DL,
 /// Return true if the floating-point scalar value is not an infinity or if
 /// the floating-point vector value has no infinities. Return false if a value
 /// could ever be infinity.
-bool isKnownNeverInfinity(const Value *V, const DataLayout &DL,
-                          const TargetLibraryInfo *TLI = nullptr,
-                          unsigned Depth = 0, AssumptionCache *AC = nullptr,
-                          const Instruction *CtxI = nullptr,
-                          const DominatorTree *DT = nullptr,
-                          OptimizationRemarkEmitter *ORE = nullptr,
-                          bool UseInstrInfo = true);
+inline bool isKnownNeverInfinity(const Value *V, const DataLayout &DL,
+                                 const TargetLibraryInfo *TLI = nullptr,
+                                 unsigned Depth = 0,
+                                 AssumptionCache *AC = nullptr,
+                                 const Instruction *CtxI = nullptr,
+                                 const DominatorTree *DT = nullptr,
+                                 OptimizationRemarkEmitter *ORE = nullptr,
+                                 bool UseInstrInfo = true) {
+  KnownFPClass Known = computeKnownFPClass(V, DL, fcInf, Depth, TLI, AC, CtxI,
+                                           DT, ORE, UseInstrInfo);
+  return Known.isKnownNeverInfinity();
+}
 
 /// Return true if the floating-point value can never contain a NaN or infinity.
 inline bool isKnownNeverInfOrNaN(

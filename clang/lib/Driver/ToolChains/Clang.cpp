@@ -854,10 +854,6 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
                                    options::OPT_fno_test_coverage, false) ||
                       Args.hasArg(options::OPT_coverage);
   bool EmitCovData = TC.needsGCovInstrumentation(Args);
-  if (EmitCovNotes)
-    CmdArgs.push_back("-ftest-coverage");
-  if (EmitCovData)
-    CmdArgs.push_back("-fprofile-arcs");
 
   if (Args.hasFlag(options::OPT_fcoverage_mapping,
                    options::OPT_fno_coverage_mapping, false)) {
@@ -8560,7 +8556,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
   if (Args.hasArg(options::OPT__SLASH_kernel))
     CmdArgs.push_back("-fms-kernel");
 
-  for (const Arg *A : Args.filtered(options::OPT__SLASH_guard)) {
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
     StringRef GuardArgs = A->getValue();
     // The only valid options are "cf", "cf,nochecks", "cf-", "ehcont" and
     // "ehcont-".

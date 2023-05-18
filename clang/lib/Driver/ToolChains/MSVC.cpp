@@ -303,7 +303,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 
   // Control Flow Guard checks
-  for (const Arg *A : Args.filtered(options::OPT__SLASH_guard)) {
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
     StringRef GuardArgs = A->getValue();
     if (GuardArgs.equals_insensitive("cf") ||
         GuardArgs.equals_insensitive("cf,nochecks")) {
