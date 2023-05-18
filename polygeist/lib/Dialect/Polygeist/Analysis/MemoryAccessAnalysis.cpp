@@ -104,6 +104,16 @@ template <typename T> static SetVector<T> getParentsOfType(Block *block) {
   return res;
 }
 
+/// Determine whether \p op uses \p val (directly or indirectly).
+static bool usesValue(Operation *op, Value val) {
+  return (llvm::any_of(val.getUsers(), [&](Operation *user) {
+    if (user == op)
+      return true;
+    return llvm::any_of(user->getResults(),
+                        [&](Value res) { return usesValue(op, res); });
+  }));
+}
+
 namespace {
 
 /// Represents a multiplication factor.
@@ -117,21 +127,11 @@ public:
 
   Value getValue() const { return val; }
 
-  /// Determine whether the multiplier has value one.
-  bool isOne(DataFlowSolver &solver) const {
-    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
-      if (constVal.value() == 1)
-        return true;
-    }
-    std::optional<APInt> constVal = getConstIntegerValue(val, solver);
-    return (constVal.has_value() && constVal->isOne());
-  }
-
   /// Create a multiplier with value one.
   static Multiplier one(MLIRContext *ctx) {
     OpBuilder b(ctx);
     return Multiplier(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1));
-  };
+  }
 
 private:
   Value val;
@@ -164,10 +164,10 @@ public:
 
   /// Determine whether this class holds the value one.
   bool isOne(DataFlowSolver &solver) const {
-    if (isMultiplier())
-      return getMultiplier().isOne(solver);
+    Value val = isMultiplier() ? getMultiplier().getValue() : getValue();
+    if (!val)
+      return false;
 
-    Value val = getValue();
     if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
       if (constVal.value() == 1)
         return true;
@@ -217,8 +217,8 @@ static ValueOrMultiplier visitBinaryOp(
   return res;
 }
 
-/// Determine whether \p expr involves a subexpression which is a multiplication
-/// of \p val, and return the multiplication factor if it does.
+/// Determine whether \p expr involves a subexpression which is a
+/// multiplication of \p val, and return the multiplication factor if it does.
 /// Example:
 ///   %c1_i32 = arith.constant 1 : i32
 ///   %c2_i32 = arith.constant 2 : i32
@@ -1036,9 +1036,18 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
     Value val = underlyingVals[row];
     for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
+      if (!usesValue(val.getDefiningOp(), IVs[col])) {
+        accessMatrix(row, col) = zero;
+        continue;
+      }
+
       ValueOrMultiplier valOrMul = getMultiplier(val, IVs[col], solver);
-      accessMatrix(row, col) =
-          valOrMul.isMultiplier() ? valOrMul.getMultiplier().getValue() : zero;
+      if (!valOrMul.isMultiplier()) {
+        LLVM_DEBUG(llvm::dbgs() << "Failed to find multiplier\n");
+        return;
+      }
+
+      accessMatrix(row, col) = valOrMul.getMultiplier().getValue();
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
