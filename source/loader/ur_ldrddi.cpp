@@ -1689,28 +1689,77 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolDestroy
-__urdlllocal ur_result_t UR_APICALL urUSMPoolDestroy(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
+/// @brief Intercept function for urUSMPoolRetain
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
-    auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-    auto pfnPoolDestroy = dditable->ur.USM.pfnPoolDestroy;
-    if (nullptr == pfnPoolDestroy) {
+    auto dditable = reinterpret_cast<ur_usm_pool_object_t *>(pPool)->dditable;
+    auto pfnPoolRetain = dditable->ur.USM.pfnPoolRetain;
+    if (nullptr == pfnPoolRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
-
-    // convert loader handle to platform handle
-    hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // convert loader handle to platform handle
     pPool = reinterpret_cast<ur_usm_pool_object_t *>(pPool)->handle;
 
     // forward to device-platform
-    result = pfnPoolDestroy(hContext, pPool);
+    result = pfnPoolRetain(pPool);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolRelease
+__urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_usm_pool_object_t *>(pPool)->dditable;
+    auto pfnPoolRelease = dditable->ur.USM.pfnPoolRelease;
+    if (nullptr == pfnPoolRelease) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    pPool = reinterpret_cast<ur_usm_pool_object_t *>(pPool)->handle;
+
+    // forward to device-platform
+    result = pfnPoolRelease(pPool);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetInfo
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
+    ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
+    size_t propSize, ///< [in] size in bytes of the pool property value provided
+    void *
+        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
+    size_t
+        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->dditable;
+    auto pfnPoolGetInfo = dditable->ur.USM.pfnPoolGetInfo;
+    if (nullptr == pfnPoolGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hPool = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->handle;
+
+    // forward to device-platform
+    result =
+        pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -5711,7 +5760,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
             pDdiTable->pfnFree = ur_loader::urUSMFree;
             pDdiTable->pfnGetMemAllocInfo = ur_loader::urUSMGetMemAllocInfo;
             pDdiTable->pfnPoolCreate = ur_loader::urUSMPoolCreate;
-            pDdiTable->pfnPoolDestroy = ur_loader::urUSMPoolDestroy;
+            pDdiTable->pfnPoolRetain = ur_loader::urUSMPoolRetain;
+            pDdiTable->pfnPoolRelease = ur_loader::urUSMPoolRelease;
+            pDdiTable->pfnPoolGetInfo = ur_loader::urUSMPoolGetInfo;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable = ur_loader::context->platforms.front().dditable.ur.USM;

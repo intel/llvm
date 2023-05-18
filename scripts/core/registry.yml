@@ -343,9 +343,6 @@ etors:
 - name: USM_POOL_CREATE
   desc: Enumerator for $xUSMPoolCreate
   value: '112'
-- name: USM_POOL_DESTROY
-  desc: Enumerator for $xUSMPoolDestroy
-  value: '113'
 - name: PLATFORM_GET_BACKEND_OPTION
   desc: Enumerator for $xPlatformGetBackendOption
   value: '114'
@@ -358,3 +355,12 @@ etors:
 - name: ENQUEUE_WRITE_HOST_PIPE
   desc: Enumerator for $xEnqueueWriteHostPipe
   value: '117'
+- name: USM_POOL_RETAIN
+  desc: Enumerator for $xUSMPoolRetain
+  value: '118'
+- name: USM_POOL_RELEASE
+  desc: Enumerator for $xUSMPoolRelease
+  value: '119'
+- name: USM_POOL_GET_INFO
+  desc: Enumerator for $xUSMPoolGetInfo
+  value: '120'

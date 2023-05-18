@@ -2739,25 +2739,76 @@ urUSMPoolCreate(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroy USM memory pool
-///
-/// @details
-///     - All allocation belonging to the pool should be freed before calling
-///       this function.
-///     - This functions returns all memory reserved by the pool to the driver.
+/// @brief Get a reference to the pool handle. Increment its reference count
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
 ///         + `NULL == pPool`
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolRetain(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Decrement the pool's reference count and delete the pool if the
+///        reference count becomes zero.
+///
+/// @details
+///     - All allocation belonging to the pool must be freed prior to the the
+///       reference count becoming zero.
+///     - If the pool is deleted, this function returns all its reserved memory
+///       to the driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == pPool`
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolRelease(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get USM memory pool information
+typedef enum ur_usm_pool_info_t {
+    UR_USM_POOL_INFO_REFERENCE_COUNT = 0, ///< [uint32_t] Reference count of the pool object.
+                                          ///< The reference count returned should be considered immediately stale.
+                                          ///< It is unsuitable for general use in applications. This feature is
+                                          ///< provided for identifying memory leaks.
+    UR_USM_POOL_INFO_CONTEXT = 1,         ///< [::ur_context_handle_t] USM memory pool context info
+    /// @cond
+    UR_USM_POOL_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_usm_pool_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query information about a USM memory pool
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_CONTEXT < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///         + `NULL == pPropSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolDestroy(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
+urUSMPoolGetInfo(
+    ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
+    size_t propSize,             ///< [in] size in bytes of the pool property value provided
+    void *pPropValue,            ///< [out][typename(propName, propSize)] value of the pool property
+    size_t *pPropSizeRet         ///< [out] size in bytes returned in pool property value
 );
 
 #if !defined(__GNUC__)
@@ -4562,11 +4613,13 @@ typedef enum ur_function_t {
     UR_FUNCTION_USM_FREE = 110,                             ///< Enumerator for ::urUSMFree
     UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,               ///< Enumerator for ::urUSMGetMemAllocInfo
     UR_FUNCTION_USM_POOL_CREATE = 112,                      ///< Enumerator for ::urUSMPoolCreate
-    UR_FUNCTION_USM_POOL_DESTROY = 113,                     ///< Enumerator for ::urUSMPoolDestroy
     UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,          ///< Enumerator for ::urPlatformGetBackendOption
     UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115, ///< Enumerator for ::urMemBufferCreateWithNativeHandle
     UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,  ///< Enumerator for ::urMemImageCreateWithNativeHandle
     UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,              ///< Enumerator for ::urEnqueueWriteHostPipe
+    UR_FUNCTION_USM_POOL_RETAIN = 118,                      ///< Enumerator for ::urUSMPoolRetain
+    UR_FUNCTION_USM_POOL_RELEASE = 119,                     ///< Enumerator for ::urUSMPoolRelease
+    UR_FUNCTION_USM_POOL_GET_INFO = 120,                    ///< Enumerator for ::urUSMPoolGetInfo
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7014,13 +7067,32 @@ typedef struct ur_usm_pool_create_params_t {
 } ur_usm_pool_create_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolDestroy
+/// @brief Function parameters for urUSMPoolRetain
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_destroy_params_t {
-    ur_context_handle_t *phContext;
+typedef struct ur_usm_pool_retain_params_t {
     ur_usm_pool_handle_t *ppPool;
-} ur_usm_pool_destroy_params_t;
+} ur_usm_pool_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_release_params_t {
+    ur_usm_pool_handle_t *ppPool;
+} ur_usm_pool_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_get_info_params_t {
+    ur_usm_pool_handle_t *phPool;
+    ur_usm_pool_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_usm_pool_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urDeviceGet

@@ -1222,6 +1222,20 @@ class ur_usm_pool_limits_desc_t(Structure):
     ]
 
 ###############################################################################
+## @brief Get USM memory pool information
+class ur_usm_pool_info_v(IntEnum):
+    REFERENCE_COUNT = 0                             ## [uint32_t] Reference count of the pool object.
+                                                    ## The reference count returned should be considered immediately stale. 
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
+    CONTEXT = 1                                     ## [::ur_context_handle_t] USM memory pool context info
+
+class ur_usm_pool_info_t(c_int):
+    def __str__(self):
+        return str(ur_usm_pool_info_v(self.value))
+
+
+###############################################################################
 ## @brief Program metadata property type.
 class ur_program_metadata_type_v(IntEnum):
     UINT32 = 0                                      ## type is a 32-bit integer.
@@ -1748,11 +1762,13 @@ class ur_function_v(IntEnum):
     USM_FREE = 110                                  ## Enumerator for ::urUSMFree
     USM_GET_MEM_ALLOC_INFO = 111                    ## Enumerator for ::urUSMGetMemAllocInfo
     USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
-    USM_POOL_DESTROY = 113                          ## Enumerator for ::urUSMPoolDestroy
     PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
     MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115      ## Enumerator for ::urMemBufferCreateWithNativeHandle
     MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116       ## Enumerator for ::urMemImageCreateWithNativeHandle
     ENQUEUE_WRITE_HOST_PIPE = 117                   ## Enumerator for ::urEnqueueWriteHostPipe
+    USM_POOL_RETAIN = 118                           ## Enumerator for ::urUSMPoolRetain
+    USM_POOL_RELEASE = 119                          ## Enumerator for ::urUSMPoolRelease
+    USM_POOL_GET_INFO = 120                         ## Enumerator for ::urUSMPoolGetInfo
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2705,11 +2721,25 @@ else:
     _urUSMPoolCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_pool_desc_t), POINTER(ur_usm_pool_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urUSMPoolDestroy
+## @brief Function-pointer for urUSMPoolRetain
 if __use_win_types:
-    _urUSMPoolDestroy_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
+    _urUSMPoolRetain_t = WINFUNCTYPE( ur_result_t, ur_usm_pool_handle_t )
 else:
-    _urUSMPoolDestroy_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_usm_pool_handle_t )
+    _urUSMPoolRetain_t = CFUNCTYPE( ur_result_t, ur_usm_pool_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urUSMPoolRelease
+if __use_win_types:
+    _urUSMPoolRelease_t = WINFUNCTYPE( ur_result_t, ur_usm_pool_handle_t )
+else:
+    _urUSMPoolRelease_t = CFUNCTYPE( ur_result_t, ur_usm_pool_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urUSMPoolGetInfo
+if __use_win_types:
+    _urUSMPoolGetInfo_t = WINFUNCTYPE( ur_result_t, ur_usm_pool_handle_t, ur_usm_pool_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urUSMPoolGetInfo_t = CFUNCTYPE( ur_result_t, ur_usm_pool_handle_t, ur_usm_pool_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 
 ###############################################################################
@@ -2722,7 +2752,9 @@ class ur_usm_dditable_t(Structure):
         ("pfnFree", c_void_p),                                          ## _urUSMFree_t
         ("pfnGetMemAllocInfo", c_void_p),                               ## _urUSMGetMemAllocInfo_t
         ("pfnPoolCreate", c_void_p),                                    ## _urUSMPoolCreate_t
-        ("pfnPoolDestroy", c_void_p)                                    ## _urUSMPoolDestroy_t
+        ("pfnPoolRetain", c_void_p),                                    ## _urUSMPoolRetain_t
+        ("pfnPoolRelease", c_void_p),                                   ## _urUSMPoolRelease_t
+        ("pfnPoolGetInfo", c_void_p)                                    ## _urUSMPoolGetInfo_t
     ]
 
 ###############################################################################
@@ -3042,7 +3074,9 @@ class UR_DDI:
         self.urUSMFree = _urUSMFree_t(self.__dditable.USM.pfnFree)
         self.urUSMGetMemAllocInfo = _urUSMGetMemAllocInfo_t(self.__dditable.USM.pfnGetMemAllocInfo)
         self.urUSMPoolCreate = _urUSMPoolCreate_t(self.__dditable.USM.pfnPoolCreate)
-        self.urUSMPoolDestroy = _urUSMPoolDestroy_t(self.__dditable.USM.pfnPoolDestroy)
+        self.urUSMPoolRetain = _urUSMPoolRetain_t(self.__dditable.USM.pfnPoolRetain)
+        self.urUSMPoolRelease = _urUSMPoolRelease_t(self.__dditable.USM.pfnPoolRelease)
+        self.urUSMPoolGetInfo = _urUSMPoolGetInfo_t(self.__dditable.USM.pfnPoolGetInfo)
 
         # call driver to get function pointers
         Device = ur_device_dditable_t()

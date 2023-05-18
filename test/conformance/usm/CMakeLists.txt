@@ -7,5 +7,7 @@ add_conformance_test_with_devices_environment(usm
     urUSMGetMemAllocInfo.cpp
     urUSMHostAlloc.cpp
     urUSMPoolCreate.cpp
-    urUSMPoolDestroy.cpp 
+    urUSMPoolGetInfo.cpp
+    urUSMPoolRelease.cpp
+    urUSMPoolRetain.cpp
     urUSMSharedAlloc.cpp)

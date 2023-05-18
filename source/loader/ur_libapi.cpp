@@ -1903,31 +1903,86 @@ ur_result_t UR_APICALL urUSMPoolCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroy USM memory pool
-///
-/// @details
-///     - All allocation belonging to the pool should be freed before calling
-///       this function.
-///     - This functions returns all memory reserved by the pool to the driver.
+/// @brief Get a reference to the pool handle. Increment its reference count
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
 ///         + `NULL == pPool`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-ur_result_t UR_APICALL urUSMPoolDestroy(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_pool_handle_t pPool    ///< [in] pointer to USM memory pool
+ur_result_t UR_APICALL urUSMPoolRetain(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
     ) try {
-    auto pfnPoolDestroy = ur_lib::context->urDdiTable.USM.pfnPoolDestroy;
-    if (nullptr == pfnPoolDestroy) {
+    auto pfnPoolRetain = ur_lib::context->urDdiTable.USM.pfnPoolRetain;
+    if (nullptr == pfnPoolRetain) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnPoolDestroy(hContext, pPool);
+    return pfnPoolRetain(pPool);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Decrement the pool's reference count and delete the pool if the
+///        reference count becomes zero.
+///
+/// @details
+///     - All allocation belonging to the pool must be freed prior to the the
+///       reference count becoming zero.
+///     - If the pool is deleted, this function returns all its reserved memory
+///       to the driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == pPool`
+ur_result_t UR_APICALL urUSMPoolRelease(
+    ur_usm_pool_handle_t pPool ///< [in] pointer to USM memory pool
+    ) try {
+    auto pfnPoolRelease = ur_lib::context->urDdiTable.USM.pfnPoolRelease;
+    if (nullptr == pfnPoolRelease) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnPoolRelease(pPool);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query information about a USM memory pool
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_CONTEXT < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///         + `NULL == pPropSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urUSMPoolGetInfo(
+    ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
+    size_t propSize, ///< [in] size in bytes of the pool property value provided
+    void *
+        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
+    size_t
+        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+    ) try {
+    auto pfnPoolGetInfo = ur_lib::context->urDdiTable.USM.pfnPoolGetInfo;
+    if (nullptr == pfnPoolGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnPoolGetInfo(hPool, propName, propSize, pPropValue, pPropSizeRet);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
