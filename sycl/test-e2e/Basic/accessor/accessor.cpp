@@ -183,12 +183,12 @@ int main() {
                                  {sycl::property::buffer::use_host_ptr()});
 
     sycl::id<1> id1(1);
-    auto acc_src = buf_src.get_access<sycl::access::mode::read>();
-    auto acc_dst = buf_dst.get_access<sycl::access::mode::read_write>();
+    sycl::host_accessor acc_src(buf_src, sycl::read_only);
+    sycl::host_accessor acc_dst(buf_dst);
 
     assert(!acc_src.is_placeholder());
-    assert(acc_src.get_size() == sizeof(src));
-    assert(acc_src.get_count() == 2);
+    assert(acc_src.byte_size() == sizeof(src));
+    assert(acc_src.size() == 2);
     assert(acc_src.get_range() == sycl::range<1>(2));
 
     // operator[] overload for size_t was intentionally removed
@@ -212,11 +212,11 @@ int main() {
     {
       sycl::buffer<int, 3> buf(data, sycl::range<3>(2, 3, 4));
 
-      auto acc = buf.get_access<sycl::access::mode::read_write>();
+      sycl::host_accessor acc(buf);
 
       assert(!acc.is_placeholder());
-      assert(acc.get_size() == sizeof(data));
-      assert(acc.get_count() == 24);
+      assert(acc.byte_size() == sizeof(data));
+      assert(acc.size() == 24);
       assert(acc.get_range() == sycl::range<3>(2, 3, 4));
 
       for (int i = 0; i < 2; ++i)
@@ -239,8 +239,8 @@ int main() {
     Queue.submit([&](sycl::handler &cgh) {
       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
       assert(!acc.is_placeholder());
-      assert(acc.get_size() == sizeof(int));
-      assert(acc.get_count() == 1);
+      assert(acc.byte_size() == sizeof(int));
+      assert(acc.size() == 1);
       assert(acc.get_range() == sycl::range<1>(1));
       cgh.single_task<class kernel>([=]() { acc[0] += acc[IdxID1(0)]; });
     });
@@ -366,7 +366,7 @@ int main() {
             sycl::range<1>{3}, [=](sycl::id<1> index) { dev_acc[index] = 42; });
       });
 
-      auto host_acc = buf.get_access<sycl::access::mode::read>();
+      sycl::host_accessor host_acc(buf, sycl::read_only);
       for (int i = 0; i != 3; ++i)
         assert(host_acc[i] == 42);
 
@@ -389,7 +389,7 @@ int main() {
             sycl::range<1>{3}, [=](sycl::id<1> index) { dev_acc[index] = 42; });
       });
 
-      auto host_acc = buf.get_access<sycl::access::mode::discard_read_write>();
+      sycl::host_accessor host_acc(buf, sycl::write_only, sycl::no_init);
     } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
@@ -407,7 +407,7 @@ int main() {
         auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
         cgh.parallel_for<class wrapped_access1>(
-            sycl::range<1>(buf.get_count()), [=](sycl::item<1> it) {
+            sycl::range<1>(buf.size()), [=](sycl::item<1> it) {
               auto idx = it.get_linear_id();
               acc_wrapped.accessor[idx] = 333;
             });
@@ -478,7 +478,7 @@ int main() {
         auto wr2 = Wrapper2<decltype(acc)>{wr1, acc_wrapped};
         auto wr3 = Wrapper3<decltype(acc)>{wr2};
         cgh.parallel_for<class wrapped_access3>(
-            sycl::range<1>(buf.get_count()), [=](sycl::item<1> it) {
+            sycl::range<1>(buf.size()), [=](sycl::item<1> it) {
               auto idx = it.get_linear_id();
               wr3.w2.wrapped.accessor[idx] = 333;
             });
@@ -510,7 +510,7 @@ int main() {
             [=](sycl::id<1> index) { acc2[index] = 41 + acc1[index]; });
       });
 
-      auto host_acc = buf.get_access<sycl::access::mode::read>();
+      sycl::host_accessor host_acc(buf, sycl::read_only);
       for (int i = 0; i != 3; ++i)
         assert(host_acc[i] == 42);
 
@@ -610,7 +610,7 @@ int main() {
           cgh.single_task<class acc_with_const>([=]() { D[0] = C[0]; });
         });
 
-        auto host_acc = d.get_access<sycl::access::mode::read>();
+        sycl::host_accessor host_acc(d, sycl::read_only);
         assert(host_acc[0] == 399);
       }
 
@@ -646,7 +646,7 @@ int main() {
           cgh.single_task<class placeholder_acc>([=]() { D[0] = C[0]; });
         });
 
-        auto host_acc = d.get_access<sycl::access::mode::read>();
+        sycl::host_accessor host_acc(d, sycl::read_only);
         assert(host_acc[0] == 399);
       }
 
@@ -802,7 +802,7 @@ int main() {
         });
 
 #ifndef simplification_test
-        auto host_acc = C.get_access<sycl::access::mode::read>();
+        auto host_acc = C.get_host_access(sycl::read_only);
 #else
         sycl::host_accessor host_acc(C, sycl::read_only);
 #endif
