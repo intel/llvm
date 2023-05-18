@@ -93,14 +93,16 @@ static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
 /// Walks up the parents and records the ones with the specified type.
 template <typename T> static SetVector<T> getParentsOfType(Block *block) {
   SetVector<T> res;
-  auto *current = block->getParentOp();
-  while (current) {
-    if (auto typedParent = dyn_cast<T>(current)) {
-      assert(res.count(typedParent) == 0 && "Already inserted");
-      res.insert(typedParent);
-    }
-    current = current->getParentOp();
-  }
+  constexpr auto getInitialParent = [](Block *b) -> T {
+    Operation *op = b->getParentOp();
+    auto typedOp = dyn_cast<T>(op);
+    return typedOp ? typedOp : op->getParentOfType<T>();
+  };
+
+  for (T parent = getInitialParent(block); parent;
+       parent = parent->template getParentOfType<T>())
+    res.insert(parent);
+
   return res;
 }
 
@@ -189,18 +191,23 @@ operator<<(raw_ostream &os, const ValueOrMultiplier &valOrMultiplier) {
 
 } // namespace
 
-// Visit a binary operation of type \tparam T. The LHS and RHS operand of the
-// binary operation are processed by applying the function \p getMultiplier. The
-// result of the visit is computed via the \p computeResult function.
-template <typename T,
+// Visit a binary operation of type \tparam T. The LHS and RHS operand
+// of the binary operation are processed by applying the function \p
+// getMultiplier. The result of the visit is computed via the \p
+// computeResult function.
+template <typename T, typename ProcessOperandFuncT, typename ComputeResultFuncT,
           typename = std::enable_if_t<llvm::is_one_of<
-              T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>>
-static ValueOrMultiplier visitBinaryOp(
-    T binOp, const Value factor, DataFlowSolver &solver,
-    std::function<ValueOrMultiplier(const Value, const Value, DataFlowSolver &)>
-        getMultiplier,
-    std::function<ValueOrMultiplier(ValueOrMultiplier, ValueOrMultiplier)>
-        computeResult) {
+              T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>,
+          typename = std::enable_if<
+              std::is_invocable_r_v<ValueOrMultiplier, ProcessOperandFuncT, T,
+                                    const Value, DataFlowSolver &>>,
+          typename = std::enable_if<
+              std::is_invocable_r_v<ValueOrMultiplier, ComputeResultFuncT,
+                                    ValueOrMultiplier, ValueOrMultiplier>>>
+static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
+                                       DataFlowSolver &solver,
+                                       ProcessOperandFuncT getMultiplier,
+                                       ComputeResultFuncT computeResult) {
   // Traverse my subtrees.
   auto lhsRes = getMultiplier(binOp.getLhs(), factor, solver);
   auto rhsRes = getMultiplier(binOp.getRhs(), factor, solver);
