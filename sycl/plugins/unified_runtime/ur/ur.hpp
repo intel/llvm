@@ -309,3 +309,12 @@ protected:
   void *param_value;
   size_t *param_value_size_ret;
 };
+
+// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] void setErrorMessage(const char *message,
+                                      ur_result_t error_code);
