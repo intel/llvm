@@ -130,65 +130,6 @@ typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
 
 struct _pi_event : ur_event_handle_t_ {
   using ur_event_handle_t_::ur_event_handle_t_;
-
-  // Helpers for queue command implementations until they also get ported to UR
-  static pi_event
-  make_native(pi_command_type type, pi_queue queue, hipStream_t stream,
-              uint32_t stream_token = std::numeric_limits<uint32_t>::max()) {
-    auto urQueue = reinterpret_cast<ur_queue_handle_t>(queue);
-    static std::unordered_map<_pi_command_type, ur_command_t> cmdMap = {
-        {PI_COMMAND_TYPE_NDRANGE_KERNEL, UR_COMMAND_KERNEL_LAUNCH},
-        {PI_COMMAND_TYPE_MEM_BUFFER_READ, UR_COMMAND_MEM_BUFFER_READ},
-        {PI_COMMAND_TYPE_MEM_BUFFER_WRITE, UR_COMMAND_MEM_BUFFER_WRITE},
-        {PI_COMMAND_TYPE_MEM_BUFFER_COPY, UR_COMMAND_MEM_BUFFER_COPY},
-        {PI_COMMAND_TYPE_MEM_BUFFER_MAP, UR_COMMAND_MEM_BUFFER_MAP},
-        {PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, UR_COMMAND_MEM_UNMAP},
-        {PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, UR_COMMAND_MEM_BUFFER_READ_RECT},
-        {PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT,
-         UR_COMMAND_MEM_BUFFER_WRITE_RECT},
-        {PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, UR_COMMAND_MEM_BUFFER_COPY_RECT},
-        {PI_COMMAND_TYPE_MEM_BUFFER_FILL, UR_COMMAND_MEM_BUFFER_FILL},
-        {PI_COMMAND_TYPE_IMAGE_READ, UR_COMMAND_MEM_IMAGE_READ},
-        {PI_COMMAND_TYPE_IMAGE_WRITE, UR_COMMAND_MEM_IMAGE_WRITE},
-        {PI_COMMAND_TYPE_IMAGE_COPY, UR_COMMAND_MEM_IMAGE_COPY},
-        {PI_COMMAND_TYPE_BARRIER, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER},
-        {PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ,
-         UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ},
-        {PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE,
-         UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE},
-    };
-
-    // TODO(ur): There is no exact mapping for the following commands. Just
-    // default to KERNEL_LAUNCH for now.
-    // PI_COMMAND_TYPE_USER
-    // PI_COMMAND_TYPE_MEM_BUFFER_FILL,
-    // PI_COMMAND_TYPE_IMAGE_READ,
-    // PI_COMMAND_TYPE_IMAGE_WRITE,
-    // PI_COMMAND_TYPE_IMAGE_COPY,
-    // PI_COMMAND_TYPE_NATIVE_KERNEL,
-    // PI_COMMAND_TYPE_COPY_BUFFER_TO_IMAGE,
-    // PI_COMMAND_TYPE_COPY_IMAGE_TO_BUFFER,
-    // PI_COMMAND_TYPE_MAP_IMAGE,
-    // PI_COMMAND_TYPE_MARKER,
-    // PI_COMMAND_TYPE_ACQUIRE_GL_OBJECTS,
-    // PI_COMMAND_TYPE_RELEASE_GL_OBJECTS,
-    // PI_COMMAND_TYPE_BARRIER,
-    // PI_COMMAND_TYPE_MIGRATE_MEM_OBJECTS,
-    // PI_COMMAND_TYPE_FILL_IMAGE
-    // PI_COMMAND_TYPE_SVM_FREE
-    // PI_COMMAND_TYPE_SVM_MEMCPY
-    // PI_COMMAND_TYPE_SVM_MEMFILL
-    // PI_COMMAND_TYPE_SVM_MAP
-    // PI_COMMAND_TYPE_SVM_UNMAP
-
-    ur_command_t urCmd = UR_COMMAND_KERNEL_LAUNCH;
-    auto cmdIt = cmdMap.find(type);
-    if (cmdIt != cmdMap.end()) {
-      urCmd = cmdIt->second;
-    }
-    return reinterpret_cast<pi_event>(
-        ur_event_handle_t_::make_native(urCmd, urQueue, stream, stream_token));
-  }
 };
 
 /// Implementation of PI Program on HIP Module object

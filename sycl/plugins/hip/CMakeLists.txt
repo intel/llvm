@@ -98,6 +98,7 @@ add_sycl_plugin(hip
     "../unified_runtime/ur/adapters/hip/context.hpp"
     "../unified_runtime/ur/adapters/hip/device.cpp"
     "../unified_runtime/ur/adapters/hip/device.hpp"
+    "../unified_runtime/ur/adapters/hip/enqueue.cpp"
     "../unified_runtime/ur/adapters/hip/event.cpp"
     "../unified_runtime/ur/adapters/hip/event.hpp"
     "../unified_runtime/ur/adapters/hip/platform.cpp"

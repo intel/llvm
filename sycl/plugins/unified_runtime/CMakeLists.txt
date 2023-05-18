@@ -183,6 +183,7 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/context.hpp"
       "ur/adapters/hip/device.cpp"
       "ur/adapters/hip/device.hpp"
+      "ur/adapters/hip/enqueue.cpp"
       "ur/adapters/hip/event.cpp"
       "ur/adapters/hip/event.hpp"
       "ur/adapters/hip/platform.cpp"
