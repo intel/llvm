@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/half_type.hpp>
 
 extern "C" {
 int __imf_float2int_rd(float);
@@ -47,64 +49,64 @@ float __imf_ull2float_rd(unsigned long long int);
 float __imf_ull2float_rn(unsigned long long int);
 float __imf_ull2float_ru(unsigned long long int);
 float __imf_ull2float_rz(unsigned long long int);
-float __imf_half2float(_Float16);
-_Float16 __imf_float2half_rd(float);
-_Float16 __imf_float2half_rn(float);
-_Float16 __imf_float2half_ru(float);
-_Float16 __imf_float2half_rz(float);
-int __imf_half2int_rd(_Float16);
-int __imf_half2int_rn(_Float16);
-int __imf_half2int_ru(_Float16);
-int __imf_half2int_rz(_Float16);
-long long __imf_half2ll_rd(_Float16);
-long long __imf_half2ll_rn(_Float16);
-long long __imf_half2ll_ru(_Float16);
-long long __imf_half2ll_rz(_Float16);
-short __imf_half2short_rd(_Float16);
-short __imf_half2short_rn(_Float16);
-short __imf_half2short_ru(_Float16);
-short __imf_half2short_rz(_Float16);
-unsigned int __imf_half2uint_rd(_Float16);
-unsigned int __imf_half2uint_rn(_Float16);
-unsigned int __imf_half2uint_ru(_Float16);
-unsigned int __imf_half2uint_rz(_Float16);
-unsigned long long __imf_half2ull_rd(_Float16);
-unsigned long long __imf_half2ull_rn(_Float16);
-unsigned long long __imf_half2ull_ru(_Float16);
-unsigned long long __imf_half2ull_rz(_Float16);
-unsigned short __imf_half2ushort_rd(_Float16);
-unsigned short __imf_half2ushort_rn(_Float16);
-unsigned short __imf_half2ushort_ru(_Float16);
-unsigned short __imf_half2ushort_rz(_Float16);
-short __imf_half_as_short(_Float16);
-unsigned short __imf_half_as_ushort(_Float16);
-_Float16 __imf_int2half_rd(int);
-_Float16 __imf_int2half_rn(int);
-_Float16 __imf_int2half_ru(int);
-_Float16 __imf_int2half_rz(int);
-_Float16 __imf_ll2half_rd(long long);
-_Float16 __imf_ll2half_rn(long long);
-_Float16 __imf_ll2half_ru(long long);
-_Float16 __imf_ll2half_rz(long long);
-_Float16 __imf_short2half_rd(short);
-_Float16 __imf_short2half_rn(short);
-_Float16 __imf_short2half_ru(short);
-_Float16 __imf_short2half_rz(short);
-_Float16 __imf_short_as_half(short);
-_Float16 __imf_uint2half_rd(unsigned int);
-_Float16 __imf_uint2half_rn(unsigned int);
-_Float16 __imf_uint2half_ru(unsigned int);
-_Float16 __imf_uint2half_rz(unsigned int);
-_Float16 __imf_ull2half_rd(unsigned long long);
-_Float16 __imf_ull2half_rn(unsigned long long);
-_Float16 __imf_ull2half_ru(unsigned long long);
-_Float16 __imf_ull2half_rz(unsigned long long);
-_Float16 __imf_ushort2half_rd(unsigned short);
-_Float16 __imf_ushort2half_rn(unsigned short);
-_Float16 __imf_ushort2half_ru(unsigned short);
-_Float16 __imf_ushort2half_rz(unsigned short);
-_Float16 __imf_ushort_as_half(unsigned short);
-_Float16 __imf_double2half(double);
+float __imf_half2float(_iml_half_internal);
+_iml_half_internal __imf_float2half_rd(float);
+_iml_half_internal __imf_float2half_rn(float);
+_iml_half_internal __imf_float2half_ru(float);
+_iml_half_internal __imf_float2half_rz(float);
+int __imf_half2int_rd(_iml_half_internal);
+int __imf_half2int_rn(_iml_half_internal);
+int __imf_half2int_ru(_iml_half_internal);
+int __imf_half2int_rz(_iml_half_internal);
+long long __imf_half2ll_rd(_iml_half_internal);
+long long __imf_half2ll_rn(_iml_half_internal);
+long long __imf_half2ll_ru(_iml_half_internal);
+long long __imf_half2ll_rz(_iml_half_internal);
+short __imf_half2short_rd(_iml_half_internal);
+short __imf_half2short_rn(_iml_half_internal);
+short __imf_half2short_ru(_iml_half_internal);
+short __imf_half2short_rz(_iml_half_internal);
+unsigned int __imf_half2uint_rd(_iml_half_internal);
+unsigned int __imf_half2uint_rn(_iml_half_internal);
+unsigned int __imf_half2uint_ru(_iml_half_internal);
+unsigned int __imf_half2uint_rz(_iml_half_internal);
+unsigned long long __imf_half2ull_rd(_iml_half_internal);
+unsigned long long __imf_half2ull_rn(_iml_half_internal);
+unsigned long long __imf_half2ull_ru(_iml_half_internal);
+unsigned long long __imf_half2ull_rz(_iml_half_internal);
+unsigned short __imf_half2ushort_rd(_iml_half_internal);
+unsigned short __imf_half2ushort_rn(_iml_half_internal);
+unsigned short __imf_half2ushort_ru(_iml_half_internal);
+unsigned short __imf_half2ushort_rz(_iml_half_internal);
+short __imf_half_as_short(_iml_half_internal);
+unsigned short __imf_half_as_ushort(_iml_half_internal);
+_iml_half_internal __imf_int2half_rd(int);
+_iml_half_internal __imf_int2half_rn(int);
+_iml_half_internal __imf_int2half_ru(int);
+_iml_half_internal __imf_int2half_rz(int);
+_iml_half_internal __imf_ll2half_rd(long long);
+_iml_half_internal __imf_ll2half_rn(long long);
+_iml_half_internal __imf_ll2half_ru(long long);
+_iml_half_internal __imf_ll2half_rz(long long);
+_iml_half_internal __imf_short2half_rd(short);
+_iml_half_internal __imf_short2half_rn(short);
+_iml_half_internal __imf_short2half_ru(short);
+_iml_half_internal __imf_short2half_rz(short);
+_iml_half_internal __imf_short_as_half(short);
+_iml_half_internal __imf_uint2half_rd(unsigned int);
+_iml_half_internal __imf_uint2half_rn(unsigned int);
+_iml_half_internal __imf_uint2half_ru(unsigned int);
+_iml_half_internal __imf_uint2half_rz(unsigned int);
+_iml_half_internal __imf_ull2half_rd(unsigned long long);
+_iml_half_internal __imf_ull2half_rn(unsigned long long);
+_iml_half_internal __imf_ull2half_ru(unsigned long long);
+_iml_half_internal __imf_ull2half_rz(unsigned long long);
+_iml_half_internal __imf_ushort2half_rd(unsigned short);
+_iml_half_internal __imf_ushort2half_rn(unsigned short);
+_iml_half_internal __imf_ushort2half_ru(unsigned short);
+_iml_half_internal __imf_ushort2half_rz(unsigned short);
+_iml_half_internal __imf_ushort_as_half(unsigned short);
+_iml_half_internal __imf_double2half(double);
 unsigned short __imf_bfloat162ushort_rd(uint16_t);
 unsigned short __imf_bfloat162ushort_rn(uint16_t);
 unsigned short __imf_bfloat162ushort_ru(uint16_t);
@@ -671,6 +673,416 @@ To uint_as_float(From x) {
   return __internal_fp_as<
       std::enable_if_t<std::is_same_v<To, float>, float>,
       std::enable_if_t<std::is_same_v<From, unsigned int>, unsigned int>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, float>, float>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2float(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To = float, typename From = sycl::half>
+To half2float(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, float>, float>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __builtin_bit_cast(sycl::half, __imf_float2half_rn(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __builtin_bit_cast(sycl::half, __imf_float2half_rd(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __builtin_bit_cast(sycl::half, __imf_float2half_ru(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, float>, float> x) {
+  return __builtin_bit_cast(sycl::half, __imf_float2half_rz(x));
+}
+
+template <typename To = sycl::half, typename From = float>
+To float2half_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = sycl::half, typename From = float>
+To float2half_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = sycl::half, typename From = float>
+To float2half_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To = sycl::half, typename From = float>
+To float2half_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, float>, float>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2int_rn(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2int_rd(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2int_ru(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, int>, int> __internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2int_rz(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To = int, typename From = sycl::half>
+To half2int_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = int, typename From = sycl::half>
+To half2int_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = int, typename From = sycl::half>
+To half2int_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = int, typename From = sycl::half>
+To half2int_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, int>, int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ll_rn(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ll_rd(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ll_ru(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, long long>, long long>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ll_rz(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To = long long, typename From = sycl::half>
+To half2ll_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = long long, typename From = sycl::half>
+To half2ll_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = long long, typename From = sycl::half>
+To half2ll_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = long long, typename From = sycl::half>
+To half2ll_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, long long>, long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, short>, short>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2short_rn(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, short>, short>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2short_rd(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, short>, short>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2short_ru(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, short>, short>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2short_rz(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To = short, typename From = sycl::half>
+To half2short_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, short>, short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = short, typename From = sycl::half>
+To half2short_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, short>, short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = short, typename From = sycl::half>
+To half2short_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, short>, short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = short, typename From = sycl::half>
+To half2short_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, short>, short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ushort_rn(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ushort_rd(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ushort_ru(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ushort_rz(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To = unsigned short, typename From = sycl::half>
+To half2ushort_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned short, typename From = sycl::half>
+To half2ushort_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned short, typename From = sycl::half>
+To half2ushort_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned short, typename From = sycl::half>
+To half2ushort_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2uint_rn(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2uint_rd(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2uint_ru(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2uint_rz(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To = unsigned int, typename From = sycl::half>
+To half2uint_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned int, typename From = sycl::half>
+To half2uint_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned int, typename From = sycl::half>
+To half2uint_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned int, typename From = sycl::half>
+To half2uint_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, unsigned int>, unsigned int>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ull_rn(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ull_rd(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ull_ru(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                        unsigned long long>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half> x) {
+  return __imf_half2ull_rz(__builtin_bit_cast(_iml_half_internal, x));
+}
+
+template <typename To = unsigned long long, typename From = sycl::half>
+To half2ull_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned long long, typename From = sycl::half>
+To half2ull_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned long long, typename From = sycl::half>
+To half2ull_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
+}
+
+template <typename To = unsigned long long, typename From = sycl::half>
+To half2ull_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, unsigned long long>,
+                       unsigned long long>,
+      std::enable_if_t<std::is_same_v<From, sycl::half>, sycl::half>>(x);
 }
 
 template <typename To, typename From>
