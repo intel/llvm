@@ -37,7 +37,8 @@ class Sink {
     logger::Level flush_level;
 
     Sink(std::string logger_name, bool skip_prefix = false)
-        : logger_name(logger_name), skip_prefix(skip_prefix) {
+        : logger_name(std::move(logger_name)), skip_prefix(skip_prefix) {
+        ostream = nullptr;
         flush_level = logger::Level::ERR;
     }
 
@@ -103,13 +104,13 @@ class Sink {
 class StdoutSink : public Sink {
   public:
     StdoutSink(std::string logger_name, bool skip_prefix = false)
-        : Sink(logger_name, skip_prefix) {
+        : Sink(std::move(logger_name), skip_prefix) {
         this->ostream = &std::cout;
     }
 
     StdoutSink(std::string logger_name, Level flush_lvl,
                bool skip_prefix = false)
-        : StdoutSink(logger_name, skip_prefix) {
+        : StdoutSink(std::move(logger_name), skip_prefix) {
         this->flush_level = flush_lvl;
     }
 
@@ -119,12 +120,12 @@ class StdoutSink : public Sink {
 class StderrSink : public Sink {
   public:
     StderrSink(std::string logger_name, bool skip_prefix = false)
-        : Sink(logger_name, skip_prefix) {
+        : Sink(std::move(logger_name), skip_prefix) {
         this->ostream = &std::cerr;
     }
 
     StderrSink(std::string logger_name, Level flush_lvl, bool skip_prefix)
-        : StderrSink(logger_name, skip_prefix) {
+        : StderrSink(std::move(logger_name), skip_prefix) {
         this->flush_level = flush_lvl;
     }
 
@@ -135,7 +136,7 @@ class FileSink : public Sink {
   public:
     FileSink(std::string logger_name, filesystem::path file_path,
              bool skip_prefix = false)
-        : Sink(logger_name, skip_prefix) {
+        : Sink(std::move(logger_name), skip_prefix) {
         ofstream = std::ofstream(file_path);
         if (!ofstream.good()) {
             std::stringstream ss;
@@ -148,7 +149,7 @@ class FileSink : public Sink {
 
     FileSink(std::string logger_name, filesystem::path file_path,
              Level flush_lvl, bool skip_prefix = false)
-        : FileSink(logger_name, file_path, skip_prefix) {
+        : FileSink(std::move(logger_name), std::move(file_path), skip_prefix) {
         this->flush_level = flush_lvl;
     }
 
