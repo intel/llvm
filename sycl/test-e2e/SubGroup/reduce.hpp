@@ -37,8 +37,8 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
               sgsizeacc[0] = sg.get_max_local_range()[0];
           });
     });
-    auto acc = buf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(buf);
+    host_accessor sgsizeacc(sgsizebuf);
     size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;
     T result = init;

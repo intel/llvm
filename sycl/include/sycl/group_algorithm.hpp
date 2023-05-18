@@ -96,7 +96,10 @@ using native_op_list =
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
-      is_contained<BinaryOperation, native_op_list<T>>::value ||
+      is_contained<BinaryOperation,
+                   native_op_list<std::remove_const_t<T>>>::value ||
+      is_contained<BinaryOperation,
+                   native_op_list<std::add_const_t<T>>>::value ||
       is_contained<BinaryOperation, native_op_list<void>>::value;
 };
 
@@ -123,9 +126,9 @@ struct is_complex
 
 // ---- is_arithmetic_or_complex
 template <typename T>
-using is_arithmetic_or_complex =
-    std::integral_constant<bool, sycl::detail::is_complex<T>::value ||
-                                     sycl::detail::is_arithmetic<T>::value>;
+using is_arithmetic_or_complex = std::integral_constant<
+    bool, sycl::detail::is_complex<typename std::remove_cv_t<T>>::value ||
+              sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T>
 struct is_vector_arithmetic_or_complex
