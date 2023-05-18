@@ -494,65 +494,6 @@ pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   return retErr;
 }
 
-pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                      const pi_mem *arg_value) {
-
-  assert(kernel != nullptr);
-  assert(arg_value != nullptr);
-
-  // Below sets kernel arg when zero-sized buffers are handled.
-  // In such case the corresponding memory is null.
-  if (*arg_value == nullptr) {
-    kernel->set_kernel_arg(arg_index, 0, nullptr);
-    return PI_SUCCESS;
-  }
-
-  pi_result retErr = PI_SUCCESS;
-  try {
-    pi_mem arg_mem = *arg_value;
-
-    if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
-      auto array = arg_mem->mem_.surface_mem_.get_array();
-      hipArray_Format Format;
-      size_t NumChannels;
-      getArrayDesc(array, Format, NumChannels);
-      if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
-          Format != HIP_AD_FORMAT_SIGNED_INT32 &&
-          Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        sycl::detail::pi::die(
-            "PI HIP kernels only support images with channel types int32, "
-            "uint32, float, and half.");
-      }
-      hipSurfaceObject_t hipSurf = arg_mem->mem_.surface_mem_.get_surface();
-      kernel->set_kernel_arg(arg_index, sizeof(hipSurf), (void *)&hipSurf);
-    } else
-
-    {
-      void *hipPtr = arg_mem->mem_.buffer_mem_.get_void();
-      kernel->set_kernel_arg(arg_index, sizeof(void *), (void *)&hipPtr);
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  }
-  return retErr;
-}
-
-pi_result hip_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
-                                       const pi_sampler *arg_value) {
-
-  assert(kernel != nullptr);
-  assert(arg_value != nullptr);
-
-  pi_result retErr = PI_SUCCESS;
-  try {
-    pi_uint32 samplerProps = (*arg_value)->props_;
-    kernel->set_kernel_arg(arg_index, sizeof(pi_uint32), (void *)&samplerProps);
-  } catch (pi_result err) {
-    retErr = err;
-  }
-  return retErr;
-}
-
 pi_result hip_piEnqueueKernelLaunch(
     pi_queue command_queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
@@ -2109,8 +2050,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
 
-  _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
-  _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
+  _PI_CL(piextKernelSetArgMemObj, pi2ur::piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, pi2ur::piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, pi2ur::piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)

@@ -7,6 +7,8 @@
 //===-----------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "memory.hpp"
+#include "sampler.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -276,6 +278,57 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex, const void *pArgValue) {
   hKernel->set_kernel_arg(argIndex, sizeof(pArgValue), pArgValue);
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
+
+  UR_ASSERT(hKernel != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hArgValue != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  try {
+    if (hArgValue->mem_type_ == ur_mem_handle_t_::mem_type::surface) {
+      auto array = hArgValue->mem_.surface_mem_.get_array();
+      hipArray_Format Format;
+      size_t NumChannels;
+      getArrayDesc(array, Format, NumChannels);
+      if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
+          Format != HIP_AD_FORMAT_SIGNED_INT32 &&
+          Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
+        sycl::detail::ur::die(
+            "UR HIP kernels only support images with channel types int32, "
+            "uint32, float, and half.");
+      }
+      hipSurfaceObject_t hipSurf = hArgValue->mem_.surface_mem_.get_surface();
+      hKernel->set_kernel_arg(argIndex, sizeof(hipSurf), (void *)&hipSurf);
+    } else
+
+    {
+      void *hipPtr = hArgValue->mem_.buffer_mem_.get_void();
+      hKernel->set_kernel_arg(argIndex, sizeof(void *), (void *)&hipPtr);
+    }
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      ur_sampler_handle_t hArgValue) {
+
+  UR_ASSERT(hKernel != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hArgValue != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  ur_result_t retErr = UR_RESULT_SUCCESS;
+  try {
+    uint32_t samplerProps = hArgValue->props_;
+    hKernel->set_kernel_arg(argIndex, sizeof(uint32_t), (void *)&samplerProps);
+  } catch (ur_result_t err) {
+    retErr = err;
+  }
+  return retErr;
 }
 
 // A NOP for the HIP backend
