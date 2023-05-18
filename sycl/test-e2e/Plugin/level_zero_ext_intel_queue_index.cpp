@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_intel_device_id
 // REQUIRES: level_zero
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 //
 // Same with Immediate CommandLists
