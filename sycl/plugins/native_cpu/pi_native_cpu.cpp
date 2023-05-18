@@ -969,10 +969,17 @@ pi_result piEnqueueMemBufferCopyRect(pi_queue, pi_mem, pi_mem,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
-                                 size_t, pi_uint32, const pi_event *,
+pi_result piEnqueueMemBufferFill(pi_queue, pi_mem buffer, const void *pattern, size_t pattern_size, size_t offset,
+                                 size_t size, pi_uint32, const pi_event *,
                                  pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+  // Todo: error checking
+  // Todo: handle async
+  void *startingPtr = reinterpret_cast<void*>(buffer->_mem) + offset;
+  unsigned steps = size / pattern_size;
+  for(unsigned i = 0; i < steps; i++) {
+    memcpy(startingPtr + i*pattern_size, pattern, pattern_size);
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piEnqueueMemBufferMap(pi_queue, pi_mem buffer, pi_bool, pi_map_flags,
