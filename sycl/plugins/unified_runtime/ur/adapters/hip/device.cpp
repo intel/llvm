@@ -810,7 +810,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
 #endif
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
+  case UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    // Maximum number of 32-bit registers available to a thread block.
+    // Note: This number is shared by all thread blocks simultaneously resident
+    // on a multiprocessor.
+    int max_registers{-1};
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &max_registers, hipDeviceAttributeMaxRegistersPerBlock, device->get()));
 
+    sycl::detail::ur::assertion(max_registers >= 0);
+
+    return ReturnValue(static_cast<uint32_t>(max_registers));
+  }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IMAGE_SRGB:
