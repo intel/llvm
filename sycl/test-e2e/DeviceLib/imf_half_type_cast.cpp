@@ -12,10 +12,6 @@
 #include <sycl/ext/intel/math.hpp>
 
 extern "C" {
-_iml_half_internal __imf_short2half_rd(short);
-_iml_half_internal __imf_short2half_rn(short);
-_iml_half_internal __imf_short2half_ru(short);
-_iml_half_internal __imf_short2half_rz(short);
 _iml_half_internal __imf_ushort2half_rd(unsigned short);
 _iml_half_internal __imf_ushort2half_rn(unsigned short);
 _iml_half_internal __imf_ushort2half_ru(unsigned short);
@@ -490,17 +486,25 @@ int main() {
         0,      0x4700, 0x5220, 0xDD0C, 0x69DB,
         0xF800, 0x77FF, 0x77D6, 0xF16C, 0x73FF};
 
-    test_host(input_vals, ref_vals_rd, F_Half2(__imf_short2half_rd));
-    test(device_queue, input_vals, ref_vals_rd, F_Half2(__imf_short2half_rd));
+    test_host(input_vals, ref_vals_rd,
+              FT(uint16_t, sycl::ext::intel::math::short2half_rd));
+    test(device_queue, input_vals, ref_vals_rd,
+         FT(uint16_t, sycl::ext::intel::math::short2half_rd));
 
-    test_host(input_vals, ref_vals_rn, F_Half2(__imf_short2half_rn));
-    test(device_queue, input_vals, ref_vals_rn, F_Half2(__imf_short2half_rn));
+    test_host(input_vals, ref_vals_rn,
+              FT(uint16_t, sycl::ext::intel::math::short2half_rn));
+    test(device_queue, input_vals, ref_vals_rn,
+         FT(uint16_t, sycl::ext::intel::math::short2half_rn));
 
-    test_host(input_vals, ref_vals_ru, F_Half2(__imf_short2half_ru));
-    test(device_queue, input_vals, ref_vals_ru, F_Half2(__imf_short2half_ru));
+    test_host(input_vals, ref_vals_ru,
+              FT(uint16_t, sycl::ext::intel::math::short2half_ru));
+    test(device_queue, input_vals, ref_vals_ru,
+         FT(uint16_t, sycl::ext::intel::math::short2half_ru));
 
-    test_host(input_vals, ref_vals_rz, F_Half2(__imf_short2half_rz));
-    test(device_queue, input_vals, ref_vals_rz, F_Half2(__imf_short2half_rz));
+    test_host(input_vals, ref_vals_rz,
+              FT(uint16_t, sycl::ext::intel::math::short2half_rz));
+    test(device_queue, input_vals, ref_vals_rz,
+         FT(uint16_t, sycl::ext::intel::math::short2half_rz));
   }
 
   {

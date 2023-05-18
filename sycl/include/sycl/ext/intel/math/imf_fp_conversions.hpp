@@ -1138,6 +1138,62 @@ To int2half_rz(From x) {
 }
 
 template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_rn(
+    std::enable_if_t<std::is_same_v<From, short>, short> x) {
+  return __builtin_bit_cast(sycl::half, __imf_short2half_rn(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_rd(
+    std::enable_if_t<std::is_same_v<From, short>, short> x) {
+  return __builtin_bit_cast(sycl::half, __imf_short2half_rd(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_ru(
+    std::enable_if_t<std::is_same_v<From, short>, short> x) {
+  return __builtin_bit_cast(sycl::half, __imf_short2half_ru(x));
+}
+
+template <typename To, typename From>
+static std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>
+__internal_fp_convert_rz(
+    std::enable_if_t<std::is_same_v<From, short>, short> x) {
+  return __builtin_bit_cast(sycl::half, __imf_short2half_rz(x));
+}
+
+template <typename To = sycl::half, typename From = short>
+To short2half_rn(From x) {
+  return __internal_fp_convert_rn<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, short>, short>>(x);
+}
+
+template <typename To = sycl::half, typename From = short>
+To short2half_rd(From x) {
+  return __internal_fp_convert_rd<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, short>, short>>(x);
+}
+
+template <typename To = sycl::half, typename From = short>
+To short2half_ru(From x) {
+  return __internal_fp_convert_ru<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, short>, short>>(x);
+}
+
+template <typename To = sycl::half, typename From = short>
+To short2half_rz(From x) {
+  return __internal_fp_convert_rz<
+      std::enable_if_t<std::is_same_v<To, sycl::half>, sycl::half>,
+      std::enable_if_t<std::is_same_v<From, short>, short>>(x);
+}
+
+template <typename To, typename From>
 static std::enable_if_t<std::is_same_v<To, unsigned short>, unsigned short>
 __internal_fp_as(
     std::enable_if_t<std::is_same_v<From, sycl::ext::oneapi::bfloat16>,
