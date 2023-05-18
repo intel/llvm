@@ -1797,14 +1797,11 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 // This function will return one of possibly multiple available
 // immediate commandlists associated with this Queue.
 pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
-  std::cout << "getImmCmdList\n";
   uint32_t QueueIndex, QueueOrdinal;
   auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
 
-  if (ImmCmdLists[Index] != Queue->CommandListMap.end()) {
-    std::cout << "Index " << Index << " had an entry so we just return it: " << ImmCmdLists[Index]->first << std::endl;
+  if (ImmCmdLists[Index] != Queue->CommandListMap.end())
     return ImmCmdLists[Index];
-  }
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   ZeCommandQueueDesc.ordinal = QueueOrdinal;
@@ -1836,23 +1833,15 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
             ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
             : Queue->Context
                   ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
-    std::cout << "search cache for reuseable IMM\n";
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       const auto &Desc = (*ZeCommandListIt).second;
-      std::cout << "Found candidate " << (*ZeCommandListIt).first << " with {"
-                << Desc.index << "," << Desc.flags << "," << Desc.mode << ","
-                << Desc.priority << "} vs current need {"
-                << ZeCommandQueueDesc.index << "," << ZeCommandQueueDesc.flags
-                << "," << ZeCommandQueueDesc.mode << ","
-                << ZeCommandQueueDesc.priority << "}\n";
       if (Desc.index == ZeCommandQueueDesc.index &&
           Desc.flags == ZeCommandQueueDesc.flags &&
           Desc.mode == ZeCommandQueueDesc.mode &&
           Desc.priority == ZeCommandQueueDesc.priority) {
         ZeCommandList = (*ZeCommandListIt).first;
         ZeCommandListCache.erase(ZeCommandListIt);
-        std::cout << "Matched and reusing\n";
         break;
       }
     }
@@ -1868,7 +1857,6 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,
                      &ZeCommandQueueDesc, &ZeCommandList));
-    std::cout << "Created new IMM because cache could not satisfy: " << ZeCommandList << "\n";
   }
 
   ImmCmdLists[Index] =
@@ -2849,7 +2837,6 @@ pi_result piQueueRetain(pi_queue Queue) {
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
-  std::cout << "piQueueRelease\n";
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   std::vector<pi_event> EventListToCleanup;
 
@@ -2873,10 +2860,8 @@ pi_result piQueueRelease(pi_queue Queue) {
     Queue->synchronize();
 
     // Destroy all the fences created associated with this queue.
-    std::cout << "Iterate over CommandListMap entries\n";
     for (auto it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
-      std::cout << "Found a command list: " << it->first << std::endl;
       // This fence wasn't yet signalled when we polled it for recycling
       // the command-list, so need to release the command-list too.
       // For immediate commandlists we don't need to do an L0 reset of the
@@ -2898,7 +2883,6 @@ pi_result piQueueRelease(pi_queue Queue) {
           return mapError(ZeResult);
       }
       if (Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue) {
-        std::cout << "Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue is TRUE\n";
         std::scoped_lock<ur_mutex> Lock(
             Queue->Context->ZeCommandListCacheMutex);
         const pi_command_list_info_t &MapEntry = it->second;
@@ -2912,9 +2896,7 @@ pi_result piQueueRelease(pi_queue Queue) {
                   : Queue->Context
                         ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
           ZeCommandListCache.push_back({it->first, it->second.ZeQueueDesc});
-          std::cout << "Added " << it->first << " to cache\n";
         } else {
-          std::cout << "Non-recycleable command list " << it->first << " will be deleted\n";
           // A non-reusable comamnd list that came from a make_queue call is
           // destroyed since it cannot be recycled.
           ze_command_list_handle_t ZeCommandList = it->first;
@@ -2923,7 +2905,6 @@ pi_result piQueueRelease(pi_queue Queue) {
                 ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
             if (ZeResult)
               return mapError(ZeResult);
-            std::cout << "Non-recycleable command list deleted\n";
           }
         }
       }
