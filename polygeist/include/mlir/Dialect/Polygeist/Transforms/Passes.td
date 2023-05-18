@@ -146,6 +146,15 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
   ];
 }
 
+def SYCLInternalization : InterfacePass<"sycl-internalization", "LoopLikeOpInterface"> {
+  let summary = "Perform local promotion of loop memory accesses";
+  let description = [{
+    Loop tiling is first performed to fit some loop memory accesses in local memory.
+  }];
+  let constructor = "mlir::polygeist::createSYCLInternalization()";
+  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect"];
+}
+
 def LICM : Pass<"licm"> {
   let summary = "Perform LICM on known parallel (and serial) loops";
   let dependentDialects =

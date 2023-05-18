@@ -56,6 +56,7 @@ createParallelLowerPass(const ParallelLowerOptions &options);
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createReplaceAffineCFGPass();
+std::unique_ptr<Pass> createSYCLInternalization();
 
 //===----------------------------------------------------------------------===//
 // Registration
