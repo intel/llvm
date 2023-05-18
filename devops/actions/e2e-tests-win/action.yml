@@ -34,6 +34,13 @@ runs:
   - name: Run testing
     shell: bash
     run: |
+      echo "::group::sycl-ls --verbose"
+      sycl-ls --verbose
+      echo "::endgroup::"
+      echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
+      echo $LD_LIBRARY_PATH
+      SYCL_PI_TRACE=-1 sycl-ls
+      echo "::endgroup::"
       # Run E2E tests.
       export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests"
       cmake --build build-e2e --target check-sycl-e2e
