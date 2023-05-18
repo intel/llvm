@@ -10209,7 +10209,7 @@ void MLIRTranslate::ConstructJob(Compilation &C, const JobAction &JA,
          "Only supporting LLVM IR to MLIR translation");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
-  // Raising to MLIR is the only option accepted for now
+  // Raising from LLVM is the only option accepted for now
   addArgs(CmdArgs, TCArgs, {"--import-llvm"});
 
   // Input File
