@@ -1,5 +1,6 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o %t
+; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv --to-text %t.spv -o %t
 ; RUN: llvm-spirv -r %t -spirv-text --spirv-target-env=SPV-IR --spirv-builtin-format=function -o %t2_rev.bc
 ; RUN: llvm-spirv -r %t -spirv-text --spirv-target-env=SPV-IR --spirv-builtin-format=global -o %t3_rev.bc
 ; RUN: llvm-spirv -r %t -spirv-text --spirv-builtin-format=function -o %t2_rev_ocl.bc
