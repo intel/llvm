@@ -124,7 +124,7 @@ bool test(queue q) {
             simd<uint32_t, N> offsets(start_ind * sizeof(T),
                                       stride * sizeof(T));
             simd<T, size> data;
-            data = lsc_block_load<T, size>(arr);
+            data.copy_from(arr);
 
             simd<uint32_t, size> slm_offsets(0, sizeof(T));
             lsc_slm_scatter(slm_offsets, data);
@@ -157,7 +157,7 @@ bool test(queue q) {
               }
             }
             auto data0 = lsc_slm_gather<T>(slm_offsets);
-            lsc_block_store(arr, data0);
+            data0.copy_to(arr);
           });
     });
     e.wait();
