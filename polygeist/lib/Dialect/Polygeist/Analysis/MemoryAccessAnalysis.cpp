@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
-#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
@@ -16,12 +15,7 @@
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Matchers.h"
-#include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "memory-access-analysis"
 
@@ -59,7 +53,7 @@ static bool isEqualTo(Value val, int constant, DataFlowSolver &solver) {
     return false;
 
   APInt constVal = *optConstVal;
-  APInt c(constVal.getBitWidth(), constant, true /* signed */);
+  APInt c(constVal.getBitWidth(), constant, true /*signed*/);
   return (constVal == c);
 }
 
@@ -90,7 +84,7 @@ static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
   return (optConstVal.has_value() && optConstVal->slt(-1));
 }
 
-/// Walks up the parents and records the ones with the specified type.
+/// Walk up the parents and records the ones with the specified type.
 template <typename T> static SetVector<T> getParentsOfType(Block *block) {
   SetVector<T> res;
   constexpr auto getInitialParent = [](Block *b) -> T {
@@ -120,7 +114,7 @@ static bool usesValue(Operation *op, Value val) {
 
 namespace {
 
-/// Represents a multiplication factor.
+/// Represent a multiplication factor.
 class Multiplier {
   friend raw_ostream &operator<<(raw_ostream &, const Multiplier &);
 
@@ -145,7 +139,7 @@ raw_ostream &operator<<(raw_ostream &os, const Multiplier &multiplier) {
   return os << multiplier.val;
 }
 
-/// Represents a multiplier or a value.
+/// Represent a multiplier or a value.
 class ValueOrMultiplier {
   friend raw_ostream &operator<<(raw_ostream &, const ValueOrMultiplier &);
 
@@ -193,10 +187,9 @@ operator<<(raw_ostream &os, const ValueOrMultiplier &valOrMultiplier) {
 
 } // namespace
 
-// Visit a binary operation of type \tparam T. The LHS and RHS operand
-// of the binary operation are processed by applying the function \p
-// getMultiplier. The result of the visit is computed via the \p
-// computeResult function.
+// Visit a binary operation of type \tparam T. The LHS and RHS operand of the
+// binary operation are processed by applying the function \p getMultiplier. The
+// result of the visit is computed via the \p computeResult function.
 template <typename T, typename ProcessOperandFuncT, typename ComputeResultFuncT,
           typename = std::enable_if_t<llvm::is_one_of<
               T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>,
@@ -226,8 +219,8 @@ static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
   return res;
 }
 
-/// Determine whether \p expr involves a subexpression which is a
-/// multiplication of \p val, and return the multiplication factor if it does.
+/// Determine whether \p expr involves a subexpression which is a multiplication
+/// of \p val, and return the multiplication factor if it does.
 /// Example:
 ///   %c1_i32 = arith.constant 1 : i32
 ///   %c2_i32 = arith.constant 2 : i32
