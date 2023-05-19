@@ -35,7 +35,8 @@ entry:
   %1 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %0, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @.str.1, i32 0, i32 0), i32 22, i8 addrspace(1)* bitcast ({ [15 x i8] addrspace(1)*, [3 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
   %2 = bitcast i8 addrspace(4)* %1 to i32 addrspace(4)* addrspace(4)*
   %3 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %2, align 8
-; CHECK: load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %2, align 64
+  %4 = load i32, i32 addrspace(4)* %3, align 8
+; CHECK: load i32, i32 addrspace(4)* %3, align 64
   ret i32 addrspace(4)* %3
 }
 
@@ -54,7 +55,9 @@ entry:
   %1 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %0, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @.str.1, i32 0, i32 0), i32 22, i8 addrspace(1)* bitcast ({ [15 x i8] addrspace(1)*, [3 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
   %2 = bitcast i8 addrspace(4)* %1 to i32 addrspace(4)* addrspace(4)*
   %3 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %ptr.addr.ascast, align 8
-  store i32 addrspace(4)* %3, i32 addrspace(4)* addrspace(4)* %2, align 8
-; CHECK: store i32 addrspace(4)* %3, i32 addrspace(4)* addrspace(4)* %2, align 64
+  %4 = load i32, i32 addrspace(4)* %3, align 8
+  %5 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %2, align 8
+  store i32 %4, i32 addrspace(4)* %5, align 8
+; CHECK: store i32 %4, i32 addrspace(4)* %5, align 64
   ret void
 }
