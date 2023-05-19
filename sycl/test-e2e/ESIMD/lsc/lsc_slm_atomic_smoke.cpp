@@ -27,8 +27,8 @@ using namespace sycl::ext::intel::experimental::esimd;
 constexpr int Signed = 1;
 constexpr int Unsigned = 2;
 
-constexpr int64_t threads_per_group = 8;
-constexpr int64_t n_groups = 1;
+constexpr int64_t threads_per_group = 2;
+constexpr int64_t n_groups = 7;
 constexpr int64_t start_ind = 3;
 constexpr int64_t masked_lane = 1;
 constexpr int64_t repeat = 1;
@@ -124,7 +124,7 @@ bool test(queue q) {
             simd<uint32_t, N> offsets(start_ind * sizeof(T),
                                       stride * sizeof(T));
             simd<T, size> data;
-            data = lsc_block_load<T, size>(arr);
+            data.copy_from(arr);
             lsc_slm_block_store(0, data);
             simd_mask<N> m = 1;
             if (masked_lane < N)
@@ -154,7 +154,7 @@ bool test(queue q) {
               }
             }
             auto data0 = lsc_slm_block_load<T, size>(0);
-            lsc_block_store(arr, data);
+            data0.copy_to(arr);
           });
     });
     e.wait();
