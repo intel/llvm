@@ -486,7 +486,7 @@ lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
+  __ESIMD_NS::simd<MsgT, N *NElts> Tmp =
       __esimd_lsc_load_slm<MsgT, cache_hint::none, cache_hint::none,
                            _AddressScale, _ImmOffset, _DS, _VS, _Transposed, N>(
           pred.data(), offsets.data());
@@ -526,9 +526,9 @@ lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
+  __ESIMD_NS::simd<MsgT, N *NElts> OldValuesExpanded =
       detail::lsc_format_input<MsgT>(old_values);
-  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+  __ESIMD_NS::simd<MsgT, N *NElts> Result =
       __esimd_lsc_load_merge_slm<MsgT, cache_hint::none, cache_hint::none,
                                  _AddressScale, _ImmOffset, _DS, _VS,
                                  _Transposed, N>(pred.data(), offsets.data(),
@@ -647,7 +647,7 @@ lsc_gather(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   using MsgT = typename detail::lsc_expand_type<T>::type;
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
+  __ESIMD_NS::simd<MsgT, N *NElts> Tmp =
       __esimd_lsc_load_stateless<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
                                  _VS, _Transposed, N>(pred.data(),
                                                       addrs.data());
@@ -695,9 +695,9 @@ lsc_gather(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   using MsgT = typename detail::lsc_expand_type<T>::type;
   __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
   Addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
+  __ESIMD_NS::simd<MsgT, N *NElts> OldValuesExpanded =
       detail::lsc_format_input<MsgT>(old_values);
-  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+  __ESIMD_NS::simd<MsgT, N *NElts> Result =
       __esimd_lsc_load_merge_stateless<MsgT, L1H, L3H, _AddressScale,
                                        _ImmOffset, _DS, _VS, _Transposed, N>(
           pred.data(), Addrs.data(), OldValuesExpanded.data());
@@ -791,7 +791,7 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
+  __ESIMD_NS::simd<MsgT, N *NElts> Tmp =
       __esimd_lsc_load_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), offsets.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
@@ -843,9 +843,9 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto SI = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
+  __ESIMD_NS::simd<MsgT, N *NElts> OldValuesExpanded =
       detail::lsc_format_input<MsgT>(old_values);
-  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+  __ESIMD_NS::simd<MsgT, N *NElts> Result =
       __esimd_lsc_load_merge_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
                                  _VS, _Transposed, N>(
           pred.data(), offsets.data(), SI, OldValuesExpanded.data());
@@ -1628,7 +1628,7 @@ __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   using _CstT = typename detail::lsc_bitcast_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  __ESIMD_NS::simd<MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
   __esimd_lsc_store_stateless<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
@@ -1700,7 +1700,7 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   using _CstT = typename detail::lsc_bitcast_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  __ESIMD_NS::simd<MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
   auto si = __ESIMD_NS::get_surface_index(acc);
   __esimd_lsc_store_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                         _Transposed, N>(pred.data(), offsets.data(), Tmp.data(),
