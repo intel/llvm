@@ -110,6 +110,55 @@ static void printPointer(AsmPrinter &p, Type elementType,
 }
 
 //===----------------------------------------------------------------------===//
+// custom<ExtTypeParams>
+//===----------------------------------------------------------------------===//
+
+static bool parseTypeOrIntParam(AsmParser &p, SmallVector<Type> &typeParams,
+                                SmallVector<int> &intParams, bool parseType) {
+  int i;
+  if (p.parseOptionalInteger(i).has_value()) {
+    // Successfully parsed an integer.
+    intParams.push_back(i);
+    // After the first integer was successfully parsed, no more types can be
+    // parsed.
+    parseType = false;
+    return true;
+  }
+  if (parseType) {
+    Type t;
+    if (!parsePrettyLLVMType(p, t)) {
+      // Successfully parsed a type.
+      typeParams.push_back(t);
+      return true;
+    }
+  }
+  // Failed to parse a type or an integer.
+  return false;
+}
+
+static ParseResult parseExtTypeParams(AsmParser &p,
+                                      SmallVector<Type> &typeParams,
+                                      SmallVector<int> &intParams) {
+  bool parseType = true;
+  // ([type | integer ])? (, [type | integer])* | empty
+  bool keepParsing = parseTypeOrIntParam(p, typeParams, intParams, parseType);
+  while (keepParsing) {
+    keepParsing = !p.parseOptionalComma() &&
+                  parseTypeOrIntParam(p, typeParams, intParams, parseType);
+  }
+  return success();
+}
+
+static void printExtTypeParams(AsmPrinter &p, ArrayRef<Type> typeParams,
+                               ArrayRef<int> intParams) {
+  p << typeParams;
+  if (!typeParams.empty() && !intParams.empty())
+    p << ", ";
+
+  p << intParams;
+}
+
+//===----------------------------------------------------------------------===//
 // ODS-Generated Definitions
 //===----------------------------------------------------------------------===//
 
@@ -746,6 +795,7 @@ bool mlir::LLVM::isCompatibleOuterType(Type type) {
       LLVMTokenType,
       LLVMFixedVectorType,
       LLVMScalableVectorType,
+      LLVMTargetExtType,
       LLVMVoidType,
       LLVMX86MMXType
     >(type)) {
@@ -790,6 +840,9 @@ static bool isCompatibleImpl(Type type, DenseSet<Type> &compatibleTypes) {
             if (pointerType.isOpaque())
               return true;
             return isCompatible(pointerType.getElementType());
+          })
+          .Case<LLVMTargetExtType>([&](auto extType) {
+            return llvm::all_of(extType.getTypeParams(), isCompatible);
           })
           // clang-format off
           .Case<

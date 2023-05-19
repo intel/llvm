@@ -225,4 +225,21 @@ def LLVMScalableVectorType : LLVMType<"LLVMScalableVector", "vec"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// LLVMTargetExtType
+//===----------------------------------------------------------------------===//
+
+def LLVMTargetExtType : LLVMType<"LLVMTargetExt", "target"> {
+  let summary = "LLVM target-specific extension type";
+
+  let parameters = (ins StringRefParameter<>:$extTypeName, 
+                        OptionalArrayRefParameter<"Type">:$typeParams,
+                        OptionalArrayRefParameter<"int">:$intParams);
+
+
+  let assemblyFormat = [{
+    `<` $extTypeName (`,` custom<ExtTypeParams>($typeParams, $intParams)^ )? `>`
+  }];
+}
+
 #endif // LLVMTYPES_TD
