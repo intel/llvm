@@ -495,6 +495,8 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
                                            unsigned ID) {
   llvm::CallInst *CI = CGF.Builder.CreateCall(FPBuiltinF, Args);
   llvm::AttributeList AttrList;
+  // sincos() doesn 't return a value, but it still has a type associated with
+  // it that corresponds the operand type.
   if (Name == "sincos")
     CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID, Args[0]->getType());
   else
@@ -504,7 +506,7 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
   return CI;
 }
 
-Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
+static Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
                        unsigned FPIntrinsicID, unsigned IntrinsicID,
                        bool HasAccuracyRequirement) {
   return HasAccuracyRequirement
@@ -512,7 +514,7 @@ Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
              : CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
 }
 
-bool hasAccuracyRequirement(CodeGenFunction &CGF, StringRef Name) {
+static bool hasAccuracyRequirement(CodeGenFunction &CGF, StringRef Name) {
   if (!CGF.getLangOpts().FPAccuracyVal.empty())
     return true;
   if (!CGF.getLangOpts().FPAccuracyFuncMap.empty()) {
@@ -535,8 +537,9 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
     if (CGF.CGM.getCodeGenOpts().FPAccuracy) {
       if (CGF.getLangOpts().MathErrno) {
         DiagnosticsEngine &Diags = CGF.CGM.getDiags();
-        Diags.Report(E->getBeginLoc(),
-                     diag::err_incompatible_fp_accuracy_options);
+        Diags.Report(E->getBeginLoc(), diag::err_drv_incompatible_options)
+            << "ffp-accuracy"
+            << "fmath-errno";
       } else {
         StringRef Name =
             CGF.CGM.getContext().BuiltinInfo.getName(CGF.getCurrentBuiltinID());
@@ -21918,6 +21921,8 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
         FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_rsqrt;
       else
         llvm_unreachable("unexpected fpbuiltin ID");
+    } else {
+      return CI;
     }
   } else {
     // The function has a clang builtin. Create an attribute for it

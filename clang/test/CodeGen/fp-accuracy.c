@@ -1,15 +1,15 @@
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-builtin-accuracy=high \
-// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=high:[acosf,cos,pow] low:[tan] medium:[sincos,log10]" \
-// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F1 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=medium high:[tan] cuda:[cos]" \
-// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F2 %s
 
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -ffp-builtin-accuracy=sycl \
@@ -18,11 +18,11 @@
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=default:[acosf,cos,pow]" \
-// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK-DEFAULT %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
-// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK-DEFAULT %s
 
 #ifdef SPIR
@@ -254,6 +254,13 @@ void f1(float a, float b) {
 // CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32(float {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_SYCL1]]
 // CHECK-SPIR: call spir_func float @tanf(float noundef {{.*}})
 
+// CHECK-LABEL: define dso_local void @f3
+// CHECK: call float @fake_exp10(float {{.*}})
+// CHECK-F1: call float @fake_exp10(float {{.*}})
+// CHECK-F2: call float @fake_exp10(float {{.*}})
+// CHECK-SPIR-LABEL: define dso_local spir_func void @f3
+// CHECK-SPIR: call spir_func float @fake_exp10(float {{.*}})
+
 // CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error="="1.0f"
 
 // CHECK-F1: attributes #[[ATTR_F1_HIGH]] = {{.*}}"fpbuiltin-max-error="="1.0f"
@@ -317,6 +324,9 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double noundef {{.*}}, ptr noundef {{.*}}, ptr noundef {{.*}})
 // CHECK-DEFAULT: call float @tanf(float noundef {{.*}})
 
+// CHECK-DEFAULT-LABEL: define dso_local void @f3
+// CHECK-DEFAULT: call float @fake_exp10(float {{.*}})
+
 void f2(float a, float b) {
   float sin = 0.f, cos = 0.f;
 
@@ -326,4 +336,9 @@ void f2(float a, float b) {
   b = log10(b);
   sincos(b, &sin, &cos);
   b = tanf(b);
+}
+
+float fake_exp10(float a) __attribute__((no_builtin)){}
+void f3(float a, float b) {
+  a = fake_exp10(b);
 }

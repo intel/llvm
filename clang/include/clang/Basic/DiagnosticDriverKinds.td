@@ -63,11 +63,9 @@ def err_drv_no_cuda_libdevice : Error<
   "via '--cuda-path', or pass '-nocudalib' to build without linking with "
   "libdevice">;
 
-def warn_function_fp_accuracy_already_set : Warning <"FP accuracy value of '%0' has already "
-  "been assigned to function '%1'">,
-  InGroup<FPAccuracyAlreadySet>;
-def warn_all_fp_accuracy_already_set : Warning <"FP accuracy value of '%0' has already "
-  "been assigned to all functions in the program">,
+def warn_function_fp_accuracy_already_set : Warning <
+  "floating point accuracy value of '%0' has already been assigned to "
+  "function '%1'">,
   InGroup<FPAccuracyAlreadySet>;
 def err_drv_no_rocm_device_lib : Error<
   "cannot find ROCm device library%select{| for %1|for ABI version %1}0; provide its path via "
@@ -144,11 +142,9 @@ def err_drv_invalid_unwindlib_name : Error<
   "invalid unwind library name in argument '%0'">;
 def err_drv_incompatible_unwindlib : Error<
   "--rtlib=libgcc requires --unwindlib=libgcc">;
-def err_drv_incompatible_options : Error<
-  "The combination of '%0' and '%1' is incompatible">;
 def err_drv_incompatible_fp_accuracy_options : Error<
-  "fp-accuracy requirements cannot be guaranteed when math-errno is enabled. "
-  "Use -fno-math-errno to enable fp-accuracy control.">;
+  "floating point accuracy requirements cannot be guaranteed when '-fmath-errno' "
+  "is enabled; use '-fno-math-errno' to enable floating point accuracy control">;
 def err_drv_invalid_stdlib_name : Error<
   "invalid library name in argument '%0'">;
 def err_drv_invalid_output_with_multiple_archs : Error<

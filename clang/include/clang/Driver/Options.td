@@ -6985,11 +6985,13 @@ class CLRemainingArgsJoined<string name> : Option<["/", "-"], name,
 // (We don't put any of these in cl_compile_Group as the options they alias are
 // already in the right group.)
 
+// INTEL_CUSTOMIZATION
 def _SLASH_Qfp_accuracy_EQ : CLJoined<"Qfp-accuracy=">,
   Alias<ffp_accuracy_EQ>;
 def _SLASH_Qfp_accuracy_COL : CLJoined<"Qfp-accuracy:">,
   Alias<ffp_accuracy_EQ>,HelpText<"Specifies the required accuracy for "
   "floating-point operations and library calls.">;
+// END INTEL_CUSTOMIZATION
 
 def _SLASH_Brepro : CLFlag<"Brepro">,
   HelpText<"Do not write current time into COFF output (breaks link.exe /incremental)">,

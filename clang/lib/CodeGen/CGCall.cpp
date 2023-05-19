@@ -1837,7 +1837,7 @@ static bool HasStrictReturn(const CodeGenModule &Module, QualType RetTy,
          Module.getLangOpts().Sanitize.has(SanitizerKind::Return);
 }
 
-llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracy) {
+static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracy) {
   StringRef AccuracyVal;
   if (FPAccuracy == "high")
     return llvm::fp::FPAccuracy::High;
@@ -5605,7 +5605,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   llvm::CallBase *CI = nullptr;
   if (!InvokeDest) {
     if (CGM.getCodeGenOpts().FPAccuracy) {
-      const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl);
+      const auto *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl);
       assert(FD && "expecting a function");
       CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
       if (CI)

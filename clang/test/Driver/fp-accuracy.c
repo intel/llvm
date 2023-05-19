@@ -51,6 +51,6 @@
 // ERR: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'
 // ERR-1: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'
 // ERR-2: (frontend): unsupported argument 'high=[sin]' to option 'ffp-accuracy'
-// WARN: (frontend): FP accuracy value of 'high' has already been assigned to function 'cos'
-// WARN: (frontend): FP accuracy value of 'high' has already been assigned to function 'sin'
-// ERR-3: (frontend): fp-accuracy requirements cannot be guaranteed when math-errno is enabled. Use -fno-math-errno to enable fp-accuracy control.
+// WARN: (frontend): floating point accuracy value of 'high' has already been assigned to function 'cos'
+// WARN: (frontend): floating point accuracy value of 'high' has already been assigned to function 'sin'
+// ERR-3: (frontend): floating point accuracy requirements cannot be guaranteed when '-fmath-errno' is enabled; use '-fno-math-errno' to enable floating point accuracy control
