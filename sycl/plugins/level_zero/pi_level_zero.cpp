@@ -5758,7 +5758,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // For in-order queue and empty wait-list just use the last command
     // event as the barrier event.
     if (Queue->isInOrderQueue() && !EventWaitList.Length &&
-        Queue->LastCommandEvent) {
+        Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
       PI_CALL(piEventRetain(Queue->LastCommandEvent));
       Event = Queue->LastCommandEvent;
       return PI_SUCCESS;
