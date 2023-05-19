@@ -6,9 +6,9 @@
 // RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // Tests the generation of IR annotation calls from
-// __sycl_detail__::add_ir_annotations_member_pointer_access attributes.
-// This gurantee that the ptr.annotation is inserted before
-// the ptr-to-ptr load
+// __sycl_detail__::add_ir_annotations_member attributes.
+// This test guarantees that the ptr.annotation is inserted at
+// the correct position, which is before the ptr-to-ptr load
 
 #include "mock_properties.hpp"
 #include "sycl.hpp"

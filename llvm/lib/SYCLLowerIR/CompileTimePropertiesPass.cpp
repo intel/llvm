@@ -512,7 +512,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   SmallVector<Instruction *, 4> PtrLoadInstList;
   SmallVector<Instruction *, 4> TargetedInstList;
   /*
-   * Clang gurantuee that the ptr.annotation is generated close
+   * Clang guarantuees that the ptr.annotation is generated close
    * to the global level
    * For an aggregate type, the ptr.annotation will be close
    * to GEP, the form of the IR is guranteed to be
@@ -520,7 +520,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
    * %1 = ptr.annotation %0, ...
    * %2 = load TYPE, %1      (loading the pointer to member)
    * %3 = load/store ... %2  (actual memory access of the annotated member)
-   * The form of the IR is guranteed by clang's unit test and sycl header
+   * The form of the IR is guaranteed by clang's unit test and sycl header
    */
   // search load/store followed by a load
   searchUserIgnoringCast<LoadInst>(IntrInst, PtrLoadInstList);
