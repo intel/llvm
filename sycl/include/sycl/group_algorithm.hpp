@@ -94,14 +94,6 @@ using native_op_list =
               sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
               sycl::multiplies<T>, sycl::logical_or<T>, sycl::logical_and<T>>;
 
-template <typename T> struct is_logical_op : std::false_type {};
-
-template <typename T>
-struct is_logical_op<sycl::logical_or<T>> : std::true_type {};
-
-template <typename T>
-struct is_logical_op<sycl::logical_and<T>> : std::true_type {};
-
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
       is_contained<BinaryOperation, native_op_list<T>>::value ||
