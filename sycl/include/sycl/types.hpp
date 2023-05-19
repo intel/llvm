@@ -648,7 +648,7 @@ template <typename Type, int NumElements> class vec {
   }
   template <typename DataT_, typename T>
   static constexpr auto FlattenVecArgHelper(const T &A) {
-    return std::array<DataT_, 1>{vec_data<DataT_>::get(A)};
+    return std::array<DataT_, 1>{vec_data<DataT_>::get(static_cast<DataT_>(A))};
   }
   template <typename DataT_, typename T> struct FlattenVecArg {
     constexpr auto operator()(const T &A) const {
@@ -699,11 +699,6 @@ template <typename Type, int NumElements> class vec {
   __SYCL_ALLOW_VECTOR_SIZES(16)
 #undef __SYCL_ALLOW_VECTOR_SIZES
 
-  template <class...> struct conjunction : std::true_type {};
-  template <class B1, class... tail>
-  struct conjunction<B1, tail...>
-      : std::conditional_t<bool(B1::value), conjunction<tail...>, B1> {};
-
   // TypeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <typename T, typename DataT_>
   struct TypeChecker : std::is_convertible<T, DataT_> {};
@@ -742,7 +737,7 @@ template <typename Type, int NumElements> class vec {
   // Shortcuts for args validation in vec(const argTN &... args) ctor.
   template <typename... argTN>
   using EnableIfSuitableTypes = typename std::enable_if_t<
-      conjunction<TypeChecker<argTN, DataT>...>::value>;
+      std::conjunction<TypeChecker<argTN, DataT>...>::value>;
 
   template <typename... argTN>
   using EnableIfSuitableNumElements =
@@ -2216,6 +2211,7 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint32_t, uint)
 __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint64_t, ulong)
 __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(float, float)
 __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
+
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
 #endif // __SYCL_DEVICE_ONLY__
