@@ -11,7 +11,11 @@
 #ifndef UMF_TEST_POOL_HPP
 #define UMF_TEST_POOL_HPP 1
 
+#if defined(__APPLE__)
+#include <malloc/malloc.h>
+#else
 #include <malloc.h>
+#endif
 #include <umf/base.h>
 #include <umf/memory_provider.h>
 
@@ -61,6 +65,8 @@ struct malloc_pool : public pool_base {
     size_t malloc_usable_size(void *ptr) noexcept {
 #ifdef _WIN32
         return _msize(ptr);
+#elif __APPLE__
+        return ::malloc_size(ptr);
 #else
         return ::malloc_usable_size(ptr);
 #endif
