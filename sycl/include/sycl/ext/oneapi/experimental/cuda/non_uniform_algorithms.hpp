@@ -246,8 +246,8 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   }
   int broadID;
   int maskRev;
-  asm("brev.b32 %0, %1;" : "=r"(maskRev) : "r"(MemberMask));
-  asm("clz.b32 %0, %1;" : "=r"(broadID) : "r"(maskRev));
+  asm volatile("brev.b32 %0, %1;" : "=r"(maskRev) : "r"(MemberMask));
+  asm volatile("clz.b32 %0, %1;" : "=r"(broadID) : "r"(maskRev));
 
   return non_uniform_shfl(g, MemberMask, x, broadID);
 }
