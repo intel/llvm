@@ -3798,7 +3798,7 @@ CallInst *OpenMPIRBuilder::createOMPInteropInit(
     Device = ConstantInt::get(Int32, -1);
   Constant *InteropTypeVal = ConstantInt::get(Int32, (int)InteropType);
   if (NumDependences == nullptr) {
-    NumDependences = ConstantInt::get(Int64, 0);
+    NumDependences = ConstantInt::get(Int32, 0);
     PointerType *PointerTypeVar = Type::getInt8PtrTy(M.getContext());
     DependenceAddress = ConstantPointerNull::get(PointerTypeVar);
   }
@@ -4225,10 +4225,12 @@ OpenMPIRBuilder::getOrCreateInternalVariable(Type *Ty, const StringRef &Name,
     // variable for possibly changing that to internal or private, or maybe
     // create different versions of the function for different OMP internal
     // variables.
-    Elem.second = new GlobalVariable(
+    auto *GV = new GlobalVariable(
         M, Ty, /*IsConstant=*/false, GlobalValue::CommonLinkage,
         Constant::getNullValue(Ty), Elem.first(),
         /*InsertBefore=*/nullptr, GlobalValue::NotThreadLocal, AddressSpace);
+    GV->setAlignment(M.getDataLayout().getABITypeAlign(Ty));
+    Elem.second = GV;
   }
 
   return cast<GlobalVariable>(&*Elem.second);

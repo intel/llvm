@@ -2628,9 +2628,6 @@ public:
     return Entity->getOwningModule();
   }
 
-  // Determine whether the module M belongs to the  current TU.
-  bool isModuleUnitOfCurrentTU(const Module *M) const;
-
   /// Make a merged definition of an existing hidden definition \p ND
   /// visible at the specified location.
   void makeMergedDefinitionVisible(NamedDecl *ND);
@@ -9543,6 +9540,9 @@ public:
       /// Entity is either a {Class|Var}TemplatePartialSpecializationDecl or
       /// a TemplateDecl.
       DeducedTemplateArgumentSubstitution,
+
+      /// We are substituting into a lambda expression.
+      LambdaExpressionSubstitution,
 
       /// We are substituting prior template arguments into a new
       /// template parameter. The template parameter itself is either a
