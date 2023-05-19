@@ -718,6 +718,28 @@ public:
     return IsOffload ? OffloadLTOMode : LTOMode;
   }
 
+  /// FPGA Emulation Mode.  By default, this is true due to the fact that
+  /// an external option setting is required to target hardware.
+  enum DeviceMode {
+    FPGAHWMode,
+    FPGAEmulationMode
+  } OffloadCompileMode = FPGAEmulationMode;
+
+  bool IsFPGAHWMode() const { return OffloadCompileMode == FPGAHWMode; }
+
+  bool IsFPGAEmulationMode() const {
+    return OffloadCompileMode == FPGAEmulationMode;
+  }
+
+  void setOffloadCompileMode(StringRef ModeVale) {
+    if (auto M = llvm::StringSwitch<std::optional<DeviceMode>>(ModeVale)
+                     .Case("FPGAHWMode", FPGAHWMode)
+                     .Default(FPGAEmulationMode))
+      OffloadCompileMode = *M;
+  }
+
+  DeviceMode getOffloadCompileMode() { return OffloadCompileMode; }
+
 private:
 
   /// Tries to load options from configuration files.
@@ -792,13 +814,6 @@ private:
   /// Use the new offload driver for OpenMP
   bool UseNewOffloadingDriver = false;
   void setUseNewOffloadingDriver() { UseNewOffloadingDriver = true; }
-
-  /// FPGA Emulation Mode.  By default, this is true due to the fact that
-  /// an external option setting is required to target hardware.
-  bool FPGAEmulationMode = true;
-  void setFPGAEmulationMode(bool IsEmulation) {
-    FPGAEmulationMode = IsEmulation;
-  }
 
   /// The inclusion of the default SYCL device triple is dependent on either
   /// the discovery of an existing object/archive that contains the device code
