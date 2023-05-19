@@ -131,7 +131,8 @@ static bool shouldRaiseHost(const ArgList &Args) {
     constexpr bool Default = CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL;
     return (Iter == FilteredArgs.end()) ? Default : Pos == (*Iter)->getValue();
   };
-  return Args.hasArg(options::OPT_fsycl_raise_host) && UseOpaquePointers();
+  return !Args.hasArg(options::OPT_fsyntax_only) &&
+         Args.hasArg(options::OPT_fsycl_raise_host) && UseOpaquePointers();
 }
 
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
@@ -6327,7 +6328,8 @@ public:
     // We will need two specialized SYCL builders: one will run before host
     // compilation just to produce the device stub and other to perform the
     // actual compilation.
-    if (Args.hasArg(options::OPT_fsycl_raise_host)) {
+    if (!Args.hasArg(options::OPT_fsyntax_only) &&
+        Args.hasArg(options::OPT_fsycl_raise_host)) {
       if (shouldRaiseHost(Args)) {
         SpecializedBuilders.push_back(new SYCLActionBuilder(
             C, Args, Inputs, *this, /*OnlyCreateStubFile=*/true));
