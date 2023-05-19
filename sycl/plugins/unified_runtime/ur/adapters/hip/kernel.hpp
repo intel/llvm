@@ -15,6 +15,22 @@
 
 #include "program.hpp"
 
+/// Implementation of a UR Kernel for HIP
+///
+/// UR Kernels are used to set kernel arguments,
+/// creating a state on the Kernel object for a given
+/// invocation. This is not the case of HIPFunction objects,
+/// which are simply passed together with the arguments on the invocation.
+/// The UR Kernel implementation for HIP stores the list of arguments,
+/// argument sizes and offsets to emulate the interface of UR Kernel,
+/// saving the arguments for the later dispatch.
+/// Note that in UR API, the Local memory is specified as a size per
+/// individual argument, but in HIP only the total usage of shared
+/// memory is required since it is not passed as a parameter.
+/// A compiler pass converts the UR API local memory model into the
+/// HIP shared model. This object simply calculates the total of
+/// shared memory, and the initial offsets of each parameter.
+///
 struct ur_kernel_handle_t_ {
   using native_type = hipFunction_t;
 
