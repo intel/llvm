@@ -22,6 +22,7 @@
 #include <sycl/known_identity.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/sub_group.hpp>
+#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -204,8 +205,23 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
            std::is_same_v<decltype(binary_op(x, x)), float>),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  sycl::vec<unsigned, 4> MemberMask =
+      sycl::detail::ExtractMask(sycl::detail::GetMask(g));
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+#if (__SYCL_CUDA_ARCH__ >= 800)
+    return detail::masked_reduction_cuda_sm80(g, x, binary_op, MemberMask[0]);
+#else
+    return detail::masked_reduction_cuda_shfls(g, x, binary_op, MemberMask[0]);
+#endif
+  } else {
+    return sycl::detail::calc<__spv::GroupOperation::Reduce>(
+        g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  }
+#else
   return sycl::detail::calc<__spv::GroupOperation::Reduce>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+#endif
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
@@ -633,8 +649,19 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
                      std::is_same_v<decltype(binary_op(x, x)), float>),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  sycl::vec<unsigned, 4> MemberMask =
+      sycl::detail::ExtractMask(sycl::detail::GetMask(g));
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::ExclusiveScan>(g, x, binary_op, MemberMask[0]);
+  } else {
+    return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
+        g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  }
+#else
   return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+#endif
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
@@ -862,8 +889,19 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
                      std::is_same_v<decltype(binary_op(x, x)), float>),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  sycl::vec<unsigned, 4> MemberMask =
+      sycl::detail::ExtractMask(sycl::detail::GetMask(g));
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::InclusiveScan>(g, x, binary_op, MemberMask[0]);
+  } else {
+    return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
+        g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  }
+#else
   return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+#endif
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host.",
