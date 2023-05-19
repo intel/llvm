@@ -106,18 +106,6 @@ template <typename T> static SetVector<T> getParentsOfType(Block *block) {
   return res;
 }
 
-#if 0
-/// Determine whether \p op uses \p val (directly or indirectly).
-static bool usesValue(Operation *op, Value val) {
-  return (llvm::any_of(val.getUsers(), [&](Operation *user) {
-    if (user == op)
-      return true;
-    return llvm::any_of(user->getResults(),
-                        [&](Value res) { return usesValue(op, res); });
-  }));
-}
-#endif
-
 static bool usesValue(Operation *op, Value val) {
   assert(op && "Expecting valid operation");
   if (Operation *valOp = val.getDefiningOp())
