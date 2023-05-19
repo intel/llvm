@@ -1123,9 +1123,6 @@ protected:
     ConcreteASPtrType MData;
   };
 
-  // TODO replace usages with getQualifiedPtr
-  const ConcreteASPtrType getNativeImageObj() const { return MData; }
-
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
@@ -1144,9 +1141,18 @@ protected:
   }
 
   // __init variant used by the device compiler for ESIMD kernels.
-  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
   // range and offset are not supported.
-  void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
+  void __init_esimd(ConcreteASPtrType Ptr) {
+    MData = Ptr;
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+    detail::loop<AdjustedDim>([&, this](size_t I) {
+      getOffset()[I] = 0;
+      getAccessRange()[I] = 0;
+      getMemoryRange()[I] = 0;
+    });
+#endif
+  }
 
   ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
 
@@ -1673,7 +1679,7 @@ public:
             typename = std::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT, const property_list &PropertyList = {},
@@ -1687,7 +1693,7 @@ public:
             typename = std::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT,
@@ -1844,7 +1850,7 @@ public:
             typename = std::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
@@ -1858,7 +1864,7 @@ public:
             typename = std::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT,
@@ -2118,21 +2124,10 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = std::enable_if_t<
                 (AccessTarget_ == access::target::host_buffer) ||
-                (AccessTarget_ == access::target::host_task)>>
-#if SYCL_LANGUAGE_VERSION >= 202001
-  std::add_pointer_t<value_type> get_pointer() const noexcept
-#else
-  DataT *get_pointer() const
-#endif
-  {
+                (AccessTarget_ == access::target::host_task) ||
+                (AccessTarget_ == access::target::device)>>
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
-  }
-
-  template <
-      access::target AccessTarget_ = AccessTarget,
-      typename = std::enable_if_t<AccessTarget_ == access::target::device>>
-  global_ptr<DataT> get_pointer() const {
-    return global_ptr<DataT>(getPointerAdjusted());
   }
 
   template <access::target AccessTarget_ = AccessTarget,
@@ -2518,6 +2513,14 @@ protected:
         [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
   }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(ConcreteASPtrType Ptr) {
+    MData = Ptr;
+    detail::loop<AdjustedDim>([&, this](size_t I) { getSize()[I] = 0; });
+  }
+
 public:
   // Default constructor for objects later initialized with __init member.
   local_accessor_base()
@@ -2761,6 +2764,13 @@ public:
     local_acc::__init(Ptr, AccessRange, range, id);
   }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(typename local_acc::ConcreteASPtrType Ptr) {
+    local_acc::__init_esimd(Ptr);
+  }
+
 public:
   // Default constructor for objects later initialized with __init member.
   accessor() {
@@ -2802,6 +2812,13 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
               range<local_acc::AdjustedDim> range,
               id<local_acc::AdjustedDim> id) {
     local_acc::__init(Ptr, AccessRange, range, id);
+  }
+
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO: In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(typename local_acc::ConcreteASPtrType Ptr) {
+    local_acc::__init_esimd(Ptr);
   }
 
 public:
@@ -2922,6 +2939,9 @@ public:
     *local_acc::getQualifiedPtr() = std::move(Other);
     return *this;
   }
+
+private:
+  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 };
 
 /// Image accessors.

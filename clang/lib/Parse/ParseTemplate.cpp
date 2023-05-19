@@ -17,6 +17,7 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaDiagnostic.h"
@@ -274,10 +275,7 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
 
   // Error parsing the declarator?
   if (!DeclaratorInfo.hasName()) {
-    // If so, skip until the semi-colon or a }.
-    SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
-    if (Tok.is(tok::semi))
-      ConsumeToken();
+    SkipMalformedDecl();
     return nullptr;
   }
 

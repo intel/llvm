@@ -156,7 +156,7 @@ static Value createUnpackHiPs(ImplicitLocOpBuilder &b, Value v1, Value v2,
 /// dst[511:384] := SELECT4(v2[511:0], mask[7:6])
 static Value create4x128BitSuffle(ImplicitLocOpBuilder &b, Value v1, Value v2,
                                   uint8_t mask) {
-  assert(v1.getType().cast<VectorType>().getShape()[0] == 16 &&
+  assert(cast<VectorType>(v1.getType()).getShape()[0] == 16 &&
          "expected a vector with length=16");
   SmallVector<int64_t> shuffleMask;
   auto appendToMask = [&](int64_t base, uint8_t control) {
@@ -291,7 +291,7 @@ static Value transposeToShuffle16x16(OpBuilder &builder, Value source, int m,
   vs[0xf] = create4x128BitSuffle(b, t7, tf, 0xdd);
 
   auto reshInputType = VectorType::get(
-      {m, n}, source.getType().cast<VectorType>().getElementType());
+      {m, n}, cast<VectorType>(source.getType()).getElementType());
   Value res =
       b.create<arith::ConstantOp>(reshInputType, b.getZeroAttr(reshInputType));
   for (int64_t i = 0; i < m; ++i)
@@ -329,10 +329,10 @@ public:
     // Set up convenience transposition table.
     SmallVector<int64_t> transp;
     for (auto attr : op.getTransp())
-      transp.push_back(attr.cast<IntegerAttr>().getInt());
+      transp.push_back(cast<IntegerAttr>(attr).getInt());
 
     if (isShuffleLike(vectorTransformOptions.vectorTransposeLowering) &&
-        resType.getRank() == 2 && transp[0] == 1 && transp[1] == 0)
+        succeeded(isTranspose2DSlice(op)))
       return rewriter.notifyMatchFailure(
           op, "Options specifies lowering to shuffle");
 
@@ -411,36 +411,37 @@ public:
 
   LogicalResult matchAndRewrite(vector::TransposeOp op,
                                 PatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
+    if (!isShuffleLike(vectorTransformOptions.vectorTransposeLowering))
+      return rewriter.notifyMatchFailure(
+          op, "not using vector shuffle based lowering");
+
+    auto srcGtOneDims = isTranspose2DSlice(op);
+    if (failed(srcGtOneDims))
+      return rewriter.notifyMatchFailure(
+          op, "expected transposition on a 2D slice");
 
     VectorType srcType = op.getSourceVectorType();
-    if (srcType.getRank() != 2)
-      return rewriter.notifyMatchFailure(op, "Not a 2D transpose");
+    int64_t m = srcType.getDimSize(std::get<0>(srcGtOneDims.value()));
+    int64_t n = srcType.getDimSize(std::get<1>(srcGtOneDims.value()));
 
-    SmallVector<int64_t> transp;
-    for (auto attr : op.getTransp())
-      transp.push_back(attr.cast<IntegerAttr>().getInt());
-    if (transp[0] != 1 && transp[1] != 0)
-      return rewriter.notifyMatchFailure(op, "Not a 2D transpose permutation");
+    // Reshape the n-D input vector with only two dimensions greater than one
+    // to a 2-D vector.
+    Location loc = op.getLoc();
+    auto flattenedType = VectorType::get({n * m}, srcType.getElementType());
+    auto reshInputType = VectorType::get({m, n}, srcType.getElementType());
+    auto reshInput = rewriter.create<vector::ShapeCastOp>(loc, flattenedType,
+                                                          op.getVector());
 
     Value res;
-    int64_t m = srcType.getShape().front(), n = srcType.getShape().back();
-    switch (vectorTransformOptions.vectorTransposeLowering) {
-    case VectorTransposeLowering::Shuffle1D: {
-      Value casted = rewriter.create<vector::ShapeCastOp>(
-          loc, VectorType::get({m * n}, srcType.getElementType()),
-          op.getVector());
-      res = transposeToShuffle1D(rewriter, casted, m, n);
-      break;
-    }
-    case VectorTransposeLowering::Shuffle16x16:
-      if (m != 16 || n != 16)
-        return failure();
-      res = transposeToShuffle16x16(rewriter, op.getVector(), m, n);
-      break;
-    case VectorTransposeLowering::EltWise:
-    case VectorTransposeLowering::Flat:
-      return failure();
+    if (vectorTransformOptions.vectorTransposeLowering ==
+            VectorTransposeLowering::Shuffle16x16 &&
+        m == 16 && n == 16) {
+      reshInput =
+          rewriter.create<vector::ShapeCastOp>(loc, reshInputType, reshInput);
+      res = transposeToShuffle16x16(rewriter, reshInput, m, n);
+    } else {
+      // Fallback to shuffle on 1D approach.
+      res = transposeToShuffle1D(rewriter, reshInput, m, n);
     }
 
     rewriter.replaceOpWithNewOp<vector::ShapeCastOp>(

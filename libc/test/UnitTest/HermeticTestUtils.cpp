@@ -17,6 +17,7 @@ int memcmp(const void *lhs, const void *rhs, size_t count);
 void *memcpy(void *__restrict, const void *__restrict, size_t);
 void *memmove(void *dst, const void *src, size_t count);
 void *memset(void *ptr, int value, size_t count);
+int atexit(void (*func)(void));
 
 } // namespace __llvm_libc
 
@@ -28,7 +29,8 @@ namespace {
 // requires. Hence, as a work around for this problem, we use a simple allocator
 // which just hands out continuous blocks from a statically allocated chunk of
 // memory.
-static uint8_t memory[16384];
+static constexpr uint64_t MEMORY_SIZE = 16384;
+static uint8_t memory[MEMORY_SIZE];
 static uint8_t *ptr = memory;
 
 } // anonymous namespace
@@ -57,10 +59,17 @@ void *memset(void *ptr, int value, size_t count) {
   return __llvm_libc::memset(ptr, value, count);
 }
 
+// This is needed if the test was compiled with '-fno-use-cxa-atexit'.
+int atexit(void (*func)(void)) { return __llvm_libc::atexit(func); }
+
+constexpr uint64_t ALIGNMENT = alignof(uintptr_t);
+
 void *malloc(size_t s) {
+  // Keep the bump pointer aligned on an eight byte boundary.
+  s = ((s + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
   void *mem = ptr;
   ptr += s;
-  return mem;
+  return static_cast<uint64_t>(ptr - memory) >= MEMORY_SIZE ? nullptr : mem;
 }
 
 void free(void *) {}
@@ -78,7 +87,7 @@ void __cxa_pure_virtual() {
   __builtin_trap();
 }
 
-// Integration tests are linked with -nostdlib. BFD linker expects
+// Hermetic tests are linked with -nostdlib. BFD linker expects
 // __dso_handle when -nostdlib is used.
 void *__dso_handle = nullptr;
 
