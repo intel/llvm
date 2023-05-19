@@ -10161,7 +10161,8 @@ void Cgeist::ConstructJob(Compilation &C, const JobAction &JA,
 
   const InputInfo *HostModule = nullptr;
   for (const InputInfo &I : Inputs) {
-    if (I.getType() == types::TY_MLIR_IR)
+    if (I.getType() == types::TY_MLIR_IR &&
+        I.getAction()->isHostOffloading(Action::OFK_SYCL))
       HostModule = &I;
     else if (I.isFilename())
       CmdArgs.push_back(I.getFilename());
