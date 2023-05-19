@@ -213,8 +213,11 @@ private:
 } // end namespace toolchains
 
 template <typename ArgListT> bool isSYCLNativeCPU(const ArgListT &Args) {
-  return Args.hasFlag(options::OPT_fsycl_native_cpu,
-                      options::OPT_fno_sycl_native_cpu, false);
+  if (auto SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    if (SYCLTargets->containsValue("native_cpu"))
+      return true;
+  }
+  return false;
 }
 } // end namespace driver
 } // end namespace clang

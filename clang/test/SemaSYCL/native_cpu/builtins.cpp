@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only  -fsycl-native-cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
+// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 class Test1;

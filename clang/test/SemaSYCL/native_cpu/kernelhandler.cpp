@@ -1,6 +1,6 @@
 // Checks that kernelhandler and subhandler are emitted in the integration headers.
 // The sycl-native-cpu helper header is always named <sycl-int-header>.hc
-// RUN: %clangxx -fsycl-device-only -fsycl-native-cpu -Xclang -fsycl-int-header=%t.h -o %t.bc %s 
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -o %t.bc %s 
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-H
 // RUN: FileCheck -input-file=%t.h.hc %s --check-prefix=CHECK-HC
 // Compiling generated main integration header to check correctness, -fsycl option used to find required includes 

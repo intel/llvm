@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-native-cpu  %s -o %t
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu  %s -o %t
 // RUN: env SYCL_PI_TRACE=1 ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t | FileCheck %s
 
 #include <CL/sycl.hpp>

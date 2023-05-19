@@ -1,5 +1,5 @@
 // cmdline that used to fail in kernel handler emission
-// RUN: %clangxx -fsycl-device-only  -fsycl-native-cpu -sycl-std=2020 -Xclang -fsycl-int-header=%t.h -mllvm -sycl-opt -S -emit-llvm  -o - %s
+// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -sycl-std=2020 -Xclang -fsycl-int-header=%t.h -mllvm -sycl-opt -S -emit-llvm  -o - %s
 // RUN: FileCheck -input-file=%t.h.hc %s --check-prefix=CHECK-HC
 // RUN: %clangxx -fsycl -D __SYCL_NATIVE_CPU__ -c -x c++ %t.h
 #include "sycl.hpp"

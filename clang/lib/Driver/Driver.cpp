@@ -1142,16 +1142,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
+  bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
     StringRef Val(SYCLForceTarget->getValue());
     llvm::Triple TT(MakeSYCLDeviceTriple(Val));
-    if (!isValidSYCLTriple(TT))
+    // Todo: we skip the check for the valid SYCL target, because currently
+    // setting native_cpu as a target overrides all the other targets, 
+    // re-enable the check once native_cpu can coexist.
+    if (!IsSYCLNativeCPU && !isValidSYCLTriple(TT))
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
   }
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
-  bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
 
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
@@ -6058,8 +6061,14 @@ class OffloadingActionBuilder final {
       bool HasSYCLTargetsOption =
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
       bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
-      if (IsSYCLNativeCPU && HasSYCLTargetsOption) {
-        C.getDriver().Diag(clang::diag::warn_drv_sycl_native_cpu_and_targets);
+
+      // check if multiple targets are passed along with native_cpu
+      // currently native_cpu overrides all the other targets, so we emit a
+      // warning
+      if (IsSYCLNativeCPU) {
+        auto *SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+        if (SYCLTargets->getNumValues() > 1)
+          C.getDriver().Diag(clang::diag::warn_drv_sycl_native_cpu_and_targets);
       }
       if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {

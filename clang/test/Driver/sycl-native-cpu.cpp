@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-native-cpu %s -### 2>&1 | FileCheck %s
-// RUN: %clangxx -fsycl-device-only -fsycl-native-cpu -target aarch64-unknown-linux-gnu %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-AARCH64
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu %s -### 2>&1 | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -target aarch64-unknown-linux-gnu %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-AARCH64
 
 
 // checks that the host and device triple are the same, and that the sycl-native-cpu LLVM option is set

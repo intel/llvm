@@ -1,7 +1,7 @@
-//RUN: %clang -fsycl -fsycl-native-cpu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS
-//RUN: %clang -fsycl -fsycl-native-cpu -ccc-print-bindings %s 2>&1 | FileCheck %s --check-prefix=CHECK_BINDINGS
-//RUN: %clang -fsycl -fsycl-native-cpu -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_INVO
-//RUN: %clang -fsycl -fsycl-native-cpu -target aarch64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS-AARCH64
+//RUN: %clang -fsycl -fsycl-targets=native_cpu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS
+//RUN: %clang -fsycl -fsycl-targets=native_cpu -ccc-print-bindings %s 2>&1 | FileCheck %s --check-prefix=CHECK_BINDINGS
+//RUN: %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_INVO
+//RUN: %clang -fsycl -fsycl-targets=native_cpu -target aarch64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS-AARCH64
 
 
 //CHECK_ACTIONS:                     +- 0: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (host-sycl)
