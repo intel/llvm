@@ -409,9 +409,8 @@ bool test_int_types(queue q) {
     // passed &= test<int8_t, N, Op>(q);
 
     passed &= test<int32_t, N, Op>(q);
-    if constexpr (!std::is_same_v<signed long, int64_t> &&
-                  !std::is_same_v<signed long, int32_t>) {
-      passed &= test<signed long, N, Op>(q);
+    if constexpr (std::is_same_v<Op<int64_t, N>, ImplCmpxchg<int64_t, N>>) {
+      passed &= test<int64_t, N, Op>(q);
     }
   }
 
@@ -422,9 +421,8 @@ bool test_int_types(queue q) {
     // passed &= test<uint8_t, N, Op>(q);
 
     passed &= test<uint32_t, N, Op>(q);
-    if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
-                  !std::is_same_v<unsigned long, uint32_t>) {
-      passed &= test<unsigned long, N, Op>(q);
+    if constexpr (std::is_same_v<Op<uint64_t, N>, ImplCmpxchg<uint64_t, N>>) {
+      passed &= test<uint64_t, N, Op>(q);
     }
   }
   return passed;
