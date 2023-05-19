@@ -202,7 +202,7 @@ event handler::finalize() {
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
-            MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
                 &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
@@ -537,7 +537,10 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
-      if (!IsKernelCreatedFromSource) {
+      // TODO ESIMD currently does not suport MSize field passing yet
+      // accessor::init for ESIMD-mode accessor has a single field, translated
+      // to a single kernel argument set above.
+      if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,
@@ -829,9 +832,9 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      detail::RT::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
-  Plugin.call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
-                                                   InfoQuery, sizeof(pi_bool),
-                                                   &SupportsOp, nullptr);
+  Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
+                                                    InfoQuery, sizeof(pi_bool),
+                                                    &SupportsOp, nullptr);
   return SupportsOp;
 }
 

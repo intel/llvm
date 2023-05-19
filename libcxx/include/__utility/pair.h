@@ -13,7 +13,6 @@
 #include <__compare/synth_three_way.h>
 #include <__concepts/different_from.h>
 #include <__config>
-#include <__functional/unwrap_ref.h>
 #include <__fwd/array.h>
 #include <__fwd/get.h>
 #include <__fwd/subrange.h>
@@ -45,6 +44,7 @@
 #include <__type_traits/is_swappable.h>
 #include <__type_traits/nat.h>
 #include <__type_traits/remove_cvref.h>
+#include <__type_traits/unwrap_ref.h>
 #include <__utility/declval.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
@@ -101,6 +101,20 @@ struct _LIBCPP_TEMPLATE_VIS pair
 
     _LIBCPP_HIDE_FROM_ABI
     pair& operator=(pair const& __p) {
+        first = __p.first;
+        second = __p.second;
+        return *this;
+    }
+
+    // Extension: This is provided in C++03 because it allows properly handling the
+    //            assignment to a pair containing references, which would be a hard
+    //            error otherwise.
+    template <class _U1, class _U2, class = __enable_if_t<
+        is_assignable<first_type&, _U1 const&>::value &&
+        is_assignable<second_type&, _U2 const&>::value
+    > >
+    _LIBCPP_HIDE_FROM_ABI
+    pair& operator=(pair<_U1, _U2> const& __p) {
         first = __p.first;
         second = __p.second;
         return *this;

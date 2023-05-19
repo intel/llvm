@@ -658,10 +658,12 @@ public:
 
   Value *EvaluateInDifferentType(Value *V, Type *Ty, bool isSigned);
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   /// Returns a value X such that Val = X * Scale, or null if none.
   ///
   /// If the multiplication is known not to overflow then NoSignedWrap is set.
   Value *Descale(Value *Val, APInt Scale, bool &NoSignedWrap);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 };
 
 class Negator final {

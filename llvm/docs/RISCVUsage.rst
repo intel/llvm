@@ -104,8 +104,8 @@ on support follow.
      ``Zfh``          Supported
      ``Zfhmin``       Supported
      ``Zfinx``        Supported
-     ``Zhinx``        Assembly Support
-     ``Zhinxmin``     Assembly Support
+     ``Zhinx``        Supported
+     ``Zhinxmin``     Supported
      ``Zicbom``       Assembly Support
      ``Zicbop``       Assembly Support
      ``Zicboz``       Assembly Support
@@ -193,6 +193,9 @@ The primary goal of experimental support is to assist in the process of ratifica
   LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
 
 ``experimental-zcf``
+  LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
+
+``experimental-zcmp``
   LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`__.
 
 ``experimental-zcmt``

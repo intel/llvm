@@ -91,6 +91,11 @@ def CallOp : Func_Op<"call",
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
+    }
   }];
 
   let assemblyFormat = [{
@@ -106,10 +111,10 @@ def CallIndirectOp : Func_Op<"call_indirect", [
       CallOpInterface,
       TypesMatchWith<"callee input types match argument types",
                      "callee", "callee_operands",
-                     "$_self.cast<FunctionType>().getInputs()">,
+                     "::llvm::cast<FunctionType>($_self).getInputs()">,
       TypesMatchWith<"callee result types match result types",
                      "callee", "results",
-                     "$_self.cast<FunctionType>().getResults()">
+                     "::llvm::cast<FunctionType>($_self).getResults()">
     ]> {
   let summary = "indirect call operation";
   let description = [{
@@ -136,7 +141,7 @@ def CallIndirectOp : Func_Op<"call_indirect", [
     OpBuilder<(ins "Value":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.operands.push_back(callee);
       $_state.addOperands(operands);
-      $_state.addTypes(callee.getType().cast<FunctionType>().getResults());
+      $_state.addTypes(::llvm::cast<FunctionType>(callee.getType()).getResults());
     }]>];
 
   let extraClassDeclaration = [{
@@ -153,6 +158,11 @@ def CallIndirectOp : Func_Op<"call_indirect", [
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() { return getCallee(); }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      setOperand(0, callee.get<Value>());
+    }
   }];
 
   let hasCanonicalizeMethod = 1;

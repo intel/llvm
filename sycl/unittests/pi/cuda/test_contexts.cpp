@@ -9,8 +9,8 @@
 #include "gtest/gtest.h"
 
 #include <condition_variable>
-#include <thread>
 #include <mutex>
+#include <thread>
 
 #include <cuda.h>
 
@@ -26,7 +26,7 @@ using namespace sycl;
 struct CudaContextsTest : public ::testing::Test {
 
 protected:
-  std::optional<detail::plugin> plugin =
+  std::optional<detail::PluginPtr> &plugin =
       pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
@@ -227,7 +227,8 @@ TEST_F(CudaContextsTest, ContextThread) {
     plugin->call<detail::PiApiKind::piQueueRelease>(queue);
   });
 
-  // wait for the thread to be done with the first queue to release the first context
+  // wait for the thread to be done with the first queue to release the first
+  // context
   std::unique_lock<std::mutex> lock(m);
   cv.wait(lock, [&] { return thread_done; });
   plugin->call<detail::PiApiKind::piContextRelease>(context1);

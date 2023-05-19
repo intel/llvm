@@ -48,7 +48,7 @@ int main() {
   bool failed = false;
 
   {
-    auto buf_acc = data_buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor buf_acc(data_buf, sycl::read_only);
     for (int i = 0; i < sz; ++i) {
       failed |= (buf_acc[i] != i + 1);
     }
@@ -67,7 +67,7 @@ int main() {
   q.wait();
 
   {
-    auto buf_acc = data_buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor buf_acc(data_buf, sycl::read_only);
     for (int i = 0; i < sz; ++i) {
       failed |= (buf_acc[i] != i + 2);
     }

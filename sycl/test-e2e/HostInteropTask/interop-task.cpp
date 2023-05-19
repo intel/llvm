@@ -135,7 +135,7 @@ void test2_1(queue &Q) {
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
-  auto Device = default_selector().select_device();
+  device Device;
   auto Context = context(Device);
   // init the buffer with a'priori invalid data
   init<int, -1, -2>(Buffer1, Buffer2, Q);

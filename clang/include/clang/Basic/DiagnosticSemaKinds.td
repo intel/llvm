@@ -112,6 +112,9 @@ def err_expr_not_string_literal : Error<"expression is not a string literal">;
 def ext_predef_outside_function : Warning<
   "predefined identifier is only valid inside function">,
   InGroup<DiagGroup<"predefined-identifier-outside-function">>;
+def ext_init_from_predefined : ExtWarn<
+  "initializing an array from a '%0' predefined identifier is a Microsoft extension">,
+  InGroup<MicrosoftInitFromPredefined>;
 def warn_float_overflow : Warning<
   "magnitude of floating-point constant too large for type %0; maximum is %1">,
    InGroup<LiteralRange>;
@@ -222,6 +225,8 @@ def warn_initializer_overrides : Warning<
   "this subobject">, InGroup<InitializerOverrides>;
 def ext_initializer_overrides : ExtWarn<warn_initializer_overrides.Summary>,
   InGroup<InitializerOverrides>, SFINAEFailure;
+def ext_initializer_union_overrides : ExtWarn<warn_initializer_overrides.Summary>,
+  InGroup<InitializerOverrides>, DefaultError, SFINAEFailure;
 def err_initializer_overrides_destructed : Error<
   "initializer would partially override prior initialization of object of "
   "type %1 with non-trivial destruction">;
@@ -2406,7 +2411,7 @@ def err_auto_expr_init_paren_braces : Error<
   "%select{parenthesized|nested}0 initializer list">;
 def warn_cxx20_compat_auto_expr : Warning<
   "'auto' as a functional-style cast is incompatible with C++ standards "
-  "before C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "before C++23">, InGroup<CXXPre23Compat>, DefaultIgnore;
 def err_auto_missing_trailing_return : Error<
   "'auto' return without trailing return type; deduced return types are a "
   "C++14 extension">;
@@ -2763,13 +2768,13 @@ def warn_cxx17_compat_constexpr_body_invalid_stmt : Warning<
   "use of this statement in a constexpr %select{function|constructor}0 "
   "is incompatible with C++ standards before C++20">,
   InGroup<CXXPre20Compat>, DefaultIgnore;
-def ext_constexpr_body_invalid_stmt_cxx2b : ExtWarn<
+def ext_constexpr_body_invalid_stmt_cxx23 : ExtWarn<
   "use of this statement in a constexpr %select{function|constructor}0 "
-  "is a C++2b extension">, InGroup<CXX2b>;
+  "is a C++23 extension">, InGroup<CXX23>;
 def warn_cxx20_compat_constexpr_body_invalid_stmt : Warning<
   "use of this statement in a constexpr %select{function|constructor}0 "
-  "is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def ext_constexpr_type_definition : ExtWarn<
   "type definition in a constexpr %select{function|constructor}0 "
   "is a C++14 extension">, InGroup<CXX14>;
@@ -2790,15 +2795,15 @@ def warn_cxx11_compat_constexpr_local_var : Warning<
 def ext_constexpr_static_var : ExtWarn<
   "definition of a %select{static|thread_local}1 variable "
   "in a constexpr %select{function|constructor}0 "
-  "is a C++2b extension">, InGroup<CXX2b>;
+  "is a C++23 extension">, InGroup<CXX23>;
 def warn_cxx20_compat_constexpr_var : Warning<
   "definition of a %select{static variable|thread_local variable|variable "
   "of non-literal type}1 in a constexpr %select{function|constructor}0 "
-  "is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def err_constexpr_local_var_non_literal_type : Error<
   "variable of non-literal type %1 cannot be defined in a constexpr "
-  "%select{function|constructor}0 before C++2b">;
+  "%select{function|constructor}0 before C++23">;
 def ext_constexpr_local_var_no_init : ExtWarn<
   "uninitialized variable in a constexpr %select{function|constructor}0 "
   "is a C++20 extension">, InGroup<CXX20>;
@@ -5378,6 +5383,8 @@ def note_constraint_normalization_here : Note<
 def note_parameter_mapping_substitution_here : Note<
   "while substituting into concept arguments here; substitution failures not "
   "allowed in concept arguments">;
+def note_lambda_substitution_here : Note<
+  "while substituting into a lambda expression here">;
 def note_instantiation_contexts_suppressed : Note<
   "(skipping %0 context%s0 in backtrace; use -ftemplate-backtrace-limit=0 to "
   "see all)">;
@@ -6801,7 +6808,7 @@ def err_arithmetic_nonfragile_interface : Error<
 
 def warn_deprecated_comma_subscript : Warning<
   "top-level comma expression in array subscript is deprecated "
-  "in C++20 and unsupported in C++2b">,
+  "in C++20 and unsupported in C++23">,
   InGroup<DeprecatedCommaSubscript>;
 
 def ext_subscript_non_lvalue : Extension<
@@ -9216,9 +9223,9 @@ def err_operator_overload_needs_class_or_enum : Error<
 def err_operator_overload_variadic : Error<"overloaded %0 cannot be variadic">;
 def warn_cxx20_compat_operator_overload_static : Warning<
   "declaring overloaded %0 as 'static' is incompatible with C++ standards "
-  "before C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "before C++23">, InGroup<CXXPre23Compat>, DefaultIgnore;
 def ext_operator_overload_static : ExtWarn<
-  "declaring overloaded %0 as 'static' is a C++2b extension">, InGroup<CXX2b>;
+  "declaring overloaded %0 as 'static' is a C++23 extension">, InGroup<CXX23>;
 def err_operator_overload_static : Error<
   "overloaded %0 cannot be a static member function">;
 def err_operator_overload_default_arg : Error<
@@ -9226,9 +9233,9 @@ def err_operator_overload_default_arg : Error<
 
 def ext_subscript_overload : Warning<
   "overloaded %0 with %select{no|a defaulted|more than one}1 parameter is a "
-  "C++2b extension">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "C++23 extension">, InGroup<CXXPre23Compat>, DefaultIgnore;
 def error_subscript_overload : Error<
-  "overloaded %0 cannot have %select{no|a defaulted|more than one}1 parameter before C++2b">;
+  "overloaded %0 cannot have %select{no|a defaulted|more than one}1 parameter before C++23">;
 
 def err_operator_overload_must_be : Error<
   "overloaded %0 must be a %select{unary|binary|unary or binary}2 operator "
@@ -9494,12 +9501,21 @@ def note_defaulted_comparison_cannot_deduce_undeduced_auto : Note<
   "%select{|member|base class}0 %1 declared here">;
 def note_defaulted_comparison_cannot_deduce_callee : Note<
   "selected 'operator<=>' for %select{|member|base class}0 %1 declared here">;
-def err_incorrect_defaulted_comparison_constexpr : Error<
+def ext_defaulted_comparison_constexpr_mismatch : Extension<
   "defaulted definition of %select{%sub{select_defaulted_comparison_kind}1|"
-  "three-way comparison operator}0 "
-  "cannot be declared %select{constexpr|consteval}2 because "
-  "%select{it|the corresponding implicit 'operator=='}0 "
-  "invokes a non-constexpr comparison function">;
+  "three-way comparison operator}0 that is "
+  "declared %select{constexpr|consteval}2 but"
+  "%select{|for which the corresponding implicit 'operator==' }0 "
+  "invokes a non-constexpr comparison function is a C++23 extension">,
+  InGroup<DiagGroup<"c++23-default-comp-relaxed-constexpr">>;
+def warn_cxx23_compat_defaulted_comparison_constexpr_mismatch : Warning<
+  "defaulted definition of %select{%sub{select_defaulted_comparison_kind}1|"
+  "three-way comparison operator}0 that is "
+  "declared %select{constexpr|consteval}2 but"
+  "%select{|for which the corresponding implicit 'operator==' }0 "
+  "invokes a non-constexpr comparison function is incompatible with C++ "
+  "standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def note_defaulted_comparison_not_constexpr : Note<
   "non-constexpr comparison function would be used to compare "
   "%select{|member %1|base class %1}0">;
@@ -10107,12 +10123,6 @@ def err_mips_builtin_requires_dspr2 : Error<
   "this builtin requires 'dsp r2' ASE, please use -mdspr2">;
 def err_mips_builtin_requires_msa : Error<
   "this builtin requires 'msa' ASE, please use -mmsa">;
-def err_ppc_builtin_only_on_arch : Error<
-  "this builtin is only valid on POWER%0 or later CPUs">;
-def err_ppc_builtin_requires_vsx : Error<
-  "this builtin requires VSX to be enabled">;
-def err_ppc_builtin_requires_htm : Error<
-  "this builtin requires HTM to be enabled">;
 def err_ppc_builtin_requires_abi : Error<
   "this builtin requires ABI -mabi=%0">;
 def err_ppc_invalid_use_mma_type : Error<

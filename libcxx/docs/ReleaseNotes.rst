@@ -53,6 +53,9 @@ Improvements and New Features
 - The performance of ``dynamic_cast`` on its hot paths is greatly improved and is as efficient as the
   ``libsupc++`` implementation. Note that the performance improvements are shipped in ``libcxxabi``.
 
+- `D122780 <https://reviews.llvm.org/D122780>`_ Improved the performance of ``std::sort`` and ``std::ranges::sort``
+  by up to 50% for arithmetic types and by approximately 10% for other types.
+
 Deprecations and Removals
 -------------------------
 
@@ -68,6 +71,11 @@ Deprecations and Removals
            ``stdexcept``, ``system_error``, ``type_traits``, ``typeinfo``
 
 - ``<algorithm>`` no longer includes ``<chrono>`` in any C++ version (it was prevously included in C++17 and earlier).
+
+- ``<string>`` no longer includes ``<vector>`` in any C++ version (it was prevously included in C++20 and earlier).
+
+- ``<string>``, ``<string_view>``, and ``<mutex>`` no longer include ``<functional>``
+  in any C++ version (it was prevously included in C++20 and earlier).
 
 - The headers ``<experimental/algorithm>`` and ``<experimental/functional>`` have been removed, since all the contents
   have been implemented in namespace ``std`` for at least two releases.
