@@ -196,8 +196,8 @@ private:
     return nullptr;
   }
   const std::string &getString(const SPIRVId Id);
-  const std::string getStringContinued(const SPIRVId Id,
-                                       SPIRVExtInst *DebugInst);
+  const std::string getStringSourceContinued(const SPIRVId Id,
+                                             SPIRVExtInst *DebugInst);
   SPIRVWord getConstantValueOrLiteral(const std::vector<SPIRVWord> &,
                                       const SPIRVWord,
                                       const SPIRVExtInstSetKind);

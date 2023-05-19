@@ -136,9 +136,9 @@ const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
 }
 
 const std::string
-SPIRVToLLVMDbgTran::getStringContinued(const SPIRVId Id,
-                                       SPIRVExtInst *DebugInst) {
-  if (getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
+SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
+                                             SPIRVExtInst *DebugInst) {
+  if (!isValidId(Id) || getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
     return "";
   std::string Str = BM->get<SPIRVString>(Id)->getStr();
   using namespace SPIRVDebug::Operand::SourceContinued;
@@ -1488,8 +1488,28 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
                      ParseChecksum(ChecksumStr));
   }
 
-  return getDIFile(getString(SourceArgs[FileIdx]), std::nullopt,
-                   getStringContinued(SourceArgs[TextIdx], Source));
+  std::optional<DIFile::ChecksumInfo<StringRef>> CS;
+  SPIRVWord StrIdx = SourceArgs[TextIdx];
+  if (Source->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumKind]) &&
+        !getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumValue])) {
+      llvm::DIFile::ChecksumKind Kind = SPIRV::DbgChecksumKindMap::rmap(
+          static_cast<SPIRVDebug::FileChecksumKind>(
+              BM->get<SPIRVConstant>(SourceArgs[ChecksumKind])
+                  ->getZExtIntValue()));
+      StringRef Checksum = getString(SourceArgs[ChecksumValue]);
+      size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
+      CS.emplace(Kind, Checksum.substr(0, ChecksumEndPos));
+    }
+
+    if (SourceArgs.size() == MaxOperandCount)
+      StrIdx = SourceArgs[TextNonSemIdx];
+    else
+      StrIdx = SPIRVID_INVALID;
+  }
+
+  return getDIFile(getString(SourceArgs[FileIdx]), CS,
+                   getStringSourceContinued(StrIdx, Source));
 }
 
 DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {

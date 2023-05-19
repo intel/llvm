@@ -4,6 +4,7 @@
 #include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 #include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 namespace SPIRVDebug {
 
@@ -287,6 +288,12 @@ enum ImportedEntityTag {
   ImportedDeclaration = 1,
 };
 
+enum FileChecksumKind {
+  MD5 = 0,
+  SHA1 = 1,
+  SHA256 = 2,
+};
+
 namespace Operand {
 
 namespace CompilationUnit {
@@ -305,7 +312,12 @@ namespace Source {
 enum {
   FileIdx         = 0,
   TextIdx         = 1,
-  MinOperandCount = 1
+  // For NonSemantic.Shader.DebugInfo.200
+  ChecksumKind    = 1,
+  ChecksumValue   = 2,
+  TextNonSemIdx   = 3,
+  MinOperandCount = 1,
+  MaxOperandCount = 4
 };
 }
 
@@ -1337,6 +1349,15 @@ template <>
 inline void DbgImportedEntityMap::init() {
   add(dwarf::DW_TAG_imported_module,      SPIRVDebug::ImportedModule);
   add(dwarf::DW_TAG_imported_declaration, SPIRVDebug::ImportedDeclaration);
+}
+
+typedef SPIRVMap<llvm::DIFile::ChecksumKind, SPIRVDebug::FileChecksumKind>
+  DbgChecksumKindMap;
+template <>
+inline void DbgChecksumKindMap::init() {
+  add(llvm::DIFile::CSK_MD5,    SPIRVDebug::MD5);
+  add(llvm::DIFile::CSK_SHA1,   SPIRVDebug::SHA1);
+  add(llvm::DIFile::CSK_SHA256, SPIRVDebug::SHA256);
 }
 
 } // namespace SPIRV
