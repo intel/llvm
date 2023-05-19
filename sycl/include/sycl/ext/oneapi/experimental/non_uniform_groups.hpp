@@ -46,8 +46,11 @@ inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
 
 template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
-  // TODO: This will need to be optimized
   sycl::vec<unsigned, 4> MemberMask = ExtractMask(GetMask(Group));
+#if defined(__NVPTX__)
+  return __nvvm_fns(MemberMask[0], 0, Id + 1);
+#else
+  // TODO: This will need to be optimized
   uint32_t Count = 0;
   for (int i = 0; i < 4; ++i) {
     for (int b = 0; b < 32; ++b) {
@@ -60,6 +63,7 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
     }
   }
   return Count;
+#endif
 }
 
 } // namespace detail
