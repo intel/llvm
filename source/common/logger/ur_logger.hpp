@@ -15,11 +15,11 @@ namespace logger {
 Logger create_logger(std::string logger_name, bool skip_prefix = false);
 
 inline Logger &get_logger(std::string name = "common") {
-    static Logger logger = create_logger(name);
+    static Logger logger = create_logger(std::move(name));
     return logger;
 }
 
-inline void init(std::string name) { get_logger(name); }
+inline void init(std::string name) { get_logger(std::move(name)); }
 
 template <typename... Args>
 inline void debug(const char *format, Args &&...args) {
@@ -81,21 +81,21 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix) {
     try {
         auto map = getenv_to_map(env_var_name.str().c_str());
         if (!map.has_value()) {
-            return Logger(
-                std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
+            return Logger(std::make_unique<logger::StderrSink>(
+                std::move(logger_name), skip_prefix));
         }
 
         auto kv = map->find("level");
         if (kv != map->end()) {
             auto value = kv->second.front();
-            level = str_to_level(value);
+            level = str_to_level(std::move(value));
             map->erase(kv);
         }
 
         kv = map->find("flush");
         if (kv != map->end()) {
             auto value = kv->second.front();
-            flush_level = str_to_level(value);
+            flush_level = str_to_level(std::move(value));
             map->erase(kv);
         }
 
@@ -110,8 +110,8 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix) {
             std::cerr << "Wrong logger environment variable parameter: '"
                       << map->begin()->first
                       << "'. Default logger options are set.";
-            return Logger(
-                std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
+            return Logger(std::make_unique<logger::StderrSink>(
+                std::move(logger_name), skip_prefix));
         }
 
         sink =
@@ -122,8 +122,8 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix) {
         std::cerr << "Error when creating a logger instance from the '"
                   << env_var_name.str() << "' environment variable:\n"
                   << e.what() << std::endl;
-        return Logger(
-            std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
+        return Logger(std::make_unique<logger::StderrSink>(
+            std::move(logger_name), skip_prefix));
     }
     sink->setFlushLevel(flush_level);
 
