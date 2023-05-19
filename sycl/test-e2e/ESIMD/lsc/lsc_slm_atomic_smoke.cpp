@@ -417,6 +417,7 @@ bool test_int_types(queue q) {
     // passed &= test<int8_t, N, Op>(q);
 
     passed &= test<int32_t, N, Op>(q);
+    passed &= test<int64_t, N, Op>(q);
     if constexpr (!std::is_same_v<signed long, int64_t> &&
                   !std::is_same_v<signed long, int32_t>) {
       passed &= test<signed long, N, Op>(q);
@@ -430,6 +431,7 @@ bool test_int_types(queue q) {
     // passed &= test<uint8_t, N, Op>(q);
 
     passed &= test<uint32_t, N, Op>(q);
+    passed &= test<uint64_t, N, Op>(q);
     if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
                   !std::is_same_v<unsigned long, uint32_t>) {
       passed &= test<unsigned long, N, Op>(q);
@@ -450,6 +452,7 @@ template <int N, template <class, int> class Op> bool test_fp_types(queue q) {
     }
   }
   passed &= test<float, N, Op>(q);
+  passed &= test<double, N, Op>(q);
   return passed;
 }
 
@@ -494,6 +497,9 @@ int main(void) {
 
   passed &= test_int_types_and_sizes<ImplUMax, Unsigned>(q);
   passed &= test_int_types_and_sizes<ImplUMin, Unsigned>(q);
+
+  passed &= test_fp_types_and_sizes<ImplLSCFadd>(q);
+  passed &= test_fp_types_and_sizes<ImplLSCFsub>(q);
 
   passed &= test_fp_types_and_sizes<ImplLSCFmax>(q);
   passed &= test_fp_types_and_sizes<ImplLSCFmin>(q);
