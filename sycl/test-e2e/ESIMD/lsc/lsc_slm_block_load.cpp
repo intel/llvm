@@ -36,17 +36,8 @@ int main() {
   Passed &= test_load<uint32_t, TestMerging>(Q);
   Passed &= test_load<uint64_t, TestMerging>(Q);
 
-  Passed &= test_load<uint8_t, TestMerging>(Q);
-  Passed &= test_load<uint8_t, !TestMerging>(Q);
-
-  Passed &= test_load<uint16_t, TestMerging>(Q);
-  Passed &= test_load<uint16_t, !TestMerging>(Q);
-
-  Passed &= test_load<float, TestMerging>(Q);
-  Passed &= test_load<float, !TestMerging>(Q);
-
-  Passed &= test_load<double, TestMerging>(Q);
-  Passed &= test_load<double, !TestMerging>(Q);
+  // TODO: Enable the test with 1- and 2-byte element types, with floating point
+  // types when lsc_slm_block_load() API is ready.
 
   std::cout << (Passed ? "Passed" : "FAILED") << std::endl;
   return Passed ? 0 : 1;

@@ -74,6 +74,10 @@ const char *to_string(LSCAtomicOp op) {
     return "lsc::fmin";
   case LSCAtomicOp::fcmpxchg:
     return "lsc::fcmpxchg";
+  case LSCAtomicOp::fadd:
+    return "lsc::fadd";
+  case LSCAtomicOp::fsub:
+    return "lsc::fsub";
   case LSCAtomicOp::load:
     return "lsc::load";
   case LSCAtomicOp::store:
@@ -153,8 +157,8 @@ bool test(queue q) {
                   ;
               }
             }
-            auto data0 = lsc_slm_block_load<T, size>(0);
-            lsc_block_store(arr, data0);
+            data = lsc_slm_block_load<T, size>(0);
+            lsc_block_store(arr, data);
           });
     });
     e.wait();
@@ -363,6 +367,10 @@ struct ImplSMax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::smax> {};
 template <class T, int N>
 struct ImplUMax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::umax> {};
 
+template <class T, int N>
+struct ImplLSCFadd : ImplAdd<T, N, LSCAtomicOp, LSCAtomicOp::fadd> {};
+template <class T, int N>
+struct ImplLSCFsub : ImplSub<T, N, LSCAtomicOp, LSCAtomicOp::fsub> {};
 template <class T, int N>
 struct ImplLSCFmin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::fmin> {};
 template <class T, int N>

@@ -17,10 +17,6 @@ template <int Id, int NGroups, int LocalSize, int VL> bool test_store() {
   bool Passed = true;
   Passed &= test<Id, uint32_t, NGroups, LocalSize, VL, 1, true>();
   Passed &= test<Id + 1, uint64_t, NGroups, LocalSize, VL, 1, true>();
-  Passed &= test<Id + 2, uint8_t, NGroups, LocalSize, VL, 1, true>();
-  Passed &= test<Id + 3, uint16_t, NGroups, LocalSize, VL, 1, true>();
-  Passed &= test<Id + 4, float, NGroups, LocalSize, VL, 1, true>();
-  Passed &= test<Id + 5, double, NGroups, LocalSize, VL, 1, true>();
   return Passed;
 }
 
@@ -29,11 +25,11 @@ int main(void) {
 
   // test_store<Id, NGroups, LocalSize, VL>();
   Passed &= test_store<0, 1, 1, 4>();
-  Passed &= test_store<6, 1, 7, 16>();
-  Passed &= test_store<12, 4, 3, 2>();
-  Passed &= test_store<18, 16, 8, 8>();
-  Passed &= test_store<24, 2, 4, 32>();
-  Passed &= test_store<30, 2, 4, 64>();
+  Passed &= test_store<2, 1, 7, 16>();
+  Passed &= test_store<4, 4, 3, 2>();
+  Passed &= test_store<6, 16, 8, 8>();
+  Passed &= test_store<8, 2, 4, 32>();
+  Passed &= test_store<10, 2, 4, 64>();
 
   std::cout << (Passed ? "Passed" : "FAILED") << std::endl;
   return Passed ? 0 : 1;

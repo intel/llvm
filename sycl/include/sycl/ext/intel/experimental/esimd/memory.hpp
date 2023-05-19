@@ -2700,7 +2700,6 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
 __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd_mask<N> pred) {
-  static_assert(sizeof(T) > 1, "Unsupported data type");
   __ESIMD_EDNS::check_lsc_vector_size<1>();
   __ESIMD_EDNS::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2741,10 +2740,6 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd<T, N> src0,
                       __ESIMD_NS::simd_mask<N> pred) {
-  static_assert(Op != __ESIMD_NS::atomic_op::fadd &&
-                    Op != __ESIMD_NS::atomic_op::fsub,
-                "fadd and fsub are not supported for slm.");
-  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2788,7 +2783,6 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                       __ESIMD_NS::simd_mask<N> pred) {
-  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
