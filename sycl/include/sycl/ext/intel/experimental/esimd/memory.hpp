@@ -562,6 +562,7 @@ lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
   static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
                 "Transposed load is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size VS = detail::to_lsc_vector_size<NElts>();
+
   constexpr auto Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
@@ -1550,8 +1551,8 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
-  using _CstT = typename detail::lsc_bitcast_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  using CstT = typename detail::lsc_bitcast_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<CstT>();
   __esimd_lsc_store_slm<MsgT, cache_hint::none, cache_hint::none, _AddressScale,
                         _ImmOffset, _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), Tmp.data());
@@ -2647,6 +2648,7 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
 __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4, "Unsupported data type");
   __ESIMD_EDNS::check_lsc_vector_size<1>();
   __ESIMD_EDNS::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2687,6 +2689,10 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd<T, N> src0,
                       __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(Op != __ESIMD_NS::atomic_op::fadd &&
+                    Op != __ESIMD_NS::atomic_op::fsub,
+                "fadd and fsub are not supported for slm.");
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2700,11 +2706,12 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data = detail::lsc_format_input<MsgT>(src0);
   __ESIMD_NS::simd<MsgT, N> Tmp =
       __esimd_lsc_xatomic_slm_1<MsgT, _Op, cache_hint::none, cache_hint::none,
                                 _AddressScale, _ImmOffset, _DS, _VS,
                                 _Transposed, N>(pred.data(), offsets.data(),
-                                                src0.data());
+                                                Msg_data.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2729,6 +2736,7 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                       __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2742,11 +2750,13 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data0 = detail::lsc_format_input<MsgT>(src0);
+  __ESIMD_NS::simd<MsgT, N> Msg_data1 = detail::lsc_format_input<MsgT>(src1);
   __ESIMD_NS::simd<MsgT, N> Tmp =
       __esimd_lsc_xatomic_slm_2<MsgT, _Op, cache_hint::none, cache_hint::none,
                                 _AddressScale, _ImmOffset, _DS, _VS,
-                                _Transposed, N>(pred.data(), offsets.data(),
-                                                src0.data(), src1.data());
+                                _Transposed, N>(
+          pred.data(), offsets.data(), Msg_data0.data(), Msg_data1.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
