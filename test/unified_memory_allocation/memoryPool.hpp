@@ -61,15 +61,14 @@ TEST_P(umaPoolTest, pow2AlignedAlloc) {
     GTEST_SKIP();
 #endif
 
-    static constexpr size_t allocSize = 64;
     static constexpr size_t maxAlignment = (1u << 22);
 
     for (size_t alignment = 1; alignment <= maxAlignment; alignment <<= 1) {
         std::cout << alignment << std::endl;
-        auto *ptr = umaPoolAlignedMalloc(pool.get(), allocSize, alignment);
+        auto *ptr = umaPoolAlignedMalloc(pool.get(), alignment, alignment);
         ASSERT_NE(ptr, nullptr);
         ASSERT_TRUE(reinterpret_cast<uintptr_t>(ptr) % alignment == 0);
-        std::memset(ptr, 0, allocSize);
+        std::memset(ptr, 0, alignment);
         umaPoolFree(pool.get(), ptr);
     }
 }
