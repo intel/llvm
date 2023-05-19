@@ -48,7 +48,7 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda_aws;win_l0_gen12"
+      lts_config: "hip_amdgpu;ocl_x64;lin_gen9;esimd_emu;cuda_aws;win_l0_gen12"
 
   linux_default:
     name: Linux

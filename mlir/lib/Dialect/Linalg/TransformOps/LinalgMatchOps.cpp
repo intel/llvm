@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Linalg/TransformOps/LinalgMatchOps.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.h"
 #include "mlir/Dialect/Transform/IR/MatchInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/FunctionImplementation.h"
@@ -607,7 +607,7 @@ DiagnosedSilenceableFailure transform::MatchStructuredResultOp::matchOperation(
     return diag;
 
   Value result = linalgOp.getTiedOpResult(linalgOp.getDpsInitOperand(position));
-  if (getResult().getType().isa<TransformValueHandleTypeInterface>()) {
+  if (isa<TransformValueHandleTypeInterface>(getResult().getType())) {
     results.setValues(cast<OpResult>(getResult()), result);
     return DiagnosedSilenceableFailure::success();
   }
@@ -618,7 +618,7 @@ DiagnosedSilenceableFailure transform::MatchStructuredResultOp::matchOperation(
   }
   Operation *firstUser = *result.getUsers().begin();
   if (getAny()) {
-    results.set(cast<OpResult>(getResult()), firstUser);
+    results.set(cast<OpResult>(getResult()), {firstUser});
     return DiagnosedSilenceableFailure::success();
   }
   if (getSingle()) {
@@ -626,7 +626,7 @@ DiagnosedSilenceableFailure transform::MatchStructuredResultOp::matchOperation(
       return emitSilenceableError()
              << "more than one result user with single user requested";
     }
-    results.set(cast<OpResult>(getResult()), firstUser);
+    results.set(cast<OpResult>(getResult()), {firstUser});
     return DiagnosedSilenceableFailure::success();
   }
 
@@ -648,7 +648,7 @@ transform::MatchStructuredResultOp::getPositionFor(linalg::LinalgOp op,
 
 LogicalResult transform::MatchStructuredResultOp::verify() {
   if ((getAny() || getSingle()) ^
-      getResult().getType().isa<TransformHandleTypeInterface>()) {
+      isa<TransformHandleTypeInterface>(getResult().getType())) {
     return emitOpError() << "expects either the any/single keyword or the type "
                             "value handle result type";
   }

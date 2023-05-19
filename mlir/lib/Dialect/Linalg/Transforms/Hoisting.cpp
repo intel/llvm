@@ -71,6 +71,8 @@ static bool noAliasingUseInLoop(vector::TransferReadOp transferRead,
     }
     if (isMemoryEffectFree(user) || isa<vector::TransferReadOp>(user))
       continue;
+    if (!loop->isAncestor(user))
+      continue;
     return false;
   }
   return true;
@@ -86,7 +88,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(func::FuncOp func) {
         [&](LoopLikeOpInterface loopLike) { moveLoopInvariantCode(loopLike); });
 
     func.walk([&](vector::TransferReadOp transferRead) {
-      if (!transferRead.getShapedType().isa<MemRefType>())
+      if (!isa<MemRefType>(transferRead.getShapedType()))
         return WalkResult::advance();
 
       LLVM_DEBUG(DBGS() << "Candidate for hoisting: "
@@ -94,7 +96,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(func::FuncOp func) {
       auto loop = dyn_cast<LoopLikeOpInterface>(transferRead->getParentOp());
       LLVM_DEBUG(DBGS() << "Parent op: " << *transferRead->getParentOp()
                         << "\n");
-      if (!isa_and_nonnull<scf::ForOp, AffineForOp>(loop))
+      if (!isa_and_nonnull<scf::ForOp, affine::AffineForOp>(loop))
         return WalkResult::advance();
 
       LLVM_DEBUG(DBGS() << "Candidate read: " << *transferRead.getOperation()
@@ -200,7 +202,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(func::FuncOp func) {
             // the walk.
             return WalkResult::interrupt();
           })
-          .Case<AffineForOp>([&](AffineForOp affineForOp) {
+          .Case<affine::AffineForOp>([&](affine::AffineForOp affineForOp) {
             auto newForOp = replaceForOpWithNewYields(
                 b, affineForOp, transferRead.getVector(),
                 SmallVector<Value>{transferWrite.getVector()},

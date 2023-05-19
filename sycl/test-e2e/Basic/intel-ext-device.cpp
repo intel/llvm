@@ -1,7 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// REQUIRES: aspect-gpu
+// REQUIRES: gpu
 // REQUIRES: level_zero || opencl
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
 //

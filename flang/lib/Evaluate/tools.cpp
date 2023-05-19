@@ -1555,9 +1555,11 @@ bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name) {
 }
 
 bool IsBuiltinCPtr(const Symbol &symbol) {
-  if (const DeclTypeSpec *declType = symbol.GetType())
-    if (const DerivedTypeSpec *derived = declType->AsDerived())
+  if (const DeclTypeSpec *declType = symbol.GetType()) {
+    if (const DerivedTypeSpec *derived = declType->AsDerived()) {
       return IsIsoCType(derived);
+    }
+  }
   return false;
 }
 
@@ -1655,6 +1657,21 @@ bool AreTkCompatibleTypes(const DeclTypeSpec *x, const DeclTypeSpec *y) {
     }
   }
   return false;
+}
+
+common::IgnoreTKRSet GetIgnoreTKR(const Symbol &symbol) {
+  common::IgnoreTKRSet result;
+  if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
+    result = object->ignoreTKR();
+    if (const Symbol * ownerSymbol{symbol.owner().symbol()}) {
+      if (const auto *ownerSubp{ownerSymbol->detailsIf<SubprogramDetails>()}) {
+        if (ownerSubp->defaultIgnoreTKR()) {
+          result |= common::ignoreTKRAll;
+        }
+      }
+    }
+  }
+  return result;
 }
 
 } // namespace Fortran::semantics

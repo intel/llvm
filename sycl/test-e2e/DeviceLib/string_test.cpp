@@ -1,12 +1,9 @@
 // UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-builtin %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-builtin -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
+// RUN: %if !gpu %{ %{run} %t.out %}
 
 #include <cassert>
 #include <cstdint>
@@ -69,7 +66,7 @@ USM_TEST_RES kernel_test_memcpy_usm(sycl::queue &deviceQueue) {
   if (usm_shared_dest == nullptr || usm_shared_src == nullptr)
     return USM_ALLOC_FAIL;
   // Init src usm memory
-  char *host_init_str = "abcdefghijklmnopqrstuvwxyz";
+  const char *host_init_str = "abcdefghijklmnopqrstuvwxyz";
   size_t str_len = strlen(host_init_str);
   deviceQueue
       .submit([&](sycl::handler &cgh) {

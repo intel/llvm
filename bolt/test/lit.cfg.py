@@ -87,6 +87,7 @@ tools = [
     ToolSubst('llvm-nm', unresolved='fatal'),
     ToolSubst('llvm-objdump', unresolved='fatal'),
     ToolSubst('llvm-objcopy', unresolved='fatal'),
+    ToolSubst('llvm-strings', unresolved='fatal'),
     ToolSubst('llvm-strip', unresolved='fatal'),
     ToolSubst('llvm-readelf', unresolved='fatal'),
     ToolSubst('link_fdata', command=sys.executable, unresolved='fatal', extra_args=[link_fdata_cmd]),
@@ -110,4 +111,4 @@ llvm_config.feature_config(
         ('--targets-built', calculate_arch_features)
      ])
 
-config.targets = frozenset(config.targets_to_build.split())
+config.targets = frozenset(config.targets_to_build.split(';'))

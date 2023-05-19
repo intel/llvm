@@ -1,13 +1,6 @@
 # See docs/CMake.html for instructions about how to build LLVM with CMake.
 
-cmake_minimum_required(VERSION 3.13.4)
-if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
-  message(WARNING
-    "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
-    "minimum version of CMake required to build LLVM will become 3.20.0, and "
-    "using an older CMake will become an error. Please upgrade your CMake to "
-    "at least 3.20.0 now to avoid issues in the future!")
-endif()
+cmake_minimum_required(VERSION 3.20.0)
 
 set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
@@ -1175,7 +1168,7 @@ add_subdirectory(lib/TableGen)
 
 add_subdirectory(utils/TableGen)
 
-add_subdirectory(include/llvm)
+add_subdirectory(include)
 
 add_subdirectory(lib)
 
@@ -1287,14 +1280,14 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     )
 
   if (LLVM_INSTALL_MODULEMAPS)
-    install(DIRECTORY include/llvm include/llvm-c
+    install(DIRECTORY include
             DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
             COMPONENT llvm-headers
             FILES_MATCHING
             PATTERN "module.modulemap"
             )
-    install(FILES include/llvm/module.install.modulemap
-            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/llvm"
+    install(FILES include/module.install.modulemap
+            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
             COMPONENT llvm-headers
             RENAME "module.extern.modulemap"
             )

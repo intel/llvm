@@ -16,7 +16,6 @@
 #include "AMDGPU.h"
 #include "AMDGPUInstrInfo.h"
 #include "AMDGPUMachineFunction.h"
-#include "GCNSubtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -1424,32 +1423,42 @@ SDValue AMDGPUTargetLowering::LowerCONCAT_VECTORS(SDValue Op,
 
 SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
                                                      SelectionDAG &DAG) const {
-
+  SDLoc SL(Op);
   SmallVector<SDValue, 8> Args;
   unsigned Start = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
   EVT VT = Op.getValueType();
   EVT SrcVT = Op.getOperand(0).getValueType();
 
-  // For these types, we have some TableGen patterns except if the index is 1
-  if (((SrcVT == MVT::v4f16 && VT == MVT::v2f16) ||
-       (SrcVT == MVT::v4i16 && VT == MVT::v2i16)) &&
-      Start != 1)
-    return Op;
+  if (VT.getScalarSizeInBits() == 16 && Start % 2 == 0) {
+    unsigned NumElt = VT.getVectorNumElements();
+    unsigned NumSrcElt = SrcVT.getVectorNumElements();
+    assert(NumElt % 2 == 0 && NumSrcElt % 2 == 0 && "expect legal types");
 
-  if (((SrcVT == MVT::v8f16 && VT == MVT::v4f16) ||
-       (SrcVT == MVT::v8i16 && VT == MVT::v4i16)) &&
-      (Start == 0 || Start == 4))
-    return Op;
+    // We have some TableGen patterns for when the extracted vector is exactly
+    // the low or high half of the operand.
+    if ((NumSrcElt == 2 * NumElt) && (Start == 0 || Start == NumElt))
+      return Op;
 
-  if (((SrcVT == MVT::v16f16 && VT == MVT::v8f16) ||
-       (SrcVT == MVT::v16i16 && VT == MVT::v8i16)) &&
-      (Start == 0 || Start == 8))
-    return Op;
+    // Extract 32-bit registers at a time.
+    EVT NewSrcVT = EVT::getVectorVT(*DAG.getContext(), MVT::i32, NumSrcElt / 2);
+    EVT NewVT = NumElt == 2
+                    ? MVT::i32
+                    : EVT::getVectorVT(*DAG.getContext(), MVT::i32, NumElt / 2);
+    SDValue Tmp = DAG.getNode(ISD::BITCAST, SL, NewSrcVT, Op.getOperand(0));
+
+    DAG.ExtractVectorElements(Tmp, Args, Start / 2, NumElt / 2);
+    if (NumElt == 2)
+      Tmp = Args[0];
+    else
+      Tmp = DAG.getBuildVector(NewVT, SL, Args);
+
+    return DAG.getNode(ISD::BITCAST, SL, VT, Tmp);
+  }
 
   DAG.ExtractVectorElements(Op.getOperand(0), Args, Start,
                             VT.getVectorNumElements());
 
-  return DAG.getBuildVector(Op.getValueType(), SDLoc(Op), Args);
+  return DAG.getBuildVector(Op.getValueType(), SL, Args);
 }
 
 // TODO: Handle fabs too
@@ -1964,9 +1973,9 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     SDValue Mulhi1_Lo, Mulhi1_Hi;
     std::tie(Mulhi1_Lo, Mulhi1_Hi) =
         DAG.SplitScalar(Mulhi1, DL, HalfVT, HalfVT);
-    SDValue Add1_Lo = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Rcp_Lo,
+    SDValue Add1_Lo = DAG.getNode(ISD::UADDO_CARRY, DL, HalfCarryVT, Rcp_Lo,
                                   Mulhi1_Lo, Zero1);
-    SDValue Add1_Hi = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Rcp_Hi,
+    SDValue Add1_Hi = DAG.getNode(ISD::UADDO_CARRY, DL, HalfCarryVT, Rcp_Hi,
                                   Mulhi1_Hi, Add1_Lo.getValue(1));
     SDValue Add1 = DAG.getBitcast(VT,
                         DAG.getBuildVector(MVT::v2i32, DL, {Add1_Lo, Add1_Hi}));
@@ -1977,9 +1986,9 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     SDValue Mulhi2_Lo, Mulhi2_Hi;
     std::tie(Mulhi2_Lo, Mulhi2_Hi) =
         DAG.SplitScalar(Mulhi2, DL, HalfVT, HalfVT);
-    SDValue Add2_Lo = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Add1_Lo,
+    SDValue Add2_Lo = DAG.getNode(ISD::UADDO_CARRY, DL, HalfCarryVT, Add1_Lo,
                                   Mulhi2_Lo, Zero1);
-    SDValue Add2_Hi = DAG.getNode(ISD::ADDCARRY, DL, HalfCarryVT, Add1_Hi,
+    SDValue Add2_Hi = DAG.getNode(ISD::UADDO_CARRY, DL, HalfCarryVT, Add1_Hi,
                                   Mulhi2_Hi, Add2_Lo.getValue(1));
     SDValue Add2 = DAG.getBitcast(VT,
                         DAG.getBuildVector(MVT::v2i32, DL, {Add2_Lo, Add2_Hi}));
@@ -1990,9 +1999,9 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
 
     SDValue Mul3_Lo, Mul3_Hi;
     std::tie(Mul3_Lo, Mul3_Hi) = DAG.SplitScalar(Mul3, DL, HalfVT, HalfVT);
-    SDValue Sub1_Lo = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, LHS_Lo,
+    SDValue Sub1_Lo = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, LHS_Lo,
                                   Mul3_Lo, Zero1);
-    SDValue Sub1_Hi = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, LHS_Hi,
+    SDValue Sub1_Hi = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, LHS_Hi,
                                   Mul3_Hi, Sub1_Lo.getValue(1));
     SDValue Sub1_Mi = DAG.getNode(ISD::SUB, DL, HalfVT, LHS_Hi, Mul3_Hi);
     SDValue Sub1 = DAG.getBitcast(VT,
@@ -2010,11 +2019,11 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     // potential endif to substitute PHIs.
 
     // if C3 != 0 ...
-    SDValue Sub2_Lo = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, Sub1_Lo,
+    SDValue Sub2_Lo = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, Sub1_Lo,
                                   RHS_Lo, Zero1);
-    SDValue Sub2_Mi = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, Sub1_Mi,
+    SDValue Sub2_Mi = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, Sub1_Mi,
                                   RHS_Hi, Sub1_Lo.getValue(1));
-    SDValue Sub2_Hi = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, Sub2_Mi,
+    SDValue Sub2_Hi = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, Sub2_Mi,
                                   Zero, Sub2_Lo.getValue(1));
     SDValue Sub2 = DAG.getBitcast(VT,
                         DAG.getBuildVector(MVT::v2i32, DL, {Sub2_Lo, Sub2_Hi}));
@@ -2030,11 +2039,11 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     // if (C6 != 0)
     SDValue Add4 = DAG.getNode(ISD::ADD, DL, VT, Add3, One64);
 
-    SDValue Sub3_Lo = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, Sub2_Lo,
+    SDValue Sub3_Lo = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, Sub2_Lo,
                                   RHS_Lo, Zero1);
-    SDValue Sub3_Mi = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, Sub2_Mi,
+    SDValue Sub3_Mi = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, Sub2_Mi,
                                   RHS_Hi, Sub2_Lo.getValue(1));
-    SDValue Sub3_Hi = DAG.getNode(ISD::SUBCARRY, DL, HalfCarryVT, Sub3_Mi,
+    SDValue Sub3_Hi = DAG.getNode(ISD::USUBO_CARRY, DL, HalfCarryVT, Sub3_Mi,
                                   Zero, Sub3_Lo.getValue(1));
     SDValue Sub3 = DAG.getBitcast(VT,
                         DAG.getBuildVector(MVT::v2i32, DL, {Sub3_Lo, Sub3_Hi}));
@@ -4185,9 +4194,13 @@ SDValue AMDGPUTargetLowering::performFNegCombine(SDNode *N,
       return Result;
     }
 
-    if (BCSrc.getOpcode() == ISD::SELECT && VT == MVT::f32) {
+    if (BCSrc.getOpcode() == ISD::SELECT && VT == MVT::f32 &&
+        BCSrc.hasOneUse()) {
       // fneg (bitcast (f32 (select cond, i32:lhs, i32:rhs))) ->
       //   select cond, (bitcast i32:lhs to f32), (bitcast i32:rhs to f32)
+
+      // TODO: Cast back result for multiple uses is beneficial in some cases.
+
       SDValue LHS =
           DAG.getNode(ISD::BITCAST, SL, MVT::f32, BCSrc.getOperand(1));
       SDValue RHS =
@@ -4196,12 +4209,8 @@ SDValue AMDGPUTargetLowering::performFNegCombine(SDNode *N,
       SDValue NegLHS = DAG.getNode(ISD::FNEG, SL, MVT::f32, LHS);
       SDValue NegRHS = DAG.getNode(ISD::FNEG, SL, MVT::f32, RHS);
 
-      SDValue NewSelect = DAG.getNode(ISD::SELECT, SL, MVT::f32,
-                                      BCSrc.getOperand(0), NegLHS, NegRHS);
-      if (!BCSrc.hasOneUse())
-        DAG.ReplaceAllUsesWith(BCSrc,
-                               DAG.getNode(ISD::FNEG, SL, VT, NewSelect));
-      return NewSelect;
+      return DAG.getNode(ISD::SELECT, SL, MVT::f32, BCSrc.getOperand(0), NegLHS,
+                         NegRHS);
     }
 
     return SDValue();
@@ -4588,6 +4597,7 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(LOOP)
   NODE_NAME_CASE(CALL)
   NODE_NAME_CASE(TC_RETURN)
+  NODE_NAME_CASE(TC_RETURN_GFX)
   NODE_NAME_CASE(TRAP)
   NODE_NAME_CASE(RET_GLUE)
   NODE_NAME_CASE(RETURN_TO_EPILOG)
@@ -4905,22 +4915,6 @@ void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
   case ISD::INTRINSIC_WO_CHAIN: {
     unsigned IID = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
     switch (IID) {
-    case Intrinsic::amdgcn_mbcnt_lo:
-    case Intrinsic::amdgcn_mbcnt_hi: {
-      const GCNSubtarget &ST =
-          DAG.getMachineFunction().getSubtarget<GCNSubtarget>();
-      // These return at most the (wavefront size - 1) + src1
-      // As long as src1 is an immediate we can calc known bits
-      KnownBits Src1Known = DAG.computeKnownBits(Op.getOperand(2), Depth + 1);
-      unsigned Src1ValBits = Src1Known.countMaxActiveBits();
-      unsigned MaxActiveBits = std::max(Src1ValBits, ST.getWavefrontSizeLog2());
-      // Cater for potential carry
-      MaxActiveBits += Src1ValBits ? 1 : 0;
-      unsigned Size = Op.getValueType().getSizeInBits();
-      if (MaxActiveBits < Size)
-        Known.Zero.setHighBits(Size - MaxActiveBits);
-      break;
-    }
     case Intrinsic::amdgcn_workitem_id_x:
     case Intrinsic::amdgcn_workitem_id_y:
     case Intrinsic::amdgcn_workitem_id_z: {

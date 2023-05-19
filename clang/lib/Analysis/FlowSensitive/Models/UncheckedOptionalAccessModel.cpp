@@ -18,6 +18,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/ASTMatchers/ASTMatchersMacros.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/CFGMatchSwitch.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
@@ -36,16 +37,44 @@
 
 namespace clang {
 namespace dataflow {
+
+static bool isTopLevelNamespaceWithName(const NamespaceDecl &NS,
+                                        llvm::StringRef Name) {
+  return NS.getDeclName().isIdentifier() && NS.getName() == Name &&
+         NS.getParent() != nullptr && NS.getParent()->isTranslationUnit();
+}
+
+static bool hasOptionalClassName(const CXXRecordDecl &RD) {
+  if (!RD.getDeclName().isIdentifier())
+    return false;
+
+  if (RD.getName() == "optional") {
+    if (const auto *N = dyn_cast_or_null<NamespaceDecl>(RD.getDeclContext()))
+      return N->isStdNamespace() || isTopLevelNamespaceWithName(*N, "absl");
+    return false;
+  }
+
+  if (RD.getName() == "Optional") {
+    // Check whether namespace is "::base".
+    const auto *N = dyn_cast_or_null<NamespaceDecl>(RD.getDeclContext());
+    return N != nullptr && isTopLevelNamespaceWithName(*N, "base");
+  }
+
+  return false;
+}
+
 namespace {
 
 using namespace ::clang::ast_matchers;
 using LatticeTransferState = TransferState<NoopLattice>;
 
+AST_MATCHER(CXXRecordDecl, hasOptionalClassNameMatcher) {
+  return hasOptionalClassName(Node);
+}
+
 DeclarationMatcher optionalClass() {
   return classTemplateSpecializationDecl(
-      anyOf(hasName("std::optional"), hasName("std::__optional_storage_base"),
-            hasName("__optional_destruct_base"), hasName("absl::optional"),
-            hasName("base::Optional")),
+      hasOptionalClassNameMatcher(),
       hasTemplateArgument(0, refersToType(type().bind("T"))));
 }
 
@@ -63,8 +92,10 @@ auto isOptionalMemberCallWithName(
   auto Exception = unless(Ignorable ? expr(anyOf(*Ignorable, cxxThisExpr()))
                                     : cxxThisExpr());
   return cxxMemberCallExpr(
-      on(expr(Exception)),
-      callee(cxxMethodDecl(hasName(MemberName), ofClass(optionalClass()))));
+      on(expr(Exception,
+              anyOf(hasOptionalType(),
+                    hasType(pointerType(pointee(optionalOrAliasType())))))),
+      callee(cxxMethodDecl(hasName(MemberName))));
 }
 
 auto isOptionalOperatorCallWithName(
@@ -245,20 +276,12 @@ BoolValue *getHasValue(Environment &Env, Value *OptionalVal) {
   return nullptr;
 }
 
-/// If `Type` is a reference type, returns the type of its pointee. Otherwise,
-/// returns `Type` itself.
-QualType stripReference(QualType Type) {
-  return Type->isReferenceType() ? Type->getPointeeType() : Type;
-}
-
 /// Returns true if and only if `Type` is an optional type.
 bool isOptionalType(QualType Type) {
   if (!Type->isRecordType())
     return false;
-  // FIXME: Optimize this by avoiding the `getQualifiedNameAsString` call.
-  auto TypeName = Type->getAsCXXRecordDecl()->getQualifiedNameAsString();
-  return TypeName == "std::optional" || TypeName == "absl::optional" ||
-         TypeName == "base::Optional";
+  const CXXRecordDecl *D = Type->getAsCXXRecordDecl();
+  return D != nullptr && hasOptionalClassName(*D);
 }
 
 /// Returns the number of optional wrappers in `Type`.
@@ -310,7 +333,7 @@ StorageLocation *maybeInitializeOptionalValueMember(QualType Q,
     return &ValueLoc;
   }
 
-  auto Ty = stripReference(Q);
+  auto Ty = Q.getNonReferenceType();
   auto *ValueVal = Env.createValue(Ty);
   if (ValueVal == nullptr)
     return nullptr;
@@ -349,10 +372,26 @@ bool isNonEmptyOptional(const Value &OptionalVal, const Environment &Env) {
   return HasValueVal != nullptr && Env.flowConditionImplies(*HasValueVal);
 }
 
+StorageLocation *maybeSkipPointer(StorageLocation *Loc,
+                                  const Environment &Env) {
+  if (Loc == nullptr)
+    return nullptr;
+  if (auto *Val = dyn_cast_or_null<PointerValue>(Env.getValue(*Loc)))
+    return &Val->getPointeeLoc();
+  return Loc;
+}
+
+Value *getValueBehindPossiblePointer(const Expr &E, const Environment &Env) {
+  Value *Val = Env.getValue(E, SkipPast::Reference);
+  if (auto *PointerVal = dyn_cast_or_null<PointerValue>(Val))
+    return Env.getValue(PointerVal->getPointeeLoc());
+  return Val;
+}
+
 void transferUnwrapCall(const Expr *UnwrapExpr, const Expr *ObjectExpr,
                         LatticeTransferState &State) {
   if (auto *OptionalVal =
-          State.Env.getValue(*ObjectExpr, SkipPast::ReferenceThenPointer)) {
+          getValueBehindPossiblePointer(*ObjectExpr, State.Env)) {
     if (State.Env.getStorageLocation(*UnwrapExpr, SkipPast::None) == nullptr)
       if (auto *Loc = maybeInitializeOptionalValueMember(
               UnwrapExpr->getType(), *OptionalVal, State.Env))
@@ -373,8 +412,8 @@ void transferOptionalHasValueCall(const CXXMemberCallExpr *CallExpr,
                                   const MatchFinder::MatchResult &,
                                   LatticeTransferState &State) {
   if (auto *HasValueVal = getHasValue(
-          State.Env, State.Env.getValue(*CallExpr->getImplicitObjectArgument(),
-                                        SkipPast::ReferenceThenPointer))) {
+          State.Env, getValueBehindPossiblePointer(
+                         *CallExpr->getImplicitObjectArgument(), State.Env))) {
     auto &CallExprLoc = State.Env.createStorageLocation(*CallExpr);
     State.Env.setValue(CallExprLoc, *HasValueVal);
     State.Env.setStorageLocation(*CallExpr, CallExprLoc);
@@ -396,8 +435,7 @@ void transferValueOrImpl(const clang::Expr *ValueOrPredExpr,
           ->getImplicitObjectArgument();
 
   auto *HasValueVal = getHasValue(
-      State.Env,
-      State.Env.getValue(*ObjectArgumentExpr, SkipPast::ReferenceThenPointer));
+      State.Env, getValueBehindPossiblePointer(*ObjectArgumentExpr, State.Env));
   if (HasValueVal == nullptr)
     return;
 
@@ -449,8 +487,8 @@ void transferCallReturningOptional(const CallExpr *E,
 
 void assignOptionalValue(const Expr &E, Environment &Env,
                          BoolValue &HasValueVal) {
-  if (auto *OptionalLoc =
-          Env.getStorageLocation(E, SkipPast::ReferenceThenPointer)) {
+  if (auto *OptionalLoc = maybeSkipPointer(
+          Env.getStorageLocation(E, SkipPast::Reference), Env)) {
     Env.setValue(*OptionalLoc, createOptionalValue(Env, HasValueVal));
   }
 }
@@ -464,11 +502,13 @@ BoolValue &valueOrConversionHasValue(const FunctionDecl &F, const Expr &E,
   assert(F.getTemplateSpecializationArgs() != nullptr);
   assert(F.getTemplateSpecializationArgs()->size() > 0);
 
-  const int TemplateParamOptionalWrappersCount = countOptionalWrappers(
-      *MatchRes.Context,
-      stripReference(F.getTemplateSpecializationArgs()->get(0).getAsType()));
-  const int ArgTypeOptionalWrappersCount =
-      countOptionalWrappers(*MatchRes.Context, stripReference(E.getType()));
+  const int TemplateParamOptionalWrappersCount =
+      countOptionalWrappers(*MatchRes.Context, F.getTemplateSpecializationArgs()
+                                                   ->get(0)
+                                                   .getAsType()
+                                                   .getNonReferenceType());
+  const int ArgTypeOptionalWrappersCount = countOptionalWrappers(
+      *MatchRes.Context, E.getType().getNonReferenceType());
 
   // Check if this is a constructor/assignment call for `optional<T>` with
   // argument of type `U` such that `T` is constructible from `U`.
@@ -525,13 +565,11 @@ void transferNulloptAssignment(const CXXOperatorCallExpr *E,
   transferAssignment(E, State.Env.getBoolLiteralValue(false), State);
 }
 
-void transferSwap(const Expr &E1, SkipPast E1Skip, const Expr &E2,
+void transferSwap(StorageLocation *Loc1, StorageLocation *Loc2,
                   Environment &Env) {
   // We account for cases where one or both of the optionals are not modeled,
   // either lacking associated storage locations, or lacking values associated
   // to such storage locations.
-  auto *Loc1 = Env.getStorageLocation(E1, E1Skip);
-  auto *Loc2 = Env.getStorageLocation(E2, SkipPast::Reference);
 
   if (Loc1 == nullptr) {
     if (Loc2 != nullptr)
@@ -565,14 +603,20 @@ void transferSwapCall(const CXXMemberCallExpr *E,
                       const MatchFinder::MatchResult &,
                       LatticeTransferState &State) {
   assert(E->getNumArgs() == 1);
-  transferSwap(*E->getImplicitObjectArgument(), SkipPast::ReferenceThenPointer,
-               *E->getArg(0), State.Env);
+  transferSwap(maybeSkipPointer(
+                   State.Env.getStorageLocation(*E->getImplicitObjectArgument(),
+                                                SkipPast::Reference),
+                   State.Env),
+               State.Env.getStorageLocation(*E->getArg(0), SkipPast::Reference),
+               State.Env);
 }
 
 void transferStdSwapCall(const CallExpr *E, const MatchFinder::MatchResult &,
                          LatticeTransferState &State) {
   assert(E->getNumArgs() == 2);
-  transferSwap(*E->getArg(0), SkipPast::Reference, *E->getArg(1), State.Env);
+  transferSwap(State.Env.getStorageLocation(*E->getArg(0), SkipPast::Reference),
+               State.Env.getStorageLocation(*E->getArg(1), SkipPast::Reference),
+               State.Env);
 }
 
 void transferStdForwardCall(const CallExpr *E, const MatchFinder::MatchResult &,
@@ -731,6 +775,17 @@ auto buildTransferMatchSwitch() {
           })
 
       // optional::operator*, optional::operator->
+      // FIXME: This does something slightly strange for `operator->`.
+      // `transferUnwrapCall()` may create a new value of type `T` for the
+      // `optional<T>`, and it associates that value with `E`. In the case of
+      // `operator->`, `E` is a pointer. As a result, we associate an
+      // expression of pointer type with a storage location of non-pointer type
+      // `T`. This can confound other code that expects expressions of
+      // pointer type to be associated with `PointerValue`s, such as the
+      // centrally provided accessors `getImplicitObjectLocation()` and
+      // `getBaseObjectLocation()`, and this is the reason we need to use our
+      // own 'maybeSkipPointer()` and `getValueBehindPossiblePointer()` instead
+      // of these accessors.
       .CaseOfCFGStmt<CallExpr>(valueOperatorCall(std::nullopt),
                                [](const CallExpr *E,
                                   const MatchFinder::MatchResult &,
@@ -812,8 +867,7 @@ auto buildTransferMatchSwitch() {
 std::vector<SourceLocation> diagnoseUnwrapCall(const Expr *UnwrapExpr,
                                                const Expr *ObjectExpr,
                                                const Environment &Env) {
-  if (auto *OptionalVal =
-          Env.getValue(*ObjectExpr, SkipPast::ReferenceThenPointer)) {
+  if (auto *OptionalVal = getValueBehindPossiblePointer(*ObjectExpr, Env)) {
     auto *Prop = OptionalVal->getProperty("has_value");
     if (auto *HasValueVal = cast_or_null<BoolValue>(Prop)) {
       if (Env.flowConditionImplies(*HasValueVal))

@@ -4,7 +4,7 @@
 # Setup Project
 #===============================================================================
 
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.20.0)
 
 set(LLVM_COMMON_CMAKE_UTILS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
@@ -459,10 +459,10 @@ if (LIBCXXABI_USE_LLVM_UNWINDER OR LLVM_NATIVE_ARCH MATCHES ARM)
   if (LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL STREQUAL "LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL-NOTFOUND")
     set(LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL "")
   endif()
+endif()
 
-  if (NOT LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL STREQUAL "")
-    include_directories("${LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL}")
-  endif()
+if (NOT "${LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL}" STREQUAL "")
+  include_directories("${LIBCXXABI_LIBUNWIND_INCLUDES_INTERNAL}")
 endif()
 
 # Add source code. This also contains all of the logic for deciding linker flags

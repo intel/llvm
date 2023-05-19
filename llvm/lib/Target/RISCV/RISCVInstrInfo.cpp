@@ -1118,8 +1118,7 @@ static MachineInstr *canFoldAsPredicatedOp(Register Reg,
   if (getPredicatedOpcode(MI->getOpcode()) == RISCV::INSTRUCTION_LIST_END)
     return nullptr;
   // Check if MI has any other defs or physreg uses.
-  for (unsigned i = 1, e = MI->getNumOperands(); i != e; ++i) {
-    const MachineOperand &MO = MI->getOperand(i);
+  for (const MachineOperand &MO : llvm::drop_begin(MI->operands())) {
     // Reject frame index operands, PEI can't handle the predicated pseudos.
     if (MO.isFI() || MO.isCPI() || MO.isJTI())
       return nullptr;
@@ -1272,6 +1271,9 @@ bool RISCVInstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
   case RISCV::FSGNJ_D:
   case RISCV::FSGNJ_S:
   case RISCV::FSGNJ_H:
+  case RISCV::FSGNJ_D_INX:
+  case RISCV::FSGNJ_S_INX:
+  case RISCV::FSGNJ_H_INX:
     // The canonical floating-point move is fsgnj rd, rs, rs.
     return MI.getOperand(1).isReg() && MI.getOperand(2).isReg() &&
            MI.getOperand(1).getReg() == MI.getOperand(2).getReg();
@@ -1301,6 +1303,9 @@ RISCVInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   case RISCV::FSGNJ_D:
   case RISCV::FSGNJ_S:
   case RISCV::FSGNJ_H:
+  case RISCV::FSGNJ_D_INX:
+  case RISCV::FSGNJ_S_INX:
+  case RISCV::FSGNJ_H_INX:
     // The canonical floating-point move is fsgnj rd, rs, rs.
     if (MI.getOperand(1).isReg() && MI.getOperand(2).isReg() &&
         MI.getOperand(1).getReg() == MI.getOperand(2).getReg())
@@ -1704,6 +1709,9 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
           break;
         case RISCVOp::OPERAND_UIMM8_LSB000:
           Ok = isShiftedUInt<5, 3>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM8_GE32:
+          Ok = isUInt<8>(Imm) && Imm >= 32;
           break;
         case RISCVOp::OPERAND_UIMM9_LSB000:
           Ok = isShiftedUInt<6, 3>(Imm);
@@ -2627,6 +2635,14 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(N, RegState::Kill)
         .setMIFlag(Flag);
   }
+}
+
+ArrayRef<std::pair<MachineMemOperand::Flags, const char *>>
+RISCVInstrInfo::getSerializableMachineMemOperandTargetFlags() const {
+  static const std::pair<MachineMemOperand::Flags, const char *> TargetFlags[] =
+      {{MONontemporalBit0, "riscv-nontemporal-domain-bit-0"},
+       {MONontemporalBit1, "riscv-nontemporal-domain-bit-1"}};
+  return ArrayRef(TargetFlags);
 }
 
 // Returns true if this is the sext.w pattern, addiw rd, rs1, 0.

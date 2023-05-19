@@ -20,6 +20,7 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 //===----------------------------------------------------------------------===//
 // GetParentForOp
@@ -48,7 +49,7 @@ transform::GetParentForOp::apply(transform::TransformResults &results,
     }
     parents.insert(loop);
   }
-  results.set(getResult().cast<OpResult>(), parents.getArrayRef());
+  results.set(cast<OpResult>(getResult()), parents.getArrayRef());
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -84,7 +85,8 @@ static scf::ExecuteRegionOp wrapInExecuteRegion(RewriterBase &b,
 DiagnosedSilenceableFailure
 transform::LoopOutlineOp::apply(transform::TransformResults &results,
                                 transform::TransformState &state) {
-  SmallVector<Operation *> transformed;
+  SmallVector<Operation *> functions;
+  SmallVector<Operation *> calls;
   DenseMap<Operation *, SymbolTable> symbolTables;
   for (Operation *target : state.getPayloadOps(getTarget())) {
     Location location = target->getLoc();
@@ -111,9 +113,11 @@ transform::LoopOutlineOp::apply(transform::TransformResults &results,
       symbolTable.insert(*outlined);
       call.setCalleeAttr(FlatSymbolRefAttr::get(*outlined));
     }
-    transformed.push_back(*outlined);
+    functions.push_back(*outlined);
+    calls.push_back(call);
   }
-  results.set(getTransformed().cast<OpResult>(), transformed);
+  results.set(cast<OpResult>(getFunction()), functions);
+  results.set(cast<OpResult>(getCall()), calls);
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -298,7 +302,7 @@ public:
   using Base::Base;
 
   void init() {
-    declareGeneratedDialect<AffineDialect>();
+    declareGeneratedDialect<affine::AffineDialect>();
     declareGeneratedDialect<func::FuncDialect>();
 
     registerTransformOps<

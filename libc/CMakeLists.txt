@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.20.0)
 
 # Include LLVM's cmake policies.
 if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
@@ -75,11 +75,15 @@ option(LLVM_LIBC_ENABLE_LINTING "Enables linting of libc source files" OFF)
 option(LIBC_GPU_BUILD "Build libc for the GPU. All CPU build options will be ignored." OFF)
 set(LIBC_TARGET_TRIPLE "" CACHE STRING "The target triple for the libc build.")
 
+set(LIBC_ENABLE_UNITTESTS ON)
+set(LIBC_ENABLE_HERMETIC_TESTS ${LLVM_LIBC_FULL_BUILD})
+
 # Defines LIBC_TARGET_ARCHITECTURE and associated macros.
 include(LLVMLibCArchitectures)
 
 if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
   include(prepare_libc_gpu_build)
+  set(LIBC_ENABLE_UNITTESTS OFF)
 endif()
 
 include(LLVMLibCCheckMPFR)

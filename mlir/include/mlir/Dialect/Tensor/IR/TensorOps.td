@@ -31,13 +31,13 @@ class Tensor_OpWithOffsetSizesAndStrides<string mnemonic,
     : Tensor_Op<mnemonic, traits> {
   code extraBaseClassDeclaration = [{
     /// Return the type of the base tensor operand.
-    ::mlir::RankedTensorType getSourceType() { 
-      return getSource().getType().cast<RankedTensorType>();
+    ::mlir::RankedTensorType getSourceType() {
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
 
     /// Return the type of the result tensor.
-    ::mlir::RankedTensorType getResultType() { 
-      return getResult().getType().cast<RankedTensorType>();
+    ::mlir::RankedTensorType getResultType() {
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
 
     /// Return the dynamic sizes for this subview operation if specified.
@@ -51,6 +51,35 @@ class Tensor_OpWithOffsetSizesAndStrides<string mnemonic,
       return ::mlir::getOrCreateRanges(*this, b, loc);
     }
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_BitcastOp : Tensor_Op<"bitcast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    Pure
+  ]> {
+  let summary = "tensor bitcast operation";
+  let description = [{
+    Bitcast a tensor from one type to another type of equivalent element width.
+    If both are ranked, then the rank should be the same and static dimensions
+    should match.
+
+    Example:
+
+    ```mlir
+    // Bitcast from unsigned to signed or signless integer.
+    %2 = tensor.bitcast %1 : tensor<4xui32> to tensor<4xi32>
+    ```
+  }];
+
+  let arguments = (ins AnyTensor:$source);
+  let results = (outs AnyTensor:$dest);
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($dest)";
+
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -187,7 +216,7 @@ def Tensor_EmptyOp : Tensor_Op<"empty",
 
   let extraClassDeclaration = [{
     RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
 
     // Return both static and dynamic sizes as a list of `OpFoldResult`.
@@ -226,7 +255,7 @@ def Tensor_ExtractOp : Tensor_Op<"extract", [
     Pure,
     TypesMatchWith<"result type matches element type of tensor",
                    "tensor", "result",
-                   "$_self.cast<ShapedType>().getElementType()">]> {
+                   "::llvm::cast<TensorType>($_self).getElementType()">]> {
   let summary = "element extraction operation";
   let description = [{
     The `tensor.extract` op reads a ranked tensor and returns one element as
@@ -281,8 +310,7 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamic and
-    ShapedType::kDynamic encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "extract_slice" op is expected to lower into a
@@ -389,12 +417,12 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     /// rank-reduced, from the source type and the static representation of
     /// offsets, sizes and strides. Special sentinels encode the dynamic case.
     static RankedTensorType inferResultType(
-      ShapedType sourceShapedTensorType,
+      RankedTensorType sourceTensorType,
       ArrayRef<int64_t> staticOffsets,
       ArrayRef<int64_t> staticSizes,
       ArrayRef<int64_t> staticStrides);
     static RankedTensorType inferResultType(
-      ShapedType sourceShapedTensorType,
+      RankedTensorType sourceTensorType,
       ArrayRef<OpFoldResult> staticOffsets,
       ArrayRef<OpFoldResult> staticSizes,
       ArrayRef<OpFoldResult> staticStrides);
@@ -459,8 +487,8 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
     Pure,
     TypesMatchWith<"operand types match result element type",
                    "result", "elements", "SmallVector<Type, 2>("
-                   "$_self.cast<ShapedType>().getNumElements(), "
-                   "$_self.cast<ShapedType>().getElementType())">
+                   "::llvm::cast<RankedTensorType>($_self).getNumElements(), "
+                   "::llvm::cast<RankedTensorType>($_self).getElementType())">
   ]> {
   let summary = "tensor from elements operation.";
   let description = [{
@@ -485,9 +513,7 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
 
   let assemblyFormat = "$elements attr-dict `:` type($result)";
 
-  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "Type":$resultType, "ValueRange":$elements)>,
     // Special case builder for when `elements` has size >=1.
     OpBuilder<(ins "ValueRange":$elements)>
   ];
@@ -623,13 +649,13 @@ def Tensor_GatherOp : Tensor_Op<"gather", [
                                             ArrayRef<int64_t> gatherDims,
                                             bool rankReduced);
     RankedTensorType getIndicesType() {
-      return getIndices().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getIndices().getType());
     }
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
   }];
   let hasVerifier = 1;
@@ -695,7 +721,7 @@ def Tensor_InsertOp : Tensor_Op<"insert", [
                    "$_self">,
     TypesMatchWith<"scalar type matches element type of dest",
                    "dest", "scalar",
-                   "$_self.cast<ShapedType>().getElementType()">]> {
+                   "::llvm::cast<TensorType>($_self).getElementType()">]> {
   let summary = "element insertion operation";
   let description = [{
     The `tensor.insert` op inserts a scalar into a ranked tensor `dest` as
@@ -770,8 +796,7 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamic and
-    ShapedType::kDynamic encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "insert_slice" op is expected to lower into a
@@ -823,17 +848,18 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
   }];
 
   let builders = [
-    // Build a InsertSliceOp with mixed static and dynamic entries.
+    // Build a InsertSliceOp with mixed static and dynamic entries and inferred
+    // result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ArrayRef<OpFoldResult>":$offsets, "ArrayRef<OpFoldResult>":$sizes,
       "ArrayRef<OpFoldResult>":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a InsertSliceOp with dynamic entries.
+    // Build a InsertSliceOp with dynamic entries and inferred result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build an InsertSliceOp with mixed static and dynamic entries packed in
-    // a Range vector.
+    // a Range vector and inferred result type.
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ArrayRef<Range>":$ranges,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
@@ -957,7 +983,7 @@ def Tensor_ReshapeOp: Tensor_Op<"reshape", [
      }]>];
 
   let extraClassDeclaration = [{
-    TensorType getResultType() { return getResult().getType().cast<TensorType>(); }
+    TensorType getResultType() { return ::llvm::cast<TensorType>(getResult().getType()); }
   }];
 
   let assemblyFormat = [{
@@ -985,16 +1011,16 @@ class Tensor_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
       SmallVector<ReassociationIndices, 4> reassociationIndices;
       for (auto attr : getReassociation())
         reassociationIndices.push_back(llvm::to_vector<2>(
-            llvm::map_range(attr.cast<ArrayAttr>(), [&](Attribute indexAttr) {
-              return indexAttr.cast<IntegerAttr>().getInt();
+            llvm::map_range(::llvm::cast<ArrayAttr>(attr), [&](Attribute indexAttr) {
+              return ::llvm::cast<IntegerAttr>(indexAttr).getInt();
             })));
       return reassociationIndices;
     }
     RankedTensorType getSrcType() {
-      return getSrc().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSrc().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
   }];
 
@@ -1118,11 +1144,11 @@ def Tensor_CollapseShapeOp : Tensor_ReassociativeReshapeOp<"collapse_shape"> {
     }]>
   ];
 
-  let extraClassDeclaration = commonExtraClassDeclaration # [{  
+  let extraClassDeclaration = commonExtraClassDeclaration # [{
     static RankedTensorType
     inferCollapsedType(RankedTensorType type, ArrayRef<AffineMap> reassociation);
     static RankedTensorType
-    inferCollapsedType(RankedTensorType type, 
+    inferCollapsedType(RankedTensorType type,
                        SmallVector<ReassociationIndices> reassociation);
   }];
   let hasVerifier = 1;
@@ -1240,10 +1266,10 @@ def Tensor_PadOp : Tensor_Op<"pad", [
     }
 
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
 
     // Infer the shape of the result tensor given the type of the source tensor
@@ -1380,8 +1406,7 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamic and
-    ShapedType::kDynamic encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     After buffer allocation, the "parallel_insert_slice" op is expected to lower
@@ -1424,11 +1449,11 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     Type yieldedType() { return getDest().getType(); }
 
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
 
     RankedTensorType getDestType() {
-      return getDest().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getDest().getType());
     }
 
     ParallelCombiningOpInterface getParallelCombiningParent() {
@@ -1450,6 +1475,10 @@ def Tensor_ParallelInsertSliceOp : Tensor_Op<"parallel_insert_slice", [
     /// Return the OpResult of the enclosing ForallOp that is
     /// corresponding to this ParallelInsertSliceOp.
     OpResult getTiedOpResult();
+
+    /// Return the dimensions of the dest that are omitted to insert a source
+    /// when the result is rank-extended.
+    llvm::SmallBitVector getDroppedDims();
   }];
 
   let builders = [
@@ -1600,16 +1629,16 @@ def Tensor_ScatterOp : Tensor_Op<"scatter", [
 
   let extraClassDeclaration = [{
     RankedTensorType getDestType() {
-      return getDest().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getDest().getType());
     }
     RankedTensorType getIndicesType() {
-      return getIndices().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getIndices().getType());
     }
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getSource().getType());
     }
     RankedTensorType getResultType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return ::llvm::cast<RankedTensorType>(getResult().getType());
     }
   }];
   let hasVerifier = 1;
@@ -1624,7 +1653,7 @@ def Tensor_SplatOp : Tensor_Op<"splat", [
     Pure,
     TypesMatchWith<"operand type matches element type of result",
                    "aggregate", "input",
-                   "$_self.cast<TensorType>().getElementType()">
+                   "::llvm::cast<TensorType>($_self).getElementType()">
   ]> {
   let summary = "tensor splat or broadcast operation";
   let description = [{
@@ -1681,9 +1710,9 @@ class Tensor_RelayoutOp<string mnemonic, list<Trait> traits = []> :
     size_t getSourceRank() { return getSourceType().getRank(); };
     size_t getDestRank() { return getDestType().getRank(); };
     RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>(); };
+      return ::llvm::cast<RankedTensorType>(getSource().getType()); };
     RankedTensorType getDestType() {
-      return getDest().getType().cast<RankedTensorType>(); };
+      return ::llvm::cast<RankedTensorType>(getDest().getType()); };
 
     /// Return position for init operand. Init operand is `dest`.
     std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
@@ -1785,10 +1814,10 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
         ArrayRef<OpFoldResult> innerTileDims, ArrayRef<int64_t> innerDimsPos,
         ArrayRef<int64_t> outerDimsPerm = {});
 
-    // Method to get the `ShapedType` of the result based on the inner tiles,
-    // position of the inner tiles (innerDimsPos)  and interchange vector of
-    // outer loops (outerDimsPerm).
-    static ShapedType inferPackedType(ShapedType sourceType,
+    // Method to get the `RankedTensorType` of the result based on the inner
+    // tiles, position of the inner tiles (innerDimsPos)  and interchange vector
+    // of outer loops (outerDimsPerm).
+    static RankedTensorType inferPackedType(RankedTensorType sourceType,
         ArrayRef<int64_t> innerTileSizes, ArrayRef<int64_t> innerDimsPos,
         ArrayRef<int64_t> outerDimsPerm = {});
 
@@ -1804,14 +1833,14 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
         ArrayRef<int64_t> innerDimsPos, ArrayRef<int64_t> outerDimsPerm);
 
     /// Build and return a new PackOp that is a clone of the current PackOp with
-    /// (innerDimsPos, innerTiles) (resp. outerDimsPerm) are permuted by 
+    /// (innerDimsPos, innerTiles) (resp. outerDimsPerm) are permuted by
     /// innerPermutation (resp. outerPermutation).
     /// A new `tensor.empty` of the proper shape is built in the process.
     /// Asserts that:
     ///   - At least one of innerPermutation or outerPermutation is non-empty.
     ///   - If not empty, innerPermutation is a valid permutation of size
     ///     matching innerDimPos.
-    ///   - If not empty, outerPermutation is a valid permutation of size 
+    ///   - If not empty, outerPermutation is a valid permutation of size
     ///     matching outerDimsPerm.
     PackOp createTransposedClone(OpBuilder &b,
                                  Location loc,
@@ -1886,13 +1915,13 @@ def Tensor_UnPackOp : Tensor_RelayoutOp<"unpack"> {
         ArrayRef<int64_t> innerDimsPos, ArrayRef<int64_t> outerDimsPerm);
 
     /// Build and return a new UnPackOp that is a clone of the current UnPackOp
-    /// with (innerDimsPos, innerTiles) (resp. outerDimsPerm) are permuted by 
+    /// with (innerDimsPos, innerTiles) (resp. outerDimsPerm) are permuted by
     /// innerPermutation (resp. outerPermutation).
     /// Asserts that:
     ///   - At least one of innerPermutation or outerPermutation is non-empty.
     ///   - If not empty, innerPermutation is a valid permutation of size
     ///     matching innerDimPos.
-    ///   - If not empty, outerPermutation is a valid permutation of size 
+    ///   - If not empty, outerPermutation is a valid permutation of size
     ///     matching outerDimsPerm.
     UnPackOp createTransposedClone(OpBuilder &b,
                                    Location loc,

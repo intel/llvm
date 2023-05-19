@@ -79,7 +79,7 @@ static bool isSampling(GenericOp op) {
 
 // Helper to detect chain of multiplications that do not involve x.
 static bool isMulChain(Value val, Value x) {
-  if (auto arg = val.dyn_cast<BlockArgument>())
+  if (auto arg = dyn_cast<BlockArgument>(val))
     return arg != x;
   if (auto *def = val.getDefiningOp()) {
     if (isa<arith::MulFOp>(def) || isa<arith::MulIOp>(def))
@@ -105,7 +105,7 @@ static bool isSumOfMul(GenericOp op) {
 // Helper to detect direct yield of a zero value.
 static bool isZeroYield(GenericOp op) {
   auto yieldOp = cast<linalg::YieldOp>(op.getRegion().front().getTerminator());
-  if (auto arg = yieldOp.getOperand(0).dyn_cast<BlockArgument>()) {
+  if (auto arg = dyn_cast<BlockArgument>(yieldOp.getOperand(0))) {
     if (arg.getOwner()->getParentOp() == op) {
       return isZeroValue(op->getOperand(arg.getArgNumber()));
     }
@@ -343,6 +343,45 @@ private:
   // Helper to add argument and record the mapping.
   static void addArg(IRMapping &mapper, Block *b, BlockArgument a) {
     mapper.map(a, b->addArgument(a.getType(), a.getLoc()));
+  }
+};
+
+// Fuse a tensor cast into producing operation. Note that a tensor.cast
+// should really not be used to convert between sparse encodings. Since
+// the pattern currently appears as a result of some prior rewriting
+// we make an attempt to repair very obvious cases.
+// TODO: audit the pure tensor dialect rewriting rules
+struct FuseTensorCast : public OpRewritePattern<tensor::CastOp> {
+public:
+  using OpRewritePattern<tensor::CastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::CastOp op,
+                                PatternRewriter &rewriter) const override {
+    Type srcType = op.getSource().getType();
+    Type dstType = op.getDest().getType();
+    // A nop cast simply folds away.
+    if (srcType == dstType) {
+      rewriter.replaceOp(op, op->getResults());
+      return success();
+    }
+    // See if a sparsity changing cast can be fused into producer.
+    if (tensor::isSameTypeWithoutEncoding(srcType, dstType)) {
+      if (Operation *def = op.getSource().getDefiningOp()) {
+        if (def->hasOneUse() && isa<tensor::ExtractSliceOp>(def)) {
+          def->getResult(0).setType(op->getResultTypes()[0]);
+          rewriter.replaceOp(op, def->getResult(0));
+          return success();
+        }
+      }
+    }
+    // Repair tensor casts with at least one sparse operand into the
+    // the properly supported sparse_tensor.convert.
+    if (getSparseTensorEncoding(srcType) || getSparseTensorEncoding(dstType)) {
+      rewriter.replaceOpWithNewOp<ConvertOp>(op, dstType, op.getSource());
+      return success();
+    }
+    // Fail otherwise.
+    return failure();
   }
 };
 
@@ -680,7 +719,7 @@ private:
 
     bool fromSparseConst = false;
     if (auto constOp = op.getSource().getDefiningOp<arith::ConstantOp>()) {
-      if (constOp.getValue().dyn_cast<SparseElementsAttr>()) {
+      if (dyn_cast<SparseElementsAttr>(constOp.getValue())) {
         fromSparseConst = true;
       }
     }
@@ -856,9 +895,7 @@ private:
       // coordinates for the storage ordering of the dst tensor.  Use SortCoo
       // if the COO tensor has the same ordering as the dst tensor.
       if (dimRank > 1 && srcTp.hasSameDimToLvlMap(dstTp)) {
-        MemRefType coordsTp =
-            get1DMemRefType(encSrc.getCrdType(), /*withLayout=*/false);
-        Value xs = rewriter.create<ToCoordinatesBufferOp>(loc, coordsTp, src);
+        Value xs = genToCoordinatesBuffer(rewriter, loc, src);
         rewriter.create<SortCooOp>(
             loc, nnz, xs, ValueRange{y}, rewriter.getIndexAttr(dimRank),
             rewriter.getIndexAttr(0), SparseTensorSortKind::HybridQuickSort);
@@ -935,7 +972,7 @@ public:
     // Special-case: for each over a sparse constant uses its own rewriting
     // rule.
     if (auto constOp = input.getDefiningOp<arith::ConstantOp>()) {
-      if (auto attr = constOp.getValue().dyn_cast<SparseElementsAttr>()) {
+      if (auto attr = dyn_cast<SparseElementsAttr>(constOp.getValue())) {
         return genForeachOnSparseConstant(op, rewriter, attr);
       }
     }
@@ -951,14 +988,12 @@ public:
     for (Level l = 0; l < lvlRank; l++) {
       // TODO: provide utility function for loop sequences that only contains
       // one for loop?
-      // FIXME(wrengr): what is this "ld" supposed to be really?
-      const Level ld = op.getOrder() ? op.getOrder()->getDimPosition(l) : l;
-      const SmallVector<TensorId, 1> tids{0};
-      loopEmitter.enterNewLoopSeq(rewriter, loc, tids, ld);
+      const SmallVector<TensorLevel, 1> tidLvls{
+          loopEmitter.makeTensorLevel(0, l)};
+      loopEmitter.enterNewLoopSeq(rewriter, loc, tidLvls);
       // Note that reduc will be taken care of by loop emitter and get updated
       // in place.
-
-      loopEmitter.enterLoopOverTensorAtLvl(rewriter, loc, tids, l, reduc);
+      loopEmitter.enterLoopOverTensorAtLvl(rewriter, loc, tidLvls, reduc);
     }
 
     SmallVector<Value> lcvs;
@@ -1125,7 +1160,7 @@ struct OutRewriter : public OpRewritePattern<OutOp> {
 //===---------------------------------------------------------------------===//
 
 void mlir::populatePreSparsificationRewriting(RewritePatternSet &patterns) {
-  patterns.add<FoldInvariantYield, FuseSparseMultiplyOverAdd>(
+  patterns.add<FoldInvariantYield, FuseSparseMultiplyOverAdd, FuseTensorCast>(
       patterns.getContext());
 }
 

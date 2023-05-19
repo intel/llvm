@@ -229,6 +229,8 @@ getOrCreatePackedViewOfOperand(OpBuilder &b, Location loc, PackInfo packInfo,
   AffineMap origIndexingMap = genericOp.getMatchingIndexingMap(opOperand);
   llvm::DenseMap<int64_t, int64_t> domainDimToOperandDim;
   SmallVector<AffineExpr> exprs(origIndexingMap.getResults());
+
+  // If the OpOperand is a scalar or a zero-rank tensor, no need to pack.
   if (genericOp.isScalar(opOperand) || exprs.empty())
     return std::make_tuple(opOperand->get(),
                            AffineMap::get(numLoops, 0, exprs, b.getContext()));
@@ -293,10 +295,10 @@ getOrCreatePackedViewOfOperand(OpBuilder &b, Location loc, PackInfo packInfo,
   return std::make_tuple(packedOperand, indexingMap);
 }
 
-/// Pack an element-wise genericOp and return it.
-static GenericOp packElementWiseOp(RewriterBase &rewriter, GenericOp genericOp,
-                                   Value dest, AffineMap packedOutIndexingMap,
-                                   const PackInfo &packInfo) {
+/// Pack a genericOp and return it.
+static GenericOp packGenericOp(RewriterBase &rewriter, GenericOp genericOp,
+                               Value dest, AffineMap packedOutIndexingMap,
+                               const PackInfo &packInfo) {
   Location loc = genericOp.getLoc();
   SmallVector<Value> inputOperands;
   SmallVector<AffineMap> indexingMaps;
@@ -434,16 +436,56 @@ bubbleUpPackOpThroughGenericOp(RewriterBase &rewriter, tensor::PackOp packOp,
       getOrCreatePackedViewOfOperand(rewriter, genericOp.getLoc(), *packInfo,
                                      genericOp, opOperand);
 
-  // We'll replace the init operand with the destination of pack op if the init
-  // operand has not users in the body of the linalg.generic (pure elementwise).
-  // If it has users we need to pack the init operand too and replace the init
-  // with the packing result.
-  Value dest = (genericOp.getRegionOutputArgs()[0].use_empty())
-                   ? packOpDest
-                   : packedOutOperand;
+  // If the dps init operand of the generic is a tensor.empty forward the pack
+  // op destination.
+  Value dest = packedOutOperand;
+  if (auto initTensor = genericOp.getDpsInitOperand(0)
+                            ->get()
+                            .getDefiningOp<tensor::EmptyOp>()) {
+    dest = packOpDest;
+  }
+  return packGenericOp(rewriter, genericOp, dest, packedOutIndexingMap,
+                       *packInfo);
+}
 
-  return packElementWiseOp(rewriter, genericOp, dest, packedOutIndexingMap,
-                           *packInfo);
+/// Folds pack(fill) into a single fill op if
+///   1. The pack op does not have padding value, or
+///   2. The filled value and padding value are the same.
+static FailureOr<FillOp>
+foldFillPackIntoFillOp(RewriterBase &rewriter, tensor::PackOp packOp,
+                       ControlPropagationFn controlFn) {
+  auto fillOp = packOp.getSource().getDefiningOp<FillOp>();
+  if (!fillOp)
+    return failure();
+
+  // User controlled propagation function.
+  if (!controlFn(fillOp))
+    return failure();
+
+  if (auto paddingValue = packOp.getPaddingValue())
+    if (!isEqualConstantIntOrValue(paddingValue, fillOp.value()))
+      return failure();
+
+  OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPoint(fillOp);
+
+  Value packOpDest = packOp.getDest();
+  if (!packOpDest.hasOneUse())
+    return failure();
+  if (auto emptyOp = packOpDest.getDefiningOp<tensor::EmptyOp>()) {
+    packOpDest = tensor::PackOp::createDestinationTensor(
+        rewriter, fillOp.getLoc(), fillOp.getDpsInitOperand(0)->get(),
+        packOp.getMixedTiles(), packOp.getInnerDimsPos(),
+        packOp.getOuterDimsPerm());
+  } else {
+    DominanceInfo dom(fillOp);
+    if (!dom.properlyDominates(packOpDest, fillOp))
+      return failure();
+  }
+
+  Value fillDest = packOpDest;
+  return clone(rewriter, fillOp, packOpDest.getType(),
+               {fillOp.value(), fillDest});
 }
 
 /// Wrapper pattern that applies bubbleUpPackOpThroughGenericOp method.
@@ -468,7 +510,26 @@ private:
   ControlPropagationFn controlFn;
 };
 
-// TODO: Relax this restriction. We should unpack an elementwise also
+/// Wrapper pattern that applies foldFillPackIntoFillOp method.
+struct FoldFillPackIntoFillOpPattern : public OpRewritePattern<tensor::PackOp> {
+public:
+  FoldFillPackIntoFillOpPattern(MLIRContext *context, ControlPropagationFn fun)
+      : OpRewritePattern<tensor::PackOp>(context), controlFn(std::move(fun)) {}
+
+  LogicalResult matchAndRewrite(tensor::PackOp packOp,
+                                PatternRewriter &rewriter) const override {
+    auto fillOp = foldFillPackIntoFillOp(rewriter, packOp, controlFn);
+    if (failed(fillOp))
+      return failure();
+    rewriter.replaceOp(packOp, fillOp.value().result());
+    return success();
+  }
+
+private:
+  ControlPropagationFn controlFn;
+};
+
+// TODO: Relax this restriction. We should unpack a generic op also
 // in the presence of multiple unpack ops as producers.
 /// Return the unpacked operand, if present, for the current generic op.
 static FailureOr<OpOperand *> getUnPackedOperand(GenericOp genericOp) {
@@ -486,7 +547,7 @@ static FailureOr<OpOperand *> getUnPackedOperand(GenericOp genericOp) {
   return unPackedOperand;
 }
 
-/// Push down a tensor.unpack op through elementwise generic op.
+/// Push down a tensor.unpack op through a generic op.
 /// The new generic op works on packed domain; pack ops are created for input
 /// and output operands. A tensor.unpack op is inserted right after the packed
 /// generic. E.g.
@@ -560,8 +621,8 @@ pushDownUnPackOpThroughGenericOp(RewriterBase &rewriter, GenericOp genericOp) {
   }
 
   // Pack the genericOp.
-  GenericOp newGenericOp = packElementWiseOp(rewriter, genericOp, dest,
-                                             packedOutIndexingMap, *packInfo);
+  GenericOp newGenericOp =
+      packGenericOp(rewriter, genericOp, dest, packedOutIndexingMap, *packInfo);
   Value newResult =
       newGenericOp.getTiedOpResult(newGenericOp.getDpsInitOperand(0));
 
@@ -579,7 +640,7 @@ pushDownUnPackOpThroughGenericOp(RewriterBase &rewriter, GenericOp genericOp) {
   auto loc = genericOp.getLoc();
   Value unPackDest = producerUnPackOp.getDest();
   auto genericOutType =
-      genericOp.getDpsInitOperand(0)->get().getType().cast<RankedTensorType>();
+      cast<RankedTensorType>(genericOp.getDpsInitOperand(0)->get().getType());
   if (producerUnPackOp.getDestType() != genericOutType ||
       !genericOutType.hasStaticShape()) {
     unPackDest = tensor::UnPackOp::createDestinationTensor(
@@ -689,6 +750,7 @@ void mlir::linalg::populateDataLayoutPropagationPatterns(
     RewritePatternSet &patterns,
     const ControlPropagationFn &controlPackUnPackPropagation) {
   patterns.insert<BubbleUpPackOpThroughGenericOpPattern,
+                  FoldFillPackIntoFillOpPattern,
                   PushDownUnPackOpThroughGenericOp, PushDownUnPackThroughPadOp>(
       patterns.getContext(), controlPackUnPackPropagation);
 }

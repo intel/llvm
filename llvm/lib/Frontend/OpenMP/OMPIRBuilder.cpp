@@ -3798,7 +3798,7 @@ CallInst *OpenMPIRBuilder::createOMPInteropInit(
     Device = ConstantInt::get(Int32, -1);
   Constant *InteropTypeVal = ConstantInt::get(Int32, (int)InteropType);
   if (NumDependences == nullptr) {
-    NumDependences = ConstantInt::get(Int64, 0);
+    NumDependences = ConstantInt::get(Int32, 0);
     PointerType *PointerTypeVar = Type::getInt8PtrTy(M.getContext());
     DependenceAddress = ConstantPointerNull::get(PointerTypeVar);
   }
@@ -4111,6 +4111,88 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createTargetData(
   return Builder.saveIP();
 }
 
+static Function *
+createOutlinedFunction(IRBuilderBase &Builder, StringRef FuncName,
+                       SmallVectorImpl<Value *> &Inputs,
+                       OpenMPIRBuilder::TargetBodyGenCallbackTy &CBFunc) {
+  SmallVector<Type *> ParameterTypes;
+  for (auto &Arg : Inputs)
+    ParameterTypes.push_back(Arg->getType());
+
+  auto FuncType = FunctionType::get(Builder.getVoidTy(), ParameterTypes,
+                                    /*isVarArg*/ false);
+  auto Func = Function::Create(FuncType, GlobalValue::InternalLinkage, FuncName,
+                               Builder.GetInsertBlock()->getModule());
+
+  // Save insert point.
+  auto OldInsertPoint = Builder.saveIP();
+
+  // Generate the region into the function.
+  BasicBlock *EntryBB = BasicBlock::Create(Builder.getContext(), "entry", Func);
+  Builder.SetInsertPoint(EntryBB);
+  Builder.restoreIP(CBFunc(Builder.saveIP(), Builder.saveIP()));
+
+  // Insert return instruction.
+  Builder.CreateRetVoid();
+
+  // Rewrite uses of input valus to parameters.
+  for (auto InArg : zip(Inputs, Func->args())) {
+    Value *Input = std::get<0>(InArg);
+    Argument &Arg = std::get<1>(InArg);
+
+    // Collect all the instructions
+    for (User *User : make_early_inc_range(Input->users()))
+      if (auto Instr = dyn_cast<Instruction>(User))
+        if (Instr->getFunction() == Func)
+          Instr->replaceUsesOfWith(Input, &Arg);
+  }
+
+  // Restore insert point.
+  Builder.restoreIP(OldInsertPoint);
+
+  return Func;
+}
+
+static void
+emitTargetOutlinedFunction(OpenMPIRBuilder &OMPBuilder, IRBuilderBase &Builder,
+                           TargetRegionEntryInfo &EntryInfo,
+                           Function *&OutlinedFn, int32_t NumTeams,
+                           int32_t NumThreads, SmallVectorImpl<Value *> &Inputs,
+                           OpenMPIRBuilder::TargetBodyGenCallbackTy &CBFunc) {
+
+  OpenMPIRBuilder::FunctionGenCallback &&GenerateOutlinedFunction =
+      [&Builder, &Inputs, &CBFunc](StringRef EntryFnName) {
+        return createOutlinedFunction(Builder, EntryFnName, Inputs, CBFunc);
+      };
+
+  Constant *OutlinedFnID;
+  OMPBuilder.emitTargetRegionFunction(EntryInfo, GenerateOutlinedFunction,
+                                      NumTeams, NumThreads, true, OutlinedFn,
+                                      OutlinedFnID);
+}
+
+static void emitTargetCall(IRBuilderBase &Builder, Function *OutlinedFn,
+                           SmallVectorImpl<Value *> &Args) {
+  // TODO: Add kernel launch call when device codegen is supported.
+  Builder.CreateCall(OutlinedFn, Args);
+}
+
+OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createTarget(
+    const LocationDescription &Loc, OpenMPIRBuilder::InsertPointTy CodeGenIP,
+    TargetRegionEntryInfo &EntryInfo, int32_t NumTeams, int32_t NumThreads,
+    SmallVectorImpl<Value *> &Args, TargetBodyGenCallbackTy CBFunc) {
+  if (!updateToLocation(Loc))
+    return InsertPointTy();
+
+  Builder.restoreIP(CodeGenIP);
+
+  Function *OutlinedFn;
+  emitTargetOutlinedFunction(*this, Builder, EntryInfo, OutlinedFn, NumTeams,
+                             NumThreads, Args, CBFunc);
+  emitTargetCall(Builder, OutlinedFn, Args);
+  return Builder.saveIP();
+}
+
 std::string OpenMPIRBuilder::getNameWithSeparators(ArrayRef<StringRef> Parts,
                                                    StringRef FirstSeparator,
                                                    StringRef Separator) {
@@ -4143,10 +4225,12 @@ OpenMPIRBuilder::getOrCreateInternalVariable(Type *Ty, const StringRef &Name,
     // variable for possibly changing that to internal or private, or maybe
     // create different versions of the function for different OMP internal
     // variables.
-    Elem.second = new GlobalVariable(
+    auto *GV = new GlobalVariable(
         M, Ty, /*IsConstant=*/false, GlobalValue::CommonLinkage,
         Constant::getNullValue(Ty), Elem.first(),
         /*InsertBefore=*/nullptr, GlobalValue::NotThreadLocal, AddressSpace);
+    GV->setAlignment(M.getDataLayout().getABITypeAlign(Ty));
+    Elem.second = GV;
   }
 
   return cast<GlobalVariable>(&*Elem.second);
@@ -4892,6 +4976,8 @@ void OpenMPIRBuilder::createOffloadEntry(Constant *ID, Constant *Addr,
 
   // Add a function attribute for the kernel.
   Fn->addFnAttr(Attribute::get(Ctx, "kernel"));
+  if (Triple(M.getTargetTriple()).isAMDGCN())
+    Fn->addFnAttr("uniform-work-group-size", "true");
 }
 
 // We only generate metadata for function that contain target regions.

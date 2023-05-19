@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: accelerator
+// RUN: %{build} -o %t.out
+// RUNx: %{run} %t.out
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

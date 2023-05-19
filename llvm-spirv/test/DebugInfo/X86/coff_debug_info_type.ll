@@ -1,10 +1,22 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
-
 ; RUN: llc -mtriple=i686-pc-mingw32 -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
 ; RUN: llc -mtriple=i686-pc-cygwin -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
 ; RUN: llc -mtriple=i686-w64-mingw32 -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=i686-pc-mingw32 -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
+; RUN: llc -mtriple=i686-pc-cygwin -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
+; RUN: llc -mtriple=i686-w64-mingw32 -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=i686-pc-mingw32 -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
+; RUN: llc -mtriple=i686-pc-cygwin -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
+; RUN: llc -mtriple=i686-w64-mingw32 -accel-tables=Apple -filetype=asm -O0 < %t.ll | FileCheck %s
+
 ; CHECK:    .section  .debug_info
 ; CHECK:    .section  .apple_names
 ; CHECK:    .section  .apple_types

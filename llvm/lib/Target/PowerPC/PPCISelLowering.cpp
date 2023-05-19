@@ -46,6 +46,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -85,7 +86,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -5629,7 +5629,9 @@ SDValue PPCTargetLowering::FinishCall(
     assert(CallOpc == PPCISD::TC_RETURN &&
            "Unexpected call opcode for a tail call.");
     DAG.getMachineFunction().getFrameInfo().setHasTailCall();
-    return DAG.getNode(CallOpc, dl, MVT::Other, Ops);
+    SDValue Ret = DAG.getNode(CallOpc, dl, MVT::Other, Ops);
+    DAG.addNoMergeSiteInfo(Ret.getNode(), CFlags.NoMerge);
+    return Ret;
   }
 
   std::array<EVT, 2> ReturnTypes = {{MVT::Other, MVT::Glue}};
@@ -11930,6 +11932,7 @@ MachineBasicBlock *PPCTargetLowering::EmitPartwordAtomicBinary(
     BuildMI(*BB, MI, dl, TII->get(is8bit ? PPC::EXTSB : PPC::EXTSH), ValueReg)
         .addReg(MI.getOperand(3).getReg());
     MI.getOperand(3).setReg(ValueReg);
+    incr = ValueReg;
   }
   // If we support part-word atomic mnemonics, just use them
   if (Subtarget.hasPartwordAtomics())

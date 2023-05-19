@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // XFAIL: level_zero&&gpu
 
@@ -66,7 +64,7 @@ int main() {
   });
 
   {
-    auto acc = buf_i.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc(buf_i, sycl::read_only);
     if (acc[0] != UINT_MAX) {
       std::cout << acc[0] << std::endl;
       std::cout << "line: " << __LINE__ << " array[" << 0 << "] is " << acc[0]
@@ -92,7 +90,7 @@ int main() {
   });
 
   {
-    auto acc = buf_1d.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc(buf_1d, sycl::read_only);
     for (auto i = 0u; i < r1d.size(); i++) {
       size_t expected = (i % 4) ? 0 : 1;
       if (acc[i] != expected) {

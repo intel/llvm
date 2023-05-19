@@ -1,8 +1,9 @@
 // REQUIRES: aspect-fp16
+// REQUIRES: gpu
 // UNSUPPORTED: hip
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies the correct work of SPIR-V 1.3 reduce algorithm
 // used with MUL operation.

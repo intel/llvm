@@ -25,9 +25,7 @@
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/ExecutionEngine/ObjectCache.h"
-#include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
-#include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include "llvm/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.h"
 #include "llvm/ExecutionEngine/Orc/EPCEHFrameRegistrar.h"
 #include "llvm/ExecutionEngine/Orc/EPCGenericRTDyldMemoryManager.h"
@@ -826,6 +824,20 @@ loadModule(StringRef Path, orc::ThreadSafeContext TSCtx) {
   return orc::ThreadSafeModule(std::move(M), std::move(TSCtx));
 }
 
+int mingw_noop_main(void) {
+  // Cygwin and MinGW insert calls from the main function to the runtime
+  // function __main. The __main function is responsible for setting up main's
+  // environment (e.g. running static constructors), however this is not needed
+  // when running under lli: the executor process will have run non-JIT ctors,
+  // and ORC will take care of running JIT'd ctors. To avoid a missing symbol
+  // error we just implement __main as a no-op.
+  //
+  // FIXME: Move this to ORC-RT (and the ORC-RT substitution library once it
+  //        exists). That will allow it to work out-of-process, and for all
+  //        ORC tools (the problem isn't lli specific).
+  return 0;
+}
+
 int runOrcJIT(const char *ProgName) {
   // Start setting up the JIT environment.
 
@@ -935,15 +947,15 @@ int runOrcJIT(const char *ProgName) {
     Builder.setObjectLinkingLayerCreator([&EPC, &P](orc::ExecutionSession &ES,
                                                     const Triple &TT) {
       auto L = std::make_unique<orc::ObjectLinkingLayer>(ES, EPC->getMemMgr());
-      if (P != LLJITPlatform::ExecutorNative) {
+      if (P != LLJITPlatform::ExecutorNative)
         L->addPlugin(std::make_unique<orc::EHFrameRegistrationPlugin>(
             ES, ExitOnErr(orc::EPCEHFrameRegistrar::Create(ES))));
-        L->addPlugin(std::make_unique<orc::DebugObjectManagerPlugin>(
-            ES, ExitOnErr(orc::createJITLoaderGDBRegistrar(ES)), true, true));
-      }
       return L;
     });
   }
+
+  // Enable debugging of JIT'd code (only works on JITLink for ELF and MachO).
+  Builder.setEnableDebuggerSupport(true);
 
   auto J = ExitOnErr(Builder.create());
 
@@ -990,6 +1002,14 @@ int runOrcJIT(const char *ProgName) {
         std::make_unique<LLIBuiltinFunctionGenerator>(GenerateBuiltinFunctions,
                                                       Mangle));
   }
+
+  // If this is a Mingw or Cygwin executor then we need to alias __main to
+  // orc_rt_int_void_return_0.
+  if (J->getTargetTriple().isOSCygMing())
+    ExitOnErr(J->getProcessSymbolsJITDylib()->define(
+        orc::absoluteSymbols({{J->mangleAndIntern("__main"),
+                               {orc::ExecutorAddr::fromPtr(mingw_noop_main),
+                                JITSymbolFlags::Exported}}})));
 
   // Regular modules are greedy: They materialize as a whole and trigger
   // materialization for all required symbols recursively. Lazy modules go

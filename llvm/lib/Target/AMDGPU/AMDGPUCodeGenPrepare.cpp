@@ -52,6 +52,12 @@ static cl::opt<bool>
                        cl::desc("Break large PHI nodes for DAGISel"),
                        cl::ReallyHidden, cl::init(true));
 
+static cl::opt<bool>
+    ForceScalarizeLargePHIs("amdgpu-codegenprepare-force-break-large-phis",
+                            cl::desc("For testing purposes, always break large "
+                                     "PHIs even if it isn't profitable."),
+                            cl::ReallyHidden, cl::init(false));
+
 static cl::opt<unsigned> ScalarizeLargePHIsThreshold(
     "amdgpu-codegenprepare-break-large-phis-threshold",
     cl::desc("Minimum type size in bits for breaking large PHI nodes"),
@@ -88,6 +94,10 @@ class AMDGPUCodeGenPrepare : public FunctionPass,
   const DataLayout *DL = nullptr;
   bool HasUnsafeFPMath = false;
   bool HasFP32Denormals = false;
+
+  DenseMap<const PHINode *, bool> BreakPhiNodesCache;
+
+  bool canBreakPHINode(const PHINode &I);
 
   /// Copies exact/nsw/nuw flags (if any) from binary operation \p I to
   /// binary operation \p V.
@@ -1337,9 +1347,7 @@ bool AMDGPUCodeGenPrepare::visitLoadInst(LoadInst &I) {
     Builder.SetCurrentDebugLocation(I.getDebugLoc());
 
     Type *I32Ty = Builder.getInt32Ty();
-    Type *PT = PointerType::get(I32Ty, I.getPointerAddressSpace());
-    Value *BitCast= Builder.CreateBitCast(I.getPointerOperand(), PT);
-    LoadInst *WidenLoad = Builder.CreateLoad(I32Ty, BitCast);
+    LoadInst *WidenLoad = Builder.CreateLoad(I32Ty, I.getPointerOperand());
     WidenLoad->copyMetadata(I);
 
     // If we have range metadata, we need to convert the type, and not make
@@ -1394,6 +1402,107 @@ bool AMDGPUCodeGenPrepare::visitSelectInst(SelectInst &I) {
   return Changed;
 }
 
+static bool areInSameBB(const Value *A, const Value *B) {
+  const auto *IA = dyn_cast<Instruction>(A);
+  const auto *IB = dyn_cast<Instruction>(B);
+  return IA && IB && IA->getParent() == IB->getParent();
+}
+
+// Helper for breaking large PHIs that returns true when an extractelement on V
+// is likely to be folded away by the DAG combiner.
+static bool isInterestingPHIIncomingValue(const Value *V) {
+  const auto *FVT = dyn_cast<FixedVectorType>(V->getType());
+  if (!FVT)
+    return false;
+
+  const Value *CurVal = V;
+
+  // Check for insertelements, keeping track of the elements covered.
+  BitVector EltsCovered(FVT->getNumElements());
+  while (const auto *IE = dyn_cast<InsertElementInst>(CurVal)) {
+    const auto *Idx = dyn_cast<ConstantInt>(IE->getOperand(2));
+
+    // Non constant index/out of bounds index -> folding is unlikely.
+    // The latter is more of a sanity check because canonical IR should just
+    // have replaced those with poison.
+    if (!Idx || Idx->getSExtValue() >= FVT->getNumElements())
+      return false;
+
+    const auto *VecSrc = IE->getOperand(0);
+
+    // If the vector source is another instruction, it must be in the same basic
+    // block. Otherwise, the DAGCombiner won't see the whole thing and is
+    // unlikely to be able to do anything interesting here.
+    if (isa<Instruction>(VecSrc) && !areInSameBB(VecSrc, IE))
+      return false;
+
+    CurVal = VecSrc;
+    EltsCovered.set(Idx->getSExtValue());
+
+    // All elements covered.
+    if (EltsCovered.all())
+      return true;
+  }
+
+  // We either didn't find a single insertelement, or the insertelement chain
+  // ended before all elements were covered. Check for other interesting values.
+
+  // Constants are always interesting because we can just constant fold the
+  // extractelements.
+  if (isa<Constant>(CurVal))
+    return true;
+
+  // shufflevector is likely to be profitable if either operand is a constant,
+  // or if either source is in the same block.
+  // This is because shufflevector is most often lowered as a series of
+  // insert/extract elements anyway.
+  if (const auto *SV = dyn_cast<ShuffleVectorInst>(CurVal)) {
+    return isa<Constant>(SV->getOperand(1)) ||
+           areInSameBB(SV, SV->getOperand(0)) ||
+           areInSameBB(SV, SV->getOperand(1));
+  }
+
+  return false;
+}
+
+bool AMDGPUCodeGenPrepare::canBreakPHINode(const PHINode &I) {
+  // Check in the cache, or add an entry for this node.
+  //
+  // We init with false because we consider all PHI nodes unbreakable until we
+  // reach a conclusion. Doing the opposite - assuming they're break-able until
+  // proven otherwise - can be harmful in some pathological cases so we're
+  // conservative for now.
+  const auto [It, DidInsert] = BreakPhiNodesCache.insert({&I, false});
+  if (!DidInsert)
+    return It->second;
+
+  // This function may recurse, so to guard against infinite looping, this PHI
+  // is conservatively considered unbreakable until we reach a conclusion.
+
+  // Don't break PHIs that have no interesting incoming values. That is, where
+  // there is no clear opportunity to fold the "extractelement" instructions we
+  // would add.
+  //
+  // Note: IC does not run after this pass, so we're only interested in the
+  // foldings that the DAG combiner can do.
+  if (none_of(I.incoming_values(),
+              [&](Value *V) { return isInterestingPHIIncomingValue(V); }))
+    return false;
+
+  // Now, check users for unbreakable PHI nodes. If we have an unbreakable PHI
+  // node as user, we don't want to break this PHI either because it's unlikely
+  // to be beneficial. We would just explode the vector and reassemble it
+  // directly, wasting instructions.
+  for (const Value *U : I.users()) {
+    if (const auto *PU = dyn_cast<PHINode>(U)) {
+      if (!canBreakPHINode(*PU))
+        return false;
+    }
+  }
+
+  return BreakPhiNodesCache[&I] = true;
+}
+
 bool AMDGPUCodeGenPrepare::visitPHINode(PHINode &I) {
   // Break-up fixed-vector PHIs into smaller pieces.
   // Default threshold is 32, so it breaks up any vector that's >32 bits into
@@ -1410,6 +1519,9 @@ bool AMDGPUCodeGenPrepare::visitPHINode(PHINode &I) {
 
   FixedVectorType *FVT = dyn_cast<FixedVectorType>(I.getType());
   if (!FVT || DL->getTypeSizeInBits(FVT) <= ScalarizeLargePHIsThreshold)
+    return false;
+
+  if (!ForceScalarizeLargePHIs && !canBreakPHINode(I))
     return false;
 
   struct VectorSlice {

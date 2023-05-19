@@ -185,7 +185,8 @@ std::set<const FileEntry *> GetAffectingModuleMaps(const Preprocessor &PP,
     if (!HFI || (HFI->isModuleHeader && !HFI->isCompilingModuleHeader))
       continue;
 
-    for (const auto &KH : HS.findAllModulesForHeader(File)) {
+    for (const auto &KH :
+         HS.findAllModulesForHeader(File, /*AllowCreation=*/false)) {
       if (!KH.getModule())
         continue;
       ModulesToProcess.push_back(KH.getModule());
@@ -1243,6 +1244,8 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang maj.
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang min.
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Relocatable
+  // Standard C++ module
+  MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1));
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Timestamps
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Errors
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // SVN branch/tag
@@ -1250,15 +1253,15 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   assert((!WritingModule || isysroot.empty()) &&
          "writing module as a relocatable PCH?");
   {
-    RecordData::value_type Record[] = {
-        METADATA,
-        VERSION_MAJOR,
-        VERSION_MINOR,
-        CLANG_VERSION_MAJOR,
-        CLANG_VERSION_MINOR,
-        !isysroot.empty(),
-        IncludeTimestamps,
-        ASTHasCompilerErrors};
+    RecordData::value_type Record[] = {METADATA,
+                                       VERSION_MAJOR,
+                                       VERSION_MINOR,
+                                       CLANG_VERSION_MAJOR,
+                                       CLANG_VERSION_MINOR,
+                                       !isysroot.empty(),
+                                       isWritingStdCXXNamedModules(),
+                                       IncludeTimestamps,
+                                       ASTHasCompilerErrors};
     Stream.EmitRecordWithBlob(MetadataAbbrevCode, Record,
                               getClangFullRepositoryVersion());
   }
@@ -1884,7 +1887,7 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
 
       // If the file didn't exist, we can still create a module if we were given
       // enough information in the module map.
-      for (auto U : M->MissingHeaders) {
+      for (const auto &U : M->MissingHeaders) {
         // Check that we were given enough information to build a module
         // without this file existing on disk.
         if (!U.Size || (!U.ModTime && IncludeTimestamps)) {
@@ -1903,18 +1906,16 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
         SavedStrings.push_back(FilenameDup.data());
 
         HeaderFileInfoTrait::key_type Key = {
-          FilenameDup, *U.Size, IncludeTimestamps ? *U.ModTime : 0
-        };
+            FilenameDup, *U.Size, IncludeTimestamps ? *U.ModTime : 0};
         HeaderFileInfoTrait::data_type Data = {
-          Empty, {}, {M, ModuleMap::headerKindToRole(U.Kind)}
-        };
+            Empty, {}, {M, ModuleMap::headerKindToRole(U.Kind)}};
         // FIXME: Deal with cases where there are multiple unresolved header
         // directives in different submodules for the same header.
         Generator.insert(Key, Data, GeneratorTrait);
         ++NumHeaderSearchEntries;
       }
-
-      Worklist.append(M->submodule_begin(), M->submodule_end());
+      auto SubmodulesRange = M->submodules();
+      Worklist.append(SubmodulesRange.begin(), SubmodulesRange.end());
     }
   }
 
@@ -2701,9 +2702,8 @@ unsigned ASTWriter::getSubmoduleID(Module *Mod) {
 /// given module).
 static unsigned getNumberOfModules(Module *Mod) {
   unsigned ChildModules = 0;
-  for (auto Sub = Mod->submodule_begin(), SubEnd = Mod->submodule_end();
-       Sub != SubEnd; ++Sub)
-    ChildModules += getNumberOfModules(*Sub);
+  for (auto *Submodule : Mod->submodules())
+    ChildModules += getNumberOfModules(Submodule);
 
   return ChildModules + 1;
 }
@@ -4443,6 +4443,11 @@ void ASTWriter::AddString(StringRef Str, RecordDataImpl &Record) {
 
 bool ASTWriter::PreparePathForOutput(SmallVectorImpl<char> &Path) {
   assert(Context && "should have context when outputting path");
+
+  // Leave special file names as they are.
+  StringRef PathStr(Path.data(), Path.size());
+  if (PathStr == "<built-in>" || PathStr == "<command line>")
+    return false;
 
   bool Changed =
       cleanPathForOutput(Context->getSourceManager().getFileManager(), Path);

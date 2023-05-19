@@ -22,14 +22,15 @@
 #include <optional>
 
 namespace mlir {
-
-class AffineForOp;
-class AffineValueMap;
 class Block;
 class Location;
-struct MemRefAccess;
 class Operation;
 class Value;
+
+namespace affine {
+class AffineForOp;
+class AffineValueMap;
+struct MemRefAccess;
 
 // LoopNestStateCollector walks loop nests and collects load and store
 // operations, and whether or not a region holding op other than ForOp and IfOp
@@ -276,13 +277,13 @@ struct ComputationSliceState {
   // Constraints are added for all loop IV bounds (dim or symbol), and
   // constraints are added for slice bounds in 'lbs'/'ubs'.
   // Returns failure if we cannot add loop bounds because of unsupported cases.
-  LogicalResult getAsConstraints(FlatAffineValueConstraints *cst);
+  LogicalResult getAsConstraints(FlatAffineValueConstraints *cst) const;
 
   /// Adds to 'cst' constraints which represent the original loop bounds on
   /// 'ivs' in 'this'. This corresponds to the original domain of the loop nest
   /// from which the slice is being computed. Returns failure if we cannot add
   /// loop bounds because of unsupported cases.
-  LogicalResult getSourceAsConstraints(FlatAffineValueConstraints &cst);
+  LogicalResult getSourceAsConstraints(FlatAffineValueConstraints &cst) const;
 
   // Clears all bounds and operands in slice state.
   void clearBounds();
@@ -311,7 +312,7 @@ struct ComputationSliceState {
   /// return false as it implies that the effective fusion results in at least
   /// one iteration of the slice that was not originally in the source's domain.
   /// If the validity cannot be determined, returns std::nullopt.
-  std::optional<bool> isSliceValid();
+  std::optional<bool> isSliceValid() const;
 
   void dump() const;
 
@@ -576,6 +577,7 @@ FailureOr<AffineValueMap>
 simplifyConstrainedMinMaxOp(Operation *op,
                             FlatAffineValueConstraints constraints);
 
+} // namespace affine
 } // namespace mlir
 
 #endif // MLIR_DIALECT_AFFINE_ANALYSIS_UTILS_H

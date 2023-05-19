@@ -1,8 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit, cm-compiler
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DRUN_KERNELS %level_zero_options %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -DRUN_KERNELS %level_zero_options -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks ext::intel feature class online_compiler for Level-Zero.
 // All Level-Zero specific code is kept here and the common part that can be

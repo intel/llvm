@@ -443,7 +443,8 @@ void ivdep_dependent() {
       a[i] = 0;
 
   (void)[]() {
-  // expected-warning@+3 2{{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
+  // expected-warning@+4 2{{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
+  // expected-note@-2 2{{while substituting into a lambda expression here}}
   // expected-note@+1 2{{previous attribute is here}}
   [[intel::ivdep]]
   [[intel::ivdep]] while (true);
