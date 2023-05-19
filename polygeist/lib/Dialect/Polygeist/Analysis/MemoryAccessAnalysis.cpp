@@ -100,6 +100,7 @@ template <typename T> static SetVector<T> getParentsOfType(Block *block) {
   return res;
 }
 
+/// Determine whether \p op uses \p val (directly or indirectly).
 static bool usesValue(Operation *op, Value val) {
   assert(op && "Expecting valid operation");
   if (Operation *valOp = val.getDefiningOp())
