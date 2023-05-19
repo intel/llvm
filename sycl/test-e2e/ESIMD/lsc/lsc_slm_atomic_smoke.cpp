@@ -27,7 +27,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 constexpr int Signed = 1;
 constexpr int Unsigned = 2;
 
-constexpr int64_t threads_per_group = 8;
+constexpr int64_t threads_per_group = 3;
 constexpr int64_t n_groups = 1;
 constexpr int64_t start_ind = 3;
 constexpr int64_t masked_lane = 1;
@@ -188,9 +188,6 @@ bool test(queue q) {
     std::cout << " passed\n";
   }
   free(arr, q);
-#if USE_FULL_BARRIER
-  free(flag_ptr, q);
-#endif // USE_FULL_BARRIER
   return err_cnt == 0;
 }
 
