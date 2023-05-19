@@ -40,6 +40,7 @@ template <typename T, typename = std::enable_if_t<llvm::is_one_of<
 void getPerfectlyNestedLoops(SmallVector<T> &nestedLoops, T root) {
   for (unsigned i = 0; i < std::numeric_limits<unsigned>::max(); ++i) {
     nestedLoops.push_back(root);
+    assert(root.getLoopBody().hasOneBlock() && "Expecting single block");
     Block &body = root.getLoopBody().front();
     if (body.begin() != std::prev(body.end(), 2))
       return;
@@ -83,7 +84,6 @@ LogicalResult getTileSizes(const SmallVector<T> &nestedLoops,
 }
 
 LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
-
                    ArrayRef<Value> tileSizes,
                    SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   return tilePerfectlyNestedParametric(nestedLoops, tileSizes, &tiledNest);
