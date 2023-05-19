@@ -124,7 +124,7 @@ bool test(queue q) {
             simd<uint32_t, N> offsets(start_ind * sizeof(T),
                                       stride * sizeof(T));
             simd<T, size> data;
-            data.copy_from(arr);
+            data = lsc_block_load<T, size>(arr);
             lsc_slm_block_store(0, data);
             simd_mask<N> m = 1;
             if (masked_lane < N)
@@ -154,7 +154,7 @@ bool test(queue q) {
               }
             }
             auto data0 = lsc_slm_block_load<T, size>(0);
-            data0.copy_to(arr);
+            lsc_block_store(arr, data0);
           });
     });
     e.wait();
