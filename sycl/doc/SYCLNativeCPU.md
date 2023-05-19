@@ -31,6 +31,20 @@ In order to execute kernels compiles with `-fsycl-native-cpu`, we provide a PI P
 
 # Supported features and limitations
 
-The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently only `parallel_for`s over `sycl::range` are supported, attempting to use `local_size`, `local_id`, `barrier` and any math builtin will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](sycl/test/native_cpu).
+The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently only `parallel_for`s over `sycl::range` are supported, attempting to use `local_size`, `local_id`, `barrier` and any math builtin will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](sycl/test/native_cpu).\\
+The execute `e2e` tests on the Native CPU, configure the test suite with:
+
+```bash
+# make sure that DPC++ is in your $PATH and your environment is configured for DPC++
+
+cd sycl/test-e2e
+cmake \
+  -G Ninja \
+  -B build -S . \
+ -DCMAKE_CXX_COMPILER=clang++ \
+ -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" 
+
+```
+
 
 
