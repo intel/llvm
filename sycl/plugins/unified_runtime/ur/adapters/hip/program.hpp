@@ -13,7 +13,7 @@
 
 #include "context.hpp"
 
-struct ur_program_handle_t_ : _ur_object {
+struct ur_program_handle_t_ {
   using native_type = hipModule_t;
   native_type module_;
   const char *binary_;

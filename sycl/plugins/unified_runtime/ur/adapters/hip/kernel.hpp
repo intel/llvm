@@ -15,7 +15,7 @@
 
 #include "program.hpp"
 
-struct ur_kernel_handle_t_ : _ur_object {
+struct ur_kernel_handle_t_ {
   using native_type = hipFunction_t;
 
   native_type function_;

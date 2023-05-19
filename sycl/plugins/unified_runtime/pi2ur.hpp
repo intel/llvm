@@ -217,40 +217,6 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
             (int)ParamValueSizePI, (int)*ParamValueSizeUR);
     die("ur2piPlatformInfoValue: size mismatch");
   }
-
-  return PI_SUCCESS;
-}
-
-// Handle mismatched PI and UR type return sizes for info queries
-inline pi_result fixupInfoValueTypes(size_t ParamValueSizeRetUR,
-                                     size_t *ParamValueSizeRetPI,
-                                     size_t ParamValueSize, void *ParamValue) {
-  if (ParamValueSizeRetUR == 1 && ParamValueSize == 4) {
-    // extend bool to pi_bool (uint32_t)
-    if (ParamValue) {
-      auto *ValIn = static_cast<bool *>(ParamValue);
-      auto *ValOut = static_cast<pi_bool *>(ParamValue);
-      *ValOut = static_cast<pi_bool>(*ValIn);
-    }
-    if (ParamValueSizeRetPI) {
-      *ParamValueSizeRetPI = sizeof(pi_bool);
-    }
-  }
-
-  return PI_SUCCESS;
-}
-
-template <typename TypeOut, typename TypeFlag>
-inline pi_result
-ConvertInputBitfield(pi_bitfield in, TypeOut *out,
-                     const std::unordered_map<pi_bitfield, TypeFlag> &map) {
-  *out = 0;
-  for (auto &[FlagPI, FlagUR] : map) {
-    if (in & FlagPI) {
-      *out |= FlagUR;
-    }
-  }
-
   return PI_SUCCESS;
 }
 
@@ -633,7 +599,13 @@ inline pi_result piPlatformGetInfo(pi_platform Platform,
   HANDLE_ERRORS(urPlatformGetInfo(UrPlatform, UrParamName, ParamValueSize,
                                   ParamValue, &UrParamValueSizeRet));
 
-  ur2piPlatformInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
+  if (ParamValueSizeRet) {
+    *ParamValueSizeRet = UrParamValueSizeRet;
+  }
+  ur2piPlatformInfoValue(UrParamName, ParamValueSize, &ParamValueSize,
+                         ParamValue);
+  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
+                      ParamValue);
 
   return PI_SUCCESS;
 }
@@ -1049,14 +1021,17 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return PI_ERROR_UNKNOWN;
   };
 
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
   size_t UrParamValueSizeRet;
-  auto hDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  HANDLE_ERRORS(urDeviceGetInfo(hDevice, InfoType, ParamValueSize, ParamValue,
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+
+  HANDLE_ERRORS(urDeviceGetInfo(UrDevice, InfoType, ParamValueSize, ParamValue,
                                 &UrParamValueSizeRet));
+
   if (ParamValueSizeRet) {
     *ParamValueSizeRet = UrParamValueSizeRet;
   }
-
   ur2piDeviceInfoValue(InfoType, ParamValueSize, &ParamValueSize, ParamValue);
   fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
                       ParamValue);
@@ -1250,17 +1225,7 @@ inline pi_result piextContextSetExtendedDeleter(
     pi_context Context, pi_context_extended_deleter Function, void *UserData) {
   auto hContext = reinterpret_cast<ur_context_handle_t>(Context);
 
-  size_t UrParamValueSizeRet;
-  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
-  HANDLE_ERRORS(urContextGetInfo(hContext, InfoType->second, param_value_size,
-                                 param_value, &UrParamValueSizeRet));
-
-  if (param_value_size_ret) {
-    *param_value_size_ret = UrParamValueSizeRet;
-  }
-
-  fixupInfoValueTypes(UrParamValueSizeRet, param_value_size_ret,
-                      param_value_size, param_value);
+  HANDLE_ERRORS(urContextSetExtendedDeleter(hContext, Function, UserData));
 
   return PI_SUCCESS;
 }
@@ -2889,15 +2854,660 @@ inline pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
               PI_ERROR_INVALID_VALUE);
   }
 
-  size_t UrParamValueSizeRet;
-  auto hSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
-  HANDLE_ERRORS(urSamplerGetInfo(hSampler, InfoType->second, ParamValueSize,
-                                 ParamValue, &UrParamValueSizeRet));
-  if (ParamValueSizeRet) {
-    *ParamValueSizeRet = UrParamValueSizeRet;
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+
+  ur_usm_desc_t USMDesc{};
+  ur_usm_device_desc_t UsmDeviceDesc{};
+  UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
+  ur_usm_host_desc_t UsmHostDesc{};
+  UsmHostDesc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
+  if (Properties) {
+    if (Properties[0] == PI_MEM_ALLOC_FLAGS) {
+      if (Properties[1] == PI_MEM_ALLOC_WRTITE_COMBINED) {
+        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED;
+      }
+      if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE) {
+        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT;
+      }
+      if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST) {
+        UsmHostDesc.flags |= UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT;
+      }
+      if (Properties[1] == PI_MEM_ALLOC_DEVICE_READ_ONLY) {
+        UsmDeviceDesc.flags |= UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
+      }
+    }
   }
-  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
-                      ParamValue);
+  UsmDeviceDesc.pNext = &UsmHostDesc;
+  USMDesc.pNext = &UsmDeviceDesc;
+
+  USMDesc.align = Alignment;
+
+  ur_usm_pool_handle_t Pool{};
+  HANDLE_ERRORS(
+      urUSMSharedAlloc(UrContext, UrDevice, &USMDesc, Pool, Size, ResultPtr));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMFree(pi_context Context, void *Ptr) {
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+  HANDLE_ERRORS(urUSMFree(UrContext, Ptr));
+  return PI_SUCCESS;
+}
+
+inline pi_result piMemRetain(pi_mem Mem) {
+  PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
+
+  HANDLE_ERRORS(urMemRetain(UrMem));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piMemRelease(pi_mem Mem) {
+  PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
+
+  ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
+
+  HANDLE_ERRORS(urMemRelease(UrMem));
+
+  return PI_SUCCESS;
+}
+
+/// Hint to migrate memory to the device
+///
+/// @param Queue is the queue to submit to
+/// @param Ptr points to the memory to migrate
+/// @param Size is the number of bytes to migrate
+/// @param Flags is a bitfield used to specify memory migration options
+/// @param NumEventsInWaitList is the number of events to wait on
+/// @param EventsWaitList is an array of events to wait on
+/// @param Event is the event that represents this operation
+inline pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr,
+                                         size_t Size,
+                                         pi_usm_migration_flags Flags,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventsWaitList,
+                                         pi_event *OutEvent) {
+
+  // flags is currently unused so fail if set
+  PI_ASSERT(Flags == 0, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  // TODO: to map from pi_usm_migration_flags to
+  // ur_usm_migration_flags_t
+  // once we have those defined
+  ur_usm_migration_flags_t UrFlags{};
+  HANDLE_ERRORS(urEnqueueUSMPrefetch(UrQueue, Ptr, Size, UrFlags,
+                                     NumEventsInWaitList, UrEventsWaitList,
+                                     UrEvent));
+
+  return PI_SUCCESS;
+}
+
+/// USM memadvise API to govern behavior of automatic migration mechanisms
+///
+/// @param Queue is the queue to submit to
+/// @param Ptr is the data to be advised
+/// @param Length is the size in bytes of the meory to advise
+/// @param Advice is device specific advice
+/// @param Event is the event that represents this operation
+///
+inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
+                                          size_t Length, pi_mem_advice Advice,
+                                          pi_event *OutEvent) {
+
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  ur_usm_advice_flags_t UrAdvice{};
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION;
+  }
+  if (Advice & PI_MEM_ADVICE_RESET) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
+  }
+
+  HANDLE_ERRORS(urEnqueueUSMAdvise(UrQueue, Ptr, Length, UrAdvice, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+/// USM 2D Fill API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pitch is the total width of the destination memory including padding
+/// \param pattern is a pointer with the bytes of the pattern to set
+/// \param pattern_size is the size in bytes of the pattern
+/// \param width is width in bytes of each row to fill
+/// \param height is height the columns to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+inline pi_result piextUSMEnqueueFill2D(pi_queue Queue, void *Ptr, size_t Pitch,
+                                       size_t PatternSize, const void *Pattern,
+                                       size_t Width, size_t Height,
+                                       pi_uint32 NumEventsWaitList,
+                                       const pi_event *EventsWaitList,
+                                       pi_event *Event) {
+
+  auto hQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  auto phEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+  auto phEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urEnqueueUSMFill2D(hQueue, Ptr, Pitch, PatternSize, Pattern,
+                                   Width, Height, NumEventsWaitList,
+                                   phEventWaitList, phEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMEnqueueMemset2D(pi_queue Queue, void *Ptr,
+                                         size_t Pitch, int Value, size_t Width,
+                                         size_t Height,
+                                         pi_uint32 NumEventsWaitList,
+                                         const pi_event *EventsWaitList,
+                                         pi_event *Event) {
+  std::ignore = Queue;
+  std::ignore = Ptr;
+  std::ignore = Pitch;
+  std::ignore = Value;
+  std::ignore = Width;
+  std::ignore = Height;
+  std::ignore = NumEventsWaitList;
+  std::ignore = EventsWaitList;
+  std::ignore = Event;
+  die("piextUSMEnqueueMemset2D: not implemented");
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
+                                         pi_mem_alloc_info ParamName,
+                                         size_t ParamValueSize,
+                                         void *ParamValue,
+                                         size_t *ParamValueSizeRet) {
+
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+
+  ur_usm_alloc_info_t UrParamName{};
+  switch (ParamName) {
+  case PI_MEM_ALLOC_TYPE: {
+    UrParamName = UR_USM_ALLOC_INFO_TYPE;
+    break;
+  }
+  case PI_MEM_ALLOC_BASE_PTR: {
+    UrParamName = UR_USM_ALLOC_INFO_BASE_PTR;
+    break;
+  }
+  case PI_MEM_ALLOC_SIZE: {
+    UrParamName = UR_USM_ALLOC_INFO_SIZE;
+    break;
+  }
+  case PI_MEM_ALLOC_DEVICE: {
+    UrParamName = UR_USM_ALLOC_INFO_DEVICE;
+    break;
+  }
+  default: {
+    die("piextUSMGetMemAllocInfo: unsuppported ParamName.");
+  }
+  }
+
+  size_t SizeInOut = ParamValueSize;
+  HANDLE_ERRORS(urUSMGetMemAllocInfo(UrContext, Ptr, UrParamName,
+                                     ParamValueSize, ParamValue,
+                                     ParamValueSizeRet))
+  ur2piUSMAllocInfoValue(UrParamName, ParamValueSize, &SizeInOut, ParamValue);
+  return PI_SUCCESS;
+}
+
+inline pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
+                                   size_t ParamValueSize, void *ParamValue,
+                                   size_t *ParamValueSizeRet) {
+
+  auto hMem = reinterpret_cast<ur_mem_handle_t>(Image);
+
+  ur_image_info_t UrParamName{};
+  switch (ParamName) {
+  case PI_IMAGE_INFO_FORMAT: {
+    UrParamName = UR_IMAGE_INFO_FORMAT;
+    break;
+  }
+  case PI_IMAGE_INFO_ELEMENT_SIZE: {
+    UrParamName = UR_IMAGE_INFO_ELEMENT_SIZE;
+    break;
+  }
+  case PI_IMAGE_INFO_ROW_PITCH: {
+    UrParamName = UR_IMAGE_INFO_ROW_PITCH;
+    break;
+  }
+  case PI_IMAGE_INFO_SLICE_PITCH: {
+    UrParamName = UR_IMAGE_INFO_SLICE_PITCH;
+    break;
+  }
+  case PI_IMAGE_INFO_WIDTH: {
+    UrParamName = UR_IMAGE_INFO_WIDTH;
+    break;
+  }
+  case PI_IMAGE_INFO_HEIGHT: {
+    UrParamName = UR_IMAGE_INFO_HEIGHT;
+    break;
+  }
+  case PI_IMAGE_INFO_DEPTH: {
+    UrParamName = UR_IMAGE_INFO_DEPTH;
+    break;
+  }
+  default:
+    return PI_ERROR_UNKNOWN;
+  }
+
+  HANDLE_ERRORS(urMemImageGetInfo(hMem, UrParamName, ParamValueSize, ParamValue,
+                                  ParamValueSizeRet));
+  return PI_SUCCESS;
+}
+
+/// USM 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+inline pi_result piextUSMEnqueueMemcpy2D(pi_queue Queue, pi_bool Blocking,
+                                         void *DstPtr, size_t DstPitch,
+                                         const void *SrcPtr, size_t SrcPitch,
+                                         size_t Width, size_t Height,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventsWaitList,
+                                         pi_event *OutEvent) {
+
+  if (!DstPtr || !SrcPtr)
+    return PI_ERROR_INVALID_VALUE;
+
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueUSMMemcpy2D(
+      UrQueue, Blocking, DstPtr, DstPitch, SrcPtr, SrcPitch, Width, Height,
+      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+// Memory
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// Enqueue
+
+inline pi_result
+piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+                      const size_t *GlobalWorkOffset,
+                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+                      pi_uint32 NumEventsInWaitList,
+                      const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueKernelLaunch(
+      UrQueue, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
+      LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piEnqueueMemImageWrite(pi_queue Queue, pi_mem Image, pi_bool BlockingWrite,
+                       pi_image_offset Origin, pi_image_region Region,
+                       size_t InputRowPitch, size_t InputSlicePitch,
+                       const void *Ptr, pi_uint32 NumEventsInWaitList,
+                       const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrImage = reinterpret_cast<ur_mem_handle_t>(Image);
+  ur_rect_offset_t UrOrigin{Origin->x, Origin->y, Origin->z};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth;
+  UrRegion.height = Region->height;
+  UrRegion.width = Region->width;
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemImageWrite(
+      UrQueue, UrImage, BlockingWrite, UrOrigin, UrRegion, InputRowPitch,
+      InputSlicePitch, const_cast<void *>(Ptr), NumEventsInWaitList,
+      UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piEnqueueMemImageRead(pi_queue Queue, pi_mem Image, pi_bool BlockingRead,
+                      pi_image_offset Origin, pi_image_region Region,
+                      size_t RowPitch, size_t SlicePitch, void *Ptr,
+                      pi_uint32 NumEventsInWaitList,
+                      const pi_event *EventsWaitList, pi_event *OutEvent) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrImage = reinterpret_cast<ur_mem_handle_t>(Image);
+  ur_rect_offset_t UrOrigin{Origin->x, Origin->y, Origin->z};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth;
+  UrRegion.height = Region->height;
+  UrRegion.width = Region->width;
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemImageRead(
+      UrQueue, UrImage, BlockingRead, UrOrigin, UrRegion, RowPitch, SlicePitch,
+      Ptr, NumEventsInWaitList, UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemBufferMap(
+    pi_queue Queue, pi_mem Mem, pi_bool BlockingMap, pi_map_flags MapFlags,
+    size_t Offset, size_t Size, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent, void **RetMap) {
+  // TODO: we don't implement read-only or write-only, always read-write.
+  // assert((map_flags & PI_MAP_READ) != 0);
+  // assert((map_flags & PI_MAP_WRITE) != 0);
+  PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
+
+  ur_map_flags_t UrMapFlags{};
+  if (MapFlags & PI_MAP_READ)
+    UrMapFlags |= UR_MAP_FLAG_READ;
+  if (MapFlags & PI_MAP_WRITE)
+    UrMapFlags |= UR_MAP_FLAG_WRITE;
+  if (MapFlags & PI_MAP_WRITE_INVALIDATE_REGION)
+    UrMapFlags |= UR_MAP_FLAG_WRITE_INVALIDATE_REGION;
+
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemBufferMap(UrQueue, UrMem, BlockingMap, UrMapFlags,
+                                      Offset, Size, NumEventsInWaitList,
+                                      UrEventsWaitList, UrEvent, RetMap));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
+                                   pi_uint32 NumEventsInWaitList,
+                                   const pi_event *EventsWaitList,
+                                   pi_event *OutEvent) {
+
+  PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemUnmap(UrQueue, UrMem, MappedPtr,
+                                  NumEventsInWaitList, UrEventsWaitList,
+                                  UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
+                                        const void *Pattern, size_t PatternSize,
+                                        size_t Offset, size_t Size,
+                                        pi_uint32 NumEventsInWaitList,
+                                        const pi_event *EventsWaitList,
+                                        pi_event *OutEvent) {
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemBufferFill(UrQueue, UrBuffer, Pattern, PatternSize,
+                                       Offset, Size, NumEventsInWaitList,
+                                       UrEventsWaitList, UrEvent));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
+                                       pi_int32 Value, size_t Count,
+                                       pi_uint32 NumEventsInWaitList,
+                                       const pi_event *EventsWaitList,
+                                       pi_event *OutEvent) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  if (!Ptr) {
+    return PI_ERROR_INVALID_VALUE;
+  }
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  size_t PatternSize = 1;
+  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, &Value, Count,
+                                 NumEventsInWaitList, UrEventsWaitList,
+                                 UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemBufferCopyRect(
+    pi_queue Queue, pi_mem SrcMem, pi_mem DstMem, pi_buff_rect_offset SrcOrigin,
+    pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
+    size_t SrcRowPitch, size_t SrcSlicePitch, size_t DstRowPitch,
+    size_t DstSlicePitch, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  PI_ASSERT(SrcMem && DstMem, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrBufferSrc = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrBufferDst = reinterpret_cast<ur_mem_handle_t>(DstMem);
+  ur_rect_offset_t UrSrcOrigin{SrcOrigin->x_bytes, SrcOrigin->y_scalar,
+                               SrcOrigin->z_scalar};
+  ur_rect_offset_t UrDstOrigin{DstOrigin->x_bytes, DstOrigin->y_scalar,
+                               DstOrigin->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemBufferCopyRect(
+      UrQueue, UrBufferSrc, UrBufferDst, UrSrcOrigin, UrDstOrigin, UrRegion,
+      SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
+      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcMem,
+                                        pi_mem DstMem, size_t SrcOffset,
+                                        size_t DstOffset, size_t Size,
+                                        pi_uint32 NumEventsInWaitList,
+                                        const pi_event *EventsWaitList,
+                                        pi_event *OutEvent) {
+
+  PI_ASSERT(SrcMem && DstMem, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrBufferSrc = reinterpret_cast<ur_mem_handle_t>(SrcMem);
+  ur_mem_handle_t UrBufferDst = reinterpret_cast<ur_mem_handle_t>(DstMem);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemBufferCopy(
+      UrQueue, UrBufferSrc, UrBufferDst, SrcOffset, DstOffset, Size,
+      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking,
+                                       void *DstPtr, const void *SrcPtr,
+                                       size_t Size,
+                                       pi_uint32 NumEventsInWaitList,
+                                       const pi_event *EventsWaitList,
+                                       pi_event *OutEvent) {
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueUSMMemcpy(UrQueue, Blocking, DstPtr, SrcPtr, Size,
+                                   NumEventsInWaitList, UrEventsWaitList,
+                                   UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemBufferWriteRect(
+    pi_queue Queue, pi_mem Buffer, pi_bool BlockingWrite,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventsWaitList,
+    pi_event *OutEvent) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  ur_rect_offset_t UrBufferOffset{BufferOffset->x_bytes, BufferOffset->y_scalar,
+                                  BufferOffset->z_scalar};
+  ur_rect_offset_t UrHostOffset{HostOffset->x_bytes, HostOffset->y_scalar,
+                                HostOffset->z_scalar};
+  ur_rect_region_t UrRegion{};
+  UrRegion.depth = Region->depth_scalar;
+  UrRegion.height = Region->height_scalar;
+  UrRegion.width = Region->width_bytes;
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemBufferWriteRect(
+      UrQueue, UrBuffer, BlockingWrite, UrBufferOffset, UrHostOffset, UrRegion,
+      BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
+      const_cast<void *>(Ptr), NumEventsInWaitList, UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
+                                         pi_bool BlockingWrite, size_t Offset,
+                                         size_t Size, const void *Ptr,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventsWaitList,
+                                         pi_event *OutEvent) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueMemBufferWrite(
+      UrQueue, UrBuffer, BlockingWrite, Offset, Size, const_cast<void *>(Ptr),
+      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueMemBufferReadRect(
+    pi_queue Queue, pi_mem Buffer, pi_bool BlockingRead,
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventsWaitList,
+    pi_event *OutEvent) {
+
+  PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
   ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
