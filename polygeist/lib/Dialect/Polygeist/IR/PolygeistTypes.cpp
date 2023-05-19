@@ -16,6 +16,6 @@ LogicalResult StructType::verify(function_ref<InFlightDiagnostic()> emitError,
                                  std::optional<StringAttr> name, bool isPacked,
                                  bool isOpaque) {
   if (isOpaque && !name)
-    return emitError() << "opaque struct type must have name";
+    return emitError() << "opaque struct type must have a name";
   return success();
 }
