@@ -50,9 +50,12 @@ int main() {
       cgh.parallel_for<class test2>(
           nd_range<3>({128, 4, 2}, {32, 2, 1}, {16, 1, 0}), [=](nd_item<3> it) {
             auto sg = it.get_sub_group();
-            joint_exclusive_scan(sg, in.get_pointer(),
-                                 in.get_pointer() + sg.get_local_id(),
-                                 out.get_pointer(), std::plus<>{});
+            joint_exclusive_scan(
+                sg, in.template get_multi_ptr<access::decorated::no>(),
+                in.template get_multi_ptr<access::decorated::no>() +
+                    sg.get_local_id(),
+                out.template get_multi_ptr<access::decorated::no>(),
+                std::plus<>{});
           });
     });
   }

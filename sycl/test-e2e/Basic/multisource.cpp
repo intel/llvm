@@ -9,14 +9,14 @@
 // Separate kernel sources and host code sources
 // RUN: %{build} -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL
 // RUN: %{build} -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.kernel.o %t.main.o -o %t.fat
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.kernel.o %t.main.o -o %t.fat
 // RUN: %{run} %t.fat
 
 // Multiple sources with kernel code
 // RUN: %{build} -c -o %t.init.o -DINIT_KERNEL
 // RUN: %{build} -c -o %t.calc.o -DCALC_KERNEL
 // RUN: %{build} -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.init.o %t.calc.o %t.main.o -o %t.fat
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -o %t.fat
 // RUN: %{run} %t.fat
 
 #include <sycl/sycl.hpp>

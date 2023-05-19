@@ -537,7 +537,10 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
-      if (!IsKernelCreatedFromSource) {
+      // TODO ESIMD currently does not suport MSize field passing yet
+      // accessor::init for ESIMD-mode accessor has a single field, translated
+      // to a single kernel argument set above.
+      if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,

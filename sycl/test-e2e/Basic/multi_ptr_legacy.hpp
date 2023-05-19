@@ -8,7 +8,7 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl.hpp>
 #include <type_traits>
 
 using namespace sycl;
@@ -30,7 +30,7 @@ template <typename T> struct point {
 };
 
 template <typename T>
-void innerFunc(id<1> wiID, global_ptr<T> ptr_1, global_ptr<T> ptr_2,
+void innerFunc(id<1> wiID, global_ptr<const T> ptr_1, global_ptr<T> ptr_2,
                local_ptr<T> local_ptr) {
   T t = ptr_1[wiID.get(0)];
   local_ptr[wiID.get(0)] = t;
@@ -64,31 +64,33 @@ template <typename T> void testMultPtr() {
 
       cgh.parallel_for<class testMultPtrKernel<T>>(
           nd_range<1>{10, 10}, [=](nd_item<1> wiID) {
-            auto ptr_1 = make_ptr<T, access::address_space::global_space,
+            auto ptr_1 = make_ptr<const T, access::address_space::global_space,
                                   access::decorated::legacy>(
-                accessorData_1.get_pointer());
+                accessorData_1
+                    .template get_multi_ptr<sycl::access::decorated::legacy>());
             auto ptr_2 = make_ptr<T, access::address_space::global_space,
                                   access::decorated::legacy>(
-                accessorData_2.get_pointer());
+                accessorData_2
+                    .template get_multi_ptr<sycl::access::decorated::legacy>());
             auto local_ptr = make_ptr<T, access::address_space::local_space,
                                       access::decorated::legacy>(
                 localAccessor.get_pointer());
 
             // Construct extension pointer from accessors.
             auto dev_ptr =
-                multi_ptr<T,
+                multi_ptr<const T,
                           access::address_space::ext_intel_global_device_space>(
                     accessorData_1);
-            static_assert(
-                std::is_same_v<ext::intel::device_ptr<T>, decltype(dev_ptr)>,
-                "Incorrect type for dev_ptr.");
+            static_assert(std::is_same_v<ext::intel::device_ptr<const T>,
+                                         decltype(dev_ptr)>,
+                          "Incorrect type for dev_ptr.");
 
             // General conversions in multi_ptr class
             T *RawPtr = nullptr;
             global_ptr<T> ptr_4(RawPtr);
             ptr_4 = RawPtr;
 
-            global_ptr<T> ptr_5(accessorData_1);
+            global_ptr<const T> ptr_5(accessorData_1);
 
             global_ptr<void> ptr_6((void *)RawPtr);
 
@@ -144,9 +146,11 @@ template <typename T> void testMultPtrArrowOperator() {
 
       cgh.parallel_for<class testMultPtrArrowOperatorKernel<T>>(
           sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
-            auto ptr_1 = make_ptr<point<T>, access::address_space::global_space,
-                                  access::decorated::legacy>(
-                accessorData_1.get_pointer());
+            auto ptr_1 =
+                make_ptr<const point<T>, access::address_space::global_space,
+                         access::decorated::legacy>(
+                    accessorData_1.template get_multi_ptr<
+                        sycl::access::decorated::legacy>());
             auto ptr_2 =
                 make_ptr<point<T>, access::address_space::constant_space,
                          access::decorated::legacy>(
@@ -155,7 +159,7 @@ template <typename T> void testMultPtrArrowOperator() {
                                   access::decorated::legacy>(
                 accessorData_3.get_pointer());
             auto ptr_4 =
-                make_ptr<point<T>,
+                make_ptr<const point<T>,
                          access::address_space::ext_intel_global_device_space,
                          access::decorated::legacy>(
                     accessorData_4.get_pointer());

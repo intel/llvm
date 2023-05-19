@@ -49,8 +49,8 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
               sgsizeacc[0] = SG.get_max_local_range()[0];
           });
     });
-    auto addacc = addbuf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor addacc(addbuf);
+    host_accessor sgsizeacc(sgsizebuf);
 
     size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;
