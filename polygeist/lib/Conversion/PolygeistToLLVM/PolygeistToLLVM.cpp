@@ -855,6 +855,9 @@ populatePolygeistToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
         if (failed(typeConverter.convertTypes(body, convertedElemTypes)))
           return std::nullopt;
         if (type.getName().has_value()) {
+          if (type.isOpaque())
+            return LLVM::LLVMStructType::getOpaque(*type.getName(),
+                                                   &typeConverter.getContext());
           auto ST = LLVM::LLVMStructType::getIdentified(
               &typeConverter.getContext(), *type.getName());
           if (!ST.isInitialized()) {
