@@ -57,6 +57,8 @@ enum Instruction {
   InstCount                     = 37,
   FunctionDefinition            = 101,
   SourceContinued               = 102,
+  BuildIdentifier               = 105,
+  StoragePath                   = 106,
   EntryPoint                    = 107,
   Module                        = 200,
   TypeSubrange                  = 201,
@@ -318,6 +320,21 @@ enum {
   TextNonSemIdx   = 3,
   MinOperandCount = 1,
   MaxOperandCount = 4
+};
+}
+
+namespace BuildIdentifier {
+enum {
+  IdentifierIdx = 0,
+  FlagsIdx      = 1,
+  OperandCount  = 2
+};
+}
+
+namespace StoragePath {
+enum {
+  PathIdx       = 0,
+  OperandCount  = 1
 };
 }
 

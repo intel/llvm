@@ -217,6 +217,18 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst,
   // TODO: Remove this workaround once we switch to NonSemantic.Shader.* debug
   // info by default
   auto Producer = findModuleProducer();
+  assert(BuilderMap.size() != 0 && "No debug compile units");
+  if (BuilderMap.size()==1)
+    // Only initialize once
+    setBuildIdentifierAndStoragePath();
+
+  if (!StoragePath.empty()) {
+    return BuilderMap[DebugInst->getId()]->createCompileUnit(
+        SourceLang, getFile(Ops[SourceIdx]), Producer, false, "", 0,
+        StoragePath, DICompileUnit::DebugEmissionKind::FullDebug,
+        BuildIdentifier);
+  }
+
   return BuilderMap[DebugInst->getId()]->createCompileUnit(
       SourceLang, getFile(Ops[SourceIdx]), Producer, false, Flags, 0);
 }
@@ -398,8 +410,8 @@ SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
       getDIBuilder(DebugInst).getOrCreateArray(Subscripts);
   size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
 
-  auto TransOperand = [&](SPIRVWord Idx) -> PointerUnion<DIExpression *,
-                                                         DIVariable *> {
+  auto TransOperand =
+      [&](SPIRVWord Idx) -> PointerUnion<DIExpression *, DIVariable *> {
     if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
       if (const auto *GV = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx]))
         return transDebugInst<DIGlobalVariable>(GV);
@@ -1344,6 +1356,8 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
   case SPIRVDebug::Operation: // To be translated with transExpression
   case SPIRVDebug::Source:    // To be used by other instructions
   case SPIRVDebug::SourceContinued:
+  case SPIRVDebug::BuildIdentifier: // To be used by transCompilationUnit
+  case SPIRVDebug::StoragePath:     // To be used by transCompilationUnit
     return nullptr;
 
   case SPIRVDebug::Expression:
@@ -1510,6 +1524,43 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
 
   return getDIFile(getString(SourceArgs[FileIdx]), CS,
                    getStringSourceContinued(StrIdx, Source));
+}
+
+void SPIRVToLLVMDbgTran::setBuildIdentifierAndStoragePath() {
+#ifndef NDEBUG
+  bool FoundBuildIdentifier{false};
+  bool FoundStoragePath{false};
+#endif
+
+  for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
+    if (EI->getExtOp() == SPIRVDebug::BuildIdentifier) {
+      using namespace SPIRVDebug::Operand::BuildIdentifier;
+      SPIRVWordVec BuildIdentifierArgs = EI->getArguments();
+      assert(BuildIdentifierArgs.size() == OperandCount &&
+             "Invalid number of operands");
+      assert(!FoundBuildIdentifier &&
+             "More than one BuildIdentifier instruction not allowed");
+      BuildIdentifier = strtoull(
+          getString(BuildIdentifierArgs[IdentifierIdx]).c_str(), NULL, 10);
+#ifndef NDEBUG
+      FoundBuildIdentifier = true;
+#endif
+    } else if (EI->getExtOp() == SPIRVDebug::StoragePath) {
+      using namespace SPIRVDebug::Operand::StoragePath;
+      SPIRVWordVec StoragePathArgs = EI->getArguments();
+      assert(StoragePathArgs.size() == OperandCount &&
+             "Invalid number of operands");
+      assert(!FoundStoragePath &&
+             "More than one StoragePath instruction not allowed");
+      StoragePath = getString(StoragePathArgs[PathIdx]);
+#ifndef NDEBUG
+      FoundStoragePath = true;
+#endif
+    }
+  }
+  assert(((FoundBuildIdentifier && FoundStoragePath) ||
+          (!FoundBuildIdentifier && !FoundStoragePath)) &&
+         "BuildIdentifier and StoragePath must both be set or both unset");
 }
 
 DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {
