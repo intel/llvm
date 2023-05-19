@@ -163,30 +163,6 @@ thread_local char ErrorMessage[MaxMessageSize];
   ErrorMessageCode = error_code;
 }
 
-// Returns plugin specific error and warning messages
-pi_result hip_piPluginGetLastError(char **message) {
-  *message = &ErrorMessage[0];
-  return ErrorMessageCode;
-}
-
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return empty string for hip.
-// TODO: Determine correct string to be passed.
-pi_result hip_piPluginGetBackendOption(pi_platform, const char *frontend_option,
-                                       const char **backend_option) {
-  using namespace std::literals;
-  if (frontend_option == nullptr)
-    return PI_ERROR_INVALID_VALUE;
-  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
-      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
-      frontend_option == ""sv) {
-    *backend_option = "";
-    return PI_SUCCESS;
-  }
-  return PI_ERROR_INVALID_VALUE;
-}
-
 /// Converts HIP error into PI error codes, and outputs error information
 /// to stderr.
 /// If PI_HIP_ABORT env variable is defined, it aborts directly instead of
@@ -2052,10 +2028,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, pi2ur::piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, pi2ur::piextKernelSetArgSampler)
-  _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
+  _PI_CL(piPluginGetLastError, pi2ur::piPluginGetLastError)
   _PI_CL(piTearDown, pi2ur::piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, pi2ur::piGetDeviceAndHostTimer)
-  _PI_CL(piPluginGetBackendOption, hip_piPluginGetBackendOption)
+  _PI_CL(piPluginGetBackendOption, pi2ur::piPluginGetBackendOption)
 
 #undef _PI_CL
 

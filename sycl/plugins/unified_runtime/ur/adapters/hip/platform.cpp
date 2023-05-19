@@ -139,3 +139,23 @@ UR_DLLEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
 UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *) {
   return UR_RESULT_SUCCESS;
 }
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for cuda.
+// TODO: Determine correct string to be passed.
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, const char *pFrontendOption,
+    const char **ppPlatformOption) {
+  (void)hPlatform;
+  using namespace std::literals;
+  if (pFrontendOption == nullptr)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  if (pFrontendOption == "-O0"sv || pFrontendOption == "-O1"sv ||
+      pFrontendOption == "-O2"sv || pFrontendOption == "-O3"sv ||
+      pFrontendOption == ""sv) {
+    *ppPlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
+}
