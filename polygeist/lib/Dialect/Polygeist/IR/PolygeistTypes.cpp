@@ -7,3 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
+
+using namespace mlir;
+using namespace mlir::polygeist;
+
+LogicalResult StructType::verify(function_ref<InFlightDiagnostic()> emitError,
+                                 llvm::ArrayRef<Type> body,
+                                 std::optional<StringAttr> name, bool isPacked,
+                                 bool isOpaque) {
+  if (isOpaque && !name)
+    return emitError() << "opaque struct type must have name";
+  return success();
+}

@@ -56,6 +56,7 @@ def Polygeist_StructType :
         (`isOpaque` `=` $isOpaque^)?
         (`(` $body^ `)`)? `>`
   }];
+  let genVerifyDecl = 1;
 }
 
 #endif // POLYGEIST_TYPES
