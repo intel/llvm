@@ -4790,6 +4790,10 @@ class OffloadingActionBuilder final {
       return HIPFatBinary;
     }
 
+    constexpr bool shouldRaiseHost() const {
+      return OffloadingActionBuilderRef.ShouldRaiseSYCLHost;
+    }
+
     Action *ExternalCudaAction = nullptr;
 
   public:
@@ -4799,7 +4803,11 @@ class OffloadingActionBuilder final {
                       bool OnlyCreateStubFile = false)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
           OnlyCreateStubFile(OnlyCreateStubFile),
-          SYCLInstallation(C.getDriver()) {}
+          SYCLInstallation(C.getDriver()) {
+      assert((!OnlyCreateStubFile || OAB.ShouldRaiseSYCLHost) &&
+             "An action builder that only creates the stub file is needed only "
+             "if the host code is raised");
+    }
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4890,12 +4898,12 @@ class OffloadingActionBuilder final {
           DeviceCompilerInput = A;
         }
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
-        bool SYCLRaiseHost = shouldRaiseHost(Args);
-        if (!SYCLRaiseHost || OnlyCreateStubFile)
+        bool ShouldRaiseHost = shouldRaiseHost();
+        if (!ShouldRaiseHost || OnlyCreateStubFile)
           DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
                  Action::OFK_SYCL);
-        return (SYCLDeviceOnly && !SYCLRaiseHost) ? ABRT_Ignore_Host
-                                                  : ABRT_Success;
+        return (SYCLDeviceOnly && !ShouldRaiseHost) ? ABRT_Ignore_Host
+                                                    : ABRT_Success;
       }
 
       // Backend/Assemble actions are obsolete for the SYCL device side
@@ -5056,8 +5064,9 @@ class OffloadingActionBuilder final {
       }
 
       if (!SYCLDeviceActions.empty() && !OnlyCreateStubFile &&
+          shouldRaiseHost() &&
           isa<CompileJobAction>(SYCLDeviceActions.back()) &&
-          isa<CompileJobAction>(HostAction) && shouldRaiseHost(Args)) {
+          isa<CompileJobAction>(HostAction)) {
         // Remove compile action from the list
         Action *A = SYCLDeviceActions.back();
         SYCLDeviceActions.pop_back();
@@ -6302,10 +6311,14 @@ class OffloadingActionBuilder final {
   /// Flag set to true if all valid builders allow file bundling/unbundling.
   bool CanUseBundler;
 
+  /// Flag set to true if the SYCL host should be raised to MLIR to be used
+  /// during device compilation.
+  bool ShouldRaiseSYCLHost;
+
 public:
   OffloadingActionBuilder(Compilation &C, DerivedArgList &Args,
                           const Driver::InputList &Inputs)
-      : C(C) {
+      : C(C), ShouldRaiseSYCLHost(shouldRaiseHost(Args)) {
     // Create a specialized builder for each device toolchain.
 
     IsValid = true;
@@ -6330,9 +6343,10 @@ public:
     // actual compilation.
     if (!Args.hasArg(options::OPT_fsyntax_only) &&
         Args.hasArg(options::OPT_fsycl_raise_host)) {
-      if (shouldRaiseHost(Args)) {
-        SpecializedBuilders.push_back(new SYCLActionBuilder(
-            C, Args, Inputs, *this, /*OnlyCreateStubFile=*/true));
+      if (ShouldRaiseSYCLHost) {
+        SpecializedBuilders.push_back(
+            new SYCLActionBuilder(C, Args, Inputs, *this,
+                                  /*OnlyCreateStubFile=*/true));
       } else {
         C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
             << "-fsycl-raise-host"
@@ -6626,8 +6640,8 @@ public:
     }
 
     if (const llvm::opt::DerivedArgList &Args = C.getArgs();
-        shouldRaiseHost(Args) && (Args.hasArg(options::OPT_fsycl_device_only) ||
-                                  Args.hasArg(options::OPT_emit_mlir))) {
+        ShouldRaiseSYCLHost && (Args.hasArg(options::OPT_fsycl_device_only) ||
+                                Args.hasArg(options::OPT_emit_mlir))) {
       // The host action will be discarded if it was created for instrumentation
       // and it is not needed in the output
       HostAction = nullptr;
@@ -6640,7 +6654,7 @@ public:
       // device only compilation, HostAction is a null pointer, therefore only
       // do this when HostAction is not a null pointer.
       bool UseHostActionInput =
-          HostAction->getType() == types::TY_MLIR_IR && shouldRaiseHost(Args);
+          HostAction->getType() == types::TY_MLIR_IR && ShouldRaiseSYCLHost;
 
       if (UseHostActionInput) {
         assert(isa<CompileJobAction>(HostAction) &&
