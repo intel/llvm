@@ -166,29 +166,31 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnDeviceGlobalVariableRead = nullptr;
-  pDdiTable->pfnDeviceGlobalVariableWrite = nullptr;
-  pDdiTable->pfnEventsWait = nullptr;
-  pDdiTable->pfnEventsWaitWithBarrier = nullptr;
-  pDdiTable->pfnKernelLaunch = nullptr;
-  pDdiTable->pfnMemBufferCopy = nullptr;
-  pDdiTable->pfnMemBufferCopyRect = nullptr;
-  pDdiTable->pfnMemBufferFill = nullptr;
-  pDdiTable->pfnMemBufferMap = nullptr;
-  pDdiTable->pfnMemBufferRead = nullptr;
-  pDdiTable->pfnMemBufferReadRect = nullptr;
-  pDdiTable->pfnMemBufferWrite = nullptr;
-  pDdiTable->pfnMemBufferWriteRect = nullptr;
-  pDdiTable->pfnMemImageCopy = nullptr;
-  pDdiTable->pfnMemImageRead = nullptr;
-  pDdiTable->pfnMemImageWrite = nullptr;
-  pDdiTable->pfnMemUnmap = nullptr;
-  pDdiTable->pfnUSMFill2D = nullptr;
-  pDdiTable->pfnUSMFill = nullptr;
-  pDdiTable->pfnUSMAdvise = nullptr;
-  pDdiTable->pfnUSMMemcpy2D = nullptr;
-  pDdiTable->pfnUSMMemcpy = nullptr;
-  pDdiTable->pfnUSMPrefetch = nullptr;
+  pDdiTable->pfnDeviceGlobalVariableRead = urEnqueueDeviceGlobalVariableRead;
+  pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
+  pDdiTable->pfnEventsWait = urEnqueueEventsWait;
+  pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
+  pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
+  pDdiTable->pfnMemBufferCopy = urEnqueueMemBufferCopy;
+  pDdiTable->pfnMemBufferCopyRect = urEnqueueMemBufferCopyRect;
+  pDdiTable->pfnMemBufferFill = urEnqueueMemBufferFill;
+  pDdiTable->pfnMemBufferMap = urEnqueueMemBufferMap;
+  pDdiTable->pfnMemBufferRead = urEnqueueMemBufferRead;
+  pDdiTable->pfnMemBufferReadRect = urEnqueueMemBufferReadRect;
+  pDdiTable->pfnMemBufferWrite = urEnqueueMemBufferWrite;
+  pDdiTable->pfnMemBufferWriteRect = urEnqueueMemBufferWriteRect;
+  pDdiTable->pfnMemImageCopy = urEnqueueMemImageCopy;
+  pDdiTable->pfnMemImageRead = urEnqueueMemImageRead;
+  pDdiTable->pfnMemImageWrite = urEnqueueMemImageWrite;
+  pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
+  pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
+  pDdiTable->pfnUSMFill = urEnqueueUSMFill;
+  pDdiTable->pfnUSMAdvise = urEnqueueUSMAdvise;
+  pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
+  pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
+  pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
+  pDdiTable->pfnReadHostPipe = urEnqueueReadHostPipe;
+  pDdiTable->pfnWriteHostPipe = urEnqueueWriteHostPipe;
   return UR_RESULT_SUCCESS;
 }
 
