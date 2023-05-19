@@ -102,4 +102,4 @@ sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas
 sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
 
 # Matrix tests
-sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin
+sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
