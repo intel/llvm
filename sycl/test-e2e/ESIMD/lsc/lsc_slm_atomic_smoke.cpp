@@ -154,7 +154,7 @@ bool test(queue q) {
               }
             }
             auto data0 = lsc_slm_block_load<T, size>(0);
-            lsc_block_store(arr, data0);
+            lsc_block_store(arr, data);
           });
     });
     e.wait();
