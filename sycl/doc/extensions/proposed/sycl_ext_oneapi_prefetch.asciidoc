@@ -212,6 +212,8 @@ void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlacehol
 template <typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(void* ptr, Properties properties = {});
 ----
+_Preconditions_: `ptr` must point to an object in global memory.
+
 _Effects_: Acts as a hint to the implementation that the cacheline containing
 the byte at `ptr` should be prefetched into the levels of cache specified by
 `properties`.
@@ -221,6 +223,8 @@ the byte at `ptr` should be prefetched into the levels of cache specified by
 template <typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(void* ptr, size_t bytes, Properties properties = {});
 ----
+_Preconditions_: `ptr` must point to an object in global memory.
+
 _Effects_: Acts as a hint to the implementation that the cachelines containing
 the `bytes` bytes starting at `ptr` should be prefetched into the levels of
 cache specified by `properties`.
@@ -230,6 +234,8 @@ cache specified by `properties`.
 template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(T* ptr, Properties properties = {});
 ----
+_Preconditions_: `ptr` must point to an object in global memory.
+
 _Effects_: Equivalent to `prefetch((void*) ptr, sizeof(T), properties)`.
 
 [source,c++]
@@ -237,6 +243,8 @@ _Effects_: Equivalent to `prefetch((void*) ptr, sizeof(T), properties)`.
 template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(T* ptr, size_t count, Properties properties = {});
 ----
+_Preconditions_: `ptr` must point to an object in global memory.
+
 _Effects_: Equivalent to `prefetch((void*) ptr, count * sizeof(T), properties)`.
 
 [source,c++]
@@ -349,8 +357,8 @@ void joint_prefetch(Group g, void* ptr, Properties properties = {});
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true`.
 
-_Preconditions_: `ptr` and `properties` must be the same for all work-items in
-group `g`.
+_Preconditions_: `ptr` must point to an object in global memory. `ptr` and
+`properties` must be the same for all work-items in group `g`.
 
 _Effects_: Acts as a hint to the implementation that the cacheline containing
 the byte at `ptr` should be prefetched into the levels of cache specified by
@@ -364,8 +372,8 @@ void joint_prefetch(Group g, void* ptr, size_t bytes, Properties properties = {}
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true`.
 
-_Preconditions_: `ptr`, `bytes` and `properties` must be the same for all
-work-items in group `g`.
+_Preconditions_: `ptr` must point to an object in global memory. `ptr`, `bytes`
+and `properties` must be the same for all work-items in group `g`.
 
 _Effects_: Acts as a hint to the implementation that the cachelines containing
 the `bytes` bytes starting at `ptr` should be prefetched into the levels of
@@ -379,8 +387,8 @@ void joint_prefetch(Group g, T* ptr, Properties properties = {});
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true`.
 
-_Preconditions_: `ptr` and `properties` must be the same for all work-items in
-group `g`.
+_Preconditions_: `ptr` must point to an object in global memory. `ptr` and
+`properties` must be the same for all work-items in group `g`.
 
 _Effects_: Equivalent to `joint_prefetch(g, (void*) ptr, sizeof(T),
 properties)`.
@@ -393,8 +401,8 @@ void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true`.
 
-_Preconditions_: `ptr`, `count` and `properties` must be the same for all
-work-items in group `g`.
+_Preconditions_: `ptr` must point to an object in global memory. `ptr`, `count`
+and `properties` must be the same for all work-items in group `g`.
 
 _Effects_: Equivalent to `joint_prefetch(g, (void*) ptr, count * sizeof(T),
 properties)`.
