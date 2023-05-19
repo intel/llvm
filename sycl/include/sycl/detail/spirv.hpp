@@ -16,6 +16,7 @@
 #include <sycl/detail/type_list.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
+#include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/memory_enums.hpp>
 
@@ -129,6 +130,9 @@ template <typename Group> bool GroupAll(Group, bool pred) {
 template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
               bool pred) {
+#if defined(__NVPTX__)
+  return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
+#else
   // ballot_group partitions its parent into two groups (0 and 1)
   // We have to force each group down different control flow
   // Work-items in the "false" group (0) may still be active
@@ -137,26 +141,35 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   } else {
     return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
   }
+#endif
 }
 template <size_t PartitionSize, typename ParentGroup>
 bool GroupAll(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
     bool pred) {
+#if defined(__NVPTX__)
+  return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
+#else
   // GroupNonUniformAll doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseAnd(
       group_scope<ParentGroup>::value,
       static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
       static_cast<uint32_t>(pred), PartitionSize);
+#endif
 }
 template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
 }
-template <typename Group>
-bool GroupAll(const ext::oneapi::experimental::opportunistic_group &,
+
+bool GroupAll(const ext::oneapi::experimental::opportunistic_group &g,
               bool pred) {
+#if defined(__NVPTX__)
+  return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
+#else
   return __spirv_GroupNonUniformAll(
       group_scope<ext::oneapi::experimental::opportunistic_group>::value, pred);
+#endif
 }
 
 template <typename Group> bool GroupAny(Group, bool pred) {
@@ -165,6 +178,9 @@ template <typename Group> bool GroupAny(Group, bool pred) {
 template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
               bool pred) {
+#if defined (__NVPTX__)
+  return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
+#else
   // ballot_group partitions its parent into two groups (0 and 1)
   // We have to force each group down different control flow
   // Work-items in the "false" group (0) may still be active
@@ -173,25 +189,34 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   } else {
     return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
   }
+#endif
 }
 template <size_t PartitionSize, typename ParentGroup>
 bool GroupAny(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
     bool pred) {
+#if defined (__NVPTX__)
+  return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
+#else
   // GroupNonUniformAny doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseOr(
       group_scope<ParentGroup>::value,
       static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
       static_cast<uint32_t>(pred), PartitionSize);
+#endif
 }
 template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
 }
-bool GroupAny(const ext::oneapi::experimental::opportunistic_group &,
+bool GroupAny(const ext::oneapi::experimental::opportunistic_group &g,
               bool pred) {
+#if defined (__NVPTX__)
+  return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
+#else
   return __spirv_GroupNonUniformAny(
       group_scope<ext::oneapi::experimental::opportunistic_group>::value, pred);
+#endif
 }
 
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
@@ -269,7 +294,9 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
                T x, IdT local_id) {
   // Remap local_id to its original numbering in ParentGroup.
   auto LocalId = detail::IdToMaskPosition(g, local_id);
-
+#if defined(__NVPTX__)
+  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x, LocalId, 31);
+#else
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
@@ -289,6 +316,7 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
                                             OCLX, OCLId);
   }
+#endif
 }
 template <size_t PartitionSize, typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
@@ -296,7 +324,9 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
     T x, IdT local_id) {
   // Remap local_id to its original numbering in ParentGroup
   auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
-
+#if defined(__NVPTX__)
+  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x, LocalId, 31);
+#else
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
@@ -312,6 +342,7 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
   // partition, and it's unclear which will be faster in practice.
   return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value, OCLX,
                                         OCLId);
+#endif
 }
 template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
@@ -338,7 +369,9 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
                IdT local_id) {
   // Remap local_id to its original numbering in sub-group
   auto LocalId = detail::IdToMaskPosition(g, local_id);
-
+#if defined(__NVPTX__)
+  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x, LocalId, 31);
+#else
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<sycl::ext::oneapi::sub_group>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
@@ -351,6 +384,7 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
   return __spirv_GroupNonUniformBroadcast(
       group_scope<ext::oneapi::experimental::opportunistic_group>::value, OCLX,
       OCLId);
+#endif
 }
 
 template <typename Group, typename T, typename IdT>
@@ -1022,8 +1056,10 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
-#if defined(__SPIR__)
+ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
+#if defined(__NVPTX__)
+  __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
+#else
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.
@@ -1033,8 +1069,6 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
                             __spv::MemorySemanticsMask::SubgroupMemory |
                             __spv::MemorySemanticsMask::WorkgroupMemory |
                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#elif defined(__NVPTX__)
-  // TODO: Call syncwarp with appropriate mask extracted from the group
 #endif
 }
 
