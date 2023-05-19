@@ -698,6 +698,8 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeNonSemantic(const DICompositeType *AT) {
     if (AT->isVector()) {
       assert(N == 1 && "Multidimensional vector is not expected!");
       Ops[ComponentCountIdx] = static_cast<SPIRVWord>(Count->getZExtValue());
+      if (isNonSemanticDebugInfo())
+        transformToConstant(Ops, {ComponentCountIdx});
       return BM->addDebugInfo(SPIRVDebug::TypeVector, getVoidTy(), Ops);
     }
     Ops[SubrangesIdx + I] = transDbgEntry(SR)->getId();
