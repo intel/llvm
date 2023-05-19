@@ -228,6 +228,13 @@ event handler::finalize() {
         DiscardEvent = !KernelUsesAssert;
       }
 
+      uint64_t InstanceID{};
+      void *TraceEvent = nullptr;
+
+      detail::ExecCGCommand::emitKernelInstrumentationData(
+          MKernelName, MKernel, MNDRDesc, MArgs, MOSModuleHandle,
+          KernelBundleImpPtr, MCodeLoc, MQueue, InstanceID, TraceEvent);
+
       if (DiscardEvent) {
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",

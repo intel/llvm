@@ -625,6 +625,17 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
+  static void emitKernelInstrumentationData(
+      detail::CGExecKernel *const &KernelCG, detail::code_location CodeLoc,
+      const QueueImplPtr &Queue, uint64_t &OutInstanceID, void *&OutTraceEvent);
+  static void emitKernelInstrumentationData(
+      const std::string &SyclKernelName,
+      const std::shared_ptr<detail::kernel_impl> &RunKernel,
+      const detail::NDRDescT &NDRDesc, std::vector<detail::ArgDesc> &KernelArgs,
+      detail::OSModuleHandle OSModuleHandle,
+      std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl,
+      detail::code_location CodeLoc, const QueueImplPtr &Queue,
+      uint64_t &OutInstanceID, void *&OutTraceEvent);
 
   detail::CG &getCG() const { return *MCommandGroup; }
 

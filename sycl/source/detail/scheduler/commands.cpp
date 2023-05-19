@@ -1851,35 +1851,41 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
   emitInstrumentationDataProxy();
 }
 
-void ExecCGCommand::emitInstrumentationData() {
+void ExecCGCommand::emitKernelInstrumentationData(
+    const std::string &SyclKernelName,
+    const std::shared_ptr<detail::kernel_impl> &RunKernel,
+    const detail::NDRDescT &NDRDesc,
+    std::vector<detail::ArgDesc>
+        &KernelArgs, // not const since it could be sorted in the
+                     // applyFuncOnFilteredArgs
+    detail::OSModuleHandle OSModuleHandle,
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl,
+    detail::code_location CodeLoc, const QueueImplPtr &Queue,
+    uint64_t &OutInstanceID, void *&OutTraceEvent) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
+
+  // Obtain the stream ID so all commands can emit traces to that stream
+  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+
   // Create a payload with the command name and an event using this payload to
   // emit a node_create
   bool HasSourceInfo = false;
   std::string KernelName;
   std::optional<bool> FromSource;
-  switch (MCommandGroup->getType()) {
-  case detail::CG::Kernel: {
-    auto KernelCG =
-        reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+  void *Address = NULL;
 
-    if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource()) {
-      FromSource = true;
-      pi_kernel KernelHandle = KernelCG->MSyclKernel->getHandleRef();
-      MAddress = KernelHandle;
-      KernelName = MCommandGroup->MFunctionName;
-    } else {
-      FromSource = false;
-      KernelName = demangleKernelName(KernelCG->getKernelName());
-    }
-  } break;
-  default:
-    KernelName = cgTypeToString(MCommandGroup->getType());
-    break;
+  if (RunKernel && RunKernel->isCreatedFromSource()) {
+    FromSource = true;
+    pi_kernel KernelHandle = RunKernel->getHandleRef();
+    Address = KernelHandle;
+    KernelName = CodeLoc.functionName();
+  } else {
+    FromSource = false;
+    KernelName = demangleKernelName(SyclKernelName);
   }
-  std::string CommandType = commandToNodeType(MType);
+
   //  Get source file, line number information from the CommandGroup object
   //  and create payload using name, address, and source info
   //
@@ -1887,15 +1893,16 @@ void ExecCGCommand::emitInstrumentationData() {
   //  MSVC, the MFileName, MLine will be set to nullptr and "0" respectively.
   //  Handle this condition explicitly here.
   xpti::payload_t Payload;
-  if (!MCommandGroup->MFileName.empty()) {
+
+  if (CodeLoc.fileName() && CodeLoc.fileName()[0] != '\0') {
     // File name has a valid string
     Payload =
-        xpti::payload_t(KernelName.c_str(), MCommandGroup->MFileName.c_str(),
-                        MCommandGroup->MLine, MCommandGroup->MColumn, MAddress);
+        xpti::payload_t(KernelName.c_str(), CodeLoc.fileName(),
+                        CodeLoc.lineNumber(), CodeLoc.columnNumber(), Address);
     HasSourceInfo = true;
-  } else if (MAddress) {
+  } else if (Address) {
     // We have a valid function name and an address
-    Payload = xpti::payload_t(KernelName.c_str(), MAddress);
+    Payload = xpti::payload_t(KernelName.c_str(), Address);
   } else {
     // In any case, we will have a valid function name and we'll use that to
     // create the hash
@@ -1909,8 +1916,8 @@ void ExecCGCommand::emitInstrumentationData() {
                     xpti::trace_activity_type_t::active, &CGKernelInstanceNo);
 
   if (CmdTraceEvent) {
-    MInstanceID = CGKernelInstanceNo;
-    MTraceEvent = (void *)CmdTraceEvent;
+    OutInstanceID = CGKernelInstanceNo;
+    OutTraceEvent = (void *)CmdTraceEvent;
     // If we are seeing this event again, then the instance ID will be greater
     // than 1; in this case, we will skip sending a notification to create a
     // node as this node has already been created.
@@ -1918,11 +1925,11 @@ void ExecCGCommand::emitInstrumentationData() {
       return;
 
     xpti::addMetadata(CmdTraceEvent, "sycl_device",
-                      deviceToID(MQueue->get_device()));
+                      deviceToID(Queue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
+                      deviceToString(Queue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+                      getSyclObjImpl(Queue->get_device())->getDeviceName());
     if (!KernelName.empty()) {
       xpti::addMetadata(CmdTraceEvent, "kernel_name", KernelName);
     }
@@ -1932,80 +1939,91 @@ void ExecCGCommand::emitInstrumentationData() {
     if (HasSourceInfo) {
       xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
       xpti::addMetadata(CmdTraceEvent, "sym_source_file_name",
-                        MCommandGroup->MFileName);
-      xpti::addMetadata(CmdTraceEvent, "sym_line_no", MCommandGroup->MLine);
-      xpti::addMetadata(CmdTraceEvent, "sym_column_no", MCommandGroup->MColumn);
+                        CodeLoc.fileName());
+      xpti::addMetadata(CmdTraceEvent, "sym_line_no", CodeLoc.lineNumber());
+      xpti::addMetadata(CmdTraceEvent, "sym_column_no", CodeLoc.columnNumber());
     }
 
-    if (MCommandGroup->getType() == detail::CG::Kernel) {
-      auto KernelCG =
-          reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
-      auto &NDRDesc = KernelCG->MNDRDesc;
-      std::vector<ArgDesc> Args;
+    std::vector<ArgDesc> Args;
 
-      auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
-        Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
-      };
-      RT::PiProgram Program = nullptr;
-      RT::PiKernel Kernel = nullptr;
-      std::mutex *KernelMutex = nullptr;
-      const KernelArgMask *EliminatedArgMask = nullptr;
+    auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
+      Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
+    };
+    RT::PiProgram Program = nullptr;
+    RT::PiKernel Kernel = nullptr;
+    std::mutex *KernelMutex = nullptr;
+    const KernelArgMask *EliminatedArgMask = nullptr;
 
-      std::shared_ptr<kernel_impl> SyclKernelImpl;
-      std::shared_ptr<device_image_impl> DeviceImageImpl;
-      auto KernelBundleImplPtr = KernelCG->getKernelBundle();
+    std::shared_ptr<kernel_impl> SyclKernelImpl;
+    std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-      // Use kernel_bundle if available unless it is interop.
-      // Interop bundles can't be used in the first branch, because the
-      // kernels in interop kernel bundles (if any) do not have kernel_id and
-      // can therefore not be looked up, but since they are self-contained
-      // they can simply be launched directly.
-      if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-        kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(
-                KernelCG->MKernelName);
-        kernel SyclKernel =
-            KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-        std::shared_ptr<kernel_impl> KernelImpl =
-            detail::getSyclObjImpl(SyclKernel);
+    // Use kernel_bundle if available unless it is interop.
+    // Interop bundles can't be used in the first branch, because the
+    // kernels in interop kernel bundles (if any) do not have kernel_id and
+    // can therefore not be looked up, but since they are self-contained
+    // they can simply be launched directly.
+    if (KernelBundleImpl && !KernelBundleImpl->isInterop()) {
+      kernel_id KernelID =
+          detail::ProgramManager::getInstance().getSYCLKernelID(SyclKernelName);
+      kernel SyclKernel =
+          KernelBundleImpl->get_kernel(KernelID, KernelBundleImpl);
+      std::shared_ptr<kernel_impl> KernelImpl =
+          detail::getSyclObjImpl(SyclKernel);
 
-        EliminatedArgMask = KernelImpl->getKernelArgMask();
-        Program = KernelImpl->getDeviceImage()->get_program_ref();
-      } else if (nullptr != KernelCG->MSyclKernel) {
-        auto SyclProg = KernelCG->MSyclKernel->getProgramImpl();
-        Program = SyclProg->getHandleRef();
-        if (!KernelCG->MSyclKernel->isCreatedFromSource())
-          EliminatedArgMask = KernelCG->MSyclKernel->getKernelArgMask();
-      } else {
-        std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
-            detail::ProgramManager::getInstance().getOrCreateKernel(
-                KernelCG->MOSModuleHandle, MQueue->getContextImplPtr(),
-                MQueue->getDeviceImplPtr(), KernelCG->MKernelName, nullptr);
-      }
-
-      applyFuncOnFilteredArgs(EliminatedArgMask, KernelCG->MArgs, FilterArgs);
-
-      xpti::offload_kernel_enqueue_data_t KernelData{
-          {NDRDesc.GlobalSize[0], NDRDesc.GlobalSize[1], NDRDesc.GlobalSize[2]},
-          {NDRDesc.LocalSize[0], NDRDesc.LocalSize[1], NDRDesc.LocalSize[2]},
-          {NDRDesc.GlobalOffset[0], NDRDesc.GlobalOffset[1],
-           NDRDesc.GlobalOffset[2]},
-          Args.size()};
-      xpti::addMetadata(CmdTraceEvent, "enqueue_kernel_data", KernelData);
-      for (size_t i = 0; i < Args.size(); i++) {
-        std::string Prefix("arg");
-        xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
-                                            Args[i].MSize, Args[i].MIndex};
-        xpti::addMetadata(CmdTraceEvent, Prefix + std::to_string(i), arg);
-      }
+      EliminatedArgMask = KernelImpl->getKernelArgMask();
+      Program = KernelImpl->getDeviceImage()->get_program_ref();
+    } else if (nullptr != RunKernel) {
+      auto SyclProg = RunKernel->getProgramImpl();
+      Program = SyclProg->getHandleRef();
+      if (!RunKernel->isCreatedFromSource())
+        EliminatedArgMask = RunKernel->getKernelArgMask();
+    } else {
+      std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
+          detail::ProgramManager::getInstance().getOrCreateKernel(
+              OSModuleHandle, Queue->getContextImplPtr(),
+              Queue->getDeviceImplPtr(), KernelName, nullptr);
     }
 
-    xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+    applyFuncOnFilteredArgs(EliminatedArgMask, KernelArgs, FilterArgs);
+
+    xpti::offload_kernel_enqueue_data_t KernelData{
+        {NDRDesc.GlobalSize[0], NDRDesc.GlobalSize[1], NDRDesc.GlobalSize[2]},
+        {NDRDesc.LocalSize[0], NDRDesc.LocalSize[1], NDRDesc.LocalSize[2]},
+        {NDRDesc.GlobalOffset[0], NDRDesc.GlobalOffset[1],
+         NDRDesc.GlobalOffset[2]},
+        Args.size()};
+    xpti::addMetadata(CmdTraceEvent, "enqueue_kernel_data", KernelData);
+    for (size_t i = 0; i < Args.size(); i++) {
+      std::string Prefix("arg");
+      xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
+                                          Args[i].MSize, Args[i].MIndex};
+      xpti::addMetadata(CmdTraceEvent, Prefix + std::to_string(i), arg);
+    }
+
+    xptiNotifySubscribers(StreamID, xpti::trace_node_create,
                           detail::GSYCLGraphEvent, CmdTraceEvent,
                           CGKernelInstanceNo,
-                          static_cast<const void *>(CommandType.c_str()));
+                          static_cast<const void *>("command_group_node"));
   }
 #endif
+}
+
+void ExecCGCommand::emitKernelInstrumentationData(
+    detail::CGExecKernel *const &KernelCG, detail::code_location CodeLoc,
+    const QueueImplPtr &Queue, uint64_t &OutInstanceID, void *&OutTraceEvent) {
+  return emitKernelInstrumentationData(
+      KernelCG->MKernelName, KernelCG->MSyclKernel, KernelCG->MNDRDesc,
+      KernelCG->MArgs, KernelCG->MOSModuleHandle, KernelCG->getKernelBundle(),
+      CodeLoc, Queue, OutInstanceID, OutTraceEvent);
+}
+
+void ExecCGCommand::emitInstrumentationData() {
+  auto KernelCG = reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+  detail::code_location CodeLoc(KernelCG->MFileName.c_str(),
+                                KernelCG->MFunctionName.c_str(),
+                                KernelCG->MLine, KernelCG->MColumn);
+  return emitKernelInstrumentationData(KernelCG, CodeLoc, MQueue, MInstanceID,
+                                       MTraceEvent);
 }
 
 void ExecCGCommand::printDot(std::ostream &Stream) const {
