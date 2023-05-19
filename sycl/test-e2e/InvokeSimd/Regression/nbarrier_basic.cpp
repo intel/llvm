@@ -1,12 +1,10 @@
-// TODO: enable on Windows once driver is ready
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc && linux
-// UNSUPPORTED: cuda || hip
+// REQUIRES: gpu-intel-pvc
 //
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
-// VISALTO enable run
+// vISA LTO run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
 /*
@@ -58,7 +56,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(nd_item<1> *ndi) SYCL_ESIMD_FUNCTION {
     nd_item<1> *ndi) SYCL_ESIMD_FUNCTION;
 
 int main(void) {
-  auto Queue = queue{gpu_selector_v};
+  queue Queue;
   auto Device = Queue.get_device();
 
   std::cout << "Running on " << Device.get_info<sycl::info::device::name>()

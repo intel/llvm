@@ -20,7 +20,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
-#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -849,8 +848,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     // Optional features
     // Note: Add more rules at the end of the list to avoid chaning orders of
     // output files in existing tests.
-    Categorizer.registerSimpleFlagAttributeRule(
-        ::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
+    Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
     Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
     Categorizer.registerSimpleStringAttributeRule(

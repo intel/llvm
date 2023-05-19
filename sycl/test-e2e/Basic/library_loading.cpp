@@ -1,8 +1,8 @@
 // REQUIRES: linux
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %t.out &> %t_trace_no_filter.txt || true
+// RUN: env SYCL_PI_TRACE=-1 %{run-unfiltered-devices} %t.out &> %t_trace_no_filter.txt || true
 // RUN: FileCheck --input-file=%t_trace_no_filter.txt --check-prefix=CHECK-NO-FILTER %s
-// RUN: env SYCL_PI_TRACE=-1 ONEAPI_DEVICE_SELECTOR='esimd_emulator:*' %t.out &> %t_trace_esimd_filter.txt || true
+// RUN: env SYCL_PI_TRACE=-1 ONEAPI_DEVICE_SELECTOR='esimd_emulator:*' %{run-unfiltered-devices} %t.out &> %t_trace_esimd_filter.txt || true
 // RUN: FileCheck --input-file=%t_trace_esimd_filter.txt --check-prefix=CHECK-ESIMD-FILTER %s
 // Checks pi traces on library loading
 

@@ -170,7 +170,7 @@ int main() {
   // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
   // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
   sycl::ext::oneapi::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
-                             sycl::ONEAPI::memory_scope::work_group);
+                                  sycl::ONEAPI::memory_scope::work_group);
 
   // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
@@ -317,77 +317,107 @@ int main() {
   Queue.submit([&](sycl::handler &CGH) {
     sycl::accessor GlobalAcc{Buffer, CGH, sycl::write_only};
     sycl::local_accessor<int, 1> LocalAcc{1, CGH};
-    CGH.single_task([=]() {
-      int PrivateVal = 0;
+    CGH.parallel_for(
+        sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}},
+        [=](sycl::nd_item<1> Idx) {
+          int PrivateVal = 0;
 
-      // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
-      sycl::multi_ptr<int, sycl::access::address_space::global_space,
-                      sycl::access::decorated::legacy>
-          LegacyGlobalMptr =
-              sycl::make_ptr<int, sycl::access::address_space::global_space,
-                             sycl::access::decorated::legacy>(
-                  GlobalAcc.get_pointer());
-      // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::local_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
-      sycl::multi_ptr<int, sycl::access::address_space::local_space,
-                      sycl::access::decorated::legacy>
-          LegacyLocalMptr =
-              sycl::make_ptr<int, sycl::access::address_space::local_space,
-                             sycl::access::decorated::legacy>(
-                  LocalAcc.get_pointer());
-      // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::private_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
-      sycl::multi_ptr<int, sycl::access::address_space::private_space,
-                      sycl::access::decorated::legacy>
-          LegacyPrivateMptr =
-              sycl::make_ptr<int, sycl::access::address_space::private_space,
-                             sycl::access::decorated::legacy>(&PrivateVal);
+          // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
+          sycl::multi_ptr<int, sycl::access::address_space::global_space,
+                          sycl::access::decorated::legacy>
+              LegacyGlobalMptr =
+                  sycl::make_ptr<int, sycl::access::address_space::global_space,
+                                 sycl::access::decorated::legacy>(
+                      GlobalAcc.get_pointer());
+          // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::local_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
+          sycl::multi_ptr<int, sycl::access::address_space::local_space,
+                          sycl::access::decorated::legacy>
+              LegacyLocalMptr =
+                  sycl::make_ptr<int, sycl::access::address_space::local_space,
+                                 sycl::access::decorated::legacy>(
+                      LocalAcc.get_pointer());
+          // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::private_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
+          sycl::multi_ptr<int, sycl::access::address_space::private_space,
+                          sycl::access::decorated::legacy>
+              LegacyPrivateMptr =
+                  sycl::make_ptr<int,
+                                 sycl::access::address_space::private_space,
+                                 sycl::access::decorated::legacy>(&PrivateVal);
 
-      sycl::multi_ptr<int, sycl::access::address_space::global_space,
-                      sycl::access::decorated::yes>
-          DecoratedGlobalMptr{GlobalAcc};
-      sycl::multi_ptr<int, sycl::access::address_space::local_space,
-                      sycl::access::decorated::yes>
-          DecoratedLocalMptr{LocalAcc};
-      sycl::multi_ptr<int, sycl::access::address_space::private_space,
-                      sycl::access::decorated::yes>
-          DecoratedPrivateMptr = sycl::address_space_cast<
-              sycl::access::address_space::private_space,
-              sycl::access::decorated::yes>(&PrivateVal);
+          sycl::multi_ptr<int, sycl::access::address_space::global_space,
+                          sycl::access::decorated::yes>
+              DecoratedGlobalMptr{GlobalAcc};
+          sycl::multi_ptr<int, sycl::access::address_space::local_space,
+                          sycl::access::decorated::yes>
+              DecoratedLocalMptr{LocalAcc};
+          sycl::multi_ptr<int, sycl::access::address_space::private_space,
+                          sycl::access::decorated::yes>
+              DecoratedPrivateMptr = sycl::address_space_cast<
+                  sycl::access::address_space::private_space,
+                  sycl::access::decorated::yes>(&PrivateVal);
 
-      sycl::multi_ptr<int, sycl::access::address_space::global_space,
-                      sycl::access::decorated::yes>
-          UndecoratedGlobalMptr = DecoratedGlobalMptr;
-      sycl::multi_ptr<int, sycl::access::address_space::local_space,
-                      sycl::access::decorated::yes>
-          UndecoratedLocalMptr = DecoratedLocalMptr;
-      sycl::multi_ptr<int, sycl::access::address_space::private_space,
-                      sycl::access::decorated::yes>
-          UndecoratedPrivateMptr = DecoratedPrivateMptr;
+          sycl::multi_ptr<int, sycl::access::address_space::global_space,
+                          sycl::access::decorated::yes>
+              UndecoratedGlobalMptr = DecoratedGlobalMptr;
+          sycl::multi_ptr<int, sycl::access::address_space::local_space,
+                          sycl::access::decorated::yes>
+              UndecoratedLocalMptr = DecoratedLocalMptr;
+          sycl::multi_ptr<int, sycl::access::address_space::private_space,
+                          sycl::access::decorated::yes>
+              UndecoratedPrivateMptr = DecoratedPrivateMptr;
 
-      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
-      auto DecoratedGlobalPtr =
-          static_cast<typename decltype(DecoratedGlobalMptr)::pointer>(
-              DecoratedGlobalMptr);
-      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
-      auto DecoratedLocalPtr =
-          static_cast<typename decltype(DecoratedLocalMptr)::pointer>(
-              DecoratedLocalMptr);
-      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
-      auto DecoratedPrivatePtr =
-          static_cast<typename decltype(DecoratedPrivateMptr)::pointer>(
-              DecoratedPrivateMptr);
-      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
-      auto UndecoratedGlobalPtr =
-          static_cast<typename decltype(UndecoratedGlobalMptr)::pointer>(
-              UndecoratedGlobalMptr);
-      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
-      auto UndecoratedLocalPtr =
-          static_cast<typename decltype(UndecoratedLocalMptr)::pointer>(
-              UndecoratedLocalMptr);
-      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
-      auto UndecoratedPrivatePtr =
-          static_cast<typename decltype(UndecoratedPrivateMptr)::pointer>(
-              UndecoratedPrivateMptr);
-    });
+          // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+          auto DecoratedGlobalPtr =
+              static_cast<typename decltype(DecoratedGlobalMptr)::pointer>(
+                  DecoratedGlobalMptr);
+          // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+          auto DecoratedLocalPtr =
+              static_cast<typename decltype(DecoratedLocalMptr)::pointer>(
+                  DecoratedLocalMptr);
+          // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+          auto DecoratedPrivatePtr =
+              static_cast<typename decltype(DecoratedPrivateMptr)::pointer>(
+                  DecoratedPrivateMptr);
+          // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+          auto UndecoratedGlobalPtr =
+              static_cast<typename decltype(UndecoratedGlobalMptr)::pointer>(
+                  UndecoratedGlobalMptr);
+          // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+          auto UndecoratedLocalPtr =
+              static_cast<typename decltype(UndecoratedLocalMptr)::pointer>(
+                  UndecoratedLocalMptr);
+          // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+          auto UndecoratedPrivatePtr =
+              static_cast<typename decltype(UndecoratedPrivateMptr)::pointer>(
+                  UndecoratedPrivateMptr);
+
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Idx.async_work_group_copy(LegacyGlobalMptr, LegacyLocalMptr, 10);
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Idx.async_work_group_copy(LegacyLocalMptr, LegacyGlobalMptr, 10);
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Idx.async_work_group_copy(LegacyGlobalMptr, LegacyLocalMptr, 10, 2);
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Idx.async_work_group_copy(LegacyLocalMptr, LegacyGlobalMptr, 10, 2);
+
+          auto Group = Idx.get_group();
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Group.async_work_group_copy(LegacyGlobalMptr, LegacyLocalMptr, 10);
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Group.async_work_group_copy(LegacyLocalMptr, LegacyGlobalMptr, 10);
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Group.async_work_group_copy(LegacyGlobalMptr, LegacyLocalMptr, 10, 2);
+          // expected-warning@+2{{'async_work_group_copy' is deprecated: Use decorated multi_ptr arguments instead}}
+          // expected-warning@+1{{'async_work_group_copy<int>' is deprecated: Use decorated multi_ptr arguments instead}}
+          Group.async_work_group_copy(LegacyLocalMptr, LegacyGlobalMptr, 10, 2);
+        });
   });
 
   Queue.submit([&](sycl::handler &CGH) {

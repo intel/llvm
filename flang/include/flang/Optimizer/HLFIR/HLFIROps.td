@@ -317,6 +317,53 @@ def hlfir_ConcatOp : hlfir_Op<"concat", []> {
   let hasVerifier = 1;
 }
 
+def hlfir_AnyOp : hlfir_Op<"any", []> {
+  let summary = "ANY transformational intrinsic";
+  let description = [{
+    Takes a logical array MASK as argument, optionally along a particular dimension,
+    and returns true if any element of MASK is true.
+  }];
+
+  let arguments = (ins
+    AnyFortranLogicalArrayObject:$mask,
+    Optional<AnyIntegerType>:$dim
+  );
+
+  let results = (outs hlfir_ExprType);
+
+  let assemblyFormat = [{
+    $mask  (`dim` $dim^)?  attr-dict `:` functional-type(operands, results)
+  }];
+
+  let hasVerifier = 1;
+}
+
+
+def hlfir_ProductOp : hlfir_Op<"product", [AttrSizedOperandSegments,
+    DeclareOpInterfaceMethods<ArithFastMathInterface>]> {
+  let summary = "PRODUCT transformational intrinsic";
+  let description = [{
+    Multiplies the elements of an array, optionally along a particular dimension,
+    optionally if a mask is true.
+  }];
+
+  let arguments = (ins
+    AnyFortranNumericalArrayObject:$array,
+    Optional<AnyIntegerType>:$dim,
+    Optional<AnyFortranLogicalOrI1ArrayObject>:$mask,
+    DefaultValuedAttr<Arith_FastMathAttr,
+                      "::mlir::arith::FastMathFlags::none">:$fastmath
+  );
+
+  let results = (outs hlfir_ExprType);
+
+  let assemblyFormat = [{
+    $array (`dim` $dim^)? (`mask` $mask^)? attr-dict `:` functional-type(operands, results)
+  }];
+
+  let hasVerifier = 1;
+}
+
 def hlfir_SetLengthOp : hlfir_Op<"set_length", []> {
   let summary = "change the length of a character entity";
   let description = [{
@@ -1231,6 +1278,51 @@ def hlfir_ElseWhereOp : hlfir_Op<"elsewhere", [Terminator,
     custom<AssignmentMaskOpBody>($body)
   }];
   let hasVerifier = 1;
+}
+
+def hlfir_ForallIndexOp : hlfir_Op<"forall_index", [fir_FortranVariableOpInterface,
+    hlfir_OrderedAssignmentTreeOpInterface, Pure]> {
+  let summary = "represent a Fortran forall index declaration";
+  let description = [{
+    This operation allows placing an hlfir.forall index in memory with
+    the related Fortran index-value name and type.
+
+    So far, lowering needs to manipulate symbols as memory entities.
+    This operation allows fulfilling this requirements without allowing
+    bare alloca/declare/store inside the body of hlfir.forall, which would
+    make their analysis more complex.
+
+    Given Forall index-value cannot be modified it also allows defining
+    a canonicalization of all its loads into a fir.convert of the
+    hlfir.forall index, which helps simplifying the data dependency analysis
+    of hlfir.forall.
+  }];
+
+  let arguments = (ins AnyIntegerType:$index,
+                       Builtin_StringAttr:$name);
+
+  let results = (outs AnyFortranVariable);
+
+  let assemblyFormat = [{
+    $name $index attr-dict `:` functional-type(operands, results)
+  }];
+
+  let extraClassDeclaration = [{
+    /// Implement FortranVariableInterface interface.
+    std::optional<fir::FortranVariableFlagsEnum> getFortranAttrs() const {
+      return std::nullopt;
+    }
+    mlir::Value getShape() const {return mlir::Value{};}
+    mlir::OperandRange getExplicitTypeParams() const {
+      // Return an empty range.
+      return {(*this)->getOperands().begin(), (*this)->getOperands().begin()};
+    }
+    /// Implement OrderedAssignmentTreeOpInterface interface.
+    void getLeafRegions(llvm::SmallVectorImpl<mlir::Region*>& regions) {}
+    mlir::Region* getSubTreeRegion() { return nullptr; }
+  }];
+
+  let hasCanonicalizeMethod = 1;
 }
 
 #endif // FORTRAN_DIALECT_HLFIR_OPS

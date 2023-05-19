@@ -3,7 +3,7 @@
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
 // RUN: %{build} -DUSING_DISCARD_EVENTS -o %t.discard_events.out
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 
 // To test batching on out-of-order queue:
 // Set batching to 4 explicitly

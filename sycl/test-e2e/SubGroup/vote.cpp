@@ -46,18 +46,18 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
       cgh.parallel_for<class subgr>(NdRange, [=](nd_item<1> NdItem) {
         ext::oneapi::sub_group SG = NdItem.get_sub_group();
         /* Set to 1 if any local ID in subgroup devided by D has remainder R */
-        if (ext::oneapi::any_of(SG, SG.get_local_id().get(0) % D == R)) {
+        if (any_of_group(SG, SG.get_local_id().get(0) % D == R)) {
           sganyacc[NdItem.get_global_id()] = 1;
         }
         /* Set to 1 if remainder of division of subgroup local ID by D is less
          * than R for all work items in subgroup */
-        if (ext::oneapi::all_of(SG, SG.get_local_id().get(0) % D < R)) {
+        if (all_of_group(SG, SG.get_local_id().get(0) % D < R)) {
           sgallacc[NdItem.get_global_id()] = 1;
         }
       });
     });
-    auto sganyacc = sganybuf.get_access<access::mode::read_write>();
-    auto sgallacc = sgallbuf.get_access<access::mode::read_write>();
+    host_accessor sganyacc(sganybuf);
+    host_accessor sgallacc(sgallbuf);
     for (int j = 0; j < G; j++) {
       exit_if_not_equal(sganyacc[j], (int)(D > R), "any");
       exit_if_not_equal(sgallacc[j], (int)(D <= R), "all");

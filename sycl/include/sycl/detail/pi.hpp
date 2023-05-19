@@ -44,6 +44,7 @@ enum class PiApiKind {
 #include <sycl/detail/pi.def>
 };
 class plugin;
+using PluginPtr = std::shared_ptr<plugin>;
 
 template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
@@ -70,12 +71,14 @@ bool trace(TraceLevel level);
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_UR_PLUGIN_NAME "pi_unified_runtime.dll"
 #else
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dll"
 #endif
 #elif defined(__SYCL_RT_OS_LINUX)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
@@ -83,12 +86,14 @@ bool trace(TraceLevel level);
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
+#define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.so"
 #elif defined(__SYCL_RT_OS_DARWIN)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dylib"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
+#define __SYCL_UR_PLUGIN_NAME "libpi_unified_runtime.dylib"
 #else
 #error "Unsupported OS"
 #endif
@@ -176,10 +181,10 @@ template <class To, class From> To cast(From value);
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
-std::vector<plugin> &initialize();
+std::vector<PluginPtr> &initialize();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
+template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};

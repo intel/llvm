@@ -1,8 +1,8 @@
 // REQUIRES: cuda,gpu
 // RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=cuda:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR='cuda:0' %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="cuda:*" %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR=cuda:gpu %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='cuda:0' %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="cuda:*" %{run-unfiltered-devices} %t.out
 
 //  At this time, CUDA only has one device (GPU). So this is easy to accept CUDA
 //  and GPU and reject anything else. This test is just testing top level

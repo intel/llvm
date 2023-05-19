@@ -2,8 +2,6 @@
 // RUN: %{build} %opencl_options -o %t.ocl.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: accelerator
-
 #include <CL/cl.h>
 
 #include <sycl/backend/opencl.hpp>

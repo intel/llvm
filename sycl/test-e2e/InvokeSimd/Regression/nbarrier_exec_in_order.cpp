@@ -1,7 +1,5 @@
-// TODO: enable on Windows once driver is ready
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc && linux
-// UNSUPPORTED: cuda || hip
+// REQUIRES: gpu-intel-pvc
 //
 // TODO: enable when Jira issue resolved, currently fail with VISALTO enable
 // XFAIL: gpu-intel-pvc
@@ -9,7 +7,7 @@
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
-// VISALTO enable run
+// vISA LTO run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
 /*
@@ -32,16 +30,21 @@
 #include <iostream>
 #include <type_traits>
 
+// TODO: When gpu driver can pass/accept accessor by value,
+// the work-around undef #ifdef USE_ACC_PTR should be removed.
+#define USE_ACC_PTR
+
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 namespace esimd = sycl::ext::intel::esimd;
 namespace experimental_esimd = sycl::ext::intel::experimental::esimd;
 
 constexpr int VL = 16;
-template <int case_num> class KernelID;
+template <int CaseNum> class KernelID;
 
 template <unsigned Threads, unsigned Size, bool UseSLM>
-ESIMD_INLINE void ESIMD_CALLEE_nbarrier(int localID,
+ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
+                                        int local_id,
                                         int *o) SYCL_ESIMD_FUNCTION {
   // Threads - 1 named barriers required
   // but id 0 reserved for unnamed
@@ -51,76 +54,105 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(int localID,
   int producers = 2;
   int consumers = 2;
 
-  // overlaping offsets
-  unsigned int off = VL * localID / 2;
-  unsigned int off_slm = off * sizeof(int);
-  esimd::simd<int, VL> val(localID);
+  esimd::simd<int, VL> val(local_id);
 
-  if constexpr (UseSLM) {
-    /* TODO: SLM needs to be allocated from outside invoke_simd, but the proper
-     * intarface is not yet ready. Current test implementation in this regard is
-     * subject to future changes.
-     */
-    esimd::slm_init(Size * sizeof(int));
-    esimd::simd<int, VL> zero(0);
-    experimental_esimd::lsc_slm_block_store<int, VL>(2 * off_slm, zero);
-  }
+  unsigned int slm_base = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(local_acc.get_pointer()));
+
+  /* Each thread operates on a region of memory (global or slm) that overlaps
+   * with that of the previous and next threads.
+   */
+  unsigned int off = VL * local_id / 2;
+
   esimd::barrier();
 
-  // Threads are executed in ascending order of their local ID and
-  // each thread stores data to addresses that partially overlap with
-  // addresses used by previous thread.
-
-  // localID == 0 skips this branch and goes straight to lsc_surf_store
-  // localID == 1 signals barrier 1
-  // localID == 2 signals barrier 2
-  // localID == 3 signals barrier 3
-  // and so on
-  if (localID > 0) {
-    int barrier_id = localID;
+  /* Threads are executed in ascending order of their local ID, so there should
+   * be no race conditions due to overlapping memory regions.
+   *
+   * local_id == 0 skips this branch and goes straight to LSC store
+   * local_id == 1 signals barrier 1
+   * local_id == 2 signals barrier 2
+   * local_id == 3 signals barrier 3
+   * and so on
+   */
+  if (local_id > 0) {
+    int barrier_id = local_id;
     __ESIMD_ENS::named_barrier_signal(barrier_id, flag, producers, consumers);
     __ESIMD_ENS::named_barrier_wait(barrier_id);
   }
 
+  /* This is the payload store with overlapping offset. Since threads are
+   * executed in ascending order, each next thread will rewrite some amount of
+   * data that the previous one wrote.
+   */
   if constexpr (UseSLM)
-    experimental_esimd::lsc_slm_block_store<int, VL>(off_slm, val);
+    experimental_esimd::lsc_slm_block_store<int, VL>(slm_base + off * sizeof(int), val);
   else
     experimental_esimd::lsc_block_store<int, VL>(o + off, val);
 
   experimental_esimd::lsc_fence();
 
-  // localID == 0 arrives here first and signals barrier 1
-  // localID == 1 arrives here next and signals barrier 2
-  // localID == 2 arrives here next and signals barrier 3
-  // and so on, but last thread skipped this block
-  if (localID < Threads - 1) {
-    int barrier_id = localID + 1;
+  /* local_id == 0 arrives here first and signals barrier 1
+   * local_id == 1 arrives here next and signals barrier 2
+   * local_id == 2 arrives here next and signals barrier 3
+   * and so on, but last thread skips this block
+   */
+  if (local_id < Threads - 1) {
+    int barrier_id = local_id + 1;
     __ESIMD_ENS::named_barrier_signal(barrier_id, flag, producers, consumers);
     __ESIMD_ENS::named_barrier_wait(barrier_id);
   }
 
   esimd::barrier();
+
+  /* This section is only needed to copy the content of the SLM to the global
+   * buffer for self-check purposes. Here we wait for all threads to sync, and
+   * each thread now copies the a region from the SLM to the global buffer. To
+   * do this, we double the value in off variable.
+   */
   if constexpr (UseSLM) {
-    auto res = experimental_esimd::lsc_slm_block_load<int, VL>(2 * off_slm);
-    experimental_esimd::lsc_block_store<int, VL>(o + 2 * off, res);
+    off *= 2;
+    auto res = experimental_esimd::lsc_slm_block_load<int, VL>(slm_base + off * sizeof(int));
+    experimental_esimd::lsc_block_store<int, VL>(o + off, res);
   }
 }
 
 template <unsigned Threads, unsigned Size, bool UseSLM>
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall SIMD_CALLEE_nbarrier(
-    int localID, int *o) SYCL_ESIMD_FUNCTION {
-  ESIMD_CALLEE_nbarrier<Threads, Size, UseSLM>(localID, o);
+#ifdef USE_ACC_PTR
+    local_accessor<int, 1> *local_acc,
+#else
+    local_accessor<int, 1> local_acc,
+#endif
+    int local_id, int *o) SYCL_ESIMD_FUNCTION {
+#ifdef USE_ACC_PTR
+  ESIMD_CALLEE_nbarrier<Threads, Size, UseSLM>(*local_acc, local_id, o);
+#else
+  ESIMD_CALLEE_nbarrier<Threads, Size, UseSLM>(local_acc, local_id, o);
+#endif
 }
 
-template <int case_num, unsigned Threads, bool UseSLM, class QueueTY>
-bool test(QueueTY q) {
-  // number of ints stored by each thread
-  constexpr unsigned Size = VL * Threads;
+template <int CaseNum, unsigned Threads, bool UseSLM = false>
+bool test(queue q) {
+  std::cout << "Case #" << CaseNum << "\n Treads: " << Threads
+            << ", Memory: " << (UseSLM ? "local\n" : "global\n");
 
   static_assert(Threads % 2 == 0, "Number of threads must be even");
-  std::cout << "Case #" << case_num << "\n\tTreads: " << Threads
-            << "\n\tInts per thread: " << VL
-            << "\n\tMemory: " << (UseSLM ? "local\n" : "global\n");
+
+  constexpr unsigned Size = VL * Threads;
+
+  if constexpr (UseSLM) {
+    auto dev = q.get_device();
+    auto device_slm_size =
+        dev.template get_info<sycl::info::device::local_mem_size>();
+
+    // The test is going to use Size elements of int type.
+    if (device_slm_size < Size * sizeof(int)) {
+      // Report an error - the test needs a fix.
+      std::cerr << "Error: Test needs more SLM memory than device has"
+                << std::endl;
+      return false;
+    }
+  }
 
   auto *out = malloc_shared<int>(Size, q);
   for (int i = 0; i < Size; i++) {
@@ -129,25 +161,48 @@ bool test(QueueTY q) {
 
   try {
     // workgroups
-    sycl::range<1> GlobalRange{Size};
+    sycl::range<1> global_range{Size};
     // threads in each group
-    sycl::range<1> LocalRange{Threads};
-    sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+    sycl::range<1> local_range{Size};
 
     auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for<KernelID<case_num>>(
-          nd_range<1>(GlobalRange, LocalRange),
+      local_accessor<int, 1> local_acc;
+
+      /* We only need to initialize local accessor for cases that use SLM,
+       * other cases use global buffer and initialize local accessor with size
+       * of 0 for compitability.
+       */
+      if constexpr (UseSLM)
+        local_acc = local_accessor<int, 1>(Size, cgh);
+      else
+        local_acc = local_accessor<int, 1>(0, cgh); // dummy local accessor
+
+      cgh.parallel_for<KernelID<CaseNum>>(
+          nd_range<1>(global_range, local_range),
           // This test requires an explicit specification of the subgroup size
           [=](nd_item<1> item) [[intel::reqd_sub_group_size(VL)]] {
             sycl::group<1> g = item.get_group();
             sycl::sub_group sg = item.get_sub_group();
-            uint32_t i =
-                sg.get_group_linear_id() * VL + g.get_linear_id() * Threads;
-            uint32_t wi_id = i + sg.get_local_id();
-            // Thread local ID in ESIMD context
-            int localID = wi_id / VL;
+
+            // Thread's ID in ESIMD context
+            int local_id = sg.get_group_linear_id();
+
+            auto local_acc_copy = local_acc;
+            // SLM init
+            if constexpr (UseSLM) {
+              uint32_t slm_id = item.get_local_id(0);
+              local_acc_copy[slm_id] = -1;
+	    }
+            item.barrier();
+
+#ifdef USE_ACC_PTR
+            auto local_acc_arg = uniform{&local_acc_copy};
+#else
+            auto local_acc_arg = uniform{local_acc_copy};
+#endif
+
             invoke_simd(sg, SIMD_CALLEE_nbarrier<Threads, Size, UseSLM>,
-                        uniform{localID}, uniform{out});
+                        local_acc_arg, uniform{local_id}, uniform{out});
           });
     });
     e.wait();
@@ -159,14 +214,19 @@ bool test(QueueTY q) {
 
   bool passed = true;
   for (int i = 0; i < Size; i++) {
-    int etalon = i * 2 * Threads / Size;
-    if (etalon == Threads) // last stored chunk
-      etalon -= 1;
-    if (etalon > Threads) // excessive part of surface
-      etalon = 0;
-    if (out[i] != etalon) {
+    /* Each thread stores its ID. Effectively, each thread stores VL / 2 number
+     * of elements with an offset equal to ID * (VL / 2). The only exception is
+     * the last thread, it effectively stores VL elements with the same offset.
+     * So ID, the reference, can be calculated from i in the following way:
+     */
+    int ref = i * 2 / VL;
+    if (ref == Threads) // last stored chunk
+      ref -= 1;
+    if (ref > Threads) // excessive part of buffer, not used
+      ref = -1;
+    if (out[i] != ref) {
       passed = false;
-      std::cout << "out[" << i << "]=" << out[i] << " vs " << etalon << "\n";
+      std::cout << "out[" << i << "]=" << out[i] << " vs " << ref << "\n";
     }
   }
 
@@ -177,26 +237,28 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto q = queue{gpu_selector_v};
+  queue q;
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
+  auto device_slm_size =
+      dev.get_info<sycl::info::device::local_mem_size>();
+  std::cout << "Local Memory Size: " << device_slm_size << std::endl;
 
   bool passed = true;
 
-  passed &= test<1, 2, false>(q);
-  passed &= test<2, 4, false>(q);
-  passed &= test<3, 8, false>(q);
-  passed &= test<4, 16, false>(q);
+  passed &= test<1, 2>(q);
+  passed &= test<2, 4>(q);
+  passed &= test<3, 8>(q);
+  passed &= test<4, 16>(q);
+  passed &= test<5, 32>(q);
 
-  /* TODO: Enable the sub-tests with UseSLM=true after the issue with SLM
-   * initialization is fixed.
-   *
-     passed &= test<5, 2, true>(q);
-     passed &= test<6, 4, true>(q);
-     passed &= test<7, 8, true>(q);
-     passed &= test<8, 16, true>(q);
-   */
+  constexpr bool UseSLM = true;
+  passed &= test<6, 2, UseSLM>(q);
+  passed &= test<7, 4, UseSLM>(q);
+  passed &= test<8, 8, UseSLM>(q);
+  passed &= test<9, 16, UseSLM>(q);
+  passed &= test<10, 32, UseSLM>(q);
 
   return passed ? 0 : 1;
 }

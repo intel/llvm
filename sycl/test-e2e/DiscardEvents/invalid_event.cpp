@@ -1,5 +1,5 @@
-// FIXME: Fails on HIP and OpenCL accelerator
-// UNSUPPORTED: hip, (opencl && accelerator)
+// FIXME: Fails on HIP
+// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out
