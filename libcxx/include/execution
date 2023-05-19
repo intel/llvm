@@ -43,15 +43,11 @@ namespace std {
 #  pragma GCC system_header
 #endif
 
-#if defined(_LIBCPP_HAS_PARALLEL_ALGORITHMS) && _LIBCPP_STD_VER >= 17
+#if !defined(_LIBCPP_HAS_NO_INCOMPLETE_PSTL) && _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace execution {
-struct __disable_user_instantiations_tag {
-  explicit __disable_user_instantiations_tag() = default;
-};
-
 struct sequenced_policy {
   _LIBCPP_HIDE_FROM_ABI constexpr explicit sequenced_policy(__disable_user_instantiations_tag) {}
   sequenced_policy(const sequenced_policy&)            = delete;
@@ -135,17 +131,16 @@ template <class _Tp>
 struct is_execution_policy : bool_constant<is_execution_policy_v<_Tp>> {};
 
 template <class _ExecutionPolicy>
-const auto& __remove_parallel_policy(_ExecutionPolicy&&) {
-  using _ExecPol = __remove_cvref_t<_ExecutionPolicy>;
-  if constexpr (is_same_v<_ExecPol, execution::parallel_policy>) {
-    return execution::seq;
-  } else if constexpr (is_same_v<_ExecPol, execution::parallel_unsequenced_policy>) {
-    return execution::__unseq;
+_LIBCPP_HIDE_FROM_ABI auto __remove_parallel_policy(const _ExecutionPolicy&) {
+  if constexpr (is_same_v<_ExecutionPolicy, execution::parallel_policy>) {
+    return execution::sequenced_policy(execution::__disable_user_instantiations_tag{});
+  } else if constexpr (is_same_v<_ExecutionPolicy, execution::parallel_unsequenced_policy>) {
+    return execution::__unsequenced_policy{execution::__disable_user_instantiations_tag{}};
   }
 }
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // defined(_LIBCPP_HAS_PARALLEL_ALGORITHMS) && _LIBCPP_STD_VER >= 17
+#endif // !defined(_LIBCPP_HAS_NO_INCOMPLETE_PSTL) && _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP_EXECUTION

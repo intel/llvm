@@ -1333,7 +1333,7 @@ ParseResult OperationParser::parseGenericOperationAfterOpName(
     auto type = parseType();
     if (!type)
       return failure();
-    auto fnType = type.dyn_cast<FunctionType>();
+    auto fnType = dyn_cast<FunctionType>(type);
     if (!fnType)
       return mlir::emitError(typeLoc, "expected function type");
 
@@ -1424,7 +1424,8 @@ Operation *OperationParser::parseGenericOperation() {
   // would be "missing foo attribute" instead of something like "expects a 32
   // bits float attribute but got a 32 bits integer attribute".
   if (!properties && !result.getRawProperties()) {
-    Optional<RegisteredOperationName> info = result.name.getRegisteredInfo();
+    std::optional<RegisteredOperationName> info =
+        result.name.getRegisteredInfo();
     if (info) {
       if (failed(info->verifyInherentAttrs(result.attributes, [&]() {
             return mlir::emitError(srcLocation) << "'" << name << "' op ";
@@ -2351,7 +2352,7 @@ ParseResult OperationParser::codeCompleteSSAUse() {
         if (!forwardRefPlaceholders.count(result))
           detailOS << result.getOwner()->getName() << ": ";
       } else {
-        detailOS << "arg #" << frontValue.cast<BlockArgument>().getArgNumber()
+        detailOS << "arg #" << cast<BlockArgument>(frontValue).getArgNumber()
                  << ": ";
       }
 

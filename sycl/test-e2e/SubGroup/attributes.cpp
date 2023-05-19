@@ -135,8 +135,8 @@ int main() {
         break;
       }
       default:
-        throw feature_not_supported("sub-group size is not supported",
-                                    PI_ERROR_INVALID_OPERATION);
+        throw sycl::exception(sycl::errc::feature_not_supported,
+                              "sub-group size is not supported");
       }
 
       auto Kernel = TheKernel[0];

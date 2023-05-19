@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60
+// RUN: %{build} -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
 // RUN: %{run} %t.out
 //
 // Error message `Group algorithms are not

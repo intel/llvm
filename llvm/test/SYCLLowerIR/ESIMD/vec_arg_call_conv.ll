@@ -55,6 +55,7 @@ define dso_local spir_func void @_Z19callee__sret__param(ptr addrspace(4) noalia
 ; CHECK: define dso_local spir_func <16 x float> @_Z19callee__sret__param(<16 x float> %[[PARAM:.+]])
 entry:
 ; CHECK:  %[[ALLOCA1:.+]] = alloca <16 x float>, align 64
+; CHECK:  %[[CAST1:.+]] = addrspacecast ptr %[[ALLOCA1]] to ptr addrspace(4)
 ; CHECK:  %[[ALLOCA2:.+]] = alloca <16 x float>, align 64
 ; CHECK:  store <16 x float> %[[PARAM]], ptr %[[ALLOCA2]], align 64
   %x.ascast = addrspacecast ptr %x to ptr addrspace(4)
@@ -62,7 +63,7 @@ entry:
   %call.i.i.i1 = load <16 x float>, ptr addrspace(4) %x.ascast, align 64
 ; CHECK:  %[[VAL:.+]] = load <16 x float>, ptr addrspace(4) %[[ALLOCA2_4]], align 64
   store <16 x float> %call.i.i.i1, ptr addrspace(4) %agg.result, align 64
-; CHECK:  store <16 x float> %[[VAL]], ptr %[[ALLOCA1]], align 64
+; CHECK:  store <16 x float> %[[VAL]], ptr addrspace(4) %[[CAST1]], align 64
   ret void
 ; CHECK:  %[[RET:.+]] = load <16 x float>, ptr %[[ALLOCA1]], align 64
 ; CHECK:  ret <16 x float> %[[RET]]
@@ -74,6 +75,7 @@ define dso_local spir_func void @_Z29test__sret__fall_through__arr(ptr addrspace
 ; CHECK: define dso_local spir_func <16 x float> @_Z29test__sret__fall_through__arr(ptr addrspace(4) noundef %[[PARAM0:.+]], i32 noundef %{{.*}})
 entry:
 ; CHECK:  %[[ALLOCA1:.+]] = alloca <16 x float>, align 64
+; CHECK:  %[[CAST1:.+]] = addrspacecast ptr %[[ALLOCA1]] to ptr addrspace(4)
   %agg.tmp = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
 ; CHECK:  %[[ALLOCA2:.+]] = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
   %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
@@ -85,7 +87,7 @@ entry:
 ; CHECK:  %[[VAL:.+]] = load <16 x float>, ptr %[[ALLOCA2]], align 64
   call spir_func void @_Z19callee__sret__param(ptr addrspace(4) sret(%"class.sycl::_V1::ext::intel::esimd::simd") align 64 %agg.result, ptr noundef nonnull %agg.tmp) #7
 ; CHECK:  %[[RES:.+]] = call spir_func <16 x float> @_Z19callee__sret__param(<16 x float> %[[VAL]])
-; CHECK:  store <16 x float> %[[RES]], ptr %[[ALLOCA1]], align 64
+; CHECK:  store <16 x float> %[[RES]], ptr addrspace(4) %[[CAST1]], align 64
   ret void
 ; CHECK:  %[[RET:.+]] = load <16 x float>, ptr %[[ALLOCA1]], align 64
 ; CHECK:  ret <16 x float> %[[RET]]
@@ -96,6 +98,7 @@ entry:
 define dso_local spir_func void @_Z30test__sret__fall_through__globv(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd") align 64 %agg.result) local_unnamed_addr #2 !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
 entry:
 ; CHECK:  %[[ALLOCA1:.+]] = alloca <16 x float>, align 64
+; CHECK:  %[[CAST1:.+]] = addrspacecast ptr %[[ALLOCA1]] to ptr addrspace(4)
   %agg.tmp = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
 ; CHECK:  %[[ALLOCA2:.+]] = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
   %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
@@ -105,7 +108,7 @@ entry:
 ; CHECK:  %[[VAL:.+]] = load <16 x float>, ptr %[[ALLOCA2]], align 64
   call spir_func void @_Z19callee__sret__param(ptr addrspace(4) sret(%"class.sycl::_V1::ext::intel::esimd::simd") align 64 %agg.result, ptr noundef nonnull %agg.tmp) #7
 ; CHECK:  %[[RES:.+]] = call spir_func <16 x float> @_Z19callee__sret__param(<16 x float> %[[VAL]])
-; CHECK:  store <16 x float> %[[RES]], ptr %[[ALLOCA1]], align 64
+; CHECK:  store <16 x float> %[[RES]], ptr addrspace(4) %[[CAST1]], align 64
   ret void
 ; CHECK:  %[[RET:.+]] = load <16 x float>, ptr %[[ALLOCA1]], align 64
 ; CHECK:  ret <16 x float> %[[RET]]

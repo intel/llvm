@@ -1,9 +1,5 @@
-// RUN: %{build} -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60
+// RUN: %{build} -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
 // RUN: %{run} %t.out
-
-// TODO: accelerator may not suport atomics required by the current
-// implementation. Enable testing when implementation is fixed.
-// UNSUPPORTED: accelerator
 
 // This test performs basic checks of parallel_for(range<2>, reduction, func)
 // with reductions initialized with a one element buffer and

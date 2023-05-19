@@ -1,8 +1,7 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
-// UNSUPPORTED: hip
 // For this test, complete_fusion must be supported.
 // REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test fusion cancellation for requirement between two active fusions.
 

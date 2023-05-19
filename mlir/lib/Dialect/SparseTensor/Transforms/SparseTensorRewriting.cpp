@@ -79,7 +79,7 @@ static bool isSampling(GenericOp op) {
 
 // Helper to detect chain of multiplications that do not involve x.
 static bool isMulChain(Value val, Value x) {
-  if (auto arg = val.dyn_cast<BlockArgument>())
+  if (auto arg = dyn_cast<BlockArgument>(val))
     return arg != x;
   if (auto *def = val.getDefiningOp()) {
     if (isa<arith::MulFOp>(def) || isa<arith::MulIOp>(def))
@@ -105,7 +105,7 @@ static bool isSumOfMul(GenericOp op) {
 // Helper to detect direct yield of a zero value.
 static bool isZeroYield(GenericOp op) {
   auto yieldOp = cast<linalg::YieldOp>(op.getRegion().front().getTerminator());
-  if (auto arg = yieldOp.getOperand(0).dyn_cast<BlockArgument>()) {
+  if (auto arg = dyn_cast<BlockArgument>(yieldOp.getOperand(0))) {
     if (arg.getOwner()->getParentOp() == op) {
       return isZeroValue(op->getOperand(arg.getArgNumber()));
     }
@@ -719,7 +719,7 @@ private:
 
     bool fromSparseConst = false;
     if (auto constOp = op.getSource().getDefiningOp<arith::ConstantOp>()) {
-      if (constOp.getValue().dyn_cast<SparseElementsAttr>()) {
+      if (dyn_cast<SparseElementsAttr>(constOp.getValue())) {
         fromSparseConst = true;
       }
     }
@@ -895,9 +895,7 @@ private:
       // coordinates for the storage ordering of the dst tensor.  Use SortCoo
       // if the COO tensor has the same ordering as the dst tensor.
       if (dimRank > 1 && srcTp.hasSameDimToLvlMap(dstTp)) {
-        MemRefType coordsTp =
-            get1DMemRefType(encSrc.getCrdType(), /*withLayout=*/false);
-        Value xs = rewriter.create<ToCoordinatesBufferOp>(loc, coordsTp, src);
+        Value xs = genToCoordinatesBuffer(rewriter, loc, src);
         rewriter.create<SortCooOp>(
             loc, nnz, xs, ValueRange{y}, rewriter.getIndexAttr(dimRank),
             rewriter.getIndexAttr(0), SparseTensorSortKind::HybridQuickSort);
@@ -974,7 +972,7 @@ public:
     // Special-case: for each over a sparse constant uses its own rewriting
     // rule.
     if (auto constOp = input.getDefiningOp<arith::ConstantOp>()) {
-      if (auto attr = constOp.getValue().dyn_cast<SparseElementsAttr>()) {
+      if (auto attr = dyn_cast<SparseElementsAttr>(constOp.getValue())) {
         return genForeachOnSparseConstant(op, rewriter, attr);
       }
     }
@@ -990,14 +988,12 @@ public:
     for (Level l = 0; l < lvlRank; l++) {
       // TODO: provide utility function for loop sequences that only contains
       // one for loop?
-      // FIXME(wrengr): what is this "ld" supposed to be really?
-      const Level ld = op.getOrder() ? op.getOrder()->getDimPosition(l) : l;
-      const SmallVector<TensorId, 1> tids{0};
-      loopEmitter.enterNewLoopSeq(rewriter, loc, tids, ld);
+      const SmallVector<TensorLevel, 1> tidLvls{
+          loopEmitter.makeTensorLevel(0, l)};
+      loopEmitter.enterNewLoopSeq(rewriter, loc, tidLvls);
       // Note that reduc will be taken care of by loop emitter and get updated
       // in place.
-
-      loopEmitter.enterLoopOverTensorAtLvl(rewriter, loc, tids, l, reduc);
+      loopEmitter.enterLoopOverTensorAtLvl(rewriter, loc, tidLvls, reduc);
     }
 
     SmallVector<Value> lcvs;

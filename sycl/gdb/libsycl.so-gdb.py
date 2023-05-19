@@ -311,12 +311,13 @@ class SyclArrayPrinter:
             return ("[%d]" % count, elt)
 
     def __init__(self, value):
-        if value.type.code == gdb.TYPE_CODE_REF:
-            if hasattr(gdb.Value, "referenced_value"):
-                value = value.referenced_value()
 
         self.value = value
-        self.type = value.type.unqualified().strip_typedefs()
+        if self.value.type.code == gdb.TYPE_CODE_REF:
+            self.type = value.referenced_value().type.unqualified().strip_typedefs()
+        else:
+            self.type = value.type.unqualified().strip_typedefs()
+
         self.dimensions = self.type.template_argument(0)
 
     def children(self):
@@ -334,6 +335,10 @@ class SyclArrayPrinter:
             # error message otherwise. Individual array element access failures
             # will be caught by iterator itself.
             _ = self.value["common_array"]
+            if self.value.type.code == gdb.TYPE_CODE_REF:
+                return "({tag} &) @{address}: {tag}".format(
+                    tag=self.type.tag, address=self.value.address
+                )
             return self.type.tag
         except:
             return "<error reading variable>"
@@ -347,7 +352,11 @@ class SyclBufferPrinter:
 
     def __init__(self, value):
         self.value = value
-        self.type = value.type.unqualified().strip_typedefs()
+        if self.value.type.code == gdb.TYPE_CODE_REF:
+            self.type = value.referenced_value().type.unqualified().strip_typedefs()
+        else:
+            self.type = value.type.unqualified().strip_typedefs()
+
         self.elt_type = value.type.template_argument(0)
         self.dimensions = value.type.template_argument(1)
         self.typeregex = re.compile("^([a-zA-Z0-9_:]+)(<.*>)?$")
@@ -356,12 +365,15 @@ class SyclBufferPrinter:
         match = self.typeregex.match(self.type.tag)
         if not match:
             return "<error parsing type>"
-        return "%s<%s, %s> = {impl=%s}" % (
-            match.group(1),
-            self.elt_type,
-            self.dimensions,
-            self.value["impl"].address,
+        r_value = "{{impl={address}}}".format(address=self.value["impl"].address)
+        r_type = "{group}<{elt_type}, {dim}>".format(
+            group=match.group(1), elt_type=self.elt_type, dim=self.dimensions
         )
+        if self.value.type.code == gdb.TYPE_CODE_REF:
+            return "({type} &) @{address}: {type} = {value}".format(
+                type=r_type, address=self.value.address, value=r_value
+            )
+        return "{type} = {value}".format(type=r_type, value=r_value)
 
 
 sycl_printer = gdb.printing.RegexpCollectionPrettyPrinter("SYCL")

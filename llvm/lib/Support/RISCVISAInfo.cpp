@@ -144,6 +144,7 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
     {"zcb", RISCVExtensionVersion{1, 0}},
     {"zcd", RISCVExtensionVersion{1, 0}},
     {"zcf", RISCVExtensionVersion{1, 0}},
+    {"zcmp", RISCVExtensionVersion{1, 0}},
     {"zcmt", RISCVExtensionVersion{1, 0}},
     {"zfa", RISCVExtensionVersion{0, 2}},
     {"zicond", RISCVExtensionVersion{1, 0}},
@@ -856,10 +857,7 @@ Error RISCVISAInfo::checkDependency() {
   bool HasD = Exts.count("d") != 0;
   bool HasF = Exts.count("f") != 0;
   bool HasZfinx = Exts.count("zfinx") != 0;
-  bool HasZdinx = Exts.count("zdinx") != 0;
   bool HasVector = Exts.count("zve32x") != 0;
-  bool HasZve32f = Exts.count("zve32f") != 0;
-  bool HasZve64d = Exts.count("zve64d") != 0;
   bool HasZvl = MinVLen != 0;
   bool HasZcmt = Exts.count("zcmt") != 0;
   bool HasZcd = Exts.count("zcd") != 0;
@@ -867,23 +865,6 @@ Error RISCVISAInfo::checkDependency() {
   if (HasF && HasZfinx)
     return createStringError(errc::invalid_argument,
                              "'f' and 'zfinx' extensions are incompatible");
-
-  if (HasZve32f && !HasF && !HasZfinx)
-    return createStringError(
-        errc::invalid_argument,
-        "'zve32f' requires 'f' or 'zfinx' extension to also be specified");
-
-  if (HasZve64d && !HasD && !HasZdinx)
-    return createStringError(
-        errc::invalid_argument,
-        "'zve64d' requires 'd' or 'zdinx' extension to also be specified");
-
-  if (Exts.count("zvfh") && !Exts.count("zfh") && !Exts.count("zfhmin") &&
-      !Exts.count("zhinx") && !Exts.count("zhinxmin"))
-    return createStringError(
-        errc::invalid_argument,
-        "'zvfh' requires 'zfh', 'zfhmin', 'zhinx' or 'zhinxmin' extension to "
-        "also be specified");
 
   if (HasZvl && !HasVector)
     return createStringError(
@@ -931,10 +912,11 @@ Error RISCVISAInfo::checkDependency() {
 
 static const char *ImpliedExtsD[] = {"f"};
 static const char *ImpliedExtsF[] = {"zicsr"};
-static const char *ImpliedExtsV[] = {"zvl128b", "zve64d", "f", "d"};
+static const char *ImpliedExtsV[] = {"zvl128b", "zve64d"};
 static const char *ImpliedExtsXTHeadVdot[] = {"v"};
 static const char *ImpliedExtsXsfvcp[] = {"zve32x"};
 static const char *ImpliedExtsZcb[] = {"zca"};
+static const char *ImpliedExtsZcmp[] = {"zca"};
 static const char *ImpliedExtsZcmt[] = {"zca"};
 static const char *ImpliedExtsZdinx[] = {"zfinx"};
 static const char *ImpliedExtsZfa[] = {"f"};
@@ -949,12 +931,12 @@ static const char *ImpliedExtsZk[] = {"zkn", "zkt", "zkr"};
 static const char *ImpliedExtsZkn[] = {"zbkb", "zbkc", "zbkx",
                                        "zkne", "zknd", "zknh"};
 static const char *ImpliedExtsZks[] = {"zbkb", "zbkc", "zbkx", "zksed", "zksh"};
-static const char *ImpliedExtsZve32f[] = {"zve32x"};
+static const char *ImpliedExtsZve32f[] = {"zve32x", "f"};
 static const char *ImpliedExtsZve32x[] = {"zvl32b", "zicsr"};
-static const char *ImpliedExtsZve64d[] = {"zve64f"};
+static const char *ImpliedExtsZve64d[] = {"zve64f", "d"};
 static const char *ImpliedExtsZve64f[] = {"zve64x", "zve32f"};
 static const char *ImpliedExtsZve64x[] = {"zve32x", "zvl64b"};
-static const char *ImpliedExtsZvfh[] = {"zve32f"};
+static const char *ImpliedExtsZvfh[] = {"zve32f", "zfhmin"};
 static const char *ImpliedExtsZvkn[] = {"zvbb", "zvbc", "zvkned", "zvknhb",
                                         "zvkt"};
 static const char *ImpliedExtsZvkng[] = {"zvkg", "zvkn"};
@@ -993,6 +975,7 @@ static constexpr ImpliedExtsEntry ImpliedExts[] = {
     {{"xsfvcp"}, {ImpliedExtsXsfvcp}},
     {{"xtheadvdot"}, {ImpliedExtsXTHeadVdot}},
     {{"zcb"}, {ImpliedExtsZcb}},
+    {{"zcmp"}, {ImpliedExtsZcmp}},
     {{"zcmt"}, {ImpliedExtsZcmt}},
     {{"zdinx"}, {ImpliedExtsZdinx}},
     {{"zfa"}, {ImpliedExtsZfa}},

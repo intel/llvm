@@ -20,8 +20,7 @@ template <typename T> void async_work_group_test() {
   Q.submit([&](handler &CGH) {
      auto In = InBuf.template get_access<access::mode::read>(CGH);
      auto Out = OutBuf.template get_access<access::mode::write>(CGH);
-     accessor<T, 1, access::mode::read_write, access::target::local> Local(
-         range<1>{WorkGroupSize}, CGH);
+     local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
      nd_range<1> NDR{range<1>(NElems), range<1>(WorkGroupSize)};
      CGH.parallel_for(NDR, [=](nd_item<1> NDId) {
@@ -29,9 +28,13 @@ template <typename T> void async_work_group_test() {
        auto Group = NDId.get_group();
        size_t Offset = GrId * WorkGroupSize;
        auto E = NDId.async_work_group_copy(
-           Local.get_pointer(), In.get_pointer() + Offset, WorkGroupSize);
-       E = NDId.async_work_group_copy(Out.get_pointer() + Offset,
-                                      Local.get_pointer(), WorkGroupSize);
+           Local.template get_multi_ptr<access::decorated::yes>(),
+           In.template get_multi_ptr<access::decorated::yes>() + Offset,
+           WorkGroupSize);
+       E = NDId.async_work_group_copy(
+           Out.template get_multi_ptr<access::decorated::yes>() + Offset,
+           Local.template get_multi_ptr<access::decorated::yes>(),
+           WorkGroupSize);
      });
    }).wait();
 }

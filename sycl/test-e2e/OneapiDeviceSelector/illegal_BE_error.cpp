@@ -1,5 +1,5 @@
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %S/Inputs/trivial.cpp -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %S/Inputs/trivial.cpp -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="macaroni:*"" %t.out
 // XFAIL: *
 

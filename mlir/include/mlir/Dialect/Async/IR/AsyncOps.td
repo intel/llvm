@@ -271,6 +271,11 @@ def Async_CallOp : Async_Op<"call",
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(CallInterfaceCallable callee) {
+      (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
+    }
   }];
 
   let assemblyFormat = [{
@@ -636,7 +641,7 @@ def Async_RuntimeAwaitAndResumeOp : Async_Op<"runtime.await_and_resume"> {
 def Async_RuntimeStoreOp : Async_Op<"runtime.store",
       [TypesMatchWith<"type of 'value' matches element type of 'storage'",
                      "storage", "value",
-                     "$_self.cast<ValueType>().getValueType()">]> {
+                     "::llvm::cast<ValueType>($_self).getValueType()">]> {
   let summary = "stores the value into the runtime async.value";
   let description = [{
     The `async.runtime.store` operation stores the value into the runtime
@@ -651,7 +656,7 @@ def Async_RuntimeStoreOp : Async_Op<"runtime.store",
 def Async_RuntimeLoadOp : Async_Op<"runtime.load",
       [TypesMatchWith<"type of 'value' matches element type of 'storage'",
                      "storage", "result",
-                     "$_self.cast<ValueType>().getValueType()">]> {
+                     "::llvm::cast<ValueType>($_self).getValueType()">]> {
   let summary = "loads the value from the runtime async.value";
   let description = [{
     The `async.runtime.load` operation loads the value from the runtime

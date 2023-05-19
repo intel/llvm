@@ -420,6 +420,11 @@ public:
 
   void print(raw_ostream &OS) const;
   void dump() const;
+
+private:
+  // Internal helper for getting the initial KnownBits for an `srem` or `urem`
+  // operation with the low-bits set.
+  static KnownBits remGetLowBits(const KnownBits &LHS, const KnownBits &RHS);
 };
 
 inline KnownBits operator&(KnownBits LHS, const KnownBits &RHS) {
@@ -450,6 +455,11 @@ inline KnownBits operator^(KnownBits LHS, const KnownBits &RHS) {
 inline KnownBits operator^(const KnownBits &LHS, KnownBits &&RHS) {
   RHS ^= LHS;
   return std::move(RHS);
+}
+
+inline raw_ostream &operator<<(raw_ostream &OS, const KnownBits &Known) {
+  Known.print(OS);
+  return OS;
 }
 
 } // end namespace llvm
