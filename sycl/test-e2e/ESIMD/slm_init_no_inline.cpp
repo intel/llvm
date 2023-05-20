@@ -5,7 +5,7 @@
 
 // TODO: gpu driver cannot yet handle the IR generated without
 // inlining and especially without optimizations.
-// XFAIL: gpu
+// XFAIL: gpu && !esimd_emulator
 
 #include "esimd_test_utils.hpp"
 
