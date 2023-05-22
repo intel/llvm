@@ -961,35 +961,15 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
-// Temporarily check whether immediate command list env var has been set. This
-// affects default behavior of make_queue API.
-static const bool ImmediateCommandlistEnvVarIsSet = [] {
-  const char *UrRet = std::getenv("UR_L0_USE_IMMEDIATE_COMMANDLISTS");
-  const char *PiRet =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
-  return (UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0));
-}();
-
 _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
                      bool OwnZeCommandQueue,
                      pi_queue_properties PiQueueProperties,
-                     int ForceComputeIndex, bool OldAPI)
+                     int ForceComputeIndex)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(PiQueueProperties) {
-
-  // Set the type of commandlists the queue will use.
-  bool Default = !ImmediateCommandlistEnvVarIsSet;
   UsingImmCmdLists = Device->useImmediateCommandLists();
-  urPrint("ImmCmdList env var is set (%s), OldAPI (%s)\n",
-          (ImmediateCommandlistEnvVarIsSet ? "YES" : "NO"),
-          (OldAPI ? "YES" : "NO"));
-
-  if (OldAPI && Default)
-    // The default when called from pre-compiled binaries is to not use
-    // immediate command lists.
-    UsingImmCmdLists = false;
   urPrint("ImmCmdList setting (%s)\n", (UsingImmCmdLists ? "YES" : "NO"));
 
   // Compute group initialization.
@@ -2576,9 +2556,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   pi_queue_properties Properties[] = {PI_QUEUE_FLAGS, Flags, 0};
   return piextQueueCreate(Context, Device, Properties, Queue);
 }
-pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
-                                   pi_queue_properties *Properties,
-                                   pi_queue *Queue, bool OldAPI) {
+
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
   PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
   // Expect flags mask to be passed first.
   PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
@@ -2629,7 +2609,7 @@ pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
-                           Device, true, Flags, ForceComputeIndex, OldAPI);
+                           Device, true, Flags, ForceComputeIndex);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2676,11 +2656,6 @@ pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
     // TODO: warmup event pools. Both host-visible and device-only.
   }
   return PI_SUCCESS;
-}
-
-pi_result piextQueueCreate(pi_context Context, pi_device Device,
-                           pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreateInternal(Context, Device, Properties, Queue, true);
 }
 
 pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
