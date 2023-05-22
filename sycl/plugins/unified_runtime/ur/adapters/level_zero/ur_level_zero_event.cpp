@@ -122,6 +122,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
   return UR_RESULT_SUCCESS;
 }
 
+// Control if wait with barrier is implemented by signal of an event
+// as opposed by true barrier command for in-order queue.
+static const bool InOrderBarrierBySignal = [] {
+  const char *UrRet = std::getenv("UR_L0_IN_ORDER_BARRIER_BY_SIGNAL");
+  return (UrRet ? std::atoi(UrRet) : true);
+}();
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
@@ -144,15 +151,52 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
       [&Queue](ur_command_list_ptr_t CmdList,
                const _ur_ze_event_list_t &EventWaitList,
                ur_event_handle_t &Event, bool IsInternal) {
+        // For in-order queue and empty wait-list just use the last command
+        // event as the barrier event.
+        if (Queue->isInOrderQueue() && !EventWaitList.Length &&
+            Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
+          UR_CALL(urEventRetain(Queue->LastCommandEvent));
+          Event = Queue->LastCommandEvent;
+          return UR_RESULT_SUCCESS;
+        }
+
         UR_CALL(createEventAndAssociateQueue(
             Queue, &Event, UR_EXT_COMMAND_TYPE_USER, CmdList, IsInternal));
 
         Event->WaitList = EventWaitList;
-        ZE2UR_CALL(zeCommandListAppendBarrier,
-                   (CmdList->first, Event->ZeEvent, EventWaitList.Length,
-                    EventWaitList.ZeEventList));
+
+        // For in-order queue we don't need a real barrier, just wait for
+        // requested events in potentially different queues and add a "barrier"
+        // event signal because it is already guaranteed that previous commands
+        // in this queue are completed when the signal is started.
+        //
+        // TODO: this and other special handling of in-order queues to be
+        // updated when/if Level Zero adds native support for in-order queues.
+        //
+        if (Queue->isInOrderQueue() && InOrderBarrierBySignal) {
+          if (EventWaitList.Length) {
+            ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                       (CmdList->first, EventWaitList.Length,
+                        EventWaitList.ZeEventList));
+          }
+          ZE2UR_CALL(zeCommandListAppendSignalEvent,
+                     (CmdList->first, Event->ZeEvent));
+        } else {
+          ZE2UR_CALL(zeCommandListAppendBarrier,
+                     (CmdList->first, Event->ZeEvent, EventWaitList.Length,
+                      EventWaitList.ZeEventList));
+        }
         return UR_RESULT_SUCCESS;
       };
+
+  // If the queue is in-order then each command in it effectively acts as a
+  // barrier, so we don't need to do anything except if we were requested
+  // a "barrier" event to be created. Or if we need to wait for events in
+  // potentially different queues.
+  //
+  if (Queue->isInOrderQueue() && NumEventsInWaitList == 0 && !OutEvent) {
+    return UR_RESULT_SUCCESS;
+  }
 
   ur_event_handle_t InternalEvent;
   bool IsInternal = OutEvent == nullptr;
