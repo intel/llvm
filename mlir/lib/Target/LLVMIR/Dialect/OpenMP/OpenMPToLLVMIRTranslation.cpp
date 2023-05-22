@@ -1573,7 +1573,8 @@ LogicalResult convertFlagsAttr(Operation *op, mlir::omp::FlagsAttr attribute,
           .getAssumeNoNestedParallelism() /*LangOpts().OpenMPNoNestedParallelism*/
       ,
       "__omp_rtl_assume_no_nested_parallelism");
-
+  ompBuilder->M.addModuleFlag(llvm::Module::Max, "openmp-device",
+                              attribute.getOpenmpDeviceVersion());
   return success();
 }
 
@@ -1628,15 +1629,6 @@ convertOmpTarget(Operation &opInst, llvm::IRBuilderBase &builder,
 
   if (!targetOpSupported(opInst))
     return failure();
-
-  bool isDevice = false;
-  if (auto offloadMod = dyn_cast<mlir::omp::OffloadModuleInterface>(
-          opInst.getParentOfType<mlir::ModuleOp>().getOperation())) {
-    isDevice = offloadMod.getIsDevice();
-  }
-
-  if (isDevice) // TODO: Implement device codegen.
-    return success();
 
   auto targetOp = cast<omp::TargetOp>(opInst);
   auto &targetRegion = targetOp.getRegion();
@@ -1709,6 +1701,13 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::amendOperation(
   return llvm::TypeSwitch<Attribute, LogicalResult>(attribute.getValue())
       .Case([&](mlir::omp::FlagsAttr rtlAttr) {
         return convertFlagsAttr(op, rtlAttr, moduleTranslation);
+      })
+      .Case([&](mlir::omp::VersionAttr versionAttr) {
+        llvm::OpenMPIRBuilder *ompBuilder =
+            moduleTranslation.getOpenMPBuilder();
+        ompBuilder->M.addModuleFlag(llvm::Module::Max, "openmp",
+                                    versionAttr.getVersion());
+        return success();
       })
       .Default([&](Attribute attr) {
         // fall through for omp attributes that do not require lowering and/or

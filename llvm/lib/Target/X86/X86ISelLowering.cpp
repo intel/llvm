@@ -529,7 +529,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   }
 
   if (Subtarget.hasSSEPrefetch() || Subtarget.hasThreeDNow())
-    setOperationAction(ISD::PREFETCH      , MVT::Other, Legal);
+    setOperationAction(ISD::PREFETCH      , MVT::Other, Custom);
 
   setOperationAction(ISD::ATOMIC_FENCE  , MVT::Other, Custom);
 
@@ -28916,7 +28916,7 @@ static SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, const X86Subtarget &Subtarget,
         SDValue Chain = Op->getOperand(0);
         SDValue CopyRBP = DAG.getCopyFromReg(Chain, dl, X86::RBP, MVT::i64);
         SDValue Result =
-            SDValue(DAG.getMachineNode(X86::SUB64ri8, dl, MVT::i64, CopyRBP,
+            SDValue(DAG.getMachineNode(X86::SUB64ri32, dl, MVT::i64, CopyRBP,
                                        DAG.getTargetConstant(8, dl, MVT::i32)),
                     0);
         // Return { result, chain }.
@@ -33984,6 +33984,18 @@ static SDValue LowerCVTPS2PH(SDValue Op, SelectionDAG &DAG) {
   return DAG.getNode(ISD::CONCAT_VECTORS, dl, VT, Lo, Hi);
 }
 
+static SDValue LowerPREFETCH(SDValue Op, const X86Subtarget &Subtarget,
+                             SelectionDAG &DAG) {
+  unsigned IsData = cast<ConstantSDNode>(Op.getOperand(4))->getZExtValue();
+
+  // We don't support non-data prefetch without PREFETCHI.
+  // Just preserve the chain.
+  if (!IsData && !Subtarget.hasPREFETCHI())
+    return Op.getOperand(0);
+
+  return Op;
+}
+
 static StringRef getInstrStrFromOpNo(const SmallVectorImpl<StringRef> &AsmStrs,
                                      unsigned OpNo) {
   const APInt Operand(32, OpNo);
@@ -34188,6 +34200,7 @@ SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::GC_TRANSITION_END:  return LowerGC_TRANSITION(Op, DAG);
   case ISD::ADDRSPACECAST:      return LowerADDRSPACECAST(Op, DAG);
   case X86ISD::CVTPS2PH:        return LowerCVTPS2PH(Op, DAG);
+  case ISD::PREFETCH:           return LowerPREFETCH(Op, Subtarget, DAG);
   }
 }
 
@@ -36847,16 +36860,11 @@ X86TargetLowering::EmitLoweredSelect(MachineInstr &MI,
   return SinkMBB;
 }
 
-static unsigned getSUBriOpcode(bool IsLP64, int64_t Imm) {
-  if (IsLP64) {
-    if (isInt<8>(Imm))
-      return X86::SUB64ri8;
+static unsigned getSUBriOpcode(bool IsLP64) {
+  if (IsLP64)
     return X86::SUB64ri32;
-  } else {
-    if (isInt<8>(Imm))
-      return X86::SUB32ri8;
+  else
     return X86::SUB32ri;
-  }
 }
 
 MachineBasicBlock *
@@ -36924,12 +36932,12 @@ X86TargetLowering::EmitLoweredProbedAlloca(MachineInstr &MI,
   // The property we want to enforce is to never have more than [page alloc] between two probes.
 
   const unsigned XORMIOpc =
-      TFI.Uses64BitFramePtr ? X86::XOR64mi8 : X86::XOR32mi8;
+      TFI.Uses64BitFramePtr ? X86::XOR64mi32 : X86::XOR32mi;
   addRegOffset(BuildMI(blockMBB, DL, TII->get(XORMIOpc)), physSPReg, false, 0)
       .addImm(0);
 
   BuildMI(blockMBB, DL,
-          TII->get(getSUBriOpcode(TFI.Uses64BitFramePtr, ProbeSize)), physSPReg)
+          TII->get(getSUBriOpcode(TFI.Uses64BitFramePtr)), physSPReg)
       .addReg(physSPReg)
       .addImm(ProbeSize);
 

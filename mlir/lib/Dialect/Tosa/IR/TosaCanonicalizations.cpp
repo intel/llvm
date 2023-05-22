@@ -648,13 +648,13 @@ OpFoldResult MulOp::fold(FoldAdaptor adaptor) {
   const int64_t shift = llvm::isa<IntegerType>(resultETy) ? getShift() : 0;
   if (rhsTy == resultTy) {
     if (isSplatZero(resultETy, lhsAttr))
-      return lhsAttr;
+      return lhsAttr.resizeSplat(resultTy);
     if (isSplatOne(resultETy, lhsAttr, shift))
       return rhs;
   }
   if (lhsTy == resultTy) {
     if (isSplatZero(resultETy, rhsAttr))
-      return rhsAttr;
+      return rhsAttr.resizeSplat(resultTy);
     if (isSplatOne(resultETy, rhsAttr, shift))
       return lhs;
   }
@@ -1023,6 +1023,16 @@ OpFoldResult tosa::NegateOp::fold(FoldAdaptor adaptor) {
   // Element-wise negate(negate(x)) = x
   if (auto op = input.getDefiningOp<tosa::NegateOp>()) {
     return op.getInput1();
+  }
+
+  return {};
+}
+
+OpFoldResult tosa::AbsOp::fold(FoldAdaptor adaptor) {
+  auto input = getInput1();
+  // Element-wise abs(abs(x)) = abs(x)
+  if (auto op = input.getDefiningOp<tosa::AbsOp>()) {
+    return input;
   }
 
   return {};
