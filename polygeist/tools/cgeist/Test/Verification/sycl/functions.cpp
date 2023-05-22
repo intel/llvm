@@ -1,5 +1,5 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-llvm %s -o %t && rm %t
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-llvm %s -o %t && rm %t
 
 #include <sycl/sycl.hpp>
 

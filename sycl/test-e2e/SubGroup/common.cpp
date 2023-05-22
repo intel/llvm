@@ -43,8 +43,8 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
           sgsizeacc[0] = SG.get_max_local_range()[0];
       });
     });
-    auto syclacc = syclbuf.get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor syclacc(syclbuf);
+    host_accessor sgsizeacc(sgsizebuf);
     unsigned int sg_size = sgsizeacc[0];
     unsigned int num_sg = L / sg_size + (L % sg_size ? 1 : 0);
     for (int j = 0; j < G; j++) {

@@ -129,7 +129,7 @@ private:
   std::deque<FunctionToEmit> FunctionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &Module;
   clang::SourceManager &SM;
-  llvm::LLVMContext Lcontext;
+  std::unique_ptr<llvm::LLVMContext> Lcontext;
   llvm::Module LLVMMod;
   clang::CodeGen::CodeGenModule CGM;
   mlirclang::CodeGen::CodeGenTypes CGTypes;
@@ -153,13 +153,14 @@ public:
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &LLVMFunctions,
       clang::Preprocessor &PP, clang::ASTContext &AstContext,
       mlir::OwningOpRef<mlir::ModuleOp> &Module, clang::SourceManager &SM,
+      std::unique_ptr<llvm::LLVMContext> &&LCtx,
       clang::CodeGenOptions &Codegenops, std::string ModuleId)
       : EmitIfFound(EmitIfFound), Done(Done),
         LLVMStringGlobals(LLVMStringGlobals), Globals(Globals),
         Functions(Functions), DeviceFunctions(DeviceFunctions),
         LLVMGlobals(LLVMGlobals), LLVMFunctions(LLVMFunctions),
-        FunctionsToEmit(), Module(Module), SM(SM), Lcontext(),
-        LLVMMod(ModuleId, Lcontext),
+        FunctionsToEmit(), Module(Module), SM(SM), Lcontext(std::move(LCtx)),
+        LLVMMod(ModuleId, *Lcontext),
         CGM(AstContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), Codegenops, LLVMMod, PP.getDiagnostics()),

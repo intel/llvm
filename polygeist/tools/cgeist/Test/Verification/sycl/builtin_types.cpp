@@ -1,5 +1,10 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir -o - %s | FileCheck %s
 
+// TODO: This test is currently not yet working with opaque pointers, 
+// as the MLIR LLVM dialect is lacking support for the LLVM IR 'TargetExtType'
+// that is used for OpenCL/SPIR-V image types.
+// XFAIL: *
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

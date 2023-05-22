@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
-#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
@@ -16,12 +15,7 @@
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Matchers.h"
-#include "mlir/IR/PatternMatch.h"
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "memory-access-analysis"
 
@@ -57,7 +51,7 @@ static bool isEqualTo(Value val, int constant, DataFlowSolver &solver) {
     return false;
 
   APInt constVal = *optConstVal;
-  APInt c(constVal.getBitWidth(), constant, true /* signed */);
+  APInt c(constVal.getBitWidth(), constant, true /*signed*/);
   return (constVal == c);
 }
 
@@ -88,17 +82,19 @@ static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
   return (optConstVal.has_value() && optConstVal->slt(-1));
 }
 
-/// Walks up the parents and records the ones with the specified type.
+/// Walk up the parents and records the ones with the specified type.
 template <typename T> static SetVector<T> getParentsOfType(Block *block) {
   SetVector<T> res;
-  Operation *current = block->getParentOp();
-  while (current) {
-    if (auto typedParent = dyn_cast<T>(current)) {
-      assert(res.count(typedParent) == 0 && "Already inserted");
-      res.insert(typedParent);
-    }
-    current = current->getParentOp();
-  }
+  constexpr auto getInitialParent = [](Block *b) -> T {
+    Operation *op = b->getParentOp();
+    auto typedOp = dyn_cast<T>(op);
+    return typedOp ? typedOp : op->getParentOfType<T>();
+  };
+
+  for (T parent = getInitialParent(block); parent;
+       parent = parent->template getParentOfType<T>())
+    res.insert(parent);
+
   return res;
 }
 
@@ -115,9 +111,22 @@ static SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
   return res;
 }
 
+/// Determine whether \p op uses \p val (directly or indirectly).
+static bool usesValue(Operation *op, Value val) {
+  assert(op && "Expecting valid operation");
+  if (Operation *valOp = val.getDefiningOp())
+    if (valOp == op)
+      return true;
+  return llvm::any_of(op->getOperands(), [&](Value operand) {
+    if (Operation *operandOp = operand.getDefiningOp())
+      return usesValue(operandOp, val);
+    return (operand == val);
+  });
+}
+
 namespace {
 
-/// Represents a multiplication factor.
+/// Represent a multiplication factor.
 class Multiplier {
   friend raw_ostream &operator<<(raw_ostream &, const Multiplier &);
 
@@ -128,21 +137,11 @@ public:
 
   Value getValue() const { return val; }
 
-  /// Determine whether the multiplier has value one.
-  bool isOne(DataFlowSolver &solver) const {
-    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
-      if (constVal.value() == 1)
-        return true;
-    }
-    std::optional<APInt> constVal = getConstIntegerValue(val, solver);
-    return (constVal.has_value() && constVal->isOne());
-  }
-
   /// Create a multiplier with value one.
   static Multiplier one(MLIRContext *ctx) {
     OpBuilder b(ctx);
     return Multiplier(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1));
-  };
+  }
 
 private:
   Value val;
@@ -152,7 +151,7 @@ raw_ostream &operator<<(raw_ostream &os, const Multiplier &multiplier) {
   return os << multiplier.val;
 }
 
-/// Represents a multiplier or a value.
+/// Represent a multiplier or a value.
 class ValueOrMultiplier {
   friend raw_ostream &operator<<(raw_ostream &, const ValueOrMultiplier &);
 
@@ -175,10 +174,10 @@ public:
 
   /// Determine whether this class holds the value one.
   bool isOne(DataFlowSolver &solver) const {
-    if (isMultiplier())
-      return getMultiplier().isOne(solver);
+    Value val = isMultiplier() ? getMultiplier().getValue() : getValue();
+    if (!val)
+      return false;
 
-    Value val = getValue();
     if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
       if (constVal.value() == 1)
         return true;
@@ -201,17 +200,21 @@ operator<<(raw_ostream &os, const ValueOrMultiplier &valOrMultiplier) {
 } // namespace
 
 // Visit a binary operation of type \tparam T. The LHS and RHS operand of the
-// binary operation are processed by applying the function \p getMultiplier. The
-// result of the visit is computed via the \p computeResult function.
-template <typename T,
+// binary operation are processed by applying the function \p getMultiplier.
+// The result of the visit is computed via the \p computeResult function.
+template <typename T, typename ProcessOperandFuncT, typename ComputeResultFuncT,
           typename = std::enable_if_t<llvm::is_one_of<
-              T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>>
-static ValueOrMultiplier visitBinaryOp(
-    T binOp, const Value factor, DataFlowSolver &solver,
-    std::function<ValueOrMultiplier(const Value, const Value, DataFlowSolver &)>
-        getMultiplier,
-    std::function<ValueOrMultiplier(ValueOrMultiplier, ValueOrMultiplier)>
-        computeResult) {
+              T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>,
+          typename = std::enable_if<
+              std::is_invocable_r_v<ValueOrMultiplier, ProcessOperandFuncT, T,
+                                    const Value, DataFlowSolver &>>,
+          typename = std::enable_if<
+              std::is_invocable_r_v<ValueOrMultiplier, ComputeResultFuncT,
+                                    ValueOrMultiplier, ValueOrMultiplier>>>
+static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
+                                       DataFlowSolver &solver,
+                                       ProcessOperandFuncT getMultiplier,
+                                       ComputeResultFuncT computeResult) {
   // Traverse my subtrees.
   auto lhsRes = getMultiplier(binOp.getLhs(), factor, solver);
   auto rhsRes = getMultiplier(binOp.getRhs(), factor, solver);
@@ -220,17 +223,16 @@ static ValueOrMultiplier visitBinaryOp(
   auto res = computeResult(lhsRes, rhsRes);
 
   LLVM_DEBUG({
-    llvm::dbgs().indent(2) << "lhsRes: " << lhsRes << "\n";
-    llvm::dbgs().indent(2) << "rhsRes: " << rhsRes << "\n";
-    llvm::dbgs().indent(2) << "res = " << res << "\n";
+    llvm::dbgs() << "lhsRes: " << lhsRes << "\n";
+    llvm::dbgs() << "rhsRes: " << rhsRes << "\n";
+    llvm::dbgs() << "res = " << res << "\n";
   });
 
   return res;
 }
 
 /// Determine whether \p expr involves a subexpression which is a multiplication
-/// of \p val, and return the multiplication factor if it does.
-/// Example:
+/// of \p val, and return the multiplication factor if it does. Example:
 ///   %c1_i32 = arith.constant 1 : i32
 ///   %c2_i32 = arith.constant 2 : i32
 ///   %index_cast = arith.index_cast %ii : index to i64
@@ -244,7 +246,8 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
                                        DataFlowSolver &solver) {
   Operation *op = expr.getDefiningOp();
   if (!op) {
-    // If the block argument is a match create a multiplier with value one.
+    // This is a block argument. If it is a match create a multiplier with
+    // value one.
     if (expr == factor)
       return Multiplier::one(expr.getContext());
     return expr;
@@ -977,8 +980,9 @@ void MemoryAccessAnalysis::build() {
   // Try to construct the memory access matrix for affine memory operation of
   // interest.
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
-        [&](auto memoryOp) { build(memoryOp, solver); });
+    TypeSwitch<Operation *>(op)
+        .Case<affine::AffineStoreOp, affine::AffineLoadOp>(
+            [&](auto memoryOp) { build(memoryOp, solver); });
   });
 }
 
@@ -1007,8 +1011,8 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // operation. Example:
   //   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
   //   %sub = sycl.accessor.subscript %acc[%id] ...
-  // Here the underlying values for '%id' are {%i, %j}. The number of underlying
-  // values matches the dimensionality of the sycl id.
+  // Here the underlying values for '%id' are {%i, %j}. The number of
+  // underlying values matches the dimensionality of the sycl id.
   SmallVector<Value> underlyingVals = getUnderlyingValues(
       accessorSubscriptOp.getOffsetOperandIndex(), accessorSubscriptOp, solver);
   if (underlyingVals.empty()) {
@@ -1064,17 +1068,19 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
     LLVM_DEBUG(llvm::dbgs() << "Analyzing underlying value: " << val << "\n");
 
     for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
+      if (!usesValue(val.getDefiningOp(), loopAndThreadVars[col])) {
+        accessMatrix(row, col) = zero;
+        continue;
+      }
+
       ValueOrMultiplier valOrMul =
           getMultiplier(val, loopAndThreadVars[col], solver);
-      accessMatrix(row, col) =
-          valOrMul.isMultiplier() ? valOrMul.getMultiplier().getValue() : zero;
+      if (!valOrMul.isMultiplier()) {
+        LLVM_DEBUG(llvm::dbgs() << "Failed to find multiplier\n");
+        return;
+      }
 
-      LLVM_DEBUG({
-        if (valOrMul.isMultiplier())
-          llvm::dbgs() << "Multiplier for " << loopAndThreadVars[col]
-                       << "\nis: " << valOrMul.getMultiplier().getValue()
-                       << "\n";
-      });
+      accessMatrix(row, col) = valOrMul.getMultiplier().getValue();
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
@@ -1141,8 +1147,8 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
           return getUnderlyingValues(storeOp.getStoredValOperandIndex(),
                                      storeOp, solver);
 
-        // Try to determine the underlying value of the memory pointed to by the
-        // memref operand of a load.
+        // Try to determine the underlying value of the memory pointed to by
+        // the memref operand of a load.
         AffineLoadOp loadOp = cast<AffineLoadOp>(storedVal.getDefiningOp());
         MemRefAccess loadAccess(loadOp);
         assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");

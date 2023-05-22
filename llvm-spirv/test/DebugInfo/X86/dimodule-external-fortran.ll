@@ -25,6 +25,14 @@
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj  %t.ll -o - | llvm-dwarfdump - | FileCheck %s
 
+; RUNx: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUNx: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj  %t.ll -o - | llvm-dwarfdump - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj  %t.ll -o - | llvm-dwarfdump - | FileCheck %s
+
 ; CHECK: [[DIE_ID:0x[0-9a-f]+]]: DW_TAG_module
 ; CHECK-NEXT:                      DW_AT_name    ("external_module")
 ; CHECK-NEXT:                      DW_AT_declaration     (true)

@@ -1,5 +1,5 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -18,8 +18,8 @@
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS0:[0-9]+]] {
 // CHECK-LLVM-NEXT:  [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
-// CHECK-LLVM-NEXT:  [[ACAST:%.*]] = addrspacecast %"class.sycl::_V1::accessor.1"* [[ACCESSOR]] to %"class.sycl::_V1::accessor.1" addrspace(4)*
-// CHECK-LLVM-NEXT:  call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]])
+// CHECK-LLVM-NEXT:  [[ACAST:%.*]] = addrspacecast ptr [[ACCESSOR]] to ptr addrspace(4)
+// CHECK-LLVM-NEXT:  call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(ptr addrspace(4) [[ACAST]])
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_E18kernel_single_task
 // CHECK-LLVM-SAME: #[[FUNCATTRS1:[0-9]+]]

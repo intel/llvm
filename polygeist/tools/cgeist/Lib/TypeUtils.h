@@ -12,6 +12,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "clang/AST/Type.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
 namespace clang {
@@ -45,6 +46,10 @@ llvm::Type *anonymize(llvm::Type *T);
 
 bool isRecursiveStruct(llvm::Type *T, llvm::Type *Meta,
                        llvm::SmallPtrSetImpl<llvm::Type *> &Seen);
+
+bool isRecursiveStruct(
+    clang::QualType,
+    llvm::SmallPtrSetImpl<const clang::Type *> &RecordEncountered);
 
 mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
                                          mlir::MLIRContext *Ctx);

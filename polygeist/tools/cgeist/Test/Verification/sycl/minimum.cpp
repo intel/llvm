@@ -37,7 +37,7 @@ void parallel_for_nd_item(std::array<int, N> &A, queue q) {
       auto A = buf.get_access<access::mode::write>(cgh);
       cgh.parallel_for<class kernel_parallel_for_nd_item>(ndRange, [=](nd_item<1> NdItem) {
         ext::oneapi::sub_group sg = NdItem.get_sub_group();
-        A[0] = ext::oneapi::exclusive_scan(sg, 0, 0, ext::oneapi::minimum<>());
+        A[0] = exclusive_scan_over_group(sg, 0, 0, ext::oneapi::minimum<>());
       });
     });
   }

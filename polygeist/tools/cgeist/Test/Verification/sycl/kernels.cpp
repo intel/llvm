@@ -1,5 +1,5 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -7,7 +7,7 @@
 // CHECK-MLIR-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 // CHECK-MLIR-DAG: !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 
-// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { i32 addrspace(1)* } }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { ptr addrspace(1) } }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.1" = type { %"class.sycl::_V1::id.1", %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1" }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::id.1" = type { %"class.sycl::_V1::detail::array.1" }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::detail::array.1" = type { [1 x i64] }
@@ -24,8 +24,8 @@
 // CHECK-MLIR-SAME:  kernel attributes {[[CCONV:llvm.cconv = #llvm.cconv<spir_kernelcc>]], [[LINKAGE:llvm.linkage = #llvm.linkage<weak_odr>]],
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, [[RANGE_TY]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, 
-// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) align 8 {{.*}}) #[[FUNCATTRS:[0-9]+]]
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(ptr addrspace(1) {{.*}}, ptr noundef byval([[RANGE_TY:%"class.sycl::_V1::range.1"]]) align 8 {{.*}}, ptr noundef byval([[RANGE_TY]]) align 8 {{.*}}, 
+// CHECK-LLVM-SAME:  ptr noundef byval([[ID_TY:%"class.sycl::_V1::id.1"]]) align 8 {{.*}}) #[[FUNCATTRS:[0-9]+]]
 class kernel_1 {
  sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
 

@@ -31,18 +31,32 @@ def Polygeist_StructType :
   let description = [{
     Type used to represent a collection of data members together in memory.
   }];
-  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body,
+  let parameters = (ins OptionalArrayRefParameter<"mlir::Type">:$body,
                         OptionalParameter<"std::optional<StringAttr>">:$name,
-                        DefaultValuedParameter<"bool", "false">:$isPacked);
+                        DefaultValuedParameter<"bool", "false">:$isPacked,
+                        DefaultValuedParameter<"bool", "false">:$isOpaque);
   let builders = [
     TypeBuilder<(ins "llvm::ArrayRef<mlir::Type>":$body),[{
-      return $_get($_ctxt, body, std::nullopt, false);
+      return $_get($_ctxt, body, std::nullopt, false, false);
+    }]>,
+    TypeBuilder<(ins "llvm::ArrayRef<mlir::Type>":$body, "std::optional<StringAttr>":$name, "bool":$isPacked),[{
+      return $_get($_ctxt, body, name, isPacked, false);
     }]>
   ];
   let extraClassDeclaration = [{
     bool isPacked() { return getIsPacked(); }
+    bool isOpaque() { return getIsOpaque(); }
+    static StructType getOpaque(StringAttr name, mlir::MLIRContext *context) {
+      return get(context, std::nullopt, name, false, true);
+    }
   }];
-  let assemblyFormat = "`<` ($name^ `,` ` `)? (`isPacked` `=` $isPacked^ ` `)? `(` $body `)` `>`";
+  let assemblyFormat = [{
+    `<` ($name^ `,` ` `)?
+        (`isPacked` `=` $isPacked^ ` `)?
+        (`isOpaque` `=` $isOpaque^)?
+        (`(` $body^ `)`)? `>`
+  }];
+  let genVerifyDecl = 1;
 }
 
 #endif // POLYGEIST_TYPES
