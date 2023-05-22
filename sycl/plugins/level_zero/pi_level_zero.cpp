@@ -971,43 +971,23 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
-// Temporarily check whether immediate command list env var has been set. This
-// affects default behavior of make_queue API.
-static const bool ImmediateCommandlistEnvVarIsSet = [] {
-  const char *UrRet = std::getenv("UR_L0_USE_IMMEDIATE_COMMANDLISTS");
-  const char *PiRet =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
-  return (UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0));
-}();
-
 _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
                      bool OwnZeCommandQueue,
                      pi_queue_properties PiQueueProperties,
-                     int ForceComputeIndex, bool OldAPI)
+                     int ForceComputeIndex)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(PiQueueProperties) {
-
   // Set the type of commandlists the queue will use.
   // When user-selected submission mode, ignore env var setting.
-  if (isBatchedSubmission()) {
+  if (isBatchedSubmission())
     UsingImmCmdLists = false;
-  } else if (isImmediateSubmission()) {
+  else if (isImmediateSubmission())
     UsingImmCmdLists = true;
-  } else {
-    bool Default = !ImmediateCommandlistEnvVarIsSet;
+  else
     UsingImmCmdLists = Device->useImmediateCommandLists();
-    urPrint("ImmCmdList env var is set (%s), OldAPI (%s)\n",
-            (ImmediateCommandlistEnvVarIsSet ? "YES" : "NO"),
-            (OldAPI ? "YES" : "NO"));
-
-    if (OldAPI && Default)
-      // The default when called from pre-compiled binaries is to not use
-      // immediate command lists.
-      UsingImmCmdLists = false;
-    urPrint("ImmCmdList setting (%s)\n", (UsingImmCmdLists ? "YES" : "NO"));
-  }
+  urPrint("ImmCmdList setting (%s)\n", (UsingImmCmdLists ? "YES" : "NO"));
 
   // Compute group initialization.
   // First, see if the queue's device allows for round-robin or it is
@@ -2593,9 +2573,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   pi_queue_properties Properties[] = {PI_QUEUE_FLAGS, Flags, 0};
   return piextQueueCreate(Context, Device, Properties, Queue);
 }
-pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
-                                   pi_queue_properties *Properties,
-                                   pi_queue *Queue, bool OldAPI) {
+
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
   PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
   // Expect flags mask to be passed first.
   PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
@@ -2648,7 +2628,7 @@ pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
-                           Device, true, Flags, ForceComputeIndex, OldAPI);
+                           Device, true, Flags, ForceComputeIndex);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2695,16 +2675,6 @@ pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
     // TODO: warmup event pools. Both host-visible and device-only.
   }
   return PI_SUCCESS;
-}
-
-pi_result piextQueueCreate(pi_context Context, pi_device Device,
-                           pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreateInternal(Context, Device, Properties, Queue, true);
-}
-
-pi_result piextQueueCreate2(pi_context Context, pi_device Device,
-                            pi_queue_properties *Properties, pi_queue *Queue) {
-  return piextQueueCreateInternal(Context, Device, Properties, Queue, false);
 }
 
 pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
@@ -3010,30 +2980,8 @@ pi_result piQueueFlush(pi_queue Queue) {
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
-                                    pi_native_handle *NativeHandle) {
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
-
-  // For a call from SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO V3 or older code if the
-  // queue is using immediate command lists then we generate an error because we
-  // cannot return a command queue.
-  PI_ASSERT(!Queue->UsingImmCmdLists, PI_ERROR_INVALID_QUEUE);
-
-  // Lock automatically releases when this goes out of scope.
-  std::shared_lock<ur_shared_mutex> lock(Queue->Mutex);
-
-  auto ZeQueue = ur_cast<ze_command_queue_handle_t *>(NativeHandle);
-
-  // Extract a Level Zero compute queue handle from the given PI queue
-  auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
-  uint32_t QueueGroupOrdinalUnused;
-  *ZeQueue = QueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
-  return PI_SUCCESS;
-}
-
-pi_result piextQueueGetNativeHandle2(pi_queue Queue,
-                                     pi_native_handle *NativeHandle,
-                                     int32_t *NativeHandleDesc) {
+                                    pi_native_handle *NativeHandle,
+                                    int32_t *NativeHandleDesc) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(NativeHandleDesc, PI_ERROR_INVALID_VALUE);
@@ -3059,28 +3007,6 @@ pi_result piextQueueGetNativeHandle2(pi_queue Queue,
   return PI_SUCCESS;
 }
 
-pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                           pi_context Context, pi_device Device,
-                                           bool OwnNativeHandle,
-                                           pi_queue *Queue) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto ZeQueue = ur_cast<ze_command_queue_handle_t>(NativeHandle);
-  // Assume this is the "0" index queue in the compute command-group.
-  std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
-
-  // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue. Currently we will send
-  // all commands to the "ZeQueue".
-  std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
-  *Queue =
-      new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
-  return PI_SUCCESS;
-}
-
 void _pi_queue::pi_queue_group_t::setImmCmdList(
     ze_command_list_handle_t ZeCommandList) {
   ImmCmdLists = std::vector<pi_command_list_ptr_t>(
@@ -3091,10 +3017,12 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
           .first);
 }
 
-pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle NativeHandle, int32_t NativeHandleDesc, pi_context Context,
-    pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
-    pi_queue *Queue) {
+pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           int32_t NativeHandleDesc,
+                                           pi_context Context, pi_device Device,
+                                           bool OwnNativeHandle,
+                                           pi_queue_properties *Properties,
+                                           pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);

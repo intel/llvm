@@ -82,9 +82,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
-             const property_list &PropList, bool Backend_L0_V3 = false)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList,
-                   Backend_L0_V3){};
+             const property_list &PropList)
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -96,11 +95,10 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler, const property_list &PropList,
-             bool Backend_L0_V3 = false)
-      : MBackend_L0_V3(Backend_L0_V3), MDevice(Device), MContext(Context),
-        MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(MDevice->is_host()), MAssertHappenedBuffer(range<1>{1}),
+             const async_handler &AsyncHandler, const property_list &PropList)
+      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
+        MPropList(PropList), MHostQueue(MDevice->is_host()),
+        MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -471,8 +469,8 @@ public:
     }
     // Track that submission modes do not conflict.
     bool SubmissionSeen = false;
-    if (PropList.has_property<
-            ext::oneapi::level_zero::property::queue::batched_submission>()) {
+    if (PropList
+            .has_property<ext::oneapi::property::queue::batched_submission>()) {
       if (SubmissionSeen) {
         throw sycl::exception(
             make_error_code(errc::invalid),
@@ -482,7 +480,7 @@ public:
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_BATCHED_SUBMISSION;
     }
     if (PropList.has_property<
-            ext::oneapi::level_zero::property::queue::immediate_submission>()) {
+            ext::oneapi::property::queue::immediate_submission>()) {
       if (SubmissionSeen) {
         throw sycl::exception(
             make_error_code(errc::invalid),
@@ -512,11 +510,8 @@ public:
       Properties[2] = PI_QUEUE_COMPUTE_INDEX;
       Properties[3] = static_cast<RT::PiQueueProperties>(Idx);
     }
-    RT::PiResult Error =
-        MBackend_L0_V3 ? Plugin->call_nocheck<PiApiKind::piextQueueCreate>(
-                             Context, Device, Properties, &Queue)
-                       : Plugin->call_nocheck<PiApiKind::piextQueueCreate2>(
-                             Context, Device, Properties, &Queue);
+    RT::PiResult Error = Plugin->call_nocheck<PiApiKind::piextQueueCreate>(
+        Context, Device, Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
@@ -637,13 +632,7 @@ public:
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
-
-  // The getNative2 function is added as a temporary measure so that the
-  // existing getNative function can co-exist with it. At the next ABI
-  // redefinition getNative will be removed and getNative2 will be renamed as
-  // getNative.
-  pi_native_handle getNative2(int32_t &NativeHandleDesc) const;
+  pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
@@ -783,12 +772,6 @@ protected:
 
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;
-
-  // This flag indicates whether we are dealing with queues constructed by code
-  // that predates this release. This is a temporary fix to be able to
-  // distinguish between old and new binaries and build queues in different
-  // ways.
-  bool MBackend_L0_V3;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;

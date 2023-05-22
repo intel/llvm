@@ -17,14 +17,13 @@ __SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, priority_low,
                       QueuePriorityLow)
 __SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, priority_high,
                       QueuePriorityHigh)
+__SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, batched_submission,
+                      QueueSubmissionBatched)
+__SYCL_DATA_LESS_PROP(ext::oneapi::property::queue, immediate_submission,
+                      QueueSubmissionImmediate)
 
 __SYCL_DATA_LESS_PROP(ext::oneapi::cuda::property::queue, use_default_stream,
                       UseDefaultStream)
-
-__SYCL_DATA_LESS_PROP(ext::oneapi::level_zero::property::queue, batched_submission,
-                      QueueSubmissionBatched)
-__SYCL_DATA_LESS_PROP(ext::oneapi::level_zero::property::queue, immediate_submission,
-                      QueueSubmissionImmediate)
 
 // Deprecated alias for ext::oneapi::cuda::property::queue.
 __SYCL_MANUALLY_DEFINED_PROP(property::queue::cuda, use_default_stream)

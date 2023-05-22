@@ -402,7 +402,7 @@ for sycl_device in config.sycl_devices:
 
     features = set('aspect-' + a for a in aspects)
     be, dev = sycl_device.split(':')
-    features.add(dev)
+    features.add(dev.replace('acc', 'accelerator'))
     # Use short names for LIT rules.
     features.add(be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
 

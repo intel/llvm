@@ -1,6 +1,6 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test that "device_read_only" shared USM allocations are pooled.
