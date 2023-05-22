@@ -961,6 +961,13 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
+// Control if wait with barrier is implemented by signal of an event
+// as opposed by true barrier command for in-order queue.
+static const bool InOrderBarrierBySignal = [] {
+  const char *UrRet = std::getenv("UR_L0_IN_ORDER_BARRIER_BY_SIGNAL");
+  return (UrRet ? std::atoi(UrRet) : true);
+}();
+
 _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
@@ -5744,20 +5751,56 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   // Helper function for appending a barrier to a command list.
-  auto insertBarrierIntoCmdList =
-      [&Queue](pi_command_list_ptr_t CmdList,
-               const _pi_ze_event_list_t &EventWaitList, pi_event &Event,
-               bool IsInternal) {
-        if (auto Res = createEventAndAssociateQueue(
-                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
-          return Res;
+  auto insertBarrierIntoCmdList = [&Queue](
+                                      pi_command_list_ptr_t CmdList,
+                                      const _pi_ze_event_list_t &EventWaitList,
+                                      pi_event &Event, bool IsInternal) {
+    // For in-order queue and empty wait-list just use the last command
+    // event as the barrier event.
+    if (Queue->isInOrderQueue() && !EventWaitList.Length &&
+        Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
+      PI_CALL(piEventRetain(Queue->LastCommandEvent));
+      Event = Queue->LastCommandEvent;
+      return PI_SUCCESS;
+    }
 
-        Event->WaitList = EventWaitList;
-        ZE_CALL(zeCommandListAppendBarrier,
-                (CmdList->first, Event->ZeEvent, EventWaitList.Length,
-                 EventWaitList.ZeEventList));
-        return PI_SUCCESS;
-      };
+    if (auto Res = createEventAndAssociateQueue(
+            Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
+      return Res;
+
+    Event->WaitList = EventWaitList;
+
+    // For in-order queue we don't need a real barrier, just wait for requested
+    // events in potentially different queues and add a "barrier" event signal
+    // because it is already guaranteed that previous commands in this queue
+    // are completed when the signal is started.
+    //
+    // TODO: this and other special handling of in-order queues to be
+    // updated when/if Level Zero adds native support for in-order queues.
+    //
+    if (Queue->isInOrderQueue() && InOrderBarrierBySignal) {
+      if (EventWaitList.Length) {
+        ZE_CALL(
+            zeCommandListAppendWaitOnEvents,
+            (CmdList->first, EventWaitList.Length, EventWaitList.ZeEventList));
+      }
+      ZE_CALL(zeCommandListAppendSignalEvent, (CmdList->first, Event->ZeEvent));
+    } else {
+      ZE_CALL(zeCommandListAppendBarrier,
+              (CmdList->first, Event->ZeEvent, EventWaitList.Length,
+               EventWaitList.ZeEventList));
+    }
+    return PI_SUCCESS;
+  };
+
+  // If the queue is in-order then each command in it effectively acts as a
+  // barrier, so we don't need to do anything except if we were requested
+  // a "barrier" event to be created. Or if we need to wait for events in
+  // potentially different queues.
+  //
+  if (Queue->isInOrderQueue() && NumEventsInWaitList == 0 && !OutEvent) {
+    return PI_SUCCESS;
+  }
 
   pi_event InternalEvent;
   bool IsInternal = OutEvent == nullptr;
