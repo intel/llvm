@@ -40,6 +40,7 @@ _CLC_DEF _CLC_CONVERGENT uint
 _Z37__spirv_GroupNonUniformBallotBitCountN5__spv5Scope4FlagEiDv4_j(
     uint scope, uint flag, __clc_vec4_uint32_t mask) {
   // here we assume scope == __spv::Scope::Subgroup
+  // flag == InclusiveScan is not yet implemented
   if (flag == Reduce) {
     return __clc_native_popcount(mask[0]);
   } else if (flag == ExclusiveScan) {
