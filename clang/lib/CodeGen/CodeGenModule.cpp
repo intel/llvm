@@ -571,7 +571,7 @@ static llvm::MDNode *getAspectEnumValueMD(ASTContext &ASTContext,
 }
 
 void CodeGenModule::Release() {
-  Module *Primary = getContext().getNamedModuleForCodeGen();
+  Module *Primary = getContext().getCurrentNamedModule();
   if (CXX20ModuleInits && Primary && !Primary->isHeaderLikeModule())
     EmitModuleInitializers(Primary);
   EmitDeferred();
