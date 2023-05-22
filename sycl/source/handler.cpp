@@ -219,7 +219,7 @@ event handler::finalize() {
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
-            MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
                 &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
@@ -563,7 +563,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   case kernel_param_kind_t::kind_accessor: {
     // For args kind of accessor Size is information about accessor.
     // The first 11 bits of Size encodes the accessor target.
-    const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
+    const access::target AccTarget =
+        static_cast<access::target>(Size & AccessTargetMask);
     switch (AccTarget) {
     case access::target::device:
     case access::target::constant_buffer: {
@@ -587,7 +588,10 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
-      if (!IsKernelCreatedFromSource) {
+      // TODO ESIMD currently does not suport MSize field passing yet
+      // accessor::init for ESIMD-mode accessor has a single field, translated
+      // to a single kernel argument set above.
+      if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,
@@ -688,7 +692,7 @@ void handler::extractArgsAndReqsFromLambda(
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
       const access::target AccTarget =
-          static_cast<access::target>(Size & 0x7ff);
+          static_cast<access::target>(Size & AccessTargetMask);
       if ((AccTarget == access::target::device ||
            AccTarget == access::target::constant_buffer) ||
           (AccTarget == access::target::image ||
@@ -879,9 +883,9 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      detail::RT::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
-  Plugin.call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
-                                                   InfoQuery, sizeof(pi_bool),
-                                                   &SupportsOp, nullptr);
+  Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
+                                                    InfoQuery, sizeof(pi_bool),
+                                                    &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -993,7 +997,6 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
 
 void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              const void *DeviceGlobalPtr,
-                                             size_t DeviceGlobalTSize,
                                              bool IsDeviceImageScoped,
                                              size_t NumBytes, size_t Offset) {
   const std::shared_ptr<detail::context_impl> &ContextImpl =
@@ -1005,8 +1008,8 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
     // alive in the capture of this operation as we must be able to correctly
     // copy the value to the user-specified pointer.
     ContextImpl->memcpyFromHostOnlyDeviceGlobal(
-        DeviceImpl, Dest, DeviceGlobalPtr, DeviceGlobalTSize,
-        IsDeviceImageScoped, NumBytes, Offset);
+        DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
+        Offset);
   });
 }
 

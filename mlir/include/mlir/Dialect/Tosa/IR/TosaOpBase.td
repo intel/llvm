@@ -45,6 +45,7 @@ def Tosa_Dialect : Dialect {
   let cppNamespace = "mlir::tosa";
   let hasConstantMaterializer = 1;
   let useDefaultAttributePrinterParser = 1;
+  let usePropertiesForAttributes = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -173,10 +174,10 @@ def Tosa_MatMulOpQuantInfoBuilder : OpBuilder<
 def Tosa_AvgPool2dOpQuantInfoBuilder : OpBuilder<
   (ins "::mlir::Type":$outputType, "::mlir::Value":$input,
        "::mlir::DenseI64ArrayAttr":$kernel, "::mlir::DenseI64ArrayAttr":$stride,
-       "::mlir::DenseI64ArrayAttr":$pad),
+       "::mlir::DenseI64ArrayAttr":$pad, "::mlir::TypeAttr":$acc_type),
   [{
     buildAvgPool2dOpWithQuantInfo($_builder, $_state, outputType,
-                                  input, kernel, stride, pad);
+                                  input, kernel, stride, pad, acc_type);
   }]>;
 
 // This builder is called on single-parameter unary operators that have a scale

@@ -777,7 +777,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   const auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
   id::NodeArray Args = ArgsN->getParams();
   assert(N < Args.size() && "too few template arguments");
-  id::StringView Val;
+  std::string_view Val;
   switch (Conv) {
   case ESIMDIntrinDesc::GenXArgConversion::NONE:
     // Default fallback case, if we cannot deduce bitsize
@@ -800,11 +800,11 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   switch (Args[N]->getKind()) {
   case id::Node::KIntegerLiteral: {
     auto *ValL = castNode(Args[N], IntegerLiteral);
-    const id::StringView &TyStr = ValL->getType();
+    const std::string_view &TyStr = ValL->getType();
     if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
       // Overwrite Ty with IntegerLiteral's size
       Ty =
-          parsePrimitiveTypeString(StringRef(TyStr.begin(), TyStr.size()), Ctx);
+          parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()), Ctx);
     Val = ValL->getValue();
     break;
   }
@@ -821,7 +821,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   default:
     llvm_unreachable_internal("bad esimd intrinsic template parameter");
   }
-  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(Val.begin(), Val.size()),
+  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(&*Val.begin(), Val.size()),
                10);
 }
 
@@ -1198,7 +1198,7 @@ static Value *generateSpirvGlobalGenX(Instruction *EEI,
   } else if (SpirvGlobalName == "GlobalOffset") {
     // TODO: Support GlobalOffset SPIRV intrinsics
     // Currently all users of load of GlobalOffset are replaced with 0.
-    NewInst = llvm::Constant::getNullValue(EEI->getType());
+    NewInst = llvm::Constant::getNullValue(UseType ? UseType : EEI->getType());
   } else if (SpirvGlobalName == "NumWorkgroups") {
     NewInst = generateGenXCall(EEI, "group.count", true, IndexValue, UseType);
   }
@@ -1235,12 +1235,20 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
                                               llvm::APInt(32, 1, true));
   } else if (SpirvGlobalName == "GlobalLinearId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
-  } else if (isa<GetElementPtrConstantExpr>(LI->getPointerOperand())) {
+  } else if (auto *GEPOp = dyn_cast<GEPOperator>(LI->getPointerOperand())) {
     // Translate the load that has getelementptr as an operand
-    auto *GEPCE = cast<GetElementPtrConstantExpr>(LI->getPointerOperand());
-    uint64_t IndexValue =
-        cast<Constant>(GEPCE->getOperand(2))->getUniqueInteger().getZExtValue();
-    NewInst = generateSpirvGlobalGenX(LI, SpirvGlobalName, IndexValue);
+    const DataLayout &DL = LI->getFunction()->getParent()->getDataLayout();
+    APInt Offset(DL.getIndexSizeInBits(GEPOp->getPointerAddressSpace()), 0);
+    if (!GEPOp->accumulateConstantOffset(DL, Offset))
+      llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+    APInt IndexValue;
+    uint64_t Remainder;
+    APInt::udivrem(Offset, LI->getType()->getScalarSizeInBits() / 8, IndexValue,
+                   Remainder);
+    if (Remainder != 0)
+      llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+    NewInst =
+        generateSpirvGlobalGenX(LI, SpirvGlobalName, IndexValue.getZExtValue());
   }
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
@@ -1491,12 +1499,12 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
                                "bad ESIMD intrinsic: ", MnglName);
 
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
-  id::StringView BaseNameV = FE->getName()->getBaseName();
+  std::string_view BaseNameV = FE->getName()->getBaseName();
 
   auto PrefLen = isDevicelibFunction(F->getName())
                      ? 0
                      : StringRef(ESIMD_INTRIN_PREF1).size();
-  StringRef BaseName(BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
+  StringRef BaseName(&*BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
   const auto &Desc = getIntrinDesc(BaseName);
   if (!Desc.isValid()) // TODO remove this once all intrinsics are supported
     return;
@@ -1651,17 +1659,24 @@ void generateKernelMetadata(Module &M) {
         StringRef ArgDesc = "";
 
         if (Arg.getType()->isPointerTy()) {
-          const auto *IsAccMD =
-              KernelArgAccPtrs
-                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
-                  : nullptr;
-          unsigned IsAcc =
-              IsAccMD
-                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
-                                              ->getValue()
-                                              .getZExtValue())
-                  : 0;
-          if (IsAcc && !ForceStatelessMem) {
+          bool IsAcc = false;
+          bool IsLocalAcc = false;
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            IsLocalAcc =
+                IsAcc &&
+                cast<PointerType>(Arg.getType())->getAddressSpace() == LocalAS;
+          }
+
+          if (IsLocalAcc) {
+            // Local accessor doesn't need any changes.
+          } else if (IsAcc && !ForceStatelessMem) {
             ArgDesc = "buffer_t";
             Kind = AK_SURFACE;
           } else
@@ -1766,6 +1781,71 @@ void lowerGlobalStores(Module &M, const SmallPtrSetImpl<Type *> &GVTS) {
   }
 }
 
+// Change in global variables:
+//
+// Old IR:
+// ======
+// @vc = global %"class.cm::gen::simd"
+//          zeroinitializer, align 64 #0
+//
+// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
+//    <16 x i32> addrspace(4) * getelementptr(
+//    % "class.cm::gen::simd",
+//    % "class.cm::gen::simd" addrspace(4) *
+//    addrspacecast(% "class.cm::gen::simd" * @vc to
+//    % "class.cm::gen::simd" addrspace(4) *), i64 0,
+//    i32 0))
+//
+// New IR:
+// ======
+//
+// @0 = dso_local global <16 x i32> zeroinitializer, align 64 #0 <-- New Global
+// Variable
+//
+// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
+//        <16 x i32> addrspace(4) * getelementptr(
+//        % "class.cm::gen::simd",
+//        % "class.cm::gen::simd" addrspace(4) *
+//        addrspacecast(% "class.cm::gen::simd" *
+//        bitcast(<16 x i32> * @0 to
+//        %"class.cm::gen::simd" *) to %
+//        "class.cm::gen::simd" addrspace(4) *),
+//        i64 0, i32 0))
+void lowerGlobalsToVector(Module &M) {
+  // Create new global variables of type vector* type
+  // when old one is of simd* type.
+  DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
+  for (auto &G : M.globals()) {
+    Type *GVTy = G.getValueType();
+    Type *NewTy = esimd::getVectorTyOrNull(dyn_cast<StructType>(GVTy));
+    if (NewTy && !G.user_empty()) {
+      auto InitVal =
+          G.hasInitializer() && isa<UndefValue>(G.getInitializer())
+              ? static_cast<ConstantData *>(UndefValue::get(NewTy))
+              : static_cast<ConstantData *>(ConstantAggregateZero::get(NewTy));
+      auto NewGlobalVar =
+          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), InitVal, "",
+                             G.getThreadLocalMode(), G.getAddressSpace());
+      NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
+      NewGlobalVar->setVisibility(G.getVisibility());
+      NewGlobalVar->copyAttributesFrom(&G);
+      NewGlobalVar->takeName(&G);
+      NewGlobalVar->copyMetadata(&G, 0);
+      M.insertGlobalVariable(NewGlobalVar);
+      OldNewGlobal.insert(std::make_pair(&G, NewGlobalVar));
+    }
+  }
+
+  // Remove old global variables from the program.
+  for (auto &G : OldNewGlobal) {
+    auto OldGlob = G.first;
+    auto NewGlobal = G.second;
+    OldGlob->replaceAllUsesWith(
+        ConstantExpr::getBitCast(NewGlobal, OldGlob->getType()));
+    OldGlob->eraseFromParent();
+  }
+}
+
 } // namespace
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
@@ -1775,6 +1855,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
   size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
   lowerGlobalStores(M, GVTS);
+  lowerGlobalsToVector(M);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
@@ -1888,8 +1969,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      assert(!Name.startswith("__sycl_set_kernel_properties") &&
-             "__sycl_set_kernel_properties must have been lowered");
 
       if (Name.empty() ||
           (!Name.startswith(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))

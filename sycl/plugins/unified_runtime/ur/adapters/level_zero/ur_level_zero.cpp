@@ -1030,7 +1030,7 @@ ur_result_t urDeviceGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-// SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
+// UR_L0_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
 // Here, the indices point to copy engines in a list of all available copy
 // engines.
@@ -1040,7 +1040,10 @@ ur_result_t urDeviceGetInfo(
 // available copy engines can be used.
 const std::pair<int, int>
 getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
-  static const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  static const char *EnvVar = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
+
   // If the environment variable is not set, no copy engines are used when
   // immediate commandlists are being used. For standard commandlists all are
   // used.
@@ -1063,7 +1066,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    urPrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+    urPrint("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
             "default set.\n");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
@@ -1087,8 +1090,10 @@ _ur_device_handle_t::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device
   // default.
   static const int ImmediateCommandlistsSetting = [] {
+    char *UrRet = std::getenv("UR_L0_USE_IMMEDIATE_COMMANDLISTS");
+    char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
     const char *ImmediateCommandlistsSettingStr =
-        std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
+        UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (!ImmediateCommandlistsSettingStr)
       return -1;
     return std::stoi(ImmediateCommandlistsSettingStr);
@@ -1116,8 +1121,10 @@ _ur_device_handle_t::useImmediateCommandLists() {
 
 // Get value of device scope events env var setting or default setting
 static const EventsScope DeviceEventsSetting = [] {
+  char *UrRet = std::getenv("UR_L0_DEVICE_SCOPE_EVENTS");
+  char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
   const char *DeviceEventsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+      UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (DeviceEventsSettingStr) {
     // Override the default if user has explicitly chosen the events scope.
     switch (std::stoi(DeviceEventsSettingStr)) {
@@ -1534,7 +1541,7 @@ ur_result_t urDevicePartition(
 
     // Sub-Sub-Devices are partitioned by CSlices, not by affinity domain.
     // However, if
-    // SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
+    // UR_L0_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
     // still expose CSlices in partitioning by affinity domain for compatibility
     // reasons.
     if (Properties[0] == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&

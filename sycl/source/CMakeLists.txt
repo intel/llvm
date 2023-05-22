@@ -223,7 +223,6 @@ set(SYCL_SOURCES
     "kernel_bundle.cpp"
     "platform.cpp"
     "queue.cpp"
-    "queue_v3.cpp"
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"

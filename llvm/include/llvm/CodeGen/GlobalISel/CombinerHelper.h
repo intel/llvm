@@ -19,8 +19,8 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/Register.h"
-#include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/IR/InstrTypes.h"
 #include <functional>
 
@@ -301,6 +301,8 @@ public:
                                 ShiftOfShiftedLogic &MatchInfo);
   void applyShiftOfShiftedLogic(MachineInstr &MI,
                                 ShiftOfShiftedLogic &MatchInfo);
+
+  bool matchCommuteShift(MachineInstr &MI, BuildFnTy &MatchInfo);
 
   /// Transform a multiply by a power-of-2 value to a left shift.
   bool matchCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);

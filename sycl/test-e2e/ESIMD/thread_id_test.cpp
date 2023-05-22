@@ -1,7 +1,5 @@
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 // XFAIL: linux && gpu && !esimd_emulator
 //==- thread_id_test.cpp - Test to verify thread id functionlity-==//
 //

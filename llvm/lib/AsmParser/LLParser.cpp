@@ -10001,7 +10001,7 @@ bool LLParser::parseMemProfs(std::vector<MIBInfo> &MIBs) {
 }
 
 /// AllocType
-///   := ('none'|'notcold'|'cold'|'notcoldandcold')
+///   := ('none'|'notcold'|'cold'|'hot')
 bool LLParser::parseAllocType(uint8_t &AllocType) {
   switch (Lex.getKind()) {
   case lltok::kw_none:
@@ -10013,9 +10013,8 @@ bool LLParser::parseAllocType(uint8_t &AllocType) {
   case lltok::kw_cold:
     AllocType = (uint8_t)AllocationType::Cold;
     break;
-  case lltok::kw_notcoldandcold:
-    AllocType =
-        (uint8_t)AllocationType::NotCold | (uint8_t)AllocationType::Cold;
+  case lltok::kw_hot:
+    AllocType = (uint8_t)AllocationType::Hot;
     break;
   default:
     return error(Lex.getLoc(), "invalid alloc type");

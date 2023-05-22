@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -DVER1 -o %t.out1
-// RUN: %clangxx -fsycl %s -DVER2 -o %t.out2
-// RUN: %GPU_RUN_PLACEHOLDER %t.out1
-// RUN: %GPU_RUN_PLACEHOLDER %t.out2
+// RUN: %{build} -DVER1 -o %t.out1
+// RUN: %{build} -DVER2 -o %t.out2
+// RUN: %{run} %t.out1
+// RUN: %{run} %t.out2
 
 // The test verifies the low-level API for DPAS with 'bfloat16' types.
 // The macros VER1 and VER2 are used to verify slightly different

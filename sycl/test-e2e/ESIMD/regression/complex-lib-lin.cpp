@@ -5,8 +5,8 @@
 // device images, but at the same time it stated that they contain some kernels.
 // More details can be found in intel/llvm#4927.
 //
-// REQUIRES: linux,gpu
-// UNSUPPORTED: cuda || hip || esimd_emulator
+// REQUIRES: linux
+// UNSUPPORTED: esimd_emulator
 // TODO: running non-ESIMD kernels on esimd_emulator backend.
 //
 // RUN: %clangxx -fsycl -fPIC -O3 %S/Inputs/complex-lib-sycl.cpp -c -o %t-lib-sycl.o
@@ -34,5 +34,5 @@
 // There is no LIT substitution, which would point to a directory, where
 // temporary files are located. There is %T, but it is marked as "deprecated,
 // do not use"
-// RUN: env LD_PRELOAD=%t-lib-a.so %GPU_RUN_PLACEHOLDER %t-a.run
-// RUN: env LD_PRELOAD=%t-lib-o.so %GPU_RUN_PLACEHOLDER %t-o.run
+// RUN: env LD_PRELOAD=%t-lib-a.so %{run} %t-a.run
+// RUN: env LD_PRELOAD=%t-lib-o.so %{run} %t-o.run

@@ -59,7 +59,7 @@ public:
   virtual void releaseHostMem(void *Ptr) = 0;
 
   // Returns size of object in bytes
-  virtual size_t getSizeInBytes() const = 0;
+  virtual size_t getSizeInBytes() const noexcept = 0;
 
   // Returns the context which is passed if a memory object is created using
   // interoperability constructor, nullptr otherwise.

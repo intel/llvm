@@ -29,6 +29,7 @@
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/ThreadLocalCache.h"
+#include "mlir/Transforms/Mem2Reg.h"
 #include "llvm/ADT/PointerEmbeddedInt.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/LLVMContext.h"
@@ -221,7 +222,7 @@ SmallVector<IntT> convertArrayToIndices(ArrayRef<Attribute> attrs) {
   SmallVector<IntT> indices;
   indices.reserve(attrs.size());
   for (Attribute attr : attrs)
-    indices.push_back(attr.cast<IntegerAttr>().getInt());
+    indices.push_back(cast<IntegerAttr>(attr).getInt());
   return indices;
 }
 

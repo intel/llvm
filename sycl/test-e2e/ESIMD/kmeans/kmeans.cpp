@@ -5,11 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %S/points.csv
+// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{run} %t.out %S/points.csv
 
 #include "kmeans.h"
 #include "esimd_test_utils.hpp"

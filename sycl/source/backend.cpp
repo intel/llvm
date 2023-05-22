@@ -29,7 +29,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-static const plugin &getPlugin(backend Backend) {
+static const PluginPtr &getPlugin(backend Backend) {
   switch (Backend) {
   case backend::opencl:
     return pi::getPlugin<backend::opencl>();
@@ -67,8 +67,8 @@ platform make_platform(pi_native_handle NativeHandle, backend Backend) {
 
   // Create PI platform first.
   pi::PiPlatform PiPlatform = nullptr;
-  Plugin.call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
-                                                              &PiPlatform);
+  Plugin->call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
+                                                               &PiPlatform);
 
   return detail::createSyclObjFromImpl<platform>(
       platform_impl::getOrMakePlatformImpl(PiPlatform, Plugin));
@@ -79,8 +79,8 @@ __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
   const auto &Plugin = getPlugin(Backend);
 
   pi::PiDevice PiDevice = nullptr;
-  Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(NativeHandle,
-                                                            nullptr, &PiDevice);
+  Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
+      NativeHandle, nullptr, &PiDevice);
   // Construct the SYCL device from PI device.
   return detail::createSyclObjFromImpl<device>(
       std::make_shared<device_impl>(PiDevice, Plugin));
@@ -92,50 +92,20 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
   const auto &Plugin = getPlugin(Backend);
 
   pi::PiContext PiContext = nullptr;
-  Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextContextCreateWithNativeHandle>(
       NativeHandle, 0, nullptr, false, &PiContext);
   // Construct the SYCL context from PI context.
   return detail::createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, Handler, Plugin));
 }
 
-queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
-                      RT::PiDevice Device, bool KeepOwnership,
-                      const async_handler &Handler, backend Backend) {
-  const auto &Plugin = getPlugin(Backend);
-  const auto &ContextImpl = getSyclObjImpl(Context);
-  // Create PI queue first.
-  pi::PiQueue PiQueue = nullptr;
-  Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), Device, !KeepOwnership,
-      &PiQueue);
-  // Construct the SYCL queue from PI queue.
-  return detail::createSyclObjFromImpl<queue>(
-      std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
-}
-
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context, const device *Device,
-                               bool KeepOwnership, const async_handler &Handler,
-                               backend Backend) {
-  if (Device) {
-    const auto &DeviceImpl = getSyclObjImpl(*Device);
-    return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
-                           KeepOwnership, Handler, Backend);
-  } else {
-    return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership,
-                           Handler, Backend);
-  }
-}
-
-__SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
-                                int32_t NativeHandleDesc,
-                                const context &Context, const device *Device,
-                                bool KeepOwnership,
-                                const property_list &PropList,
-                                const async_handler &Handler, backend Backend) {
-  const auto &DeviceImpl = getSyclObjImpl(*Device);
-  RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
+                               int32_t NativeHandleDesc, const context &Context,
+                               const device *Device, bool KeepOwnership,
+                               const property_list &PropList,
+                               const async_handler &Handler, backend Backend) {
+  RT::PiDevice PiDevice =
+      Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
@@ -155,7 +125,7 @@ __SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
 
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
-  Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle2>(
+  Plugin->call<PiApiKind::piextQueueCreateWithNativeHandle>(
       NativeHandle, NativeHandleDesc, ContextImpl->getHandleRef(), PiDevice,
       !KeepOwnership, Properties, &PiQueue);
   // Construct the SYCL queue from PI queue.
@@ -175,14 +145,14 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   pi::PiEvent PiEvent = nullptr;
-  Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
 
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(PiEvent, Context));
 
   if (Backend == backend::opencl)
-    Plugin.call<PiApiKind::piEventRetain>(PiEvent);
+    Plugin->call<PiApiKind::piEventRetain>(PiEvent);
   return Event;
 }
 
@@ -193,34 +163,34 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
 
   pi::PiProgram PiProgram = nullptr;
-  Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextProgramCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiProgram);
   if (ContextImpl->getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piProgramRetain>(PiProgram);
+    Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
   std::vector<pi::PiDevice> ProgramDevices;
   size_t NumDevices = 0;
 
-  Plugin.call<PiApiKind::piProgramGetInfo>(
+  Plugin->call<PiApiKind::piProgramGetInfo>(
       PiProgram, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(size_t), &NumDevices,
       nullptr);
   ProgramDevices.resize(NumDevices);
-  Plugin.call<PiApiKind::piProgramGetInfo>(PiProgram, PI_PROGRAM_INFO_DEVICES,
-                                           sizeof(pi::PiDevice) * NumDevices,
-                                           ProgramDevices.data(), nullptr);
+  Plugin->call<PiApiKind::piProgramGetInfo>(PiProgram, PI_PROGRAM_INFO_DEVICES,
+                                            sizeof(pi::PiDevice) * NumDevices,
+                                            ProgramDevices.data(), nullptr);
 
   for (const auto &Dev : ProgramDevices) {
     size_t BinaryType = 0;
-    Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+    Plugin->call<PiApiKind::piProgramGetBuildInfo>(
         PiProgram, Dev, PI_PROGRAM_BUILD_INFO_BINARY_TYPE, sizeof(size_t),
         &BinaryType, nullptr);
     switch (BinaryType) {
     case (PI_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object)
-        Plugin.call<errc::build, PiApiKind::piProgramCompile>(
+        Plugin->call<errc::build, PiApiKind::piProgramCompile>(
             PiProgram, 1, &Dev, nullptr, 0, nullptr, nullptr, nullptr, nullptr);
       else if (State == bundle_state::executable)
-        Plugin.call<errc::build, PiApiKind::piProgramBuild>(
+        Plugin->call<errc::build, PiApiKind::piProgramBuild>(
             PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
       break;
     case (PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT):
@@ -231,7 +201,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                                   "Program and kernel_bundle state mismatch",
                                   PI_ERROR_INVALID_VALUE);
       if (State == bundle_state::executable)
-        Plugin.call<errc::build, PiApiKind::piProgramLink>(
+        Plugin->call<errc::build, PiApiKind::piProgramLink>(
             ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,
             nullptr, nullptr, &PiProgram);
       break;
@@ -306,12 +276,12 @@ kernel make_kernel(const context &TargetContext,
 
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
-  Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextKernelCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), PiProgram, !KeepOwnership,
       &PiKernel);
 
   if (Backend == backend::opencl)
-    Plugin.call<PiApiKind::piKernelRetain>(PiKernel);
+    Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
 
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<kernel>(

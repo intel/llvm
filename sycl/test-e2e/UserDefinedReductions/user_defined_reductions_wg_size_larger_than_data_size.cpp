@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <numeric>
@@ -46,8 +45,11 @@ void test(queue q, InputContainer input, OutputContainer output,
       auto scratch = sycl::local_accessor<std::byte, 1>(temp_memory_size, cgh);
       cgh.parallel_for(
           nd_range<1>(workgroup_size, workgroup_size), [=](nd_item<1> it) {
-            InputT *segment_begin = in.get_pointer();
-            InputT *segment_end = in.get_pointer() + segment_size;
+            const InputT *segment_begin =
+                in.template get_multi_ptr<access::decorated::no>();
+            const InputT *segment_end =
+                in.template get_multi_ptr<access::decorated::no>() +
+                segment_size;
             auto handle =
                 sycl::ext::oneapi::experimental::group_with_scratchpad(
                     it.get_group(), sycl::span(&scratch[0], temp_memory_size));

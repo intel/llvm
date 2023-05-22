@@ -6,20 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// CUDA and HIP don't support printf.
 //
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 //
 // clang-format off
 // Test using __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ is disabled until ESIMD
 // supports it.
 // FIXME: enable that test
-// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ %s -o %t_nonvar.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t_nonvar.out %GPU_CHECK_PLACEHOLDER
+// RUNx: %{build} -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_nonvar.out
+// RUNx: %{run} %t_nonvar.out | FileCheck %s
 // clang-format on
 //
 //===----------------------------------------------------------------------===//

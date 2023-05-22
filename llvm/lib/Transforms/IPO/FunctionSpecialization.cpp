@@ -53,6 +53,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueLattice.h"
 #include "llvm/Analysis/ValueLatticeUtils.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -273,17 +274,17 @@ bool FunctionSpecializer::run() {
     if (!isCandidateFunction(&F))
       continue;
 
-    auto Cost = getSpecializationCost(&F);
-    if (!Cost.isValid()) {
+    Cost SpecCost = getSpecializationCost(&F);
+    if (!SpecCost.isValid()) {
       LLVM_DEBUG(dbgs() << "FnSpecialization: Invalid specialization cost for "
                         << F.getName() << "\n");
       continue;
     }
 
     LLVM_DEBUG(dbgs() << "FnSpecialization: Specialization cost for "
-                      << F.getName() << " is " << Cost << "\n");
+                      << F.getName() << " is " << SpecCost << "\n");
 
-    if (!findSpecializations(&F, Cost, AllSpecs, SM)) {
+    if (!findSpecializations(&F, SpecCost, AllSpecs, SM)) {
       LLVM_DEBUG(
           dbgs() << "FnSpecialization: No possible specializations found for "
                  << F.getName() << "\n");
@@ -303,8 +304,8 @@ bool FunctionSpecializer::run() {
   // Choose the most profitable specialisations, which fit in the module
   // specialization budget, which is derived from maximum number of
   // specializations per specialization candidate function.
-  auto CompareGain = [&AllSpecs](unsigned I, unsigned J) {
-    return AllSpecs[I].Gain > AllSpecs[J].Gain;
+  auto CompareScore = [&AllSpecs](unsigned I, unsigned J) {
+    return AllSpecs[I].Score > AllSpecs[J].Score;
   };
   const unsigned NSpecs =
       std::min(NumCandidates * MaxClones, unsigned(AllSpecs.size()));
@@ -316,11 +317,11 @@ bool FunctionSpecializer::run() {
                       << "FnSpecialization: Specializing the "
                       << NSpecs
                       << " most profitable candidates.\n");
-    std::make_heap(BestSpecs.begin(), BestSpecs.begin() + NSpecs, CompareGain);
+    std::make_heap(BestSpecs.begin(), BestSpecs.begin() + NSpecs, CompareScore);
     for (unsigned I = NSpecs, N = AllSpecs.size(); I < N; ++I) {
       BestSpecs[NSpecs] = I;
-      std::push_heap(BestSpecs.begin(), BestSpecs.end(), CompareGain);
-      std::pop_heap(BestSpecs.begin(), BestSpecs.end(), CompareGain);
+      std::push_heap(BestSpecs.begin(), BestSpecs.end(), CompareScore);
+      std::pop_heap(BestSpecs.begin(), BestSpecs.end(), CompareScore);
     }
   }
 
@@ -328,7 +329,7 @@ bool FunctionSpecializer::run() {
              for (unsigned I = 0; I < NSpecs; ++I) {
                const Spec &S = AllSpecs[BestSpecs[I]];
                dbgs() << "FnSpecialization: Function " << S.F->getName()
-                      << " , gain " << S.Gain << "\n";
+                      << " , score " << S.Score << "\n";
                for (const ArgInfo &Arg : S.Sig.Args)
                  dbgs() << "FnSpecialization:   FormalArg = "
                         << Arg.Formal->getNameOrAsOperand()
@@ -363,6 +364,33 @@ bool FunctionSpecializer::run() {
     auto [Begin, End] = SM[F];
     updateCallSites(F, AllSpecs.begin() + Begin, AllSpecs.begin() + End);
   }
+
+  for (Function *F : Clones) {
+    if (F->getReturnType()->isVoidTy())
+      continue;
+    if (F->getReturnType()->isStructTy()) {
+      auto *STy = cast<StructType>(F->getReturnType());
+      if (!Solver.isStructLatticeConstant(F, STy))
+        continue;
+    } else {
+      auto It = Solver.getTrackedRetVals().find(F);
+      assert(It != Solver.getTrackedRetVals().end() &&
+             "Return value ought to be tracked");
+      if (SCCPSolver::isOverdefined(It->second))
+        continue;
+    }
+    for (User *U : F->users()) {
+      if (auto *CS = dyn_cast<CallBase>(U)) {
+        //The user instruction does not call our function.
+        if (CS->getCalledFunction() != F)
+          continue;
+        Solver.resetLatticeValueFor(CS);
+      }
+    }
+  }
+
+  // Rerun the solver to notify the users of the modified callsites.
+  Solver.solveWhileResolvedUndefs();
 
   promoteConstantStackValues();
   return true;
@@ -406,13 +434,13 @@ static Function *cloneCandidateFunction(Function *F) {
   return Clone;
 }
 
-bool FunctionSpecializer::findSpecializations(Function *F, InstructionCost Cost,
+bool FunctionSpecializer::findSpecializations(Function *F, Cost SpecCost,
                                               SmallVectorImpl<Spec> &AllSpecs,
                                               SpecMap &SM) {
   // A mapping from a specialisation signature to the index of the respective
   // entry in the all specialisation array. Used to ensure uniqueness of
   // specialisations.
-  DenseMap<SpecSig, unsigned> UM;
+  DenseMap<SpecSig, unsigned> UniqueSpecs;
 
   // Get a list of interesting arguments.
   SmallVector<Argument *> Args;
@@ -423,7 +451,6 @@ bool FunctionSpecializer::findSpecializations(Function *F, InstructionCost Cost,
   if (Args.empty())
     return false;
 
-  bool Found = false;
   for (User *U : F->users()) {
     if (!isa<CallInst>(U) && !isa<InvokeInst>(U))
       continue;
@@ -460,7 +487,7 @@ bool FunctionSpecializer::findSpecializations(Function *F, InstructionCost Cost,
       continue;
 
     // Check if we have encountered the same specialisation already.
-    if (auto It = UM.find(S); It != UM.end()) {
+    if (auto It = UniqueSpecs.find(S); It != UniqueSpecs.end()) {
       // Existing specialisation. Add the call to the list to rewrite, unless
       // it's a recursive call. A specialisation, generated because of a
       // recursive call may end up as not the best specialisation for all
@@ -473,38 +500,34 @@ bool FunctionSpecializer::findSpecializations(Function *F, InstructionCost Cost,
       AllSpecs[Index].CallSites.push_back(&CS);
     } else {
       // Calculate the specialisation gain.
-      InstructionCost Gain = 0 - Cost;
+      Cost Score = 0 - SpecCost;
       for (ArgInfo &A : S.Args)
-        Gain +=
+        Score +=
             getSpecializationBonus(A.Formal, A.Actual, Solver.getLoopInfo(*F));
 
       // Discard unprofitable specialisations.
-      if (!ForceSpecialization && Gain <= 0)
+      if (!ForceSpecialization && Score <= 0)
         continue;
 
       // Create a new specialisation entry.
-      auto &Spec = AllSpecs.emplace_back(F, S, Gain);
+      auto &Spec = AllSpecs.emplace_back(F, S, Score);
       if (CS.getFunction() != F)
         Spec.CallSites.push_back(&CS);
       const unsigned Index = AllSpecs.size() - 1;
-      UM[S] = Index;
+      UniqueSpecs[S] = Index;
       if (auto [It, Inserted] = SM.try_emplace(F, Index, Index + 1); !Inserted)
         It->second.second = Index + 1;
-      Found = true;
     }
   }
 
-  return Found;
+  return !UniqueSpecs.empty();
 }
 
 bool FunctionSpecializer::isCandidateFunction(Function *F) {
-  if (F->isDeclaration())
+  if (F->isDeclaration() || F->arg_empty())
     return false;
 
   if (F->hasFnAttribute(Attribute::NoDuplicate))
-    return false;
-
-  if (!Solver.isArgumentTrackedFunction(F))
     return false;
 
   // Do not specialize the cloned function again.
@@ -530,16 +553,21 @@ bool FunctionSpecializer::isCandidateFunction(Function *F) {
   return true;
 }
 
-Function *FunctionSpecializer::createSpecialization(Function *F, const SpecSig &S) {
+Function *FunctionSpecializer::createSpecialization(Function *F,
+                                                    const SpecSig &S) {
   Function *Clone = cloneCandidateFunction(F);
+
+  // The original function does not neccessarily have internal linkage, but the
+  // clone must.
+  Clone->setLinkage(GlobalValue::InternalLinkage);
 
   // Initialize the lattice state of the arguments of the function clone,
   // marking the argument on which we specialized the function constant
   // with the given value.
-  Solver.markArgInFuncSpecialization(Clone, S.Args);
-
-  Solver.addArgumentTrackedFunction(Clone);
+  Solver.setLatticeValueForSpecializationArguments(Clone, S.Args);
   Solver.markBlockExecutable(&Clone->front());
+  Solver.addArgumentTrackedFunction(Clone);
+  Solver.addTrackedFunction(Clone);
 
   // Mark all the specialized functions
   Specializations.insert(Clone);
@@ -549,7 +577,7 @@ Function *FunctionSpecializer::createSpecialization(Function *F, const SpecSig &
 }
 
 /// Compute and return the cost of specializing function \p F.
-InstructionCost FunctionSpecializer::getSpecializationCost(Function *F) {
+Cost FunctionSpecializer::getSpecializationCost(Function *F) {
   CodeMetrics &Metrics = analyzeFunction(F);
   // If the code metrics reveal that we shouldn't duplicate the function, we
   // shouldn't specialize it. Set the specialization cost to Invalid.
@@ -565,8 +593,8 @@ InstructionCost FunctionSpecializer::getSpecializationCost(Function *F) {
   return Metrics.NumInsts * InlineConstants::getInstrCost();
 }
 
-static InstructionCost getUserBonus(User *U, llvm::TargetTransformInfo &TTI,
-                                    const LoopInfo &LI) {
+static Cost getUserBonus(User *U, TargetTransformInfo &TTI,
+                         const LoopInfo &LI) {
   auto *I = dyn_cast_or_null<Instruction>(U);
   // If not an instruction we do not know how to evaluate.
   // Keep minimum possible cost for now so that it doesnt affect
@@ -574,32 +602,31 @@ static InstructionCost getUserBonus(User *U, llvm::TargetTransformInfo &TTI,
   if (!I)
     return std::numeric_limits<unsigned>::min();
 
-  InstructionCost Cost =
+  Cost Bonus =
       TTI.getInstructionCost(U, TargetTransformInfo::TCK_SizeAndLatency);
 
   // Increase the cost if it is inside the loop.
   unsigned LoopDepth = LI.getLoopDepth(I->getParent());
-  Cost *= std::pow((double)AvgLoopIters, LoopDepth);
+  Bonus *= std::pow((double)AvgLoopIters, LoopDepth);
 
   // Traverse recursively if there are more uses.
   // TODO: Any other instructions to be added here?
   if (I->mayReadFromMemory() || I->isCast())
     for (auto *User : I->users())
-      Cost += getUserBonus(User, TTI, LI);
+      Bonus += getUserBonus(User, TTI, LI);
 
-  return Cost;
+  return Bonus;
 }
 
 /// Compute a bonus for replacing argument \p A with constant \p C.
-InstructionCost
-FunctionSpecializer::getSpecializationBonus(Argument *A, Constant *C,
-                                            const LoopInfo &LI) {
+Cost FunctionSpecializer::getSpecializationBonus(Argument *A, Constant *C,
+                                                 const LoopInfo &LI) {
   Function *F = A->getParent();
   auto &TTI = (GetTTI)(*F);
   LLVM_DEBUG(dbgs() << "FnSpecialization: Analysing bonus for constant: "
                     << C->getNameOrAsOperand() << "\n");
 
-  InstructionCost TotalCost = 0;
+  Cost TotalCost = 0;
   for (auto *U : A->users()) {
     TotalCost += getUserBonus(U, TTI, LI);
     LLVM_DEBUG(dbgs() << "FnSpecialization:   User cost ";
@@ -666,16 +693,9 @@ bool FunctionSpecializer::isArgumentInteresting(Argument *A) {
   if (A->user_empty())
     return false;
 
-  // For now, don't attempt to specialize functions based on the values of
-  // composite types.
-  Type *ArgTy = A->getType();
-  if (!ArgTy->isSingleValueType())
-    return false;
-
-  // Specialization of integer and floating point types needs to be explicitly
-  // enabled.
-  if (!SpecializeLiteralConstant &&
-      (ArgTy->isIntegerTy() || ArgTy->isFloatingPointTy()))
+  Type *Ty = A->getType();
+  if (!Ty->isPointerTy() && (!SpecializeLiteralConstant ||
+      (!Ty->isIntegerTy() && !Ty->isFloatingPointTy() && !Ty->isStructTy())))
     return false;
 
   // SCCP solver does not record an argument that will be constructed on
@@ -683,54 +703,46 @@ bool FunctionSpecializer::isArgumentInteresting(Argument *A) {
   if (A->hasByValAttr() && !A->getParent()->onlyReadsMemory())
     return false;
 
+  // For non-argument-tracked functions every argument is overdefined.
+  if (!Solver.isArgumentTrackedFunction(A->getParent()))
+    return true;
+
   // Check the lattice value and decide if we should attemt to specialize,
   // based on this argument. No point in specialization, if the lattice value
   // is already a constant.
-  const ValueLatticeElement &LV = Solver.getLatticeValueFor(A);
-  if (LV.isUnknownOrUndef() || LV.isConstant() ||
-      (LV.isConstantRange() && LV.getConstantRange().isSingleElement())) {
-    LLVM_DEBUG(dbgs() << "FnSpecialization: Nothing to do, parameter "
-                      << A->getNameOrAsOperand() << " is already constant\n");
-    return false;
-  }
+  bool IsOverdefined = Ty->isStructTy()
+    ? any_of(Solver.getStructLatticeValueFor(A), SCCPSolver::isOverdefined)
+    : SCCPSolver::isOverdefined(Solver.getLatticeValueFor(A));
 
-  LLVM_DEBUG(dbgs() << "FnSpecialization: Found interesting parameter "
-                    << A->getNameOrAsOperand() << "\n");
-
-  return true;
+  LLVM_DEBUG(
+    if (IsOverdefined)
+      dbgs() << "FnSpecialization: Found interesting parameter "
+             << A->getNameOrAsOperand() << "\n";
+    else
+      dbgs() << "FnSpecialization: Nothing to do, parameter "
+             << A->getNameOrAsOperand() << " is already constant\n";
+  );
+  return IsOverdefined;
 }
 
-/// Check if the valuy \p V  (an actual argument) is a constant or can only
+/// Check if the value \p V  (an actual argument) is a constant or can only
 /// have a constant value. Return that constant.
 Constant *FunctionSpecializer::getCandidateConstant(Value *V) {
   if (isa<PoisonValue>(V))
     return nullptr;
 
-  // TrackValueOfGlobalVariable only tracks scalar global variables.
-  if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-    // Check if we want to specialize on the address of non-constant
-    // global values.
-    if (!GV->isConstant() && !SpecializeOnAddress)
-      return nullptr;
-
-    if (!GV->getValueType()->isSingleValueType())
-      return nullptr;
-  }
-
   // Select for possible specialisation values that are constants or
   // are deduced to be constants or constant ranges with a single element.
   Constant *C = dyn_cast<Constant>(V);
-  if (!C) {
-    const ValueLatticeElement &LV = Solver.getLatticeValueFor(V);
-    if (LV.isConstant())
-      C = LV.getConstant();
-    else if (LV.isConstantRange() && LV.getConstantRange().isSingleElement()) {
-      assert(V->getType()->isIntegerTy() && "Non-integral constant range");
-      C = Constant::getIntegerValue(V->getType(),
-                                    *LV.getConstantRange().getSingleElement());
-    } else
+  if (!C)
+    C = Solver.getConstantOrNull(V);
+
+  // Don't specialize on (anything derived from) the address of a non-constant
+  // global variable, unless explicitly enabled.
+  if (C && C->getType()->isPointerTy() && !C->isNullValue())
+    if (auto *GV = dyn_cast<GlobalVariable>(getUnderlyingObject(C));
+        GV && !(GV->isConstant() || SpecializeOnAddress))
       return nullptr;
-  }
 
   return C;
 }
@@ -752,7 +764,7 @@ void FunctionSpecializer::updateCallSites(Function *F, const Spec *Begin,
     // Find the best matching specialisation.
     const Spec *BestSpec = nullptr;
     for (const Spec &S : make_range(Begin, End)) {
-      if (!S.Clone || (BestSpec && S.Gain <= BestSpec->Gain))
+      if (!S.Clone || (BestSpec && S.Score <= BestSpec->Score))
         continue;
 
       if (any_of(S.Sig.Args, [CS, this](const ArgInfo &Arg) {
@@ -777,7 +789,7 @@ void FunctionSpecializer::updateCallSites(Function *F, const Spec *Begin,
 
   // If the function has been completely specialized, the original function
   // is no longer needed. Mark it unreachable.
-  if (NCallsLeft == 0) {
+  if (NCallsLeft == 0 && Solver.isArgumentTrackedFunction(F)) {
     Solver.markFunctionUnreachable(F);
     FullySpecialized.insert(F);
   }

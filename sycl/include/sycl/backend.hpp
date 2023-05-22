@@ -135,6 +135,28 @@ auto get_native(const SyclObjectT &Obj)
       Obj.getNative());
 }
 
+template <backend BackendName>
+auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != BackendName) {
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_ERROR_INVALID_OPERATION);
+  }
+  int32_t IsImmCmdList;
+  pi_native_handle Handle = Obj.getNative(IsImmCmdList);
+  backend_return_t<BackendName, queue> RetVal;
+  if constexpr (BackendName == backend::ext_oneapi_level_zero)
+    RetVal = IsImmCmdList
+                 ? backend_return_t<BackendName, queue>{reinterpret_cast<
+                       ze_command_list_handle_t>(Handle)}
+                 : backend_return_t<BackendName, queue>{
+                       reinterpret_cast<ze_command_queue_handle_t>(Handle)};
+  else
+    RetVal = reinterpret_cast<backend_return_t<BackendName, queue>>(Handle);
+
+  return RetVal;
+}
+
 template <backend BackendName, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<BackendName, kernel_bundle<State>> {
@@ -211,21 +233,11 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               int32_t nativeHandleDesc,
                                const context &TargetContext,
                                const device *TargetDevice, bool KeepOwnership,
+                               const property_list &PropList,
                                const async_handler &Handler, backend Backend);
-
-// The make_queue2 and getNative2 functions are added as a temporary measure so
-// that the existing make_queue and getNative functions can co-exist with them.
-// At the next ABI redefinition the current make_queue and getNative definitions
-// will be removed. "make_queue2" will be renamed "make_queue" and "getNative2"
-// will be renamed "getNative".
-__SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
-                                int32_t nativeHandleDesc,
-                                const context &TargetContext,
-                                const device *TargetDevice, bool KeepOwnership,
-                                const property_list &PropList,
-                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -283,22 +295,9 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeQueue == true,
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  if constexpr (Backend == backend::ext_oneapi_level_zero) {
-    bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
-        BackendObject.NativeHandle);
-    pi_native_handle Handle =
-        IsImmCmdList ? reinterpret_cast<pi_native_handle>(
-                           *(std::get_if<ze_command_list_handle_t>(
-                               &BackendObject.NativeHandle)))
-                     : reinterpret_cast<pi_native_handle>(
-                           *(std::get_if<ze_command_queue_handle_t>(
-                               &BackendObject.NativeHandle)));
-    return sycl::detail::make_queue2(Handle, IsImmCmdList, TargetContext,
-                                     nullptr, false, BackendObject.Properties,
-                                     Handler, Backend);
-  }
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, nullptr, false, Handler, Backend);
+                            false, TargetContext, nullptr, false, {}, Handler,
+                            Backend);
 }
 
 template <backend Backend>

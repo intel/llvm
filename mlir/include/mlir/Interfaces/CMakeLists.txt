@@ -16,6 +16,12 @@ add_mlir_interface(ValueBoundsOpInterface)
 add_mlir_interface(VectorInterfaces)
 add_mlir_interface(ViewLikeInterface)
 
+set(LLVM_TARGET_DEFINITIONS MemorySlotInterfaces.td)
+mlir_tablegen(MemorySlotOpInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(MemorySlotOpInterfaces.cpp.inc -gen-op-interface-defs)
+add_public_tablegen_target(MLIRMemorySlotInterfacesIncGen)
+add_dependencies(mlir-generic-headers MLIRMemorySlotInterfacesIncGen)
+
 set(LLVM_TARGET_DEFINITIONS DataLayoutInterfaces.td)
 mlir_tablegen(DataLayoutAttrInterface.h.inc -gen-attr-interface-decls)
 mlir_tablegen(DataLayoutAttrInterface.cpp.inc -gen-attr-interface-defs)

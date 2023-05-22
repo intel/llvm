@@ -252,6 +252,16 @@ RISCVTTIImpl::getConstantPoolLoadCost(Type *Ty,  TTI::TargetCostKind CostKind) {
                              /*AddressSpace=*/0, CostKind);
 }
 
+static VectorType *getVRGatherIndexType(MVT DataVT, const RISCVSubtarget &ST,
+                                        LLVMContext &C) {
+  assert((DataVT.getScalarSizeInBits() != 8 ||
+          DataVT.getVectorNumElements() <= 256) && "unhandled case in lowering");
+  MVT IndexVT = DataVT.changeTypeToInteger();
+  if (IndexVT.getScalarType().bitsGT(ST.getXLenVT()))
+    IndexVT = IndexVT.changeVectorElementType(MVT::i16);
+  return cast<VectorType>(EVT(IndexVT).getTypeForEVT(C));
+}
+
 
 InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
                                              VectorType *Tp, ArrayRef<int> Mask,
@@ -298,8 +308,7 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
         if (LT.first == 1 &&
             (LT.second.getScalarSizeInBits() != 8 ||
              LT.second.getVectorNumElements() <= 256)) {
-          VectorType *IdxTy = VectorType::get(IntegerType::getInt8Ty(Tp->getContext()),
-                                              Tp->getElementCount());
+          VectorType *IdxTy = getVRGatherIndexType(LT.second, *ST, Tp->getContext());
           InstructionCost IndexCost = getConstantPoolLoadCost(IdxTy, CostKind);
           return IndexCost + getLMULCost(LT.second);
         }
@@ -317,7 +326,7 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
              LT.second.getVectorNumElements() <= 256)) {
           auto &C = Tp->getContext();
           auto EC = Tp->getElementCount();
-          VectorType *IdxTy = VectorType::get(IntegerType::getInt8Ty(C), EC);
+          VectorType *IdxTy = getVRGatherIndexType(LT.second, *ST, C);
           VectorType *MaskTy = VectorType::get(IntegerType::getInt1Ty(C), EC);
           InstructionCost IndexCost = getConstantPoolLoadCost(IdxTy, CostKind);
           InstructionCost MaskCost = getConstantPoolLoadCost(MaskTy, CostKind);
@@ -626,6 +635,40 @@ static const CostTblEntry VectorIntrinsicCostTable[]{
     {Intrinsic::roundeven, MVT::nxv2f64, 9},
     {Intrinsic::roundeven, MVT::nxv4f64, 9},
     {Intrinsic::roundeven, MVT::nxv8f64, 9},
+    {Intrinsic::rint, MVT::v2f32, 7},
+    {Intrinsic::rint, MVT::v4f32, 7},
+    {Intrinsic::rint, MVT::v8f32, 7},
+    {Intrinsic::rint, MVT::v16f32, 7},
+    {Intrinsic::rint, MVT::nxv1f32, 7},
+    {Intrinsic::rint, MVT::nxv2f32, 7},
+    {Intrinsic::rint, MVT::nxv4f32, 7},
+    {Intrinsic::rint, MVT::nxv8f32, 7},
+    {Intrinsic::rint, MVT::nxv16f32, 7},
+    {Intrinsic::rint, MVT::v2f64, 7},
+    {Intrinsic::rint, MVT::v4f64, 7},
+    {Intrinsic::rint, MVT::v8f64, 7},
+    {Intrinsic::rint, MVT::v16f64, 7},
+    {Intrinsic::rint, MVT::nxv1f64, 7},
+    {Intrinsic::rint, MVT::nxv2f64, 7},
+    {Intrinsic::rint, MVT::nxv4f64, 7},
+    {Intrinsic::rint, MVT::nxv8f64, 7},
+    {Intrinsic::nearbyint, MVT::v2f32, 9},
+    {Intrinsic::nearbyint, MVT::v4f32, 9},
+    {Intrinsic::nearbyint, MVT::v8f32, 9},
+    {Intrinsic::nearbyint, MVT::v16f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv1f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv2f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv4f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv8f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv16f32, 9},
+    {Intrinsic::nearbyint, MVT::v2f64, 9},
+    {Intrinsic::nearbyint, MVT::v4f64, 9},
+    {Intrinsic::nearbyint, MVT::v8f64, 9},
+    {Intrinsic::nearbyint, MVT::v16f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv1f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv2f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv4f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv8f64, 9},
     {Intrinsic::bswap, MVT::v2i16, 3},
     {Intrinsic::bswap, MVT::v4i16, 3},
     {Intrinsic::bswap, MVT::v8i16, 3},

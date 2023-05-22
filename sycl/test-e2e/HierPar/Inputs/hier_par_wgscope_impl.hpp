@@ -46,7 +46,7 @@ static bool testWgScope(queue &Q) {
       cgh.parallel_for_work_group<class hpar_hw>(
           range<1>(N_WG), range<1>(PHYS_WG_SIZE), [=](group<1> G) {
             // offset of group'S chunk in the 'DevPtr' array:
-            int GroupOff = PHYS_WG_SIZE * G.get_id(0);
+            int GroupOff = PHYS_WG_SIZE * G.get_group_id(0);
 
             for (int CntOuter = 0; CntOuter < N_OUTER_ITER; CntOuter++) {
               // local group-shared array; declared inside a loop
@@ -64,7 +64,7 @@ static bool testWgScope(queue &Q) {
               });
 
               // only for groups with IDs 0, 1:
-              if (G.get_id(0) < GROUP_ID_SPLIT) {
+              if (G.get_group_id(0) < GROUP_ID_SPLIT) {
                 // invoke PFWI in the loop
                 // Step 2a (1) - additionally increment 1 element per group as a
                 //   "side effect" of the increment part
@@ -230,7 +230,8 @@ bool testPrivateMemory(queue &Q) {
           }
         });
   });
-  auto Ptr1 = Buf.get_access<access::mode::read>().get_pointer();
+  host_accessor HostAcc(Buf, read_only);
+  auto Ptr1 = HostAcc.get_pointer();
   bool Res = verify(0, RangeLength, Ptr1, [&](int I) -> int {
     return N_ITER * (1 + C1 + C2 + 2 * I);
   });
@@ -243,12 +244,12 @@ int run() {
     for (auto ep : L) {
       try {
         std::rethrow_exception(ep);
-      } catch (std::exception &E) {
-        std::cout << "*** std exception caught:\n";
-        std::cout << E.what();
       } catch (sycl::exception const &E1) {
         std::cout << "*** SYCL exception caught:\n";
         std::cout << E1.what();
+      } catch (std::exception &E) {
+        std::cout << "*** std exception caught:\n";
+        std::cout << E.what();
       }
     }
   });

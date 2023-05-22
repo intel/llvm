@@ -70,8 +70,9 @@ const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
 // overhead from mutex locking. Default value is 0 which means that single
 // thread mode is disabled.
 static const bool SingleThreadMode = [] {
-  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
-  const bool RetVal = Ret ? std::stoi(Ret) : 0;
+  const char *UrRet = std::getenv("UR_L0_SINGLE_THREAD_MODE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
+  const bool RetVal = UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0);
   return RetVal;
 }();
 

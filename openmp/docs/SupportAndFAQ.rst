@@ -168,11 +168,18 @@ The compiled executable is dynamically linked against a host runtime, e.g.
 are found like any other dynamic library, by setting rpath or runpath on the
 executable, by setting ``LD_LIBRARY_PATH``, or by adding them to the system search.
 
-``libomptarget.so`` has rpath or runpath (whichever the system default is) set to
-``$ORIGIN``, and the plugins are located next to it, so it will find the plugins
-without any environment variables set. If ``LD_LIBRARY_PATH`` is set, whether it
-overrides which plugin is found depends on whether your system treats ``-Wl,-rpath``
-as RPATH or RUNPATH.
+``libomptarget.so`` is only supported to work with the associated ``clang`` 
+compiler. On systems with globally installed ``libomptarget.so`` this can be 
+problematic. For this reason it is recommended to use a `Clang configuration 
+file <https://clang.llvm.org/docs/UsersManual.html#configuration-files>`__ to 
+automatically configure the environment. For example, store the following file 
+as ``openmp.cfg`` next to your ``clang`` executable.
+
+.. code-block:: text
+
+  # Library paths for OpenMP offloading.
+  -L '<CFGDIR>/../lib'
+  -Wl,-rpath='<CFGDIR>/../lib'
 
 The plugins will try to find their dependencies in plugin-dependent fashion.
 
@@ -300,7 +307,7 @@ require a few additions.
 
 .. code-block:: cmake
 
-  cmake_minimum_required(VERSION 3.13.4)
+  cmake_minimum_required(VERSION 3.20.0)
   project(offloadTest VERSION 1.0 LANGUAGES CXX)
 
   list(APPEND CMAKE_MODULE_PATH "${PATH_TO_OPENMP_INSTALL}/lib/cmake/openmp")
@@ -311,7 +318,7 @@ require a few additions.
   target_link_libraries(offload PRIVATE OpenMPTarget::OpenMPTarget_NVPTX)
   target_sources(offload PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp)
 
-Using this module requires at least CMake version 3.13.4. Supported languages
+Using this module requires at least CMake version 3.20.0. Supported languages
 are C and C++ with Fortran support planned in the future. Compiler support is
 best for Clang but this module should work for other compiler vendors such as
 IBM, GNU.

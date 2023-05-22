@@ -58,33 +58,33 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
             __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
         static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
 
-    getPlugin().call<PiApiKind::piContextCreate>(
+    getPlugin()->call<PiApiKind::piContextCreate>(
         Props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
   } else {
-    getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
-                                                 DeviceIds.data(), nullptr,
-                                                 nullptr, &MContext);
+    getPlugin()->call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
+                                                  DeviceIds.data(), nullptr,
+                                                  nullptr, &MContext);
   }
 
   MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
-                           const plugin &Plugin)
+                           const PluginPtr &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
       MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
 
   std::vector<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piContextGetInfo>(
+  Plugin->call<PiApiKind::piContextGetInfo>(
       MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
       nullptr);
   DeviceIds.resize(DevicesNum);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piContextGetInfo>(MContext, PI_CONTEXT_INFO_DEVICES,
-                                           sizeof(RT::PiDevice) * DevicesNum,
-                                           &DeviceIds[0], nullptr);
+  Plugin->call<PiApiKind::piContextGetInfo>(MContext, PI_CONTEXT_INFO_DEVICES,
+                                            sizeof(RT::PiDevice) * DevicesNum,
+                                            &DeviceIds[0], nullptr);
 
   if (!DeviceIds.empty()) {
     std::shared_ptr<detail::platform_impl> Platform =
@@ -102,7 +102,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
   if (getBackend() == sycl::backend::opencl) {
-    getPlugin().call<PiApiKind::piContextRetain>(MContext);
+    getPlugin()->call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
 }
@@ -114,7 +114,7 @@ cl_context context_impl::get() const {
         PI_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getPlugin().call<PiApiKind::piContextRetain>(MContext);
+  getPlugin()->call<PiApiKind::piContextRetain>(MContext);
   return pi::cast<cl_context>(MContext);
 }
 
@@ -133,11 +133,11 @@ context_impl::~context_impl() {
   }
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
-    getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
+    getPlugin()->call<PiApiKind::piProgramRelease>(LibProg.second);
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
+    getPlugin()->call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }
 
@@ -255,11 +255,11 @@ context_impl::findMatchingDeviceImpl(RT::PiDevice &DevicePI) const {
 }
 
 pi_native_handle context_impl::getNative() const {
-  auto Plugin = getPlugin();
+  const auto &Plugin = getPlugin();
   if (getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piContextRetain>(getHandleRef());
+    Plugin->call<PiApiKind::piContextRetain>(getHandleRef());
   pi_native_handle Handle;
-  Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
+  Plugin->call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -294,7 +294,7 @@ void context_impl::addDeviceGlobalInitializer(
 
 std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
     pi::PiProgram NativePrg, const std::shared_ptr<queue_impl> &QueueImpl) {
-  const plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
   const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
@@ -317,7 +317,7 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
-        Plugin.call<PiApiKind::piEventRelease>(*EventIt);
+        Plugin->call<PiApiKind::piEventRelease>(*EventIt);
       // Remove them from the collection.
       InitEventsRef.erase(NewEnd, InitEventsRef.end());
       // If there are no more events, we can mark it as fully initialized.
@@ -375,7 +375,7 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
       // initialize events list.
       RT::PiEvent InitEvent;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
-      Plugin.call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
           QueueImpl->getHandleRef(), NativePrg,
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
           &USMPtr, 0, nullptr, &InitEvent);
@@ -387,9 +387,10 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
   }
 }
 
-void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
+void context_impl::DeviceGlobalInitializer::ClearEvents(
+    const PluginPtr &Plugin) {
   for (const RT::PiEvent &Event : MDeviceGlobalInitEvents)
-    Plugin.call<PiApiKind::piEventRelease>(Event);
+    Plugin->call<PiApiKind::piEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
 }
 
@@ -417,8 +418,8 @@ void context_impl::memcpyToHostOnlyDeviceGlobal(
 
 void context_impl::memcpyFromHostOnlyDeviceGlobal(
     const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
-    const void *DeviceGlobalPtr, size_t, bool IsDeviceImageScoped,
-    size_t NumBytes, size_t Offset) {
+    const void *DeviceGlobalPtr, bool IsDeviceImageScoped, size_t NumBytes,
+    size_t Offset) {
 
   std::optional<RT::PiDevice> KeyDevice = std::nullopt;
   if (IsDeviceImageScoped)
