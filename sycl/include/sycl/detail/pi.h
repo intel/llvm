@@ -92,10 +92,10 @@
 // 12.30 Added PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT device info query.
 // 12.31 Added PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP device
 // info query.
-// 12.32 Added piextEnablePeerAccess, piextDisablePeerAccess,
-// piextPeerAccessGetInfo, and pi_peer_attr enum.
-// 13.33 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
+// 12.32 Removed backwards compatibility of piextQueueCreateWithNativeHandle and
 // piextQueueGetNativeHandle
+// 13.33 Added piextEnablePeerAccess, piextDisablePeerAccess,
+// piextPeerAccessGetInfo, and pi_peer_attr enum.
 
 #define _PI_H_VERSION_MAJOR 13
 #define _PI_H_VERSION_MINOR 33
