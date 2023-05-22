@@ -326,14 +326,21 @@ GetDeviceSubGroupIndependentForwardProgress(ur_device_handle_t device,
                                             bool &progress);
 ur_result_t GetDeviceSubGroupSizesIntel(ur_device_handle_t device,
                                         std::vector<uint32_t> &sizes);
-ur_result_t GetDeviceUSMHostSupport(ur_device_handle_t device, bool &support);
-ur_result_t GetDeviceUSMDeviceSupport(ur_device_handle_t device, bool &support);
-ur_result_t GetDeviceUSMSingleSharedSupport(ur_device_handle_t device,
-                                            bool &support);
-ur_result_t GetDeviceUSMCrossSharedSupport(ur_device_handle_t device,
-                                           bool &support);
-ur_result_t GetDeviceUSMSystemSharedSupport(ur_device_handle_t device,
-                                            bool &support);
+ur_result_t
+GetDeviceUSMHostSupport(ur_device_handle_t device,
+                        ur_device_usm_access_capability_flags_t &support);
+ur_result_t
+GetDeviceUSMDeviceSupport(ur_device_handle_t device,
+                          ur_device_usm_access_capability_flags_t &support);
+ur_result_t GetDeviceUSMSingleSharedSupport(
+    ur_device_handle_t device,
+    ur_device_usm_access_capability_flags_t &support);
+ur_result_t GetDeviceUSMCrossSharedSupport(
+    ur_device_handle_t device,
+    ur_device_usm_access_capability_flags_t &support);
+ur_result_t GetDeviceUSMSystemSharedSupport(
+    ur_device_handle_t device,
+    ur_device_usm_access_capability_flags_t &support);
 ur_result_t GetDeviceUUID(ur_device_handle_t device, std::string &uuid);
 ur_result_t GetDevicePCIAddress(ur_device_handle_t device,
                                 std::string &address);

@@ -424,7 +424,7 @@ struct urMemBufferQueueTest : urQueueTest {
 struct urUSMDeviceAllocTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
-        bool device_usm = false;
+        ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(GetDeviceUSMDeviceSupport(device, device_usm));
         if (!device_usm) {
             GTEST_SKIP() << "Device USM in not supported";
@@ -496,7 +496,7 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
-        bool device_usm = false;
+        ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(GetDeviceUSMDeviceSupport(this->device, device_usm));
         if (!device_usm) {
             GTEST_SKIP() << "Device USM in not supported";

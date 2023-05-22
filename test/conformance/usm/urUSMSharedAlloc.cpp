@@ -6,8 +6,8 @@
 struct urUSMSharedAllocTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
-        bool shared_usm_cross = false;
-        bool shared_usm_single = false;
+        ur_device_usm_access_capability_flags_t shared_usm_cross = 0;
+        ur_device_usm_access_capability_flags_t shared_usm_single = 0;
 
         ASSERT_SUCCESS(
             uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));

@@ -525,33 +525,39 @@ ur_result_t GetDeviceSubGroupSizesIntel(ur_device_handle_t device,
         device, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, sizes);
 }
 
-ur_result_t GetDeviceUSMHostSupport(ur_device_handle_t device, bool &support) {
-    return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_HOST_SUPPORT,
-                               support);
+ur_result_t
+GetDeviceUSMHostSupport(ur_device_handle_t device,
+                        ur_device_usm_access_capability_flags_t &support) {
+    return GetDeviceInfo<ur_device_usm_access_capability_flags_t>(
+        device, UR_DEVICE_INFO_USM_HOST_SUPPORT, support);
 }
 
-ur_result_t GetDeviceUSMDeviceSupport(ur_device_handle_t device,
-                                      bool &support) {
-    return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
-                               support);
+ur_result_t
+GetDeviceUSMDeviceSupport(ur_device_handle_t device,
+                          ur_device_usm_access_capability_flags_t &support) {
+    return GetDeviceInfo<ur_device_usm_access_capability_flags_t>(
+        device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT, support);
 }
 
-ur_result_t GetDeviceUSMSingleSharedSupport(ur_device_handle_t device,
-                                            bool &support) {
-    return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT,
-                               support);
+ur_result_t GetDeviceUSMSingleSharedSupport(
+    ur_device_handle_t device,
+    ur_device_usm_access_capability_flags_t &support) {
+    return GetDeviceInfo<ur_device_usm_access_capability_flags_t>(
+        device, UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT, support);
 }
 
-ur_result_t GetDeviceUSMCrossSharedSupport(ur_device_handle_t device,
-                                           bool &support) {
-    return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT,
-                               support);
+ur_result_t GetDeviceUSMCrossSharedSupport(
+    ur_device_handle_t device,
+    ur_device_usm_access_capability_flags_t &support) {
+    return GetDeviceInfo<ur_device_usm_access_capability_flags_t>(
+        device, UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT, support);
 }
 
-ur_result_t GetDeviceUSMSystemSharedSupport(ur_device_handle_t device,
-                                            bool &support) {
-    return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT,
-                               support);
+ur_result_t GetDeviceUSMSystemSharedSupport(
+    ur_device_handle_t device,
+    ur_device_usm_access_capability_flags_t &support) {
+    return GetDeviceInfo<ur_device_usm_access_capability_flags_t>(
+        device, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT, support);
 }
 
 ur_result_t GetDeviceUUID(ur_device_handle_t device, std::string &uuid) {

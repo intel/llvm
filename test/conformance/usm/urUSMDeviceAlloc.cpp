@@ -6,7 +6,7 @@
 struct urUSMDeviceAllocTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
-        bool deviceUSMSupport = false;
+        ur_device_usm_access_capability_flags_t deviceUSMSupport = 0;
         ASSERT_SUCCESS(
             uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
         if (!deviceUSMSupport) {

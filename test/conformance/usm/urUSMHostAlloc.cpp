@@ -7,7 +7,7 @@
 struct urUSMHostAllocTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
-        bool hostUSMSupport = false;
+        ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, hostUSMSupport));
         if (!hostUSMSupport) {
             GTEST_SKIP() << "Device USM is not supported.";
@@ -17,7 +17,7 @@ struct urUSMHostAllocTest : uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMHostAllocTest);
 
 TEST_P(urUSMHostAllocTest, Success) {
-    bool hostUSMSupport = false;
+    ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, hostUSMSupport));
     if (!hostUSMSupport) {
         GTEST_SKIP() << "Host USM is not supported.";
