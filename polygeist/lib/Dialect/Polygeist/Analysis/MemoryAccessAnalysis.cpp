@@ -200,8 +200,8 @@ operator<<(raw_ostream &os, const ValueOrMultiplier &valOrMultiplier) {
 } // namespace
 
 // Visit a binary operation of type \tparam T. The LHS and RHS operand of the
-// binary operation are processed by applying the function \p getMultiplier.
-// The result of the visit is computed via the \p computeResult function.
+// binary operation are processed by applying the function \p getMultiplier. The
+// result of the visit is computed via the \p computeResult function.
 template <typename T, typename ProcessOperandFuncT, typename ComputeResultFuncT,
           typename = std::enable_if_t<llvm::is_one_of<
               T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>,
@@ -232,7 +232,8 @@ static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
 }
 
 /// Determine whether \p expr involves a subexpression which is a multiplication
-/// of \p val, and return the multiplication factor if it does. Example:
+/// of \p val, and return the multiplication factor if it does.
+/// Example:
 ///   %c1_i32 = arith.constant 1 : i32
 ///   %c2_i32 = arith.constant 2 : i32
 ///   %index_cast = arith.index_cast %ii : index to i64
@@ -246,8 +247,8 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
                                        DataFlowSolver &solver) {
   Operation *op = expr.getDefiningOp();
   if (!op) {
-    // This is a block argument. If it is a match create a multiplier with
-    // value one.
+    // This is a block argument. If it is a match create a multiplier with value
+    // one.
     if (expr == factor)
       return Multiplier::one(expr.getContext());
     return expr;
@@ -980,9 +981,8 @@ void MemoryAccessAnalysis::build() {
   // Try to construct the memory access matrix for affine memory operation of
   // interest.
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    TypeSwitch<Operation *>(op)
-        .Case<affine::AffineStoreOp, affine::AffineLoadOp>(
-            [&](auto memoryOp) { build(memoryOp, solver); });
+    TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
+        [&](auto memoryOp) { build(memoryOp, solver); });
   });
 }
 
@@ -1011,8 +1011,8 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // operation. Example:
   //   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
   //   %sub = sycl.accessor.subscript %acc[%id] ...
-  // Here the underlying values for '%id' are {%i, %j}. The number of
-  // underlying values matches the dimensionality of the sycl id.
+  // Here the underlying values for '%id' are {%i, %j}. The number of underlying
+  // values matches the dimensionality of the sycl id.
   SmallVector<Value> underlyingVals = getUnderlyingValues(
       accessorSubscriptOp.getOffsetOperandIndex(), accessorSubscriptOp, solver);
   if (underlyingVals.empty()) {
@@ -1147,8 +1147,8 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
           return getUnderlyingValues(storeOp.getStoredValOperandIndex(),
                                      storeOp, solver);
 
-        // Try to determine the underlying value of the memory pointed to by
-        // the memref operand of a load.
+        // Try to determine the underlying value of the memory pointed to by the
+        // memref operand of a load.
         AffineLoadOp loadOp = cast<AffineLoadOp>(storedVal.getDefiningOp());
         MemRefAccess loadAccess(loadOp);
         assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
