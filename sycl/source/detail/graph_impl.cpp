@@ -60,8 +60,8 @@ bool check_for_arg(const sycl::detail::ArgDesc &Arg,
     SuccessorAddedDep |= check_for_arg(Arg, Successor, Deps);
   }
 
-  if (Deps.find(CurrentNode) == Deps.end() && CurrentNode->has_arg(Arg) &&
-      !SuccessorAddedDep) {
+  if (!CurrentNode->is_empty() && Deps.find(CurrentNode) == Deps.end() &&
+      CurrentNode->has_arg(Arg) && !SuccessorAddedDep) {
     Deps.insert(CurrentNode);
     return true;
   }
