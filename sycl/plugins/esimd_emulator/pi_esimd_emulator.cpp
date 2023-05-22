@@ -842,6 +842,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT:
+    return ReturnValue(pi_bool{false});
+
   default:
     DIE_NO_IMPLEMENTATION;
   }

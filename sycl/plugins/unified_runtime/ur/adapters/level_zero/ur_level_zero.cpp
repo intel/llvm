@@ -1017,6 +1017,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(pi_bool{false});
   case UR_DEVICE_INFO_IMAGE_SRGB:
     return ReturnValue(pi_bool{false});
+  case UR_EXT_DEVICE_INFO_COMMAND_BUFFER_SUPPORT:
+    return ReturnValue(pi_bool{true});
 
   // TODO: Implement.
   default:

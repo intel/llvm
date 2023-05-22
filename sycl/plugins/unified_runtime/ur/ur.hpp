@@ -44,6 +44,9 @@ const int UR_EXT_DEVICE_INFO_FREE_MEMORY = UR_EXT_DEVICE_INFO_END - 13;
 // const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
 //     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
 const int UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT = UR_EXT_DEVICE_INFO_END - 15;
+// TODO Use UR extension detection once extension mechanism developed
+const int UR_EXT_DEVICE_INFO_COMMAND_BUFFER_SUPPORT =
+    UR_EXT_DEVICE_INFO_END - 16;
 
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;

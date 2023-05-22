@@ -13,7 +13,7 @@ Our current prototype implementation can be found here:
 [https://github.com/reble/llvm/tree/sycl-graph-develop](https://github.com/reble/llvm/tree/sycl-graph-develop).
 
 Limitations include:
-* LevelZero backend support only.
+* LevelZero backend support only. A fallback emulation mode is used for correctness on other backends.
 * Accessors and reductions are currently not supported.
 
 ### Other Material
@@ -34,11 +34,6 @@ TDB
 
 See [Get Started Guide](./sycl/doc/GetStartedGuide.md).
 
-SYCL Graph support is enabled with:
- * Configuration script: `configure.py --enable-sycl-graph`.
- * CMake: `cmake -DSYCL_ENABLE_GRAPH`.
-
-A fallback emulation mode is used otherwise that enables the graph API but eagerly submits kernels.
 ### Report a problem
 
 Submit an [issue](https://github.com/intel/llvm/issues) or initiate a 

@@ -791,6 +791,9 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_IMAGE_SRGB:
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_IMAGE_SRGB;
     break;
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT:
+    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_COMMAND_BUFFER_SUPPORT;
+    break;
   case PI_DEVICE_INFO_BACKEND_VERSION: {
     // TODO: return some meaningful for backend_version below
     ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);

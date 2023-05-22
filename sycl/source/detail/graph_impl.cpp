@@ -15,6 +15,10 @@
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
+// Developer switch to use emulation mode on all backends, even those that
+// report native support, this is useful for debugging.
+#define FORCE_EMULATION_MODE 0
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
@@ -337,12 +341,14 @@ exec_graph_impl::~exec_graph_impl() {
   for (auto Iter : MPiCommandBuffers) {
     const sycl::detail::plugin &Plugin =
         sycl::detail::getSyclObjImpl(MContext)->getPlugin();
-    auto CmdBuf = Iter.second;
-    pi_result Res =
-        Plugin.call_nocheck<sycl::detail::PiApiKind::piextCommandBufferRelease>(
-            CmdBuf);
-    (void)Res;
-    assert(Res == pi_result::PI_SUCCESS);
+    if (auto CmdBuf = Iter.second; CmdBuf) {
+      pi_result Res =
+          Plugin
+              .call_nocheck<sycl::detail::PiApiKind::piextCommandBufferRelease>(
+                  CmdBuf);
+      (void)Res;
+      assert(Res == pi_result::PI_SUCCESS);
+    }
   }
 }
 
@@ -355,81 +361,82 @@ sycl::event exec_graph_impl::enqueue(
     NewEvent->setStateIncomplete();
     return NewEvent;
   });
-#if SYCL_EXT_ONEAPI_GRAPH
-  auto NewEvent = CreateNewEvent();
-  RT::PiEvent *OutEvent = &NewEvent->getHandleRef();
+
   auto CommandBuffer = MPiCommandBuffers[Queue->get_device()];
+  sycl::detail::EventImplPtr NewEvent;
 
-  // If we have no requirements for accessors for the command buffer, enqueue it
-  // directly
-  if (MRequirements.empty()) {
-    pi_result Res =
-        Queue->getPlugin()
-            .call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-                CommandBuffer, Queue->getHandleRef(), RawEvents.size(),
-                RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
-    if (Res != pi_result::PI_SUCCESS) {
-      throw sycl::exception(
-          errc::event, "Failed to enqueue event for command buffer submission");
-    }
-  } else {
-    std::unique_ptr<sycl::detail::CG> CommandGroup =
-        std::make_unique<sycl::detail::CGExecCommandBuffer>(CommandBuffer,
-                                                            MRequirements);
+  if (CommandBuffer) {
+    NewEvent = CreateNewEvent();
+    RT::PiEvent *OutEvent = &NewEvent->getHandleRef();
 
-    NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-        std::move(CommandGroup), Queue);
-  }
-
-#else
-  std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
-  for (auto &NodeImpl : MSchedule) {
-    std::vector<RT::PiEvent> RawEvents;
-
-    // If the node has no requirements for accessors etc. then we skip the
-    // scheduler and enqueue directly.
-    if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
-        NodeImpl->MCommandGroup->MRequirements.size() +
-                static_cast<sycl::detail::CGExecKernel *>(
-                    NodeImpl->MCommandGroup.get())
-                    ->MStreams.size() ==
-            0) {
-      sycl::detail::CGExecKernel *CG =
-          static_cast<sycl::detail::CGExecKernel *>(
-              NodeImpl->MCommandGroup.get());
-      auto NewEvent = CreateNewEvent();
-      RT::PiEvent *OutEvent = &NewEvent->getHandleRef();
-      pi_int32 Res =
-          sycl::
-              detail::enqueueImpKernel(Queue, CG->MNDRDesc, CG->MArgs,
-                                       nullptr /* TODO: Handle KernelBundles */,
-                                       CG->MSyclKernel, CG->MKernelName,
-                                       CG->MOSModuleHandle, RawEvents, OutEvent,
-                                       nullptr /* TODO: Pass mem allocation func
-                                                  for accessors */
-                                       ,
-                                       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT /* TODO: Extract from handler*/);
+    // If we have no requirements for accessors for the command buffer, enqueue
+    // it directly
+    if (MRequirements.empty()) {
+      pi_result Res =
+          Queue->getPlugin()
+              .call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
+                  CommandBuffer, Queue->getHandleRef(), RawEvents.size(),
+                  RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
       if (Res != pi_result::PI_SUCCESS) {
         throw sycl::exception(
-            sycl::errc::kernel,
-            "Error during emulated graph command group submission.");
+            errc::event,
+            "Failed to enqueue event for command buffer submission");
       }
-      ScheduledEvents.push_back(NewEvent);
     } else {
+      std::unique_ptr<sycl::detail::CG> CommandGroup =
+          std::make_unique<sycl::detail::CGExecCommandBuffer>(CommandBuffer,
+                                                              MRequirements);
 
-      sycl::detail::EventImplPtr EventImpl =
-          sycl::detail::Scheduler::getInstance().addCG(
-              std::move(NodeImpl->getCGCopy()), Queue);
-
-      ScheduledEvents.push_back(EventImpl);
+      NewEvent = sycl::detail::Scheduler::getInstance().addCG(
+          std::move(CommandGroup), Queue);
     }
+  } else {
+    std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
+    for (auto &NodeImpl : MSchedule) {
+      std::vector<RT::PiEvent> RawEvents;
+
+      // If the node has no requirements for accessors etc. then we skip the
+      // scheduler and enqueue directly.
+      if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
+          NodeImpl->MCommandGroup->MRequirements.size() +
+                  static_cast<sycl::detail::CGExecKernel *>(
+                      NodeImpl->MCommandGroup.get())
+                      ->MStreams.size() ==
+              0) {
+        sycl::detail::CGExecKernel *CG =
+            static_cast<sycl::detail::CGExecKernel *>(
+                NodeImpl->MCommandGroup.get());
+        NewEvent = CreateNewEvent();
+        RT::PiEvent *OutEvent = &NewEvent->getHandleRef();
+        pi_int32 Res = sycl::detail::enqueueImpKernel(
+            Queue, CG->MNDRDesc, CG->MArgs,
+            // TODO: Handler KernelBundles
+            nullptr, CG->MSyclKernel, CG->MKernelName, CG->MOSModuleHandle,
+            RawEvents, OutEvent,
+            // TODO: Pass accessor mem allocations
+            nullptr,
+            // TODO: Extract from handler
+            PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+        if (Res != pi_result::PI_SUCCESS) {
+          throw sycl::exception(
+              sycl::errc::kernel,
+              "Error during emulated graph command group submission.");
+        }
+        ScheduledEvents.push_back(NewEvent);
+      } else {
+
+        sycl::detail::EventImplPtr EventImpl =
+            sycl::detail::Scheduler::getInstance().addCG(
+                std::move(NodeImpl->getCGCopy()), Queue);
+
+        ScheduledEvents.push_back(EventImpl);
+      }
+    }
+    // Create an event which has all kernel events as dependencies
+    NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
+    NewEvent->setStateIncomplete();
+    NewEvent->getPreparedDepsEvents() = ScheduledEvents;
   }
-  // Create an event which has all kernel events as dependencies
-  sycl::detail::EventImplPtr NewEvent =
-      std::make_shared<sycl::detail::event_impl>(Queue);
-  NewEvent->setStateIncomplete();
-  NewEvent->getPreparedDepsEvents() = ScheduledEvents;
-#endif
 
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
@@ -558,11 +565,30 @@ command_graph<graph_state::executable>::command_graph(
 void command_graph<graph_state::executable>::finalize_impl() {
   // Create PI command-buffers for each device in the finalized context
   impl->schedule();
-#if SYCL_EXT_ONEAPI_GRAPH
-  for (auto device : impl->get_context().get_devices()) {
-    impl->create_pi_command_buffers(device);
-  }
+
+  auto Context = impl->get_context();
+  for (auto Device : impl->get_context().get_devices()) {
+    pi_bool CmdBufSupport;
+
+    const sycl::detail::plugin &Plugin =
+        sycl::detail::getSyclObjImpl(Context)->getPlugin();
+
+    auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
+    Plugin.call<sycl::detail::PiApiKind::piDeviceGetInfo>(
+        DeviceImpl->getHandleRef(),
+        PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT, sizeof(pi_bool),
+        &CmdBufSupport, nullptr);
+
+#if FORCE_EMULATION_MODE
+    // Above query should still succeed in emulation mode, but ignore the
+    // result and use emulation.
+    CmdBufSupport = false;
 #endif
+
+    if (CmdBufSupport) {
+      impl->create_pi_command_buffers(Device);
+    }
+  }
 }
 
 void command_graph<graph_state::executable>::update(

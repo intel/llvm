@@ -69,10 +69,6 @@ endif()
 # of the SYCL runtime and expect enabling
 option(SYCL_ENABLE_XPTI_TRACING "Enable tracing of SYCL constructs" OFF)
 
-# Create a soft option for enabling or disabling the experimental support
-# for SYCl Graph
-option(SYCL_ENABLE_GRAPH "Enable experimental SYCL Graph support" OFF)
-
 if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions

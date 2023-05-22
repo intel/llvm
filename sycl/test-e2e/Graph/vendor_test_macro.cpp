@@ -1,5 +1,4 @@
-// REQUIRES: level_zero, gpu, TEMPORARY_DISABLED
-// Disabled as emulation mode doesn't set macro
+// REQUIRES: level_zero, gpu
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

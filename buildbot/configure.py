@@ -57,8 +57,6 @@ def do_configure(args):
 
     if sys.platform != "darwin":
         sycl_enabled_plugins.append("level_zero")
-        
-    sycl_enable_graph = 'OFF'
 
     # lld is needed on Windows or for the HIP plugin on AMD
     if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
@@ -110,9 +108,6 @@ def do_configure(args):
 
     if args.use_lld:
         llvm_enable_lld = 'ON'
-    
-    if args.enable_sycl_graph:
-         sycl_enable_graph = 'ON'
 
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
@@ -171,7 +166,6 @@ def do_configure(args):
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
-        "-DSYCL_ENABLE_GRAPH={}".format(sycl_enable_graph),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),

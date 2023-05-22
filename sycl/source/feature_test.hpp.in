@@ -81,10 +81,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #define SYCL_EXT_CODEPLAY_KERNEL_FUSION 1
 #endif
 #define SYCL_EXT_INTEL_CACHE_CONFIG 1
-#cmakedefine01 SYCL_ENABLE_GRAPH
-#if SYCL_ENABLE_GRAPH
 #define SYCL_EXT_ONEAPI_GRAPH 1
-#endif
 
 #ifndef __has_include
 #define __has_include(x) 0
