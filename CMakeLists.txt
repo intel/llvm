@@ -150,17 +150,19 @@ if(UR_FORMAT_CPP_STYLE)
 endif()
 
 # Obtain files for clang-format
-file(GLOB_RECURSE format_src
-    "*.h"
-    "*.c"
-    "*.hpp"
-    "*.cpp"
-)
-
-set(UR_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}.")
-EscapeRegex(UR_BINARY_DIR)
-# Exclude files from build directory to ensure they're not passed to the formatter
-list(FILTER format_src EXCLUDE REGEX ${UR_BINARY_DIR})
+set(format_glob)
+foreach(dir examples include source test tools)
+    list(APPEND format_glob
+        "${dir}/*.h"
+        "${dir}/*.hpp"
+        "${dir}/*.c"
+        "${dir}/*.cpp"
+        "${dir}/**/*.h"
+        "${dir}/**/*.hpp"
+        "${dir}/**/*.c"
+        "${dir}/**/*.cpp")
+endforeach()
+file(GLOB_RECURSE format_src ${format_glob})
 
 # Add code formatter target
 add_custom_target(cppformat)
