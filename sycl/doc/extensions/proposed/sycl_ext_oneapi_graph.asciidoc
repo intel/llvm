@@ -323,6 +323,20 @@ class depends_on {
 } // namespace node
 } // namespace property
 
+// Device query for level of support
+namespace info {
+namespace device {
+struct graphs_support;
+
+enum class graph_support_level {
+  unsupported = 0,
+  native,
+  emulated
+};
+
+} // namespace device
+} // namespace info
+
 class node {};
 
 // State of a graph
@@ -403,6 +417,30 @@ public:
 
 }  // namespace sycl
 ----
+
+=== Device Info Query
+
+Due to the experimental nature of the extension, support is not available across
+all devices. The following device support query is added to report devices which
+are currently supported, and how that support is implemented.
+
+
+Table {counter: tableNumber}. Device Info Queries.
+[%header]
+|===
+| Device Descriptors | Return Type | Description
+
+|`info::device::graph_support`
+|`info::device::graph_support_level`
+|When passed to `device::get_info<...>()`, the function returns `native`
+if there is an underlying SYCL backend command-buffer construct which is used
+to propagate the graph to the backend. If no backend construct exists, or
+building on top of it has not yet been implemented, then `emulated` is
+returned. Otherwise `unsupported` is returned if the SYCL device doesn't
+support using this graph extension.
+
+|===
+
 
 === Node
 
@@ -547,6 +585,9 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if `syclDevice` is not
 associated with `syclContext`.
+
+* Throws synchronously with error code `invalid` if `syclDevice`
+  <<device-info-query, reports this extension as unsupported>>.
 
 |===
 
