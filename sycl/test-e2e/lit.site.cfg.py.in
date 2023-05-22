@@ -25,8 +25,12 @@ config.cuda_libs_dir = "@CUDA_LIBS_DIR@"
 config.cuda_include = "@CUDA_INCLUDE@"
 
 config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
-config.target_devices = lit_config.params.get("target_devices", "@SYCL_TARGET_DEVICES@")
-config.sycl_be = lit_config.params.get("sycl_be", "@SYCL_BE@")
+
+config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARGETS@").split(';')
+if lit_config.params.get("target_devices") and lit_config.params.get("sycl_be"):
+    config.sycl_devices = ['{}:{}'.format(lit_config.params.get("sycl_be"), d)
+                           for d in lit_config.params.get("target_devices").split(',')]
+
 config.hip_platform = "@HIP_PLATFORM@"
 config.amd_arch = "@AMD_ARCH@"
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'

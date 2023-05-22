@@ -117,7 +117,9 @@ public:
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
                                  PI_ERROR_INVALID_MEM_OBJECT);
-    return reinterpret_cast<backend_return_t<Backend, queue>>(getNativeQueue());
+    int32_t NativeHandleDesc;
+    return reinterpret_cast<backend_return_t<Backend, queue>>(
+        getNativeQueue(NativeHandleDesc));
 #else
     // we believe this won't be ever called on device side
     return 0;
@@ -197,7 +199,8 @@ private:
 
   __SYCL_EXPORT pi_native_handle
   getNativeMem(detail::AccessorImplHost *Req) const;
-  __SYCL_EXPORT pi_native_handle getNativeQueue() const;
+  __SYCL_EXPORT pi_native_handle
+  getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;
 

@@ -5,7 +5,7 @@
 // The test checks that the scenario works correctly.
 //
 // RUN: %{build} -O2 -c -o %t.o
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t.o -O0 -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.o -O0 -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>

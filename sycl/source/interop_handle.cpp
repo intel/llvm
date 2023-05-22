@@ -47,8 +47,9 @@ pi_native_handle interop_handle::getNativeContext() const {
   return MContext->getNative();
 }
 
-pi_native_handle interop_handle::getNativeQueue() const {
-  return MQueue->getNative();
+pi_native_handle
+interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
+  return MQueue->getNative(NativeHandleDesc);
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

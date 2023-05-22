@@ -1,6 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// SYCL 2020: Only the binary operators defined in Section 4.17.2 are supported
+// by the reduce functions in SYCL 2020, but the standard C++ syntax is used for
+// forward compatibility with future SYCL versions.
+//
+// REQUIRES: TEMPORARY_DISABLED
+
 #include "helper.hpp"
 #include <complex>
 #include <sycl/sycl.hpp>
@@ -18,20 +24,20 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for(NdRange, [=](nd_item<1> NdItem) {
-        ext::oneapi::sub_group sg = NdItem.get_sub_group();
+        auto sg = NdItem.get_sub_group();
         if (skip_init) {
           acc[NdItem.get_global_id(0)] =
-              ext::oneapi::reduce(sg, T(NdItem.get_global_id(0)), op);
+              reduce_over_group(sg, T(NdItem.get_global_id(0)), op);
         } else {
           acc[NdItem.get_global_id(0)] =
-              ext::oneapi::reduce(sg, T(NdItem.get_global_id(0)), init, op);
+              reduce_over_group(sg, T(NdItem.get_global_id(0)), init, op);
         }
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = sg.get_max_local_range()[0];
       });
     });
-    auto acc = buf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(buf);
+    host_accessor sgsizeacc(sgsizebuf);
     size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;
     T result = init;
