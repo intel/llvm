@@ -11,9 +11,10 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_MAX_COMPUTE_UNITS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t)},
-    {UR_DEVICE_INFO_SINGLE_FP_CONFIG, sizeof(ur_device_fp_capability_flag_t)},
-    {UR_DEVICE_INFO_HALF_FP_CONFIG, sizeof(ur_device_fp_capability_flag_t)},
-    {UR_DEVICE_INFO_DOUBLE_FP_CONFIG, sizeof(ur_device_fp_capability_flag_t)},
+    {UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t)},
+    {UR_DEVICE_INFO_SINGLE_FP_CONFIG, sizeof(ur_device_fp_capability_flags_t)},
+    {UR_DEVICE_INFO_HALF_FP_CONFIG, sizeof(ur_device_fp_capability_flags_t)},
+    {UR_DEVICE_INFO_DOUBLE_FP_CONFIG, sizeof(ur_device_fp_capability_flags_t)},
     {UR_DEVICE_INFO_QUEUE_PROPERTIES, sizeof(ur_queue_flags_t)},
     {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR, sizeof(uint32_t)},
     {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT, sizeof(uint32_t)},
@@ -105,7 +106,7 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES, sizeof(uint32_t)},
     {UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MEMORY_BUS_WIDTH, sizeof(ur_bool_t)},
-    {UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(size_t[3])},
     {UR_DEVICE_INFO_ASYNC_BARRIER, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, sizeof(ur_bool_t)},
@@ -241,16 +242,22 @@ TEST_P(urDeviceGetInfoTest, Success) {
     ur_device_info_t info_type = GetParam();
     for (auto device : devices) {
         size_t size = 0;
-        ASSERT_SUCCESS(urDeviceGetInfo(device, info_type, 0, nullptr, &size));
-        ASSERT_NE(size, 0);
-        if (const auto expected_size = device_info_size_map.find(info_type);
-            expected_size != device_info_size_map.end()) {
-            ASSERT_EQ(expected_size->second, size);
+        ur_result_t result =
+            urDeviceGetInfo(device, info_type, 0, nullptr, &size);
+
+        if (result == UR_RESULT_SUCCESS) {
+            ASSERT_NE(size, 0);
+            if (const auto expected_size = device_info_size_map.find(info_type);
+                expected_size != device_info_size_map.end()) {
+                ASSERT_EQ(expected_size->second, size);
+            }
+
+            std::vector<char> info_data(size);
+            ASSERT_SUCCESS(urDeviceGetInfo(device, info_type, size,
+                                           info_data.data(), nullptr));
+        } else {
+            ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_INVALID_ENUMERATION);
         }
-        void *info_data = alloca(size);
-        ASSERT_SUCCESS(
-            urDeviceGetInfo(device, info_type, size, info_data, nullptr));
-        ASSERT_NE(info_data, nullptr);
     }
 }
 

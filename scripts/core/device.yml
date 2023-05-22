@@ -372,7 +372,7 @@ etors:
             [$x_bool_t] Return 1 if the device doesn't have a notion of a "queue index". Otherwise,
             return the number of queue indices that are available for this device.
     - name: MAX_WORK_GROUPS_3D
-      desc: "[uint32_t] return max 3D work groups"
+      desc: "[size_t[3]] return max 3D work groups"
     - name: ASYNC_BARRIER
       desc: "[$x_bool_t] return true if Async Barrier is supported"
     - name: MEM_CHANNEL_SUPPORT
@@ -415,6 +415,8 @@ params:
       desc: |
             [out][optional] pointer to the actual size in bytes of the queried propName.
 returns:
+    - $X_RESULT_ERROR_INVALID_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
@@ -426,6 +428,8 @@ ordinal: "0"
 analogue:
     - "**clRetainDevice**"
 details:
+    - "Increments the device reference count if `hDevice` is a valid sub-device created by a call to `urDevicePartition`.
+      If `hDevice` is a root level device (e.g. obtained with `urDeviceGet`), the reference count remains unchanged."
     - "It is not valid to use the device handle, which has all of its references released."
     - "The application may call this function from simultaneous threads for the same device."
     - "The implementation of this function should be thread-safe."
@@ -444,7 +448,8 @@ ordinal: "0"
 analogue:
     - "**clReleaseDevice**"
 details:
-    
+    - "Decrements the device reference count if `hDevice` is a valid sub-device created by a call to `urDevicePartition`.
+      If `hDevice` is a root level device (e.g. obtained with `urDeviceGet`), the reference count remains unchanged."
     - "The application may call this function from simultaneous threads for the same device."
     - "The implementation of this function should be thread-safe."
 params:
@@ -560,7 +565,7 @@ etors:
     - name: CORRECTLY_ROUNDED_DIVIDE_SQRT
       desc: "Support correctly rounded divide and sqrt"
       value: "$X_BIT(0)"
-    - name: ROUND_TO_NEAREST      
+    - name: ROUND_TO_NEAREST
       desc: "Support round to nearest"
       value: "$X_BIT(1)"
     - name: ROUND_TO_ZERO
@@ -614,7 +619,7 @@ etors:
     - name: KERNEL
       desc: "Support kernel execution"
       value: "$X_BIT(0)"
-    - name: NATIVE_KERNEL      
+    - name: NATIVE_KERNEL
       desc: "Support native kernel execution"
       value: "$X_BIT(1)"
 --- #--------------------------------------------------------------------------
@@ -644,7 +649,7 @@ etors:
             The implementation shall find the first level along which the device
             or sub device may be further subdivided in the order: 
             $X_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
-            and partition the device into sub devices comprised of compute units that share memory subsystems at this level. 
+            and partition the device into sub devices comprised of compute units that share memory subsystems at this level.
       value: "$X_BIT(5)"
 --- #--------------------------------------------------------------------------
 type: class

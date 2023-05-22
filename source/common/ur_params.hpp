@@ -3143,17 +3143,18 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     } break;
 
     case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
-        const uint32_t *tptr = (const uint32_t *)ptr;
-        if (sizeof(uint32_t) > size) {
-            os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(uint32_t) << ")";
-            return;
+
+        const size_t *tptr = (const size_t *)ptr;
+        os << "[";
+        size_t nelems = size / sizeof(size_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
         }
-        os << (void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
+        os << "]";
     } break;
 
     case UR_DEVICE_INFO_ASYNC_BARRIER: {
