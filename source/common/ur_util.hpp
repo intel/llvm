@@ -19,6 +19,15 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+inline int ur_getpid(void) { return static_cast<int>(GetCurrentProcessId()); }
+#else
+
+#include <unistd.h>
+inline int ur_getpid(void) { return static_cast<int>(getpid()); }
+#endif
+
 /* for compatibility with non-clang compilers */
 #if defined(__has_feature)
 #define CLANG_HAS_FEATURE(x) __has_feature(x)
