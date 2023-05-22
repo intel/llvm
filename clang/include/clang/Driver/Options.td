@@ -2982,6 +2982,8 @@ def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">, Flags<[CoreOption]>,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
+def fsycl_raise_host : Flag<["-"], "fsycl-raise-host">, Flags<[CoreOption]>,
+  HelpText<"Raise SYCL host code to MLIR after compiling to LLVM IR">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
     LangOpts<"SYCLESIMDForceStatelessMem">, DefaultFalse,
     PosFlag<SetTrue, [], "Enforce using stateless memory accesses. "

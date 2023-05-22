@@ -333,6 +333,24 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// MLIRTranslate tool.
+class LLVM_LIBRARY_VISIBILITY MLIRTranslate final : public Tool {
+public:
+  MLIRTranslate(const ToolChain &TC)
+      : Tool("mlir-translate", "mlir-translate", TC) {}
+
+  bool hasGoodDiagnostics() const override { return true; }
+  bool hasIntegratedAssembler() const override { return false; }
+  bool hasIntegratedBackend() const override { return false; }
+  bool hasIntegratedCPP() const override { return false; }
+  bool canEmitIR() const override { return true; }
+
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 enum class DwarfFissionKind { None, Split, Single };
 
 DwarfFissionKind getDebugFissionKind(const Driver &D,

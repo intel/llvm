@@ -316,7 +316,9 @@ static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
   OptPM.addPass(polygeist::createRemoveTrivialUsePass());
   OptPM.addPass(polygeist::createMem2RegPass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-  OptPM.addPass(polygeist::createLoopRestructurePass());
+  // FIXME: This is causing infinite recursion on host code.
+  if (SYCLUseHostModule == "")
+    OptPM.addPass(polygeist::createLoopRestructurePass());
   OptPM.addPass(polygeist::createReplaceAffineCFGPass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (EnableLICM)
