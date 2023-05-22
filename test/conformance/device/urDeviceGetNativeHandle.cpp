@@ -19,7 +19,7 @@ TEST_F(urDeviceGetNativeHandleTest, Success) {
         ASSERT_NE(dev, nullptr);
 
         uint32_t dev_id = 0;
-        ASSERT_SUCCESS(urDeviceGetInfo(dev, UR_DEVICE_INFO_DEVICE_ID,
+        ASSERT_SUCCESS(urDeviceGetInfo(dev, UR_DEVICE_INFO_TYPE,
                                        sizeof(uint32_t), &dev_id, nullptr));
     }
 }

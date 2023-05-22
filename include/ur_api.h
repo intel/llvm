@@ -904,7 +904,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                      ///< [::ur_bool_t] Return 1 if the device doesn't have a notion of a "queue
                                                                 ///< index". Otherwise,
                                                                 ///< return the number of queue indices that are available for this device.
-    UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                    ///< [uint32_t] return max 3D work groups
+    UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                    ///< [size_t[3]] return max 3D work groups
     UR_DEVICE_INFO_ASYNC_BARRIER = 109,                         ///< [::ur_bool_t] return true if Async Barrier is supported
     UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                   ///< [::ur_bool_t] return true if specifying memory channels is supported
     UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,        ///< [::ur_bool_t] Return true if the device supports enqueing commands to
@@ -935,6 +935,7 @@ typedef enum ur_device_info_t {
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName`
+///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
@@ -955,6 +956,10 @@ urDeviceGetInfo(
 ///        paired ::urDeviceRelease is called
 ///
 /// @details
+///     - Increments the device reference count if `hDevice` is a valid
+///       sub-device created by a call to `urDevicePartition`. If `hDevice` is a
+///       root level device (e.g. obtained with `urDeviceGet`), the reference
+///       count remains unchanged.
 ///     - It is not valid to use the device handle, which has all of its
 ///       references released.
 ///     - The application may call this function from simultaneous threads for
@@ -980,6 +985,10 @@ urDeviceRetain(
 /// @brief Releases the device handle reference indicating end of its usage
 ///
 /// @details
+///     - Decrements the device reference count if `hDevice` is a valid
+///       sub-device created by a call to `urDevicePartition`. If `hDevice` is a
+///       root level device (e.g. obtained with `urDeviceGet`), the reference
+///       count remains unchanged.
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.

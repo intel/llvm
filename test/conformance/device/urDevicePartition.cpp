@@ -64,9 +64,6 @@ TEST_F(urDevicePartitionTest, PartitionByCounts) {
         uint32_t n_cu_in_device = 0;
         ASSERT_NO_FATAL_FAILURE(getNumberComputeUnits(device, n_cu_in_device));
 
-        std::vector<ur_device_partition_property_t> properties = {
-            UR_DEVICE_PARTITION_BY_COUNTS};
-
         enum class Combination { ONE, HALF, ALL_MINUS_ONE, ALL };
 
         std::vector<Combination> combinations{Combination::ONE,
@@ -79,6 +76,10 @@ TEST_F(urDevicePartitionTest, PartitionByCounts) {
 
         uint32_t n_cu_across_sub_devices;
         for (const auto Combination : combinations) {
+
+            std::vector<ur_device_partition_property_t> properties = {
+                UR_DEVICE_PARTITION_BY_COUNTS};
+
             switch (Combination) {
             case Combination::ONE: {
                 n_cu_across_sub_devices = 1;

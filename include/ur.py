@@ -555,7 +555,7 @@ class ur_device_info_v(IntEnum):
     MEMORY_BUS_WIDTH = 107                          ## [::ur_bool_t] Return 1 if the device doesn't have a notion of a "queue
                                                     ## index". Otherwise,
                                                     ## return the number of queue indices that are available for this device.
-    MAX_WORK_GROUPS_3D = 108                        ## [uint32_t] return max 3D work groups
+    MAX_WORK_GROUPS_3D = 108                        ## [size_t[3]] return max 3D work groups
     ASYNC_BARRIER = 109                             ## [::ur_bool_t] return true if Async Barrier is supported
     MEM_CHANNEL_SUPPORT = 110                       ## [::ur_bool_t] return true if specifying memory channels is supported
     HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueing commands to
@@ -660,7 +660,7 @@ class ur_device_affinity_domain_flags_v(IntEnum):
                                                     ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
                                                     ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
                                                     ## and partition the device into sub devices comprised of compute units
-                                                    ## that share memory subsystems at this level. 
+                                                    ## that share memory subsystems at this level.
 
 class ur_device_affinity_domain_flags_t(c_int):
     def __str__(self):

@@ -348,6 +348,7 @@ ur_result_t UR_APICALL urDeviceGet(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName`
+///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t hDevice, ///< [in] handle of the device instance
@@ -372,6 +373,10 @@ ur_result_t UR_APICALL urDeviceGetInfo(
 ///        paired ::urDeviceRelease is called
 ///
 /// @details
+///     - Increments the device reference count if `hDevice` is a valid
+///       sub-device created by a call to `urDevicePartition`. If `hDevice` is a
+///       root level device (e.g. obtained with `urDeviceGet`), the reference
+///       count remains unchanged.
 ///     - It is not valid to use the device handle, which has all of its
 ///       references released.
 ///     - The application may call this function from simultaneous threads for
@@ -400,6 +405,10 @@ ur_result_t UR_APICALL urDeviceRetain(
 /// @brief Releases the device handle reference indicating end of its usage
 ///
 /// @details
+///     - Decrements the device reference count if `hDevice` is a valid
+///       sub-device created by a call to `urDevicePartition`. If `hDevice` is a
+///       root level device (e.g. obtained with `urDeviceGet`), the reference
+///       count remains unchanged.
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.
