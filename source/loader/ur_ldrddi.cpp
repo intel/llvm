@@ -32,19 +32,11 @@ __urdlllocal ur_result_t UR_APICALL urInit(
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     for (auto &platform : context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
         platform.initStatus = platform.dditable.ur.Global.pfnInit(device_flags);
-        if (platform.initStatus == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     return result;
@@ -4908,10 +4900,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_global_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -4922,7 +4910,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -4934,22 +4921,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Global);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Global);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnInit = ur_loader::urInit;
@@ -4979,10 +4955,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_context_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -4993,7 +4965,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5005,22 +4976,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Context);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnCreate = ur_loader::urContextCreate;
@@ -5056,10 +5016,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_enqueue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5070,7 +5026,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5082,22 +5037,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Enqueue);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnKernelLaunch = ur_loader::urEnqueueKernelLaunch;
@@ -5155,10 +5099,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     ur_event_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5169,7 +5109,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5181,22 +5120,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Event);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Event);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnGetInfo = ur_loader::urEventGetInfo;
@@ -5232,10 +5160,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_kernel_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5246,7 +5170,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5258,22 +5181,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Kernel);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnCreate = ur_loader::urKernelCreate;
@@ -5317,10 +5229,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5331,7 +5239,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5343,22 +5250,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Mem);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Mem);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnImageCreate = ur_loader::urMemImageCreate;
@@ -5396,10 +5292,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_platform_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5410,7 +5302,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5422,22 +5313,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Platform);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Platform);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnGet = ur_loader::urPlatformGet;
@@ -5473,10 +5353,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     ur_program_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5487,7 +5363,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5499,22 +5374,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Program);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnCreateWithIL = ur_loader::urProgramCreateWithIL;
@@ -5558,10 +5422,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_queue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5572,7 +5432,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5584,22 +5443,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Queue);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnGetInfo = ur_loader::urQueueGetInfo;
@@ -5635,10 +5483,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_sampler_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5649,7 +5493,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5661,22 +5504,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Sampler);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Sampler);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnCreate = ur_loader::urSamplerCreate;
@@ -5710,10 +5542,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_usm_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5724,7 +5552,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5736,22 +5563,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.USM);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.USM);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnHostAlloc = ur_loader::urUSMHostAlloc;
@@ -5786,10 +5602,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_device_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    if (ur_loader::context->platforms.size() < 1) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -5800,7 +5612,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::context->platforms) {
         if (platform.initStatus != UR_RESULT_SUCCESS) {
@@ -5812,22 +5623,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
         if (!getTable) {
             continue;
         }
-        auto getTableResult = getTable(version, &platform.dditable.ur.Device);
-        if (getTableResult == UR_RESULT_SUCCESS) {
-            atLeastOneplatformValid = true;
-        } else {
-            platform.initStatus = getTableResult;
-        }
-    }
-
-    if (!atLeastOneplatformValid) {
-        result = UR_RESULT_ERROR_UNINITIALIZED;
-    } else {
-        result = UR_RESULT_SUCCESS;
+        platform.initStatus = getTable(version, &platform.dditable.ur.Device);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        if ((ur_loader::context->platforms.size() > 1) ||
+        if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnGet = ur_loader::urDeviceGet;
