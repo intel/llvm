@@ -8,10 +8,13 @@ env:
 jobs:
   ubuntu-build:
     name: Build - Ubuntu
-    runs-on: ubuntu-latest
     strategy:
       matrix:
-        compiler: [ {cxx: g++, c: gcc}, {cxx: clang++, c: clang} ]
+        config:
+          - {os: 'ubuntu-20.04', compiler: {c: gcc, cxx: g++}}
+          - {os: 'ubuntu-22.04', compiler: {c: gcc, cxx: g++}}
+          - {os: 'ubuntu-22.04', compiler: {c: clang, cxx: clang++}}
+    runs-on: ${{matrix.config.os}}
 
     steps:
     - uses: actions/checkout@v3
@@ -25,9 +28,19 @@ jobs:
       run: pip install -r third_party/requirements.txt
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -D CMAKE_C_COMPILER=${{matrix.compiler.c}} -D CMAKE_CXX_COMPILER=${{matrix.compiler.cxx}} -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DUR_BUILD_TESTS=ON -DUR_FORMAT_CPP_STYLE=ON
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_C_COMPILER=${{matrix.config.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.config.compiler.cxx}}
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        -DUR_BUILD_TESTS=ON
+        -DUR_FORMAT_CPP_STYLE=ON
 
     - name: Generate source from spec, check for uncommitted diff
+      if: matrix.config.os == 'ubuntu-22.04'
       run: cmake --build ${{github.workspace}}/build --target check-generated
 
     - name: Build
@@ -39,7 +52,12 @@ jobs:
 
   windows-build:
     name: Build - Windows
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        config:
+          - {os: 'windows-2019'}
+          - {os: 'windows-2022'}
+    runs-on: ${{matrix.config.os}}
 
     steps:
     - uses: actions/checkout@v3
@@ -52,9 +70,17 @@ jobs:
       run: python3 -m pip install -r third_party/requirements.txt
 
     - name: Configure CMake
-      run: cmake -DCMAKE_POLICY_DEFAULT_CMP0094=NEW -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -B ${{github.workspace}}/build -DUR_FORMAT_CPP_STYLE=ON
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_POLICY_DEFAULT_CMP0094=NEW
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_TESTS=ON
+        -DUR_FORMAT_CPP_STYLE=ON
 
     - name: Generate source from spec, check for uncommitted diff
+      if: matrix.config.os == 'windows-2022'
       run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{env.BUILD_TYPE}}
 
     - name: Build all
