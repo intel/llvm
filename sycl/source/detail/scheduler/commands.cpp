@@ -2241,7 +2241,7 @@ pi_int32 enqueueImpCommandBufferKernel(
     RT::PiExtSyncPoint *OutSyncPoint,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
-  const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   pi_kernel PiKernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   pi_program PiProgram = nullptr;
@@ -2283,7 +2283,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin.call<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
+    Plugin->call<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
         PiKernel, DeviceImpl->getHandleRef(),
         PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
@@ -2296,7 +2296,7 @@ pi_int32 enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
-  pi_result Res = Plugin.call_nocheck<
+  pi_result Res = Plugin->call_nocheck<
       sycl::detail::PiApiKind::piextCommandBufferNDRangeKernel>(
       CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
@@ -2952,7 +2952,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     return MQueue->getPlugin()
-        .call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
+        ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
             CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
             RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
             Event);

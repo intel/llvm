@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, gpu
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Tests adding a USM fill operation as a graph node with the explicit API.
 

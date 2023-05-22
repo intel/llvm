@@ -291,10 +291,10 @@ void exec_graph_impl::create_pi_command_buffers(sycl::device D) {
   RT::PiExtCommandBuffer OutCommandBuffer;
   RT::PiExtCommandBufferDesc Desc{};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::plugin &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(D);
   pi_result Res =
-      Plugin.call_nocheck<sycl::detail::PiApiKind::piextCommandBufferCreate>(
+      Plugin->call_nocheck<sycl::detail::PiApiKind::piextCommandBufferCreate>(
           ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
           &OutCommandBuffer);
   if (Res != pi_result::PI_SUCCESS) {
@@ -328,7 +328,7 @@ void exec_graph_impl::create_pi_command_buffers(sycl::device D) {
   }
 
   Res =
-      Plugin.call_nocheck<sycl::detail::PiApiKind::piextCommandBufferFinalize>(
+      Plugin->call_nocheck<sycl::detail::PiApiKind::piextCommandBufferFinalize>(
           OutCommandBuffer);
   if (Res != pi_result::PI_SUCCESS) {
     throw sycl::exception(errc::invalid,
@@ -339,13 +339,11 @@ void exec_graph_impl::create_pi_command_buffers(sycl::device D) {
 exec_graph_impl::~exec_graph_impl() {
   MSchedule.clear();
   for (auto Iter : MPiCommandBuffers) {
-    const sycl::detail::plugin &Plugin =
+    const sycl::detail::PluginPtr &Plugin =
         sycl::detail::getSyclObjImpl(MContext)->getPlugin();
     if (auto CmdBuf = Iter.second; CmdBuf) {
-      pi_result Res =
-          Plugin
-              .call_nocheck<sycl::detail::PiApiKind::piextCommandBufferRelease>(
-                  CmdBuf);
+      pi_result Res = Plugin->call_nocheck<
+          sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
       (void)Res;
       assert(Res == pi_result::PI_SUCCESS);
     }
@@ -374,7 +372,8 @@ sycl::event exec_graph_impl::enqueue(
     if (MRequirements.empty()) {
       pi_result Res =
           Queue->getPlugin()
-              .call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
+              ->call_nocheck<
+                  sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
                   CommandBuffer, Queue->getHandleRef(), RawEvents.size(),
                   RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
       if (Res != pi_result::PI_SUCCESS) {
@@ -570,11 +569,11 @@ void command_graph<graph_state::executable>::finalize_impl() {
   for (auto Device : impl->get_context().get_devices()) {
     pi_bool CmdBufSupport;
 
-    const sycl::detail::plugin &Plugin =
+    const sycl::detail::PluginPtr &Plugin =
         sycl::detail::getSyclObjImpl(Context)->getPlugin();
 
     auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
-    Plugin.call<sycl::detail::PiApiKind::piDeviceGetInfo>(
+    Plugin->call<sycl::detail::PiApiKind::piDeviceGetInfo>(
         DeviceImpl->getHandleRef(),
         PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT, sizeof(pi_bool),
         &CmdBufSupport, nullptr);

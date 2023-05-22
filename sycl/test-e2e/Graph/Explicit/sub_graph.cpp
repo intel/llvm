@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, gpu
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test creates a graph, finalizes it, then submits that as a subgraph of
 // another graph using the explicit API, and executes that second graph.

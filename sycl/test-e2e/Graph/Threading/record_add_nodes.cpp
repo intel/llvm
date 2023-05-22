@@ -2,7 +2,7 @@
 // Disabled as thread safety not yet implemented
 
 // RUN: %clangxx -pthread -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 // Test recording commands to a queue in a threaded situation. We don't
 // submit the graph to verify the results as ordering of graph nodes isn't

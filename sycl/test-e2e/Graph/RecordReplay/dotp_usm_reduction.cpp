@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, gpu
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Tests a dotp operation using a sycl reduction with device USM being added
 // to the graph using the explicit API.
