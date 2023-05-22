@@ -24,7 +24,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
   // retained.
   if (get_backend() == backend::opencl) {
     impl->getPlugin()->call<detail::PiApiKind::piKernelRetain>(
-      detail::pi::cast<detail::RT::PiKernel>(ClKernel));
+        detail::pi::cast<detail::RT::PiKernel>(ClKernel));
   }
 }
 
