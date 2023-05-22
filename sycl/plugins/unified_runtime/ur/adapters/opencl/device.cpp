@@ -1015,6 +1015,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_platform_handle_t,
+    const ur_device_native_properties_t *,
     ur_device_handle_t *phDevice) {
 
   UR_ASSERT(hNativeDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
