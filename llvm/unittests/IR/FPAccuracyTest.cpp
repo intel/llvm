@@ -4,7 +4,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Type.h"
 #include "gtest/gtest.h"
-#include <optional>
 
 using namespace llvm;
 
