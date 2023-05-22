@@ -463,6 +463,14 @@ public:
              clang::QualType RetType, bool RetReference, clang::Expr *Expr,
              const clang::FunctionDecl &Callee);
 
+  /// Emit a call to the inherited constructor \p InheritedCtor. \p BasePtr is a
+  /// pointer to the base member and \p Args, the list of arguments to the
+  /// original constructor.
+  void
+  emitCallToInheritedCtor(const clang::CXXInheritedCtorInitExpr *InheritedCtor,
+                          mlir::Value BasePtr,
+                          mlir::FunctionOpInterface::BlockArgListType Args);
+
   std::pair<ValueCategory, bool>
   emitClangBuiltinCallExpr(clang::CallExpr *Expr);
 

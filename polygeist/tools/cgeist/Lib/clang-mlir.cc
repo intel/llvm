@@ -236,8 +236,23 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
             Init = Clean->getSubExpr();
           }
 
-          VisitConstructCommon(cast<clang::CXXConstructExpr>(Init),
-                               /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
+          TypeSwitch<clang::Expr *>(Init)
+              .Case<clang::CXXConstructExpr>([&](auto *ConstructExpr) {
+                // Base case
+                VisitConstructCommon(ConstructExpr,
+                                     /*name=*/nullptr, /*space=*/0, /*mem=*/V);
+              })
+              .Case<clang::CXXInheritedCtorInitExpr>([&](auto *InheritedCtor) {
+                // Call to inherited ctor, e.g.:
+                // class A { ... };
+                // class B : public A {
+                //  public:
+                //   using A::A;
+                // ...
+                // };
+                emitCallToInheritedCtor(InheritedCtor, V, Func.getArguments());
+              });
+
           continue;
         }
 
