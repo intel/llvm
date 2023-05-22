@@ -31,6 +31,10 @@ namespace polygeist {
 
 using namespace mlir;
 
+static llvm::cl::list<unsigned> LoopInternalizationTileSizes(
+    DEBUG_TYPE "-tile-sizes", llvm::cl::CommaSeparated,
+    llvm::cl::desc("Tile sizes used in LoopInternalization"));
+
 namespace {
 /// Collect perfectly nested loops starting from \p root.  Loops are
 /// perfectly nested if each loop is the first and only non-terminator operation
@@ -77,9 +81,14 @@ LogicalResult getTileSizes(const SmallVector<T> &nestedLoops,
                            SmallVectorImpl<Value> &tileSizes) {
   // TODO: calculate proper tile sizes.
   OpBuilder builder(nestedLoops.front());
-  Value one =
-      builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), 1);
-  tileSizes.resize(nestedLoops.size(), one);
+  for (auto tileSize : LoopInternalizationTileSizes)
+    tileSizes.push_back(builder.create<arith::ConstantIndexOp>(
+        builder.getUnknownLoc(), tileSize));
+  if (nestedLoops.size() != tileSizes.size()) {
+    Value one =
+        builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), 1);
+    tileSizes.resize(nestedLoops.size(), one);
+  }
   return success();
 }
 
