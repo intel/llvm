@@ -43,8 +43,10 @@ enum DataLessPropKind {
   QueuePriorityNormal = 16,
   QueuePriorityLow = 17,
   QueuePriorityHigh = 18,
+  QueueSubmissionBatched = 19,
+  QueueSubmissionImmediate = 20,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 18,
+  LastKnownDataLessPropKind = 20,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };

@@ -469,6 +469,28 @@ public:
       }
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH;
     }
+    // Track that submission modes do not conflict.
+    bool SubmissionSeen = false;
+    if (PropList.has_property<
+            ext::oneapi::level_zero::property::queue::batched_submission>()) {
+      if (SubmissionSeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different submission modes.");
+      }
+      SubmissionSeen = true;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_BATCHED_SUBMISSION;
+    }
+    if (PropList.has_property<
+            ext::oneapi::level_zero::property::queue::immediate_submission>()) {
+      if (SubmissionSeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different submission modes.");
+      }
+      SubmissionSeen = true;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_IMMEDIATE_SUBMISSION;
+    }
     return CreationFlags;
   }
 

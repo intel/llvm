@@ -739,6 +739,16 @@ bool _pi_queue::isPriorityHigh() const {
   return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH) != 0);
 }
 
+bool _pi_queue::isBatchedSubmission() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_BATCHED_SUBMISSION) !=
+          0);
+}
+
+bool _pi_queue::isImmediateSubmission() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_IMMEDIATE_SUBMISSION) !=
+          0);
+}
+
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                                       bool MakeAvailable,
                                       std::vector<pi_event> &EventListToCleanup,
@@ -980,17 +990,24 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       Properties(PiQueueProperties) {
 
   // Set the type of commandlists the queue will use.
-  bool Default = !ImmediateCommandlistEnvVarIsSet;
-  UsingImmCmdLists = Device->useImmediateCommandLists();
-  urPrint("ImmCmdList env var is set (%s), OldAPI (%s)\n",
-          (ImmediateCommandlistEnvVarIsSet ? "YES" : "NO"),
-          (OldAPI ? "YES" : "NO"));
-
-  if (OldAPI && Default)
-    // The default when called from pre-compiled binaries is to not use
-    // immediate command lists.
+  // When user-selected submission mode, ignore env var setting.
+  if (isBatchedSubmission()) {
     UsingImmCmdLists = false;
-  urPrint("ImmCmdList setting (%s)\n", (UsingImmCmdLists ? "YES" : "NO"));
+  } else if (isImmediateSubmission()) {
+    UsingImmCmdLists = true;
+  } else {
+    bool Default = !ImmediateCommandlistEnvVarIsSet;
+    UsingImmCmdLists = Device->useImmediateCommandLists();
+    urPrint("ImmCmdList env var is set (%s), OldAPI (%s)\n",
+            (ImmediateCommandlistEnvVarIsSet ? "YES" : "NO"),
+            (OldAPI ? "YES" : "NO"));
+
+    if (OldAPI && Default)
+      // The default when called from pre-compiled binaries is to not use
+      // immediate command lists.
+      UsingImmCmdLists = false;
+    urPrint("ImmCmdList setting (%s)\n", (UsingImmCmdLists ? "YES" : "NO"));
+  }
 
   // Compute group initialization.
   // First, see if the queue's device allows for round-robin or it is
@@ -2598,7 +2615,9 @@ pi_result piextQueueCreateInternal(pi_context Context, pi_device Device,
                   PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
                   PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
                   PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
-                  PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+                  PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_BATCHED_SUBMISSION |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_IMMEDIATE_SUBMISSION)),
       PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);

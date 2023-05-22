@@ -591,6 +591,10 @@ struct _pi_queue : _ur_object {
   bool isPriorityLow() const;
   bool isPriorityHigh() const;
 
+  // Returns true if the queue has explicitly selected submission mode.
+  bool isBatchedSubmission() const;
+  bool isImmediateSubmission() const;
+
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
   // For copy commands, IsCopy is set to 'true'.

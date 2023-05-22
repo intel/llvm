@@ -652,6 +652,8 @@ constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_BATCHED_SUBMISSION = (1 << 7);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_IMMEDIATE_SUBMISSION = (1 << 8);
 // clang-format on
 
 typedef enum {
