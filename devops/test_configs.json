@@ -1,7 +1,7 @@
 {
   "lts": [
     {
-      "config": "lin_gen9",
+      "config": "lin_intel",
       "name": "SYCL E2E on Intel CPU/GEN9 GPU",
       "runs-on": [
         "Linux",
