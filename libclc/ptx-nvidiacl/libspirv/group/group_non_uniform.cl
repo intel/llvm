@@ -39,7 +39,13 @@ _Z29__spirv_GroupNonUniformBallotjb(unsigned flag, bool predicate) {
 _CLC_DEF _CLC_CONVERGENT uint
 _Z37__spirv_GroupNonUniformBallotBitCountN5__spv5Scope4FlagEiDv4_j(
     uint scope, uint flag, __clc_vec4_uint32_t mask) {
-  // here we assume scope == __spv::Scope::Subgroup && flag ==
-  // (int)__spv::GroupOperation::ExclusiveScan which is the only current use case
-  return __clc_native_popcount(__nvvm_read_ptx_sreg_lanemask_lt() & mask[0]);
+  // here we assume scope == __spv::Scope::Subgroup
+  if (flag == Reduce) {
+    return __clc_native_popcount(mask[0]);
+  } else if (flag == ExclusiveScan) {
+    return __clc_native_popcount(__nvvm_read_ptx_sreg_lanemask_lt() & mask[0]);
+  } else {
+    __builtin_trap();
+    __builtin_unreachable();
+  }
 }
