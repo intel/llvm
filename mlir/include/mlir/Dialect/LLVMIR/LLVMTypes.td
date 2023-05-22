@@ -234,7 +234,7 @@ def LLVMTargetExtType : LLVMType<"LLVMTargetExt", "target"> {
 
   let parameters = (ins StringRefParameter<>:$extTypeName, 
                         OptionalArrayRefParameter<"Type">:$typeParams,
-                        OptionalArrayRefParameter<"int">:$intParams);
+                        OptionalArrayRefParameter<"unsigned int">:$intParams);
 
 
   let assemblyFormat = [{

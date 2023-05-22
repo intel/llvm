@@ -114,8 +114,9 @@ static void printPointer(AsmPrinter &p, Type elementType,
 //===----------------------------------------------------------------------===//
 
 static bool parseTypeOrIntParam(AsmParser &p, SmallVector<Type> &typeParams,
-                                SmallVector<int> &intParams, bool parseType) {
-  int i;
+                                SmallVector<unsigned int> &intParams,
+                                bool parseType) {
+  unsigned int i;
   if (p.parseOptionalInteger(i).has_value()) {
     // Successfully parsed an integer.
     intParams.push_back(i);
@@ -138,7 +139,7 @@ static bool parseTypeOrIntParam(AsmParser &p, SmallVector<Type> &typeParams,
 
 static ParseResult parseExtTypeParams(AsmParser &p,
                                       SmallVector<Type> &typeParams,
-                                      SmallVector<int> &intParams) {
+                                      SmallVector<unsigned int> &intParams) {
   bool parseType = true;
   // ([type | integer ])? (, [type | integer])* | empty
   bool keepParsing = parseTypeOrIntParam(p, typeParams, intParams, parseType);
@@ -150,7 +151,7 @@ static ParseResult parseExtTypeParams(AsmParser &p,
 }
 
 static void printExtTypeParams(AsmPrinter &p, ArrayRef<Type> typeParams,
-                               ArrayRef<int> intParams) {
+                               ArrayRef<unsigned int> intParams) {
   p << typeParams;
   if (!typeParams.empty() && !intParams.empty())
     p << ", ";
