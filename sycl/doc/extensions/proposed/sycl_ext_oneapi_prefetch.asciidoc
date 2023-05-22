@@ -430,14 +430,14 @@ template <typename Group, typename T,
 void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
                     Properties properties = {});
 
-// Only available if Dimensions == 1 && (AccessMode == read || AccessMode == read_write)
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
           typename Properties = ext::oneapi::experimental::properties<>>
 void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
                     size_t offset, Properties properties = {});
 
-// Only available if Dimensions == 1 && (AccessMode == read || AccessMode == read_write)
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
           typename Properties = ext::oneapi::experimental::properties<>>
