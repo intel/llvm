@@ -865,16 +865,15 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
 /// \c lsc_data_size::u8, \c lsc_data_size::u16.
 /// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
-/// the data is treated as 32 bit data. Allowed NElts values for 64 bit
-/// data are 1, 2, 3, 4, 8, 16, 32, 64.
-/// When NElts is greater than 64 and the data size is not \c
-/// lsc_data_size::u64, the data is treated as 64 bit blocks and hence must
-/// follow the rules set for 64 bit data i.e. 8 byte alignment, the data must
-/// fit whole number of 64 bit words (i.e. \c sizeof(T) \c * \c NELTS
-/// is multiple of 8) and less than 64 words to transfer.
-/// For example to access 512 bytes DS can be \c lsc_data_size::u64 and \c NElts
-/// 64 or DS can be lsc_data_size::u8 and \c NElts 512. However in both cases
-/// the data must be 8 bytes aligned.
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -969,16 +968,15 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
 /// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
 /// \c lsc_data_size::u8, \c lsc_data_size::u16.
 /// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
-/// the data is treated as 32 bit data. Allowed NElts values for 64 bit
-/// data are 1, 2, 3, 4, 8, 16, 32, 64.
-/// When NElts is greater than 64 and the data size is not \c
-/// lsc_data_size::u64, the data is treated as 64 bit blocks and hence must
-/// follow the rules set for 64 bit data i.e. 8 byte alignment, the data must
-/// fit whole number of 64 bit words (i.e. \c sizeof(T) \c * \c NELTS
-/// is multiple of 8) and less than 64 words to transfer.
-/// For example to access 512 bytes DS can be \c lsc_data_size::u64 and \c NElts
-/// 64 or DS can be lsc_data_size::u8 and \c NElts 512. However in both cases
-/// the data must be 8 bytes aligned.
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c NElts
+/// equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -1014,16 +1012,15 @@ lsc_block_load(const T *p, FlagsT flags) {
 /// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
 /// \c lsc_data_size::u8, \c lsc_data_size::u16.
 /// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
-/// the data is treated as 32 bit data. Allowed NElts values for 64 bit
-/// data are 1, 2, 3, 4, 8, 16, 32, 64.
-/// When NElts is greater than 64 and the data size is not \c
-/// lsc_data_size::u64, the data is treated as 64 bit blocks and hence must
-/// follow the rules set for 64 bit data i.e. 8 byte alignment, the data must
-/// fit whole number of 64 bit words (i.e. \c sizeof(T) \c * \c NELTS
-/// is multiple of 8) and less than 64 words to transfer.
-/// For example to access 512 bytes DS can be \c lsc_data_size::u64 and \c NElts
-/// 64 or DS can be lsc_data_size::u8 and \c NElts 512. However in both cases
-/// the data must be 8 bytes aligned.
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -1112,8 +1109,20 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -1207,8 +1216,20 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -1240,8 +1261,20 @@ lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -1712,8 +1745,20 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to specific address.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
@@ -1795,8 +1840,20 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// use of alignment parameter
 ///
 /// Scatters elements to specific address.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
@@ -1821,8 +1878,20 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to surface.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
@@ -1916,8 +1985,20 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
 /// use of alignment parameter
 ///
 /// Scatters elements to surface.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
