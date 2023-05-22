@@ -24,6 +24,7 @@ int main(int Argc, const char *Argv[]) {
   test(sycl::property_list{});
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Normal
+  // With immediate command list recycling, a new IMM is not created here.
   test({sycl::ext::oneapi::property::queue::priority_normal{}});
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Low
