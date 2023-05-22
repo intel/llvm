@@ -18,6 +18,7 @@
 #include <regex>
 #include <sstream>
 #include <stack>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -35,7 +36,7 @@ constexpr uint16_t TRACE_FN_END =
     static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end);
 constexpr std::string_view UR_STREAM_NAME = "ur";
 
-logger::Logger out = logger::create_logger("collector", true);
+static logger::Logger out = logger::create_logger("collector", true);
 
 constexpr const char *ARGS_ENV = "UR_COLLECTOR_ARGS";
 
@@ -188,6 +189,8 @@ typedef std::chrono::time_point<Clock> Timepoint;
 class TraceWriter {
   public:
     virtual ~TraceWriter() {}
+    virtual void prologue() {}
+    virtual void epilogue() {}
     virtual void begin(uint64_t id, const char *fname, std::string args) = 0;
     virtual void end(uint64_t id, const char *fname, std::string args,
                      Timepoint tp, Timepoint start_tp,
@@ -220,8 +223,17 @@ class HumanReadable : public TraceWriter {
 
 class JsonWriter : public TraceWriter {
   public:
-    JsonWriter() { out.info("{{\n \"traceEvents\": ["); }
     ~JsonWriter() override {
+        // FIXME: this is a workaround for xptiTraceFinish not being called
+        // on Windows. This destructor should be removed once that is fixed.
+        try {
+            epilogue();
+        } catch (...) {
+            // not much we can do here...
+        }
+    }
+    void prologue() override { out.info("{{\n \"traceEvents\": ["); }
+    void epilogue() override {
         // Empty trace to avoid ending in a comma
         // To prevent that last comma from being printed in the first place
         // we could synchronize the entire 'end' function, while reversing the
@@ -231,7 +243,6 @@ class JsonWriter : public TraceWriter {
             "\"tid\": \"\", \"ts\": \"\"}}");
         out.info("]\n}}");
     }
-
     void begin(uint64_t id, const char *fname, std::string args) override {}
 
     void end(uint64_t id, const char *fname, std::string args, Timepoint tp,
@@ -356,7 +367,11 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version,
                                      const char *version_str,
                                      const char *stream_name) {
-    if (!stream_name || std::string_view(stream_name) != UR_STREAM_NAME) {
+    if (stream_name == nullptr) {
+        out.debug("Found stream with null name. Skipping...");
+        return;
+    }
+    if (std::string_view(stream_name) != UR_STREAM_NAME) {
         out.debug("Found stream: {}. Expected: {}. Skipping...", stream_name,
                   UR_STREAM_NAME);
         return;
@@ -376,6 +391,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     out.debug("Registered stream {} ({}.{}).", stream_name, major_version,
               minor_version);
 
+    writer()->prologue();
     xptiRegisterCallback(stream_id, TRACE_FN_BEGIN, trace_cb);
     xptiRegisterCallback(stream_id, TRACE_FN_END, trace_cb);
 }
@@ -383,5 +399,19 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
 /**
  * @brief Subscriber finish function called by the XPTI dispatcher.
  */
-XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) { /* noop */
+XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
+    if (stream_name == nullptr) {
+        out.debug("Found stream with null name. Skipping...");
+        return;
+    }
+    if (std::string_view(stream_name) != UR_STREAM_NAME) {
+        out.debug("Found stream: {}. Expected: {}. Skipping...", stream_name,
+                  UR_STREAM_NAME);
+        return;
+    }
+
+    // FIXME: Currently, the epilogue is called in the writer destructor because
+    // this function is not being called correctly on Windows.
+    // Epilogue should be called here once this xpti bug is fixed.
+    // writer()->epilogue();
 }
