@@ -166,12 +166,6 @@ int main() {
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;
 
-  // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
-  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
-  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
-  sycl::ext::oneapi::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
-                                  sycl::ONEAPI::memory_scope::work_group);
-
   // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
