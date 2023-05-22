@@ -175,8 +175,8 @@ func.func @test3(%acc : memref<?x!sycl_accessor_3_f32_rw_gb, 4>, %nditem : memre
 
   %c0_i32 = arith.constant 0 : i32
   %c1_i32 = arith.constant 1 : i32  
+  %ty = sycl.nd_item.get_global_id(%nditem, %c1_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64  
   %tx = sycl.nd_item.get_global_id(%nditem, %c0_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64
-  %ty = sycl.nd_item.get_global_id(%nditem, %c1_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64
 
   affine.for %ii = 0 to 64 {
     %i = arith.index_cast %ii : index to i64

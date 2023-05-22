@@ -117,6 +117,7 @@ static bool usesValue(Operation *op, Value val) {
   if (Operation *valOp = val.getDefiningOp())
     if (valOp == op)
       return true;
+
   return llvm::any_of(op->getOperands(), [&](Value operand) {
     if (Operation *operandOp = operand.getDefiningOp())
       return usesValue(operandOp, val);
@@ -1036,16 +1037,39 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
     llvm::dbgs() << "\n";
   });
 
+  // Collect the "get_global_ids" operations (yielding the global thread ids).
+  std::vector<sycl::SYCLNDItemGetGlobalIDOp> getGlobalIdOps =
+      getOperationsOfType<sycl::SYCLNDItemGetGlobalIDOp>(
+          memoryOp->template getParentOfType<FunctionOpInterface>())
+          .takeVector();
+
+  // Return the index value of a "get_global_ids" operation.
+  auto getIndexValue =
+      [&](sycl::SYCLNDItemGetGlobalIDOp &op) -> std::optional<APInt> {
+    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
+    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
+  };
+
+  // Ensure that all "get_global_ids" have index values known at compile time.
+  if (llvm::any_of(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op) {
+        return !getIndexValue(op).has_value();
+      })) {
+    LLVM_DEBUG(llvm::dbgs() << "Cannot order 'get_global_ids' operations in "
+                               "increasing index value.\n");
+    return;
+  }
+
+  // Order the "get_global_ids" operations in increasing index value.
+  llvm::sort(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op1,
+                                 sycl::SYCLNDItemGetGlobalIDOp &op2) {
+    return getIndexValue(op1)->slt(*getIndexValue(op2));
+  });
+
   // Collect the loops enclosing the memory access operation.
   SetVector<AffineForOp> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
 
-  // Collect the global thread ids.
-  SetVector<sycl::SYCLNDItemGetGlobalIDOp> getGlobalIdOps =
-      getOperationsOfType<sycl::SYCLNDItemGetGlobalIDOp>(
-          memoryOp->template getParentOfType<FunctionOpInterface>());
-
-  // Collect the loop induction variables and the thread ids.
+  // Create a vector containing the the thread ids and loop induction variables.
   SmallVector<Value, 4> loopAndThreadVars;
   for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
     loopAndThreadVars.emplace_back(getGlobalIdOp.getResult());
