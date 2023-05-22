@@ -7,7 +7,7 @@ using urUSMFreeTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
-    bool deviceUSMSupport = false;
+    ur_device_usm_access_capability_flags_t deviceUSMSupport = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
     if (!deviceUSMSupport) {
         GTEST_SKIP() << "Device USM not supported.";
@@ -30,7 +30,7 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
     ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 TEST_P(urUSMFreeTest, SuccessHostAlloc) {
-    bool hostUSMSupport = false;
+    ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, hostUSMSupport));
     if (!hostUSMSupport) {
         GTEST_SKIP() << "Host USM not supported.";
@@ -53,8 +53,8 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
 }
 
 TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
-    bool shared_usm_cross = false;
-    bool shared_usm_single = false;
+    ur_device_usm_access_capability_flags_t shared_usm_cross = 0;
+    ur_device_usm_access_capability_flags_t shared_usm_single = 0;
 
     ASSERT_SUCCESS(
         uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));

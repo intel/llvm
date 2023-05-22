@@ -9,7 +9,7 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urQueueTestWithParam<uur::TestParameters2D>::SetUp());
-        bool device_usm = false;
+        ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
         if (!device_usm) {
             GTEST_SKIP() << "Device USM is not supported";

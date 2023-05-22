@@ -40,7 +40,7 @@ struct urEnqueueUSMFill2DTestWithParam
         allocation_size = pitch * height;
         host_mem = std::vector<uint8_t>(allocation_size);
 
-        bool device_usm = false;
+        ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
         if (!device_usm) {
             GTEST_SKIP() << "Device USM is not supported";
@@ -154,7 +154,7 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
-        bool device_usm = false;
+        ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
         if (!device_usm) {
             GTEST_SKIP() << "Device USM is not supported";
