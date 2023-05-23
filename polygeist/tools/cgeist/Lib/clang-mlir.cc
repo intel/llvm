@@ -68,13 +68,13 @@ constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 /******************************************************************************/
 
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
-                         LowerToInfo &LTInfo)
-    : Glob(Glob), Function(), Module(Module), Builder(Module->getContext()),
-      Loc(Builder.getUnknownLoc()), EntryBlock(nullptr), Loops(),
-      AllocationScope(nullptr), Bufs(), Constants(), Labels(),
-      EmittingFunctionDecl(nullptr), Params(), Captures(), CaptureKinds(),
-      ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
-      LTInfo(LTInfo) {}
+                         LowerToInfo &LTInfo, FunctionContext FuncContext)
+    : Glob(Glob), Function(), FuncContext(FuncContext), Module(Module),
+      Builder(Module->getContext()), Loc(Builder.getUnknownLoc()),
+      EntryBlock(nullptr), Loops(), AllocationScope(nullptr), Bufs(),
+      Constants(), Labels(), EmittingFunctionDecl(nullptr), Params(),
+      Captures(), CaptureKinds(), ThisCapture(nullptr), ArrayInit(), ThisVal(),
+      ReturnVal(), LTInfo(LTInfo) {}
 
 static void checkFunctionParent(const FunctionOpInterface F,
                                 FunctionContext Context,
@@ -90,6 +90,8 @@ static void checkFunctionParent(const FunctionOpInterface F,
 
 void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
   const clang::FunctionDecl *FD = &FTE.getDecl();
+  assert(FuncContext == mlirclang::getFuncContext(Func) &&
+         "Expecting function contexts to match");
 
   Function = Func;
   EmittingFunctionDecl = FD;
@@ -384,6 +386,15 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
     Builder.create<func::ReturnOp>(Loc);
 
   checkFunctionParent(Function, FTE.getContext(), Module);
+}
+
+void MLIRScanner::setEntryAndAllocBlock(Block *B) {
+  AllocationScope = EntryBlock = B;
+  Builder.setInsertionPointToStart(B);
+  // If block is linked, then the function contexts should match.
+  assert(!B->getParentOp() ||
+         FuncContext == mlirclang::getInputContext(Builder) &&
+             "Expecting function contexts to match");
 }
 
 Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,
@@ -1682,7 +1693,8 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
 
 LLVM::GlobalOp
 MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
-                                       std::string Prefix) {
+                                       std::string Prefix,
+                                       FunctionContext FuncContext) {
   std::string Name = Prefix + CGM.getMangledName(FD).str();
   Name = (PrefixABI + Name);
 
@@ -1712,7 +1724,7 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
     Builder.setInsertionPointToStart(Blk);
     Value Res;
     if (const auto *Init = VD->getInit()) {
-      MLIRScanner MS(*this, Module, LTInfo);
+      MLIRScanner MS(*this, Module, LTInfo, FuncContext);
       MS.setEntryAndAllocBlock(Blk);
       Res = MS.Visit(const_cast<clang::Expr *>(Init)).getValue(Builder);
     } else
@@ -1874,7 +1886,7 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
     // explicit initialization.
     assert(DefKind == clang::VarDecl::Definition);
 
-    MLIRScanner MS(*this, Module, LTInfo);
+    MLIRScanner MS(*this, Module, LTInfo, FuncContext);
     Block B;
     MS.setEntryAndAllocBlock(&B);
 
@@ -2040,7 +2052,7 @@ void MLIRASTConsumer::run() {
     });
 
     Done.insert(DoneKey);
-    MLIRScanner MS(*this, Module, LTInfo);
+    MLIRScanner MS(*this, Module, LTInfo, FTE.getContext());
     FunctionOpInterface Function = getOrCreateMLIRFunction(FTE);
     MS.init(Function, FTE);
 

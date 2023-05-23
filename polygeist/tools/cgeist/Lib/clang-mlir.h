@@ -185,7 +185,8 @@ public:
   mlir::LLVM::LLVMFuncOp getOrCreateFreeFunction();
 
   mlir::LLVM::GlobalOp getOrCreateLLVMGlobal(const clang::ValueDecl *VD,
-                                             std::string Prefix = "");
+                                             std::string Prefix,
+                                             FunctionContext FuncContext);
 
   /// Return a value representing an access into a global string with the
   /// given name, creating the string if necessary.
@@ -254,6 +255,7 @@ class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
 private:
   MLIRASTConsumer &Glob;
   mlir::FunctionOpInterface Function;
+  FunctionContext FuncContext;
   mlir::OwningOpRef<mlir::ModuleOp> &Module;
   mlir::OpBuilder Builder;
   mlir::Location Loc;
@@ -387,14 +389,11 @@ private:
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
-              LowerToInfo &LTInfo);
+              LowerToInfo &LTInfo, FunctionContext FuncContext);
 
   void init(mlir::FunctionOpInterface Function, const FunctionToEmit &FTE);
 
-  void setEntryAndAllocBlock(mlir::Block *B) {
-    AllocationScope = EntryBlock = B;
-    Builder.setInsertionPointToStart(B);
-  }
+  void setEntryAndAllocBlock(mlir::Block *B);
 
   mlir::OpBuilder &getBuilder() { return Builder; };
   std::vector<LoopContext> &getLoops() { return Loops; }

@@ -120,7 +120,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
     if (isa<LLVM::LLVMPointerType>(Glob.getTypes().getMLIRType(
             Glob.getCGM().getContext().getPointerType(Decl->getType())))) {
       auto GSF = Glob.getOrCreateLLVMGlobal(
-          Decl, (Function.getName() + "@static@").str());
+          Decl, (Function.getName() + "@static@").str(), FunctionContext::Host);
       Op = ABuilder.create<LLVM::AddressOfOp>(
           VarLoc,
           Glob.getTypes().getPointerType(GSF.getType(), GSF.getAddrSpace()),

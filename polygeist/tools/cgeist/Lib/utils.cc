@@ -74,6 +74,8 @@ NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
 }
 
 FunctionContext getInputContext(const OpBuilder &B) {
+  assert(B.getInsertionBlock()->getParentOp() &&
+         "Expecting builder with linked insertion block");
   return B.getInsertionBlock()
                  ->getParentOp()
                  ->getParentOfType<gpu::GPUModuleOp>()
@@ -87,6 +89,7 @@ gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
 }
 
 FunctionContext getFuncContext(FunctionOpInterface Function) {
+  assert(Function && "Expecting valid Function");
   return isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
              ? FunctionContext::SYCLDevice
              : FunctionContext::Host;
