@@ -653,6 +653,27 @@ private:
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  static std::string instrumentationGetKernelName(
+      const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+      const std::string &FunctionName, const std::string &SyclKernelName,
+      void *&Address, std::optional<bool> &FromSource);
+  static void instrumentationAddExtraKernelMetadata(
+      xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
+      const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+      const std::string &KernelName,
+      const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+      const detail::OSModuleHandle &OSModHandle, const QueueImplPtr &Queue,
+      std::vector<ArgDesc> &CGArgs);
+  void instrumentationFillCommonData(const std::string &KernelName,
+                                     const std::string &FileName, uint64_t Line,
+                                     uint64_t Column, const void *const Address,
+                                     const QueueImplPtr &Queue,
+                                     std::optional<bool> &FromSource,
+                                     uint64_t &OutInstanceID,
+                                     xpti_td *&OutTraceEvent);
+#endif
 };
 
 class UpdateHostRequirementCommand : public Command {
