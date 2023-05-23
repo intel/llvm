@@ -62,6 +62,17 @@ template <typename Acc> struct Wrapper3 {
   Wrapper2<Acc> w2;
 };
 
+namespace implcit_conversion {
+using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
+using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
+
+void implicit_conversion(const AccCT &acc, const ResAccT &res_acc) {
+  auto v = acc[0];
+  res_acc[0] = v;
+}
+} // namespace implcit_conversion
+
 template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
   auto test = [=](auto &Res, const auto &Acc) {
     Res[0] = Acc.byte_size();
@@ -1302,6 +1313,24 @@ int main() {
       assert(local_acc1_hash != local_acc3_hash &&
              "Identical hash was not expected.");
     });
+  }
+
+  {
+    int data = 123;
+    int result = 0;
+    sycl::buffer<int, 1> data_buf(&data, 1);
+    sycl::buffer<int, 1> res_buf(&result, 1);
+    sycl::queue queue;
+    queue
+        .submit([&](sycl::handler &cgh) {
+          implcit_conversion::ResAccT res_acc = res_buf.get_access(cgh);
+          implcit_conversion::AccT acc(data_buf, cgh);
+          cgh.parallel_for_work_group(sycl::range(1), [=](sycl::group<1>) {
+            implcit_conversion::implicit_conversion(acc, res_acc);
+          });
+        })
+        .wait_and_throw();
+    assert(result == 123 && "Expected value not seen.");
   }
 
   std::cout << "Test passed" << std::endl;
