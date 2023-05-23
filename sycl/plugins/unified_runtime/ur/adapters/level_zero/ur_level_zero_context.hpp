@@ -80,9 +80,13 @@ struct ur_context_handle_t_ : _ur_object {
   // application must only use the command list for the device, or its
   // sub-devices, which was provided during creation."
   //
-  std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
+  std::unordered_map<ze_device_handle_t,
+                     std::list<std::pair<ze_command_list_handle_t,
+                                         ZeStruct<ze_command_queue_desc_t>>>>
       ZeComputeCommandListCache;
-  std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
+  std::unordered_map<ze_device_handle_t,
+                     std::list<std::pair<ze_command_list_handle_t,
+                                         ZeStruct<ze_command_queue_desc_t>>>>
       ZeCopyCommandListCache;
 
   // Store USM allocator context(internal allocator structures)

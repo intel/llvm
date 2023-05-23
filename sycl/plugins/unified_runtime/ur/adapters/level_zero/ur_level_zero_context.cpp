@@ -383,7 +383,8 @@ ur_result_t ur_context_handle_t_::finalize() {
 
   std::scoped_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
-    for (ze_command_list_handle_t &ZeCommandList : List.second) {
+    for (auto &Item : List.second) {
+      ze_command_list_handle_t ZeCommandList = Item.first;
       if (ZeCommandList)
         if (ZeCommandList) {
           auto ZeResult =
@@ -395,7 +396,8 @@ ur_result_t ur_context_handle_t_::finalize() {
     }
   }
   for (auto &List : ZeCopyCommandListCache) {
-    for (ze_command_list_handle_t &ZeCommandList : List.second) {
+    for (auto &Item : List.second) {
+      ze_command_list_handle_t ZeCommandList = Item.first;
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
@@ -647,7 +649,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
 
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
-      auto &ZeCommandList = *ZeCommandListIt;
+      auto &ZeCommandList = ZeCommandListIt->first;
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
         if (ForcedCmdQueue && *ForcedCmdQueue != it->second.ZeQueue)
@@ -671,12 +673,14 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
         ze_fence_handle_t ZeFence;
         ZeStruct<ze_fence_desc_t> ZeFenceDesc;
         ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-        CommandList = Queue->CommandListMap
-                          .emplace(ZeCommandList,
-                                   pi_command_list_info_t{ZeFence, true, false,
-                                                          ZeCommandQueue,
-                                                          QueueGroupOrdinal})
-                          .first;
+        ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+        ZeQueueDesc.ordinal = QueueGroupOrdinal;
+        CommandList =
+            Queue->CommandListMap
+                .emplace(ZeCommandList,
+                         pi_command_list_info_t{ZeFence, true, false,
+                                                ZeCommandQueue, ZeQueueDesc})
+                .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);
       if (auto Res = Queue->insertStartBarrierIfDiscardEventsMode(CommandList))

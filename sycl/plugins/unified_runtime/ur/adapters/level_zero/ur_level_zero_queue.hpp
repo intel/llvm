@@ -55,8 +55,16 @@ struct pi_command_list_info_t {
 
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};
-  // Keeps the ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
-  uint32_t ZeQueueGroupOrdinal{0};
+
+  // Record the queue descriptor fields used when creating the command list
+  // because we cannot recover these fields from the command list. Immediate
+  // command lists are recycled across queues and then all fields are used. For
+  // standard command lists only the ordinal is used. For queues created through
+  // the make_queue API the descriptor is unavailable so a dummy descriptor is
+  // used and then this entry is marked as not eligible for recycling.
+  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+  bool CanReuse{true};
+
   // Helper functions to tell if this is a copy command-list.
   bool isCopy(ur_queue_handle_t Queue) const;
 
