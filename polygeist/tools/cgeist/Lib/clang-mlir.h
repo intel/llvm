@@ -62,10 +62,10 @@ struct LoopContext {
 
 class BinOpInfo;
 
-/// Context in which a function is located.
+/// Context in which a function or a global is located.
 enum class InsertionContext {
-  Host,      ///< Host function
-  SYCLDevice ///< SYCL Device function
+  Host,      ///< Host context
+  SYCLDevice ///< SYCL Device context
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
