@@ -52,7 +52,7 @@ TEST(AccuracyLookupTest, TestScalarDoubleAccuracy) {
 
   Accuracy = fp::getAccuracyForFPBuiltin(Intrinsic::fpbuiltin_cos, DoubleTy,
                                          fp::FPAccuracy::Low);
-  //67108864.0f == 2^(53-26-1) == 26-bits of accuracy
+  // 67108864.0f == 2^(53-26-1) == 26-bits of accuracy
   EXPECT_EQ("67108864.0f", Accuracy);
 
   Accuracy = fp::getAccuracyForFPBuiltin(Intrinsic::fpbuiltin_tan, DoubleTy,
