@@ -3252,6 +3252,8 @@ ur_result_t UR_APICALL urQueueRelease(
 ///         + `NULL == phNativeQueue`
 ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
+    ur_queue_native_desc_t
+        *pDesc, ///< [in][optional] pointer to native descriptor
     ur_native_handle_t
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
     ) try {
@@ -3261,7 +3263,7 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnGetNativeHandle(hQueue, phNativeQueue);
+    return pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

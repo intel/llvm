@@ -2445,6 +2445,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
 /// @brief Intercept function for urQueueGetNativeHandle
 __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
+    ur_queue_native_desc_t
+        *pDesc, ///< [in][optional] pointer to native descriptor
     ur_native_handle_t
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
 ) {
@@ -2454,11 +2456,12 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_queue_get_native_handle_params_t params = {&hQueue, &phNativeQueue};
+    ur_queue_get_native_handle_params_t params = {&hQueue, &pDesc,
+                                                  &phNativeQueue};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE, "urQueueGetNativeHandle", &params);
 
-    ur_result_t result = pfnGetNativeHandle(hQueue, phNativeQueue);
+    ur_result_t result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
 
     context.notify_end(UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE,
                        "urQueueGetNativeHandle", &params, &result, instance);

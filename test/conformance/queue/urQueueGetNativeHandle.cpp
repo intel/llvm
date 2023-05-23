@@ -7,7 +7,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetNativeHandleTest);
 
 TEST_P(urQueueGetNativeHandleTest, Success) {
     ur_native_handle_t native_handle = nullptr;
-    ASSERT_SUCCESS(urQueueGetNativeHandle(queue, &native_handle));
+    ASSERT_SUCCESS(urQueueGetNativeHandle(queue, nullptr, &native_handle));
 
     // We cannot assume anything about a native_handle, not even if it's
     // `nullptr` since this could be a valid representation within a backend.
@@ -29,10 +29,10 @@ TEST_P(urQueueGetNativeHandleTest, Success) {
 TEST_P(urQueueGetNativeHandleTest, InvalidNullHandleQueue) {
     ur_native_handle_t native_handle = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urQueueGetNativeHandle(nullptr, &native_handle));
+                     urQueueGetNativeHandle(nullptr, nullptr, &native_handle));
 }
 
 TEST_P(urQueueGetNativeHandleTest, InvalidNullPointerNativeHandle) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urQueueGetNativeHandle(queue, nullptr));
+                     urQueueGetNativeHandle(queue, nullptr, nullptr));
 }

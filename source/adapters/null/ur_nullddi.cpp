@@ -2141,6 +2141,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
 /// @brief Intercept function for urQueueGetNativeHandle
 __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
+    ur_queue_native_desc_t
+        *pDesc, ///< [in][optional] pointer to native descriptor
     ur_native_handle_t
         *phNativeQueue ///< [out] a pointer to the native handle of the queue.
     ) try {
@@ -2149,7 +2151,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGetNativeHandle = d_context.urDdiTable.Queue.pfnGetNativeHandle;
     if (nullptr != pfnGetNativeHandle) {
-        result = pfnGetNativeHandle(hQueue, phNativeQueue);
+        result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
     } else {
         // generic implementation
         *phNativeQueue = reinterpret_cast<ur_native_handle_t>(d_context.get());

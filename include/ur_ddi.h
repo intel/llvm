@@ -1155,6 +1155,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueRelease_t)(
 /// @brief Function-pointer for urQueueGetNativeHandle
 typedef ur_result_t(UR_APICALL *ur_pfnQueueGetNativeHandle_t)(
     ur_queue_handle_t,
+    ur_queue_native_desc_t *,
     ur_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
