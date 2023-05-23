@@ -37,7 +37,6 @@ int main() {
     q.ext_oneapi_submit_barrier();
   }
 
-  q.single_task([=]() {});
   q.wait_and_throw();
   auto Check = [&]() {
     std::bitset<8 * sizeof(*x)> bits(*x);
