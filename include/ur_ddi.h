@@ -1394,7 +1394,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnDeviceRelease_t)(
 /// @brief Function-pointer for urDevicePartition
 typedef ur_result_t(UR_APICALL *ur_pfnDevicePartition_t)(
     ur_device_handle_t,
-    const ur_device_partition_property_t *,
+    const ur_device_partition_desc_t *,
+    size_t,
     uint32_t,
     ur_device_handle_t *,
     uint32_t *);
