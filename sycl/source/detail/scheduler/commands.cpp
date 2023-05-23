@@ -1851,7 +1851,7 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
   emitInstrumentationDataProxy();
 }
 
-std::string ExecCGCommand::instrumentationGetKernelName(
+std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const std::string &FunctionName, const std::string &SyclKernelName,
     void *&Address, std::optional<bool> &FromSource) {
@@ -1870,7 +1870,7 @@ std::string ExecCGCommand::instrumentationGetKernelName(
 #endif
 }
 
-void ExecCGCommand::instrumentationAddExtraKernelMetadata(
+void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::string &KernelName,
@@ -1938,11 +1938,13 @@ void ExecCGCommand::instrumentationAddExtraKernelMetadata(
 #endif
 }
 
-void ExecCGCommand::instrumentationFillCommonData(
-    const std::string &KernelName, const std::string &FileName, uint64_t Line,
-    uint64_t Column, const void *const Address, const QueueImplPtr &Queue,
-    std::optional<bool> &FromSource, uint64_t &OutInstanceID,
-    xpti_td *&OutTraceEvent) {
+void instrumentationFillCommonData(const std::string &KernelName,
+                                   const std::string &FileName, uint64_t Line,
+                                   uint64_t Column, const void *const Address,
+                                   const QueueImplPtr &Queue,
+                                   std::optional<bool> &FromSource,
+                                   uint64_t &OutInstanceID,
+                                   xpti_td *&OutTraceEvent) {
   //  Get source file, line number information from the CommandGroup object
   //  and create payload using name, address, and source info
   //
@@ -2001,7 +2003,7 @@ void ExecCGCommand::instrumentationFillCommonData(
   }
 }
 
-void ExecCGCommand::emitKernelInstrumentationData(
+void emitKernelInstrumentationData(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, const std::string &SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
@@ -2031,10 +2033,11 @@ void ExecCGCommand::emitKernelInstrumentationData(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr, SyclKernelName, SyclKernel,
         OSModHandle, Queue, CGArgs);
 
-    xptiNotifySubscribers(StreamID, xpti::trace_node_create,
-                          detail::GSYCLGraphEvent, CmdTraceEvent, InstanceID,
-                          static_cast<const void *>(
-                              commandToNodeType(CommandType::RUN_CG).c_str()));
+    xptiNotifySubscribers(
+        StreamID, xpti::trace_node_create, detail::GSYCLGraphEvent,
+        CmdTraceEvent, InstanceID,
+        static_cast<const void *>(
+            commandToNodeType(Command::CommandType::RUN_CG).c_str()));
   }
   // #endif
 }

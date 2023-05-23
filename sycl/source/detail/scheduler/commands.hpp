@@ -653,32 +653,18 @@ private:
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  static std::string instrumentationGetKernelName(
-      const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-      const std::string &FunctionName, const std::string &SyclKernelName,
-      void *&Address, std::optional<bool> &FromSource);
-  static void instrumentationAddExtraKernelMetadata(
-      xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
-      const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-      const std::string &KernelName,
-      const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-      const detail::OSModuleHandle &OSModHandle, const QueueImplPtr &Queue,
-      std::vector<ArgDesc> &CGArgs);
-  static void instrumentationFillCommonData(
-      const std::string &KernelName, const std::string &FileName, uint64_t Line,
-      uint64_t Column, const void *const Address, const QueueImplPtr &Queue,
-      std::optional<bool> &FromSource, uint64_t &OutInstanceID,
-      xpti_td *&OutTraceEvent);
-  static void emitKernelInstrumentationData(
-      const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-      const detail::code_location &CodeLoc, const std::string &SyclKernelName,
-      const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
-      const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-      const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs);
-#endif
 };
+
+// Method used to emit data in cases when we do not create node in graph.
+// Very close to ExecCGCommand::emitInstrumentationData content.
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+void emitKernelInstrumentationData(
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs);
+#endif
 
 class UpdateHostRequirementCommand : public Command {
 public:
