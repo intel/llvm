@@ -102,12 +102,7 @@ template <typename T> static SetVector<T> getParentsOfType(Block *block) {
 template <typename T>
 static SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
   SetVector<T> res;
-  for (Block &block : funcOp.getFunctionBody()) {
-    for (Operation &op : block) {
-      if (auto typedOp = dyn_cast<T>(op))
-        res.insert(typedOp);
-    }
-  }
+  funcOp->walk([&](T op) { res.insert(op); });
   return res;
 }
 
@@ -284,6 +279,7 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
               getOperandThatMatchesFactor(lhs.getValue(), rhs.getValue()) !=
                   nullptr)
             return Multiplier::one(expr.getContext());
+
           return Value();
         };
 
@@ -305,6 +301,7 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
               return Multiplier(rhsVal);
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == rhsVal)
               return Multiplier(lhsVal);
+
             return Value();
           }
 
@@ -1079,7 +1076,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // Construct the memory access matrix. The number of rows is equal to the
   // dimensionality of the sycl.id used by the accessor subscript operation.
   // The number of columns is equal to the number of loops surrounding the
-  // memory access plus the number of threads used in the kernel.
+  // memory access plus the number of thread IDs used in the kernel.
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
                                   loopAndThreadVars.size());
 
