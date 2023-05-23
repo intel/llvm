@@ -6,6 +6,7 @@ add_library(${PROJECT_NAME}::common ALIAS ur_common)
 
 target_include_directories(ur_common INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 add_subdirectory(unified_memory_allocation)

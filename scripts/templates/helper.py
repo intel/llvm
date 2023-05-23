@@ -148,6 +148,10 @@ class type_traits:
         except:
             return False
 
+    @classmethod
+    def get_flag_type(cls, name):
+        return re.sub(r"(\w+)_flags_t", r"\1_flag_t", name)
+
     @staticmethod
     def is_known(name, meta):
         try:
