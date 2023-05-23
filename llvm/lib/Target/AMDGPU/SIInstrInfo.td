@@ -1207,6 +1207,17 @@ class NamedOperandU32Default1<string Name, AsmOperandClass MatchClass> :
   let ParserMatchClass = MatchClass;
 }
 
+class SDWAOperandClass<string Id, string Name>
+    : CustomOperandClass<Name, 1> {
+  string ImmTy = "AMDGPUOperand::ImmTy"#Name;
+  let ParserMethod =
+    "[this](OperandVector &Operands) -> OperandMatchResultTy { "#
+    "return parseSDWASel(Operands, \""#Id#"\", "#ImmTy#"); }";
+}
+
+class SDWAOperand<string Id, string Name = NAME>
+  : CustomOperand<i32, 1, Name, SDWAOperandClass<Id, Name>>;
+
 let OperandType = "OPERAND_IMMEDIATE" in {
 
 def flat_offset : CustomOperand<i32, 1, "FlatOffset">;
@@ -1247,10 +1258,10 @@ def FORMAT : CustomOperand<i8>;
 def DMask : NamedIntOperand<i16, "dmask">;
 def Dim : CustomOperand<i8>;
 
-def dst_sel : NamedOperandU32<"SDWADstSel", NamedMatchClass<"SDWADstSel">>;
-def src0_sel : NamedOperandU32<"SDWASrc0Sel", NamedMatchClass<"SDWASrc0Sel">>;
-def src1_sel : NamedOperandU32<"SDWASrc1Sel", NamedMatchClass<"SDWASrc1Sel">>;
-def dst_unused : NamedOperandU32<"SDWADstUnused", NamedMatchClass<"SDWADstUnused">>;
+def dst_sel : SDWAOperand<"dst_sel", "SDWADstSel">;
+def src0_sel : SDWAOperand<"src0_sel", "SDWASrc0Sel">;
+def src1_sel : SDWAOperand<"src1_sel", "SDWASrc1Sel">;
+def dst_unused : CustomOperand<i32, 1, "SDWADstUnused">;
 
 def op_sel0 : NamedOperandU32Default0<"OpSel", NamedMatchClass<"OpSel">>;
 def op_sel_hi0 : NamedOperandU32Default0<"OpSelHi", NamedMatchClass<"OpSelHi">>;
@@ -1262,7 +1273,8 @@ def dpp_ctrl : NamedOperandU32<"DPPCtrl", NamedMatchClass<"DPPCtrl", 0>>;
 
 def row_mask : NamedOperandU32<"RowMask", NamedMatchClass<"RowMask">>;
 def bank_mask : NamedOperandU32<"BankMask", NamedMatchClass<"BankMask">>;
-def bound_ctrl : NamedIntOperand<i1, "bound_ctrl", "DppBoundCtrl", "ConvertDppBoundCtrl">;
+def bound_ctrl : NamedIntOperand<i1, "bound_ctrl", "DppBoundCtrl",
+    "[this] (int64_t &BC) -> bool { return convertDppBoundCtrl(BC); }">;
 def FI : NamedOperandU32<"FI", NamedMatchClass<"FI">>;
 
 def blgp : NamedOperandU32<"BLGP", NamedMatchClass<"BLGP">>;

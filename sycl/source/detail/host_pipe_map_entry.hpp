@@ -50,6 +50,10 @@ struct HostPipeMapEntry {
   void initialize(const RTDeviceBinaryImage *DeviceImage) {
     mDeviceImage = DeviceImage;
   }
+
+  RTDeviceBinaryImage *getDevBinImage() {
+    return const_cast<RTDeviceBinaryImage *>(mDeviceImage);
+  }
 };
 
 } // namespace detail

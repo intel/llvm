@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER='*' %t.out &> %t.log
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_DEVICE_FILTER='*' %{run-unfiltered-devices} %t.out &> %t.log
 // RUN: FileCheck %s < %t.log
 //
 // CHECK:      WARNING: The enviroment variable SYCL_DEVICE_FILTER is deprecated.

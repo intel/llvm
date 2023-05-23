@@ -14,50 +14,123 @@
 // sanitizer_common/sanitizer_common_interceptors.h
 //===----------------------------------------------------------------------===//
 
-#include "interception/interception.h"
 #include "hwasan.h"
+#include "hwasan_checks.h"
 #include "hwasan_thread.h"
+#include "hwasan_thread_list.h"
+#include "interception/interception.h"
+#include "sanitizer_common/sanitizer_linux.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
 
 #if !SANITIZER_FUCHSIA
 
 using namespace __hwasan;
 
-#if HWASAN_WITH_INTERCEPTORS
+#  if HWASAN_WITH_INTERCEPTORS
+
+#    define COMMON_SYSCALL_PRE_READ_RANGE(p, s) __hwasan_loadN((uptr)p, (uptr)s)
+#    define COMMON_SYSCALL_PRE_WRITE_RANGE(p, s) \
+      __hwasan_storeN((uptr)p, (uptr)s)
+#    define COMMON_SYSCALL_POST_READ_RANGE(p, s) \
+      do {                                       \
+        (void)(p);                               \
+        (void)(s);                               \
+      } while (false)
+#    define COMMON_SYSCALL_POST_WRITE_RANGE(p, s) \
+      do {                                        \
+        (void)(p);                                \
+        (void)(s);                                \
+      } while (false)
+#    include "sanitizer_common/sanitizer_common_syscalls.inc"
+#    include "sanitizer_common/sanitizer_syscalls_netbsd.inc"
 
 struct ThreadStartArg {
-  thread_callback_t callback;
-  void *param;
+  __sanitizer_sigset_t starting_sigset_;
 };
 
 static void *HwasanThreadStartFunc(void *arg) {
   __hwasan_thread_enter();
-  ThreadStartArg A = *reinterpret_cast<ThreadStartArg*>(arg);
-  UnmapOrDie(arg, GetPageSizeCached());
-  return A.callback(A.param);
+  ThreadStartArg A = *reinterpret_cast<ThreadStartArg *>(arg);
+  SetSigProcMask(&A.starting_sigset_, nullptr);
+  InternalFree(arg);
+  auto self = GetThreadSelf();
+  auto args = hwasanThreadArgRetval().GetArgs(self);
+  void *retval = (*args.routine)(args.arg_retval);
+  hwasanThreadArgRetval().Finish(self, retval);
+  return retval;
 }
 
-INTERCEPTOR(int, pthread_create, void *th, void *attr, void *(*callback)(void*),
-            void * param) {
+extern "C" {
+int pthread_attr_getdetachstate(void *attr, int *v);
+}
+
+INTERCEPTOR(int, pthread_create, void *thread, void *attr,
+            void *(*callback)(void *), void *param) {
   EnsureMainThreadIDIsCorrect();
   ScopedTaggingDisabler tagging_disabler;
-  ThreadStartArg *A = reinterpret_cast<ThreadStartArg *> (MmapOrDie(
-      GetPageSizeCached(), "pthread_create"));
-  *A = {callback, param};
-  int res;
-  {
-    // ASAN uses the same approach to disable leaks from pthread_create.
+  int detached = 0;
+  if (attr)
+    pthread_attr_getdetachstate(attr, &detached);
+  ThreadStartArg *A = (ThreadStartArg *)InternalAlloc(sizeof(ThreadStartArg));
+  ScopedBlockSignals block(&A->starting_sigset_);
+  // ASAN uses the same approach to disable leaks from pthread_create.
 #    if CAN_SANITIZE_LEAKS
-    __lsan::ScopedInterceptorDisabler lsan_disabler;
+  __lsan::ScopedInterceptorDisabler lsan_disabler;
 #    endif
-    res = REAL(pthread_create)(th, attr, &HwasanThreadStartFunc, A);
-  }
-  return res;
+
+  int result;
+  hwasanThreadArgRetval().Create(detached, {callback, param}, [&]() -> uptr {
+    result = REAL(pthread_create)(thread, attr, &HwasanThreadStartFunc, A);
+    return result ? 0 : *(uptr *)(thread);
+  });
+  if (result != 0)
+    InternalFree(A);
+  return result;
 }
 
-INTERCEPTOR(int, pthread_join, void *t, void **arg) {
-  return REAL(pthread_join)(t, arg);
+INTERCEPTOR(int, pthread_join, void *thread, void **retval) {
+  int result;
+  hwasanThreadArgRetval().Join((uptr)thread, [&]() {
+    result = REAL(pthread_join)(thread, retval);
+    return !result;
+  });
+  return result;
 }
+
+INTERCEPTOR(int, pthread_detach, void *thread) {
+  int result;
+  hwasanThreadArgRetval().Detach((uptr)thread, [&]() {
+    result = REAL(pthread_detach)(thread);
+    return !result;
+  });
+  return result;
+}
+
+INTERCEPTOR(int, pthread_exit, void *retval) {
+  hwasanThreadArgRetval().Finish(GetThreadSelf(), retval);
+  return REAL(pthread_exit)(retval);
+}
+
+#    if SANITIZER_GLIBC
+INTERCEPTOR(int, pthread_tryjoin_np, void *thread, void **ret) {
+  int result;
+  hwasanThreadArgRetval().Join((uptr)thread, [&]() {
+    result = REAL(pthread_tryjoin_np)(thread, ret);
+    return !result;
+  });
+  return result;
+}
+
+INTERCEPTOR(int, pthread_timedjoin_np, void *thread, void **ret,
+            const struct timespec *abstime) {
+  int result;
+  hwasanThreadArgRetval().Join((uptr)thread, [&]() {
+    result = REAL(pthread_timedjoin_np)(thread, ret, abstime);
+    return !result;
+  });
+  return result;
+}
+#    endif
 
 DEFINE_REAL_PTHREAD_FUNCTIONS
 
@@ -67,13 +140,13 @@ DECLARE_EXTERN_INTERCEPTOR_AND_WRAPPER(int, vfork)
 // Get and/or change the set of blocked signals.
 extern "C" int sigprocmask(int __how, const __hw_sigset_t *__restrict __set,
                            __hw_sigset_t *__restrict __oset);
-#define SIG_BLOCK 0
-#define SIG_SETMASK 2
+#    define SIG_BLOCK 0
+#    define SIG_SETMASK 2
 extern "C" int __sigjmp_save(__hw_sigjmp_buf env, int savemask) {
   env[0].__magic = kHwJmpBufMagic;
   env[0].__mask_was_saved =
-      (savemask && sigprocmask(SIG_BLOCK, (__hw_sigset_t *)0,
-                               &env[0].__saved_mask) == 0);
+      (savemask &&
+       sigprocmask(SIG_BLOCK, (__hw_sigset_t *)0, &env[0].__saved_mask) == 0);
   return 0;
 }
 
@@ -102,26 +175,27 @@ InternalLongjmp(__hw_register_buf env, int retval) {
 #    if defined(__aarch64__)
   register long int retval_tmp asm("x1") = retval;
   register void *env_address asm("x0") = &env[0];
-  asm volatile("ldp	x19, x20, [%0, #0<<3];"
-               "ldp	x21, x22, [%0, #2<<3];"
-               "ldp	x23, x24, [%0, #4<<3];"
-               "ldp	x25, x26, [%0, #6<<3];"
-               "ldp	x27, x28, [%0, #8<<3];"
-               "ldp	x29, x30, [%0, #10<<3];"
-               "ldp	 d8,  d9, [%0, #14<<3];"
-               "ldp	d10, d11, [%0, #16<<3];"
-               "ldp	d12, d13, [%0, #18<<3];"
-               "ldp	d14, d15, [%0, #20<<3];"
-               "ldr	x5, [%0, #13<<3];"
-               "mov	sp, x5;"
-               // Return the value requested to return through arguments.
-               // This should be in x1 given what we requested above.
-               "cmp	%1, #0;"
-               "mov	x0, #1;"
-               "csel	x0, %1, x0, ne;"
-               "br	x30;"
-               : "+r"(env_address)
-               : "r"(retval_tmp));
+  asm volatile(
+      "ldp	x19, x20, [%0, #0<<3];"
+      "ldp	x21, x22, [%0, #2<<3];"
+      "ldp	x23, x24, [%0, #4<<3];"
+      "ldp	x25, x26, [%0, #6<<3];"
+      "ldp	x27, x28, [%0, #8<<3];"
+      "ldp	x29, x30, [%0, #10<<3];"
+      "ldp	 d8,  d9, [%0, #14<<3];"
+      "ldp	d10, d11, [%0, #16<<3];"
+      "ldp	d12, d13, [%0, #18<<3];"
+      "ldp	d14, d15, [%0, #20<<3];"
+      "ldr	x5, [%0, #13<<3];"
+      "mov	sp, x5;"
+      // Return the value requested to return through arguments.
+      // This should be in x1 given what we requested above.
+      "cmp	%1, #0;"
+      "mov	x0, #1;"
+      "csel	x0, %1, x0, ne;"
+      "br	x30;"
+      : "+r"(env_address)
+      : "r"(retval_tmp));
 #    elif defined(__x86_64__)
   register long int retval_tmp asm("%rsi") = retval;
   register void *env_address asm("%rdi") = &env[0];
@@ -197,8 +271,7 @@ INTERCEPTOR(void, siglongjmp, __hw_sigjmp_buf env, int val) {
 
   if (env[0].__mask_was_saved)
     // Restore the saved signal mask.
-    (void)sigprocmask(SIG_SETMASK, &env[0].__saved_mask,
-                      (__hw_sigset_t *)0);
+    (void)sigprocmask(SIG_SETMASK, &env[0].__saved_mask, (__hw_sigset_t *)0);
   InternalLongjmp(env[0].__jmpbuf, val);
 }
 
@@ -220,8 +293,8 @@ INTERCEPTOR(void, longjmp, __hw_jmp_buf env, int val) {
   }
   InternalLongjmp(env[0].__jmpbuf, val);
 }
-#undef SIG_BLOCK
-#undef SIG_SETMASK
+#    undef SIG_BLOCK
+#    undef SIG_SETMASK
 
 #  endif  // HWASAN_WITH_INTERCEPTORS
 
@@ -236,7 +309,7 @@ int OnExit() {
   return 0;
 }
 
-} // namespace __hwasan
+}  // namespace __hwasan
 
 namespace __hwasan {
 
@@ -244,19 +317,25 @@ void InitializeInterceptors() {
   static int inited = 0;
   CHECK_EQ(inited, 0);
 
-#if HWASAN_WITH_INTERCEPTORS
-#if defined(__linux__)
+#  if HWASAN_WITH_INTERCEPTORS
+#    if defined(__linux__)
   INTERCEPT_FUNCTION(__libc_longjmp);
   INTERCEPT_FUNCTION(longjmp);
   INTERCEPT_FUNCTION(siglongjmp);
   INTERCEPT_FUNCTION(vfork);
-#endif  // __linux__
+#    endif  // __linux__
   INTERCEPT_FUNCTION(pthread_create);
   INTERCEPT_FUNCTION(pthread_join);
+  INTERCEPT_FUNCTION(pthread_detach);
+  INTERCEPT_FUNCTION(pthread_exit);
+#    if SANITIZER_GLIBC
+  INTERCEPT_FUNCTION(pthread_tryjoin_np);
+  INTERCEPT_FUNCTION(pthread_timedjoin_np);
+#    endif
 #  endif
 
   inited = 1;
 }
-} // namespace __hwasan
+}  // namespace __hwasan
 
 #endif  // #if !SANITIZER_FUCHSIA

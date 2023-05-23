@@ -1,8 +1,8 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: env ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 ZE_DEBUG=4 %{run} %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 ZE_DEBUG=4 %{run} %t.out
 
 // Check that events and pools are not leaked when event caching is
 // enabled/disabled.

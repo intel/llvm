@@ -20,19 +20,20 @@ namespace detail {
 
 // RAII object for keeping ownership of a PI event.
 struct OwnedPiEvent {
-  OwnedPiEvent(const plugin &Plugin) : MEvent{std::nullopt}, MPlugin{Plugin} {}
-  OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin,
+  OwnedPiEvent(const PluginPtr &Plugin)
+      : MEvent{std::nullopt}, MPlugin{Plugin} {}
+  OwnedPiEvent(RT::PiEvent Event, const PluginPtr &Plugin,
                bool TakeOwnership = false)
       : MEvent(Event), MPlugin(Plugin) {
     // If it is not instructed to take ownership, retain the event to share
     // ownership of it.
     if (!TakeOwnership)
-      MPlugin.call<PiApiKind::piEventRetain>(*MEvent);
+      MPlugin->call<PiApiKind::piEventRetain>(*MEvent);
   }
   ~OwnedPiEvent() {
     // Release the event if the ownership was not transferred.
     if (MEvent.has_value())
-      MPlugin.call<PiApiKind::piEventRelease>(*MEvent);
+      MPlugin->call<PiApiKind::piEventRelease>(*MEvent);
   }
 
   OwnedPiEvent(OwnedPiEvent &&Other)
@@ -58,7 +59,7 @@ struct OwnedPiEvent {
 
 private:
   std::optional<RT::PiEvent> MEvent;
-  const plugin &MPlugin;
+  const PluginPtr &MPlugin;
 };
 
 } // namespace detail

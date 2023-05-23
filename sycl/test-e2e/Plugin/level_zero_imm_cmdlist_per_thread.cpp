@@ -1,11 +1,11 @@
 // REQUIRES: gpu, level_zero
 
-// Flaky failure on windows && gen12
-// UNSUPPORTED: windows && gpu-intel-gen12
+// Flaky failure on windows
+// UNSUPPORTED: windows
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %threads_lib %s -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=2 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s
+// RUN: %{build} %level_zero_options %threads_lib -o %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=2 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s
 
 // The test checks that immediate commandlists are created per-thread.
 // One immediate commandlist is created for device init, the rest for the queue.

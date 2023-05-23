@@ -3,6 +3,9 @@
 import sys
 import platform
 
+import site
+
+site.addsitedir("@CMAKE_CURRENT_SOURCE_DIR@")
 
 config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@SYCL_CXX_COMPILER@")
 config.dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
@@ -22,8 +25,12 @@ config.cuda_libs_dir = "@CUDA_LIBS_DIR@"
 config.cuda_include = "@CUDA_INCLUDE@"
 
 config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
-config.target_devices = lit_config.params.get("target_devices", "@SYCL_TARGET_DEVICES@")
-config.sycl_be = lit_config.params.get("sycl_be", "@SYCL_BE@")
+
+config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARGETS@").split(';')
+if lit_config.params.get("target_devices") and lit_config.params.get("sycl_be"):
+    config.sycl_devices = ['{}:{}'.format(lit_config.params.get("sycl_be"), d)
+                           for d in lit_config.params.get("target_devices").split(',')]
+
 config.hip_platform = "@HIP_PLATFORM@"
 config.amd_arch = "@AMD_ARCH@"
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
@@ -34,9 +41,12 @@ config.external_tests = "@SYCL_EXTERNAL_TESTS@"
 config.extra_include = "@CMAKE_CURRENT_SOURCE_DIR@/include"
 config.gpu_aot_target_opts = lit_config.params.get("gpu_aot_target_opts", "@GPU_AOT_TARGET_OPTS@")
 
-config.run_launcher = "@SYCL_E2E_RUN_LAUNCHER@"
+config.run_launcher = lit_config.params.get('run_launcher', "@SYCL_E2E_RUN_LAUNCHER@")
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")
+
+from format import SYCLEndToEndTest
+config.test_format = SYCLEndToEndTest()

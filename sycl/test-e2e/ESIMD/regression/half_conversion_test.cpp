@@ -1,8 +1,5 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //==- half_conversion_test.cpp - Test for half conversion under ESIMD_EMULATOR
 // backend -==/
 //

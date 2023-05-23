@@ -30,6 +30,17 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
+namespace detail {
+
+bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
+  DeviceGlobalMapEntry *DGEntry =
+      detail::ProgramManager::getInstance().getDeviceGlobalEntry(
+          DeviceGlobalPtr);
+  return DGEntry && !DGEntry->MImageIdentifiers.empty();
+}
+
+} // namespace detail
+
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : handler(Queue, Queue, nullptr, IsHost) {}
 
@@ -189,9 +200,9 @@ event handler::finalize() {
                                           : nullptr);
           Result = PI_SUCCESS;
         } else {
-          if (MQueue->getPlugin().getBackend() ==
+          if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
-            MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
                 &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
@@ -501,7 +512,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   case kernel_param_kind_t::kind_accessor: {
     // For args kind of accessor Size is information about accessor.
     // The first 11 bits of Size encodes the accessor target.
-    const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
+    const access::target AccTarget =
+        static_cast<access::target>(Size & AccessTargetMask);
     switch (AccTarget) {
     case access::target::device:
     case access::target::constant_buffer: {
@@ -525,7 +537,10 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
-      if (!IsKernelCreatedFromSource) {
+      // TODO ESIMD currently does not suport MSize field passing yet
+      // accessor::init for ESIMD-mode accessor has a single field, translated
+      // to a single kernel argument set above.
+      if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,
@@ -626,7 +641,7 @@ void handler::extractArgsAndReqsFromLambda(
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
       const access::target AccTarget =
-          static_cast<access::target>(Size & 0x7ff);
+          static_cast<access::target>(Size & AccessTargetMask);
       if ((AccTarget == access::target::device ||
            AccTarget == access::target::constant_buffer) ||
           (AccTarget == access::target::image ||
@@ -817,9 +832,9 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      detail::RT::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
-  Plugin.call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
-                                                   InfoQuery, sizeof(pi_bool),
-                                                   &SupportsOp, nullptr);
+  Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
+                                                    InfoQuery, sizeof(pi_bool),
+                                                    &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -905,6 +920,46 @@ void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
   MLength = NumBytes;
   MImpl->MOffset = Offset;
   setType(detail::CG::CopyFromDeviceGlobal);
+}
+
+void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
+                                           const void *Src,
+                                           size_t DeviceGlobalTSize,
+                                           bool IsDeviceImageScoped,
+                                           size_t NumBytes, size_t Offset) {
+  std::weak_ptr<detail::context_impl> WeakContextImpl =
+      MQueue->getContextImplPtr();
+  std::weak_ptr<detail::device_impl> WeakDeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Capture context and device as weak to avoid keeping them alive for too
+    // long. If they are dead by the time this executes, the operation would not
+    // have been visible anyway.
+    std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
+    std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
+    if (ContextImpl && DeviceImpl)
+      ContextImpl->memcpyToHostOnlyDeviceGlobal(
+          DeviceImpl, DeviceGlobalPtr, Src, DeviceGlobalTSize,
+          IsDeviceImageScoped, NumBytes, Offset);
+  });
+}
+
+void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
+                                             const void *DeviceGlobalPtr,
+                                             bool IsDeviceImageScoped,
+                                             size_t NumBytes, size_t Offset) {
+  const std::shared_ptr<detail::context_impl> &ContextImpl =
+      MQueue->getContextImplPtr();
+  const std::shared_ptr<detail::device_impl> &DeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Unlike memcpy to device_global, we need to keep the context and device
+    // alive in the capture of this operation as we must be able to correctly
+    // copy the value to the user-specified pointer.
+    ContextImpl->memcpyFromHostOnlyDeviceGlobal(
+        DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
+        Offset);
+  });
 }
 
 const std::shared_ptr<detail::context_impl> &

@@ -41,7 +41,7 @@ using namespace mlir::vector;
 static std::optional<int64_t> extractConstantIndex(Value v) {
   if (auto cstOp = v.getDefiningOp<arith::ConstantIndexOp>())
     return cstOp.value();
-  if (auto affineApplyOp = v.getDefiningOp<AffineApplyOp>())
+  if (auto affineApplyOp = v.getDefiningOp<affine::AffineApplyOp>())
     if (affineApplyOp.getAffineMap().isSingleConstant())
       return affineApplyOp.getAffineMap().getSingleConstantResult();
   return std::nullopt;
@@ -76,8 +76,8 @@ static Value createInBoundsCond(RewriterBase &b,
     int64_t vectorSize = xferOp.getVectorType().getDimSize(resultIdx);
     auto d0 = getAffineDimExpr(0, xferOp.getContext());
     auto vs = getAffineConstantExpr(vectorSize, xferOp.getContext());
-    Value sum =
-        makeComposedAffineApply(b, loc, d0 + vs, xferOp.indices()[indicesIdx]);
+    Value sum = affine::makeComposedAffineApply(b, loc, d0 + vs,
+                                                xferOp.indices()[indicesIdx]);
     Value cond = createFoldedSLE(
         b, sum, vector::createOrFoldDimOp(b, loc, xferOp.source(), indicesIdx));
     if (!cond)
@@ -190,7 +190,7 @@ createSubViewIntersection(RewriterBase &b, VectorTransferOpInterface xferOp,
   Location loc = xferOp.getLoc();
   int64_t memrefRank = xferOp.getShapedType().getRank();
   // TODO: relax this precondition, will require rank-reducing subviews.
-  assert(memrefRank == alloc.getType().cast<MemRefType>().getRank() &&
+  assert(memrefRank == cast<MemRefType>(alloc.getType()).getRank() &&
          "Expected memref rank to match the alloc rank");
   ValueRange leadingIndices =
       xferOp.indices().take_front(xferOp.getLeadingShapedRank());
@@ -208,7 +208,7 @@ createSubViewIntersection(RewriterBase &b, VectorTransferOpInterface xferOp,
     SmallVector<AffineMap, 4> maps =
         AffineMap::inferFromExprList(MapList{{i - j, k}});
     // affine_min(%dimMemRef - %index, %dimAlloc)
-    Value affineMin = b.create<AffineMinOp>(
+    Value affineMin = b.create<affine::AffineMinOp>(
         loc, index.getType(), maps[0], ValueRange{dimMemRef, index, dimAlloc});
     sizes.push_back(affineMin);
   });
@@ -449,7 +449,7 @@ static Operation *getAutomaticAllocationScope(Operation *op) {
        parent = parent->getParentOp()) {
     if (parent->hasTrait<OpTrait::AutomaticAllocationScope>())
       scope = parent;
-    if (!isa<scf::ForOp, AffineForOp>(parent))
+    if (!isa<scf::ForOp, affine::AffineForOp>(parent))
       break;
   }
   assert(scope && "Expected op to be inside automatic allocation scope");
@@ -571,8 +571,8 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   }
 
   MemRefType compatibleMemRefType =
-      getCastCompatibleMemRefType(xferOp.getShapedType().cast<MemRefType>(),
-                                  alloc.getType().cast<MemRefType>());
+      getCastCompatibleMemRefType(cast<MemRefType>(xferOp.getShapedType()),
+                                  cast<MemRefType>(alloc.getType()));
   if (!compatibleMemRefType)
     return failure();
 

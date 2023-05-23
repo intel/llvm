@@ -7,14 +7,7 @@
 #===------------------------------------------------------------------------===#
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  cmake_minimum_required(VERSION 3.13.4)
-  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
-    message(WARNING
-      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
-      "minimum version of CMake required to build LLVM will become 3.20.0, and "
-      "using an older CMake will become an error. Please upgrade your CMake to "
-      "at least 3.20.0 now to avoid issues in the future!")
-  endif()
+  cmake_minimum_required(VERSION 3.20.0)
 
   project(FlangRuntime C CXX)
 
@@ -26,6 +19,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   set(LLVM_COMMON_CMAKE_UTILS "${FLANG_SOURCE_DIR}/../cmake")
   set(LLVM_CMAKE_UTILS "${FLANG_SOURCE_DIR}/../llvm/cmake")
+  set(CLANG_CMAKE_UTILS "${FLANG_SOURCE_DIR}/../clang/cmake")
 
   # Add path for custom modules
   list(INSERT CMAKE_MODULE_PATH 0
@@ -35,8 +29,10 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     "${LLVM_COMMON_CMAKE_UTILS}/Modules"
     "${LLVM_CMAKE_UTILS}"
     "${LLVM_CMAKE_UTILS}/modules"
+    "${CLANG_CMAKE_UTILS}/modules"
     )
 
+  include(AddClang)
   include(AddLLVM)
   include(AddFlang)
   include(HandleLLVMOptions)

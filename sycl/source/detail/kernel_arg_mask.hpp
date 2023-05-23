@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/device_binary_image.hpp>
+#include <vector>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

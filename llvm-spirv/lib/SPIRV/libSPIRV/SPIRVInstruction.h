@@ -1758,6 +1758,14 @@ public:
 
   SPIRVExtInstSetKind getExtSetKind() const { return ExtSetKind; }
 
+  void addContinuedInstruction(SPIRVExtInst *Inst) {
+    ContinuedInstructions.push_back(Inst);
+  }
+
+  std::vector<SPIRVExtInst *> getContinuedInstructions() {
+    return ContinuedInstructions;
+  }
+
   void setExtSetKindById() {
     assert(Module && "Invalid module");
     ExtSetKind = Module->getBuiltinSet(ExtSetId);
@@ -1809,7 +1817,17 @@ public:
       assert(0 && "not supported");
       getDecoder(I) >> ExtOp;
     }
-    getDecoder(I) >> Args;
+    SPIRVDecoder Decoder = getDecoder(I);
+    Decoder >> Args;
+
+    if (ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+        ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+      if (getExtOp() == SPIRVDebug::Instruction::Source) {
+        for (SPIRVEntry *E : Decoder.getSourceContinuedInstructions()) {
+          addContinuedInstruction(static_cast<SPIRVExtInst *>(E));
+        }
+      }
+    }
   }
   void validate() const override {
     SPIRVFunctionCallGeneric::validate();
@@ -1865,6 +1883,7 @@ protected:
     SPIRVDebugExtOpKind ExtOpDebug;
     NonSemanticAuxDataOpKind ExtOpNonSemanticAuxData;
   };
+  std::vector<SPIRVExtInst *> ContinuedInstructions;
 };
 
 class SPIRVCompositeConstruct : public SPIRVInstruction {

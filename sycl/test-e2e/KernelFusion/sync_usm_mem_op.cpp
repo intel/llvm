@@ -1,9 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test fusion cancellation on an explicit memory operation on an USM pointer
 // happening before complete_fusion.
@@ -61,6 +57,10 @@ int main() {
 
   fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
 
+  for (size_t i = 0; i < dataSize; ++i) {
+    std::cout << out[i] << ", ";
+  }
+  std::cout << "\n";
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
     assert(out[i] == (20 * i * i) && "Computation error");

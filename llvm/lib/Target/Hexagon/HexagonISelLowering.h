@@ -18,12 +18,12 @@
 #include "MCTargetDesc/HexagonMCTargetDesc.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/InlineAsm.h"
-#include "llvm/Support/MachineValueType.h"
 #include <cstdint>
 #include <utility>
 
@@ -200,7 +200,7 @@ public:
   SDValue LowerStore(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerUAddSubO(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerAddSubCarry(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerUAddSubOCarry(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINLINEASM(SDValue Op, SelectionDAG &DAG) const;

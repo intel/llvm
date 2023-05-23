@@ -38,25 +38,25 @@ struct GroupOpC {};
 template <typename T, typename = void> struct GroupOpTag;
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sigeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger<T>::value>> {
   using type = GroupOpISigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger<T>::value>> {
   using type = GroupOpIUnsigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
   using type = GroupOpFP;
 };
 
 template <typename T>
 struct GroupOpTag<
-    T, detail::enable_if_t<std::is_same<T, std::complex<half>>::value ||
-                           std::is_same<T, std::complex<float>>::value ||
-                           std::is_same<T, std::complex<double>>::value>> {
+    T, std::enable_if_t<std::is_same<T, std::complex<half>>::value ||
+                        std::is_same<T, std::complex<float>>::value ||
+                        std::is_same<T, std::complex<double>>::value>> {
   using type = GroupOpC;
 };
 

@@ -43,11 +43,11 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
   // TODO: Align these checks with the SYCL specification when the behaviour
   // with void * is clarified.
   template <typename T>
-  using EnableIfOutputPointerT = enable_if_t<
+  using EnableIfOutputPointerT = std::enable_if_t<
       /*is_output_iterator<T>::value &&*/ std::is_pointer<T>::value>;
 
   template <typename T>
-  using EnableIfOutputIteratorT = enable_if_t<
+  using EnableIfOutputIteratorT = std::enable_if_t<
       /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
 
 public:
@@ -87,9 +87,9 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const plugin &getPlugin() const;
+  const PluginPtr &getPlugin() const;
 
-  size_t getSizeInBytes() const override { return MSizeInBytes; }
+  size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept {

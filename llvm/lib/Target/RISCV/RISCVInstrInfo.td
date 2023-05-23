@@ -57,8 +57,6 @@ def riscv_call      : SDNode<"RISCVISD::CALL", SDT_RISCVCall,
                               SDNPVariadic]>;
 def riscv_ret_glue  : SDNode<"RISCVISD::RET_GLUE", SDTNone,
                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
-def riscv_uret_glue : SDNode<"RISCVISD::URET_GLUE", SDTNone,
-                             [SDNPHasChain, SDNPOptInGlue]>;
 def riscv_sret_glue : SDNode<"RISCVISD::SRET_GLUE", SDTNone,
                              [SDNPHasChain, SDNPOptInGlue]>;
 def riscv_mret_glue : SDNode<"RISCVISD::MRET_GLUE", SDTNone,
@@ -410,10 +408,6 @@ def ixlenimm_li : Operand<XLenVT> {
 }
 
 // Standalone (codegen-only) immleaf patterns.
-
-// A 12-bit signed immediate plus one where the imm range will be [-2047, 2048].
-def simm12_plus1 : ImmLeaf<XLenVT,
-  [{return (isInt<12>(Imm) && Imm != -2048) || Imm == 2048;}]>;
 
 // A 6-bit constant greater than 32.
 def uimm6gt32 : ImmLeaf<XLenVT, [{
@@ -822,12 +816,6 @@ def SRAW  : ALUW_rr<0b0100000, 0b101, "sraw">,
 //===----------------------------------------------------------------------===//
 
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
-def URET : Priv<"uret", 0b0000000>, Sched<[]> {
-  let rd = 0;
-  let rs1 = 0;
-  let rs2 = 0b00010;
-}
-
 def SRET : Priv<"sret", 0b0001000>, Sched<[]> {
   let rd = 0;
   let rs1 = 0;
@@ -1214,8 +1202,8 @@ def : InstAlias<".insn_s $opcode, $funct3, $rs2, ${imm12}(${rs1})",
 
 /// Generic pattern classes
 
-class PatGpr<SDPatternOperator OpNode, RVInst Inst>
-    : Pat<(OpNode GPR:$rs1), (Inst GPR:$rs1)>;
+class PatGpr<SDPatternOperator OpNode, RVInst Inst, ValueType vt = XLenVT>
+    : Pat<(vt (OpNode GPR:$rs1)), (Inst GPR:$rs1)>;
 class PatGprGpr<SDPatternOperator OpNode, RVInst Inst, ValueType vt = XLenVT>
     : Pat<(vt (OpNode GPR:$rs1, GPR:$rs2)), (Inst GPR:$rs1, GPR:$rs2)>;
 
@@ -1446,7 +1434,7 @@ def PseudoCCSUBW : Pseudo<(outs GPR:$dst),
                    Sched<[WriteSFB, ReadSFB, ReadSFB, ReadSFB, ReadSFB, ReadSFB]>;
 }
 
-multiclass SelectCC_GPR_rrirr<RegisterClass valty> {
+multiclass SelectCC_GPR_rrirr<DAGOperand valty> {
   let usesCustomInserter = 1 in
   def _Using_CC_GPR : Pseudo<(outs valty:$dst),
                              (ins GPR:$lhs, GPR:$rhs, ixlenimm:$cc,
@@ -1562,7 +1550,6 @@ def PseudoCALL : Pseudo<(outs), (ins call_symbol:$func), []>,
 def : Pat<(riscv_call tglobaladdr:$func), (PseudoCALL tglobaladdr:$func)>;
 def : Pat<(riscv_call texternalsym:$func), (PseudoCALL texternalsym:$func)>;
 
-def : Pat<(riscv_uret_glue), (URET X0, X0)>;
 def : Pat<(riscv_sret_glue), (SRET X0, X0)>;
 def : Pat<(riscv_mret_glue), (MRET X0, X0)>;
 
@@ -1927,5 +1914,4 @@ include "RISCVInstrInfoZicond.td"
 
 include "RISCVInstrInfoXVentana.td"
 include "RISCVInstrInfoXTHead.td"
-include "RISCVInstrInfoZihintntl.td"
 include "RISCVInstrInfoXSf.td"

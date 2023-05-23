@@ -1,9 +1,9 @@
-// UNSUPPORTED: hip, gpu-intel-pvc
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: hip
+// RUN: %{build} -o %t.out
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 #include <sycl/accessor.hpp>
@@ -166,7 +166,7 @@ void testcopyH2DImage() {
                                  ImgSize_1D);
     sycl::image<1> image_to_1D(data_to_1D.data(), ChanOrder, ChanType,
                                ImgSize_1D);
-    device Dev{default_selector{}};
+    device Dev;
     context Ctx{Dev};
     context otherCtx{Dev};
 
