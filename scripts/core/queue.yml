@@ -185,6 +185,21 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES    
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Descriptor for $xQueueGetNativeHandle and $xQueueCreateWithNativeHandle."
+details:
+    - Specify this descriptor in $xQueueGetNativeHandle directly or
+      $xQueueCreateWithNativeHandle via $x_queue_native_properties_t
+      as part of a `pNext` chain.
+class: $xQueue
+name: $x_queue_native_desc_t
+base: $x_base_desc_t
+members:
+    - type: "void*"
+      name: pNativeData
+      desc: |
+            [in][optional] Adapter-specific metadata needed to create the handle.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Return queue native queue handle."
 class: $xQueue
@@ -201,6 +216,10 @@ params:
       name: hQueue
       desc: |
             [in] handle of the queue.
+    - type: $x_queue_native_desc_t*
+      name: pDesc
+      desc: |
+            [in][optional] pointer to native descriptor
     - type: $x_native_handle_t*
       name: phNativeQueue
       desc: |

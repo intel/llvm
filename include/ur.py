@@ -224,6 +224,7 @@ class ur_structure_type_v(IntEnum):
     DEVICE_NATIVE_PROPERTIES = 22                   ## ::ur_device_native_properties_t
     PROGRAM_NATIVE_PROPERTIES = 23                  ## ::ur_program_native_properties_t
     SAMPLER_NATIVE_PROPERTIES = 24                  ## ::ur_sampler_native_properties_t
+    QUEUE_NATIVE_DESC = 25                          ## ::ur_queue_native_desc_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1521,6 +1522,22 @@ class ur_queue_index_properties_t(Structure):
     ]
 
 ###############################################################################
+## @brief Descriptor for ::urQueueGetNativeHandle and
+##        ::urQueueCreateWithNativeHandle.
+## 
+## @details
+##     - Specify this descriptor in ::urQueueGetNativeHandle directly or
+##       ::urQueueCreateWithNativeHandle via ::ur_queue_native_properties_t as
+##       part of a `pNext` chain.
+class ur_queue_native_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("pNativeData", c_void_p)                                       ## [in][optional] Adapter-specific metadata needed to create the handle.
+    ]
+
+###############################################################################
 ## @brief Properties for for ::urQueueCreateWithNativeHandle.
 class ur_queue_native_properties_t(Structure):
     _fields_ = [
@@ -2607,9 +2624,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urQueueGetNativeHandle
 if __use_win_types:
-    _urQueueGetNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, POINTER(ur_native_handle_t) )
+    _urQueueGetNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, POINTER(ur_queue_native_desc_t), POINTER(ur_native_handle_t) )
 else:
-    _urQueueGetNativeHandle_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, POINTER(ur_native_handle_t) )
+    _urQueueGetNativeHandle_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, POINTER(ur_queue_native_desc_t), POINTER(ur_native_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urQueueCreateWithNativeHandle
