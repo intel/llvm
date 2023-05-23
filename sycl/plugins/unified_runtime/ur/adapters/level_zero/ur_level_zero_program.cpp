@@ -719,9 +719,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
         NativeProgram,           ///< [in] the native handle of the program.
     ur_context_handle_t Context, ///< [in] handle of the context instance
+    const ur_program_native_properties_t
+        *Properties, ///< [in][optional] pointer to native program properties
+                     ///< struct.
     ur_program_handle_t *Program ///< [out] pointer to the handle of the
                                  ///< program object created.
 ) {
+  std::ignore = Properties;
   auto ZeModule = ur_cast<ze_module_handle_t>(NativeProgram);
 
   // We assume here that programs created from a native handle always

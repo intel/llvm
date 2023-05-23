@@ -1233,9 +1233,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t NativeDevice, ///< [in] the native handle of the device.
     ur_platform_handle_t Platform,   ///< [in] handle of the platform instance
+    const ur_device_native_properties_t
+        *Properties, ///< [in][optional] pointer to native device properties
+                     ///< struct.
     ur_device_handle_t
         *Device ///< [out] pointer to the handle of the device object created.
 ) {
+  std::ignore = Properties;
   auto ZeDevice = ur_cast<ze_device_handle_t>(NativeDevice);
 
   // The SYCL spec requires that the set of devices must remain fixed for the

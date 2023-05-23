@@ -480,11 +480,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t Queue, ///< [in] handle of the queue.
+    ur_queue_native_desc_t *Desc,
     ur_native_handle_t
         *NativeQueue ///< [out] a pointer to the native handle of the queue.
 ) {
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<ur_shared_mutex> lock(Queue->Mutex);
+
+  int32_t NativeHandleDesc{};
 
   // Get handle to this thread's queue group.
   auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
@@ -494,7 +497,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
     // Extract the Level Zero command list handle from the given PI queue
     *ZeCmdList = QueueGroup.getImmCmdList()->first;
     // TODO: How to pass this up in the urQueueGetNativeHandle interface?
-    // *NativeHandleDesc = true;
+    NativeHandleDesc = true;
   } else {
     auto ZeQueue = ur_cast<ze_command_queue_handle_t *>(NativeQueue);
 
@@ -503,8 +506,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
     uint32_t QueueGroupOrdinalUnused;
     *ZeQueue = QueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
     // TODO: How to pass this up in the urQueueGetNativeHandle interface?
-    // *NativeHandleDesc = false;
+    NativeHandleDesc = false;
   }
+
+  if (Desc && Desc->pNativeData)
+    *(reinterpret_cast<int32_t *>((Desc->pNativeData))) = NativeHandleDesc;
 
   return UR_RESULT_SUCCESS;
 }
@@ -533,23 +539,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 ) {
   bool OwnNativeHandle = false;
   ur_queue_flags_t Flags{};
+  int32_t NativeHandleDesc{};
 
   if (NativeProperties) {
     OwnNativeHandle = NativeProperties->isNativeHandleOwned;
-    if (NativeProperties->pNext) {
+    void *pNext = NativeProperties->pNext;
+    while (pNext) {
       const ur_base_properties_t *extendedProperties =
-          reinterpret_cast<const ur_base_properties_t *>(
-              NativeProperties->pNext);
+          reinterpret_cast<const ur_base_properties_t *>(pNext);
       if (extendedProperties->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
         const ur_queue_properties_t *UrProperties =
             reinterpret_cast<const ur_queue_properties_t *>(extendedProperties);
         Flags = UrProperties->flags;
+      } else if (extendedProperties->stype ==
+                 UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC) {
+        const ur_queue_native_desc_t *UrNativeDesc =
+            reinterpret_cast<const ur_queue_native_desc_t *>(
+                extendedProperties);
+        if (UrNativeDesc->pNativeData)
+          NativeHandleDesc =
+              *(reinterpret_cast<int32_t *>((UrNativeDesc->pNativeData)));
       }
+      pNext = extendedProperties->pNext;
     }
   }
-
-  // TODO: How to pass this up in the urQueueCreateWithNativeHandle interface?
-  int32_t NativeHandleDesc = 0;
 
   // Get the device handle from first device in the platform
   // Maybe this is not completely correct.

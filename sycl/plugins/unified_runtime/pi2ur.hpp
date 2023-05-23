@@ -498,7 +498,8 @@ piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_platform_handle_t UrPlatform{};
   ur_native_handle_t UrNativeHandle =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
-  urPlatformCreateWithNativeHandle(UrNativeHandle, &UrPlatform);
+  ur_platform_native_properties_t UrProperties{};
+  urPlatformCreateWithNativeHandle(UrNativeHandle, &UrProperties, &UrPlatform);
 
   *Platform = reinterpret_cast<pi_platform>(UrPlatform);
 
@@ -1004,8 +1005,9 @@ piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_platform_handle_t UrPlatform =
       reinterpret_cast<ur_platform_handle_t>(Platform);
   auto UrDevice = reinterpret_cast<ur_device_handle_t *>(Device);
-  HANDLE_ERRORS(
-      urDeviceCreateWithNativeHandle(UrNativeDevice, UrPlatform, UrDevice));
+  ur_device_native_properties_t UrProperties{};
+  HANDLE_ERRORS(urDeviceCreateWithNativeHandle(UrNativeDevice, UrPlatform,
+                                               &UrProperties, UrDevice));
 
   return PI_SUCCESS;
 }
@@ -1361,10 +1363,13 @@ inline pi_result piextQueueCreateWithNativeHandle(
   if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)
     UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
 
+  ur_queue_native_desc_t UrNativeDesc{};
+  UrNativeDesc.stype = UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC;
+  UrNativeDesc.pNativeData = &NativeHandleDesc;
+
+  UrProperties.pNext = &UrNativeDesc;
   UrNativeProperties.pNext = &UrProperties;
 
-  // TODO: How to pass this up in the urQueueCreateWithNativeHandle interface?
-  std::ignore = NativeHandleDesc;
   HANDLE_ERRORS(urQueueCreateWithNativeHandle(
       UrNativeHandle, UrContext, UrDevice, &UrNativeProperties, UrQueue));
   return PI_SUCCESS;
@@ -1377,13 +1382,13 @@ inline pi_result piextQueueGetNativeHandle(pi_queue Queue,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
-  // TODO: How to pass this up in the urQueueGetNativeHandle interface?
-  std::ignore = NativeHandleDesc;
+  ur_queue_native_desc_t UrNativeDesc{};
+  UrNativeDesc.pNativeData = NativeHandleDesc;
 
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
   ur_native_handle_t UrNativeQueue{};
-  HANDLE_ERRORS(urQueueGetNativeHandle(UrQueue, &UrNativeQueue));
+  HANDLE_ERRORS(urQueueGetNativeHandle(UrQueue, &UrNativeDesc, &UrNativeQueue));
 
   *NativeHandle = reinterpret_cast<pi_native_handle>(UrNativeQueue);
 
@@ -1967,7 +1972,7 @@ inline pi_result piextProgramGetNativeHandle(pi_program Program,
 
 inline pi_result
 piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                   pi_context Context, bool ownNativeHandle,
+                                   pi_context Context, bool OwnNativeHandle,
                                    pi_program *Program) {
   PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
@@ -1979,8 +1984,10 @@ piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(Program);
-  HANDLE_ERRORS(
-      urProgramCreateWithNativeHandle(NativeProgram, UrContext, UrProgram));
+  ur_program_native_properties_t UrProperties{};
+  UrProperties.isNativeHandleOwned = OwnNativeHandle;
+  HANDLE_ERRORS(urProgramCreateWithNativeHandle(NativeProgram, UrContext,
+                                                &UrProperties, UrProgram));
   return PI_SUCCESS;
 }
 

@@ -272,7 +272,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
   pDdiTable->pfnFree = urUSMFree;
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnPoolCreate = urUSMPoolCreate;
-  pDdiTable->pfnPoolDestroy = urUSMPoolDestroy;
+  pDdiTable->pfnPoolRetain = urUSMPoolRetain;
+  pDdiTable->pfnPoolRelease = urUSMPoolRelease;
+  pDdiTable->pfnPoolGetInfo = urUSMPoolGetInfo;
 
   return retVal;
 }

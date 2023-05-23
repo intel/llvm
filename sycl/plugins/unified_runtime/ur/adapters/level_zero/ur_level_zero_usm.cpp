@@ -532,12 +532,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroy(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_usm_pool_handle_t Pool    ///< [in] pointer to USM memory pool
+ur_result_t
+urUSMPoolRetain(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
 ) {
-  std::ignore = Context;
   std::ignore = Pool;
+  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t
+urUSMPoolRelease(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
+) {
+  std::ignore = Pool;
+  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urUSMPoolGetInfo(
+    ur_usm_pool_handle_t Pool,   ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t PropName, ///< [in] name of the pool property to query
+    size_t PropSize, ///< [in] size in bytes of the pool property value provided
+    void *PropValue, ///< [out][typename(propName, propSize)] value of the pool
+                     ///< property
+    size_t *PropSizeRet ///< [out] size in bytes returned in pool property value
+) {
+  std::ignore = Pool;
+  std::ignore = PropName;
+  std::ignore = PropSize;
+  std::ignore = PropValue;
+  std::ignore = PropSizeRet;
   urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

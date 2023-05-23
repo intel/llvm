@@ -161,11 +161,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
         NativeSampler,           ///< [in] the native handle of the sampler.
     ur_context_handle_t Context, ///< [in] handle of the context object
+    const ur_sampler_native_properties_t
+        *Properties, ///< [in][optional] pointer to native sampler properties
+                     ///< struct.
     ur_sampler_handle_t *Sampler ///< [out] pointer to the handle of the
                                  ///< sampler object created.
 ) {
   std::ignore = NativeSampler;
   std::ignore = Context;
+  std::ignore = Properties;
   std::ignore = Sampler;
   urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
