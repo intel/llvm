@@ -62,7 +62,6 @@ if args.debug:
     print(config)
 env = dict()
 
-env['UR_LOG_COLLECTOR']="level:info;output:stderr;flush:info"
 collector_args = ""
 if args.print_begin:
     collector_args += "print_begin;"
@@ -81,15 +80,16 @@ env['UR_COLLECTOR_ARGS'] = collector_args
 log_collector = ""
 if args.debug:
     log_collector += "level:debug;"
+    log_collector += "flush:debug;"
 else:
     log_collector += "level:info;"
+    log_collector += "flush:info;"
 if args.file:
     log_collector += "output:file," + args.file + ";"
 elif args.stdout:
-    log_collector += "output:stdout;"
+    log_collector += "output:stdout"
 else:
-    log_collector += "output:stderr;"
-log_collector += "flush:error"
+    log_collector += "output:stderr"
 env['UR_LOG_COLLECTOR'] = log_collector
 
 env['XPTI_TRACE_ENABLE'] = "1"
