@@ -332,8 +332,6 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
         return visitBinaryOp(mulOp, factor, solver, getMultiplier,
                              computeResult);
       })
-      //      .Case<sycl::SYCLNDItemGetGlobalIDOp>(
-      //        [](auto getGlobalIdOp) { return getGlobalIdOp.getResult(); })
       .Case<CastOpInterface>([&](auto) {
         return getMultiplier(op->getOperand(0), factor, solver);
       })
