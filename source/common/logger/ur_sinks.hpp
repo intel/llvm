@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 
 #include "ur_filesystem_resolved.hpp"
@@ -17,12 +18,16 @@ class Sink {
   public:
     template <typename... Args>
     void log(logger::Level level, const char *fmt, Args &&...args) {
+        std::ostringstream buffer;
         if (!skip_prefix) {
-            *ostream << "<" << logger_name << ">";
-            *ostream << "[" << level_to_str(level) << "]: ";
+            buffer << "<" << logger_name << ">"
+                   << "[" << level_to_str(level) << "]: ";
         }
-        format(fmt, std::forward<Args &&>(args)...);
-        *ostream << "\n";
+
+        format(buffer, fmt, std::forward<Args &&>(args)...);
+
+        std::scoped_lock lock(output_mutex);
+        *ostream << buffer.str();
         if (level >= flush_level) {
             ostream->flush();
         }
@@ -45,51 +50,54 @@ class Sink {
   private:
     std::string logger_name;
     bool skip_prefix;
+    std::mutex output_mutex;
 
-    void format(const char *fmt) {
+    void format(std::ostringstream &buffer, const char *fmt) {
         while (*fmt != '\0') {
             while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
-                *ostream << *fmt++;
+                buffer << *fmt++;
             }
 
             if (*fmt == '{') {
                 if (*(++fmt) == '{') {
-                    *ostream << *fmt++;
+                    buffer << *fmt++;
                 } else {
                     throw std::runtime_error(
                         "No arguments provided and braces not escaped!");
                 }
             } else if (*fmt == '}') {
                 if (*(++fmt) == '}') {
-                    *ostream << *fmt++;
+                    buffer << *fmt++;
                 } else {
                     throw std::runtime_error(
                         "Closing curly brace not escaped!");
                 }
             }
         }
+        buffer << "\n";
     }
 
     template <typename Arg, typename... Args>
-    void format(const char *fmt, Arg &&arg, Args &&...args) {
+    void format(std::ostringstream &buffer, const char *fmt, Arg &&arg,
+                Args &&...args) {
         bool arg_printed = false;
         while (!arg_printed) {
             while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
-                *ostream << *fmt++;
+                buffer << *fmt++;
             }
 
             if (*fmt == '{') {
                 if (*(++fmt) == '{') {
-                    *ostream << *fmt++;
+                    buffer << *fmt++;
                 } else if (*fmt != '}') {
                     throw std::runtime_error("Only empty braces are allowed!");
                 } else {
-                    *ostream << arg;
+                    buffer << arg;
                     arg_printed = true;
                 }
             } else if (*fmt == '}') {
                 if (*(++fmt) == '}') {
-                    *ostream << *fmt++;
+                    buffer << *fmt++;
                 } else {
                     throw std::runtime_error(
                         "Closing curly brace not escaped!");
@@ -97,7 +105,7 @@ class Sink {
             }
         }
 
-        format(++fmt, std::forward<Args &&>(args)...);
+        format(buffer, ++fmt, std::forward<Args &&>(args)...);
     }
 };
 
@@ -152,6 +160,8 @@ class FileSink : public Sink {
         : FileSink(std::move(logger_name), std::move(file_path), skip_prefix) {
         this->flush_level = flush_lvl;
     }
+
+    ~FileSink() = default;
 
   private:
     std::ofstream ofstream;
