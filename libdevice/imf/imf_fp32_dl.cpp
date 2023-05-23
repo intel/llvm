@@ -6,6 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Subset of intel math functions is required by deep learning frameworks and we
+// decide to keep all functions required in a separate file and build a new
+// spirv module using this file. By this way, we can reduce unnecessary jit
+// overhead in these deep learning frameworks.
 #include "../device_imf.hpp"
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
