@@ -153,8 +153,16 @@ struct pi_command_list_info_t {
 
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};
-  // Keeps the ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
-  uint32_t ZeQueueGroupOrdinal{0};
+
+  // Record the queue descriptor fields used when creating the command list
+  // because we cannot recover these fields from the command list. Immediate
+  // command lists are recycled across queues and then all fields are used. For
+  // standard command lists only the ordinal is used. For queues created through
+  // the make_queue API the descriptor is unavailable so a dummy descriptor is
+  // used and then this entry is marked as not eligible for recycling.
+  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+  bool CanReuse{true};
+
   // Helper functions to tell if this is a copy command-list.
   bool isCopy(pi_queue Queue) const;
 
@@ -244,9 +252,13 @@ struct _pi_context : _ur_object {
   // application must only use the command list for the device, or its
   // sub-devices, which was provided during creation."
   //
-  std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
+  std::unordered_map<ze_device_handle_t,
+                     std::list<std::pair<ze_command_list_handle_t,
+                                         ZeStruct<ze_command_queue_desc_t>>>>
       ZeComputeCommandListCache;
-  std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
+  std::unordered_map<ze_device_handle_t,
+                     std::list<std::pair<ze_command_list_handle_t,
+                                         ZeStruct<ze_command_queue_desc_t>>>>
       ZeCopyCommandListCache;
 
   // Retrieves a command list for executing on this device along with
@@ -387,8 +399,7 @@ struct _pi_queue : _ur_object {
   _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties Properties = 0, int ForceComputeIndex = -1,
-            bool oldAPI = false);
+            pi_queue_properties Properties = 0, int ForceComputeIndex = -1);
 
   using queue_type = _pi_device::queue_group_info_t::type;
 

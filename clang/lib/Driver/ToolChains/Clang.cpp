@@ -10051,8 +10051,13 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
   // Make sure we preserve any auxiliary data which may be present in the
-  // SPIR-V object, which we need for SPIR-V-based fat objects.
-  addArgs(CmdArgs, TCArgs, {"-llvm-spirv-opts", "--spirv-preserve-auxdata"});
+  // SPIR-V object, use SPIR-V style IR as opposed to OpenCL, and represent
+  // SPIR-V globals as global variables instead of functions, all of which we
+  // need for SPIR-V-based fat objects.
+  addArgs(CmdArgs, TCArgs,
+          {"-llvm-spirv-opts",
+           "--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
+           "--spirv-builtin-format=global"});
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
