@@ -15,7 +15,7 @@
 
 // CHECK-SINGLE-TARGET-UNUSED: argument unused during compilation: '-Xspirv-translator=spir64_gen foo'
 
-// CHECK-MULTIPLE-TARGET: clang-offload-bundler{{.*}} "-targets=sycl-spir64-unknown-unknown" {{.*}} "-unbundle"
 // CHECK-MULTIPLE-TARGET: llvm-spirv{{.*}} "bar"
-// CHECK-MULTIPLE-TARGET: clang-offload-bundler{{.*}} "-targets=sycl-spir64_gen-unknown-unknown" {{.*}} "-unbundle"
+// CHECK-MULTIPLE-TARGET: clang-offload-wrapper{{.*}} "-target=spir64" "-kind=sycl"
 // CHECK-MULTIPLE-TARGET: llvm-spirv{{.*}} "foo"
+// CHECK-MULTIPLE-TARGET: clang-offload-wrapper{{.*}} "-target=spir64_gen" "-kind=sycl"
