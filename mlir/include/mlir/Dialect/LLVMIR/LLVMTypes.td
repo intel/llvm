@@ -231,6 +231,14 @@ def LLVMScalableVectorType : LLVMType<"LLVMScalableVector", "vec"> {
 
 def LLVMTargetExtType : LLVMType<"LLVMTargetExt", "target"> {
   let summary = "LLVM target-specific extension type";
+  let description = [{
+    LLVM dialect target extension type, which are generally unintrospectable
+    from target-independent optimizations.
+
+    Target extension types have a string name, and optionally have type and/or
+    integer parameters. The exact meaning of any parameters is dependent on the
+    target. 
+  }];
 
   let parameters = (ins StringRefParameter<>:$extTypeName, 
                         OptionalArrayRefParameter<"Type">:$typeParams,
