@@ -1,5 +1,7 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -S %s -o /dev/null 2>&1 | FileCheck %s
-// RUN: not %clangxx -fsycl -fsycl-device-only -O0 -S %s -o /dev/null 2>&1 | FileCheck %s
+// RUN: not %clangxx -fsycl -fno-sycl-esimd-force-stateless-mem -fsycl-device-only -S %s -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-NEGATIVE %s
+// RUN: not %clangxx -fsycl -fno-sycl-esimd-force-stateless-mem -fsycl-device-only -O0 -S %s -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-NEGATIVE %s
+
+// RUN: not %clangxx -fsycl -fsycl-esimd-force-stateless-mem -fsycl-device-only -O0 -S %s -o /dev/null  2>&1 | FileCheck -check-prefix=CHECK-POSITIVE %s
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
@@ -7,12 +9,16 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
-// CHECK-DAG: error: function 'int* sycl::_V1::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
-// CHECK-DAG: error: function '{{.+}} sycl::_V1::accessor<{{.+}}>::operator[]<{{.+}}>({{.+}}) const' is not supported in ESIMD context
-// CHECK-DAG: error: function '{{.+}}combine(int const&)' is not supported in ESIMD context
+// CHECK-NEGATIVE-DAG: error: function 'int* sycl::_V1::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
+// CHECK-NEGATIVE-DAG: error: function '{{.+}} sycl::_V1::accessor<{{.+}}>::operator[]<{{.+}}>({{.+}}) const' is not supported in ESIMD context
+// CHECK-NEGATIVE-DAG: error: function '{{.+}}combine(int const&)' is not supported in ESIMD context
+
+// CHECK-POSITIVE-NOT: error: function 'int* sycl::_V1::accessor<{{.+}}>::get_pointer
+// CHECK-POSITIVE-NOT: error: function '{{.+}} sycl::_V1::accessor<{{.+}}>::operator[]
+// CHECK-POSITIVE-DAG: error: function '{{.+}}combine(int const&)' is not supported in ESIMD context
 
 SYCL_EXTERNAL auto
-test(accessor<int, 1, access::mode::read_write, access::target::device> &acc)
+test0(accessor<int, 1, access::mode::read_write, access::target::device> &acc)
     SYCL_ESIMD_FUNCTION {
   return acc.get_pointer();
 }
