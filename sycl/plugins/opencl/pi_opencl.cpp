@@ -735,7 +735,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    std::memcpy(paramValue, &result, sizeof(bool));
     return PI_SUCCESS;
   }
   default:
