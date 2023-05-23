@@ -666,13 +666,17 @@ private:
       const std::shared_ptr<detail::kernel_impl> &SyclKernel,
       const detail::OSModuleHandle &OSModHandle, const QueueImplPtr &Queue,
       std::vector<ArgDesc> &CGArgs);
-  void instrumentationFillCommonData(const std::string &KernelName,
-                                     const std::string &FileName, uint64_t Line,
-                                     uint64_t Column, const void *const Address,
-                                     const QueueImplPtr &Queue,
-                                     std::optional<bool> &FromSource,
-                                     uint64_t &OutInstanceID,
-                                     xpti_td *&OutTraceEvent);
+  static void instrumentationFillCommonData(
+      const std::string &KernelName, const std::string &FileName, uint64_t Line,
+      uint64_t Column, const void *const Address, const QueueImplPtr &Queue,
+      std::optional<bool> &FromSource, uint64_t &OutInstanceID,
+      xpti_td *&OutTraceEvent);
+  static void emitKernelInstrumentationData(
+      const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+      const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+      const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+      const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+      const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs);
 #endif
 };
 

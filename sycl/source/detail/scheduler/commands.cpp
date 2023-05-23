@@ -1851,10 +1851,6 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
   emitInstrumentationDataProxy();
 }
 
-// void ExecCGCommand::emitKernelInstrumentationData() {
-
-// }
-
 std::string ExecCGCommand::instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const std::string &FunctionName, const std::string &SyclKernelName,
@@ -2005,8 +2001,46 @@ void ExecCGCommand::instrumentationFillCommonData(
   }
 }
 
-void ExecCGCommand::emitInstrumentationData() {
+void ExecCGCommand::emitKernelInstrumentationData(
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs) {
   // #ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+
+  void *Address = nullptr;
+  std::optional<bool> FromSource;
+  std::string KernelName = instrumentationGetKernelName(
+      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
+      FromSource);
+
+  xpti_td *CmdTraceEvent = nullptr;
+  uint64_t InstanceID = -1;
+  instrumentationFillCommonData(KernelName, CodeLoc.fileName(),
+                                CodeLoc.lineNumber(), CodeLoc.columnNumber(),
+                                Address, Queue, FromSource, InstanceID,
+                                CmdTraceEvent);
+
+  if (CmdTraceEvent) {
+    instrumentationAddExtraKernelMetadata(
+        CmdTraceEvent, NDRDesc, KernelBundleImplPtr, SyclKernelName, SyclKernel,
+        OSModHandle, Queue, CGArgs);
+
+    xptiNotifySubscribers(StreamID, xpti::trace_node_create,
+                          detail::GSYCLGraphEvent, CmdTraceEvent, InstanceID,
+                          static_cast<const void *>(
+                              commandToNodeType(CommandType::RUN_CG).c_str()));
+  }
+  // #endif
+}
+
+void ExecCGCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
 
@@ -2047,7 +2081,7 @@ void ExecCGCommand::emitInstrumentationData() {
         CmdTraceEvent, MInstanceID,
         static_cast<const void *>(commandToNodeType(MType).c_str()));
   }
-  // #endif
+#endif
 }
 
 void ExecCGCommand::printDot(std::ostream &Stream) const {
