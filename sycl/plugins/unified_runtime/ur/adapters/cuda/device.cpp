@@ -938,6 +938,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
 
     return ReturnValue(memory_bandwidth);
   }
+  case UR_DEVICE_INFO_IL_VERSION: {
+    std::string il_version = "nvptx-";
+
+    int driver_version = 0;
+    cuDriverGetVersion(&driver_version);
+    int major = driver_version / 1000;
+    int minor = driver_version % 1000 / 10;
+
+    // We can work out which ptx ISA version we support based on the versioning
+    // table published here
+    // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#release-notes
+    // Major versions that we support are consistent in how they line up, so we
+    // can derive that easily. The minor versions for version 10 don't line up
+    // the same so it needs a special case. This is not ideal but it does seem
+    // to be the best bet to avoid a maintenance burden here.
+    il_version += std::to_string(major - 4) + ".";
+    if (major == 10) {
+      il_version += std::to_string(minor + 3);
+    } else if (major >= 11) {
+      il_version += std::to_string(minor);
+    } else {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    return ReturnValue(il_version.data(), il_version.size());
+  }
   case UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
     // Maximum number of 32-bit registers available to a thread block.
     // Note: This number is shared by all thread blocks simultaneously resident
