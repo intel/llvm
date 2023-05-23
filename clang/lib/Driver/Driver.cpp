@@ -1149,7 +1149,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     StringRef Val(SYCLForceTarget->getValue());
     llvm::Triple TT(MakeSYCLDeviceTriple(Val));
     // Todo: we skip the check for the valid SYCL target, because currently
-    // setting native_cpu as a target overrides all the other targets, 
+    // setting native_cpu as a target overrides all the other targets,
     // re-enable the check once native_cpu can coexist.
     if (!IsSYCLNativeCPU && !isValidSYCLTriple(TT))
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
