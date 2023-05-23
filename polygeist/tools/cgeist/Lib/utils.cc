@@ -73,14 +73,14 @@ NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
   return NamespaceKind::Other;
 }
 
-FunctionContext getInputContext(const OpBuilder &B) {
+InsertionContext getInputContext(const OpBuilder &B) {
   assert(B.getInsertionBlock() && B.getInsertionBlock()->getParentOp() &&
          "Expecting builder with linked insertion block");
   return B.getInsertionBlock()
                  ->getParentOp()
                  ->getParentOfType<gpu::GPUModuleOp>()
-             ? FunctionContext::SYCLDevice
-             : FunctionContext::Host;
+             ? InsertionContext::SYCLDevice
+             : InsertionContext::Host;
 }
 
 gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
@@ -88,21 +88,21 @@ gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
 }
 
-FunctionContext getFuncContext(FunctionOpInterface Function) {
+InsertionContext getFuncContext(FunctionOpInterface Function) {
   assert(Function && "Expecting valid Function");
   return isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
-             ? FunctionContext::SYCLDevice
-             : FunctionContext::Host;
+             ? InsertionContext::SYCLDevice
+             : InsertionContext::Host;
 }
 
-void setInsertionPoint(OpBuilder &Builder, FunctionContext FuncContext,
+void setInsertionPoint(OpBuilder &Builder, InsertionContext FuncContext,
                        ModuleOp Module) {
   switch (FuncContext) {
-  case FunctionContext::SYCLDevice:
+  case InsertionContext::SYCLDevice:
     Builder.setInsertionPointToStart(
         mlirclang::getDeviceModule(Module).getBody());
     break;
-  case FunctionContext::Host:
+  case InsertionContext::Host:
     Builder.setInsertionPointToStart(Module.getBody());
     break;
   }

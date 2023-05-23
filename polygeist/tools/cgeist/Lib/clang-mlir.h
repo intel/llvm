@@ -63,18 +63,18 @@ struct LoopContext {
 class BinOpInfo;
 
 /// Context in which a function is located.
-enum class FunctionContext {
+enum class InsertionContext {
   Host,      ///< Host function
   SYCLDevice ///< SYCL Device function
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
-                                     const FunctionContext &Context) {
+                                     const InsertionContext &Context) {
   switch (Context) {
-  case FunctionContext::Host:
+  case InsertionContext::Host:
     Out << "Host";
     break;
-  case FunctionContext::SYCLDevice:
+  case InsertionContext::SYCLDevice:
     Out << "SYCLDevice";
     break;
   }
@@ -91,35 +91,35 @@ public:
       : FuncDecl(FuncDecl),
         FuncContext((FuncDecl.hasAttr<clang::SYCLKernelAttr>() ||
                      FuncDecl.hasAttr<clang::SYCLDeviceAttr>())
-                        ? FunctionContext::SYCLDevice
-                        : FunctionContext::Host) {}
+                        ? InsertionContext::SYCLDevice
+                        : InsertionContext::Host) {}
 
   /// Note: set the context requested, ensuring a host context is not requested
   /// for SYCL kernel/functions.
   FunctionToEmit(const clang::FunctionDecl &FuncDecl,
-                 FunctionContext FuncContext)
+                 InsertionContext FuncContext)
       : FuncDecl(FuncDecl), FuncContext(FuncContext) {
     bool IsSyclFunc = FuncDecl.hasAttr<clang::SYCLKernelAttr>() ||
                       FuncDecl.hasAttr<clang::SYCLDeviceAttr>();
     (void)IsSyclFunc;
 
-    assert((FuncContext == FunctionContext::SYCLDevice ||
-            (FuncContext == FunctionContext::Host && !IsSyclFunc)) &&
+    assert((FuncContext == InsertionContext::SYCLDevice ||
+            (FuncContext == InsertionContext::Host && !IsSyclFunc)) &&
            "SYCL kernel/device functions should not have host context");
   }
 
   const clang::FunctionDecl &getDecl() const { return FuncDecl; }
-  FunctionContext getContext() const { return FuncContext; }
+  InsertionContext getContext() const { return FuncContext; }
 
 private:
   const clang::FunctionDecl &FuncDecl;
-  const FunctionContext FuncContext;
+  const InsertionContext FuncContext;
 };
 
 class MLIRASTConsumer : public clang::ASTConsumer {
 private:
   std::set<std::string> &EmitIfFound;
-  std::set<std::pair<FunctionContext, std::string>> &Done;
+  std::set<std::pair<InsertionContext, std::string>> &Done;
   std::map<std::string, mlir::LLVM::GlobalOp> &LLVMStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &Globals;
   std::map<std::string, mlir::func::FuncOp> &Functions;
@@ -144,7 +144,7 @@ public:
 
   MLIRASTConsumer(
       std::set<std::string> &EmitIfFound,
-      std::set<std::pair<FunctionContext, std::string>> &Done,
+      std::set<std::pair<InsertionContext, std::string>> &Done,
       std::map<std::string, mlir::LLVM::GlobalOp> &LLVMStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &Globals,
       std::map<std::string, mlir::func::FuncOp> &Functions,
@@ -180,25 +180,25 @@ public:
   mlir::FunctionOpInterface getOrCreateMLIRFunction(FunctionToEmit &FTE,
                                                     bool GetDeviceStub = false);
   mlir::LLVM::LLVMFuncOp getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
-                                                 FunctionContext FuncContext);
+                                                 InsertionContext FuncContext);
   mlir::LLVM::LLVMFuncOp getOrCreateMallocFunction();
   mlir::LLVM::LLVMFuncOp getOrCreateFreeFunction();
 
   mlir::LLVM::GlobalOp getOrCreateLLVMGlobal(const clang::ValueDecl *VD,
                                              std::string Prefix,
-                                             FunctionContext FuncContext);
+                                             InsertionContext FuncContext);
 
   /// Return a value representing an access into a global string with the
   /// given name, creating the string if necessary.
   mlir::Value getOrCreateGlobalLLVMString(mlir::Location Loc,
                                           mlir::OpBuilder &Builder,
                                           clang::StringRef Value,
-                                          FunctionContext FuncContext);
+                                          InsertionContext FuncContext);
 
   /// Create global variable and initialize it.
   std::pair<mlir::memref::GlobalOp, bool>
   getOrCreateGlobal(const clang::ValueDecl &VD, std::string Prefix,
-                    FunctionContext FuncContext);
+                    InsertionContext FuncContext);
 
   const clang::CodeGen::CGFunctionInfo &
   getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);
@@ -228,7 +228,7 @@ private:
   /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>
   getMLIRFunction(const std::string &MangledName,
-                  FunctionContext Context) const;
+                  InsertionContext Context) const;
 
   /// Create the MLIR function corresponding to the given \p FTE.
   /// The MLIR function is created in either the device module (GPUModuleOp) or
@@ -255,7 +255,7 @@ class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
 private:
   MLIRASTConsumer &Glob;
   mlir::FunctionOpInterface Function;
-  FunctionContext FuncContext;
+  InsertionContext FuncContext;
   mlir::OwningOpRef<mlir::ModuleOp> &Module;
   mlir::OpBuilder Builder;
   mlir::Location Loc;
@@ -308,7 +308,7 @@ private:
   const clang::FunctionDecl *EmitCallee(const clang::Expr *E);
 
   mlir::FunctionOpInterface EmitDirectCallee(const clang::FunctionDecl *FD,
-                                             FunctionContext Context);
+                                             InsertionContext Context);
 
   mlir::Value castToIndex(mlir::Location Loc, mlir::Value Val);
 
@@ -389,7 +389,7 @@ private:
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
-              LowerToInfo &LTInfo, FunctionContext FuncContext);
+              LowerToInfo &LTInfo, InsertionContext FuncContext);
 
   void init(mlir::FunctionOpInterface Function, const FunctionToEmit &FTE);
 
