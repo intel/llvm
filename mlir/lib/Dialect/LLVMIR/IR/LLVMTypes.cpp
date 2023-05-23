@@ -772,6 +772,32 @@ LLVMScalableVectorType::verify(function_ref<InFlightDiagnostic()> emitError,
 }
 
 //===----------------------------------------------------------------------===//
+// LLVMTargetExtType.
+//===----------------------------------------------------------------------===//
+
+bool LLVM::LLVMTargetExtType::hasProperty(Property prop) const {
+  // See llvm/lib/IR/Type.cpp for reference.
+  uint64_t properties = 0;
+
+  if (getExtTypeName().starts_with("spirv."))
+    properties |=
+        (LLVMTargetExtType::HasZeroInit | LLVM::LLVMTargetExtType::CanBeGlobal);
+
+  return (properties & prop) == prop;
+}
+
+bool LLVM::LLVMTargetExtType::supportsAlloca() const {
+  // See llvm/lib/IR/Type.cpp for reference.
+  if (getExtTypeName().starts_with("spirv."))
+    return true;
+
+  if (getExtTypeName() == "aarch64.svcount")
+    return true;
+
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
 // Utility functions.
 //===----------------------------------------------------------------------===//
 
@@ -1028,7 +1054,8 @@ llvm::TypeSize mlir::LLVM::getPrimitiveTypeSizeInBits(Type type) {
       .Default([](Type ty) {
         assert((llvm::isa<LLVMVoidType, LLVMLabelType, LLVMMetadataType,
                           LLVMTokenType, LLVMStructType, LLVMArrayType,
-                          LLVMPointerType, LLVMFunctionType>(ty)) &&
+                          LLVMPointerType, LLVMFunctionType, LLVMTargetExtType>(
+                   ty)) &&
                "unexpected missing support for primitive type");
         return llvm::TypeSize::Fixed(0);
       });

@@ -731,6 +731,9 @@ static bool isTypeCompatibleWithAtomicOp(Type type, bool isPointerTypeAllowed) {
   if (llvm::isa<LLVMPointerType>(type))
     return isPointerTypeAllowed;
 
+  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(type))
+    return targetExtType.supportsAlloca();
+
   std::optional<unsigned> bitWidth;
   if (auto floatType = llvm::dyn_cast<FloatType>(type)) {
     if (!isCompatibleFloatingPointType(type))
@@ -1832,6 +1835,21 @@ LogicalResult GlobalOp::verify() {
           "attribute");
   }
 
+  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(getType())) {
+    if (!targetExtType.hasProperty(LLVMTargetExtType::CanBeGlobal)) {
+      return emitOpError()
+             << "this target extension type cannot be used in a global";
+    }
+    if (Attribute value = getValueOrNull()) {
+      // Only a single, zero integer attribute (=zeroinitializer) is allowed a
+      // value for a global with TargetExtType.
+      if (!isa<IntegerAttr>(value) || !isZeroAttribute(value)) {
+        return emitOpError()
+               << "expected zero value for global with target extension type";
+      }
+    }
+  }
+
   if (getLinkage() == Linkage::Common) {
     if (Attribute value = getValueOrNull()) {
       if (!isZeroAttribute(value)) {
@@ -2288,6 +2306,19 @@ LogicalResult LLVM::ConstantOp::verify() {
     }
     return success();
   }
+  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(getType())) {
+    if (!targetExtType.hasProperty(LLVM::LLVMTargetExtType::HasZeroInit)) {
+      return emitOpError()
+             << "target extension type does not support zero-initializer";
+    }
+    // Only a single, zero integer attribute (=zeroinitializer) is allowed a
+    // value for a global with TargetExtType.
+    if (!isa<IntegerAttr>(getValue()) || !isZeroAttribute(getValue())) {
+      return emitOpError()
+             << "only zero-initializer allowed for target extension types";
+    }
+    return success();
+  }
   if (!llvm::isa<IntegerAttr, ArrayAttr, FloatAttr, ElementsAttr>(getValue()))
     return emitOpError()
            << "only supports integer, float, string or elements attributes";
@@ -2424,6 +2455,12 @@ LogicalResult LLVM::BitcastOp::verify() {
       extractVectorElementType(getResult().getType()));
   auto sourceType = llvm::dyn_cast<LLVMPointerType>(
       extractVectorElementType(getArg().getType()));
+
+  // TargetExtTypes are not allowed in bitcast operations.
+  if (isa<LLVMTargetExtType>(sourceType) ||
+      isa<LLVMTargetExtType>(resultType)) {
+    return emitOpError() << "TargetExtType not allowed in bitcast operation";
+  }
 
   // If one of the types is a pointer (or vector of pointers), then
   // both source and result type have to be pointers.

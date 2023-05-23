@@ -240,6 +240,19 @@ def LLVMTargetExtType : LLVMType<"LLVMTargetExt", "target"> {
   let assemblyFormat = [{
     `<` $extTypeName (`,` custom<ExtTypeParams>($typeParams, $intParams)^ )? `>`
   }];
+
+  let extraClassDeclaration = [{
+    enum Property {
+      /// zeroinitializer is valid for this target extension type.
+      HasZeroInit = 1U << 0,
+      /// This type may be used as the value type of a global variable.
+      CanBeGlobal = 1U << 1,
+    };
+
+    bool hasProperty(Property Prop) const;
+
+    bool supportsAlloca() const;
+  }];
 }
 
 #endif // LLVMTYPES_TD
