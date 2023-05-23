@@ -101,7 +101,11 @@ void emitKernelDecl(const Function *F, const SmallVector<bool> &argMask,
   }
 
   // parameters may have been removed.
-  if (UsedI == 0) {
+  bool NoUsedArgs = true;
+  for (auto &entry : argMask) {
+    NoUsedArgs &= !entry;
+  }
+  if (NoUsedArgs) {
     O << ");\n";
     return;
   }
