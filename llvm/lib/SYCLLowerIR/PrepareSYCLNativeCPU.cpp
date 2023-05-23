@@ -24,6 +24,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
@@ -58,6 +59,8 @@ void fixCallingConv(Function* F) {
   }
   F->setAttributes(AttList);
   F->addFnAttr("frame-pointer", "none");
+  if (!F->isDeclaration())
+    F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
 }
 
 // Clone the function and returns a new function with a new argument on type T added as 
