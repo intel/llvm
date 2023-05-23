@@ -76,17 +76,3 @@ function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
         WORKING_DIRECTORY ${content-build-dir})
     FetchContent_Declare(${name} SOURCE_DIR ${content-build-dir}/${GIT_DIR})
 endfunction()
-
-# Escape a string to be able to be processed by REGEX
-macro(EscapeRegex IN_OUT_STR)
-    set(PY_REGEX_ESCAPE_PROGRAM 
-"from re import escape
-print(escape('${${IN_OUT_STR}}'))")
-
-    execute_process(
-        COMMAND ${Python3_EXECUTABLE} -c ${PY_REGEX_ESCAPE_PROGRAM}
-        OUTPUT_VARIABLE PY_RESULT
-    )
-
-    set(${IN_OUT_STR} ${PY_RESULT})
-endmacro()
