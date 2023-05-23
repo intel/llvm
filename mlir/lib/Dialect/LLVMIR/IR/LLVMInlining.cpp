@@ -176,7 +176,7 @@ static unsigned tryToEnforceAlignment(Value value, unsigned requestedAlignment,
   if (auto func = dyn_cast<LLVM::LLVMFuncOp>(parentOp)) {
     // Use the alignment attribute set for this argument in the parent function
     // if it has been set.
-    auto blockArg = value.cast<BlockArgument>();
+    auto blockArg = llvm::cast<BlockArgument>(value);
     if (Attribute alignAttr = func.getArgAttr(
             blockArg.getArgNumber(), LLVM::LLVMDialect::getAlignAttrName()))
       return cast<IntegerAttr>(alignAttr).getValue().getLimitedValue();
@@ -364,9 +364,13 @@ struct LLVMInlinerInterface : public DialectInlinerInterface {
     }
     // clang-format off
     if (isa<LLVM::AllocaOp,
+            LLVM::AtomicRMWOp,
+            LLVM::AtomicCmpXchgOp,
             LLVM::CallOp,
             LLVM::DbgDeclareOp,
             LLVM::DbgValueOp,
+            LLVM::FenceOp,
+            LLVM::InlineAsmOp,
             LLVM::LifetimeEndOp,
             LLVM::LifetimeStartOp,
             LLVM::LoadOp,

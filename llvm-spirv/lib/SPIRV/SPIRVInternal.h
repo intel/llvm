@@ -311,6 +311,7 @@ const static char PipeStorage[] = "PipeStorage";
 const static char ConstantPipeStorage[] = "ConstantPipeStorage";
 const static char VmeImageINTEL[] = "VmeImageINTEL";
 const static char JointMatrixINTEL[] = "JointMatrixINTEL";
+const static char BufferSurfaceINTEL[] = "BufferSurfaceINTEL";
 } // namespace kSPIRVTypeName
 
 namespace kSPR2TypeName {
@@ -954,6 +955,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
   _SPIRV_OP(AvcRefResultINTEL)
   _SPIRV_OP(AvcSicResultINTEL)
   _SPIRV_OP(VmeImageINTEL)
+  _SPIRV_OP(BufferSurfaceINTEL)
 #undef _SPIRV_OP
   add("JointMatrixINTEL", internal::OpTypeJointMatrixINTEL);
 }
@@ -990,6 +992,13 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
                                 SPIRVBuiltinVariableKind Kind);
 // Transform all builtin variables into calls
 bool lowerBuiltinVariablesToCalls(Module *M);
+
+// Transform all builtin calls into variables
+bool lowerBuiltinCallsToVariables(Module *M);
+
+//  Transform all builtins into variables or calls
+//  depending on user specification
+bool lowerBuiltins(SPIRVModule *BM, Module *M);
 
 /// \brief Post-process OpenCL or SPIRV builtin function returning struct type.
 ///
