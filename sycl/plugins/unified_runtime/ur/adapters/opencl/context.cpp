@@ -1,4 +1,4 @@
-//===--------- context.hpp - OpenCL Adapter ---------------------------===//
+//===--------- context.cpp - OpenCL Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,31 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "common.hpp"
+#include "context.hpp"
 
 #include <sycl/detail/cl.h>
+
+cl_uint cl_adapter::getDevicesFromContext(
+    ur_context_handle_t hContext,
+    std::unique_ptr<std::vector<cl_device_id>> &devicesInCtx) {
+
+  cl_uint deviceCount;
+  CL_RETURN_ON_FAILURE(clGetContextInfo(cl_adapter::cast<cl_context>(hContext),
+                                        CL_CONTEXT_NUM_DEVICES, sizeof(cl_uint),
+                                        &deviceCount, nullptr));
+
+  if (deviceCount < 1) {
+    return CL_INVALID_CONTEXT;
+  }
+
+  devicesInCtx = std::make_unique<std::vector<cl_device_id>>(deviceCount);
+
+  CL_RETURN_ON_FAILURE(clGetContextInfo(
+      cl_adapter::cast<cl_context>(hContext), CL_CONTEXT_DEVICES,
+      deviceCount * sizeof(cl_device_id), (*devicesInCtx).data(), nullptr));
+
+  return CL_SUCCESS;
+}
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,

@@ -36,11 +36,16 @@ ur_result_t map_cl_error_to_ur(cl_int result) {
   case CL_OUT_OF_HOST_MEMORY:
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   case CL_INVALID_VALUE:
+  case CL_INVALID_BUILD_OPTIONS:
     return UR_RESULT_ERROR_INVALID_VALUE;
   case CL_INVALID_PLATFORM:
     return UR_RESULT_ERROR_INVALID_PLATFORM;
+  case CL_INVALID_OPERATION:
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  case CL_BUILD_PROGRAM_FAILURE:
+    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
   default:
-    return UR_RESULT_ERROR_UNKNOWN;
+    assert(false && "OpenCL error has no UR equivalent.");
   }
 }
 

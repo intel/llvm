@@ -10,11 +10,28 @@
 #include <climits>
 #include <regex>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
 
+/**
+ * Call an OpenCL API and, if the result is not CL_SUCCESS, automatically return
+ * from the current function.
+ */
 #define CL_RETURN_ON_FAILURE(clCall)                                           \
-  if (const cl_int cl_result = clCall != CL_SUCCESS) {                         \
-    return map_cl_error_to_ur(cl_result);                                      \
+  if (const cl_int cl_result_macro = clCall; cl_result_macro != CL_SUCCESS) {  \
+    return map_cl_error_to_ur(cl_result_macro);                                \
+  }
+
+/**
+ * Call an OpenCL API and, if the result is not CL_SUCCESS, automatically return
+ * from the current function and set the pointer `outPtr` to nullptr.
+ */
+#define CL_RETURN_ON_FAILURE_AND_SET_NULL(clCall, outPtr)                      \
+  if (const cl_int cl_result_macro = clCall != CL_SUCCESS) {                   \
+    if (outPtr != nullptr) {                                                   \
+      *outPtr = nullptr;                                                       \
+    }                                                                          \
+    return map_cl_error_to_ur(cl_result_macro);                                \
   }
 
 namespace OCLV {
@@ -129,10 +146,6 @@ template <class To, class From> To cast(From value) {
   }
 }
 } // namespace cl
-
-ur_result_t map_cl_error_to_ur(cl_int result);
-
-ur_result_t urGetNativeHandle(void *urObj, ur_native_handle_t *nativeHandle);
 
 namespace cl_ext {
 // Older versions of GCC don't like "const" here
@@ -292,3 +305,7 @@ static ur_result_t getExtFuncFromContext(cl_context context,
   return UR_RESULT_SUCCESS;
 }
 } // namespace cl_ext
+
+ur_result_t map_cl_error_to_ur(cl_int result);
+
+ur_result_t urGetNativeHandle(void *urObj, ur_native_handle_t *nativeHandle);

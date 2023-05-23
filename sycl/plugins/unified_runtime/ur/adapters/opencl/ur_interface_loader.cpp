@@ -83,20 +83,20 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  //  pDdiTable->pfnBuild = urProgramBuild;
-  //  pDdiTable->pfnCompile = urProgramCompile;
-  //  pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
-  //  pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
-  //  pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
-  //  pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
-  //  pDdiTable->pfnGetFunctionPointer = nullptr;
-  //  pDdiTable->pfnGetInfo = urProgramGetInfo;
-  //  pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
-  //  pDdiTable->pfnLink = urProgramLink;
-  //  pDdiTable->pfnRelease = urProgramRelease;
-  //  pDdiTable->pfnRetain = urProgramRetain;
-  //  pDdiTable->pfnSetSpecializationConstants =
-  //      urProgramSetSpecializationConstants;
+  pDdiTable->pfnBuild = urProgramBuild;
+  pDdiTable->pfnCompile = urProgramCompile;
+  pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
+  pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
+  pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
+  pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
+  pDdiTable->pfnGetFunctionPointer = nullptr;
+  pDdiTable->pfnGetInfo = urProgramGetInfo;
+  pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
+  pDdiTable->pfnLink = urProgramLink;
+  pDdiTable->pfnRelease = urProgramRelease;
+  pDdiTable->pfnRetain = urProgramRetain;
+  pDdiTable->pfnSetSpecializationConstants =
+      urProgramSetSpecializationConstants;
   return UR_RESULT_SUCCESS;
 }
 
@@ -131,7 +131,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return result;
   }
   pDdiTable->pfnCreate = urSamplerCreate;
-  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
+  // pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urSamplerGetInfo;
   pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
   pDdiTable->pfnRelease = urSamplerRelease;

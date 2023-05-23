@@ -1,4 +1,4 @@
-//===--------- platform.hpp - OpenCL Adapter ---------------------------===//
+//===--------- platform.cpp - OpenCL Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,27 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "common.hpp"
+#include "platform.hpp"
 
 #include <sycl/detail/cl.h>
+
+cl_int cl::getPlatformVersion(cl_platform_id plat, OCLV::OpenCLVersion &version) {
+
+  size_t platVerSize = 0;
+  CL_RETURN_ON_FAILURE(
+      clGetPlatformInfo(plat, CL_PLATFORM_VERSION, 0, nullptr, &platVerSize));
+
+  std::string platVer(platVerSize, '\0');
+  CL_RETURN_ON_FAILURE(clGetPlatformInfo(plat, CL_PLATFORM_VERSION, platVerSize,
+                                         platVer.data(), nullptr));
+
+  version = OCLV::OpenCLVersion(platVer);
+  if (!version.isValid()) {
+    return CL_INVALID_PLATFORM;
+  }
+
+  return CL_SUCCESS;
+}
 
 cl_int map_ur_platform_info_to_cl(ur_platform_info_t urPropName) {
 
@@ -105,8 +123,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
-    ur_native_handle_t hNativePlatform,
-    const ur_platform_native_properties_t *,
+    ur_native_handle_t hNativePlatform, const ur_platform_native_properties_t *,
     ur_platform_handle_t *phPlatform) {
 
   UR_ASSERT(hNativePlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
