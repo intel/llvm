@@ -74,8 +74,8 @@ static StringRef lookupCudaDoubleAccuracy(Intrinsic::ID IID) {
 }
 
 StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID,
-                                                 const Type *Ty,
-                                                 fp::FPAccuracy AccuracyLevel) {
+                                      const Type *Ty,
+                                      fp::FPAccuracy AccuracyLevel) {
   assert(isFPBuiltinIntrinsic(IID) && "Invalid intrinsic ID for FPAccuracy");
 
   assert(Ty->isFPOrFPVectorTy() && "Invalid type for FPAccuracy");
