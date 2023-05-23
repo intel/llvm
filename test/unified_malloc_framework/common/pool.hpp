@@ -31,6 +31,46 @@ auto wrapPoolUnique(umf_memory_pool_handle_t hPool) {
     return umf::pool_unique_handle_t(hPool, &umfPoolDestroy);
 }
 
+bool isReallocSupported(umf_memory_pool_handle_t hPool) {
+    static constexpr size_t allocSize = 1;
+    bool supported;
+    auto *ptr = umfPoolMalloc(hPool, allocSize);
+    auto *new_ptr = umfPoolRealloc(hPool, ptr, allocSize * 2);
+
+    if (new_ptr) {
+        supported = true;
+    } else if (umfPoolGetLastAllocationError(hPool) ==
+               UMF_RESULT_ERROR_NOT_SUPPORTED) {
+        supported = false;
+    } else {
+        throw std::runtime_error("realloc failed with unexpected error");
+    }
+
+    umfPoolFree(hPool, new_ptr);
+
+    return supported;
+}
+
+bool isCallocSupported(umf_memory_pool_handle_t hPool) {
+    static constexpr size_t num = 1;
+    static constexpr size_t size = sizeof(int);
+    bool supported;
+    auto *ptr = umfPoolCalloc(hPool, num, size);
+
+    if (ptr) {
+        supported = true;
+    } else if (umfPoolGetLastAllocationError(hPool) ==
+               UMF_RESULT_ERROR_NOT_SUPPORTED) {
+        supported = false;
+    } else {
+        throw std::runtime_error("calloc failed with unexpected error");
+    }
+
+    umfPoolFree(hPool, ptr);
+
+    return supported;
+}
+
 struct pool_base {
     umf_result_t initialize(umf_memory_provider_handle_t *, size_t) noexcept {
         return UMF_RESULT_SUCCESS;
@@ -97,6 +137,8 @@ struct proxy_pool : public pool_base {
     }
     void *realloc(void *ptr, size_t size) noexcept {
         // TODO: not supported
+        umf::getPoolLastStatusRef<proxy_pool>() =
+            UMF_RESULT_ERROR_NOT_SUPPORTED;
         return nullptr;
     }
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
@@ -115,6 +157,9 @@ struct proxy_pool : public pool_base {
         auto ret = umfMemoryProviderFree(provider, ptr, 0);
         EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
         return ret;
+    }
+    enum umf_result_t get_last_allocation_error() {
+        return umf::getPoolLastStatusRef<proxy_pool>();
     }
     umf_memory_provider_handle_t provider;
 };
