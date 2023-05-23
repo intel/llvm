@@ -433,6 +433,27 @@ ValueCategory MLIRScanner::callHelper(
   return nullptr;
 }
 
+void MLIRScanner::emitCallToInheritedCtor(
+    const clang::CXXInheritedCtorInitExpr *InheritedCtor, Value BasePtr,
+    FunctionOpInterface::BlockArgListType Args) {
+  // The constructor to call
+  clang::CXXConstructorDecl *CtorDecl = InheritedCtor->getConstructor();
+  FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
+  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
+
+  // The arguments to the constructor
+  SmallVector<Value> CallArgs;
+  CallArgs.reserve(Args.size());
+
+  // The first argument will be given by the input pointer
+  CallArgs.emplace_back(BasePtr);
+  // The rest can be retrieved from the input args. The first argument is
+  // omitted as it is the pointer to the derived object.
+  std::copy(Args.begin() + 1, Args.end(), std::back_inserter(CallArgs));
+
+  Builder.create<func::CallOp>(Loc, ToCall, CallArgs);
+}
+
 std::pair<ValueCategory, bool>
 MLIRScanner::emitClangBuiltinCallExpr(clang::CallExpr *Expr) {
   switch (Expr->getBuiltinCallee()) {
