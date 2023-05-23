@@ -1,7 +1,7 @@
 # Copyright (C) 2022-2023 Intel Corporation
 # SPDX-License-Identifier: MIT
 
-cmake_minimum_required(VERSION 3.15.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.6.0)
 
 include(GNUInstallDirs)
@@ -70,10 +70,9 @@ if(NOT MSVC)
         link_libraries(stdc++fs)
     endif()
 elseif(MSVC)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
-    add_compile_options(/MP /W3)
+    add_compile_options(/MP /W3 /MD$<$<CONFIG:Debug>:d>)
 
     if(UR_DEVELOPER_MODE)
         add_compile_options(/WX)
@@ -101,8 +100,6 @@ if(UR_ENABLE_TRACING)
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
     )
     if (MSVC)
-        set_property(TARGET xpti PROPERTY MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
-        set_property(TARGET xptifw PROPERTY MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
         set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
 
         # disable warning C4267: The compiler detected a conversion from size_t to a smaller type.
