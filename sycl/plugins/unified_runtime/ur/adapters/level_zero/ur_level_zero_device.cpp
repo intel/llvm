@@ -573,7 +573,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
     auto MapCaps = [](const ze_memory_access_cap_flags_t &ZeCapabilities) {
-      uint64_t Capabilities = 0;
+      ur_device_usm_access_capability_flags_t Capabilities = 0;
       if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_RW)
         Capabilities |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
       if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_ATOMIC)

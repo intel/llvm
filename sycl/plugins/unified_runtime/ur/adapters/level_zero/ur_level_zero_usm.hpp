@@ -9,6 +9,23 @@
 
 #include "ur_level_zero_common.hpp"
 
+struct ur_usm_pool_handle_t_ : _ur_object {
+  bool zeroInit;
+
+  usm_settings::USMAllocatorConfig USMAllocatorConfigs;
+
+  std::unique_ptr<USMAllocContext> HostMemPool;
+  std::unordered_map<ur_device_handle_t, std::unique_ptr<USMAllocContext>>
+      SharedMemPools;
+  std::unordered_map<ur_device_handle_t, std::unique_ptr<USMAllocContext>>
+      SharedMemReadOnlyPools;
+  std::unordered_map<ur_device_handle_t, std::unique_ptr<USMAllocContext>>
+      DeviceMemPools;
+
+  ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                        ur_usm_pool_desc_t *PoolDesc);
+};
+
 // Exception type to pass allocation errors
 class UsmAllocationException {
   const ur_result_t Error;
