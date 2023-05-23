@@ -11,7 +11,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(${TARGET_NAME} PRIVATE xpti ${PROJECT_NAME}::common ${CMAKE_DL_LIBS})
+target_link_libraries(${TARGET_NAME} PRIVATE ${TARGET_XPTI} ${PROJECT_NAME}::common ${CMAKE_DL_LIBS})
 target_include_directories(${TARGET_NAME} PRIVATE ${xpti_SOURCE_DIR}/include)
 
 if(MSVC)
