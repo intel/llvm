@@ -115,7 +115,7 @@ static void printPointer(AsmPrinter &p, Type elementType,
 
 static bool parseTypeOrIntParam(AsmParser &p, SmallVector<Type> &typeParams,
                                 SmallVector<unsigned int> &intParams,
-                                bool parseType) {
+                                bool& parseType) {
   unsigned int i;
   if (p.parseOptionalInteger(i).has_value()) {
     // Successfully parsed an integer.

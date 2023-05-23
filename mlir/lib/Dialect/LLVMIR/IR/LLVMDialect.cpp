@@ -266,8 +266,22 @@ static LogicalResult verifyOpaquePtr(Operation *op, LLVMPointerType ptrType,
 }
 
 LogicalResult AllocaOp::verify() {
-  return verifyOpaquePtr(getOperation(), llvm::cast<LLVMPointerType>(getType()),
-                         getElemType());
+  LLVMPointerType ptrType = llvm::cast<LLVMPointerType>(getType());
+  if (auto verifyElemTy =
+          verifyOpaquePtr(getOperation(), ptrType, getElemType());
+      failed(verifyElemTy)) {
+    return verifyElemTy;
+  }
+
+  Type elemTy =
+      (ptrType.isOpaque()) ? *getElemType() : ptrType.getElementType();
+  // Only certain target extension types can be used in 'alloca'.
+  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(elemTy);
+      targetExtType && !targetExtType.supportsAlloca()) {
+    return emitOpError()
+           << "this target extension type cannot be used in alloca";
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -2455,12 +2469,6 @@ LogicalResult LLVM::BitcastOp::verify() {
       extractVectorElementType(getResult().getType()));
   auto sourceType = llvm::dyn_cast<LLVMPointerType>(
       extractVectorElementType(getArg().getType()));
-
-  // TargetExtTypes are not allowed in bitcast operations.
-  if (isa<LLVMTargetExtType>(sourceType) ||
-      isa<LLVMTargetExtType>(resultType)) {
-    return emitOpError() << "TargetExtType not allowed in bitcast operation";
-  }
 
   // If one of the types is a pointer (or vector of pointers), then
   // both source and result type have to be pointers.
