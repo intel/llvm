@@ -116,7 +116,18 @@ UR_DLLEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
   return UR_RESULT_SUCCESS;
 }
 
+// This API is called by Sycl RT to notify the end of the plugin lifetime.
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded.
+// TODO: add a global variable lifetime management code here (see
+// pi_level_zero.cpp for reference).
 UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *pParams) {
   UR_ASSERT(pParams, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  if (cl_ext::ExtFuncPtrCache) {
+    delete cl_ext::ExtFuncPtrCache;
+    cl_ext::ExtFuncPtrCache = nullptr;
+  }
   return UR_RESULT_SUCCESS;
 }

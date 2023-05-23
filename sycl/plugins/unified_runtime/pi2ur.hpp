@@ -11,7 +11,9 @@
 #include <cstdarg>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
+#include <ur/adapters/opencl/common.hpp>
 #include <ur/ur.hpp>
+
 
 // Map of UR error codes to PI error codes
 static pi_result ur2piResult(ur_result_t urResult) {
@@ -1403,8 +1405,7 @@ inline pi_result piextContextCreateWithNativeHandle(
       reinterpret_cast<ur_context_handle_t *>(RetContext);
 
   ur_context_native_properties_t Properties{
-      UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr,
-      OwnNativeHandle};
+      UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
       NativeContext, NumDevices, UrDevices, &Properties, UrContext));

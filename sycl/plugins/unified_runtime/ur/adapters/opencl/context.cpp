@@ -66,7 +66,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
     /* These queries should be dealt with in context_impl.cpp by calling the
      * queries of each device separately and building the intersection set. */
-    setErrorMessage("These queries should have never come here.",
+    cl::setErrorMessage("These queries should have never come here.",
                     UR_RESULT_ERROR_INVALID_ARGUMENT);
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
