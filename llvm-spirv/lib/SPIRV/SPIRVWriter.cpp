@@ -521,6 +521,10 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         return mapType(T, BM->addQueueType());
       case OpTypeDeviceEvent:
         return mapType(T, BM->addDeviceEventType());
+      case OpTypeBufferSurfaceINTEL: {
+        ArrayRef<unsigned> Ops = TargetTy->int_params();
+        return mapType(T, BM->addBufferSurfaceINTELType(CastAccess(Ops[0])));
+      }
       case internal::OpTypeJointMatrixINTEL: {
         // The expected representation is:
         // target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%,
@@ -789,8 +793,12 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(StringRef STName,
     return SaveType(BM->addQueueType());
   else if (TN == kSPIRVTypeName::PipeStorage)
     return SaveType(BM->addPipeStorageType());
-  else if (TN == kSPIRVTypeName::JointMatrixINTEL) {
+  else if (TN == kSPIRVTypeName::JointMatrixINTEL)
     return SaveType(transSPIRVJointMatrixINTELType(Postfixes));
+  else if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute) &&
+           TN == kSPIRVTypeName::BufferSurfaceINTEL) {
+    auto Access = getAccessQualifier(STName);
+    return SaveType(BM->addBufferSurfaceINTELType(Access));
   } else
     return SaveType(
         BM->addOpaqueGenericType(SPIRVOpaqueTypeOpCodeMap::map(TN)));
@@ -2897,73 +2905,6 @@ bool LLVMToSPIRVBase::transBuiltinSet() {
     if (!BM->importBuiltinSet(
             SPIRVBuiltinSetNameMap::map(SPIRVEIS_NonSemantic_AuxData), &EISId))
       return false;
-  }
-  return true;
-}
-
-/// Transforms SPV-IR work-item builtin calls to SPIRV builtin variables.
-/// e.g.
-///  SPV-IR: @_Z33__spirv_BuiltInGlobalInvocationIdi(i)
-///    is transformed as:
-///  x = load GlobalInvocationId; extract x, i
-/// e.g.
-///  SPV-IR: @_Z22__spirv_BuiltInWorkDim()
-///    is transformed as:
-///  load WorkDim
-bool LLVMToSPIRVBase::transWorkItemBuiltinCallsToVariables() {
-  LLVM_DEBUG(dbgs() << "Enter transWorkItemBuiltinCallsToVariables\n");
-  // Store instructions and functions that need to be removed.
-  SmallVector<Value *, 16> ToRemove;
-  for (auto &F : *M) {
-    // Builtins should be declaration only.
-    if (!F.isDeclaration())
-      continue;
-    StringRef DemangledName;
-    if (!oclIsBuiltin(F.getName(), DemangledName))
-      continue;
-    LLVM_DEBUG(dbgs() << "Function demangled name: " << DemangledName << '\n');
-    SmallVector<StringRef, 2> Postfix;
-    // Deprefix "__spirv_"
-    StringRef Name = dePrefixSPIRVName(DemangledName, Postfix);
-    // Lookup SPIRV Builtin map.
-    if (!SPIRVBuiltInNameMap::rfind(Name.str(), nullptr))
-      continue;
-    std::string BuiltinVarName = DemangledName.str();
-    LLVM_DEBUG(dbgs() << "builtin variable name: " << BuiltinVarName << '\n');
-    bool IsVec = F.getFunctionType()->getNumParams() > 0;
-    Type *GVType =
-        IsVec ? FixedVectorType::get(F.getReturnType(), 3) : F.getReturnType();
-    auto *BV = new GlobalVariable(
-        *M, GVType, /*isConstant=*/true, GlobalValue::ExternalLinkage, nullptr,
-        BuiltinVarName, 0, GlobalVariable::NotThreadLocal, SPIRAS_Input);
-    for (auto *U : F.users()) {
-      auto *CI = dyn_cast<CallInst>(U);
-      assert(CI && "invalid instruction");
-      const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
-      if (DLoc)
-        NewValue->setDebugLoc(DLoc);
-      LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
-      if (IsVec) {
-        NewValue =
-            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
-        if (DLoc)
-          NewValue->setDebugLoc(DLoc);
-        LLVM_DEBUG(dbgs() << *NewValue << '\n');
-      }
-      NewValue->takeName(CI);
-      CI->replaceAllUsesWith(NewValue);
-      ToRemove.push_back(CI);
-    }
-    ToRemove.push_back(&F);
-  }
-  for (auto *V : ToRemove) {
-    if (auto *I = dyn_cast<Instruction>(V))
-      I->eraseFromParent();
-    else if (auto *F = dyn_cast<Function>(V))
-      F->eraseFromParent();
-    else
-      llvm_unreachable("Unexpected value to remove!");
   }
   return true;
 }
@@ -5186,8 +5127,7 @@ bool LLVMToSPIRVBase::translate() {
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);
 
-  // Transform SPV-IR builtin calls to builtin variables.
-  if (!transWorkItemBuiltinCallsToVariables())
+  if (!lowerBuiltinCallsToVariables(M))
     return false;
 
   // Use the type scavenger to recover pointer element types.

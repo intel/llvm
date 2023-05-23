@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s --test-transform-dialect-interpreter -allow-unregistered-dialect --split-input-file --verify-diagnostics
+// RUN: mlir-opt %s --test-transform-dialect-interpreter -allow-unregistered-dialect --split-input-file --verify-diagnostics | FileCheck %s
 
 transform.sequence failures(propagate) {
 ^bb0(%arg0: !transform.any_op):
@@ -858,6 +858,47 @@ transform.sequence failures(suppress) {
 
 // -----
 
+func.func @split_handle(%a: index, %b: index, %c: index) {
+  %0 = arith.muli %a, %b : index
+  %1 = arith.muli %a, %c : index
+  return
+}
+
+transform.sequence failures(propagate) {
+^bb1(%fun: !pdl.operation):
+  %muli_2 = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
+  // No error, last result handle is empty.
+  %h:3 = split_handle %muli_2 {fail_on_payload_too_small = false} : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
+  // expected-remark @below {{1}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#0
+  // expected-remark @below {{1}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#1
+  // expected-remark @below {{0}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#2
+}
+
+// -----
+
+func.func @split_handle(%a: index, %b: index, %c: index) {
+  %0 = arith.muli %a, %b : index
+  %1 = arith.muli %a, %c : index
+  %2 = arith.muli %a, %c : index
+  %3 = arith.muli %a, %c : index
+  return
+}
+
+transform.sequence failures(propagate) {
+^bb1(%fun: !pdl.operation):
+  %muli_2 = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
+  %h:2 = split_handle %muli_2 {overflow_result = 0} : (!pdl.operation) -> (!pdl.operation, !pdl.operation)
+  // expected-remark @below {{3}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#0
+  // expected-remark @below {{1}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#1
+}
+
+// -----
+
 "test.some_op"() : () -> ()
 "other_dialect.other_op"() : () -> ()
 
@@ -1556,4 +1597,27 @@ module attributes { transform.with_named_sequence } {
     "test.something"() : () -> ()
     return
   }
+}
+
+// -----
+
+// CHECK-LABEL: func @test_tracked_rewrite() {
+//  CHECK-NEXT:   "test.update_mapping"() {original_op = "test.replace_me"}
+//  CHECK-NEXT:   "test.drop_mapping"() {original_op = "test.replace_me"}
+//  CHECK-NEXT:   "test.update_mapping"() {original_op = "test.replace_me"}
+//  CHECK-NEXT: }
+func.func @test_tracked_rewrite() {
+  %0 = "test.replace_me"() {replacement = "test.update_mapping"} : () -> (i1)
+  %1 = "test.replace_me"() {replacement = "test.drop_mapping"} : () -> (i1)
+  %2 = "test.replace_me"() {replacement = "test.update_mapping"} : () -> (i1)
+}
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !pdl.operation):
+  %0 = transform.structured.match ops{["test.replace_me"]} in %arg1 : (!pdl.operation) -> !pdl.operation
+  // expected-remark @below {{2 iterations}}
+  transform.test_tracked_rewrite %0 : (!pdl.operation) -> ()
+  // One replacement op (test.drop_mapping) is dropped from the mapping.
+  // expected-remark @below {{2}}
+  test_print_number_of_associated_payload_ir_ops %0
 }
