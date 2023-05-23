@@ -1,3 +1,4 @@
+// REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -Xclang -fsycl-int-footer=%t-footer.h %s -o %t.bc
 // RUN: %clangxx -include %t.h -std=c++17 -D __SYCL_NATIVE_CPU__ -I %sycl_include -I %sycl_include/sycl  %s -O2 -c -o %t-host.o
 // RUN: %clangxx %t.bc -O3 -c -o %t-kernel.o
