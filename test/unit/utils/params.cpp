@@ -239,9 +239,9 @@ struct UrDeviceGetInfoParamsInvalidSize : UrDeviceGetInfoParams {
 };
 
 struct UrDeviceGetInfoParamsPartitionArray : UrDeviceGetInfoParams {
-    ur_device_partition_property_t props[3] = {
-        UR_DEVICE_PARTITION_BY_COUNTS, UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-        UR_DEVICE_PARTITION_BY_CSLICE};
+    ur_device_partition_t props[3] = {UR_DEVICE_PARTITION_BY_COUNTS,
+                                      UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                                      UR_DEVICE_PARTITION_BY_CSLICE};
     UrDeviceGetInfoParamsPartitionArray() : UrDeviceGetInfoParams() {
         propName = UR_DEVICE_INFO_PARTITION_PROPERTIES;
         pPropValue = &props;
@@ -251,9 +251,10 @@ struct UrDeviceGetInfoParamsPartitionArray : UrDeviceGetInfoParams {
     const char *get_expected() {
         return ".hDevice = nullptr, .propName = "
                "UR_DEVICE_INFO_PARTITION_PROPERTIES, .propSize "
-               "= 24, .pPropValue = \\{4231, 4232, 4233\\}, .pPropSizeRet = .+ "
-               "\\(24\\)";
-        // TODO: should resolve type values for ur_device_partition_property_t...
+               "= 12, .pPropValue = \\{UR_DEVICE_PARTITION_BY_COUNTS, "
+               "UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, "
+               "UR_DEVICE_PARTITION_BY_CSLICE\\}, .pPropSizeRet = .+ "
+               "\\(12\\)";
     };
 };
 

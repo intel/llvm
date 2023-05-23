@@ -548,12 +548,18 @@ ur_result_t UR_APICALL urDeviceRelease(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pProperties`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_DEVICE_PARTITION_BY_CSLICE < pProperties->type`
 ///     - ::UR_RESULT_ERROR_DEVICE_PARTITION_FAILED
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `DescCount == 0`
 ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice, ///< [in] handle of the device to partition.
-    const ur_device_partition_property_t *
-        pProperties, ///< [in] null-terminated array of <$_device_partition_t enum, value> pairs.
+    const ur_device_partition_desc_t
+        *pProperties, ///< [in] Array of partition descriptors.
+    size_t
+        DescCount, ///< [in] Number of descriptors pointed to by `pProperties`.
     uint32_t NumDevices, ///< [in] the number of sub-devices.
     ur_device_handle_t *
         phSubDevices, ///< [out][optional][range(0, NumDevices)] array of handle of devices.
@@ -568,8 +574,8 @@ ur_result_t UR_APICALL urDevicePartition(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnPartition(hDevice, pProperties, NumDevices, phSubDevices,
-                        pNumDevicesRet);
+    return pfnPartition(hDevice, pProperties, DescCount, NumDevices,
+                        phSubDevices, pNumDevicesRet);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

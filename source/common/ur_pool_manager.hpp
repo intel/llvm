@@ -35,26 +35,28 @@ struct pool_descriptor {
 
 static inline std::pair<ur_result_t, std::vector<ur_device_handle_t>>
 urGetSubDevices(ur_device_handle_t hDevice) {
-    size_t nComputeUnits;
+    uint32_t nComputeUnits;
     auto ret = urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_COMPUTE_UNITS,
                                sizeof(nComputeUnits), &nComputeUnits, nullptr);
     if (ret != UR_RESULT_SUCCESS) {
         return {ret, {}};
     }
 
-    ur_device_partition_property_t properties[] = {
-        UR_DEVICE_PARTITION_EQUALLY,
-        static_cast<ur_device_partition_property_t>(nComputeUnits), 0};
+    ur_device_partition_desc_t properties;
+    properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC;
+    properties.pNext = nullptr;
+    properties.type = UR_DEVICE_PARTITION_EQUALLY;
+    properties.value.equally = nComputeUnits;
 
     // Get the number of devices that will be created
     uint32_t deviceCount;
-    ret = urDevicePartition(hDevice, properties, 0, nullptr, &deviceCount);
+    ret = urDevicePartition(hDevice, &properties, 1, 0, nullptr, &deviceCount);
     if (ret != UR_RESULT_SUCCESS) {
         return {ret, {}};
     }
 
     std::vector<ur_device_handle_t> sub_devices(deviceCount);
-    ret = urDevicePartition(hDevice, properties,
+    ret = urDevicePartition(hDevice, &properties, 1,
                             static_cast<uint32_t>(sub_devices.size()),
                             sub_devices.data(), nullptr);
     if (ret != UR_RESULT_SUCCESS) {
