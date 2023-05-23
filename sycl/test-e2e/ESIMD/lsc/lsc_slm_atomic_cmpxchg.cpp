@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC SLM atomic operations.
 //===----------------------------------------------------------------------===//
+// REQUIRES: gpu-intel-pvc
 // XFAIL: gpu-intel-pvc
 // TODO: reenable the test once driver issue with cmpxchg is resolved
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
