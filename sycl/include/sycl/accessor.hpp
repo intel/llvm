@@ -2009,7 +2009,7 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     detail::constructorNotification(getMemoryObject(), impl.get(), AccessTarget,
                                     AccessMode, CodeLoc);
-    std::strcpy(padding, Other.padding, std::strlen(padding));
+    std::strncpy(padding, Other.padding, std::strlen(Other.padding));
 #endif
   }
 
