@@ -121,7 +121,7 @@ struct UpdateUint64MetaDataToMaxValue {
 // Checks if there are any functions that must be inlined early to simplify
 // the ESIMD lowering algorithms. If finds such then it may mark them with
 // alwaysinline attribute. The function returns true if at least one of
-// functions has changed it's attribute to alwaysinline.
+// functions has changed its attribute to alwaysinline.
 bool prepareForAlwaysInliner(Module &M);
 
 } // namespace esimd

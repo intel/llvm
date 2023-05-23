@@ -545,7 +545,7 @@ size_t lowerSLMReservationCalls(Module &M) {
   //   call spir_func void ~slm_allocator(%slm_obj)
   // This second variant though is automatically converted to the first one
   // by enforcing always-inliner pass started before this SLM reservation.
-  // TODO: enforcing the inlinig helps to simplify the alloc/free pattern
+  // TODO: enforcing the inlining helps to simplify the alloc/free pattern
   // recognition, but even with inlining the use-def chains may be too complex
   // especially with -O0. So, some extra work is needed for -O0 to enable
   // usage of slm_allocator().

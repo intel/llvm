@@ -1890,7 +1890,7 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     // 2 years ago, when GPU VC BE did not support function calls and
     // required everything to be inlined right into the kernel unless
     // it had noinline or VCStackCall attrubute.
-    // This code migrated to here without changes, but... VC BE do support
+    // This code migrated to here without changes, but... VC BE does support
     //  the calls of spir_func these days, so this code may need re-visiting.
     if (!F.hasFnAttribute(Attribute::NoInline))
       NeedInline |= markAlwaysInlined(F);
@@ -1899,7 +1899,7 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
       continue;
 
     for (User *U : F.users()) {
-      auto *FCall = dyn_cast<CallBase>(U);
+      auto *FCall = dyn_cast<CallInst>(U);
       if (FCall && FCall->getCalledFunction() == &F) {
         Function *GenF = FCall->getFunction();
         // The original kernel (UserK) if often automatically separated into
@@ -1911,7 +1911,7 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
         // then inline 'GenF' to move slm_init call from spir_kernel 'GenK'.
         SmallPtrSet<Function *, 1> GenFCallers;
         for (User *GenFU : GenF->users()) {
-          auto *GenFCall = dyn_cast<CallBase>(GenFU);
+          auto *GenFCall = dyn_cast<CallInst>(GenFU);
           if (GenFCall && GenFCall->getCalledFunction() == GenF) {
             Function *GenK = GenFCall->getFunction();
             GenFCallers.insert(GenK);
