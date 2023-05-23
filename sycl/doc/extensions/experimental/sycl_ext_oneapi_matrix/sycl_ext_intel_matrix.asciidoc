@@ -161,7 +161,7 @@ void joint_matrix_store(Group g,
 } // namespace sycl::ext::intel::experimental::matrix
 ```
 
-=== Per-element Operations with Coordinates
+=== Per-element Access with Coordinates
 The function `joint_matrix_apply` in `sycl_ext_oneapi_matrix` provides
 a way for the application to apply the same operation on every element
 of the matrix. However, some algorithms require the application to
