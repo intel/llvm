@@ -389,7 +389,7 @@ int main() {
             sycl::range<1>{3}, [=](sycl::id<1> index) { dev_acc[index] = 42; });
       });
 
-      sycl::host_accessor host_acc(buf, sycl::write_only, sycl::no_init);
+      sycl::host_accessor host_acc(buf, sycl::no_init);
     } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
