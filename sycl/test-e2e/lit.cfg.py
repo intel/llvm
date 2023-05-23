@@ -61,6 +61,9 @@ llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES',
 
 llvm_config.with_environment('PATH', config.lit_tools_dir, append_path=True)
 
+# FIXME: This will need to be guarded once we can switch between modes
+config.available_features.add('mlir')
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add('linux')

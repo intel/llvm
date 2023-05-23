@@ -242,7 +242,7 @@
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
-// RUN: -fsycl-raise-host -Xclang -opaque-pointers                                               \
+// RUN: -fsycl-raise-host -Xclang -opaque-pointers                      \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-ARG-PASS-RAISE %s
 
@@ -258,3 +258,12 @@
 // RUN: | FileCheck -check-prefix=CHK-RAISE-TYPED-PTR %s
 
 // CHK-RAISE-TYPED-PTR: error: invalid argument '-fsycl-raise-host' only allowed with '-Xclang -opaque-pointers'
+
+// RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
+// RUN: -fsycl-raise-host -fsycl-host-compiler=g++                      \
+// RUN: -Xclang -opaque-pointers                                        \
+// RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
+// RUN: | FileCheck -check-prefix=CHK-RAISE-HOST-CCMP %s
+
+// CHK-RAISE-HOST-CCMP: error: The combination of '-fsycl-raise-host' and '-fsycl-host-compiler=' is incompatible
