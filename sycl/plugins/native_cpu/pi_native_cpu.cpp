@@ -594,7 +594,10 @@ pi_result piQueueRelease(pi_queue Queue) {
   return PI_SUCCESS;
 }
 
-pi_result piQueueFinish(pi_queue) { DIE_NO_IMPLEMENTATION; }
+pi_result piQueueFinish(pi_queue) {
+  // Todo: is it fine as a no-op?
+  return PI_SUCCESS;
+}
 
 pi_result piQueueFlush(pi_queue) { DIE_NO_IMPLEMENTATION; }
 
@@ -977,7 +980,7 @@ pi_result piEnqueueMemBufferFill(pi_queue, pi_mem buffer, const void *pattern, s
                                  pi_event *) {
   // Todo: error checking
   // Todo: handle async
-  void *startingPtr = reinterpret_cast<void*>(buffer->_mem) + offset;
+  void *startingPtr = buffer->_mem + offset;
   unsigned steps = size / pattern_size;
   for(unsigned i = 0; i < steps; i++) {
     memcpy(startingPtr + i*pattern_size, pattern, pattern_size);
@@ -1090,9 +1093,12 @@ pi_result piextGetDeviceFunctionPointer(pi_device, pi_program, const char *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMHostAlloc(void **, pi_context, pi_usm_mem_properties *,
-                            size_t, pi_uint32) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextUSMHostAlloc(void **result_ptr, pi_context,
+                            pi_usm_mem_properties *, size_t size, pi_uint32) {
+  // Todo: check properties and alignment.
+  // Todo: error checking.
+  *result_ptr = malloc(size);
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context, pi_device,
