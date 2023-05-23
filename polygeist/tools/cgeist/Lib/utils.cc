@@ -74,7 +74,7 @@ NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
 }
 
 FunctionContext getInputContext(const OpBuilder &B) {
-  assert(B.getInsertionBlock()->getParentOp() &&
+  assert(B.getInsertionBlock() && B.getInsertionBlock()->getParentOp() &&
          "Expecting builder with linked insertion block");
   return B.getInsertionBlock()
                  ->getParentOp()

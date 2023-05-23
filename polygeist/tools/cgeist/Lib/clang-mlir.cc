@@ -392,9 +392,9 @@ void MLIRScanner::setEntryAndAllocBlock(Block *B) {
   AllocationScope = EntryBlock = B;
   Builder.setInsertionPointToStart(B);
   // If block is linked, then the function contexts should match.
-  assert(!B->getParentOp() ||
-         FuncContext == mlirclang::getInputContext(Builder) &&
-             "Expecting function contexts to match");
+  assert((!B->getParentOp() ||
+          FuncContext == mlirclang::getInputContext(Builder)) &&
+         "Expecting function contexts to match");
 }
 
 Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,
