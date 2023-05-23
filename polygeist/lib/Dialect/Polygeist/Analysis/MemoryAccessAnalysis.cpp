@@ -108,7 +108,9 @@ static SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
 
 /// Determine whether \p op uses \p val (directly or indirectly).
 static bool usesValue(Operation *op, Value val) {
-  assert(op && "Expecting valid operation");
+  if (!op)
+    return false;
+
   if (Operation *valOp = val.getDefiningOp())
     if (valOp == op)
       return true;
@@ -241,14 +243,12 @@ static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
 /// Here getMultiplier(%add, %ii) should return '%c1_i32'.
 static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
                                        DataFlowSolver &solver) {
+  if (expr == factor)
+    return Multiplier::one(expr.getContext());
+
   Operation *op = expr.getDefiningOp();
-  if (!op) {
-    // This is a block argument. If it is a match create a multiplier with value
-    // one.
-    if (expr == factor)
-      return Multiplier::one(expr.getContext());
+  if (!op)
     return expr;
-  }
 
   auto getOperandThatMatchesFactor = [&factor](Value lhs, Value rhs) {
     if (lhs == factor && lhs != rhs)
@@ -301,7 +301,6 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
               return Multiplier(rhsVal);
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == rhsVal)
               return Multiplier(lhsVal);
-
             return Value();
           }
 
@@ -333,12 +332,8 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
         return visitBinaryOp(mulOp, factor, solver, getMultiplier,
                              computeResult);
       })
-      .Case<sycl::SYCLNDItemGetGlobalIDOp>(
-          [&](auto getGlobalIdOp) -> ValueOrMultiplier {
-            if (getGlobalIdOp.getResult() == factor)
-              return Multiplier::one(expr.getContext());
-            return Value();
-          })
+      //      .Case<sycl::SYCLNDItemGetGlobalIDOp>(
+      //        [](auto getGlobalIdOp) { return getGlobalIdOp.getResult(); })
       .Case<CastOpInterface>([&](auto) {
         return getMultiplier(op->getOperand(0), factor, solver);
       })

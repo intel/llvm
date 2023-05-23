@@ -168,21 +168,39 @@ func.func @test2(%acc : memref<?x!sycl_accessor_2_f32_rw_gb, 4>) {
 // CHECK-NEXT: 1 0 0
 // CHECK-NEXT: 0 1 0
 // CHECK-NEXT: 0 0 1
+// CHECK-LABEL: test_tag: test3_load2
+// CHECK: matrix:
+// CHECK-NEXT: 1 0 0
+// CHECK-NEXT: 0 0 2
+// CHECK-NEXT: 0 1 0
 func.func @test3(%acc : memref<?x!sycl_accessor_3_f32_rw_gb, 4>, %nditem : memref<?x!sycl_nditem_2>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
   %cast = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
   %id = memref.memory_space_cast %cast : memref<?x!sycl_id_3> to  memref<?x!sycl_id_3, 4>
 
   %c0_i32 = arith.constant 0 : i32
-  %c1_i32 = arith.constant 1 : i32  
-  %ty = sycl.nd_item.get_global_id(%nditem, %c1_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64  
+  %c1_i32 = arith.constant 1 : i32
+  %c1_i64 = arith.constant 1 : i64
+  %c2_i64 = arith.constant 2 : i64
+  %ty = sycl.nd_item.get_global_id(%nditem, %c1_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64
   %tx = sycl.nd_item.get_global_id(%nditem, %c0_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64
 
   affine.for %ii = 0 to 64 {
     %i = arith.index_cast %ii : index to i64
+
+    // [tx,ty,i] 
     sycl.constructor @id(%id, %tx, %ty, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3, 4>, i64, i64, i64)
     %subscr1 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_3_f32_rw_gb, 4>, memref<?x!sycl_id_3>) -> memref<?xf32, 4>
     %load1 = affine.load %subscr1[0] {tag = "test3_load1"} : memref<?xf32, 4>
+
+    // [tx+1, 2*i, %ty-1]
+    %add2 = arith.addi %tx, %c1_i64 : i64
+    %mul2 = arith.muli %i, %c2_i64 : i64
+    %sub2 = arith.subi %ty, %c1_i64 : i64    
+    sycl.constructor @id(%id, %add2, %mul2, %sub2) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3, 4>, i64, i64, i64)
+    %subscr2 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_3_f32_rw_gb, 4>, memref<?x!sycl_id_3>) -> memref<?xf32, 4>
+    %load2 = affine.load %subscr2[0] {tag = "test3_load2"} : memref<?xf32, 4>
+
   }
   return
 }
