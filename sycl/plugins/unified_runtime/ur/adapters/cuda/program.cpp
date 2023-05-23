@@ -371,7 +371,15 @@ urProgramRelease(ur_program_handle_t program) {
     try {
       ScopedContext active(program->get_context());
       auto cuModule = program->get();
-      result = UR_CHECK_ERROR(cuModuleUnload(cuModule));
+      // "0" is a valid handle for a cuModule, so the best way to check if we
+      // actually loaded a module and need to unload it is to look at the build
+      // status.
+      if (program->buildStatus_ == UR_PROGRAM_BUILD_STATUS_SUCCESS) {
+        result = UR_CHECK_ERROR(cuModuleUnload(cuModule));
+      } else if(program->buildStatus_ == UR_PROGRAM_BUILD_STATUS_NONE) {
+        // Nothing to free.
+        result = UR_RESULT_SUCCESS;
+      }
     } catch (...) {
       result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
@@ -391,6 +399,7 @@ urProgramRelease(ur_program_handle_t program) {
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t program, ur_native_handle_t *nativeHandle) {
   UR_ASSERT(program, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(nativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   *nativeHandle = reinterpret_cast<ur_native_handle_t>(program->get());
   return UR_RESULT_SUCCESS;
 }
@@ -417,8 +426,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   std::unique_ptr<ur_program_handle_t_> retProgram{
       new ur_program_handle_t_{hContext}};
 
-  retError =
-      retProgram->set_metadata(pProperties->pMetadatas, pProperties->count);
+  if (pProperties && pProperties->pMetadatas) {
+    retError =
+        retProgram->set_metadata(pProperties->pMetadatas, pProperties->count);
+  }
   UR_ASSERT(retError == UR_RESULT_SUCCESS, retError);
 
   auto pBinary_string = reinterpret_cast<const char *>(pBinary);
