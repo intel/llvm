@@ -692,7 +692,8 @@ pi_result _pi_context::finalize() {
 
   std::scoped_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
-    for (ze_command_list_handle_t &ZeCommandList : List.second) {
+    for (auto &Item : List.second) {
+      ze_command_list_handle_t ZeCommandList = Item.first;
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
@@ -702,7 +703,8 @@ pi_result _pi_context::finalize() {
     }
   }
   for (auto &List : ZeCopyCommandListCache) {
-    for (ze_command_list_handle_t &ZeCommandList : List.second) {
+    for (auto &Item : List.second) {
+      ze_command_list_handle_t ZeCommandList = Item.first;
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
@@ -715,7 +717,7 @@ pi_result _pi_context::finalize() {
 }
 
 bool pi_command_list_info_t::isCopy(pi_queue Queue) const {
-  return ZeQueueGroupOrdinal !=
+  return ZeQueueDesc.ordinal !=
          (uint32_t)Queue->Device
              ->QueueGroup[_pi_device::queue_group_info_t::type::Compute]
              .ZeOrdinal;
@@ -824,7 +826,8 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
         UseCopyEngine
             ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
             : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
-    ZeCommandListCache.push_back(CommandList->first);
+    ZeCommandListCache.push_back(
+        {CommandList->first, CommandList->second.ZeQueueDesc});
   }
 
   return PI_SUCCESS;
@@ -1273,7 +1276,7 @@ pi_result _pi_context::getAvailableCommandList(
 
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
-      auto &ZeCommandList = *ZeCommandListIt;
+      auto &ZeCommandList = ZeCommandListIt->first;
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
         if (ForcedCmdQueue && *ForcedCmdQueue != it->second.ZeQueue)
@@ -1297,12 +1300,14 @@ pi_result _pi_context::getAvailableCommandList(
         ze_fence_handle_t ZeFence;
         ZeStruct<ze_fence_desc_t> ZeFenceDesc;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-        CommandList = Queue->CommandListMap
-                          .emplace(ZeCommandList,
-                                   pi_command_list_info_t{ZeFence, true, false,
-                                                          ZeCommandQueue,
-                                                          QueueGroupOrdinal})
-                          .first;
+        ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+        ZeQueueDesc.ordinal = QueueGroupOrdinal;
+        CommandList =
+            Queue->CommandListMap
+                .emplace(ZeCommandList,
+                         pi_command_list_info_t{ZeFence, true, false,
+                                                ZeCommandQueue, ZeQueueDesc})
+                .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);
       if (auto Res = Queue->insertStartBarrierIfDiscardEventsMode(CommandList))
@@ -1379,10 +1384,11 @@ _pi_queue::createCommandList(bool UseCopyEngine,
                                 &ZeCommandListDesc, &ZeCommandList));
 
   ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+  ZeQueueDesc.ordinal = QueueGroupOrdinal;
   std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-          ZeCommandList,
-          {ZeFence, false, false, ZeCommandQueue, QueueGroupOrdinal}));
+          ZeCommandList, {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
 
   PI_CALL(insertStartBarrierIfDiscardEventsMode(CommandList));
   PI_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
@@ -1778,7 +1784,6 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
 // This function will return one of possibly multiple available
 // immediate commandlists associated with this Queue.
 pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
-
   uint32_t QueueIndex, QueueOrdinal;
   auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
 
@@ -1797,35 +1802,56 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
     ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
     Priority = "High";
   }
-
   // Evaluate performance of explicit usage for "0" index.
   if (QueueIndex != 0) {
     ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  urPrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d]) priority = %s\n",
-          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex, Priority);
+  // Check if context's command list cache has an immediate command list with
+  // matching index.
+  ze_command_list_handle_t ZeCommandList = nullptr;
+  {
+    // Acquire lock to avoid race conditions.
+    std::scoped_lock<ur_mutex> Lock(Queue->Context->ZeCommandListCacheMutex);
+    // Under mutex since operator[] does insertion on the first usage for every
+    // unique ZeDevice.
+    auto &ZeCommandListCache =
+        isCopy()
+            ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
+            : Queue->Context
+                  ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
+    for (auto ZeCommandListIt = ZeCommandListCache.begin();
+         ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
+      const auto &Desc = (*ZeCommandListIt).second;
+      if (Desc.index == ZeCommandQueueDesc.index &&
+          Desc.flags == ZeCommandQueueDesc.flags &&
+          Desc.mode == ZeCommandQueueDesc.mode &&
+          Desc.priority == ZeCommandQueueDesc.priority) {
+        ZeCommandList = (*ZeCommandListIt).first;
+        ZeCommandListCache.erase(ZeCommandListIt);
+        break;
+      }
+    }
+  }
 
-  ze_command_list_handle_t ZeCommandList;
-  ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
-                  (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-                   &ZeCommandQueueDesc, &ZeCommandList));
+  // If cache didn't contain a command list, create one.
+  if (!ZeCommandList) {
+    urPrint("[getZeQueue]: create queue ordinal = %d, index = %d "
+            "(round robin in [%d, %d]) priority = %s\n",
+            ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+            UpperIndex, Priority);
+
+    ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
+                    (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                     &ZeCommandQueueDesc, &ZeCommandList));
+  }
+
   ImmCmdLists[Index] =
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, true, false, nullptr, QueueOrdinal}})
+              ZeCommandList,
+              {nullptr, true, false, nullptr, ZeCommandQueueDesc}})
           .first;
-  // Add this commandlist to the cache so it can be destroyed as part of
-  // piQueueReleaseInternal
-  auto QueueType = Type;
-  std::scoped_lock<ur_mutex> Lock(Queue->Context->ZeCommandListCacheMutex);
-  auto &ZeCommandListCache =
-      QueueType == queue_type::Compute
-          ? Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice]
-          : Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice];
-  ZeCommandListCache.push_back(ZeCommandList);
 
   return ImmCmdLists[Index];
 }
@@ -2833,6 +2859,29 @@ pi_result piQueueRelease(pi_queue Queue) {
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return mapError(ZeResult);
       }
+      if (Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue) {
+        std::scoped_lock<ur_mutex> Lock(
+            Queue->Context->ZeCommandListCacheMutex);
+        const pi_command_list_info_t &MapEntry = it->second;
+        if (MapEntry.CanReuse) {
+          // Add commandlist to the cache for future use.
+          // It will be deleted when the context is destroyed.
+          auto &ZeCommandListCache =
+              MapEntry.isCopy(Queue)
+                  ? Queue->Context
+                        ->ZeCopyCommandListCache[Queue->Device->ZeDevice]
+                  : Queue->Context
+                        ->ZeComputeCommandListCache[Queue->Device->ZeDevice];
+          ZeCommandListCache.push_back({it->first, it->second.ZeQueueDesc});
+        } else {
+          // A non-reusable comamnd list that came from a make_queue call is
+          // destroyed since it cannot be recycled.
+          ze_command_list_handle_t ZeCommandList = it->first;
+          if (ZeCommandList) {
+            ZE_CALL(zeCommandListDestroy, (ZeCommandList));
+          }
+        }
+      }
     }
     Queue->CommandListMap.clear();
   }
@@ -2997,11 +3046,15 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
 void _pi_queue::pi_queue_group_t::setImmCmdList(
     ze_command_list_handle_t ZeCommandList) {
+  // An immediate command list was given to us but we don't have the queue
+  // descriptor information. Create a dummy and note that it is not recycleable.
+  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
   ImmCmdLists = std::vector<pi_command_list_ptr_t>(
       1,
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, true, false, nullptr, 0}})
+              ZeCommandList,
+              {nullptr, true, false, nullptr, ZeQueueDesc, false}})
           .first);
 }
 
