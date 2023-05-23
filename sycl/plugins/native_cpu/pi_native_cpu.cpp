@@ -1047,7 +1047,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   sycl::detail::NDRDescT ndr =
       getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
   nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2],
-                        ndr.LocalSize[0], ndr.LocalSize[1], ndr.LocalSize[2]);
+                        ndr.LocalSize[0], ndr.LocalSize[1], ndr.LocalSize[2],
+                        ndr.GlobalOffset[0], ndr.GlobalOffset[1],
+                        ndr.GlobalOffset[2]);
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];

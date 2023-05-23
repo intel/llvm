@@ -28,12 +28,15 @@ struct nativecpu_state {
   size_t MWorkGroup_id[3];
   size_t MLocal_id[3];
   size_t MNumGroups[3];
+  size_t MGlobalOffset[3];
   nativecpu_state(size_t globalR0, size_t globalR1, size_t globalR2,
-                  size_t localR0, size_t localR1, size_t localR2)
+                  size_t localR0, size_t localR1, size_t localR2,
+                  size_t globalO0, size_t globalO1, size_t globalO2)
       : MGlobal_range{globalR0, globalR1, globalR2}, MWorkGroup_size{localR0,
                                                                      localR1,
                                                                      localR2},
-        MNumGroups{globalR0 / localR0, globalR1 / localR1, globalR2 / localR2} {
+        MNumGroups{globalR0 / localR0, globalR1 / localR1, globalR2 / localR2},
+        MGlobalOffset{globalO0, globalO1, globalO2} {
     MGlobal_id[0] = 0;
     MGlobal_id[1] = 0;
     MGlobal_id[2] = 0;
@@ -97,6 +100,12 @@ extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
 _Z13get_num_groupsmP15nativecpu_state(__attribute((address_space(0)))
                                       nativecpu_state *s) {
   return &(s->MNumGroups[0]);
+}
+
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
+_Z13get_global_offsetmP15nativecpu_state(__attribute((address_space(0)))
+                                         nativecpu_state *s) {
+  return &(s->MGlobalOffset[0]);
 }
 #undef __SYCL_HC_ATTRS
 #endif
