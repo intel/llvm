@@ -270,8 +270,8 @@ rows for the row major layout, or between columns for the column major layout.
 namespace sycl::ext::oneapi::experimental::matrix {
 
 template <typename Group, typename Ta, typename Tb, typename Tc,
-  std::size_t M, std::size_t K, std::size_t N,
-  layout LayoutA, layout LayoutB, typename Td = Tc>
+          std::size_t M, std::size_t K, std::size_t N, layout LayoutA, layout
+          LayoutB, typename Td = Tc>
 joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic>
 joint_matrix_mad(Group g,
     const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
@@ -763,7 +763,6 @@ for (int i = 0; sizeof(combinations); i++) {
 ```
 
 === Appendix: Supported Combinations Per Hardware
-
 The table below provides a list of the combinations that
 `joint_matrix` implementations support on each of Intel AMX and Intel
 XMX hardware. Note that these can be returned using
@@ -772,8 +771,9 @@ XMX hardware. Note that these can be returned using
 ==== Intel AMX Supported Combinations
 This is currently available in devices with the architecture
 `architecture::intel_cpu_spr`. In this architecture's implementation,
-the C and D matrices support the same set of types, so they are shown
-in a single column.
+the type of the C matrix must be the same as the type of the D
+matrix. Therefore, that common type is shown in a single column in the
+table below.
 
 [frame="none",options="header"]
 |======================
@@ -793,8 +793,9 @@ in a single column.
 ==== Intel XMX Supported Combinations
 This is currently available in devices with the architecture
 `architecture::intel_gpu_pvc` and `architecture::intel_gpu_dg2`. In
-these architectures' implementation, the C and D matrices support the
-same set of types, so they are shown in a single column.
+these architectures' implementation, the type of the C matrix must be
+the same as the type of the D matrix. Therefore, that common type is
+shown in a single column in the table below.
 
 [frame="none",options="header"]
 |======================

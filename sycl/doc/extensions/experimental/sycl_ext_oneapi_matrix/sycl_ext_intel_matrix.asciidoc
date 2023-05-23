@@ -78,7 +78,7 @@ extension to gain additional performance and capabilities.
 This extension provides a feature-test macro as described in the core SYCL
 specification. An implementation supporting this extension must
 predefine the macro `SYCL_EXT_INTEL_MATRIX` to one of the values
-defined in the table below.Applications can test for the existence of
+defined in the table below. Applications can test for the existence of
 this macro to determine if the implementation supports this feature,
 or applications can test the macro's value to determine which of the
 extension's APIs the implementation supports.
@@ -125,7 +125,7 @@ enum class layout {
 
 Consequently, the layout argument `layout` in `joint_matrix_load` can
 take `ext_intel_packed` as argument to specify that the data has
-already been transformed into VNNI format. in this case, `stride`
+already been transformed into VNNI format. In this case, the `stride`
 argument of `joint_matrix_load` describes the number of elements
 between consecutive rows for packed layouts.
 
@@ -148,14 +148,14 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
-    joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
-    joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::intel::experimental::matrix
@@ -324,6 +324,5 @@ q.wait();
 |======================
 |Rev |Date       |Author     |Changes
 |1   |2022-11-07 |Dounia Khaldi |Add Intel-specific store API,
-layout information, iterative-based element-wise operations, and
-mapping
+layout information, and per-element access with coordinates API
 |======================
