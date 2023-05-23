@@ -618,7 +618,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
@@ -626,14 +626,14 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     bool result = false;
     if (paramValueSize < sizeof(result))
       return PI_ERROR_INVALID_VALUE;
-    std::memcpy(paramValue, &result, sizeof(bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     bool result = true;
     if (paramValueSize < sizeof(result))
       return PI_ERROR_INVALID_VALUE;
-    std::memcpy(paramValue, &result, sizeof(bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
@@ -646,7 +646,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
     if (paramValueSize < sizeof(result))
       return PI_ERROR_INVALID_VALUE;
-    std::memcpy(paramValue, &result, sizeof(bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
@@ -735,7 +735,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   default:
