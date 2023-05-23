@@ -2009,7 +2009,7 @@ void emitKernelInstrumentationData(
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs) {
-  // #ifdef XPTI_ENABLE_INSTRUMENTATION
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
 
@@ -2039,7 +2039,7 @@ void emitKernelInstrumentationData(
         static_cast<const void *>(
             commandToNodeType(Command::CommandType::RUN_CG).c_str()));
   }
-  // #endif
+#endif
 }
 
 void ExecCGCommand::emitInstrumentationData() {
