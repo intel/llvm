@@ -1,0 +1,104 @@
+= sycl_ext_oneapi_queue_submission_mode
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+
+== Backend support status
+
+This extension is currently implemented in {dpcpp} only for GPU devices and
+only when using the Level Zero backend.  Use of this extension in on other devices
+or backends may have no effect on the submission mode.
+
+== Overview
+
+This extension enables specifying one of two submission modes for a queue.
+
+The property `batched_submission` specifies that submissions to a SYCL queue
+should be collected into groups before actual submission to the hardware.
+
+The property `immediate_submission` specifies that submissions to a
+SYCL queue should be submitted to the hardware immediately.
+
+When the submission mode is left unspecified a platform-specific default
+is chosen by the implementation.
+
+
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_QUEUE_SUBMISSION_MODE` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== Guidelines for using queue submission properties
+
+The default queue submission mode chosen by the implementation is usually
+optimal.
+
+In some cases it may be necessary to explicitly select
+a submission mode based on the types of activities the queue is expected to handle.
+For example, when kernel runtimes are very short the submission time on the host
+may be as long or longer than the actual runtime of the kernel. In this case, doing
+batched submissions may be preferable so that the submission overhead is amortized
+over a number of kernel executions.
+
