@@ -16,107 +16,142 @@
 
 namespace ur_params {
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
+template <typename T>
+inline void serializeFlag(std::ostream &os, uint32_t flag);
+template <typename T>
+inline void serializeTagged(std::ostream &os, const void *ptr, T value,
+                            size_t size);
 
 inline void serializeStruct(std::ostream &os, const void *ptr);
-inline void serializeFlag_ur_device_init_flags_t(std::ostream &os,
-                                                 ur_device_init_flags_t flag);
+
+template <>
+inline void serializeFlag<ur_device_init_flag_t>(std::ostream &os,
+                                                 uint32_t flag);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_platform_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_device_info_t value, size_t size);
+
+template <>
+inline void serializeFlag<ur_device_fp_capability_flag_t>(std::ostream &os,
+                                                          uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_device_exec_capability_flag_t>(std::ostream &os,
+                                                            uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_device_affinity_domain_flag_t>(std::ostream &os,
+                                                            uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_memory_order_capability_flag_t>(std::ostream &os,
+                                                             uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_memory_scope_capability_flag_t>(std::ostream &os,
+                                                             uint32_t flag);
+
+template <>
 inline void
-serializeTaggedTyped_ur_platform_info_t(std::ostream &os, const void *ptr,
-                                        enum ur_platform_info_t value,
-                                        size_t size);
-inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
-                                                  const void *ptr,
-                                                  enum ur_device_info_t value,
-                                                  size_t size);
-inline void serializeFlag_ur_device_fp_capability_flags_t(
-    std::ostream &os, ur_device_fp_capability_flags_t flag);
-inline void serializeFlag_ur_device_exec_capability_flags_t(
-    std::ostream &os, ur_device_exec_capability_flags_t flag);
-inline void serializeFlag_ur_device_affinity_domain_flags_t(
-    std::ostream &os, ur_device_affinity_domain_flags_t flag);
-inline void serializeFlag_ur_memory_order_capability_flags_t(
-    std::ostream &os, ur_memory_order_capability_flags_t flag);
-inline void serializeFlag_ur_memory_scope_capability_flags_t(
-    std::ostream &os, ur_memory_scope_capability_flags_t flag);
-inline void serializeFlag_ur_device_usm_access_capability_flags_t(
-    std::ostream &os, ur_device_usm_access_capability_flags_t flag);
-inline void serializeFlag_ur_context_flags_t(std::ostream &os,
-                                             ur_context_flags_t flag);
-inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
-                                                   const void *ptr,
-                                                   enum ur_context_info_t value,
-                                                   size_t size);
-inline void serializeFlag_ur_mem_flags_t(std::ostream &os, ur_mem_flags_t flag);
-inline void serializeTaggedTyped_ur_mem_info_t(std::ostream &os,
-                                               const void *ptr,
-                                               enum ur_mem_info_t value,
-                                               size_t size);
-inline void serializeTaggedTyped_ur_image_info_t(std::ostream &os,
-                                                 const void *ptr,
-                                                 enum ur_image_info_t value,
-                                                 size_t size);
-inline void serializeTaggedTyped_ur_sampler_info_t(std::ostream &os,
-                                                   const void *ptr,
-                                                   enum ur_sampler_info_t value,
-                                                   size_t size);
-inline void serializeFlag_ur_usm_host_mem_flags_t(std::ostream &os,
-                                                  ur_usm_host_mem_flags_t flag);
-inline void
-serializeFlag_ur_usm_device_mem_flags_t(std::ostream &os,
-                                        ur_usm_device_mem_flags_t flag);
-inline void serializeFlag_ur_usm_pool_flags_t(std::ostream &os,
-                                              ur_usm_pool_flags_t flag);
-inline void
-serializeTaggedTyped_ur_usm_alloc_info_t(std::ostream &os, const void *ptr,
-                                         enum ur_usm_alloc_info_t value,
-                                         size_t size);
-inline void serializeFlag_ur_usm_advice_flags_t(std::ostream &os,
-                                                ur_usm_advice_flags_t flag);
-inline void
-serializeTaggedTyped_ur_usm_pool_info_t(std::ostream &os, const void *ptr,
-                                        enum ur_usm_pool_info_t value,
-                                        size_t size);
-inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
-                                                   const void *ptr,
-                                                   enum ur_program_info_t value,
-                                                   size_t size);
-inline void
-serializeTaggedTyped_ur_program_build_info_t(std::ostream &os, const void *ptr,
-                                             enum ur_program_build_info_t value,
-                                             size_t size);
-inline void serializeTaggedTyped_ur_kernel_info_t(std::ostream &os,
-                                                  const void *ptr,
-                                                  enum ur_kernel_info_t value,
-                                                  size_t size);
-inline void
-serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
-                                            enum ur_kernel_group_info_t value,
-                                            size_t size);
-inline void serializeTaggedTyped_ur_kernel_sub_group_info_t(
-    std::ostream &os, const void *ptr, enum ur_kernel_sub_group_info_t value,
-    size_t size);
-inline void
-serializeTaggedTyped_ur_kernel_exec_info_t(std::ostream &os, const void *ptr,
-                                           enum ur_kernel_exec_info_t value,
-                                           size_t size);
-inline void serializeTaggedTyped_ur_queue_info_t(std::ostream &os,
-                                                 const void *ptr,
-                                                 enum ur_queue_info_t value,
-                                                 size_t size);
-inline void serializeFlag_ur_queue_flags_t(std::ostream &os,
-                                           ur_queue_flags_t flag);
-inline void serializeTaggedTyped_ur_event_info_t(std::ostream &os,
-                                                 const void *ptr,
-                                                 enum ur_event_info_t value,
-                                                 size_t size);
-inline void
-serializeTaggedTyped_ur_profiling_info_t(std::ostream &os, const void *ptr,
-                                         enum ur_profiling_info_t value,
-                                         size_t size);
-inline void serializeFlag_ur_map_flags_t(std::ostream &os, ur_map_flags_t flag);
-inline void
-serializeFlag_ur_usm_migration_flags_t(std::ostream &os,
-                                       ur_usm_migration_flags_t flag);
+serializeFlag<ur_device_usm_access_capability_flag_t>(std::ostream &os,
+                                                      uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_context_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_context_info_t value, size_t size);
+
+template <>
+inline void serializeFlag<ur_mem_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_mem_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_image_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_sampler_info_t value, size_t size);
+
+template <>
+inline void serializeFlag<ur_usm_host_mem_flag_t>(std::ostream &os,
+                                                  uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_usm_device_mem_flag_t>(std::ostream &os,
+                                                    uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_usm_pool_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_usm_alloc_info_t value, size_t size);
+
+template <>
+inline void serializeFlag<ur_usm_advice_flag_t>(std::ostream &os,
+                                                uint32_t flag);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_usm_pool_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_program_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_program_build_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_group_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_sub_group_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_exec_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_queue_info_t value, size_t size);
+
+template <>
+inline void serializeFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_event_info_t value, size_t size);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_profiling_info_t value, size_t size);
+
+template <>
+inline void serializeFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
+inline void serializeFlag<ur_usm_migration_flag_t>(std::ostream &os,
+                                                   uint32_t flag);
+
 } // namespace ur_params
 
 inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value);
@@ -950,8 +985,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_device_init_flags_t(std::ostream &os,
-                                                 ur_device_init_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_device_init_flag_t>(std::ostream &os,
+                                                 uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -1050,10 +1087,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeTaggedTyped_ur_platform_info_t(std::ostream &os, const void *ptr,
-                                        enum ur_platform_info_t value,
-                                        size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_platform_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -1683,10 +1719,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
-                                                  const void *ptr,
-                                                  enum ur_device_info_t value,
-                                                  size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_device_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -1767,7 +1802,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
 
         const size_t *tptr = (const size_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(size_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -1776,7 +1811,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
@@ -1804,7 +1839,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_fp_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_device_fp_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -1820,7 +1855,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_fp_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_device_fp_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -1836,7 +1871,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_fp_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_device_fp_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -1850,7 +1885,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -2540,7 +2575,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_exec_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_device_exec_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -2554,7 +2589,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -2568,7 +2603,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -2701,7 +2736,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
 
         const ur_device_partition_property_t *tptr =
             (const ur_device_partition_property_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(ur_device_partition_property_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -2710,7 +2745,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
@@ -2738,7 +2773,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_affinity_domain_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_device_affinity_domain_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -2747,7 +2782,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
 
         const ur_device_partition_property_t *tptr =
             (const ur_device_partition_property_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(ur_device_partition_property_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -2756,7 +2791,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
@@ -2790,7 +2825,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
 
         const uint32_t *tptr = (const uint32_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(uint32_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -2799,7 +2834,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_DEVICE_INFO_USM_HOST_SUPPORT: {
@@ -2812,7 +2847,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+        ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
 
         os << ")";
@@ -2828,7 +2863,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+        ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
 
         os << ")";
@@ -2844,7 +2879,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+        ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
 
         os << ")";
@@ -2860,7 +2895,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+        ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
 
         os << ")";
@@ -2876,7 +2911,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_device_usm_access_capability_flags_t(os,
+        ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
 
         os << ")";
@@ -3045,7 +3080,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -3061,7 +3096,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -3077,7 +3112,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -3093,7 +3128,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -3157,7 +3192,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
     case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
 
         const size_t *tptr = (const size_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(size_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -3166,7 +3201,7 @@ inline void serializeTaggedTyped_ur_device_info_t(std::ostream &os,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_DEVICE_INFO_ASYNC_BARRIER: {
@@ -3301,8 +3336,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_device_fp_capability_flags_t(
-    std::ostream &os, ur_device_fp_capability_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_device_fp_capability_flag_t>(std::ostream &os,
+                                                          uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -3465,8 +3502,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_device_exec_capability_flags_t(
-    std::ostream &os, ur_device_exec_capability_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_device_exec_capability_flag_t>(std::ostream &os,
+                                                            uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -3536,8 +3575,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_device_affinity_domain_flags_t(
-    std::ostream &os, ur_device_affinity_domain_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_device_affinity_domain_flag_t>(std::ostream &os,
+                                                            uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -3669,8 +3710,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_memory_order_capability_flags_t(
-    std::ostream &os, ur_memory_order_capability_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_memory_order_capability_flag_t>(std::ostream &os,
+                                                             uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -3769,8 +3812,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_memory_scope_capability_flags_t(
-    std::ostream &os, ur_memory_scope_capability_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_memory_scope_capability_flag_t>(std::ostream &os,
+                                                             uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -3866,8 +3911,11 @@ operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_device_usm_access_capability_flags_t(
-    std::ostream &os, ur_device_usm_access_capability_flags_t flag) {
+
+template <>
+inline void
+serializeFlag<ur_device_usm_access_capability_flag_t>(std::ostream &os,
+                                                      uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -3941,8 +3989,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_context_flags_t(std::ostream &os,
-                                             ur_context_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_context_flag_t>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -3982,7 +4031,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_context_flags_t(os, (params.flags));
+    ur_params::serializeFlag<ur_context_flag_t>(os, (params.flags));
 
     os << "}";
     return os;
@@ -4033,10 +4082,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
-                                                   const void *ptr,
-                                                   enum ur_context_info_t value,
-                                                   size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_context_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -4061,7 +4109,7 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
     case UR_CONTEXT_INFO_DEVICES: {
 
         const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(ur_device_handle_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -4070,7 +4118,7 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
 
             ur_params::serializePtr(os, tptr[i]);
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_CONTEXT_INFO_REFERENCE_COUNT: {
@@ -4126,7 +4174,7 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -4142,7 +4190,7 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -4158,7 +4206,7 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_order_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -4174,7 +4222,7 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_memory_scope_capability_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -4239,8 +4287,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_mem_flags_t(std::ostream &os,
-                                         ur_mem_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_mem_flag_t>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -4370,10 +4419,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_mem_info_t(std::ostream &os,
-                                               const void *ptr,
-                                               enum ur_mem_info_t value,
-                                               size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_mem_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -4589,10 +4637,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_image_info_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_image_info_t(std::ostream &os,
-                                                 const void *ptr,
-                                                 enum ur_image_info_t value,
-                                                 size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_image_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -4981,10 +5028,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_sampler_info_t(std::ostream &os,
-                                                   const void *ptr,
-                                                   enum ur_sampler_info_t value,
-                                                   size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_sampler_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -5137,9 +5183,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeFlag_ur_usm_host_mem_flags_t(std::ostream &os,
-                                      ur_usm_host_mem_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_usm_host_mem_flag_t>(std::ostream &os,
+                                                  uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -5186,9 +5233,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeFlag_ur_usm_device_mem_flags_t(std::ostream &os,
-                                        ur_usm_device_mem_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_usm_device_mem_flag_t>(std::ostream &os,
+                                                    uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -5249,8 +5297,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_usm_pool_flags_t(std::ostream &os,
-                                              ur_usm_pool_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_usm_pool_flag_t>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -5329,10 +5378,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeTaggedTyped_ur_usm_alloc_info_t(std::ostream &os, const void *ptr,
-                                         enum ur_usm_alloc_info_t value,
-                                         size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_usm_alloc_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -5485,8 +5533,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_usm_advice_flags_t(std::ostream &os,
-                                                ur_usm_advice_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_usm_advice_flag_t>(std::ostream &os,
+                                                uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -5681,7 +5731,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ", ";
     os << ".hints = ";
 
-    ur_params::serializeFlag_ur_usm_advice_flags_t(os, (params.hints));
+    ur_params::serializeFlag<ur_usm_advice_flag_t>(os, (params.hints));
 
     os << ", ";
     os << ".align = ";
@@ -5707,7 +5757,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_usm_host_mem_flags_t(os, (params.flags));
+    ur_params::serializeFlag<ur_usm_host_mem_flag_t>(os, (params.flags));
 
     os << "}";
     return os;
@@ -5728,7 +5778,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_usm_device_mem_flags_t(os, (params.flags));
+    ur_params::serializeFlag<ur_usm_device_mem_flag_t>(os, (params.flags));
 
     os << "}";
     return os;
@@ -5749,7 +5799,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_usm_pool_flags_t(os, (params.flags));
+    ur_params::serializeFlag<ur_usm_pool_flag_t>(os, (params.flags));
 
     os << "}";
     return os;
@@ -5798,10 +5848,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeTaggedTyped_ur_usm_pool_info_t(std::ostream &os, const void *ptr,
-                                        enum ur_usm_pool_info_t value,
-                                        size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_usm_pool_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -5938,7 +5987,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << (params.count);
 
     os << ", ";
-    os << ".pMetadatas = [";
+    os << ".pMetadatas = {";
     for (size_t i = 0; (params.pMetadatas) != NULL && i < params.count; ++i) {
         if (i != 0) {
             os << ", ";
@@ -5946,7 +5995,7 @@ inline std::ostream &operator<<(std::ostream &os,
 
         os << ((params.pMetadatas))[i];
     }
-    os << "]";
+    os << "}";
 
     os << "}";
     return os;
@@ -5997,10 +6046,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
-                                                   const void *ptr,
-                                                   enum ur_program_info_t value,
-                                                   size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_program_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -6053,7 +6101,7 @@ inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
     case UR_PROGRAM_INFO_DEVICES: {
 
         const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(ur_device_handle_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -6062,7 +6110,7 @@ inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
 
             ur_params::serializePtr(os, tptr[i]);
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_PROGRAM_INFO_SOURCE: {
@@ -6074,7 +6122,7 @@ inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
     case UR_PROGRAM_INFO_BINARY_SIZES: {
 
         const size_t *tptr = (const size_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(size_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -6083,7 +6131,7 @@ inline void serializeTaggedTyped_ur_program_info_t(std::ostream &os,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_PROGRAM_INFO_BINARIES: {
@@ -6193,10 +6241,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeTaggedTyped_ur_program_build_info_t(std::ostream &os, const void *ptr,
-                                             enum ur_program_build_info_t value,
-                                             size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_program_build_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -6332,10 +6379,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_kernel_info_t(std::ostream &os,
-                                                  const void *ptr,
-                                                  enum ur_kernel_info_t value,
-                                                  size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -6464,10 +6510,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
-                                            enum ur_kernel_group_info_t value,
-                                            size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_group_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -6478,7 +6523,7 @@ serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
     case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
 
         const size_t *tptr = (const size_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(size_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -6487,7 +6532,7 @@ serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
@@ -6507,7 +6552,7 @@ serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
     case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
 
         const size_t *tptr = (const size_t *)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(size_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -6516,7 +6561,7 @@ serializeTaggedTyped_ur_kernel_group_info_t(std::ostream &os, const void *ptr,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
@@ -6592,9 +6637,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_kernel_sub_group_info_t(
-    std::ostream &os, const void *ptr, enum ur_kernel_sub_group_info_t value,
-    size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_sub_group_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -6706,10 +6751,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeTaggedTyped_ur_kernel_exec_info_t(std::ostream &os, const void *ptr,
-                                           enum ur_kernel_exec_info_t value,
-                                           size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_kernel_exec_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -6734,7 +6778,7 @@ serializeTaggedTyped_ur_kernel_exec_info_t(std::ostream &os, const void *ptr,
     case UR_KERNEL_EXEC_INFO_USM_PTRS: {
 
         const void **tptr = (const void **)ptr;
-        os << "[";
+        os << "{";
         size_t nelems = size / sizeof(void *);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
@@ -6743,7 +6787,7 @@ serializeTaggedTyped_ur_kernel_exec_info_t(std::ostream &os, const void *ptr,
 
             os << tptr[i];
         }
-        os << "]";
+        os << "}";
     } break;
 
     case UR_KERNEL_EXEC_INFO_CACHE_CONFIG: {
@@ -6825,10 +6869,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_queue_info_t(std::ostream &os,
-                                                 const void *ptr,
-                                                 enum ur_queue_info_t value,
-                                                 size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_queue_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -6887,7 +6930,7 @@ inline void serializeTaggedTyped_ur_queue_info_t(std::ostream &os,
         }
         os << (void *)(tptr) << " (";
 
-        ur_params::serializeFlag_ur_queue_flags_t(os, *tptr);
+        ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
         os << ")";
     } break;
@@ -6976,8 +7019,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_queue_flags_t(std::ostream &os,
-                                           ur_queue_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -7083,7 +7127,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_queue_flags_t(os, (params.flags));
+    ur_params::serializeFlag<ur_queue_flag_t>(os, (params.flags));
 
     os << "}";
     return os;
@@ -7313,10 +7357,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_event_info_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeTaggedTyped_ur_event_info_t(std::ostream &os,
-                                                 const void *ptr,
-                                                 enum ur_event_info_t value,
-                                                 size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_event_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -7425,10 +7468,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeTaggedTyped_ur_profiling_info_t(std::ostream &os, const void *ptr,
-                                         enum ur_profiling_info_t value,
-                                         size_t size) {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_profiling_info_t value, size_t size) {
     if (ptr == NULL) {
         serializePtr(os, ptr);
         return;
@@ -8048,8 +8090,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value) {
     return os;
 }
 namespace ur_params {
-inline void serializeFlag_ur_map_flags_t(std::ostream &os,
-                                         ur_map_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -8108,9 +8151,10 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 namespace ur_params {
-inline void
-serializeFlag_ur_usm_migration_flags_t(std::ostream &os,
-                                       ur_usm_migration_flags_t flag) {
+
+template <>
+inline void serializeFlag<ur_usm_migration_flag_t>(std::ostream &os,
+                                                   uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
@@ -8141,7 +8185,7 @@ inline std::ostream &operator<<(std::ostream &os,
 
     os << ".device_flags = ";
 
-    ur_params::serializeFlag_ur_device_init_flags_t(os,
+    ur_params::serializeFlag<ur_device_init_flag_t>(os,
                                                     *(params->pdevice_flags));
 
     return os;
@@ -8180,7 +8224,7 @@ operator<<(std::ostream &os, const struct ur_context_create_params_t *params) {
     os << *(params->pDeviceCount);
 
     os << ", ";
-    os << ".phDevices = [";
+    os << ".phDevices = {";
     for (size_t i = 0;
          *(params->pphDevices) != NULL && i < *params->pDeviceCount; ++i) {
         if (i != 0) {
@@ -8189,7 +8233,7 @@ operator<<(std::ostream &os, const struct ur_context_create_params_t *params) {
 
         ur_params::serializePtr(os, (*(params->pphDevices))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".pProperties = ";
@@ -8244,8 +8288,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_context_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -8285,7 +8329,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumDevices);
 
     os << ", ";
-    os << ".phDevices = [";
+    os << ".phDevices = {";
     for (size_t i = 0;
          *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
         if (i != 0) {
@@ -8294,7 +8338,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphDevices))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".pProperties = ";
@@ -8369,7 +8413,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8379,7 +8423,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8403,7 +8447,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8413,7 +8457,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8437,7 +8481,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8447,7 +8491,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8496,7 +8540,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8506,7 +8550,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8555,7 +8599,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8565,7 +8609,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8639,7 +8683,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8649,7 +8693,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8723,7 +8767,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8733,7 +8777,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8782,7 +8826,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8792,7 +8836,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8861,7 +8905,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8871,7 +8915,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8920,7 +8964,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8930,7 +8974,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -8989,7 +9033,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -8999,7 +9043,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9058,7 +9102,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9068,7 +9112,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9117,7 +9161,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9127,7 +9171,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9158,7 +9202,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".mapFlags = ";
 
-    ur_params::serializeFlag_ur_map_flags_t(os, *(params->pmapFlags));
+    ur_params::serializeFlag<ur_map_flag_t>(os, *(params->pmapFlags));
 
     os << ", ";
     os << ".offset = ";
@@ -9176,7 +9220,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9186,7 +9230,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9225,7 +9269,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9235,7 +9279,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9279,7 +9323,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9289,7 +9333,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9333,7 +9377,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9343,7 +9387,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9374,7 +9418,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_usm_migration_flags_t(os, *(params->pflags));
+    ur_params::serializeFlag<ur_usm_migration_flag_t>(os, *(params->pflags));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -9382,7 +9426,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9392,7 +9436,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9423,7 +9467,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".advice = ";
 
-    ur_params::serializeFlag_ur_usm_advice_flags_t(os, *(params->padvice));
+    ur_params::serializeFlag<ur_usm_advice_flag_t>(os, *(params->padvice));
 
     os << ", ";
     os << ".phEvent = ";
@@ -9477,7 +9521,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9487,7 +9531,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9546,7 +9590,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9556,7 +9600,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9610,7 +9654,7 @@ inline std::ostream &operator<<(
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9620,7 +9664,7 @@ inline std::ostream &operator<<(
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9674,7 +9718,7 @@ inline std::ostream &operator<<(
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9684,7 +9728,7 @@ inline std::ostream &operator<<(
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9733,7 +9777,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9743,7 +9787,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9792,7 +9836,7 @@ operator<<(std::ostream &os,
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
                        i < *params->pnumEventsInWaitList;
          ++i) {
@@ -9802,7 +9846,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -9831,8 +9875,8 @@ operator<<(std::ostream &os, const struct ur_event_get_info_params_t *params) {
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_event_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -9862,8 +9906,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_profiling_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -9881,7 +9925,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << *(params->pnumEvents);
 
     os << ", ";
-    os << ".phEventWaitList = [";
+    os << ".phEventWaitList = {";
     for (size_t i = 0;
          *(params->pphEventWaitList) != NULL && i < *params->pnumEvents; ++i) {
         if (i != 0) {
@@ -9890,7 +9934,7 @@ inline std::ostream &operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
     }
-    os << "]";
+    os << "}";
 
     return os;
 }
@@ -10022,8 +10066,8 @@ operator<<(std::ostream &os, const struct ur_kernel_get_info_params_t *params) {
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_kernel_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -10058,8 +10102,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_kernel_group_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -10094,8 +10138,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_kernel_sub_group_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -10260,8 +10304,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_kernel_exec_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     return os;
 }
@@ -10340,7 +10384,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_mem_flags_t(os, *(params->pflags));
+    ur_params::serializeFlag<ur_mem_flag_t>(os, *(params->pflags));
 
     os << ", ";
     os << ".pImageFormat = ";
@@ -10376,7 +10420,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_mem_flags_t(os, *(params->pflags));
+    ur_params::serializeFlag<ur_mem_flag_t>(os, *(params->pflags));
 
     os << ", ";
     os << ".size = ";
@@ -10427,7 +10471,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".flags = ";
 
-    ur_params::serializeFlag_ur_mem_flags_t(os, *(params->pflags));
+    ur_params::serializeFlag<ur_mem_flag_t>(os, *(params->pflags));
 
     os << ", ";
     os << ".bufferCreateType = ";
@@ -10544,8 +10588,8 @@ inline std::ostream &operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_mem_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -10575,8 +10619,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_image_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -10594,7 +10638,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << *(params->pNumEntries);
 
     os << ", ";
-    os << ".phPlatforms = [";
+    os << ".phPlatforms = {";
     for (size_t i = 0;
          *(params->pphPlatforms) != NULL && i < *params->pNumEntries; ++i) {
         if (i != 0) {
@@ -10603,7 +10647,7 @@ inline std::ostream &operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphPlatforms))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".pNumPlatforms = ";
@@ -10633,8 +10677,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_platform_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pSizeRet = ";
@@ -10838,7 +10882,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << *(params->pcount);
 
     os << ", ";
-    os << ".phPrograms = [";
+    os << ".phPrograms = {";
     for (size_t i = 0; *(params->pphPrograms) != NULL && i < *params->pcount;
          ++i) {
         if (i != 0) {
@@ -10847,7 +10891,7 @@ inline std::ostream &operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphPrograms))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".pOptions = ";
@@ -10928,8 +10972,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_program_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -10964,8 +11008,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_program_build_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -10989,7 +11033,7 @@ inline std::ostream &operator<<(
     os << *(params->pcount);
 
     os << ", ";
-    os << ".pSpecConstants = [";
+    os << ".pSpecConstants = {";
     for (size_t i = 0;
          *(params->ppSpecConstants) != NULL && i < *params->pcount; ++i) {
         if (i != 0) {
@@ -10998,7 +11042,7 @@ inline std::ostream &operator<<(
 
         os << (*(params->ppSpecConstants))[i];
     }
-    os << "]";
+    os << "}";
 
     return os;
 }
@@ -11064,8 +11108,8 @@ operator<<(std::ostream &os, const struct ur_queue_get_info_params_t *params) {
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_queue_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -11252,8 +11296,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_sampler_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -11447,8 +11491,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_usm_alloc_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -11519,8 +11563,8 @@ operator<<(std::ostream &os,
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_usm_pool_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -11548,7 +11592,7 @@ inline std::ostream &operator<<(std::ostream &os,
     os << *(params->pNumEntries);
 
     os << ", ";
-    os << ".phDevices = [";
+    os << ".phDevices = {";
     for (size_t i = 0;
          *(params->pphDevices) != NULL && i < *params->pNumEntries; ++i) {
         if (i != 0) {
@@ -11557,7 +11601,7 @@ inline std::ostream &operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphDevices))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".pNumDevices = ";
@@ -11586,8 +11630,8 @@ operator<<(std::ostream &os, const struct ur_device_get_info_params_t *params) {
 
     os << ", ";
     os << ".pPropValue = ";
-    ur_params::serializeTaggedTyped_ur_device_info_t(
-        os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
@@ -11636,7 +11680,7 @@ operator<<(std::ostream &os,
     os << *(params->pNumDevices);
 
     os << ", ";
-    os << ".phSubDevices = [";
+    os << ".phSubDevices = {";
     for (size_t i = 0;
          *(params->pphSubDevices) != NULL && i < *params->pNumDevices; ++i) {
         if (i != 0) {
@@ -11645,7 +11689,7 @@ operator<<(std::ostream &os,
 
         ur_params::serializePtr(os, (*(params->pphSubDevices))[i]);
     }
-    os << "]";
+    os << "}";
 
     os << ", ";
     os << ".pNumDevicesRet = ";
