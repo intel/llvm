@@ -8,11 +8,14 @@
 // RUN: %clangxx -fsycl -Xspirv-translator=spir64_gen "foo" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET-UNUSED --implicit-check-not 'llvm-spirv{{.*}} "foo"'
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xspirv-translator=spir64 "foo" -Xspirv-translator=spir64_gen "bar" -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xspirv-translator=spir64_gen "foo" -Xspirv-translator=spir64 "bar" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-MULTIPLE-TARGET --implicit-check-not 'llvm-spirv{{.*}} "foo" "bar"'
+
 // CHECK-SINGLE-TARGET: llvm-spirv{{.*}} "foo"
 
 // CHECK-SINGLE-TARGET-UNUSED: argument unused during compilation: '-Xspirv-translator=spir64_gen foo'
 
-// CHECK-MULTIPLE-TARGET: llvm-spirv{{.*}} "foo"
+// CHECK-MULTIPLE-TARGET: clang-offload-bundler{{.*}} "-targets=sycl-spir64-unknown-unknown" {{.*}} "-unbundle"
 // CHECK-MULTIPLE-TARGET: llvm-spirv{{.*}} "bar"
+// CHECK-MULTIPLE-TARGET: clang-offload-bundler{{.*}} "-targets=sycl-spir64_gen-unknown-unknown" {{.*}} "-unbundle"
+// CHECK-MULTIPLE-TARGET: llvm-spirv{{.*}} "foo"
