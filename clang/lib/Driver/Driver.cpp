@@ -5084,8 +5084,10 @@ class OffloadingActionBuilder final {
         return ABRT_Success;
       }
 
-      if (!SYCLDeviceActions.empty() && !OnlyCreateStubFile &&
-          shouldRaiseHost() &&
+      if (OnlyCreateStubFile)
+        return ABRT_Success;
+
+      if (!SYCLDeviceActions.empty() && shouldRaiseHost() &&
           isa<CompileJobAction>(SYCLDeviceActions.back()) &&
           isa<CompileJobAction>(HostAction)) {
         // Remove compile action from the list
