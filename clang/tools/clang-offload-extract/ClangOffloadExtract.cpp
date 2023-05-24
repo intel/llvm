@@ -42,7 +42,7 @@ static cl::opt<std::string> Input(cl::Positional, cl::init("a.out"),
                                   cl::cat(ClangOffloadExtractCategory));
 
 static cl::opt<std::string>
-    FileNameStem("stem", cl::init("target.exe"),
+    FileNameStem("stem", cl::init("target.bin"),
                  cl::desc(
                      R"(Specifies the stem for the output file(s).
 The Output file name is composed from this stem and
@@ -52,11 +52,10 @@ to the stem:
       )"),
                  cl::cat(ClangOffloadExtractCategory));
 
-// Since this wasn't productized before, I don't think we need an alias
-// to deprecate the old options
-// static cl::alias FileNameStemAlias(
-//     "output", cl::desc("Deprecated option, replaced by option '--stem'"),
-//     cl::aliasopt(FileNameStem), cl::cat(ClangOffloadExtractCategory));
+// Create an alias for the deprecated option, so legacy use still works
+static cl::alias FileNameStemAlias(
+    "output", cl::desc("Deprecated option, replaced by option '--stem'"),
+    cl::aliasopt(FileNameStem), cl::cat(ClangOffloadExtractCategory));
 
 // Path to the current binary
 static std::string ToolPath;
@@ -85,7 +84,10 @@ linked fat binary, and store them in separate files.
       ObjectFile::createObjectFile(Input);
   if (!ObjectOrErr) {
     reportError(ObjectOrErr.takeError());
-    ObjectFile *Binary = ObjectOrErr->getBinary();
+    return 1;
+  }
+
+  ObjectFile *Binary = ObjectOrErr->getBinary();
 
     // Do we plan to support 32-bit offload binaries?
     if (!(isa<ELF64LEObjectFile>(Binary) || isa<COFFObjectFile>(Binary)) ||
@@ -184,7 +186,4 @@ linked fat binary, and store them in separate files.
       break;
     }
     return 0;
-    break;
-  }
-  return 0;
 }
