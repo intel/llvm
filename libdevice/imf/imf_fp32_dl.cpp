@@ -1,4 +1,5 @@
-//==--------------------------- imf_fp32_dl.cpp -  -------------------------==//
+//==---------------------- imf_fp32_dl.cpp - subset of fp32 math functions
+// required by deep learning frameworks --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
