@@ -15,6 +15,8 @@
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -95,14 +97,26 @@ LogicalResult getTileSizes(const SmallVector<T> &nestedLoops,
 LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
                    ArrayRef<Value> tileSizes,
                    SmallVectorImpl<affine::AffineForOp> &tiledNest) {
-  return tilePerfectlyNestedParametric(nestedLoops, tileSizes, &tiledNest);
+  SmallVector<affine::AffineForOp> newNestedLoops;
+  unsigned numLoops = nestedLoops.size();
+  LogicalResult res =
+      tilePerfectlyNestedParametric(nestedLoops, tileSizes, &newNestedLoops);
+  tiledNest = SmallVector<affine::AffineForOp>(
+      newNestedLoops.begin() + numLoops, newNestedLoops.end());
+  return res;
 }
 LogicalResult tile(SmallVectorImpl<scf::ForOp> &nestedLoops,
                    ArrayRef<Value> tileSizes,
                    SmallVectorImpl<scf::ForOp> &tiledNest) {
-  tile(nestedLoops, tileSizes, nestedLoops.back());
-  tiledNest = nestedLoops;
+  tiledNest = tile(nestedLoops, tileSizes, nestedLoops.back());
   return success();
+}
+
+void createLocalBarrier(OpBuilder builder) {
+  builder.create<spirv::ControlBarrierOp>(
+      builder.getUnknownLoc(), spirv::Scope::Workgroup, spirv::Scope::Workgroup,
+      spirv::MemorySemantics::SequentiallyConsistent |
+          spirv::MemorySemantics::WorkgroupMemory);
 }
 
 template <typename T, typename = std::enable_if_t<llvm::is_one_of<
@@ -124,6 +138,9 @@ void transform(T loop) {
       llvm::dbgs() << "Tile NOT performed\n";
   });
   // TODO: promote loop accesses to local memory.
+  OpBuilder builder(loop);
+  builder.setInsertionPointToStart(tiledNest.front()->getBlock());
+  createLocalBarrier(builder);
 }
 
 void transform(LoopLikeOpInterface loop) {
