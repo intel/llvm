@@ -1,0 +1,2 @@
+.github/workflows/sycl_precommit.yml merge=ours
+.github/CODEOWNERS merge=ours
