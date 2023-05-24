@@ -605,7 +605,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
-    cl_bool result = CL_FALSE;
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
     bool supported = false;
 
     ret_err = checkDeviceExtensions(
@@ -616,18 +618,22 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
-    cl_bool result = false;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
-    cl_bool result = true;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = true;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
@@ -637,8 +643,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     // FIXME: here we assume that program built for a root GPU device can be
     // used on its sub-devices without re-building
-    cl_bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
@@ -715,7 +723,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
     cl_int ret_err = CL_SUCCESS;
-    cl_bool result = CL_FALSE;
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
     bool supported = false;
 
     ret_err =
@@ -725,7 +735,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   default:
@@ -962,24 +972,17 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_device,
-                                           bool ownNativeHandle,
+                                           int32_t NativeHandleDesc, pi_context,
+                                           pi_device, bool ownNativeHandle,
+                                           pi_queue_properties *Properties,
                                            pi_queue *piQueue) {
+  (void)NativeHandleDesc;
   (void)ownNativeHandle;
+  (void)Properties;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   clRetainCommandQueue(cast<cl_command_queue>(nativeHandle));
   return PI_SUCCESS;
-}
-
-pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
-    pi_queue *piQueue) {
-  (void)NativeHandleDesc;
-  (void)Properties;
-  return piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                          ownNativeHandle, piQueue);
 }
 
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
@@ -2245,14 +2248,9 @@ pi_result piextContextGetNativeHandle(pi_context context,
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue queue,
-                                    pi_native_handle *nativeHandle) {
-  return piextGetNativeHandle(queue, nativeHandle);
-}
-
-pi_result piextQueueGetNativeHandle2(pi_queue queue,
-                                     pi_native_handle *nativeHandle,
-                                     int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
+                                    pi_native_handle *nativeHandle,
+                                    int32_t *nativeHandleDesc) {
+  *nativeHandleDesc = 0;
   return piextGetNativeHandle(queue, nativeHandle);
 }
 
@@ -2365,16 +2363,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
   _PI_CL(piextQueueCreate, piextQueueCreate)
-  _PI_CL(piextQueueCreate2, piextQueueCreate)
   _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
   _PI_CL(piextQueueGetNativeHandle, piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2, piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, piMemBufferCreate)
   _PI_CL(piMemImageCreate, piMemImageCreate)
