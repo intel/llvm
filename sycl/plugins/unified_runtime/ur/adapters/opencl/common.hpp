@@ -14,8 +14,8 @@
 #include <ur/ur.hpp>
 
 /**
- * Call an OpenCL API and, if the result is not CL_SUCCESS, automatically return
- * from the current function.
+ * Call an OpenCL API and, if the result is not CL_SUCCESS, automatically map
+ * the OpenCL error to UR and return from the current function.
  */
 #define CL_RETURN_ON_FAILURE(clCall)                                           \
   if (const cl_int cl_result_macro = clCall; cl_result_macro != CL_SUCCESS) {  \
@@ -23,8 +23,19 @@
   }
 
 /**
+ * Call an UR API and, if the result is not UR_RESULT_SUCCESS, automatically
+ * return from the current function.
+ */
+#define UR_RETURN_ON_FAILURE(urCall)                                           \
+  if (const ur_result_t ur_result_macro = urCall;                              \
+      ur_result_macro != UR_RESULT_SUCCESS) {                                  \
+    return ur_result_macro;                                                    \
+  }
+
+/**
  * Call an OpenCL API and, if the result is not CL_SUCCESS, automatically return
- * from the current function and set the pointer `outPtr` to nullptr.
+ * from the current function and set the pointer `outPtr` to nullptr. The OpenCL
+ * error is mapped to UR
  */
 #define CL_RETURN_ON_FAILURE_AND_SET_NULL(clCall, outPtr)                      \
   if (const cl_int cl_result_macro = clCall != CL_SUCCESS) {                   \
@@ -145,7 +156,7 @@ template <class To, class From> To cast(From value) {
     return static_cast<To>(value);
   }
 }
-} // namespace cl
+} // namespace cl_adapter
 
 namespace cl_ext {
 // Older versions of GCC don't like "const" here

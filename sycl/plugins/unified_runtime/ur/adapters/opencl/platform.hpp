@@ -9,6 +9,7 @@
 
 #include "common.hpp"
 
-namespace cl {
-cl_int getPlatformVersion(cl_platform_id plat, OCLV::OpenCLVersion &version);
+namespace cl_adapter {
+ur_result_t getPlatformVersion(cl_platform_id plat,
+                               OCLV::OpenCLVersion &version);
 }

@@ -20,7 +20,7 @@ thread_local char ErrorMessage[cl_adapter::MaxMessageSize];
   strcpy(cl_adapter::ErrorMessage, message);
   ErrorMessageCode = error_code;
 }
-} // namespace cl
+} // namespace cl_adapter
 
 // Returns plugin specific error and warning messages; common implementation
 // that can be shared between adapters

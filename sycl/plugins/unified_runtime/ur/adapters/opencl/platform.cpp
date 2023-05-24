@@ -10,7 +10,8 @@
 
 #include <sycl/detail/cl.h>
 
-cl_int cl::getPlatformVersion(cl_platform_id plat, OCLV::OpenCLVersion &version) {
+ur_result_t cl_adapter::getPlatformVersion(cl_platform_id plat,
+                                           OCLV::OpenCLVersion &version) {
 
   size_t platVerSize = 0;
   CL_RETURN_ON_FAILURE(
@@ -22,13 +23,13 @@ cl_int cl::getPlatformVersion(cl_platform_id plat, OCLV::OpenCLVersion &version)
 
   version = OCLV::OpenCLVersion(platVer);
   if (!version.isValid()) {
-    return CL_INVALID_PLATFORM;
+    return UR_RESULT_ERROR_INVALID_PLATFORM;
   }
 
-  return CL_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-cl_int map_ur_platform_info_to_cl(ur_platform_info_t urPropName) {
+static cl_int map_ur_platform_info_to_cl(ur_platform_info_t urPropName) {
 
   cl_int cl_propName;
   switch (urPropName) {
@@ -137,13 +138,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
   return UR_RESULT_SUCCESS;
 }
 
-// This API is called by Sycl RT to notify the end of the plugin lifetime.
-// Windows: dynamically loaded plugins might have been unloaded already
-// when this is called. Sycl RT holds onto the PI plugin so it can be
-// called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded.
-// TODO: add a global variable lifetime management code here (see
-// pi_level_zero.cpp for reference).
+/* This API is called by Sycl RT to notify the end of the adapter lifetime.
+ * Windows: dynamically loaded plugins might have been unloaded already when
+ * this is called. Sycl RT holds onto the UR adapter so it can be called safely.
+ * But this is not transitive. If the UR adapter dynamically loaded a
+ * different DLL, that may have been unloaded already.
+ * TODO: add a global variable lifetime management code here (see
+ * pi_level_zero.cpp for reference). */
 UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *pParams) {
   UR_ASSERT(pParams, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   if (cl_ext::ExtFuncPtrCache) {

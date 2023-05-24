@@ -12,7 +12,8 @@
 #include <cassert>
 #include <sycl/detail/cl.h>
 
-cl_int cl_adapter::getDeviceVersion(cl_device_id dev, OCLV::OpenCLVersion &version) {
+ur_result_t cl_adapter::getDeviceVersion(cl_device_id dev,
+                                         OCLV::OpenCLVersion &version) {
 
   size_t devVerSize = 0;
   CL_RETURN_ON_FAILURE(
@@ -24,15 +25,14 @@ cl_int cl_adapter::getDeviceVersion(cl_device_id dev, OCLV::OpenCLVersion &versi
 
   version = OCLV::OpenCLVersion(devVer);
   if (!version.isValid()) {
-    return CL_INVALID_DEVICE;
+    return UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
-  return CL_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-cl_int cl_adapter::checkDeviceExtensions(cl_device_id dev,
-                                 const std::vector<std::string> &exts,
-                                 bool &supported) {
+ur_result_t cl_adapter::checkDeviceExtensions(
+    cl_device_id dev, const std::vector<std::string> &exts, bool &supported) {
   size_t extSize = 0;
   CL_RETURN_ON_FAILURE(
       clGetDeviceInfo(dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize));
@@ -49,7 +49,7 @@ cl_int cl_adapter::checkDeviceExtensions(cl_device_id dev,
     }
   }
 
-  return CL_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
@@ -97,7 +97,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   return map_cl_error_to_ur(result);
 }
 
-ur_device_fp_capability_flags_t
+static ur_device_fp_capability_flags_t
 map_ur_cl_device_fp_config_to_ur(cl_device_fp_config cl_value) {
 
   ur_device_fp_capability_flags_t ur_value = 0;
@@ -129,7 +129,7 @@ map_ur_cl_device_fp_config_to_ur(cl_device_fp_config cl_value) {
   return ur_value;
 }
 
-cl_int map_ur_device_info_to_cl(ur_device_info_t urPropName) {
+static cl_int map_ur_device_info_to_cl(ur_device_info_t urPropName) {
 
   cl_int cl_propName;
   switch (static_cast<uint32_t>(urPropName)) {
@@ -434,8 +434,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
     OCLV::OpenCLVersion version;
-    CL_RETURN_ON_FAILURE(
-        cl_adapter::getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), version));
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), version));
 
     const std::string results = std::to_string(version.getMajor()) + "." +
                                 std::to_string(version.getMinor());
@@ -495,8 +495,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     /* Corresponding OpenCL query is only available starting with OpenCL 2.1
      * and we have to emulate it on older OpenCL runtimes. */
     OCLV::OpenCLVersion devVer;
-    CL_RETURN_ON_FAILURE(
-        cl_adapter::getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     if (devVer >= OCLV::V2_1) {
       cl_uint cl_value;
@@ -545,8 +545,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     /* This query is missing before OpenCL 3.0. Check version and handle
      * appropriately */
     OCLV::OpenCLVersion devVer;
-    CL_RETURN_ON_FAILURE(
-        cl_adapter::getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     /* Minimum required capability to be returned. For OpenCL 1.2, this is all
      * that is required */
@@ -604,8 +604,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
 
     OCLV::OpenCLVersion devVer;
-    CL_RETURN_ON_FAILURE(
-        cl_adapter::getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     cl_device_atomic_capabilities cl_capabilities;
     if (devVer >= OCLV::V3_0) {
@@ -657,8 +657,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
 
     OCLV::OpenCLVersion devVer;
-    CL_RETURN_ON_FAILURE(
-        cl_adapter::getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     cl_device_atomic_capabilities cl_capabilities;
     if (devVer >= OCLV::V3_0) {
@@ -706,8 +706,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
 
     OCLV::OpenCLVersion devVer;
-    CL_RETURN_ON_FAILURE(
-        cl_adapter::getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     cl_device_atomic_capabilities cl_capabilities;
     if (devVer >= OCLV::V3_0) {
@@ -777,9 +777,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
     bool supported = false;
-    CL_RETURN_ON_FAILURE(
-        cl_adapter::checkDeviceExtensions(cl_adapter::cast<cl_device_id>(hDevice),
-                              {"cl_intel_mem_channel_property"}, supported));
+    CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_mem_channel_property"}, supported));
 
     return ReturnValue(supported);
   }

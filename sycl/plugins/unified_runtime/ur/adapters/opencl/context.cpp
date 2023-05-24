@@ -10,7 +10,7 @@
 
 #include <sycl/detail/cl.h>
 
-cl_uint cl_adapter::getDevicesFromContext(
+ur_result_t cl_adapter::getDevicesFromContext(
     ur_context_handle_t hContext,
     std::unique_ptr<std::vector<cl_device_id>> &devicesInCtx) {
 
@@ -20,7 +20,7 @@ cl_uint cl_adapter::getDevicesFromContext(
                                         &deviceCount, nullptr));
 
   if (deviceCount < 1) {
-    return CL_INVALID_CONTEXT;
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
   devicesInCtx = std::make_unique<std::vector<cl_device_id>>(deviceCount);
@@ -29,7 +29,7 @@ cl_uint cl_adapter::getDevicesFromContext(
       cl_adapter::cast<cl_context>(hContext), CL_CONTEXT_DEVICES,
       deviceCount * sizeof(cl_device_id), (*devicesInCtx).data(), nullptr));
 
-  return CL_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -48,7 +48,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
   return map_cl_error_to_ur(ret);
 }
 
-cl_int map_ur_context_info_to_cl(ur_context_info_t urPropName) {
+static cl_int map_ur_context_info_to_cl(ur_context_info_t urPropName) {
 
   cl_int cl_propName;
   switch (urPropName) {

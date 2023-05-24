@@ -13,7 +13,7 @@
 #include <ur/ur.hpp>
 
 namespace cl_adapter {
-cl_uint
+ur_result_t
 getDevicesFromContext(ur_context_handle_t hContext,
                       std::unique_ptr<std::vector<cl_device_id>> &devicesInCtx);
 }

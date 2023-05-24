@@ -106,21 +106,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  //  pDdiTable->pfnCreate = urKernelCreate;
-  //  pDdiTable->pfnCreateWithNativeHandle = urKernelCreateWithNativeHandle;
-  //  pDdiTable->pfnGetGroupInfo = urKernelGetGroupInfo;
-  //  pDdiTable->pfnGetInfo = urKernelGetInfo;
-  //  pDdiTable->pfnGetNativeHandle = urKernelGetNativeHandle;
-  //  pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
-  //  pDdiTable->pfnRelease = urKernelRelease;
-  //  pDdiTable->pfnRetain = urKernelRetain;
-  //  pDdiTable->pfnSetArgLocal = nullptr;
-  //  pDdiTable->pfnSetArgMemObj = nullptr;
-  //  pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
-  //  pDdiTable->pfnSetArgSampler = nullptr;
-  //  pDdiTable->pfnSetArgValue = urKernelSetArgValue;
-  //  pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
-  //  pDdiTable->pfnSetSpecializationConstants = nullptr;
+  pDdiTable->pfnCreate = urKernelCreate;
+  pDdiTable->pfnCreateWithNativeHandle = urKernelCreateWithNativeHandle;
+  pDdiTable->pfnGetGroupInfo = urKernelGetGroupInfo;
+  pDdiTable->pfnGetInfo = urKernelGetInfo;
+  pDdiTable->pfnGetNativeHandle = urKernelGetNativeHandle;
+  pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
+  pDdiTable->pfnRelease = urKernelRelease;
+  pDdiTable->pfnRetain = urKernelRetain;
+  pDdiTable->pfnSetArgLocal = nullptr;
+  pDdiTable->pfnSetArgMemObj = nullptr;
+  pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
+  pDdiTable->pfnSetArgSampler = nullptr;
+  pDdiTable->pfnSetArgValue = urKernelSetArgValue;
+  pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
+  pDdiTable->pfnSetSpecializationConstants = nullptr;
   return UR_RESULT_SUCCESS;
 }
 
