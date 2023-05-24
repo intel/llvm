@@ -249,11 +249,6 @@ configure specific single test execution in the command line:
     is one of `opencl`, `ext_oneapi_hip`, `ext_oneapi_cuda`,
     `ext_oneapi_level_zero`, `ext_intel_esimd_emulator` and `device` is one of
     `cpu`, `gpu` or `acc`.
- * **target_devices** - Deprecated. Comma-separated list of target devices (cpu,
-   gpu, acc);
- * **sycl_be** - Deprecated. SYCL backend to be used (opencl,
-   ext_oneapi_level_zero, ext_oneapi_cuda, ext_oneapi_hip,
-   ext_oneapi_intel_emulator);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **compatibility_testing** - forces LIT infra to skip the tests compilation
    to support compatibility testing (a SYCL application is built with one
