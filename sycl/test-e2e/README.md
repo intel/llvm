@@ -166,20 +166,6 @@ separated from comma-separated list of target devices with colon. Example:
 -DSYCL_TEST_E2E_TARGETS="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
 ```
 
-***SYCL_BE*** - Deprecated. `SYCL backend to be used for testing. Supported values are:
- - **opencl** - for OpenCL backend;
- - **ext_oneapi_cuda** - for CUDA backend;
- - **ext_oneapi_hip** - for HIP backend;
- - **ext_oneapi_level_zero** - Level Zero backend;
- - **ext_intel_esimd_emulator** - ESIMD emulator backend;
-
-
-***SYCL_TARGET_DEVICES*** - Deprecated. Comma separated list of target devices for testing.
-Default value is cpu,gpu,acc. Supported values are:
- - **cpu**  - CPU device available in OpenCL backend only;
- - **gpu**  - GPU device available in OpenCL, Level Zero, CUDA, and HIP backends;
- - **acc**  - FPGA emulator device available in OpenCL backend only;
-
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
 interoperability tests require OpenCL ICD loader to be linked with. For such
 tests OpenCL ICD loader library should be installed in the system or available
