@@ -30,8 +30,9 @@
 using namespace llvm;
 using namespace llvm::object;
 
-// Create a category to label the custom options separate from the
-// builtin options
+// Create a category to label utility-specific options; This will allow
+// us to distinguish those specific options from generic options and
+// irrelevant options
 static cl::OptionCategory
     ClangOffloadExtractCategory("Utility-specific options");
 
@@ -45,6 +46,7 @@ static cl::opt<std::string>
     FileNameStem("stem", cl::init("target.bin"),
                  cl::desc(
                      R"(Specifies the stem for the output file(s).
+The default stem when not specified is "target.bin".
 The Output file name is composed from this stem and
 the sequential number of each extracted image appended
 to the stem:
@@ -69,15 +71,22 @@ int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   ToolPath = argv[0];
 
+  // Hide non-generic options that are not in this utility's explicit
+  // category;
+  // Some include files bring in options that are not relevant for the
+  // public interface of this utility (e.g. color handling or Intermediate
+  // Representation objects)
   cl::HideUnrelatedOptions(ClangOffloadExtractCategory);
   cl::SetVersionPrinter([](raw_ostream &OS) {
     OS << clang::getClangToolFullVersion("clang-offload-extract") << "\n";
   });
   cl::ParseCommandLineOptions(argc, argv,
                               R"(
+
 A utility to extract all the target images from a
 linked fat binary, and store them in separate files.
-)");
+)",
+                              nullptr, nullptr, true);
 
   // Read input file. It should have one of the supported object file formats.
   Expected<OwningBinary<ObjectFile>> ObjectOrErr =
@@ -89,101 +98,101 @@ linked fat binary, and store them in separate files.
 
   ObjectFile *Binary = ObjectOrErr->getBinary();
 
-    // Do we plan to support 32-bit offload binaries?
-    if (!(isa<ELF64LEObjectFile>(Binary) || isa<COFFObjectFile>(Binary)) ||
-        Binary->getBytesInAddress() != sizeof(void *)) {
-      reportError(
-          createStringError(errc::invalid_argument,
-                            "only 64-bit ELF or COFF inputs are supported"));
+  // Do we plan to support 32-bit offload binaries?
+  if (!(isa<ELF64LEObjectFile>(Binary) || isa<COFFObjectFile>(Binary)) ||
+      Binary->getBytesInAddress() != sizeof(void *)) {
+    reportError(
+        createStringError(errc::invalid_argument,
+                          "only 64-bit ELF or COFF inputs are supported"));
+    return 1;
+  }
+
+  unsigned FileNum = 0;
+
+  for (SectionRef Section : Binary->sections()) {
+    // Look for the .tgtimg section in the binary.
+    Expected<StringRef> NameOrErr = Section.getName();
+    if (!NameOrErr) {
+      reportError(NameOrErr.takeError());
+      return 1;
+    }
+    if (*NameOrErr != IMAGE_INFO_SECTION_NAME)
+      continue;
+
+    // This is the section we are looking for.
+    Expected<StringRef> DataOrErr = Section.getContents();
+    if (!DataOrErr) {
+      reportError(DataOrErr.takeError());
       return 1;
     }
 
-    unsigned FileNum = 0;
+    // This section contains concatenated <address, size> pairs describing
+    // target images that are stored in the binary. Loop over these
+    // descriptors and extract each target image.
+    struct ImgInfoTy {
+      uintptr_t Addr;
+      uintptr_t Size;
+    };
 
-    for (SectionRef Section : Binary->sections()) {
-      // Look for the .tgtimg section in the binary.
-      Expected<StringRef> NameOrErr = Section.getName();
-      if (!NameOrErr) {
-        reportError(NameOrErr.takeError());
-        return 1;
-      }
-      if (*NameOrErr != IMAGE_INFO_SECTION_NAME)
+    auto ImgInfo = makeArrayRef<ImgInfoTy>(
+        reinterpret_cast<const ImgInfoTy *>(DataOrErr->data()),
+        DataOrErr->size() / sizeof(ImgInfoTy));
+
+    for (auto &Img : ImgInfo) {
+      // Ignore zero padding that can be inserted by the linker.
+      if (!Img.Addr)
         continue;
 
-      // This is the section we are looking for.
-      Expected<StringRef> DataOrErr = Section.getContents();
-      if (!DataOrErr) {
-        reportError(DataOrErr.takeError());
+      // Find section which contains this image.
+      // TODO: can use more efficient algorithm than linear search. For
+      // example sections and images could be sorted by address then one pass
+      // performed through both at the same time.
+      auto ImgSec = find_if(Binary->sections(), [&Img](SectionRef Sec) {
+        if (!Sec.isData())
+          return false;
+        if (Img.Addr < Sec.getAddress() ||
+            Img.Addr + Img.Size > Sec.getAddress() + Sec.getSize())
+          return false;
+        return true;
+      });
+      if (ImgSec == Binary->section_end()) {
+        reportError(createStringError(
+            inconvertibleErrorCode(),
+            "cannot find section containing <0x%lx, 0x%lx> target image",
+            Img.Addr, Img.Size));
         return 1;
       }
 
-      // This section contains concatenated <address, size> pairs describing
-      // target images that are stored in the binary. Loop over these
-      // descriptors and extract each target image.
-      struct ImgInfoTy {
-        uintptr_t Addr;
-        uintptr_t Size;
-      };
-
-      auto ImgInfo = makeArrayRef<ImgInfoTy>(
-          reinterpret_cast<const ImgInfoTy *>(DataOrErr->data()),
-          DataOrErr->size() / sizeof(ImgInfoTy));
-
-      for (auto &Img : ImgInfo) {
-        // Ignore zero padding that can be inserted by the linker.
-        if (!Img.Addr)
-          continue;
-
-        // Find section which contains this image.
-        // TODO: can use more efficient algorithm than linear search. For
-        // example sections and images could be sorted by address then one pass
-        // performed through both at the same time.
-        auto ImgSec = find_if(Binary->sections(), [&Img](SectionRef Sec) {
-          if (!Sec.isData())
-            return false;
-          if (Img.Addr < Sec.getAddress() ||
-              Img.Addr + Img.Size > Sec.getAddress() + Sec.getSize())
-            return false;
-          return true;
-        });
-        if (ImgSec == Binary->section_end()) {
-          reportError(createStringError(
-              inconvertibleErrorCode(),
-              "cannot find section containing <0x%lx, 0x%lx> target image",
-              Img.Addr, Img.Size));
-          return 1;
-        }
-
-        Expected<StringRef> SecDataOrErr = ImgSec->getContents();
-        if (!SecDataOrErr) {
-          reportError(SecDataOrErr.takeError());
-          return 1;
-        }
-
-        // Output file name is composed from the name prefix provided by the
-        // user and the image number which is appended to the prefix.
-        std::string FileName = FileNameStem + "." + std::to_string(FileNum++);
-
-        // Tell user that we are saving an image.
-        outs() << "Saving target image to \"" << FileName << "\"\n";
-
-        // And write image data to the output.
-        std::error_code EC;
-        raw_fd_ostream OS(FileName, EC);
-        if (EC) {
-          reportError(createFileError(FileName, EC));
-          return 1;
-        }
-
-        OS << SecDataOrErr->substr(Img.Addr - ImgSec->getAddress(), Img.Size);
-        if (OS.has_error()) {
-          reportError(createFileError(FileName, OS.error()));
-          return 1;
-        }
+      Expected<StringRef> SecDataOrErr = ImgSec->getContents();
+      if (!SecDataOrErr) {
+        reportError(SecDataOrErr.takeError());
+        return 1;
       }
 
-      // Binary is not expected to have more than one .tgtimg section.
-      break;
+      // Output file name is composed from the name prefix provided by the
+      // user and the image number which is appended to the prefix.
+      std::string FileName = FileNameStem + "." + std::to_string(FileNum++);
+
+      // Tell user that we are saving an image.
+      outs() << "Saving target image to \"" << FileName << "\"\n";
+
+      // And write image data to the output.
+      std::error_code EC;
+      raw_fd_ostream OS(FileName, EC);
+      if (EC) {
+        reportError(createFileError(FileName, EC));
+        return 1;
+      }
+
+      OS << SecDataOrErr->substr(Img.Addr - ImgSec->getAddress(), Img.Size);
+      if (OS.has_error()) {
+        reportError(createFileError(FileName, OS.error()));
+        return 1;
+      }
     }
-    return 0;
+
+    // Binary is not expected to have more than one .tgtimg section.
+    break;
+  }
+  return 0;
 }
