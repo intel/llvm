@@ -115,7 +115,10 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
-static bool shouldRaiseHost(const ArgList &Args) {
+// Return true if no flag passed by the user is incompatible with raising the
+// host. This function diagnoses incompatible options.
+static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
+                            bool Diagnose) {
   // Host raising only works with opaque pointers.
   const auto UseOpaquePointers = [&]() {
     constexpr llvm::StringLiteral Pos = "-opaque-pointers";
@@ -131,8 +134,25 @@ static bool shouldRaiseHost(const ArgList &Args) {
     constexpr bool Default = CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL;
     return (Iter == FilteredArgs.end()) ? Default : Pos == (*Iter)->getValue();
   };
-  return !Args.hasArg(options::OPT_fsyntax_only) &&
-         Args.hasArg(options::OPT_fsycl_raise_host) && UseOpaquePointers();
+  bool ShouldRaise = Args.hasArg(options::OPT_fsycl_raise_host);
+  if (ShouldRaise) {
+    if (Args.hasArg(options::OPT_fsyntax_only))
+      ShouldRaise = false;
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_host_compiler_EQ)) {
+      if (Diagnose)
+        C.getDriver().Diag(diag::err_drv_incompatible_options)
+            << "-fsycl-raise-host" << A->getSpelling();
+      ShouldRaise = false;
+    }
+    if (!UseOpaquePointers()) {
+      if (Diagnose)
+        C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
+            << "-fsycl-raise-host"
+            << "-Xclang -opaque-pointers";
+      ShouldRaise = false;
+    }
+  }
+  return ShouldRaise;
 }
 
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
@@ -6319,7 +6339,7 @@ class OffloadingActionBuilder final {
 public:
   OffloadingActionBuilder(Compilation &C, DerivedArgList &Args,
                           const Driver::InputList &Inputs)
-      : C(C), ShouldRaiseSYCLHost(shouldRaiseHost(Args)) {
+      : C(C) {
     // Create a specialized builder for each device toolchain.
 
     IsValid = true;
@@ -6342,18 +6362,11 @@ public:
     // We will need two specialized SYCL builders: one will run before host
     // compilation just to produce the device stub and other to perform the
     // actual compilation.
-    if (!Args.hasArg(options::OPT_fsyntax_only) &&
-        Args.hasArg(options::OPT_fsycl_raise_host)) {
-      if (ShouldRaiseSYCLHost) {
-        SpecializedBuilders.push_back(
-            new SYCLActionBuilder(C, Args, Inputs, *this,
-                                  /*OnlyCreateStubFile=*/true));
-      } else {
-        C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
-            << "-fsycl-raise-host"
-            << "-Xclang -opaque-pointers";
-      }
-    }
+    ShouldRaiseSYCLHost = shouldRaiseHost(C, Args, /*Diagnose=*/true);
+    if (ShouldRaiseSYCLHost)
+      SpecializedBuilders.push_back(
+          new SYCLActionBuilder(C, Args, Inputs, *this,
+                                /*OnlyCreateStubFile=*/true));
 
     //
     // TODO: Build other specialized builders here.
@@ -7851,7 +7864,7 @@ Action *Driver::ConstructPhaseAction(
     }
     // We will need a compile action before to avoid compiling the host code
     // twice in this scenario.
-    if (shouldRaiseHost(Args))
+    if (shouldRaiseHost(C, Args, /*Diagnose=*/false))
       Input = C.MakeAction<CompileJobAction>(Input, types::TY_PP_Asm);
     return C.MakeAction<BackendJobAction>(Input, types::TY_PP_Asm);
   }
