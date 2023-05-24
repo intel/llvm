@@ -71,18 +71,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, pi2ur::piQueueCreate)
   _PI_CL(piextQueueCreate, pi2ur::piextQueueCreate)
-  _PI_CL(piextQueueCreate2, pi2ur::piextQueueCreate2)
   _PI_CL(piQueueGetInfo, pi2ur::piQueueGetInfo)
   _PI_CL(piQueueFinish, pi2ur::piQueueFinish)
   _PI_CL(piQueueFlush, pi2ur::piQueueFlush)
   _PI_CL(piQueueRetain, pi2ur::piQueueRetain)
   _PI_CL(piQueueRelease, pi2ur::piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, pi2ur::piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, pi2ur::piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle,
          pi2ur::piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2,
-         pi2ur::piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, pi2ur::piMemBufferCreate)
   _PI_CL(piMemImageCreate, pi2ur::piMemImageCreate)
