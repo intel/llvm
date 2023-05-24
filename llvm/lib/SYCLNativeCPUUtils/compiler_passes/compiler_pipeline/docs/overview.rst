@@ -341,7 +341,31 @@ is LLVM's `SLP vectorizer`_.
 Vectorization
 *************
 
+Early Vectorization Passes
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These passes are activated when the `VectorizeSLP` and `VectorizeLoop` bits are
+set in `clang::CodeGenOptions` (corresponding to the
+`-cl-vec={none|loop|slp|all}` command line options). These options activate
+sequences of standard LLVM passes that attempt to vectorize the kernel for a
+single work item. The vectorization passes used are Loop Vectorization, SLP
+Vectorization, and Load/Store Vectorization. Some basic simplification passes
+are also applied (Loop Rotation, Instruction Combine, CFG Simplification and
+Dead Code Removal). Loop Rotation was found necessary for Loop Vectorization to
+work as expected. Loop Rotation can also generate redundant code in the case
+that the number of iterations is known at compile time to be a multiple of the
+vector width, and the CFG Simplification is able to clean it up. Load/Store
+vectorization is applied if either of Loop or SLP options are selected.
+
+Whole Function Vectorization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The :doc:`/modules/vecz` whole-function vectorizer is optionally run.
+
+Note that VECZ may perform its own scalarization, depending on the options
+passed to it, potentially undoing the work of any of the Early Vectorization
+Passes, although it is able to preserve or even widen pre-existing vector
+operations in many cases.
 
 Linking Builtins
 ****************
