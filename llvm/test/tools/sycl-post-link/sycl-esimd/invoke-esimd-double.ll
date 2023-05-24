@@ -2,6 +2,7 @@
 ; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-M0-SYMS
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M1-SYMS
+; RUN: FileCheck %s -input-file=%t_1.ll --implicit-check-not double
 
 ; Two module should be generated, one contains double kernel, other contains float kernel
 ; CHECK-TABLE: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
