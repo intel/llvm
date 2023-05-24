@@ -2,7 +2,8 @@ set(imf_fp32_fallback_src_list imf_utils/integer_misc.cpp
                                imf_utils/half_convert.cpp
                                imf_utils/float_convert.cpp
                                imf_utils/simd_emulate.cpp
-                               imf/imf_inline_fp32.cpp)
+                               imf/imf_inline_fp32.cpp
+                               imf/imf_fp32_dl.cpp)
 
 set(imf_fp64_fallback_src_list imf_utils/double_convert.cpp
                                imf/imf_inline_fp64.cpp)
