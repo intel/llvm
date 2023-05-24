@@ -22,14 +22,14 @@ required test coverage. The issue here is that the standard approach to `RUN`
 directives and substitutions doesn't allow us to expand a line into only
 dynamically known number of commands.
 
-To overcome that, these SYCL end-to-end tests implement a subclass of
-`lit.formats.ShTest` that adjusts default behavior to enable our usage scenario.
-Mainly, we introduce `%{run}` *expansion* that generates multiple commands from
-a single `RUN` directive - one per device in `sycl_devices` parameter (more
-on the parameter below). There is a small number of tests that either need
-multiple devices or target the device selector itself. For such tests we have a
-regular `%{run-unfiltered-devices}` substitution that doesn't set a
-`ONEAPI_DEVICE_SELECTOR` filter nor does it create multiple commands.
+To overcome that, we introduce `%{run}` *expansion* that generates multiple
+commands from a single `RUN` directive - one per device in `sycl_devices`
+parameter (more on the parameter below). There is a small number of tests that
+either need multiple devices or target the device selector itself. For such
+tests we have a regular `%{run-unfiltered-devices}` substitution that doesn't
+set a `ONEAPI_DEVICE_SELECTOR` filter nor does it create multiple commands.
+Technically, this change is implemented by creating a custom LIT test
+[format](/sycl/test-e2e/format.py) that inherits from `lit.formats.ShTest`.
 
 This custom LIT test format also overrides the meaning of
 `REQUIRES`/`UNSUPPORTED`/`XFAIL` directives, although in a natural way that
