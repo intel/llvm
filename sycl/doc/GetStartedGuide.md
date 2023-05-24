@@ -673,7 +673,7 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
 specify the target architecture.  The examples provided use a supported
 alias for the target, representing a full triple.  Additional details can
-be found in the [Users Manual](UsersManual.md#generic-options).
+be found in the [Users Manual](UsersManual.html#generic-options).
 
 ```-fsycl-targets=spir64_gen``` for GPU,
 ```-fsycl-targets=spir64_x86_64``` for CPU,
