@@ -45,7 +45,7 @@ static std::optional<APInt> getConstIntegerValue(Value val,
 }
 
 /// Determine whether a value is equal to a given integer constant.
-static bool isEqualTo(Value val, int constant, DataFlowSolver &solver) {
+static bool isEqualTo(Value val, int64_t constant, DataFlowSolver &solver) {
   std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
   if (!optConstVal.has_value())
     return false;
@@ -127,77 +127,82 @@ static bool usesValue(Operation *op, Value val) {
 
 namespace {
 
-/// Represent a multiplication factor.
-class Multiplier {
-  friend raw_ostream &operator<<(raw_ostream &, const Multiplier &);
-
+/// Represents a multiplication factor in an affine expression.
+/// Example:
+///   k1*i + k2
+/// Here the multiplier is 'k1'.
+class Multiplier : public Value {
 public:
-  Multiplier(Value val) : val(val) {}
+  Multiplier(Value val) : Value(val) {}
 
-  bool operator==(const Multiplier &other) { return val == other.val; }
-
-  Value getValue() const { return val; }
-
-  /// Create a multiplier with value one.
   static Multiplier one(MLIRContext *ctx) {
     OpBuilder b(ctx);
     return Multiplier(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1));
   }
-
-private:
-  Value val;
 };
 
-raw_ostream &operator<<(raw_ostream &os, const Multiplier &multiplier) {
-  return os << multiplier.val;
-}
+/// Represents an offset in an affine expression.
+/// Example:
+///   k1*i + k2
+/// Here the offset is 'k2'.
+class Offset : public Value {
+public:
+  Offset(Value val) : Value(val) {}
 
-/// Represent a multiplier or a value.
-class ValueOrMultiplier {
-  friend raw_ostream &operator<<(raw_ostream &, const ValueOrMultiplier &);
+  static Offset zero(MLIRContext *ctx) {
+    OpBuilder b(ctx);
+    return Offset(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0));
+  }
+};
+
+/// Represent a generic value or a value of type \tparam T.
+template <typename T,
+          typename =
+              std::enable_if_t<llvm::is_one_of<T, Multiplier, Offset>::value>>
+class ValueOr {
+  friend raw_ostream &operator<<(raw_ostream &os, const ValueOr<T> &valOr) {
+    if (valOr.template is<T>())
+      return os << valOr.template get<T>();
+    return os << valOr.template get<Value>();
+  }
 
 public:
-  ValueOrMultiplier(Multiplier mul) : data(mul) {}
-  ValueOrMultiplier(Value val) : data(val) {}
+  ValueOr(T val) : data(val) {}
+  ValueOr(Value val) : data(val) {}
 
-  bool isMultiplier() const { return std::holds_alternative<Multiplier>(data); }
-  bool isValue() const { return std::holds_alternative<Value>(data); }
-
-  Multiplier getMultiplier() const {
-    assert(isMultiplier() && "Expecting multiplier");
-    return std::get<Multiplier>(data);
+  template <typename U,
+            typename = std::enable_if_t<llvm::is_one_of<U, T, Value>::value>>
+  bool is() const {
+    return std::holds_alternative<U>(data);
   }
 
-  Value getValue() const {
-    assert(isValue() && "Expecting value");
-    return std::get<Value>(data);
+  template <typename U,
+            typename = std::enable_if_t<llvm::is_one_of<U, T, Value>::value>>
+  U get() const {
+    assert(is<U>() && "Incorrect type");
+    return std::get<U>(data);
   }
 
-  /// Determine whether this class holds the value one.
-  bool isOne(DataFlowSolver &solver) const {
-    Value val = isMultiplier() ? getMultiplier().getValue() : getValue();
+  /// Determine whether this class holds the value \p k.
+  bool isEqualTo(int64_t constant, DataFlowSolver &solver) const {
+    Value val = is<T>() ? get<T>() : get<Value>();
     if (!val)
       return false;
 
     if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
-      if (constVal.value() == 1)
+      if (constVal.value() == constant)
         return true;
     }
-    std::optional<APInt> constVal = getConstIntegerValue(val, solver);
-    return (constVal.has_value() && constVal->isOne());
+
+    return ::isEqualTo(val, constant, solver);
   }
 
 private:
-  std::variant<Value, Multiplier> data;
+  std::variant<Value, T> data;
 };
 
-[[maybe_unused]] raw_ostream &
-operator<<(raw_ostream &os, const ValueOrMultiplier &valOrMultiplier) {
-  if (valOrMultiplier.isMultiplier())
-    return os << valOrMultiplier.getMultiplier();
-  return os << valOrMultiplier.getValue();
-}
-
+template class ValueOr<Multiplier>;
+template class ValueOr<Offset>;
 } // namespace
 
 // Visit a binary operation of type \tparam T. The LHS and RHS operand of the
@@ -207,21 +212,21 @@ template <typename T, typename ProcessOperandFuncT, typename ComputeResultFuncT,
           typename = std::enable_if_t<llvm::is_one_of<
               T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>,
           typename = std::enable_if<
-              std::is_invocable_r_v<ValueOrMultiplier, ProcessOperandFuncT, T,
+              std::is_invocable_r_v<ValueOr<Multiplier>, ProcessOperandFuncT, T,
                                     const Value, DataFlowSolver &>>,
           typename = std::enable_if<
-              std::is_invocable_r_v<ValueOrMultiplier, ComputeResultFuncT,
-                                    ValueOrMultiplier, ValueOrMultiplier>>>
-static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
-                                       DataFlowSolver &solver,
-                                       ProcessOperandFuncT getMultiplier,
-                                       ComputeResultFuncT computeResult) {
+              std::is_invocable_r_v<ValueOr<Multiplier>, ComputeResultFuncT,
+                                    ValueOr<Multiplier>, ValueOr<Multiplier>>>>
+static ValueOr<Multiplier> visitBinaryOp(T binOp, const Value factor,
+                                         DataFlowSolver &solver,
+                                         ProcessOperandFuncT getMultiplier,
+                                         ComputeResultFuncT computeResult) {
   // Traverse my subtrees.
-  auto lhsRes = getMultiplier(binOp.getLhs(), factor, solver);
-  auto rhsRes = getMultiplier(binOp.getRhs(), factor, solver);
+  ValueOr<Multiplier> lhsRes = getMultiplier(binOp.getLhs(), factor, solver);
+  ValueOr<Multiplier> rhsRes = getMultiplier(binOp.getRhs(), factor, solver);
 
   // Compute the result to propagate up.
-  auto res = computeResult(lhsRes, rhsRes);
+  ValueOr<Multiplier> res = computeResult(lhsRes, rhsRes);
 
   LLVM_DEBUG({
     llvm::dbgs() << "lhsRes: " << lhsRes << "\n";
@@ -244,16 +249,14 @@ static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
 ///   %add = arith.addi %mul, %c2_i64 : i64
 ///
 /// Here getMultiplier(%add, %ii) should return '%c1_i32'.
-static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
-                                       DataFlowSolver &solver) {
+static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
+                                         DataFlowSolver &solver) {
+  if (expr == factor)
+    return Multiplier::one(expr.getContext());
+
   Operation *op = expr.getDefiningOp();
-  if (!op) {
-    // This is a block argument. If it is a match create a multiplier with value
-    // one.
-    if (expr == factor)
-      return Multiplier::one(expr.getContext());
+  if (!op)
     return expr;
-  }
 
   auto getOperandThatMatchesFactor = [&factor](Value lhs, Value rhs) {
     if (lhs == factor && lhs != rhs)
@@ -263,25 +266,26 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
     return Value();
   };
 
-  return TypeSwitch<Operation *, ValueOrMultiplier>(op)
+  return TypeSwitch<Operation *, ValueOr<Multiplier>>(op)
       .Case<arith::AddIOp, arith::SubIOp>([&](auto binOp) {
-        auto computeResult = [&](ValueOrMultiplier lhs,
-                                 ValueOrMultiplier rhs) -> ValueOrMultiplier {
-          bool lhsIsMul = lhs.isMultiplier(), rhsIsMul = rhs.isMultiplier();
+        auto computeResult =
+            [&](ValueOr<Multiplier> lhs,
+                ValueOr<Multiplier> rhs) -> ValueOr<Multiplier> {
+          bool lhsIsMul = lhs.is<Multiplier>(), rhsIsMul = rhs.is<Multiplier>();
 
           // If the LHS (or RHS) subtree passed up a multiplier and the other
           // operand is not a match (of the factor), propagate the multiplier
           // up.
-          if (lhsIsMul && !rhsIsMul && rhs.getValue() != factor)
+          if (lhsIsMul && !rhsIsMul && rhs.get<Value>() != factor)
             return lhs;
-          if (rhsIsMul && !lhsIsMul && lhs.getValue() != factor)
+          if (rhsIsMul && !lhsIsMul && lhs.get<Value>() != factor)
             return rhs;
 
           // Otherwise, if neither the LHS nor the RHS subtrees passed up a
           // multiplier, and one of the operands is a match, the multiplier is
           // one.
           if (!lhsIsMul && !rhsIsMul &&
-              getOperandThatMatchesFactor(lhs.getValue(), rhs.getValue()) !=
+              getOperandThatMatchesFactor(lhs.get<Value>(), rhs.get<Value>()) !=
                   nullptr)
             return Multiplier::one(expr.getContext());
           return Value();
@@ -293,14 +297,15 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
                              computeResult);
       })
       .Case<arith::MulIOp>([&](auto mulOp) {
-        auto computeResult = [&](ValueOrMultiplier lhs,
-                                 ValueOrMultiplier rhs) -> ValueOrMultiplier {
-          bool lhsIsMul = lhs.isMultiplier(), rhsIsMul = rhs.isMultiplier();
+        auto computeResult =
+            [&](ValueOr<Multiplier> lhs,
+                ValueOr<Multiplier> rhs) -> ValueOr<Multiplier> {
+          bool lhsIsMul = lhs.is<Multiplier>(), rhsIsMul = rhs.is<Multiplier>();
 
           // If neither the LHS nor the RHS subtree passed up a multiplier,
           // attempt to find it in this multiplication expression.
           if (!lhsIsMul && !rhsIsMul) {
-            Value lhsVal = lhs.getValue(), rhsVal = rhs.getValue();
+            Value lhsVal = lhs.get<Value>(), rhsVal = rhs.get<Value>();
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == lhsVal)
               return Multiplier(rhsVal);
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == rhsVal)
@@ -314,17 +319,17 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
           //     + the multiplier is one and
           //     + the other operand is not the factor.
           if (lhsIsMul && !rhsIsMul) {
-            if (rhs.isOne(solver))
+            if (rhs.isEqualTo(1, solver))
               return lhs;
-            if (lhs.isOne(solver) && rhs.getValue() != factor)
-              return Multiplier(rhs.getValue());
+            if (lhs.isEqualTo(1, solver) && rhs.get<Value>() != factor)
+              return Multiplier(rhs.get<Value>());
             return Value();
           }
           if (rhsIsMul && !lhsIsMul) {
-            if (lhs.isOne(solver))
+            if (lhs.isEqualTo(1, solver))
               return rhs;
-            if (rhs.isOne(solver) && lhs.getValue() != factor)
-              return Multiplier(lhs.getValue());
+            if (rhs.isEqualTo(1, solver) && lhs.get<Value>() != factor)
+              return Multiplier(lhs.get<Value>());
             return Value();
           }
 
@@ -337,7 +342,7 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
                              computeResult);
       })
       .Case<sycl::SYCLNDItemGetGlobalIDOp>(
-          [&](auto getGlobalIdOp) -> ValueOrMultiplier {
+          [&](auto getGlobalIdOp) -> ValueOr<Multiplier> {
             if (getGlobalIdOp.getResult() == factor)
               return Multiplier::one(expr.getContext());
             return Value();
@@ -348,12 +353,47 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
       .Default([&](auto) { return expr; });
 }
 
+static ValueOr<Offset>
+getOffset(const Value expr, const SmallVectorImpl<Value> &matrixRow,
+          const SmallVectorImpl<Value> &loopAndThreadVars,
+          DataFlowSolver &solver) {
+#if 0
+  for (size_t row = 0; row < matrixRow.size(); ++row) {
+  }
+
+  Attribute lhsAttr, rhsAttr;
+  if (matchPattern(expr, m_Var(&lhsAttr))) {
+
+    return Offset::zero(expr.getContext());
+
+    Operation *op = expr.getDefiningOp();
+    if (!op)
+      return expr;
+
+    return TypeSwitch<Operation *, ValueOr<Offset>>(op)
+        .Case<arith::AddIOp, arith::SubIOp>([&](auto binOp) {
+          llvm::errs() << "binOp: " << binOp << "\n";
+          return Value();
+        })
+        .Case<arith::MulIOp>([&](auto mulOp) {
+          llvm::errs() << "mulOp: " << mulOp << "\n";
+          return Value();
+        })
+        .Case<CastOpInterface>(
+            [&](auto) { return getOffset(op->getOperand(0), factor, solver); })
+        .Default([&](auto) { return expr; });
+  }
+#endif
+
+  return Value();
+}
+
 //===----------------------------------------------------------------------===//
 // MemoryAccessMatrix
 //===----------------------------------------------------------------------===//
 
-raw_ostream &mlir::polygeist::operator<<(raw_ostream &os,
-                                         const MemoryAccessMatrix &matrix) {
+[[maybe_unused]] raw_ostream &
+mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccessMatrix &matrix) {
   auto getConstant = [](Value val) -> Optional<int64_t> {
     return TypeSwitch<Operation *, Optional<int64_t>>(val.getDefiningOp())
         .Case<arith::ConstantIndexOp, arith::ConstantIntOp>(
@@ -801,6 +841,29 @@ MemoryAccessMatrix::getConstIntegerValue(size_t row, size_t column,
 // OffsetVector
 //===----------------------------------------------------------------------===//
 
+[[maybe_unused]] raw_ostream &
+mlir::polygeist::operator<<(raw_ostream &os, const OffsetVector &vector) {
+  auto getConstant = [](Value val) -> Optional<int64_t> {
+    return TypeSwitch<Operation *, Optional<int64_t>>(val.getDefiningOp())
+        .Case<arith::ConstantIndexOp, arith::ConstantIntOp>(
+            [](auto op) { return op.value(); })
+        .Default([](auto) { return std::nullopt; });
+  };
+
+  llvm::interleave(
+      vector.getOffsets(), os,
+      [&](Value elem) {
+        std::optional<int64_t> constant = getConstant(elem);
+        if (constant.has_value())
+          os << constant;
+        else
+          os << elem;
+      },
+      " ");
+
+  return os << "\n";
+}
+
 OffsetVector::OffsetVector(size_t nRows) : nRows(nRows), offsets(nRows) {}
 
 OffsetVector::OffsetVector(std::initializer_list<Value> initList) {
@@ -879,9 +942,8 @@ OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
 // MemoryAccess
 //===----------------------------------------------------------------------===//
 
-template <typename OpTy>
 MemoryAccessPattern
-MemoryAccess<OpTy>::classifyMemoryAccess(DataFlowSolver &solver) const {
+MemoryAccess::classifyMemoryAccess(DataFlowSolver &solver) const {
   bool isZeroVector = offsets.isZero(solver);
 
   if (isZeroVector) {
@@ -953,8 +1015,8 @@ bool MemoryAccessAnalysis::isInvalidated(
          !pa.isPreserved<ReachingDefinitionAnalysis>();
 }
 
-std::optional<MemoryAccessMatrix>
-MemoryAccessAnalysis::getMemoryAccessMatrix(const MemRefAccess &access) const {
+std::optional<MemoryAccess>
+MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
   auto it = accessMap.find(access.opInst);
   if (it == accessMap.end())
     return std::nullopt;
@@ -979,8 +1041,8 @@ void MemoryAccessAnalysis::build() {
     return;
   }
 
-  // Try to construct the memory access matrix for affine memory operation of
-  // interest.
+  // Try to construct the memory access matrix and offset vector for affine
+  // memory operation of interest.
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
     TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
         [&](auto memoryOp) { build(memoryOp, solver); });
@@ -1012,8 +1074,8 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // operation. Example:
   //   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
   //   %sub = sycl.accessor.subscript %acc[%id] ...
-  // Here the underlying values for '%id' are {%i, %j}. The number of underlying
-  // values matches the dimensionality of the sycl id.
+  // Here the underlying values for '%id' are {%i, %j}. The number of
+  // underlying values matches the dimensionality of the sycl id.
   SmallVector<Value> underlyingVals = getUnderlyingValues(
       accessorSubscriptOp.getOffsetOperandIndex(), accessorSubscriptOp, solver);
   if (underlyingVals.empty()) {
@@ -1069,12 +1131,36 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   SetVector<AffineForOp> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
 
-  // Create a vector containing the the thread ids and loop induction variables.
+  // Create a vector containing the thread ids and loop induction variables.
   SmallVector<Value, 4> loopAndThreadVars;
   for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
     loopAndThreadVars.emplace_back(getGlobalIdOp.getResult());
   for (AffineForOp loop : llvm::reverse(enclosingLoops))
     loopAndThreadVars.emplace_back(loop.getInductionVar());
+
+  std::optional<MemoryAccessMatrix> matrix = buildAccessMatrix(
+      accessorSubscriptOp, loopAndThreadVars, underlyingVals, solver);
+  if (!matrix.has_value())
+    return;
+
+  std::optional<OffsetVector> offsets =
+      buildOffsetVector(*matrix, loopAndThreadVars, underlyingVals, solver);
+  if (!offsets.has_value())
+    return;
+
+  accessMap[memoryOp] = {std::move(*matrix), std::move(*offsets)};
+}
+
+std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
+    sycl::SYCLAccessorSubscriptOp accessorSubscriptOp,
+    const SmallVectorImpl<Value> &loopAndThreadVars,
+    const SmallVectorImpl<Value> &underlyingVals, DataFlowSolver &solver) {
+  LLVM_DEBUG(llvm::dbgs() << "Computing access matrix\n");
+
+  const Value accSubIndex = accessorSubscriptOp.getIndex();
+  assert(sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
+         "Number of underlying values should be equal to dimensionality of the "
+         "id used to index the accessor");
 
   // Construct the memory access matrix. The number of rows is equal to the
   // dimensionality of the sycl.id used by the accessor subscript operation.
@@ -1083,13 +1169,13 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
                                   loopAndThreadVars.size());
 
-  OpBuilder b(access.memref.getContext());
+  OpBuilder b(accessorSubscriptOp.getContext());
   Value zero = b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0);
 
-  // Initialize the memory access matrix.
   for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
     Value val = underlyingVals[row];
-    LLVM_DEBUG(llvm::dbgs() << "Analyzing underlying value: " << val << "\n");
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Analyzing underlying value: " << val << "\n");
 
     for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
       if (!usesValue(val.getDefiningOp(), loopAndThreadVars[col])) {
@@ -1097,19 +1183,55 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
         continue;
       }
 
-      ValueOrMultiplier valOrMul =
+      ValueOr<Multiplier> valOrMultiplier =
           getMultiplier(val, loopAndThreadVars[col], solver);
-      if (!valOrMul.isMultiplier()) {
-        LLVM_DEBUG(llvm::dbgs() << "Failed to find multiplier\n");
-        return;
+      if (!valOrMultiplier.is<Multiplier>()) {
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "Failed to find multiplier\n");
+        return std::nullopt;
       }
 
-      accessMatrix(row, col) = valOrMul.getMultiplier().getValue();
+      accessMatrix(row, col) = valOrMultiplier.get<Multiplier>();
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
 
-  accessMap[access.opInst] = accessMatrix;
+  return accessMatrix;
+}
+
+std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
+    const MemoryAccessMatrix &matrix,
+    const SmallVectorImpl<Value> &loopAndThreadVars,
+    const SmallVectorImpl<Value> &underlyingVals, DataFlowSolver &solver) {
+  LLVM_DEBUG(llvm::dbgs() << "Computing offset vector\n");
+
+  OffsetVector offsets(matrix.getNumRows());
+
+  for (size_t row = 0; row < offsets.getNumRows(); ++row) {
+    Value val = underlyingVals[row];
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Analyzing underlying value: " << val << "\n");
+
+    SmallVector<Value> matrixRow = matrix.getRow(row);
+
+    // TODO: pass the row of the matrix and the loopAndThreadVars
+    //   With those 2 we can then isolate the offset.
+    //    if (!usesValue(val.getDefiningOp(), loopAndThreadVars[row])) {
+    //    offsets(row) = zero;
+    //  continue;
+    //    }
+
+    ValueOr<Offset> valOrOffset =
+        getOffset(val, matrixRow, loopAndThreadVars, solver);
+    if (!valOrOffset.is<Offset>()) {
+      LLVM_DEBUG(llvm::dbgs().indent(2) << "Failed to find offset\n");
+      return std::nullopt;
+    }
+
+    offsets(row) = valOrOffset.get<Offset>();
+  }
+  LLVM_DEBUG(llvm::dbgs().indent(2) << "offset vector:\n" << offsets << "\n");
+
+  return offsets;
 }
 
 bool MemoryAccessAnalysis::hasZeroIndex(const MemRefAccess &access) const {
@@ -1171,8 +1293,8 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
           return getUnderlyingValues(storeOp.getStoredValOperandIndex(),
                                      storeOp, solver);
 
-        // Try to determine the underlying value of the memory pointed to by the
-        // memref operand of a load.
+        // Try to determine the underlying value of the memory pointed to by
+        // the memref operand of a load.
         AffineLoadOp loadOp = cast<AffineLoadOp>(storedVal.getDefiningOp());
         MemRefAccess loadAccess(loadOp);
         assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
@@ -1206,12 +1328,3 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
         return vec;
       });
 }
-
-namespace mlir {
-namespace polygeist {
-
-template class MemoryAccess<affine::AffineLoadOp>;
-template class MemoryAccess<affine::AffineStoreOp>;
-
-} // namespace polygeist
-} // namespace mlir

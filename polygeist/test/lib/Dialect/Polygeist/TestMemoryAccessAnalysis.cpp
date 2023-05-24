@@ -44,7 +44,7 @@ struct TestMemoryAccessAnalysisPass
 
       affine::MemRefAccess access(op);
       const std::optional<MemoryAccessMatrix> matrix =
-          memAccessAnalysis.getMemoryAccessMatrix(access);
+          memAccessAnalysis.getMemoryAccess(access)->getAccessMatrix();
 
       if (matrix.has_value())
         llvm::errs() << "matrix:\n" << *matrix << "\n";
