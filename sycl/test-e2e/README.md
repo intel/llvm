@@ -14,8 +14,8 @@ This directory contains SYCL-related tests distributed in subdirectories based
 on testing scope. They follow the same style as other LIT tests but have a minor
 but crucial difference in the behavior of certain directives.
 
-First, some background. SYCL end-to-end tests take much longer time to compile
-than they spend on execution on a device. As such, we want to be able to
+First, some background. SYCL end-to-end tests take much longer to compile
+than they spend executing on a device. As such, we want to be able to
 structure the test in such a way that we compile it once and then execute
 multiple times on different devices (via `ONEAPI_DEVICE_SELECTOR`) to get
 required test coverage. The issue here is that the standard approach to `RUN`
@@ -33,7 +33,7 @@ regular `%{run-unfiltered-devices}` substitution that doesn't set a
 
 This custom LIT test format also overrides the meaning of
 `REQUIRES`/`UNSUPPORTED`/`XFAIL` directives, although in a natural way that
-suites the `%{run}` expansion described above. First, "features" are split into
+suits the `%{run}` expansion described above. First, "features" are split into
 device independent (e.g. "linux" or "cuda_dev_kit") and device dependent
 ("cpu/gpu/accelerator", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
 Second, for each device in `sycl_devices` LIT parameter, we see if it satisfies
