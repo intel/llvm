@@ -1261,7 +1261,7 @@ vectorization failures. The remarks can be enabled by passing the
 
 The command line tool veczc is a standalone compiler that is used to vectorize
 LLVM bitcode binary files. Its main use is in our vecz LIT-based testing (see
-modules/vecz/test).
+modules/compiler/vecz/test).
 
 It has the following arguments:
 
