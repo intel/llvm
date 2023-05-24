@@ -13,6 +13,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -72,6 +73,8 @@ bool isCandidate(LoopLikeOpInterface loop) {
     LLVM_DEBUG(llvm::dbgs() << "not candidate: not affine or scf for loop\n");
     return false;
   }
+
+  // TODO: check uniformity.
 
   return true;
 }
