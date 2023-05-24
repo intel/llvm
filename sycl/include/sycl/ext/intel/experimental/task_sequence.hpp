@@ -52,12 +52,16 @@ public:
 
   task_sequence() {
 #if defined(__SYCL_DEVICE_ONLY__)
-    __spirv_TaskSequenceCreateINTEL(this, &f,
+    __spirv_TaskSequenceCreateINTEL(&f,
       (PropertyListT::template has_property<pipelined_key> ?
         PropertyListT::template get_property<pipelined_key>.value() : 1),
       (PropertyListT::template has_property<use_stall_enable_clusters_key> ?
         PropertyListT::template get_property<
-          use_stall_enable_clusters_key>.value() : 1)
+          use_stall_enable_clusters_key>.value() : 1),
+      (PropertyListT::template get_property<
+        response_capacity_key>),
+      (PropertyListT::template get_property<
+        invocation_capacity_key>)
       );
 #else
     throw exception{errc::feature_not_supported,
@@ -68,8 +72,7 @@ public:
   void async(ArgsT... Args) {
 #if defined(__SYCL_DEVICE_ONLY__)
     ++outstanding;
-    __spirv_TaskSequenceAsyncINTEL(this, PropertyListT::template get_property<
-      invocation_capacity_key>, Args...);
+    __spirv_TaskSequenceAsyncINTEL(this, Args...);
 #else
     throw exception{errc::feature_not_supported,
                     "task_sequence is not supported on host device"};
@@ -79,8 +82,7 @@ public:
   ReturnT get() {
 #if defined(__SYCL_DEVICE_ONLY__)
     --outstanding;
-    return __spirv_TaskSequenceGetINTEL(this,
-      PropertyListT::template get_property<response_capacity_key>);
+    return __spirv_TaskSequenceGetINTEL(this);
 #else
     throw exception{errc::feature_not_supported,
                     "task_sequence is not supported on host device"};
