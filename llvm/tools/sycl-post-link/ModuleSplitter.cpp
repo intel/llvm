@@ -213,14 +213,12 @@ public:
 
       // case (2)
       for (const auto &I : instructions(F)) {
-        if (!isa<CallInst>(&I))
+        const auto *CI = dyn_cast<CallInst>(&I);
+        if (!CI || !CI->isIndirectCall()) // Direct calls were handled above
           continue;
 
-        const auto *CI = cast<CallInst>(&I);
-        // Direct calls were handled above
-        if (!CI->isIndirectCall())
-          continue;
-
+        // TODO: consider limiting set of potential callees to functions marked
+        // with special attribute (like [[intel::device_indirectly_callable]])
         const FunctionType *Signature = CI->getFunctionType();
         const auto &PotentialCallees = FuncTypeToFuncMap[Signature];
         Graph[&F].insert(PotentialCallees.begin(), PotentialCallees.end());
@@ -273,7 +271,8 @@ private:
 void collectFunctionsAndGlobalVariablesToExtract(
     SetVector<const GlobalValue *> &GVs, const Module &M,
     const EntryPointGroup &ModuleEntryPoints, const DependencyGraph &Deps,
-    const std::function<bool(const Function *)> &Filter = nullptr) {
+    const std::function<bool(const Function *)> &IncludeFunctionPredicate =
+        nullptr) {
   // We start with module entry points
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
@@ -296,7 +295,7 @@ void collectFunctionsAndGlobalVariablesToExtract(
         if (Func->isDeclaration())
           continue;
 
-        if (!Filter || Filter(Func))
+        if (!IncludeFunctionPredicate || IncludeFunctionPredicate(Func))
           GVs.insert(Func);
       } else {
         // Global variables are added unconditionally
@@ -328,13 +327,14 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
 
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
-ModuleDesc extractCallGraph(
-    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
-    const DependencyGraph &CG,
-    const std::function<bool(const Function *)> &Filter = nullptr) {
+ModuleDesc extractCallGraph(const ModuleDesc &MD,
+                            EntryPointGroup &&ModuleEntryPoints,
+                            const DependencyGraph &CG,
+                            const std::function<bool(const Function *)>
+                                &IncludeFunctionPredicate = nullptr) {
   SetVector<const GlobalValue *> GVs;
-  collectFunctionsAndGlobalVariablesToExtract(GVs, MD.getModule(),
-                                              ModuleEntryPoints, CG, Filter);
+  collectFunctionsAndGlobalVariablesToExtract(
+      GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   SplitM.cleanup();
@@ -345,17 +345,18 @@ ModuleDesc extractCallGraph(
 // The function is simlar to 'extracCallGraph', but it produces a coupe of
 // input LLVM IR module M with _all_ ESIMD functions and kernels included,
 // regardless of whether or not they are listed in ModuleEntryPoints.
-ModuleDesc extractESIMDCallGraph(
-    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
-    const DependencyGraph &CG,
-    const std::function<bool(const Function *)> &Filter = nullptr) {
+ModuleDesc extractESIMDCallGraph(const ModuleDesc &MD,
+                                 EntryPointGroup &&ModuleEntryPoints,
+                                 const DependencyGraph &CG,
+                                 const std::function<bool(const Function *)>
+                                     &IncludeFunctionPredicate = nullptr) {
   SetVector<const GlobalValue *> GVs;
   for (const auto &F : MD.getModule().functions())
     if (isESIMDFunction(F))
       GVs.insert(&F);
 
-  collectFunctionsAndGlobalVariablesToExtract(GVs, MD.getModule(),
-                                              ModuleEntryPoints, CG, Filter);
+  collectFunctionsAndGlobalVariablesToExtract(
+      GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   SplitM.cleanup();
