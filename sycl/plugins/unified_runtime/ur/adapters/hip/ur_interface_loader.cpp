@@ -234,8 +234,9 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
   pDdiTable->pfnPoolCreate = nullptr;
-  pDdiTable->pfnPoolDestroy = nullptr;
-  pDdiTable->pfnPoolDestroy = nullptr;
+  pDdiTable->pfnPoolRetain = nullptr;
+  pDdiTable->pfnPoolRelease = nullptr;
+  pDdiTable->pfnPoolGetInfo = nullptr;
   pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }

@@ -264,7 +264,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
 ///
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
-    ur_queue_handle_t hQueue, ur_native_handle_t *phNativeQueue) {
+    ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phNativeQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
