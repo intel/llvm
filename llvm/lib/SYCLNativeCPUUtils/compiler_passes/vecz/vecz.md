@@ -3,9 +3,9 @@
 Codeplay's Vecz is a library based on LLVM that allows vectorization of SPMD
 programs such as OpenCL kernels.
 
-Vecz is automatically built during the ComputeAorta build process (only if a
-runtime compiler is found) but needs to be manually enabled to be used during
-the kernel compilation process. This is done by providing the
+Vecz is automatically built during the oneAPI Construction Kit build process
+(only if a runtime compiler is found) but needs to be manually enabled to be
+used during the kernel compilation process. This is done by providing the
 `-cl-wfv={always|auto}` option before running any OpenCL program.
 
 Vecz ships with a standalone tool called `veczc`. This tool will consume LLVM IR
@@ -1246,9 +1246,9 @@ done in two ways.
 First, the official way is to use `opt` with the `-stats` option. This will
 print the statistics from all the passes that have any.
 
-The second way is to pass the `-cl-llvm-stats` option to ComputeAorta. This will
-do pretty much the same work that the `-stats` option does, but it can be used
-in cases where it is not possible to use `-stats`.
+The second way is to pass the `-cl-llvm-stats` option to the oneAPI
+Construction Kit. This will do pretty much the same work that the `-stats`
+option does, but it can be used in cases where it is not possible to use `-stats`.
 
 ## Optimization Remarks
 

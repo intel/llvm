@@ -580,10 +580,10 @@ RunVeczPass
 -----------
 
 The ``RunVeczPass`` module pass provides a wrapper for using our
-:doc:`/modules/vecz` ComputeAorta IR vectorizer. This vectorizes the kernel to
-a SIMD width specified when the pass is created. In our case this is typically
-local size in the first dimension but there are other factors to consider when
-picking the width, like being a power of 2.
+:doc:`/modules/vecz` oneAPI Construction Kit IR vectorizer. This vectorizes
+the kernel to a SIMD width specified when the pass is created. In our case
+this is typically local size in the first dimension but there are other
+factors to consider when picking the width, like being a power of 2.
 
 We only enable the vectorizer in host when the ``-cl-wfv={always|auto}`` option
 is provided, a condition check which is the first thing this pass does. If this
@@ -1062,28 +1062,29 @@ fences.
 RemoveExceptionsPass
 --------------------
 
-ComputeAorta does not support exceptions. However, functions without the
-``NoUnwind`` attribute can still be generated in certain cases. This pass adds
-the ``NoUnwind`` attribute to every function in the module, for target code
+oneAPI Construction Kit does not support exceptions. However, functions without
+the ``NoUnwind`` attribute can still be generated in certain cases. This pass
+adds the ``NoUnwind`` attribute to every function in the module, for target code
 generators that can't handle exceptions.
 
 Metadata Utilities
 ------------------
 
 There are several key pieces of metadata used for inter-communication between
-ComputeAorta passes, documented in the
+the oneAPI Construction Kit passes, documented in the
 :doc:`/specifications/mux-compiler-spec`.
 
 In order to avoid hard-coding assumptions about the metadata's names, number of
 operands, types of operands, etc., utility functions **should** be used to access
 or manipulate the metadata. The specific names and/or operands of these
-metadata is **not** guaranteed to be stable between ComputeAorta versions.
+metadata is **not** guaranteed to be stable between the oneAPI Construction Kit
+versions.
 
 Attribute Utilities
 -------------------
 
 There are several key attributes used for inter-communication between
-ComputeAorta passes, documented in the
+the oneAPI Construction Kit passes, documented in the
 :doc:`/specifications/mux-compiler-spec`.
 
 The ``modules/compiler/utils/include/utils/attributes.h`` header contains all
