@@ -74,7 +74,8 @@ void test_pvc(device &d) {
     }
     {
       queue q{sub_device, ext::intel::property::queue::compute_index{2}};
-      // This queue will reuse the previous queue's command list due to recycling.
+      // This queue will reuse the previous queue's command list due to
+      // recycling.
       q.single_task([=]() {}).wait();
     }
     {
