@@ -27,6 +27,22 @@ permissions:
   contents: read
 
 jobs:
+  files_changed:
+    name: Detect what files changed
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    # Map a step output to a job output
+    outputs:
+      only_test_e2e: ${{ steps.changes.outputs.not_test_e2e == 'false' }}
+    steps:
+      - name: Check file changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            not_test_e2e:
+              - '!sycl/test-e2e/**'
+
   lint:
     runs-on: ubuntu-22.04
     container:
@@ -54,7 +70,7 @@ jobs:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, files_changed]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -66,6 +82,7 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      only_test_e2e_changed: ${{ needs.files_changed.outputs.only_test_e2e }}
 
   windows_default:
     name: Windows
