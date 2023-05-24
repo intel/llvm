@@ -6,20 +6,14 @@
 // RUN: env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 // RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
-
-// RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC-AFFINITY
+// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC,CHECK-PVC-AFFINITY
 
 // Same, but using immediate commandlists:
 
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
-
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC-AFFINITY
+// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC,CHECK-PVC-AFFINITY
 
 #include <sycl/sycl.hpp>
 
@@ -124,10 +118,13 @@ void test_pvc(device &d) {
         queue q{sub_sub_device};
         q.single_task([=]() {});
       }
-      // CHECK-PVC:          [getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])
-      // CHECK-PVC:          [getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])
-      // CHECK-PVC-AFFINITY: [getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])
-      // CHECK-PVC-AFFINITY: [getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])
+      // CHECK-PVC:              [getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])
+      // CHECK-PVC:              [getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])
+
+      // Immediate command list recycling eliminates the two following
+      // getZeQueue calls.
+      // CHECK-PVC-AFFINITY-NOT: [getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])
+      // CHECK-PVC-AFFINITY-NOT: [getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])
     };
     {
       auto sub_sub_devices = sub_device.create_sub_devices<
@@ -148,8 +145,9 @@ void test_pvc(device &d) {
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])" << std::endl;
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])" << std::endl;
     if (ExposeCSliceInAffinityPartitioning) {
-      std::cout << "[getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])" << std::endl;
-      std::cout << "[getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])" << std::endl;
+      // Immediate command list recycling eliminates the two following getZeQueue calls.
+      // std::cout << "[getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])" << std::endl;
+      // std::cout << "[getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])" << std::endl;
     }
     // clang-format on
   }
