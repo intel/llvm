@@ -1338,7 +1338,6 @@ int main() {
   {
     using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
     using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
-    using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
 
     int data[2] = {2, 100};
     int data2[2] = {23, 4};
