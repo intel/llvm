@@ -51,18 +51,12 @@ namespace ur_loader
     %>
 
         %if re.match(r"Init", obj['name']):
-        bool atLeastOneplatformValid = false;
         for( auto& platform : context->platforms )
         {
             if(platform.initStatus != ${X}_RESULT_SUCCESS)
                 continue;
             platform.initStatus = platform.dditable.${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
-            if(platform.initStatus == ${X}_RESULT_SUCCESS)
-                atLeastOneplatformValid = true;
         }
-
-        if(!atLeastOneplatformValid)
-            result=${X}_RESULT_ERROR_UNINITIALIZED;
 
         %elif re.match(r"\w+TearDown$", th.make_func_name(n, tags, obj)):
 
@@ -222,9 +216,6 @@ ${tbl['export']['name']}(
     %endfor
     )
 {
-    if( ur_loader::context->platforms.size() < 1 )
-        return ${X}_RESULT_ERROR_UNINITIALIZED;
-
     if( nullptr == pDdiTable )
         return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -233,7 +224,6 @@ ${tbl['export']['name']}(
 
     ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
-    bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
     for( auto& platform : ur_loader::context->platforms )
     {
@@ -241,27 +231,14 @@ ${tbl['export']['name']}(
             continue;
         auto getTable = reinterpret_cast<${tbl['pfn']}>(
             ur_loader::LibLoader::getFunctionPtr(platform.handle.get(), "${tbl['export']['name']}"));
-        if(!getTable) 
-            continue; 
-        auto getTableResult = getTable( version, &platform.dditable.${n}.${tbl['name']});
-        if(getTableResult == ${X}_RESULT_SUCCESS) 
-            atLeastOneplatformValid = true;
-        %if tbl['experimental'] is False:
-        else
-            platform.initStatus = getTableResult;
-        %endif
+        if(!getTable)
+            continue;
+        platform.initStatus = getTable( version, &platform.dditable.${n}.${tbl['name']});
     }
-
-    %if tbl['experimental'] is False: #//Experimental Tables may not be implemented in platform
-    if(!atLeastOneplatformValid)
-        result = ${X}_RESULT_ERROR_UNINITIALIZED;
-    else
-        result = ${X}_RESULT_SUCCESS;
-    %endif
 
     if( ${X}_RESULT_SUCCESS == result )
     {
-        if( ( ur_loader::context->platforms.size() > 1 ) || ur_loader::context->forceIntercept )
+        if( ur_loader::context->platforms.size() != 1 || ur_loader::context->forceIntercept )
         {
             // return pointers to loader's DDIs
             %for obj in tbl['functions']:
