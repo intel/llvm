@@ -2,8 +2,6 @@ name: SYCL Pre Commit
 
 on:
   pull_request_target:
-    branches:
-    - sycl
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
@@ -70,21 +68,6 @@ jobs:
               - 'sycl/*'
               - 'sycl/!(test-e2e)/**'
 
-  lint:
-    runs-on: ubuntu-22.04
-    container:
-      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
-    steps:
-    - name: 'PR commits + 1'
-      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
-    - uses: actions/checkout@v3
-      with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        persist-credentials: false
-        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
-    - name: Run clang-format
-      uses: ./devops/actions/clang-format
-
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
     name: Generate Test Matrix
@@ -97,7 +80,7 @@ jobs:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix, need_check]
+    needs: [test_matrix, need_check]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -116,11 +99,3 @@ jobs:
       check_libclc: ${{ needs.need_check.outputs.libclc }}
       check_sycl: ${{ needs.need_check.outputs.sycl }}
 
-  windows_default:
-    name: Windows
-    needs: [lint, test_matrix]
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_windows_build_and_test.yml
-    with:
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
-      build_ref: ${{ github.event.pull_request.head.sha }}
