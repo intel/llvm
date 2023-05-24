@@ -73,26 +73,9 @@ NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
   return NamespaceKind::Other;
 }
 
-InsertionContext getInputContext(const OpBuilder &B) {
-  assert(B.getInsertionBlock() && B.getInsertionBlock()->getParentOp() &&
-         "Expecting builder with linked insertion block");
-  return B.getInsertionBlock()
-                 ->getParentOp()
-                 ->getParentOfType<gpu::GPUModuleOp>()
-             ? InsertionContext::SYCLDevice
-             : InsertionContext::Host;
-}
-
 gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
   return cast<gpu::GPUModuleOp>(
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
-}
-
-InsertionContext getFuncContext(FunctionOpInterface Function) {
-  assert(Function && "Expecting valid Function");
-  return isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
-             ? InsertionContext::SYCLDevice
-             : InsertionContext::Host;
 }
 
 void setInsertionPoint(OpBuilder &Builder, InsertionContext FuncContext,

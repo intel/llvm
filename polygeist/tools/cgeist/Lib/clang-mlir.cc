@@ -90,8 +90,6 @@ static void checkFunctionParent(const FunctionOpInterface F,
 
 void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
   const clang::FunctionDecl *FD = &FTE.getDecl();
-  assert(FuncContext == mlirclang::getFuncContext(Func) &&
-         "Expecting function contexts to match");
 
   Function = Func;
   EmittingFunctionDecl = FD;
@@ -391,10 +389,6 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
 void MLIRScanner::setEntryAndAllocBlock(Block *B) {
   AllocationScope = EntryBlock = B;
   Builder.setInsertionPointToStart(B);
-  // If block is linked, then the function contexts should match.
-  assert((!B->getParentOp() ||
-          FuncContext == mlirclang::getInputContext(Builder)) &&
-         "Expecting function contexts to match");
 }
 
 Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,

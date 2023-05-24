@@ -69,14 +69,8 @@ replaceFuncByOperation(mlir::func::FuncOp F, llvm::StringRef OpName,
 
 NamespaceKind getNamespaceKind(const clang::DeclContext *DC);
 
-/// Return the insertion context of the input builder.
-InsertionContext getInputContext(const mlir::OpBuilder &Builder);
-
 /// Return the device module in the input module.
 mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
-
-/// Return the function context
-InsertionContext getFuncContext(mlir::FunctionOpInterface Function);
 
 /// Set the OpBuilder \p Builder insertion point depending on the given
 /// InsertionContext \p FuncContext.
