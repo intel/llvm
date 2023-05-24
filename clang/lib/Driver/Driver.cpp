@@ -6747,11 +6747,6 @@ public:
         // not needed for emulation, as these are treated as regular archives.
         if (!C.getDriver().isFPGAEmulationMode())
           unbundleStaticLib(types::TY_FPGA_AOCO, LA);
-        // Do not unbundle any AOCO archive as a regular archive when we are
-        // in FPGA Hardware/Simulation mode.
-        if (!C.getDriver().isFPGAEmulationMode() &&
-            hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
-          continue;
         unbundleStaticLib(types::TY_Archive, LA);
       }
     }
