@@ -18,18 +18,18 @@ First, some background. SYCL end-to-end tests take much longer time to compile
 than they spend on execution on a device. As such, we want to be able to
 structure the test in such a way that we compile it once and then execute
 multiple times on different devices (via `ONEAPI_DEVICE_SELECTOR`) to get
-required test coverage. The issue here is that standard approach to `RUN`
+required test coverage. The issue here is that the standard approach to `RUN`
 directives and substitutions doesn't allow us to expand a line into only
 dynamically known number of commands.
 
 To overcome that, these SYCL end-to-end tests implement a subclass of
 `lit.formats.ShTest` that adjusts default behavior to enable our usage scenario.
 Mainly, we introduce `%{run}` *expansion* that generates multiple commands from
-a single `RUN` directive - one per each device in `sycl_devices` parameter (more
+a single `RUN` directive - one per device in `sycl_devices` parameter (more
 on the parameter below). There is a small number of tests that either need
 multiple devices or target the device selector itself. For such tests we have a
 regular `%{run-unfiltered-devices}` substitution that doesn't set a
-`ONEAPI_DEVICE_SELECTOR` filter nor doesn't create multiple commands.
+`ONEAPI_DEVICE_SELECTOR` filter nor does it create multiple commands.
 
 This custom LIT test format also overrides the meaning of
 `REQUIRES`/`UNSUPPORTED`/`XFAIL` directives, although in a natural way that
@@ -53,7 +53,7 @@ behave: `// RUN: %run %t.out %if cpu %{ 1 %} %else %{ 2 %}`.
 that is configured]`.
 
 Another little nuance is `%{sycl_triple}` substitution. It is constructed by
-concating triples for all the devices from `sycl_devices` supported by a given
+concatenating triples for all the devices from `sycl_devices` supported by a given
 test. After that there is also a convenient `%{build}` substitution that is
 equivalent to `%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s`.
 
