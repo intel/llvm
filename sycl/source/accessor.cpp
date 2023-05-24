@@ -120,7 +120,7 @@ void *UnsampledImageAccessorBaseHost::getMemoryObject() const {
 detail::AccHostDataT &UnsampledImageAccessorBaseHost::getAccData() {
   return impl->MAccData;
 }
-void *UnsampledImageAccessorBaseHost::getPtr() { return getAccData().MData; }
+void *UnsampledImageAccessorBaseHost::getPtr() { return impl->MData; }
 void *UnsampledImageAccessorBaseHost::getPtr() const {
   return const_cast<void *>(impl->MData);
 }
@@ -157,7 +157,7 @@ void *SampledImageAccessorBaseHost::getMemoryObject() const {
 detail::AccHostDataT &SampledImageAccessorBaseHost::getAccData() {
   return impl->MAccData;
 }
-void *SampledImageAccessorBaseHost::getPtr() { return getAccData().MData; }
+void *SampledImageAccessorBaseHost::getPtr() { return impl->MData; }
 void *SampledImageAccessorBaseHost::getPtr() const {
   return const_cast<void *>(impl->MData);
 }
