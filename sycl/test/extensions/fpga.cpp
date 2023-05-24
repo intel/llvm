@@ -12,7 +12,7 @@ template <unsigned ID> struct ethernet_pipe_id {
 
 template <typename T, sycl::access::address_space space,
           sycl::access::decorated is_decorated>
-void lsu_body(sycl::multi_ptr<T, space, is_decorated> input_ptr,
+void lsu_body(sycl::multi_ptr<const T, space, is_decorated> input_ptr,
               sycl::multi_ptr<T, space, is_decorated> output_ptr) {
   using PrefetchingLSU =
       sycl::ext::intel::lsu<sycl::ext::intel::prefetch<true>,
@@ -99,7 +99,7 @@ int main() {
       auto *in_ptr = sycl::malloc_host<int>(1, Queue.get_context());
       Queue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class HostAnnotation>([=]() {
-          sycl::host_ptr<int> input_ptr(in_ptr);
+          sycl::host_ptr<const int> input_ptr(in_ptr);
           sycl::host_ptr<int> output_ptr(out_ptr);
           intelfpga::lsu_body<
               int, sycl::access::address_space::ext_intel_global_host_space>(
@@ -112,7 +112,7 @@ int main() {
       auto *in_ptr = sycl::malloc_device<int>(1, Queue);
       Queue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class DeviceAnnotation>([=]() {
-          sycl::ext::intel::device_ptr<int> input_ptr(in_ptr);
+          sycl::ext::intel::device_ptr<const int> input_ptr(in_ptr);
           sycl::ext::intel::device_ptr<int> output_ptr(out_ptr);
           intelfpga::lsu_body<
               int, sycl::access::address_space::ext_intel_global_device_space>(
@@ -129,8 +129,8 @@ int main() {
         auto input_accessor =
             input_buffer.get_access<sycl::access::mode::read>(cgh);
         cgh.single_task<class AccessorAnnotation>([=]() {
-          auto input_ptr = input_accessor.get_pointer();
-          auto output_ptr = output_accessor.get_pointer();
+          auto input_ptr = sycl::global_ptr<const int>(input_accessor);
+          auto output_ptr = sycl::global_ptr<int>(output_accessor);
           intelfpga::lsu_body<>(input_ptr, output_ptr);
         });
       });

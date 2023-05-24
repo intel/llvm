@@ -908,8 +908,10 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
   // functions.
   MainCGPipeline.addPass(PostOrderFunctionAttrsPass(/*SkipNonRecursive*/ true));
 
-  // Try to promote pointer arguments for internal functions.
-  MainCGPipeline.addPass(ArgumentPromotionPass());
+  // When at O3 add argument promotion to the pass pipeline.
+  // FIXME: It isn't at all clear why this should be limited to O3.
+  if (Level == OptimizationLevel::O3)
+    MainCGPipeline.addPass(ArgumentPromotionPass());
 
   // Try to perform OpenMP specific optimizations. This is a (quick!) no-op if
   // there are no OpenMP runtime calls present in the module.
@@ -1135,11 +1137,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
 
   // Optimize globals now that functions are fully simplified.
   MPM.addPass(GlobalOptPass());
-
-  // Remove dead code, except in the ThinLTO pre-link pipeline where we may want
-  // to keep available_externally functions.
-  if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink)
-    MPM.addPass(GlobalDCEPass());
+  MPM.addPass(GlobalDCEPass());
 
   if (EnableMemProfiler && Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
     MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
@@ -1556,6 +1554,11 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
   ModulePassManager MPM;
 
   if (ImportSummary) {
+    // For ThinLTO we must apply the context disambiguation decisions early, to
+    // ensure we can correctly match the callsites to summary data.
+    if (EnableMemProfContextDisambiguation)
+      MPM.addPass(MemProfContextDisambiguation(ImportSummary));
+
     // These passes import type identifier resolutions for whole-program
     // devirtualization and CFI. They must run early because other passes may
     // disturb the specific instruction patterns that these passes look for,

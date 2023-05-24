@@ -1549,13 +1549,24 @@ void DwarfDebug::collectVariableInfoFromMFTable(
     ensureAbstractEntityIsCreatedIfScoped(TheCU, Var.first, Scope->getScopeNode());
     auto RegVar = std::make_unique<DbgVariable>(
                     cast<DILocalVariable>(Var.first), Var.second);
-    RegVar->initializeMMI(VI.Expr, VI.Slot);
+    if (VI.inStackSlot())
+      RegVar->initializeMMI(VI.Expr, VI.getStackSlot());
+    else {
+      MachineLocation MLoc(VI.getEntryValueRegister(), /*IsIndirect*/ true);
+      auto LocEntry = DbgValueLocEntry(MLoc);
+      RegVar->initializeDbgValue(DbgValueLoc(VI.Expr, LocEntry));
+    }
     LLVM_DEBUG(dbgs() << "Created DbgVariable for " << VI.Var->getName()
                       << "\n");
 
-    if (DbgVariable *DbgVar = MFVars.lookup(Var))
-      DbgVar->addMMIEntry(*RegVar);
-    else if (InfoHolder.addScopeVariable(Scope, RegVar.get())) {
+    if (DbgVariable *DbgVar = MFVars.lookup(Var)) {
+      if (DbgVar->getValueLoc())
+        LLVM_DEBUG(dbgs() << "Dropping repeated entry value debug info for "
+                             "variable "
+                          << VI.Var->getName() << "\n");
+      else
+        DbgVar->addMMIEntry(*RegVar);
+    } else if (InfoHolder.addScopeVariable(Scope, RegVar.get())) {
       MFVars.insert({Var, RegVar.get()});
       ConcreteEntities.push_back(std::move(RegVar));
     }
@@ -2039,7 +2050,10 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   unsigned LastAsmLine =
       Asm->OutStreamer->getContext().getCurrentDwarfLoc().getLine();
 
-  if (DL == PrevInstLoc) {
+  bool PrevInstInSameSection =
+      (!PrevInstBB ||
+       PrevInstBB->getSectionIDNum() == MI->getParent()->getSectionIDNum());
+  if (DL == PrevInstLoc && PrevInstInSameSection) {
     // If we have an ongoing unspecified location, nothing to do here.
     if (!DL)
       return;
@@ -2111,7 +2125,12 @@ static std::pair<DebugLoc, bool> findPrologueEndLoc(const MachineFunction *MF) {
   // First known non-DBG_VALUE and non-frame setup location marks
   // the beginning of the function body.
   DebugLoc LineZeroLoc;
-  bool IsEmptyPrologue = true;
+  const Function &F = MF->getFunction();
+
+  // Some instructions may be inserted into prologue after this function. Must
+  // keep prologue for these cases.
+  bool IsEmptyPrologue =
+      !(F.hasPrologueData() || F.getMetadata(LLVMContext::MD_func_sanitize));
   for (const auto &MBB : *MF) {
     for (const auto &MI : MBB) {
       if (!MI.isMetaInstruction()) {

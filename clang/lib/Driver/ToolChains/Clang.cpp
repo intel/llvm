@@ -431,6 +431,20 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
   if (Args.hasArg(options::OPT_pg) && !Args.hasArg(options::OPT_mfentry))
     return true;
 
+  if (Triple.isAndroid()) {
+    switch (Triple.getArch()) {
+    case llvm::Triple::aarch64:
+    case llvm::Triple::arm:
+    case llvm::Triple::armeb:
+    case llvm::Triple::thumb:
+    case llvm::Triple::thumbeb:
+    case llvm::Triple::riscv64:
+      return true;
+    default:
+      break;
+    }
+  }
+
   switch (Triple.getArch()) {
   case llvm::Triple::xcore:
   case llvm::Triple::wasm32:
@@ -470,9 +484,6 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
     case llvm::Triple::armeb:
     case llvm::Triple::thumb:
     case llvm::Triple::thumbeb:
-      if (Triple.isAndroid())
-        return true;
-      [[fallthrough]];
     case llvm::Triple::mips64:
     case llvm::Triple::mips64el:
     case llvm::Triple::mips:
@@ -526,7 +537,8 @@ getFramePointerKind(const ArgList &Args, const llvm::Triple &Triple) {
   bool OmitLeafFP =
       Args.hasFlag(options::OPT_momit_leaf_frame_pointer,
                    options::OPT_mno_omit_leaf_frame_pointer,
-                   Triple.isAArch64() || Triple.isPS() || Triple.isVE());
+                   Triple.isAArch64() || Triple.isPS() || Triple.isVE() ||
+                   (Triple.isAndroid() && Triple.isRISCV64()));
   if (NoOmitFP || mustUseNonLeafFramePointerForTarget(Triple) ||
       (!OmitFP && useFramePointerForTargetByDefault(Args, Triple))) {
     if (OmitLeafFP)
@@ -3794,7 +3806,9 @@ static bool RenderModulesOptions(Compilation &C, const Driver &D,
   bool HaveStdCXXModules =
       IsCXX && Std &&
       (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
-       Std->containsValue("c++2b") || Std->containsValue("c++latest"));
+       Std->containsValue("c++2b") || Std->containsValue("c++23") ||
+       Std->containsValue("c++2c") || Std->containsValue("c++26") ||
+       Std->containsValue("c++latest"));
   bool HaveModules = HaveStdCXXModules;
 
   // -fmodules enables the use of precompiled modules (off by default).
@@ -5455,6 +5469,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  Args.AddLastArg(CmdArgs, options::OPT_dumpdir);
+
   if (const Arg *A = Args.getLastArg(options::OPT_fthinlto_index_EQ)) {
     if (!types::isLLVMIR(Input.getType()))
       D.Diag(diag::err_drv_arg_requires_bitcode_input) << A->getAsString(Args);
@@ -5851,6 +5867,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Triple.isOSAIX())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getSpelling() << RawTriple.str();
+  }
+
+  if (Args.hasArg(options::OPT_mxcoff_roptr) ||
+      Args.hasArg(options::OPT_mno_xcoff_roptr)) {
+    bool HasRoptr = Args.hasFlag(options::OPT_mxcoff_roptr,
+                                 options::OPT_mno_xcoff_roptr, false);
+    StringRef OptStr = HasRoptr ? "-mxcoff-roptr" : "-mno-xcoff-roptr";
+    if (!Triple.isOSAIX())
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << OptStr << RawTriple.str();
+
+    if (HasRoptr)
+      CmdArgs.push_back("-mxcoff-roptr");
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_Wframe_larger_than_EQ)) {
@@ -6979,6 +7008,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  if (Arg *A = Args.getLastArgNoClaim(options::OPT_K);
+      A && !TC.getTriple().isOSAIX())
+    D.Diag(diag::err_drv_unsupported_opt_for_target)
+        << A->getAsString(Args) << TripleStr;
+
   if (Args.getLastArg(options::OPT_fapple_kext) ||
       (Args.hasArg(options::OPT_mkernel) && types::isCXX(InputType)))
     CmdArgs.push_back("-fapple-kext");
@@ -6990,12 +7024,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fdiagnostics_parseable_fixits);
   Args.AddLastArg(CmdArgs, options::OPT_ftime_report);
   Args.AddLastArg(CmdArgs, options::OPT_ftime_report_EQ);
-  Args.AddLastArg(CmdArgs, options::OPT_ftime_trace);
-  Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
-  Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_EQ);
   Args.AddLastArg(CmdArgs, options::OPT_ftrapv);
   Args.AddLastArg(CmdArgs, options::OPT_malign_double);
   Args.AddLastArg(CmdArgs, options::OPT_fno_temp_file);
+
+  if (const char *Name = C.getTimeTraceFile(&JA)) {
+    CmdArgs.push_back(Args.MakeArgString("-ftime-trace=" + Twine(Name)));
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
+  }
 
   if (Arg *A = Args.getLastArg(options::OPT_ftrapv_handler_EQ)) {
     CmdArgs.push_back("-ftrapv-handler");
@@ -7295,7 +7331,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                              .Case("c++14", "-std=c++14")
                              .Case("c++17", "-std=c++17")
                              .Case("c++20", "-std=c++20")
-                             .Case("c++latest", "-std=c++2b")
+                             // TODO add c++23 and c++26 when MSVC supports it.
+                             .Case("c++latest", "-std=c++26")
                              .Default("");
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
@@ -9990,8 +10027,13 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
   // Make sure we preserve any auxiliary data which may be present in the
-  // SPIR-V object, which we need for SPIR-V-based fat objects.
-  addArgs(CmdArgs, TCArgs, {"-llvm-spirv-opts", "--spirv-preserve-auxdata"});
+  // SPIR-V object, use SPIR-V style IR as opposed to OpenCL, and represent
+  // SPIR-V globals as global variables instead of functions, all of which we
+  // need for SPIR-V-based fat objects.
+  addArgs(CmdArgs, TCArgs,
+          {"-llvm-spirv-opts",
+           "--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
+           "--spirv-builtin-format=global"});
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),

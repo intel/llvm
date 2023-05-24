@@ -76,7 +76,7 @@ static bool testss(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
+  host_accessor HAcc(Dbuf, read_only);
 
   return verify_1D("testss D", RangeLength, D, D_ref);
 }
@@ -115,7 +115,7 @@ static bool testuu(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
+  host_accessor HAcc(Dbuf, read_only);
 
   return verify_1D("testuu D", RangeLength, D, D_ref);
 }
@@ -154,7 +154,7 @@ static bool testsu(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
+  host_accessor HAcc(Dbuf, read_only);
 
   return verify_1D("testsu D", RangeLength, D, D_ref);
 }
@@ -193,7 +193,7 @@ static bool testus(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
+  host_accessor HAcc(Dbuf, read_only);
 
   return verify_1D("testus D", RangeLength, D, D_ref);
 }
@@ -229,8 +229,7 @@ bool run_tests() {
 
 int main(int argc, char *argv[]) {
   bool passed = true;
-  default_selector selector{};
-  auto D = selector.select_device();
+  device D;
   const char *devType = D.is_cpu() ? "CPU" : "GPU";
   std::cout << "Running on device " << devType << " ("
             << D.get_info<sycl::info::device::name>() << ")\n";

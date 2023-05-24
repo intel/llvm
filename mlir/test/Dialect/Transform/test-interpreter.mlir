@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s --test-transform-dialect-interpreter -allow-unregistered-dialect --split-input-file --verify-diagnostics
+// RUN: mlir-opt %s --test-transform-dialect-interpreter -allow-unregistered-dialect --split-input-file --verify-diagnostics | FileCheck %s
 
 transform.sequence failures(propagate) {
 ^bb0(%arg0: !transform.any_op):
@@ -134,7 +134,6 @@ transform.with_pdl_patterns {
   transform.sequence %arg0 : !pdl.operation failures(propagate) {
   ^bb1(%arg1: !pdl.operation):
     %f = pdl_match @const in %arg1 : (!pdl.operation) -> !pdl.operation
-    // CHECK: %{{.+}} = get_closest_isolated_parent %{{.+}}
     %m = get_closest_isolated_parent %f : (!pdl.operation) -> !pdl.operation
     test_print_remark_at_operand %m, "parent function" : !pdl.operation
   }
@@ -254,9 +253,7 @@ transform.with_pdl_patterns {
 
 func.func private @bar()
 
-// CHECK-LABEL: @erase_call
 func.func @erase_call() {
-  // CHECK-NOT: call @bar
   call @bar() : () -> ()
   return
 }
@@ -821,7 +818,7 @@ transform.sequence failures(propagate) {
 
 // -----
 
-func.func @split_handles(%a: index, %b: index, %c: index) {
+func.func @split_handle(%a: index, %b: index, %c: index) {
   %0 = arith.muli %a, %b : index
   %1 = arith.muli %a, %c : index
   return
@@ -830,17 +827,17 @@ func.func @split_handles(%a: index, %b: index, %c: index) {
 transform.sequence failures(propagate) {
 ^bb1(%fun: !pdl.operation):
   %muli = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
-  %h:2 = split_handles %muli in [2] : (!pdl.operation) -> (!pdl.operation, !pdl.operation)
+  %h:2 = split_handle %muli : (!pdl.operation) -> (!pdl.operation, !pdl.operation)
   // expected-remark @below {{1}}
   transform.test_print_number_of_associated_payload_ir_ops %h#0
   %muli_2 = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
-  // expected-error @below {{expected to contain 3 operation handles but it only contains 2 handles}}
-  %h_2:3 = split_handles %muli_2 in [3] : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
+  // expected-error @below {{expected to contain 3 payload ops but it contains 2 payload ops}}
+  %h_2:3 = split_handle %muli_2 : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
 }
 
 // -----
 
-func.func @split_handles(%a: index, %b: index, %c: index) {
+func.func @split_handle(%a: index, %b: index, %c: index) {
   %0 = arith.muli %a, %b : index
   %1 = arith.muli %a, %c : index
   return
@@ -849,14 +846,55 @@ func.func @split_handles(%a: index, %b: index, %c: index) {
 transform.sequence failures(suppress) {
 ^bb1(%fun: !pdl.operation):
   %muli = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
-  %h:2 = split_handles %muli in [2] : (!pdl.operation) -> (!pdl.operation, !pdl.operation)
+  %h:2 = split_handle %muli : (!pdl.operation) -> (!pdl.operation, !pdl.operation)
   // expected-remark @below {{1}}
   transform.test_print_number_of_associated_payload_ir_ops %h#0
   %muli_2 = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
   // Silenceable failure and all handles are now empty.
-  %h_2:3 = split_handles %muli_2 in [3] : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
+  %h_2:3 = split_handle %muli_2 : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
   // expected-remark @below {{0}}
   transform.test_print_number_of_associated_payload_ir_ops %h_2#0
+}
+
+// -----
+
+func.func @split_handle(%a: index, %b: index, %c: index) {
+  %0 = arith.muli %a, %b : index
+  %1 = arith.muli %a, %c : index
+  return
+}
+
+transform.sequence failures(propagate) {
+^bb1(%fun: !pdl.operation):
+  %muli_2 = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
+  // No error, last result handle is empty.
+  %h:3 = split_handle %muli_2 {fail_on_payload_too_small = false} : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
+  // expected-remark @below {{1}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#0
+  // expected-remark @below {{1}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#1
+  // expected-remark @below {{0}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#2
+}
+
+// -----
+
+func.func @split_handle(%a: index, %b: index, %c: index) {
+  %0 = arith.muli %a, %b : index
+  %1 = arith.muli %a, %c : index
+  %2 = arith.muli %a, %c : index
+  %3 = arith.muli %a, %c : index
+  return
+}
+
+transform.sequence failures(propagate) {
+^bb1(%fun: !pdl.operation):
+  %muli_2 = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
+  %h:2 = split_handle %muli_2 {overflow_result = 0} : (!pdl.operation) -> (!pdl.operation, !pdl.operation)
+  // expected-remark @below {{3}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#0
+  // expected-remark @below {{1}}
+  transform.test_print_number_of_associated_payload_ir_ops %h#1
 }
 
 // -----
@@ -969,7 +1007,7 @@ transform.with_pdl_patterns {
 
 // -----
 
-func.func @split_handles(%a: index, %b: index, %c: index) {
+func.func @split_handle(%a: index, %b: index, %c: index) {
   %0 = arith.muli %a, %b : index
   %1 = arith.muli %a, %c : index
   return
@@ -978,11 +1016,22 @@ func.func @split_handles(%a: index, %b: index, %c: index) {
 transform.sequence -> !pdl.operation failures(propagate) {
 ^bb1(%fun: !pdl.operation):
   %muli = transform.structured.match ops{["arith.muli"]} in %fun : (!pdl.operation) -> !pdl.operation
-  // expected-error @below {{expected to contain 3 operation handles but it only contains 2 handles}}
-  %h_2:3 = split_handles %muli in [3] : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
+  // expected-error @below {{expected to contain 3 payload ops but it contains 2 payload ops}}
+  %h_2:3 = split_handle %muli : (!pdl.operation) -> (!pdl.operation, !pdl.operation, !pdl.operation)
   /// Test that yield does not crash in the presence of silenceable error in
   /// propagate mode.
   yield %fun : !pdl.operation
+}
+
+// -----
+
+transform.sequence -> !transform.any_op failures(suppress) {
+^bb0(%arg0: !transform.any_op):
+  %muli = transform.structured.match ops{["arith.muli"]} in %arg0 : (!transform.any_op) -> !transform.any_op
+  // Edge case propagating empty handles in splitting.
+  %0:3 = split_handle %muli : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op)
+  // Test does not crash when accessing the empty handle.
+  yield %0#0 : !transform.any_op
 }
 
 // -----
@@ -1548,4 +1597,27 @@ module attributes { transform.with_named_sequence } {
     "test.something"() : () -> ()
     return
   }
+}
+
+// -----
+
+// CHECK-LABEL: func @test_tracked_rewrite() {
+//  CHECK-NEXT:   "test.update_mapping"() {original_op = "test.replace_me"}
+//  CHECK-NEXT:   "test.drop_mapping"() {original_op = "test.replace_me"}
+//  CHECK-NEXT:   "test.update_mapping"() {original_op = "test.replace_me"}
+//  CHECK-NEXT: }
+func.func @test_tracked_rewrite() {
+  %0 = "test.replace_me"() {replacement = "test.update_mapping"} : () -> (i1)
+  %1 = "test.replace_me"() {replacement = "test.drop_mapping"} : () -> (i1)
+  %2 = "test.replace_me"() {replacement = "test.update_mapping"} : () -> (i1)
+}
+
+transform.sequence failures(propagate) {
+^bb1(%arg1: !pdl.operation):
+  %0 = transform.structured.match ops{["test.replace_me"]} in %arg1 : (!pdl.operation) -> !pdl.operation
+  // expected-remark @below {{2 iterations}}
+  transform.test_tracked_rewrite %0 : (!pdl.operation) -> ()
+  // One replacement op (test.drop_mapping) is dropped from the mapping.
+  // expected-remark @below {{2}}
+  test_print_number_of_associated_payload_ir_ops %0
 }

@@ -425,6 +425,27 @@ bool getMaxRegistersJitOptionValue(const std::string &build_options,
   return true;
 }
 
+// Helper to verify out-of-registers case (exceeded block max registers).
+// If the kernel requires a number of registers for the entire thread
+// block exceeds the hardware limitations, then the cuLaunchKernel call
+// will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
+bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
+                                     size_t blockSize) {
+  assert(device);
+  assert(kernel);
+
+  int maxRegsPerBlock{0};
+  PI_CHECK_ERROR(cuDeviceGetAttribute(
+      &maxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+      device->get()));
+
+  int regsPerThread{0};
+  PI_CHECK_ERROR(cuFuncGetAttribute(&regsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                                    kernel->get()));
+
+  return blockSize * regsPerThread > size_t(maxRegsPerBlock);
+};
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -2111,6 +2132,21 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                             false);
   }
 
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    // Maximum number of 32-bit registers available to a thread block.
+    // Note: This number is shared by all thread blocks simultaneously resident
+    // on a multiprocessor.
+    int max_registers{-1};
+    PI_CHECK_ERROR(cuDeviceGetAttribute(
+        &max_registers, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+        device->get()));
+
+    sycl::detail::pi::assertion(max_registers >= 0);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(max_registers));
+  }
+
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
@@ -2737,41 +2773,39 @@ pi_result cuda_piQueueFlush(pi_queue command_queue) {
 /// Gets the native CUDA handle of a PI queue object
 ///
 /// \param[in] queue The PI queue to get the native CUDA object of.
+/// \param[in] NativeHandleDesc Pointer to additional native handle info.
 /// \param[out] nativeHandle Set to the native handle of the PI queue object.
 ///
 /// \return PI_SUCCESS
 pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
-                                         pi_native_handle *nativeHandle) {
+                                         pi_native_handle *nativeHandle,
+                                         int32_t *NativeHandleDesc) {
+  *NativeHandleDesc = 0;
   ScopedContext active(queue->get_context());
   *nativeHandle =
       reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
 }
 
-pi_result cuda_piextQueueGetNativeHandle2(pi_queue queue,
-                                          pi_native_handle *nativeHandle,
-                                          int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
-  return cuda_piextQueueGetNativeHandle(queue, nativeHandle);
-}
-
 /// Created a PI queue object from a CUDA queue handle.
 /// NOTE: The created PI object does not take ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
+/// \param[in] nativeHandleDesc Info about the native handle.
 /// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
 /// \param ownNativeHandle tells if SYCL RT should assume the ownership of
 ///        the native handle, if it can.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_context context,
-                                                pi_device device,
-                                                bool ownNativeHandle,
-                                                pi_queue *queue) {
+pi_result cuda_piextQueueCreateWithNativeHandle(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *queue) {
+  (void)NativeHandleDesc;
   (void)device;
   (void)ownNativeHandle;
+  (void)Properties;
   assert(ownNativeHandle == false);
 
   unsigned int flags;
@@ -2802,16 +2836,6 @@ pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   (*queue)->num_compute_streams_ = 1;
 
   return retErr;
-}
-
-pi_result cuda_piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
-    pi_queue *queue) {
-  (void)NativeHandleDesc;
-  (void)Properties;
-  return cuda_piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                               ownNativeHandle, queue);
 }
 
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -3218,10 +3242,18 @@ pi_result cuda_piEnqueueKernelLaunch(
           return PI_SUCCESS;
         };
 
+        size_t kernelLocalWorkGroupSize = 0;
         for (size_t dim = 0; dim < work_dim; dim++) {
           auto err = isValid(dim);
           if (err != PI_SUCCESS)
             return err;
+          // If no error then sum the total local work size per dim.
+          kernelLocalWorkGroupSize += local_work_size[dim];
+        }
+
+        if (hasExceededMaxRegistersPerBlock(command_queue->device_, kernel,
+                                            kernelLocalWorkGroupSize)) {
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         }
       } else {
         guessLocalWorkSize(command_queue->device_, threadsPerBlock,
@@ -5850,18 +5882,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piextQueueCreate, cuda_piextQueueCreate)
-  _PI_CL(piextQueueCreate2, cuda_piextQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueFlush, cuda_piQueueFlush)
   _PI_CL(piQueueRetain, cuda_piQueueRetain)
   _PI_CL(piQueueRelease, cuda_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, cuda_piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, cuda_piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle,
          cuda_piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2,
-         cuda_piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, cuda_piMemBufferCreate)
   _PI_CL(piMemImageCreate, cuda_piMemImageCreate)

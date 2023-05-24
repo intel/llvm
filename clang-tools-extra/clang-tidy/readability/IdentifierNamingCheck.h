@@ -11,6 +11,7 @@
 
 #include "../utils/RenamerClangTidyCheck.h"
 #include <optional>
+#include <string>
 namespace clang::tidy {
 namespace readability {
 
@@ -54,10 +55,10 @@ public:
   };
 
   struct HungarianNotationOption {
-    HungarianNotationOption() : HPType(HungarianPrefixType::HPT_Off) {}
+    HungarianNotationOption() = default;
 
     std::optional<CaseType> Case;
-    HungarianPrefixType HPType;
+    HungarianPrefixType HPType = HungarianPrefixType::HPT_Off;
     llvm::StringMap<std::string> General;
     llvm::StringMap<std::string> CString;
     llvm::StringMap<std::string> PrimitiveType;
@@ -202,7 +203,6 @@ private:
   mutable llvm::StringMap<FileStyle> NamingStylesCache;
   FileStyle *MainFileStyle;
   ClangTidyContext *Context;
-  const StringRef CheckName;
   const bool GetConfigPerFile;
   const bool IgnoreFailedSplit;
   HungarianNotation HungarianNotation;

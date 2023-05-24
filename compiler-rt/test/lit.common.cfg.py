@@ -6,20 +6,12 @@
 import os
 import platform
 import re
+import shlex
 import subprocess
 import json
 
 import lit.formats
 import lit.util
-
-# Get shlex.quote if available (added in 3.3), and fall back to pipes.quote if
-# it's not available.
-try:
-  import shlex
-  sh_quote = shlex.quote
-except:
-  import pipes
-  sh_quote = pipes.quote
 
 def find_compiler_libdir():
   """
@@ -518,9 +510,13 @@ if config.host_os == 'Linux':
   if not config.android and len(ver_lines) and ver_lines[0].startswith(b"ldd "):
     from distutils.version import LooseVersion
     ver = LooseVersion(ver_lines[0].split()[-1].decode())
-    for required in ["2.27", "2.30", "2.34", "2.37"]:
+    any_glibc = False
+    for required in ["2.19", "2.27", "2.30", "2.34", "2.37"]:
       if ver >= LooseVersion(required):
         config.available_features.add("glibc-" + required)
+        any_glibc = True
+      if any_glibc:
+        config.available_features.add("glibc")
 
 sancovcc_path = os.path.join(config.llvm_tools_dir, "sancov")
 if os.path.exists(sancovcc_path):
@@ -726,15 +722,15 @@ if config.host_os == 'Darwin':
   config.substitutions.append((
     "%get_pid_from_output",
     "{} {}/get_pid_from_output.py".format(
-      sh_quote(config.python_executable),
-      sh_quote(get_ios_commands_dir())
+      shlex.quote(config.python_executable),
+      shlex.quote(get_ios_commands_dir())
     ))
   )
   config.substitutions.append(
     ("%print_crashreport_for_pid",
     "{} {}/print_crashreport_for_pid.py".format(
-      sh_quote(config.python_executable),
-      sh_quote(get_ios_commands_dir())
+      shlex.quote(config.python_executable),
+      shlex.quote(get_ios_commands_dir())
     ))
   )
 

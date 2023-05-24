@@ -52,7 +52,7 @@ void testSpanCapture() {
   E.wait();
 
   // check out the read operations, should have gotten 101 from each
-  auto can_read_from_span_acc = SpanRead.get_access<access::mode::read>();
+  host_accessor can_read_from_span_acc(SpanRead, read_only);
   for (int i = 0; i < numReadTests; i++) {
     assert(can_read_from_span_acc[i] == 101 &&
            "read check should have gotten 100");
@@ -95,7 +95,7 @@ void testSpanOnDevice() {
   E.wait();
 
   // check out the read operations, should have gotten 10 from each
-  auto can_read_from_span_acc = SpanRead.get_access<access::mode::read>();
+  host_accessor can_read_from_span_acc(SpanRead, read_only);
   for (int i = 0; i < numReadTests; i++) {
     assert(can_read_from_span_acc[i] == 10 &&
            "read check should have gotten 10");

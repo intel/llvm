@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, level_zero_dev_kit
+// REQUIRES: level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 

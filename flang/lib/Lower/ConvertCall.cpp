@@ -1135,11 +1135,10 @@ genUserCall(PreparedActualArguments &loweredActuals,
         // callee side, and it is illegal to use NULL without a MOLD if any
         // dummy length parameters are assumed.
         mlir::Type boxTy = fir::dyn_cast_ptrEleTy(argTy);
-        assert(boxTy && boxTy.isa<fir::BoxType>() && "must be a fir.box type");
-        mlir::Value boxStorage = builder.createTemporary(loc, boxTy);
-        mlir::Value nullBox = fir::factory::createUnallocatedBox(
-            builder, loc, boxTy, /*nonDeferredParams=*/{});
-        builder.create<fir::StoreOp>(loc, nullBox, boxStorage);
+        assert(boxTy && boxTy.isa<fir::BaseBoxType>() &&
+               "must be a fir.box type");
+        mlir::Value boxStorage =
+            fir::factory::genNullBoxStorage(builder, loc, boxTy);
         caller.placeInput(arg, boxStorage);
         continue;
       }
@@ -1237,6 +1236,26 @@ genIntrinsicRefCore(PreparedActualArguments &loweredActuals,
           loc, converter, actual, stmtCtx, getActualFortranElementType()));
       continue;
     case fir::LowerIntrinsicArgAs::Inquired:
+      if (const Fortran::lower::SomeExpr *expr =
+              callContext.procRef.UnwrapArgExpr(arg.index())) {
+        if (Fortran::evaluate::UnwrapExpr<Fortran::evaluate::NullPointer>(
+                *expr)) {
+          // NULL() pointer without a MOLD must be passed as a deallocated
+          // pointer (see table 16.5 in Fortran 2018 standard).
+          // !fir.box<!fir.ptr<none>> should always be valid in this context.
+          mlir::Type noneTy = mlir::NoneType::get(builder.getContext());
+          mlir::Type nullPtrTy = fir::PointerType::get(noneTy);
+          mlir::Type boxTy = fir::BoxType::get(nullPtrTy);
+          mlir::Value boxStorage =
+              fir::factory::genNullBoxStorage(builder, loc, boxTy);
+          hlfir::EntityWithAttributes nullBoxEntity =
+              extendedValueToHlfirEntity(loc, builder, boxStorage,
+                                         ".tmp.null_box");
+          operands.emplace_back(Fortran::lower::translateToExtendedValue(
+              loc, builder, nullBoxEntity, stmtCtx));
+          continue;
+        }
+      }
       // Place hlfir.expr in memory, and unbox fir.boxchar. Other entities
       // are translated to fir::ExtendedValue without transformation (notably,
       // pointers/allocatable are not dereferenced).
@@ -1257,8 +1276,8 @@ genIntrinsicRefCore(PreparedActualArguments &loweredActuals,
     scalarResultType = hlfir::getFortranElementType(*callContext.resultType);
   const std::string intrinsicName = callContext.getProcedureName();
   // Let the intrinsic library lower the intrinsic procedure call.
-  auto [resultExv, mustBeFreed] = genIntrinsicCall(
-      callContext.getBuilder(), loc, intrinsicName, scalarResultType, operands);
+  auto [resultExv, mustBeFreed] =
+      genIntrinsicCall(builder, loc, intrinsicName, scalarResultType, operands);
   if (!fir::getBase(resultExv))
     return std::nullopt;
   hlfir::EntityWithAttributes resultEntity = extendedValueToHlfirEntity(
@@ -1338,20 +1357,49 @@ genHLFIRIntrinsicRefCore(PreparedActualArguments &loweredActuals,
     return hlfir::ExprType::get(builder.getContext(), resultShape, elementType,
                                 /*polymorphic=*/false);
   };
-  const std::string intrinsicName = callContext.getProcedureName();
-  if (intrinsicName == "sum") {
+
+  auto buildSumOperation = [](fir::FirOpBuilder &builder, mlir::Location loc,
+                              mlir::Type resultTy, mlir::Value array,
+                              mlir::Value dim, mlir::Value mask) {
+    return builder.create<hlfir::SumOp>(loc, resultTy, array, dim, mask);
+  };
+
+  auto buildProductOperation = [](fir::FirOpBuilder &builder,
+                                  mlir::Location loc, mlir::Type resultTy,
+                                  mlir::Value array, mlir::Value dim,
+                                  mlir::Value mask) {
+    return builder.create<hlfir::ProductOp>(loc, resultTy, array, dim, mask);
+  };
+
+  auto buildReductionIntrinsic =
+      [&](PreparedActualArguments &loweredActuals, mlir::Location loc,
+          fir::FirOpBuilder &builder, CallContext &callContext,
+          std::function<mlir::Operation *(fir::FirOpBuilder &, mlir::Location,
+                                          mlir::Type, mlir::Value, mlir::Value,
+                                          mlir::Value)>
+              buildFunc) -> std::optional<hlfir::EntityWithAttributes> {
+    // shared logic for building the product and sum operations
     llvm::SmallVector<mlir::Value> operands = getOperandVector(loweredActuals);
     assert(operands.size() == 3);
+    // dim, mask can be NULL if these arguments were not given
     mlir::Value array = operands[0];
     mlir::Value dim = operands[1];
     if (dim)
       dim = hlfir::loadTrivialScalar(loc, builder, hlfir::Entity{dim});
     mlir::Value mask = operands[2];
     mlir::Type resultTy = computeResultType(array, *callContext.resultType);
-    // dim, mask can be NULL if these arguments were not given
-    hlfir::SumOp sumOp =
-        builder.create<hlfir::SumOp>(loc, resultTy, array, dim, mask);
-    return {hlfir::EntityWithAttributes{sumOp.getResult()}};
+    auto *intrinsicOp = buildFunc(builder, loc, resultTy, array, dim, mask);
+    return {hlfir::EntityWithAttributes{intrinsicOp->getResult(0)}};
+  };
+
+  const std::string intrinsicName = callContext.getProcedureName();
+  if (intrinsicName == "sum") {
+    return buildReductionIntrinsic(loweredActuals, loc, builder, callContext,
+                                   buildSumOperation);
+  }
+  if (intrinsicName == "product") {
+    return buildReductionIntrinsic(loweredActuals, loc, builder, callContext,
+                                   buildProductOperation);
   }
   if (intrinsicName == "matmul") {
     llvm::SmallVector<mlir::Value> operands = getOperandVector(loweredActuals);
@@ -1379,6 +1427,19 @@ genHLFIRIntrinsicRefCore(PreparedActualArguments &loweredActuals,
         builder.create<hlfir::TransposeOp>(loc, resultTy, operands[0]);
 
     return {hlfir::EntityWithAttributes{transposeOp.getResult()}};
+  }
+  if (intrinsicName == "any") {
+    llvm::SmallVector<mlir::Value> operands = getOperandVector(loweredActuals);
+    assert(operands.size() == 2);
+    // dim argument can be NULL if not given
+    mlir::Value mask = operands[0];
+    mlir::Value dim = operands[1];
+    if (dim)
+      dim = hlfir::loadTrivialScalar(loc, builder, hlfir::Entity{dim});
+    mlir::Type resultTy = computeResultType(mask, *callContext.resultType);
+    hlfir::AnyOp anyOp = builder.create<hlfir::AnyOp>(loc, resultTy, mask, dim);
+
+    return {hlfir::EntityWithAttributes{anyOp.getResult()}};
   }
 
   // TODO add hlfir operations for other transformational intrinsics here
