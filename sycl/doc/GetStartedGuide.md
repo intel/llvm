@@ -463,7 +463,7 @@ command:
 
 ### Obtain prerequisites for ahead of time (AOT) compilation
 
-[Ahead of time compilation](design/CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+[Ahead of time compilation](design/CompilerAndRuntimeDesign.html#ahead-of-time-aot-compilation)
 requires ahead of time compiler available in `PATH`. There is
 AOT compiler for each device type:
 
