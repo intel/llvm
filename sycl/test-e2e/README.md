@@ -44,18 +44,25 @@ way as `UNSUPPORTED`. If only one device is matched by `UNSUPPORTED`/`REQUIRES`
 filtering, then `XFAIL` behaves as an actual "expected to fail" marking.
 
 For any device left after the filtering above we expand each `RUN` directive
-containing `%{run}` expansion into one command per device, replacing `%{run}`
-with `env ONEAPI_DEVICE_SELECTOR=<device_matching_requirements> [Optional
-run_launcher if that is configured]` while at the same time properly handling
-`%if` conditions, meaning that the following works as one would expect it to
-behave: `// RUN: %run %t.out %if cpu %{ 1 %} %else %{ 2 %}`.
-`%{run-unfiltered-devices}` is substituted with just `[Optional run_launcher if
-that is configured]`.
+(including multi-line ones) containing `%{run}` expansion into one command per
+device, replacing `%{run}` with
+
+```
+env ONEAPI_DEVICE_SELECTOR=<device_matching_requirements> [Optional run_launcher if that is configured]
+```
+
+ while at the same time properly handling `%if` conditions,
+meaning that the following works as one would expect it to behave:
+
+```
+// RUN: %run %t.out %if cpu %{ 1 %} %else %{ 2 %}`. `%{run-unfiltered-devices}
+```
+is substituted with just `[Optional run_launcher if that is configured]`.
 
 Another little nuance is `%{sycl_triple}` substitution. It is constructed by
-concatenating triples for all the devices from `sycl_devices` supported by a given
-test. After that there is also a convenient `%{build}` substitution that is
-equivalent to `%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s`.
+concatenating triples for all the devices from `sycl_devices` supported by a
+given test. After that there is also a convenient `%{build}` substitution that
+is equivalent to `%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s`.
 
 # Prerequisites
 
