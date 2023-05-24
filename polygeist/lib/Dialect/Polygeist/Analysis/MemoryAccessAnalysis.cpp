@@ -41,8 +41,6 @@ static std::optional<APInt> getConstIntegerValue(Value val,
   }
 
   const ConstantIntRanges &range = inferredRange->getValue().getValue();
-  LLVM_DEBUG(llvm::dbgs() << "range: " << range << "\n");
-
   return range.getConstantValue();
 }
 
@@ -100,12 +98,23 @@ template <typename T> static SetVector<T> getParentsOfType(Block *block) {
   return res;
 }
 
+/// Retrieve the operations with the specified type in the given function.
+template <typename T>
+static SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
+  SetVector<T> res;
+  funcOp->walk([&](T op) { res.insert(op); });
+  return res;
+}
+
 /// Determine whether \p op uses \p val (directly or indirectly).
 static bool usesValue(Operation *op, Value val) {
-  assert(op && "Expecting valid operation");
+  if (!op)
+    return false;
+
   if (Operation *valOp = val.getDefiningOp())
     if (valOp == op)
       return true;
+
   return llvm::any_of(op->getOperands(), [&](Value operand) {
     if (Operation *operandOp = operand.getDefiningOp())
       return usesValue(operandOp, val);
@@ -234,14 +243,12 @@ static ValueOrMultiplier visitBinaryOp(T binOp, const Value factor,
 /// Here getMultiplier(%add, %ii) should return '%c1_i32'.
 static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
                                        DataFlowSolver &solver) {
+  if (expr == factor)
+    return Multiplier::one(expr.getContext());
+
   Operation *op = expr.getDefiningOp();
-  if (!op) {
-    // This is a block argument. If it is a match create a multiplier with value
-    // one.
-    if (expr == factor)
-      return Multiplier::one(expr.getContext());
+  if (!op)
     return expr;
-  }
 
   auto getOperandThatMatchesFactor = [&factor](Value lhs, Value rhs) {
     if (lhs == factor && lhs != rhs)
@@ -325,9 +332,8 @@ static ValueOrMultiplier getMultiplier(const Value expr, const Value factor,
         return visitBinaryOp(mulOp, factor, solver, getMultiplier,
                              computeResult);
       })
-      .Case<arith::ExtUIOp, arith::ExtSIOp, arith::TruncIOp, arith::IndexCastOp,
-            arith::IndexCastUIOp>([&](auto castOp) {
-        return getMultiplier(castOp.getOperand(), factor, solver);
+      .Case<CastOpInterface>([&](auto) {
+        return getMultiplier(op->getOperand(0), factor, solver);
       })
       .Default([&](auto) { return expr; });
 }
@@ -988,7 +994,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   if (!accessorSubscriptOp || !hasZeroIndex(access))
     return;
 
-  LLVM_DEBUG(llvm::errs() << "Candidate op:" << memoryOp << "\n");
+  LLVM_DEBUG(llvm::errs() << "Candidate op: " << memoryOp << "\n");
 
   // Try to determine the underlying value(s) of the accessor subscript index
   // operand. The number of underlying values should be equal to the
@@ -1007,30 +1013,65 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   }
 
   Value accSubIndex = accessorSubscriptOp.getIndex();
-  assert(
-      sycl::getDimensions(accSubIndex.getType()) == underlyingVals.size() &&
-      "Number of underlying values should be equal to dimensionality of the id "
-      "used to index the accessor");
+  if (sycl::getDimensions(accSubIndex.getType()) != underlyingVals.size()) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Number of underlying values should be equal to "
+                  "dimensionality of the id used to index the accessor\n");
+    return;
+  }
+
   LLVM_DEBUG({
+    llvm::dbgs() << "Underlying values:\n";
     for (Value val : underlyingVals)
-      llvm::dbgs() << "Underlying val: " << val << "\n";
+      llvm::dbgs().indent(2) << val << "\n";
+    llvm::dbgs() << "\n";
   });
 
-  // Construct the memory access matrix. The number of rows is equal to the
-  // dimensionality of the sycl.id used by the accessor subscript operation. The
-  // number of columns is equal to the number of loops surrounding the memory
-  // access plus (TODO) the dimensionality of the sycl item received by the
-  // kernel.
+  // Collect the "get_global_ids" operations (yielding the global thread ids).
+  std::vector<sycl::SYCLNDItemGetGlobalIDOp> getGlobalIdOps =
+      getOperationsOfType<sycl::SYCLNDItemGetGlobalIDOp>(
+          memoryOp->template getParentOfType<FunctionOpInterface>())
+          .takeVector();
+
+  // Return the index value of a "get_global_ids" operation.
+  auto getIndexValue =
+      [&](sycl::SYCLNDItemGetGlobalIDOp &op) -> std::optional<APInt> {
+    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
+    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
+  };
+
+  // Ensure that all "get_global_ids" have index values known at compile time.
+  if (llvm::any_of(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op) {
+        return !getIndexValue(op).has_value();
+      })) {
+    LLVM_DEBUG(llvm::dbgs() << "Cannot order 'get_global_ids' operations in "
+                               "increasing index value.\n");
+    return;
+  }
+
+  // Order the "get_global_ids" operations in increasing index value.
+  llvm::sort(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op1,
+                                 sycl::SYCLNDItemGetGlobalIDOp &op2) {
+    return getIndexValue(op1)->slt(*getIndexValue(op2));
+  });
+
+  // Collect the loops enclosing the memory access operation.
   SetVector<AffineForOp> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
-  MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
-                                  enclosingLoops.size());
 
-  // Collect the loop induction variables.
-  // TODO: collect also the global thread ids.
-  SmallVector<Value, 4> IVs;
+  // Create a vector containing the the thread ids and loop induction variables.
+  SmallVector<Value, 4> loopAndThreadVars;
+  for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
+    loopAndThreadVars.emplace_back(getGlobalIdOp.getResult());
   for (AffineForOp loop : llvm::reverse(enclosingLoops))
-    IVs.push_back(loop.getInductionVar());
+    loopAndThreadVars.emplace_back(loop.getInductionVar());
+
+  // Construct the memory access matrix. The number of rows is equal to the
+  // dimensionality of the sycl.id used by the accessor subscript operation.
+  // The number of columns is equal to the number of loops surrounding the
+  // memory access plus the number of thread IDs used in the kernel.
+  MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
+                                  loopAndThreadVars.size());
 
   OpBuilder b(access.memref.getContext());
   Value zero = b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0);
@@ -1038,13 +1079,16 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   // Initialize the memory access matrix.
   for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
     Value val = underlyingVals[row];
+    LLVM_DEBUG(llvm::dbgs() << "Analyzing underlying value: " << val << "\n");
+
     for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
-      if (!usesValue(val.getDefiningOp(), IVs[col])) {
+      if (!usesValue(val.getDefiningOp(), loopAndThreadVars[col])) {
         accessMatrix(row, col) = zero;
         continue;
       }
 
-      ValueOrMultiplier valOrMul = getMultiplier(val, IVs[col], solver);
+      ValueOrMultiplier valOrMul =
+          getMultiplier(val, loopAndThreadVars[col], solver);
       if (!valOrMul.isMultiplier()) {
         LLVM_DEBUG(llvm::dbgs() << "Failed to find multiplier\n");
         return;

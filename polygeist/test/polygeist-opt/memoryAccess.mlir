@@ -2,10 +2,14 @@
 
 !sycl_id_1 = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_id_2 = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_id_3 = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
 !sycl_range_1 = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_2 = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_3 = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>
 !sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1, !sycl_range_1, !sycl_range_1)>, !llvm.struct<(memref<?xf32, 1>)>)>
 !sycl_accessor_2_f32_rw_gb = !sycl.accessor<[2, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2, !sycl_range_2, !sycl_range_2)>, !llvm.struct<(memref<?xf32, 1>)>)>
+!sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[3], (!sycl_id_3, !sycl_range_3, !sycl_range_3)>, !llvm.struct<(memref<?xf32, 1>)>)>
+!sycl_nditem_2 = !sycl.nd_item<[2], (!sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl_range_2, !sycl_id_2, !sycl_id_2)>)>, !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl_range_2, !sycl_id_2)>)>, !sycl.group<[2], (!sycl_range_2, !sycl_range_2, !sycl_range_2, !sycl_id_2)>)>
 
 // COM: Test 1-dim accessor memory access.
 //      The underlying value of the accessor subscript is the loop IV.
@@ -154,6 +158,49 @@ func.func @test2(%acc : memref<?x!sycl_accessor_2_f32_rw_gb, 4>) {
       %subscr = sycl.accessor.subscript %acc[%id] : (memref<?x!sycl_accessor_2_f32_rw_gb, 4>, memref<?x!sycl_id_2>) -> memref<?xf32, 4>
       affine.store %cst, %subscr[0] {tag = "test2_store1"} : memref<?xf32, 4>
     }
+  }
+  return
+}
+
+// COM: Test accessor memory access indexed by one loop and 2 global SYCL threads.
+// CHECK-LABEL: test_tag: test3_load1
+// CHECK: matrix:
+// CHECK-NEXT: 1 0 0
+// CHECK-NEXT: 0 1 0
+// CHECK-NEXT: 0 0 1
+// CHECK-LABEL: test_tag: test3_load2
+// CHECK: matrix:
+// CHECK-NEXT: 1 0 0
+// CHECK-NEXT: 0 0 2
+// CHECK-NEXT: 0 1 0
+func.func @test3(%acc : memref<?x!sycl_accessor_3_f32_rw_gb, 4>, %nditem : memref<?x!sycl_nditem_2>) {
+  %alloca = memref.alloca() : memref<1x!sycl_id_3>
+  %cast = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
+  %id = memref.memory_space_cast %cast : memref<?x!sycl_id_3> to  memref<?x!sycl_id_3, 4>
+
+  %c0_i32 = arith.constant 0 : i32
+  %c1_i32 = arith.constant 1 : i32
+  %c1_i64 = arith.constant 1 : i64
+  %c2_i64 = arith.constant 2 : i64
+  %ty = sycl.nd_item.get_global_id(%nditem, %c1_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64
+  %tx = sycl.nd_item.get_global_id(%nditem, %c0_i32) : (memref<?x!sycl_nditem_2>, i32) -> i64
+
+  affine.for %ii = 0 to 64 {
+    %i = arith.index_cast %ii : index to i64
+
+    // [tx,ty,i] 
+    sycl.constructor @id(%id, %tx, %ty, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3, 4>, i64, i64, i64)
+    %subscr1 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_3_f32_rw_gb, 4>, memref<?x!sycl_id_3>) -> memref<?xf32, 4>
+    %load1 = affine.load %subscr1[0] {tag = "test3_load1"} : memref<?xf32, 4>
+
+    // [tx+1, 2*i, %ty-1]
+    %add2 = arith.addi %tx, %c1_i64 : i64
+    %mul2 = arith.muli %i, %c2_i64 : i64
+    %sub2 = arith.subi %ty, %c1_i64 : i64    
+    sycl.constructor @id(%id, %add2, %mul2, %sub2) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3, 4>, i64, i64, i64)
+    %subscr2 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_3_f32_rw_gb, 4>, memref<?x!sycl_id_3>) -> memref<?xf32, 4>
+    %load2 = affine.load %subscr2[0] {tag = "test3_load2"} : memref<?xf32, 4>
+
   }
   return
 }
