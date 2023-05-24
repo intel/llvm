@@ -491,9 +491,8 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
   }
   EXPECT_FALSE(ExceptionCaught);
 
-  sycl::event KernelEvent;
   try {
-    KernelEvent = Q.submit(
+    Q.submit(
         [&](handler &Cgh) {
           Cgh.depends_on(EventToDepend);
           Cgh.single_task<TestKernel<KernelSize>>([=]() {});
