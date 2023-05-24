@@ -318,6 +318,16 @@ parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
   return result;
 }
 
+template <typename T>
+void searchUserIgnoringCast(Value *V, SmallVector<Instruction *, 4> &List) {
+  for (auto User : V->users()) {
+    if (auto Inst = dyn_cast<T>(User))
+      List.push_back(Inst);
+    else if (isa<BitCastInst>(User) || isa<AddrSpaceCastInst>(User))
+      searchUserIgnoringCast<T>(User, List);
+  }
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
@@ -390,9 +400,9 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
               uint32_t AttrVal = getAttributeAsInteger<uint32_t>(Attribute);
               assert(llvm::isPowerOf2_64(AttrVal) &&
                      "sycl-alignment attribute is not a power of 2");
-              auto attr =
+              auto Attr =
                   Attribute::getWithAlignment(Ctx, llvm::Align(AttrVal));
-              F.addParamAttr(I, attr);
+              F.addParamAttr(I, Attr);
               // sycl-alignment is not collected to SPIRV.ParamDecoration
               continue;
             }
@@ -481,16 +491,6 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
-template <typename T>
-void searchUserIgnoringCast(Value *V, SmallVector<Instruction *, 4> &list) {
-  for (auto User : V->users()) {
-    if (auto Inst = dyn_cast<T>(User))
-      list.push_back(Inst);
-    else if (isa<BitCastInst>(User) || isa<AddrSpaceCastInst>(User))
-      searchUserIgnoringCast<T>(User, list);
-  }
-}
-
 void CompileTimePropertiesPass::parseAlignmentAndApply(
     Module &M, IntrinsicInst *IntrInst) {
   // Get the global variable with the annotation string.
@@ -522,7 +522,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
    * %3 = load/store ... %2  (actual memory access of the annotated member)
    * The form of the IR is guaranteed by clang's unit test and sycl header
    */
-  // search load/store followed by a load
+  // search load followed by a load or store
   searchUserIgnoringCast<LoadInst>(IntrInst, PtrLoadInstList);
   for (auto V : PtrLoadInstList) {
     searchUserIgnoringCast<LoadInst>(V, TargetedInstList);
