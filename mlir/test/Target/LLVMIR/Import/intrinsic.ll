@@ -117,6 +117,69 @@ define void @pow_test(float %0, float %1, <8 x float> %2, <8 x float> %3) {
   %6 = call <8 x float> @llvm.pow.v8f32(<8 x float> %2, <8 x float> %3)
   ret void
 }
+; CHECK-LABEL: llvm.func @rint_test
+define void @rint_test(float %0, double %1, <8 x float> %2, <8 x double> %3) {
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (f32) -> f32
+  %5 = call float @llvm.rint.f32(float %0)
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (f64) -> f64
+  %6 = call double @llvm.rint.f64(double %1)
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (vector<8xf32>) -> vector<8xf32>
+  %7 = call <8 x float> @llvm.rint.v8f32(<8 x float> %2)
+  ; CHECK: llvm.intr.rint(%{{.*}}) : (vector<8xf64>) -> vector<8xf64>
+  %8 = call <8 x double> @llvm.rint.v8f64(<8 x double> %3)
+  ret void
+}
+define void @nearbyint_test(float %0, double %1, <8 x float> %2, <8 x double> %3) {
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (f32) -> f32
+  %5 = call float @llvm.nearbyint.f32(float %0)
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (f64) -> f64
+  %6 = call double @llvm.nearbyint.f64(double %1)
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (vector<8xf32>) -> vector<8xf32>
+  %7 = call <8 x float> @llvm.nearbyint.v8f32(<8 x float> %2)
+  ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (vector<8xf64>) -> vector<8xf64>
+  %8 = call <8 x double> @llvm.nearbyint.v8f64(<8 x double> %3)
+  ret void
+}
+; CHECK-LABEL: llvm.func @lround_test
+define void @lround_test(float %0, double %1) {
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f32) -> i32
+  %3 = call i32 @llvm.lround.i32.f32(float %0)
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f32) -> i64
+  %4 = call i64 @llvm.lround.i64.f32(float %0)
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f64) -> i32
+  %5 = call i32 @llvm.lround.i32.f64(double %1)
+  ; CHECK: llvm.intr.lround(%{{.*}}) : (f64) -> i64
+  %6 = call i64 @llvm.lround.i64.f64(double %1)
+  ret void
+}
+; CHECK-LABEL: llvm.func @llround_test
+define void @llround_test(float %0, double %1) {
+  ; CHECK: llvm.intr.llround(%{{.*}}) : (f32) -> i64
+  %3 = call i64 @llvm.llround.i64.f32(float %0)
+  ; CHECK: llvm.intr.llround(%{{.*}}) : (f64) -> i64
+  %4 = call i64 @llvm.llround.i64.f64(double %1)
+  ret void
+}
+; CHECK-LABEL: llvm.func @lrint_test
+define void @lrint_test(float %0, double %1) {
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f32) -> i32
+  %3 = call i32 @llvm.lrint.i32.f32(float %0)
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f32) -> i64
+  %4 = call i64 @llvm.lrint.i64.f32(float %0)
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f64) -> i32
+  %5 = call i32 @llvm.lrint.i32.f64(double %1)
+  ; CHECK: llvm.intr.lrint(%{{.*}}) : (f64) -> i64
+  %6 = call i64 @llvm.lrint.i64.f64(double %1)
+  ret void
+}
+; CHECK-LABEL: llvm.func @llrint_test
+define void @llrint_test(float %0, double %1) {
+  ; CHECK: llvm.intr.llrint(%{{.*}}) : (f32) -> i64
+  %3 = call i64 @llvm.llrint.i64.f32(float %0)
+  ; CHECK: llvm.intr.llrint(%{{.*}}) : (f64) -> i64
+  %4 = call i64 @llvm.llrint.i64.f64(double %1)
+  ret void
+}
 ; CHECK-LABEL:  llvm.func @bitreverse_test
 define void @bitreverse_test(i32 %0, <8 x i32> %1) {
   ; CHECK:   llvm.intr.bitreverse(%{{.*}}) : (i32) -> i32
@@ -391,6 +454,13 @@ define void @memset_test(i32 %0, ptr %1, i8 %2) {
   ; CHECK: %[[falseval:.+]] = llvm.mlir.constant(false) : i1
   ; CHECK: "llvm.intr.memset"(%{{.*}}, %{{.*}}, %{{.*}}, %[[falseval]]) : (!llvm.ptr, i8, i32, i1) -> ()
   call void @llvm.memset.p0.i32(ptr %1, i8 %2, i32 %0, i1 false)
+  ret void
+}
+
+; CHECK-LABEL: llvm.func @threadlocal_test
+define void @threadlocal_test(ptr %0) {
+  ; CHECK: "llvm.intr.threadlocal.address"(%{{.*}}) : (!llvm.ptr) -> !llvm.ptr
+  %local = call ptr @llvm.threadlocal.address.p0(ptr %0)
   ret void
 }
 
@@ -781,6 +851,26 @@ declare float @llvm.copysign.f32(float, float)
 declare <8 x float> @llvm.copysign.v8f32(<8 x float>, <8 x float>)
 declare float @llvm.pow.f32(float, float)
 declare <8 x float> @llvm.pow.v8f32(<8 x float>, <8 x float>)
+declare float @llvm.rint.f32(float)
+declare double @llvm.rint.f64(double)
+declare <8 x float> @llvm.rint.v8f32(<8 x float>)
+declare <8 x double> @llvm.rint.v8f64(<8 x double>)
+declare float @llvm.nearbyint.f32(float)
+declare double @llvm.nearbyint.f64(double)
+declare <8 x float> @llvm.nearbyint.v8f32(<8 x float>)
+declare <8 x double> @llvm.nearbyint.v8f64(<8 x double>)
+declare i32 @llvm.lround.i32.f32(float)
+declare i64 @llvm.lround.i64.f32(float)
+declare i32 @llvm.lround.i32.f64(double)
+declare i64 @llvm.lround.i64.f64(double)
+declare i64 @llvm.llround.i64.f32(float)
+declare i64 @llvm.llround.i64.f64(double)
+declare i32 @llvm.lrint.i32.f32(float)
+declare i64 @llvm.lrint.i64.f32(float)
+declare i32 @llvm.lrint.i32.f64(double)
+declare i64 @llvm.lrint.i64.f64(double)
+declare i64 @llvm.llrint.i64.f32(float)
+declare i64 @llvm.llrint.i64.f64(double)
 declare i32 @llvm.bitreverse.i32(i32)
 declare <8 x i32> @llvm.bitreverse.v8i32(<8 x i32>)
 declare i32 @llvm.bswap.i32(i32)
@@ -842,6 +932,7 @@ declare void @llvm.memcpy.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias
 declare void @llvm.memcpy.inline.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64 immarg, i1 immarg)
 declare void @llvm.memmove.p0.p0.i32(ptr nocapture writeonly, ptr nocapture readonly, i32, i1 immarg)
 declare void @llvm.memset.p0.i32(ptr nocapture writeonly, i8, i32, i1 immarg)
+declare nonnull ptr @llvm.threadlocal.address.p0(ptr nonnull)
 declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)
 declare { <8 x i32>, <8 x i1> } @llvm.sadd.with.overflow.v8i32(<8 x i32>, <8 x i32>)
 declare { i32, i1 } @llvm.uadd.with.overflow.i32(i32, i32)

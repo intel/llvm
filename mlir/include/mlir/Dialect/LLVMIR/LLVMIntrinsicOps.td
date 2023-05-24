@@ -130,6 +130,18 @@ def LLVM_PowIOp : LLVM_OneResultIntrOp<"powi", [], [0,1],
   let assemblyFormat = "`(` operands `)` custom<LLVMOpAttrs>(attr-dict) `:` "
       "functional-type(operands, results)";
 }
+def LLVM_Rint : LLVM_UnaryIntrOpF<"rint">;
+def LLVM_Nearbyint : LLVM_UnaryIntrOpF<"nearbyint">;
+class LLVM_IntRoundIntrOpBase<string func> :
+        LLVM_OneResultIntrOp<func, [0], [0], [Pure]> {
+  let arguments = (ins LLVM_AnyFloat:$val);
+  let assemblyFormat = "`(` operands `)` custom<LLVMOpAttrs>(attr-dict) `:` "
+      "functional-type(operands, results)";
+}
+def LLVM_Lround : LLVM_IntRoundIntrOpBase<"lround">;
+def LLVM_Llround : LLVM_IntRoundIntrOpBase<"llround">;
+def LLVM_Lrint : LLVM_IntRoundIntrOpBase<"lrint">;
+def LLVM_Llrint : LLVM_IntRoundIntrOpBase<"llrint">;
 def LLVM_BitReverseOp : LLVM_UnaryIntrOpI<"bitreverse">;
 def LLVM_ByteSwapOp : LLVM_UnaryIntrOpI<"bswap">;
 def LLVM_CountLeadingZerosOp : LLVM_CountZerosIntrOp<"ctlz">;
@@ -207,6 +219,15 @@ def LLVM_NoAliasScopeDeclOp
       $_location, (*scopeAttrs)[0]);
   }];
   let assemblyFormat = "$scope attr-dict";
+}
+
+//
+// General intrinsics
+//
+
+def LLVM_ThreadlocalAddress : LLVM_OneResultIntrOp<"threadlocal.address", [],
+                                [0], [Pure]> {
+  let arguments = (ins LLVM_AnyPointer:$global);
 }
 
 //===----------------------------------------------------------------------===//
