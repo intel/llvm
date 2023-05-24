@@ -10,10 +10,20 @@ jobs:
         os: ['ubuntu-20.04', 'ubuntu-22.04']
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}]
+        libbacktrace: ['-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF']
         include:
           - os: 'ubuntu-22.04'
             build_type: Release
             compiler: {c: clang, cxx: clang++}
+            libbacktrace: '-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF'
+          - os: 'ubuntu-22.04'
+            build_type: Release
+            compiler: {c: gcc, cxx: g++}
+            libbacktrace: '-DVAL_USE_LIBBACKTRACE_BACKTRACE=ON'
+          - os: 'ubuntu-22.04'
+            build_type: Release
+            compiler: {c: clang, cxx: clang++}
+            libbacktrace: '-DVAL_USE_LIBBACKTRACE_BACKTRACE=ON'
 
     runs-on: ${{matrix.os}}
 
@@ -28,6 +38,16 @@ jobs:
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
 
+    - name: Install libbacktrace
+      if: matrix.libbacktrace == '-DVAL_USE_LIBBACKTRACE_BACKTRACE=ON'
+      run: |
+        git clone https://github.com/ianlancetaylor/libbacktrace.git
+        cd libbacktrace
+        ./configure
+        make
+        sudo make install        
+        cd ..
+
     - name: Configure CMake
       run: >
         cmake
@@ -39,6 +59,7 @@ jobs:
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
+        ${{matrix.libbacktrace}}
 
     - name: Generate source from spec, check for uncommitted diff
       if: matrix.os == 'ubuntu-22.04'
