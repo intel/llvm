@@ -59,6 +59,11 @@ Improvements and New Features
 - `D122780 <https://reviews.llvm.org/D122780>`_ Improved the performance of ``std::sort`` and ``std::ranges::sort``
   by up to 50% for arithmetic types and by approximately 10% for other types.
 
+- The ``<format>`` header is no longer considered experimental. Some
+  ``std::formatter`` specializations are not yet available since the class used
+  in the specialization has not been implemented in libc++. This prevents the
+  feature-test macro to be set.
+
 Deprecations and Removals
 -------------------------
 
@@ -70,7 +75,7 @@ Deprecations and Removals
   includes are removed based on the language version used. Incidental transitive
   inclusions of the following headers have been removed:
 
-  - C++2b: ``atomic``, ``bit``, ``cstdint``, ``cstdlib``, ``cstring``, ``initializer_list``, ``limits``, ``new``,
+  - C++23: ``atomic``, ``bit``, ``cstdint``, ``cstdlib``, ``cstring``, ``initializer_list``, ``limits``, ``new``,
            ``stdexcept``, ``system_error``, ``type_traits``, ``typeinfo``
 
 - ``<algorithm>`` no longer includes ``<chrono>`` in any C++ version (it was previously included in C++17 and earlier).
@@ -102,6 +107,18 @@ Deprecations and Removals
 
 Upcoming Deprecations and Removals
 ----------------------------------
+
+LLVM 18
+~~~~~~~
+
+- The base template for ``std::char_traits`` has been marked as deprecated and
+  will be removed in LLVM 18. If you are using ``std::char_traits`` with types
+  other than ``char``, ``wchar_t``, ``char8_t``, ``char16_t``, ``char32_t`` or
+  a custom character type for which you specialized ``std::char_traits``, your code
+  will stop working when we remove the base template. The Standard does not
+  mandate that a base template is provided, and such a base template is bound
+  to be incorrect for some types, which could currently cause unexpected
+  behavior while going undetected.
 
 - The ``_LIBCPP_AVAILABILITY_CUSTOM_VERBOSE_ABORT_PROVIDED`` macro will not be honored anymore in LLVM 18.
   Please see the updated documentation about the safe libc++ mode and in particular the ``_LIBCPP_VERBOSE_ABORT``
