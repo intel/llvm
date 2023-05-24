@@ -27,11 +27,13 @@ inline pi_result redefinedPluginGetLastError(char **message) {
   return PI_ERROR_INVALID_VALUE;
 }
 
+std::atomic_bool EnqueueKernelLaunchCalled = false;
 pi_result redefinedEnqueueKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
+  EnqueueKernelLaunchCalled = true;
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
@@ -459,11 +461,13 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
   Test(STD_EXCEPTION);
 }
 
-TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
+TEST_F(QueueApiFailures, QueueKernelAsync) {
   MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunch);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
       redefinedPluginGetLastError);
+  EnqueueKernelLaunchCalled = false;
+
   sycl::queue Q(default_selector(), silentAsyncHandler);
   bool ExceptionCaught = false;
   event EventToDepend;
@@ -486,8 +490,10 @@ TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
+
+  sycl::event KernelEvent;
   try {
-    Q.submit(
+    KernelEvent = Q.submit(
         [&](handler &Cgh) {
           Cgh.depends_on(EventToDepend);
           Cgh.single_task<TestKernel<KernelSize>>([=]() {});
@@ -502,7 +508,9 @@ TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
 
   // Need to wait till host task enqueue kernek to check code location report.
   using namespace std::chrono_literals;
-  std::this_thread::sleep_for(10ms);
+  while (EnqueueKernelLaunchCalled != true)
+    std::this_thread::sleep_for(1ms);
+
   try {
     Q.wait();
   } catch (...) {
