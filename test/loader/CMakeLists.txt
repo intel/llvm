@@ -7,3 +7,4 @@ set_tests_properties(example-hello-world PROPERTIES LABELS "loader"
 )
 
 add_subdirectory(adapter_registry)
+add_subdirectory(platforms)

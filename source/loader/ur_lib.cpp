@@ -32,7 +32,7 @@ __urdlllocal ur_result_t context_t::Init(ur_device_init_flags_t device_flags) {
     ur_result_t result;
     const char *logger_name = "loader";
     logger::init(logger_name);
-    logger::info("Logger {} initialized successfully!", logger_name);
+    logger::debug("Logger {} initialized successfully!", logger_name);
 
     result = ur_loader::context->init();
 
