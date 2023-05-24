@@ -43,13 +43,19 @@ struct TestMemoryAccessAnalysisPass
       llvm::errs() << "test_tag: " << tag.getValue() << ":\n";
 
       affine::MemRefAccess access(op);
-      const std::optional<MemoryAccessMatrix> matrix =
-          memAccessAnalysis.getMemoryAccess(access)->getAccessMatrix();
+      const std::optional<MemoryAccess> memAccess =
+          memAccessAnalysis.getMemoryAccess(access);
 
-      if (matrix.has_value())
-        llvm::errs() << "matrix:\n" << *matrix << "\n";
-      else
-        llvm::errs() << "matrix: <none>\n";
+      if (!memAccess.has_value()) {
+        llvm::errs() << "memoryAccess: <none>\n";
+        return;
+      }
+
+      MemoryAccessMatrix matrix = memAccess->getAccessMatrix();
+      llvm::errs() << "matrix:\n" << matrix << "\n";
+
+      OffsetVector offsets = memAccess->getOffsetVector();
+      llvm::errs() << "offsets:\n" << offsets << "\n";
     });
   }
 };

@@ -1,6 +1,7 @@
 // RUN: %{build} -fsycl-host-compiler=g++ -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK -std=c++17" -o %t.out
 // RUN: %{run} %t.out
 // REQUIRES: linux
+// UNSUPPORTED: mlir
 //==------- fsycl-host-compiler.cpp - external host compiler test ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

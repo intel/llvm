@@ -102,18 +102,15 @@ template <typename T> static SetVector<T> getParentsOfType(Block *block) {
 template <typename T>
 static SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
   SetVector<T> res;
-  for (Block &block : funcOp.getFunctionBody()) {
-    for (Operation &op : block) {
-      if (auto typedOp = dyn_cast<T>(op))
-        res.insert(typedOp);
-    }
-  }
+  funcOp->walk([&](T op) { res.insert(op); });
   return res;
 }
 
 /// Determine whether \p op uses \p val (directly or indirectly).
 static bool usesValue(Operation *op, Value val) {
-  assert(op && "Expecting valid operation");
+  if (!op)
+    return false;
+
   if (Operation *valOp = val.getDefiningOp())
     if (valOp == op)
       return true;
@@ -132,6 +129,8 @@ namespace {
 ///   k1*i + k2
 /// Here the multiplier is 'k1'.
 class Multiplier : public Value {
+  friend raw_ostream &operator<<(raw_ostream &, const Multiplier &);
+
 public:
   Multiplier(Value val) : Value(val) {}
 
@@ -141,11 +140,18 @@ public:
   }
 };
 
+[[maybe_unused]] raw_ostream &operator<<(raw_ostream &os,
+                                         const Multiplier &mul) {
+  return os << "Multiplier: " << static_cast<Value>(mul);
+}
+
 /// Represents an offset in an affine expression.
 /// Example:
 ///   k1*i + k2
 /// Here the offset is 'k2'.
 class Offset : public Value {
+  friend raw_ostream &operator<<(raw_ostream &, const Offset &);
+
 public:
   Offset(Value val) : Value(val) {}
 
@@ -154,6 +160,10 @@ public:
     return Offset(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0));
   }
 };
+
+[[maybe_unused]] raw_ostream &operator<<(raw_ostream &os, const Offset &off) {
+  return os << "Offset: " << static_cast<Value>(off);
+}
 
 /// Represent a generic value or a value of type \tparam T.
 template <typename T,
@@ -341,51 +351,181 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
         return visitBinaryOp(mulOp, factor, solver, getMultiplier,
                              computeResult);
       })
-      .Case<sycl::SYCLNDItemGetGlobalIDOp>(
-          [&](auto getGlobalIdOp) -> ValueOr<Multiplier> {
-            if (getGlobalIdOp.getResult() == factor)
-              return Multiplier::one(expr.getContext());
-            return Value();
-          })
       .Case<CastOpInterface>([&](auto) {
         return getMultiplier(op->getOperand(0), factor, solver);
       })
       .Default([&](auto) { return expr; });
 }
 
+static Value removeConversions(Value expr) {
+  if (!expr.getDefiningOp())
+    return expr;
+
+  if (auto op = dyn_cast<CastOpInterface>(expr.getDefiningOp()))
+    return removeConversions(op->getOperand(0));
+
+  return expr;
+}
+
+// Visit a binary operation of type \tparam T. The LHS and RHS operand of the
+// binary operation are processed by applying the function \p getOffset. The
+// result of the visit is computed via the \p computeResult function.
+template <
+    typename T, typename ProcessOperandFuncT, typename ComputeResultFuncT,
+    typename = std::enable_if_t<
+        llvm::is_one_of<T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>,
+    typename = std::enable_if<std::is_invocable_r_v<
+        ValueOr<Offset>, ProcessOperandFuncT, T, const SmallVectorImpl<Value> &,
+        DataFlowSolver &>>,
+    typename = std::enable_if<std::is_invocable_r_v<
+        ValueOr<Offset>, ComputeResultFuncT, ValueOr<Offset>, ValueOr<Offset>>>>
 static ValueOr<Offset>
-getOffset(const Value expr, const SmallVectorImpl<Value> &matrixRow,
-          const SmallVectorImpl<Value> &loopAndThreadVars,
+visitBinaryOp(T binOp, const SmallVectorImpl<Value> &loopAndThreadVars,
+              DataFlowSolver &solver, ProcessOperandFuncT getOffset,
+              ComputeResultFuncT computeResult) {
+  // Traverse my subtrees.
+  ValueOr<Offset> lhsRes = getOffset(binOp.getLhs(), loopAndThreadVars, solver);
+  ValueOr<Offset> rhsRes = getOffset(binOp.getRhs(), loopAndThreadVars, solver);
+
+  // Compute the result to propagate up.
+  ValueOr<Offset> res = computeResult(lhsRes, rhsRes);
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "lhsRes: " << lhsRes << "\n";
+    llvm::dbgs() << "rhsRes: " << rhsRes << "\n";
+    llvm::dbgs() << "res = " << res << "\n";
+  });
+
+  return res;
+}
+
+static ValueOr<Offset>
+getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           DataFlowSolver &solver) {
-#if 0
-  for (size_t row = 0; row < matrixRow.size(); ++row) {
-  }
-
-  Attribute lhsAttr, rhsAttr;
-  if (matchPattern(expr, m_Var(&lhsAttr))) {
-
+  if (llvm::any_of(loopAndThreadVars, [&](Value var) { return expr == var; }))
     return Offset::zero(expr.getContext());
 
-    Operation *op = expr.getDefiningOp();
-    if (!op)
-      return expr;
+  Operation *op = expr.getDefiningOp();
+  if (!op)
+    return expr;
 
-    return TypeSwitch<Operation *, ValueOr<Offset>>(op)
-        .Case<arith::AddIOp, arith::SubIOp>([&](auto binOp) {
-          llvm::errs() << "binOp: " << binOp << "\n";
-          return Value();
-        })
-        .Case<arith::MulIOp>([&](auto mulOp) {
-          llvm::errs() << "mulOp: " << mulOp << "\n";
-          return Value();
-        })
-        .Case<CastOpInterface>(
-            [&](auto) { return getOffset(op->getOperand(0), factor, solver); })
-        .Default([&](auto) { return expr; });
-  }
-#endif
+  // Determine whether 'expr' uses any of the values in 'values'.
+  auto usesAny = [](Value expr, const SmallVectorImpl<Value> &values) {
+    return llvm::any_of(values, [&](Value val) {
+      if (!expr.getDefiningOp())
+        return expr == val;
+      return usesValue(expr.getDefiningOp(), val);
+    });
+  };
 
-  return Value();
+  return TypeSwitch<Operation *, ValueOr<Offset>>(op)
+      .Case<arith::AddIOp>([&](auto binOp) -> ValueOr<Offset> {
+        auto computeResult = [&](ValueOr<Offset> lhs,
+                                 ValueOr<Offset> rhs) -> ValueOr<Offset> {
+          bool lhsIsOff = lhs.is<Offset>(), rhsIsOff = rhs.is<Offset>();
+
+          // If both the LHS and RHS subtrees passed up an offset, and either is
+          // zero, return the other.
+          if (lhsIsOff && rhsIsOff) {
+            if (lhs.isEqualTo(0, solver))
+              return rhs;
+            if (rhs.isEqualTo(0, solver))
+              return lhs;
+          }
+
+          // If the LHS (or RHS) subtree passed up an offset:
+          //   - if the offset is zero and the other operand doesn't use a loop
+          //     IV or thread ID, then the other operand is the offset
+          //   - pass up the offset if the other operand uses a loop IV or
+          //     thread ID or is zero.
+          if (lhsIsOff && !rhsIsOff) {
+            if (lhs.isEqualTo(0, solver) &&
+                !usesAny(rhs.get<Value>(), loopAndThreadVars))
+              return Offset(rhs.get<Value>());
+            if (usesAny(rhs.get<Value>(), loopAndThreadVars) ||
+                isZero(rhs.get<Value>(), solver))
+              return lhs;
+          }
+          if (rhsIsOff && !lhsIsOff) {
+            if (rhs.isEqualTo(0, solver) &&
+                !usesAny(lhs.get<Value>(), loopAndThreadVars))
+              return Offset(lhs.get<Value>());
+            if (usesAny(lhs.get<Value>(), loopAndThreadVars) ||
+                isZero(lhs.get<Value>(), solver))
+              return rhs;
+          }
+
+          // Otherwise, if neither the LHS nor the RHS subtrees passed up an
+          // offset, the offset is the operand that does not use any loop IV or
+          // thread id.
+          if (!lhsIsOff && !rhsIsOff) {
+            if (usesAny(lhs.get<Value>(), loopAndThreadVars) &&
+                !usesAny(rhs.get<Value>(), loopAndThreadVars))
+              return Offset(rhs.get<Value>());
+            if (usesAny(rhs.get<Value>(), loopAndThreadVars) &&
+                !usesAny(lhs.get<Value>(), loopAndThreadVars))
+              return Offset(lhs.get<Value>());
+          }
+
+          return Value();
+        };
+
+        LLVM_DEBUG(llvm::dbgs() << "expr: " << expr << "\n");
+
+        return visitBinaryOp(binOp, loopAndThreadVars, solver, getOffset,
+                             computeResult);
+      })
+      .Case<arith::MulIOp>([&](auto mulOp) -> ValueOr<Offset> {
+        auto computeResult = [&](ValueOr<Offset> lhs,
+                                 ValueOr<Offset> rhs) -> ValueOr<Offset> {
+          bool lhsIsOff = lhs.is<Offset>(), rhsIsOff = rhs.is<Offset>();
+
+          // If both the LHS and RHS subtrees passed up an offset, and either is
+          // one, return the other.
+          if (lhsIsOff && rhsIsOff) {
+            if (lhs.isEqualTo(1, solver))
+              return rhs;
+            if (rhs.isEqualTo(1, solver))
+              return lhs;
+          }
+
+          // If the LHS (or RHS) subtrees passed up an offset. Return:
+          //   - the offset if the other operand has value one
+          //   - a new offset with value equal to the other operand if the
+          //     offset is one
+          if (lhsIsOff && !rhsIsOff) {
+            if (lhs.isEqualTo(0, solver) ||
+                isEqualTo(rhs.get<Value>(), 1, solver))
+              return lhs;
+            if (lhs.isEqualTo(1, solver))
+              return Offset(rhs.get<Value>());
+          }
+          if (rhsIsOff && !lhsIsOff) {
+            if (rhs.isEqualTo(0, solver) ||
+                isEqualTo(lhs.get<Value>(), 1, solver))
+              return rhs;
+            if (rhs.isEqualTo(1, solver))
+              return Offset(lhs.get<Value>());
+          }
+
+          // Otherwise, if neither the LHS nor the RHS subtrees passed up an
+          // offset, and the multiplication uses a loop IV or thread id, the
+          // offset is zero.
+          if (!lhsIsOff && !rhsIsOff && usesAny(mulOp, loopAndThreadVars))
+            return Offset::zero(expr.getContext());
+
+          return Value();
+        };
+
+        LLVM_DEBUG(llvm::dbgs() << "expr: " << expr << "\n");
+
+        return visitBinaryOp(mulOp, loopAndThreadVars, solver, getOffset,
+                             computeResult);
+      })
+      .Case<CastOpInterface>([&](auto) {
+        return getOffset(op->getOperand(0), loopAndThreadVars, solver);
+      })
+      .Default([&](auto) { return expr; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -412,7 +552,8 @@ mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccessMatrix &matrix) {
             os << elem;
         },
         " ");
-    os << '\n';
+    if (row != (matrix.getNumRows() - 1))
+      os << '\n';
   }
   return os;
 }
@@ -1066,7 +1207,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   if (!accessorSubscriptOp || !hasZeroIndex(access))
     return;
 
-  LLVM_DEBUG(llvm::errs() << "Candidate op: " << memoryOp << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Candidate op: " << memoryOp << "\n");
 
   // Try to determine the underlying value(s) of the accessor subscript index
   // operand. The number of underlying values should be equal to the
@@ -1179,6 +1320,8 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
 
     for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
       if (!usesValue(val.getDefiningOp(), loopAndThreadVars[col])) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Doesn't use " << loopAndThreadVars[col] << "\n");
         accessMatrix(row, col) = zero;
         continue;
       }
@@ -1211,17 +1354,7 @@ std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "Analyzing underlying value: " << val << "\n");
 
-    SmallVector<Value> matrixRow = matrix.getRow(row);
-
-    // TODO: pass the row of the matrix and the loopAndThreadVars
-    //   With those 2 we can then isolate the offset.
-    //    if (!usesValue(val.getDefiningOp(), loopAndThreadVars[row])) {
-    //    offsets(row) = zero;
-    //  continue;
-    //    }
-
-    ValueOr<Offset> valOrOffset =
-        getOffset(val, matrixRow, loopAndThreadVars, solver);
+    ValueOr<Offset> valOrOffset = getOffset(val, loopAndThreadVars, solver);
     if (!valOrOffset.is<Offset>()) {
       LLVM_DEBUG(llvm::dbgs().indent(2) << "Failed to find offset\n");
       return std::nullopt;
@@ -1229,7 +1362,7 @@ std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
 
     offsets(row) = valOrOffset.get<Offset>();
   }
-  LLVM_DEBUG(llvm::dbgs().indent(2) << "offset vector:\n" << offsets << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "offset vector:\n" << offsets << "\n");
 
   return offsets;
 }
