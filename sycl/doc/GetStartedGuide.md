@@ -690,7 +690,7 @@ clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o si
 
 Additionally, user can pass specific options of AOT compiler to
 the DPC++ compiler using ```-Xsycl-target-backend``` option, see
-[Device code formats](design/CompilerAndRuntimeDesign.md#device-code-formats) for
+[Device code formats](design/CompilerAndRuntimeDesign.html#device-code-formats) for
 more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
