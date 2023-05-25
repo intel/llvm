@@ -5672,8 +5672,8 @@ class OffloadingActionBuilder final {
           bool IsSYCLNativeCPU = isSYCLNativeCPU(Args);
           if (IsSYCLNativeCPU) {
             // for SYCL Native CPU, we just take the linked device
-            // modules, lower them to a shared lib, and link it to the host
-            // shared lib.
+            // modules, lower them to an object file , and link it to the host
+            // object file.
             auto *backendAct = C.MakeAction<BackendJobAction>(
                 FullDeviceLinkAction, types::TY_PP_Asm);
             auto *asmAct =
@@ -6062,7 +6062,7 @@ class OffloadingActionBuilder final {
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
       bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
 
-      // check if multiple targets are passed along with native_cpu
+      // check if multiple targets are passed along with native_cpu:
       // currently native_cpu overrides all the other targets, so we emit a
       // warning
       if (IsSYCLNativeCPU) {

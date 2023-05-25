@@ -1,6 +1,8 @@
 // The sycl-native-cpu helper header is always named <sycl-int-header>.hc
 // RUN: %clangxx -fsycl -fsycl-native-cpu -O0 -o %t.bc %s 
-// This test currently fails because the PrepareSYCLNativeCPU pass doesn't support non optimized code (in particular non-inlined code)
+// This test currently fails because the PrepareSYCLNativeCPU pass doesn't support non optimized code yet 
+// (in particular non-inlined code)
+// Todo: remove XFAIL once native cpu supports -O0
 // XFAIL: *
 
 #include "sycl.hpp"

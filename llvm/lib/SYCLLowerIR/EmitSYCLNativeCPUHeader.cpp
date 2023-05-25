@@ -160,7 +160,8 @@ void emitSubKernelHandler(const Function *F, const SmallVector<bool> &argMask,
 }
 
 // Todo: maybe we could use clang-offload-wrapper for this,
-// the main blocker right now is the fact that we need the subhandler
+// the main thing that prevents use from using clang-offload-wrapper
+// right now is the fact that we need the subhandler
 // to figure out which args are used or not, and so the BinaryStart entry
 // need to point to the subhandler, and I'm not sure how to do that in
 // clang-offload-wrapper. If we figure out a better way to deal with unused
