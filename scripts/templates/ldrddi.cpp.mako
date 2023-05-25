@@ -125,7 +125,7 @@ namespace ur_loader
         auto ${item['name']}Local = new ${item['type']} [${item['range'][1]}];
         <%
         arrays_to_delete.append(item['name']+ 'Local')
-        %>for( size_t i = ${item['range'][0]}; ( nullptr != ${item['name']} ) && ( i < ${item['range'][1]} ); ++i )
+        %>for( size_t i = ${item['range'][0]}; i < ${item['range'][1]}; ++i )
             ${item['name']}Local[ i ] = reinterpret_cast<${item['obj']}*>( ${item['name']}[ i ] )->handle;
         %else:
         // convert loader handle to platform handle

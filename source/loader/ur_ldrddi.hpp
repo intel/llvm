@@ -11,6 +11,7 @@
 #define UR_LOADER_LDRDDI_H 1
 
 #include "ur_object.hpp"
+#include "ur_singleton.hpp"
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////

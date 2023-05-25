@@ -39,6 +39,14 @@ class LoggerWithFileSink : public LoggerCommonSetup {
     }
 };
 
+class LoggerWithFileSinkFail : public LoggerWithFileSink {
+  protected:
+    void TearDown() override {
+        auto test_log = std::ifstream(file_path);
+        ASSERT_FALSE(test_log.good());
+    }
+};
+
 class CommonLoggerWithMultipleThreads
     : public LoggerCommonSetup,
       public ::testing::WithParamInterface<int> {
@@ -64,6 +72,16 @@ class UniquePtrLoggerWithFilesink : public LoggerWithFileSink {
     void TearDown() override {
         logger.reset();
         LoggerWithFileSink::TearDown();
+    }
+};
+
+class UniquePtrLoggerWithFilesinkFail : public LoggerWithFileSinkFail {
+  protected:
+    std::unique_ptr<logger::Logger> logger;
+
+    void TearDown() override {
+        logger.reset();
+        LoggerWithFileSinkFail::TearDown();
     }
 };
 

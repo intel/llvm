@@ -111,7 +111,11 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version,
                                      const char *version_str,
                                      const char *stream_name) {
-    if (!stream_name || std::string_view(stream_name) != UR_STREAM_NAME) {
+    if (stream_name == nullptr) {
+        std::cout << "Stream name not provided. Aborting." << std::endl;
+        return;
+    }
+    if (std::string_view(stream_name) != UR_STREAM_NAME) {
         std::cout << "Invalid stream name: " << stream_name << ". Expected "
                   << UR_STREAM_NAME << ". Aborting." << std::endl;
         return;

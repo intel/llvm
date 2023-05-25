@@ -106,6 +106,10 @@ static enum uma_result_t trackingAlloc(void *hProvider, size_t size,
         (uma_tracking_memory_provider_t *)hProvider;
     enum uma_result_t ret = UMA_RESULT_SUCCESS;
 
+    if (!p->hUpstream) {
+        return UMA_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
     ret = umaMemoryProviderAlloc(p->hUpstream, size, alignment, ptr);
     if (ret != UMA_RESULT_SUCCESS) {
         return ret;

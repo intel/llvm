@@ -20,6 +20,7 @@ from templates import helper as th
 #define UR_LOADER_LDRDDI_H 1
 
 #include "${x}_object.hpp"
+#include "${x}_singleton.hpp"
 
 namespace ur_loader
 {

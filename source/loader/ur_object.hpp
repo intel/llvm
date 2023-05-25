@@ -12,7 +12,6 @@
 #define UR_OBJECT_H 1
 
 #include "ur_ddi.h"
-#include "ur_singleton.hpp"
 #include "ur_util.hpp"
 
 //////////////////////////////////////////////////////////////////////////
