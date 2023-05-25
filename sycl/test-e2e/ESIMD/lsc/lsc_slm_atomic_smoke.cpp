@@ -473,6 +473,7 @@ int main(void) {
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
   bool passed = true;
+#ifndef CMPXCHG_TEST
   passed &= test_int_types_and_sizes<ImplInc>(q);
   passed &= test_int_types_and_sizes<ImplDec>(q);
 
@@ -494,10 +495,10 @@ int main(void) {
     passed &= test_int_types_and_sizes<ImplStore>(q);
     passed &= test_fp_types_and_sizes<ImplStore>(q);
   }
-
+#else
   passed &= test_int_types_and_sizes<ImplCmpxchg>(q);
   passed &= test_fp_types_and_sizes<ImplLSCFcmpwr>(q);
-
+#endif
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }
