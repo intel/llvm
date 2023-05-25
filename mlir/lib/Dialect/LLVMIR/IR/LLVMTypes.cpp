@@ -113,8 +113,8 @@ static void printPointer(AsmPrinter &p, Type elementType,
 // custom<ExtTypeParams>
 //===----------------------------------------------------------------------===//
 
-static bool parseTypeOrIntParam(AsmParser &p, SmallVector<Type> &typeParams,
-                                SmallVector<unsigned int> &intParams,
+static bool parseTypeOrIntParam(AsmParser &p, SmallVectorImpl<Type> &typeParams,
+                                SmallVectorImpl<unsigned int> &intParams,
                                 bool &parseType) {
   unsigned int i;
   if (p.parseOptionalInteger(i).has_value()) {
@@ -137,9 +137,9 @@ static bool parseTypeOrIntParam(AsmParser &p, SmallVector<Type> &typeParams,
   return false;
 }
 
-static ParseResult parseExtTypeParams(AsmParser &p,
-                                      SmallVector<Type> &typeParams,
-                                      SmallVector<unsigned int> &intParams) {
+static ParseResult
+parseExtTypeParams(AsmParser &p, SmallVectorImpl<Type> &typeParams,
+                   SmallVectorImpl<unsigned int> &intParams) {
   bool parseType = true;
   // ([type | integer ])? (, [type | integer])* | empty
   bool keepParsing = parseTypeOrIntParam(p, typeParams, intParams, parseType);
