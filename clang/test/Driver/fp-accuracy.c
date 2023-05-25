@@ -7,6 +7,12 @@
 // RUN: %clang -### -target x86_64 -ffp-accuracy=medium -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=MEDIUM %s
 
+// RUN: %clang -### -target x86_64 -ffp-accuracy=sycl -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL %s
+
+// RUN: %clang -### -target x86_64 -ffp-accuracy=cuda -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CUDA %s
+
 // RUN: %clang -### -target x86_64 -ffp-accuracy=low:sin,cos -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=FUNC-1 %s
 
@@ -46,6 +52,8 @@
 // HIGH: "-ffp-builtin-accuracy=high"
 // LOW: "-ffp-builtin-accuracy=low"
 // MEDIUM: "-ffp-builtin-accuracy=medium"
+// SYCL: "-ffp-builtin-accuracy=sycl"
+// CUDA: "-ffp-builtin-accuracy=cuda"
 // FUNC-1: "-ffp-builtin-accuracy=low:sin,cos"
 // FUNC-2: "-ffp-builtin-accuracy=low:sin,cos high:tan"
 // ERR: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'

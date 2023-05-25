@@ -1837,20 +1837,13 @@ static bool HasStrictReturn(const CodeGenModule &Module, QualType RetTy,
          Module.getLangOpts().Sanitize.has(SanitizerKind::Return);
 }
 
-static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracy) {
-  StringRef AccuracyVal;
-  if (FPAccuracy == "high")
-    return llvm::fp::FPAccuracy::High;
-  else if (FPAccuracy == "medium")
-    return llvm::fp::FPAccuracy::Medium;
-  else if (FPAccuracy == "low")
-    return llvm::fp::FPAccuracy::Low;
-  else if (FPAccuracy == "sycl")
-    return llvm::fp::FPAccuracy::SYCL;
-  else if (FPAccuracy == "cuda")
-    return llvm::fp::FPAccuracy::CUDA;
-  else
-    llvm_unreachable("Unexpected type for FPAccuracy");
+static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracyStr) {
+  return llvm::StringSwitch<llvm::fp::FPAccuracy>(FPAccuracyStr)
+      .Case("high", llvm::fp::FPAccuracy::High)
+      .Case("medium", llvm::fp::FPAccuracy::Medium)
+      .Case("low", llvm::fp::FPAccuracy::Low)
+      .Case("sycl", llvm::fp::FPAccuracy::SYCL)
+      .Case("cuda", llvm::fp::FPAccuracy::CUDA);
 }
 
 void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(

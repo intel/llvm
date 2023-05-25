@@ -310,7 +310,7 @@ public:
     FPA_Medium,
     FPA_Low,
     FPA_Sycl,
-    FPA_Cuda
+    FPA_Cuda,
   };
 
   /// Possible exception handling behavior.

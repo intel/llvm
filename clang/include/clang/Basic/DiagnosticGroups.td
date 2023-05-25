@@ -1445,6 +1445,3 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage">;
-
-// Warnings for fp accuracy already set.
-def FPAccuracyAlreadySet : DiagGroup<"fp-accuracy-value">;

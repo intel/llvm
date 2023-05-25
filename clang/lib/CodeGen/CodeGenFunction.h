@@ -1615,7 +1615,7 @@ private:
   unsigned CurrentBuiltinID = /*NotBuiltin*/ 0;
 
 public:
-  unsigned getCurrentBuiltinID() {
+  unsigned getCurrentBuiltinID() const {
     assert(CurrentBuiltinID != /*NotBuiltin*/ 0);
     return CurrentBuiltinID;
   }

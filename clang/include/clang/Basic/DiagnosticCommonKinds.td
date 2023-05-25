@@ -301,7 +301,7 @@ def warn_slh_does_not_support_asm_goto : Warning<
   InGroup<DiagGroup<"slh-asm-goto">>;
 
 def err_drv_incompatible_options : Error<
-  "The combination of '%0' and '%1' is incompatible">;
+  "the combination of '%0' and '%1' is incompatible">;
 }
 
 // Sema && Serialization

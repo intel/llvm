@@ -21903,24 +21903,18 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     // an NoBuiltin attribute.
     if (!FD->hasAttr<NoBuiltinAttr>()) {
       Name = FD->getName();
-      if (Name == "fadd")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fadd;
-      else if (Name == "fdiv")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fdiv;
-      else if (Name == "fmul")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fmul;
-      else if (Name == "fsub")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fsub;
-      else if (Name == "frem")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_frem;
-      else if (Name == "sincos")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_sincos;
-      else if (Name == "exp10")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_exp10;
-      else if (Name == "rsqrt")
-        FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_rsqrt;
-      else
-        llvm_unreachable("unexpected fpbuiltin ID");
+      FPAccuracyIntrinsicID =
+          llvm::StringSwitch<unsigned>(Name)
+              .Case("fadd", llvm::Intrinsic::fpbuiltin_fadd)
+              .Case("fdiv", llvm::Intrinsic::fpbuiltin_fdiv)
+              .Case("fmul", llvm::Intrinsic::fpbuiltin_fmul)
+              .Case("fsub", llvm::Intrinsic::fpbuiltin_fsub)
+              .Case("frem", llvm::Intrinsic::fpbuiltin_frem)
+              .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
+              .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
+              .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
+              .Default(-1);
+      assert(FPAccuracyIntrinsicID != -1 && "unexpected fpbuiltin ID");
     } else {
       return CI;
     }
@@ -22004,21 +21998,8 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     }
   }
   Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
-  if (IRArgs.size() == 1)
-    CI = CreateBuiltinCallWithAttr(*this, Name, Func, {IRArgs[0]},
-                                   FPAccuracyIntrinsicID);
-  else if (IRArgs.size() == 2)
-    CI = CreateBuiltinCallWithAttr(*this, FnPtr->getName(), Func,
-                                   {IRArgs[0], IRArgs[1]},
-                                   FPAccuracyIntrinsicID);
-  else if (IRArgs.size() == 3)
-    CI = CreateBuiltinCallWithAttr(*this, FnPtr->getName(), Func,
-                                   {IRArgs[0], IRArgs[1], IRArgs[2]},
-                                   FPAccuracyIntrinsicID);
-  else
-    llvm_unreachable(
-        "Not expecting an fpbuiltin intrinsic with more than 3 arguments");
-
+  CI = CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
+                                 FPAccuracyIntrinsicID);
   return CI;
 }
 

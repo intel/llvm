@@ -66,7 +66,7 @@ def err_drv_no_cuda_libdevice : Error<
 def warn_function_fp_accuracy_already_set : Warning <
   "floating point accuracy value of '%0' has already been assigned to "
   "function '%1'">,
-  InGroup<FPAccuracyAlreadySet>;
+  InGroup<DiagGroup<"fp-accuracy-already-set">>;
 def err_drv_no_rocm_device_lib : Error<
   "cannot find ROCm device library%select{| for %1|for ABI version %1}0; provide its path via "
   "'--rocm-path' or '--rocm-device-lib-path', or pass '-nogpulib' to build "
