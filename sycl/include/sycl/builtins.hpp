@@ -2001,7 +2001,7 @@ __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isordered)
 __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isunordered)
 __SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(signbit)
 
-// int any (sigeninteger x)
+// bool any (sigeninteger x)
 template <typename T>
 std::enable_if_t<detail::is_sigeninteger<T>::value, bool> any(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
@@ -2015,7 +2015,7 @@ std::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
           detail::rel_sign_bit_test_arg_t<T>(x)));
 }
 
-// int all (sigeninteger x)
+// bool all (sigeninteger x)
 template <typename T>
 std::enable_if_t<detail::is_sigeninteger<T>::value, bool> all(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
