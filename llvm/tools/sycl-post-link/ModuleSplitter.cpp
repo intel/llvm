@@ -202,7 +202,9 @@ public:
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncMap;
     for (const auto &F : M.functions()) {
-      FuncTypeToFuncMap[F.getFunctionType()].insert(&F);
+      // Kernels can't be called (either directly or indirectly) in SYCL
+      if (!isKernel(F))
+        FuncTypeToFuncMap[F.getFunctionType()].insert(&F);
     }
 
     // We add every function into the graph
