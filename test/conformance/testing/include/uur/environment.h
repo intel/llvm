@@ -52,7 +52,8 @@ struct KernelsEnvironment : DevicesEnvironment {
         std::string kernel_directory;
     };
 
-    KernelsEnvironment(int argc, char **argv, std::string kernels_default_dir);
+    KernelsEnvironment(int argc, char **argv,
+                       const std::string &kernels_default_dir);
     virtual ~KernelsEnvironment() override = default;
 
     virtual void SetUp() override;
@@ -65,7 +66,7 @@ struct KernelsEnvironment : DevicesEnvironment {
 
   private:
     KernelOptions parseKernelOptions(int argc, char **argv,
-                                     std::string kernels_default_dir);
+                                     const std::string &kernels_default_dir);
     std::string getKernelSourcePath(const std::string &kernel_name,
                                     uint32_t device_index);
     std::string getSupportedILPostfix(uint32_t device_index);
