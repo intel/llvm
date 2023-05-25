@@ -193,7 +193,7 @@ public:
     return std::get<U>(data);
   }
 
-  /// Determine whether this class holds the value \p k.
+  /// Determine whether this class holds the value \p constant.
   bool isEqualTo(int64_t constant, DataFlowSolver &solver) const {
     Value val = is<T>() ? get<T>() : get<Value>();
     if (!val)
@@ -357,16 +357,6 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
       .Default([&](auto) { return expr; });
 }
 
-static Value removeConversions(Value expr) {
-  if (!expr.getDefiningOp())
-    return expr;
-
-  if (auto op = dyn_cast<CastOpInterface>(expr.getDefiningOp()))
-    return removeConversions(op->getOperand(0));
-
-  return expr;
-}
-
 // Visit a binary operation of type \tparam T. The LHS and RHS operand of the
 // binary operation are processed by applying the function \p getOffset. The
 // result of the visit is computed via the \p computeResult function.
@@ -522,8 +512,10 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
         return visitBinaryOp(mulOp, loopAndThreadVars, solver, getOffset,
                              computeResult);
       })
-      .Case<CastOpInterface>([&](auto) {
-        return getOffset(op->getOperand(0), loopAndThreadVars, solver);
+      .Case<CastOpInterface>([&](auto castOp) {
+        assert(castOp->getOperands().size() == 1 &&
+               "Expecting a single operand");
+        return getOffset(castOp->getOperand(0), loopAndThreadVars, solver);
       })
       .Default([&](auto) { return expr; });
 }
