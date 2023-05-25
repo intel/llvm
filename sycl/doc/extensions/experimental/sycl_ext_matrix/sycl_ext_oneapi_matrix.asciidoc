@@ -569,6 +569,10 @@ using joint_matrix_d;`| type alias for `joint_matrix` for the output matrix accu
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
+template<architecture Arch, typename Ta=void, typename Tb=void,
+typename Tc=void, typename Td=Tc, int sM=0, int sN=0, int sK=0> 
+struct matrix_params;
+
 // This is the validation form, when all template parameters are
 // specified.
 template<architecture Arch, typename Ta, typename Tb, typename Tc,
@@ -597,7 +601,7 @@ struct matrix_params {
 
 // This is the default values form, where the matrix dimensions are
 // omitted.
-template<architecture Arch, typename Ta, typename Tb, typename Tc, typename Td=Tc>
+template<architecture Arch, typename Ta, typename Tb, typename Tc, typename Td>
 struct matrix_params<Arch, Ta, Tb, Tc, Td, 0, 0, 0> {
   // An implementation typically uses static_assert here to trigger a
   // compilation error when the matrix types are not supported by the
