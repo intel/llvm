@@ -29,20 +29,26 @@ TEST_F(urDevicePartitionTest, PartitionEquallySuccess) {
         ASSERT_NO_FATAL_FAILURE(getNumberComputeUnits(device, n_compute_units));
 
         for (uint32_t i = 1; i < n_compute_units; ++i) {
-            ur_device_partition_desc_t properties =
+            ur_device_partition_property_t property =
                 uur::makePartitionEquallyDesc(i);
+
+            ur_device_partition_properties_t properties{
+                UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+                nullptr,
+                &property,
+                1,
+            };
 
             // Get the number of devices that will be created
             uint32_t n_devices;
-            ASSERT_SUCCESS(urDevicePartition(device, &properties, 1, 0, nullptr,
-                                             &n_devices));
+            ASSERT_SUCCESS(
+                urDevicePartition(device, &properties, 0, nullptr, &n_devices));
             ASSERT_NE(n_devices, 0);
 
             std::vector<ur_device_handle_t> sub_devices(n_devices);
-            ASSERT_SUCCESS(
-                urDevicePartition(device, &properties, 1,
-                                  static_cast<uint32_t>(sub_devices.size()),
-                                  sub_devices.data(), nullptr));
+            ASSERT_SUCCESS(urDevicePartition(
+                device, &properties, static_cast<uint32_t>(sub_devices.size()),
+                sub_devices.data(), nullptr));
             for (auto sub_device : sub_devices) {
                 ASSERT_NE(sub_device, nullptr);
                 ASSERT_SUCCESS(urDeviceRelease(sub_device));
@@ -79,48 +85,53 @@ TEST_F(urDevicePartitionTest, PartitionByCounts) {
         uint32_t n_cu_across_sub_devices;
         for (const auto Combination : combinations) {
 
-            std::vector<ur_device_partition_desc_t> properties;
+            std::vector<ur_device_partition_property_t> property_list;
 
             switch (Combination) {
             case Combination::ONE: {
                 n_cu_across_sub_devices = 1;
-                properties.push_back(uur::makePartitionByCountsDesc(1));
+                property_list.push_back(uur::makePartitionByCountsDesc(1));
                 break;
             }
             case Combination::HALF: {
                 n_cu_across_sub_devices = (n_cu_in_device / 2) * 2;
-                properties.push_back(
+                property_list.push_back(
                     uur::makePartitionByCountsDesc(n_cu_in_device / 2));
-                properties.push_back(
+                property_list.push_back(
                     uur::makePartitionByCountsDesc(n_cu_in_device / 2));
                 break;
             }
             case Combination::ALL_MINUS_ONE: {
                 n_cu_across_sub_devices = n_cu_in_device - 1;
-                properties.push_back(
+                property_list.push_back(
                     uur::makePartitionByCountsDesc(n_cu_in_device - 1));
                 break;
             }
             case Combination::ALL: {
                 n_cu_across_sub_devices = n_cu_in_device;
-                properties.push_back(
+                property_list.push_back(
                     uur::makePartitionByCountsDesc(n_cu_in_device));
                 break;
             }
             }
 
+            ur_device_partition_properties_t properties{
+                UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+                nullptr,
+                property_list.data(),
+                property_list.size(),
+            };
+
             // Get the number of devices that will be created
             uint32_t n_devices;
-            ASSERT_SUCCESS(urDevicePartition(device, properties.data(),
-                                             properties.size(), 0, nullptr,
-                                             &n_devices));
-            ASSERT_EQ(n_devices, properties.size());
+            ASSERT_SUCCESS(
+                urDevicePartition(device, &properties, 0, nullptr, &n_devices));
+            ASSERT_EQ(n_devices, property_list.size());
 
             std::vector<ur_device_handle_t> sub_devices(n_devices);
-            ASSERT_SUCCESS(
-                urDevicePartition(device, properties.data(), properties.size(),
-                                  static_cast<uint32_t>(sub_devices.size()),
-                                  sub_devices.data(), nullptr));
+            ASSERT_SUCCESS(urDevicePartition(
+                device, &properties, static_cast<uint32_t>(sub_devices.size()),
+                sub_devices.data(), nullptr));
 
             uint32_t sum = 0;
             for (auto sub_device : sub_devices) {
@@ -165,18 +176,25 @@ TEST_P(urDevicePartitionAffinityDomainTest, PartitionByAffinityDomain) {
             continue;
         }
 
-        ur_device_partition_desc_t properties =
+        ur_device_partition_property_t prop =
             uur::makePartitionByAffinityDomain(flag);
+
+        ur_device_partition_properties_t properties{
+            UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+            nullptr,
+            &prop,
+            1,
+        };
 
         // Get the number of devices that will be created
         uint32_t n_devices = 0;
         ASSERT_SUCCESS(
-            urDevicePartition(device, &properties, 1, 0, nullptr, &n_devices));
+            urDevicePartition(device, &properties, 0, nullptr, &n_devices));
         ASSERT_NE(n_devices, 0);
 
         std::vector<ur_device_handle_t> sub_devices(n_devices);
         ASSERT_SUCCESS(urDevicePartition(
-            device, &properties, 1, static_cast<uint32_t>(sub_devices.size()),
+            device, &properties, static_cast<uint32_t>(sub_devices.size()),
             sub_devices.data(), nullptr));
 
         for (auto sub_device : sub_devices) {
@@ -202,11 +220,17 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 TEST_F(urDevicePartitionTest, InvalidNullHandleDevice) {
-    ur_device_partition_desc_t props = uur::makePartitionEquallyDesc(1);
+    ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);
+    ur_device_partition_properties_t properties{
+        UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+        nullptr,
+        &prop,
+        1,
+    };
     ur_device_handle_t sub_device = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urDevicePartition(nullptr, &props, 1, 1, &sub_device, nullptr));
+        urDevicePartition(nullptr, &properties, 1, &sub_device, nullptr));
 }
 
 TEST_F(urDevicePartitionTest, InvalidNullPointerProperties) {
@@ -214,17 +238,7 @@ TEST_F(urDevicePartitionTest, InvalidNullPointerProperties) {
         ur_device_handle_t sub_device = nullptr;
         ASSERT_EQ_RESULT(
             UR_RESULT_ERROR_INVALID_NULL_POINTER,
-            urDevicePartition(device, nullptr, 1, 1, &sub_device, nullptr));
-    }
-}
-
-TEST_F(urDevicePartitionTest, InvalidSizeDescCount) {
-    ur_device_partition_desc_t props = uur::makePartitionEquallyDesc(1);
-    for (auto device : devices) {
-        ur_device_handle_t sub_device = nullptr;
-        ASSERT_EQ_RESULT(
-            UR_RESULT_ERROR_INVALID_SIZE,
-            urDevicePartition(device, &props, 0, 1, &sub_device, nullptr));
+            urDevicePartition(device, nullptr, 1, &sub_device, nullptr));
     }
 }
 
@@ -242,22 +256,26 @@ TEST_F(urDevicePartitionTest, SuccessSubSet) {
         ASSERT_NO_FATAL_FAILURE(getNumberComputeUnits(device, n_compute_units));
 
         // partition for 1 compute unit per sub-device
-        ur_device_partition_desc_t properties =
-            uur::makePartitionEquallyDesc(1);
+        ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);
+        ur_device_partition_properties_t properties{
+            UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+            nullptr,
+            &prop,
+            1,
+        };
 
         // Get the number of devices that will be created
         uint32_t n_devices;
         ASSERT_SUCCESS(
-            urDevicePartition(device, &properties, 1, 0, nullptr, &n_devices));
+            urDevicePartition(device, &properties, 0, nullptr, &n_devices));
         ASSERT_NE(n_devices, 0);
 
         // We can request only a subset of these devices from [0, n_devices]
         for (size_t subset = 0; subset <= n_devices; ++subset) {
             std::vector<ur_device_handle_t> sub_devices(subset);
-            ASSERT_SUCCESS(
-                urDevicePartition(device, &properties, 1,
-                                  static_cast<uint32_t>(sub_devices.size()),
-                                  sub_devices.data(), nullptr));
+            ASSERT_SUCCESS(urDevicePartition(
+                device, &properties, static_cast<uint32_t>(sub_devices.size()),
+                sub_devices.data(), nullptr));
             for (auto sub_device : sub_devices) {
                 ASSERT_NE(sub_device, nullptr);
                 ASSERT_SUCCESS(urDeviceRelease(sub_device));

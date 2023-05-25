@@ -318,7 +318,7 @@ GetDevicePartitionAffinityDomainFlags(ur_device_handle_t device,
                                       ur_device_affinity_domain_flags_t &flags);
 ur_result_t
 GetDevicePartitionType(ur_device_handle_t device,
-                       std::vector<ur_device_partition_desc_t> &type);
+                       std::vector<ur_device_partition_property_t> &type);
 ur_result_t GetDeviceMaxNumberSubGroups(ur_device_handle_t device,
                                         uint32_t &max_sub_groups);
 ur_result_t
@@ -365,11 +365,11 @@ ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support);
 
-ur_device_partition_desc_t makePartitionByCountsDesc(uint32_t count);
+ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count);
 
-ur_device_partition_desc_t makePartitionEquallyDesc(uint32_t cu_per_device);
+ur_device_partition_property_t makePartitionEquallyDesc(uint32_t cu_per_device);
 
-ur_device_partition_desc_t
+ur_device_partition_property_t
 makePartitionByAffinityDomain(ur_device_affinity_domain_flags_t aff_domain);
 
 } // namespace uur

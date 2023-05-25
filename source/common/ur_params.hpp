@@ -185,8 +185,12 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_partition_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 const union ur_device_partition_value_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_device_partition_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_device_partition_property_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_device_partition_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_fp_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -717,8 +721,8 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC";
         break;
 
-    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC:
-        os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC";
+    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -884,9 +888,9 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC: {
-        const ur_device_partition_desc_t *pstruct =
-            (const ur_device_partition_desc_t *)ptr;
+    case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES: {
+        const ur_device_partition_properties_t *pstruct =
+            (const ur_device_partition_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -2793,10 +2797,10 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
 
     case UR_DEVICE_INFO_PARTITION_TYPE: {
 
-        const ur_device_partition_desc_t *tptr =
-            (const ur_device_partition_desc_t *)ptr;
+        const ur_device_partition_property_t *tptr =
+            (const ur_device_partition_property_t *)ptr;
         os << "{";
-        size_t nelems = size / sizeof(ur_device_partition_desc_t);
+        size_t nelems = size / sizeof(ur_device_partition_property_t);
         for (size_t i = 0; i < nelems; ++i) {
             if (i != 0) {
                 os << ", ";
@@ -3447,8 +3451,26 @@ operator<<(std::ostream &os, const union ur_device_partition_value_t params) {
     return os;
 }
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_device_partition_desc_t params) {
-    os << "(struct ur_device_partition_desc_t){";
+operator<<(std::ostream &os,
+           const struct ur_device_partition_property_t params) {
+    os << "(struct ur_device_partition_property_t){";
+
+    os << ".type = ";
+
+    os << (params.type);
+
+    os << ", ";
+    os << ".value = ";
+
+    os << (params.value);
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_device_partition_properties_t params) {
+    os << "(struct ur_device_partition_properties_t){";
 
     os << ".stype = ";
 
@@ -3460,14 +3482,14 @@ operator<<(std::ostream &os, const struct ur_device_partition_desc_t params) {
     ur_params::serializeStruct(os, (params.pNext));
 
     os << ", ";
-    os << ".type = ";
+    os << ".pProperties = ";
 
-    os << (params.type);
+    os << (params.pProperties);
 
     os << ", ";
-    os << ".value = ";
+    os << ".PropCount = ";
 
-    os << (params.value);
+    os << (params.PropCount);
 
     os << "}";
     return os;
@@ -11734,11 +11756,6 @@ operator<<(std::ostream &os,
     os << ".pProperties = ";
 
     ur_params::serializePtr(os, *(params->ppProperties));
-
-    os << ", ";
-    os << ".DescCount = ";
-
-    os << *(params->pDescCount);
 
     os << ", ";
     os << ".NumDevices = ";

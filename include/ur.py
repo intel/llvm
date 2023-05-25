@@ -225,7 +225,7 @@ class ur_structure_type_v(IntEnum):
     PROGRAM_NATIVE_PROPERTIES = 23                  ## ::ur_program_native_properties_t
     SAMPLER_NATIVE_PROPERTIES = 24                  ## ::ur_sampler_native_properties_t
     QUEUE_NATIVE_DESC = 25                          ## ::ur_queue_native_desc_t
-    DEVICE_PARTITION_DESC = 26                      ## ::ur_device_partition_desc_t
+    DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -510,8 +510,8 @@ class ur_device_info_v(IntEnum):
     PARTITION_AFFINITY_DOMAIN = 78                  ## [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
                                                     ## supported affinity domains for partitioning. 
                                                     ## If the device does not support any affinity domains, then 0 will be returned.
-    PARTITION_TYPE = 79                             ## [::ur_device_partition_desc_t[]] return an array of
-                                                    ## ::ur_device_partition_desc_t for properties specified in
+    PARTITION_TYPE = 79                             ## [::ur_device_partition_property_t[]] return an array of
+                                                    ## ::ur_device_partition_property_t for properties specified in
                                                     ## ::urDevicePartition
     MAX_NUM_SUB_GROUPS = 80                         ## [uint32_t] max number of sub groups
     SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81     ## [::ur_bool_t] support sub group independent forward progress
@@ -625,14 +625,22 @@ class ur_device_partition_value_t(Structure):
     ]
 
 ###############################################################################
-## @brief Device partition description
-class ur_device_partition_desc_t(Structure):
+## @brief Device partition property
+class ur_device_partition_property_t(Structure):
     _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
-                                                                        ## ::UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC
-        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("type", ur_device_partition_t),                                ## [in] The partitioning type to be used.
         ("value", ur_device_partition_value_t)                          ## [in] The paritioning value.
+    ]
+
+###############################################################################
+## @brief Device Partition Properties
+class ur_device_partition_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("pProperties", *),                                             ## [in] Pointer to the beginning of the properties array.
+        ("PropCount", c_size_t)                                         ## [in] The length of properties pointed to by `pProperties`.
     ]
 
 ###############################################################################
@@ -2824,9 +2832,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDevicePartition
 if __use_win_types:
-    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_desc_t), c_size_t, c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
+    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_properties_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 else:
-    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_desc_t), c_size_t, c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
+    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_properties_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceSelectBinary

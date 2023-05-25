@@ -314,8 +314,8 @@ etors:
       desc: $x_sampler_native_properties_t
     - name: QUEUE_NATIVE_DESC
       desc: $x_queue_native_desc_t
-    - name: DEVICE_PARTITION_DESC
-      desc: $x_device_partition_desc_t
+    - name: DEVICE_PARTITION_PROPERTIES
+      desc: $x_device_partition_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"

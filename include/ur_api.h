@@ -249,7 +249,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
     UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
     UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC = 26,           ///< ::ur_device_partition_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -859,8 +859,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,              ///< [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
                                                                 ///< supported affinity domains for partitioning.
                                                                 ///< If the device does not support any affinity domains, then 0 will be returned.
-    UR_DEVICE_INFO_PARTITION_TYPE = 79,                         ///< [::ur_device_partition_desc_t[]] return an array of
-                                                                ///< ::ur_device_partition_desc_t for properties specified in
+    UR_DEVICE_INFO_PARTITION_TYPE = 79,                         ///< [::ur_device_partition_property_t[]] return an array of
+                                                                ///< ::ur_device_partition_property_t for properties specified in
                                                                 ///< ::urDevicePartition
     UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,                     ///< [uint32_t] max number of sub groups
     UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81, ///< [::ur_bool_t] support sub group independent forward progress
@@ -1069,15 +1069,23 @@ typedef union ur_device_partition_value_t {
 } ur_device_partition_value_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Device partition description
-typedef struct ur_device_partition_desc_t {
-    ur_structure_type_t stype;         ///< [in] type of this structure, must be
-                                       ///< ::UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC
-    const void *pNext;                 ///< [in][optional] pointer to extension-specific structure
+/// @brief Device partition property
+typedef struct ur_device_partition_property_t {
     ur_device_partition_t type;        ///< [in] The partitioning type to be used.
     ur_device_partition_value_t value; ///< [in] The paritioning value.
 
-} ur_device_partition_desc_t;
+} ur_device_partition_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Device Partition Properties
+typedef struct ur_device_partition_properties_t {
+    ur_structure_type_t stype;                         ///< [in] type of this structure, must be
+                                                       ///< ::UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES
+    void *pNext;                                       ///< [in,out][optional] pointer to extension-specific structure
+    const ur_device_partition_property_t *pProperties; ///< [in] Pointer to the beginning of the properties array.
+    size_t PropCount;                                  ///< [in] The length of properties pointed to by `pProperties`.
+
+} ur_device_partition_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Partition the device into sub-devices
@@ -1103,23 +1111,18 @@ typedef struct ur_device_partition_desc_t {
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pProperties`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_PARTITION_BY_CSLICE < pProperties->type`
 ///     - ::UR_RESULT_ERROR_DEVICE_PARTITION_FAILED
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `DescCount == 0`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDevicePartition(
-    ur_device_handle_t hDevice,                    ///< [in] handle of the device to partition.
-    const ur_device_partition_desc_t *pProperties, ///< [in] Array of partition descriptors.
-    size_t DescCount,                              ///< [in] Number of descriptors pointed to by `pProperties`.
-    uint32_t NumDevices,                           ///< [in] the number of sub-devices.
-    ur_device_handle_t *phSubDevices,              ///< [out][optional][range(0, NumDevices)] array of handle of devices.
-                                                   ///< If NumDevices is less than the number of sub-devices available, then
-                                                   ///< the function shall only retrieve that number of sub-devices.
-    uint32_t *pNumDevicesRet                       ///< [out][optional] pointer to the number of sub-devices the device can be
-                                                   ///< partitioned into according to the partitioning property.
+    ur_device_handle_t hDevice,                          ///< [in] handle of the device to partition.
+    const ur_device_partition_properties_t *pProperties, ///< [in] Array of partition descriptors.
+    uint32_t NumDevices,                                 ///< [in] the number of sub-devices.
+    ur_device_handle_t *phSubDevices,                    ///< [out][optional][range(0, NumDevices)] array of handle of devices.
+                                                         ///< If NumDevices is less than the number of sub-devices available, then
+                                                         ///< the function shall only retrieve that number of sub-devices.
+    uint32_t *pNumDevicesRet                             ///< [out][optional] pointer to the number of sub-devices the device can be
+                                                         ///< partitioned into according to the partitioning property.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7196,8 +7199,7 @@ typedef struct ur_device_release_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_device_partition_params_t {
     ur_device_handle_t *phDevice;
-    const ur_device_partition_desc_t **ppProperties;
-    size_t *pDescCount;
+    const ur_device_partition_properties_t **ppProperties;
     uint32_t *pNumDevices;
     ur_device_handle_t **pphSubDevices;
     uint32_t **ppNumDevicesRet;

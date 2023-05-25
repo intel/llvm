@@ -25,12 +25,18 @@ TEST_F(urDeviceReleaseTest, Success) {
 TEST_F(urDeviceReleaseTest, SuccessSubdevices) {
     for (auto device : devices) {
 
-        ur_device_partition_desc_t properties =
-            uur::makePartitionEquallyDesc(1);
+        ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);
+
+        ur_device_partition_properties_t properties{
+            UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+            nullptr,
+            &prop,
+            1,
+        };
 
         ur_device_handle_t sub_device;
         ASSERT_SUCCESS(
-            urDevicePartition(device, &properties, 1, 1, &sub_device, nullptr));
+            urDevicePartition(device, &properties, 1, &sub_device, nullptr));
 
         ASSERT_SUCCESS(urDeviceRetain(sub_device));
 

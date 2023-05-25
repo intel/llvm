@@ -309,7 +309,7 @@ etors:
             [$x_device_affinity_domain_flags_t] Returns a bit-field of the supported affinity domains for partitioning. 
             If the device does not support any affinity domains, then 0 will be returned.
     - name: PARTITION_TYPE
-      desc: "[$x_device_partition_desc_t[]] return an array of $x_device_partition_desc_t for properties specified in $xDevicePartition"
+      desc: "[$x_device_partition_property_t[]] return an array of $x_device_partition_property_t for properties specified in $xDevicePartition"
     - name: MAX_NUM_SUB_GROUPS
       desc: "[uint32_t] max number of sub groups"
     - name: SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS
@@ -523,9 +523,8 @@ members:
       desc: "[in] The affinity domain to partition for when partitioning with $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN."
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Device partition description"
-name: $x_device_partition_desc_t
-base: $x_base_desc_t
+desc: "Device partition property"
+name: $x_device_partition_property_t
 class: $xDevice
 members:
     - type: $x_device_partition_t
@@ -534,6 +533,19 @@ members:
     - type: $x_device_partition_value_t
       name: value
       desc: "[in] The paritioning value."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Device Partition Properties"
+name: $x_device_partition_properties_t
+class: $xDevice
+base: $x_base_properties_t
+members:
+    - type: const $x_device_partition_property_t *
+      name: pProperties
+      desc: "[in] Pointer to the beginning of the properties array."
+    - type: size_t
+      name: PropCount
+      desc: "[in] The length of properties pointed to by `pProperties`."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Partition the device into sub-devices"
@@ -553,14 +565,10 @@ params:
       name: hDevice
       desc: |
             [in] handle of the device to partition.
-    - type: const $x_device_partition_desc_t*
+    - type: const $x_device_partition_properties_t*
       name: pProperties
       desc: |
             [in] Array of partition descriptors.
-    - type: size_t
-      name: DescCount
-      desc: |
-            [in] Number of descriptors pointed to by `pProperties`.
     - type: "uint32_t"
       name: NumDevices
       desc: |
@@ -577,8 +585,6 @@ params:
 returns:
     - $X_RESULT_ERROR_DEVICE_PARTITION_FAILED
     - $X_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT
-    - $X_RESULT_ERROR_INVALID_SIZE:
-      - "`DescCount == 0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Selects the most appropriate device binary based on runtime information and the IR characteristics."
