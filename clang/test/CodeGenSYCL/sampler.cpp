@@ -1,25 +1,25 @@
 // RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck --enable-var-scope %s
-// CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(ptr addrspace(2) [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
+// CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(target("spirv.Sampler") [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
 // CHECK-NEXT: entry:
-// CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca ptr addrspace(2), align 8
+// CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca target("spirv.Sampler"), align 8
 // CHECK: [[ANON:%[a-zA-Z0-9_]+]] = alloca %class.anon, align 8
 // CHECK: [[ANONCAST:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[ANON]] to ptr addrspace(4)
-// CHECK: store ptr addrspace(2) [[SAMPLER_ARG]], ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
+// CHECK: store target("spirv.Sampler") [[SAMPLER_ARG]], ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
 // CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
-// CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load ptr addrspace(2), ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
-// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{[^,]*}} [[GEP]], ptr addrspace(2) [[LOAD_SAMPLER_ARG]])
+// CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load target("spirv.Sampler"), ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
+// CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{[^,]*}} [[GEP]], target("spirv.Sampler") [[LOAD_SAMPLER_ARG]])
 //
 
-// CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(ptr addrspace(2) [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]], i32 noundef [[ARG_A:%[a-zA-Z0-9_]+]])
+// CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(target("spirv.Sampler") [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]], i32 noundef [[ARG_A:%[a-zA-Z0-9_]+]])
 
 // Check alloca
-// CHECK: [[SAMPLER_ARG_WRAPPED]].addr = alloca ptr addrspace(2), align 8
+// CHECK: [[SAMPLER_ARG_WRAPPED]].addr = alloca target("spirv.Sampler"), align 8
 // CHECK: [[ARG_A]].addr = alloca i32, align 4
 // CHECK: [[LAMBDAA:%[a-zA-Z0-9_]+]] = alloca %class.anon.0, align 8
 // CHECK: [[LAMBDA:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[LAMBDAA]] to ptr addrspace(4)
 
 // Check argument store
-// CHECK: store ptr addrspace(2) [[SAMPLER_ARG_WRAPPED]], ptr addrspace(4) [[SAMPLER_ARG_WRAPPED]].addr.ascast, align 8
+// CHECK: store target("spirv.Sampler") [[SAMPLER_ARG_WRAPPED]], ptr addrspace(4) [[SAMPLER_ARG_WRAPPED]].addr.ascast, align 8
 // CHECK: store i32 [[ARG_A]], ptr addrspace(4) [[ARG_A]].addr.ascast, align 4
 
 // Initialize 'a'
@@ -31,8 +31,8 @@
 // Initialize wrapped sampler 'smpl'
 // CHECK: [[GEP_LAMBDA_0:%[a-zA-z0-9]+]] = getelementptr inbounds %class.anon.0, ptr addrspace(4) [[LAMBDA]], i32 0, i32 0
 // CHECK: [[GEP_SMPL:%[a-zA-Z0-9]+]] = getelementptr inbounds %struct.sampler_wrapper, ptr addrspace(4) [[GEP_LAMBDA_0]], i32 0, i32 0
-// CHECK: [[LOAD_SMPL:%[0-9]+]] = load ptr addrspace(2), ptr addrspace(4) [[SAMPLER_ARG_WRAPPED]].addr.ascast, align 8
-// CHECK: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{.*}}, ptr addrspace(2) [[LOAD_SMPL]])
+// CHECK: [[LOAD_SMPL:%[0-9]+]] = load target("spirv.Sampler"), ptr addrspace(4) [[SAMPLER_ARG_WRAPPED]].addr.ascast, align 8
+// CHECK: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{.*}}, target("spirv.Sampler") [[LOAD_SMPL]])
 //
 #include "Inputs/sycl.hpp"
 

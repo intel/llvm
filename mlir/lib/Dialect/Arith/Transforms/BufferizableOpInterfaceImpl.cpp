@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/Transforms/BufferUtils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 
@@ -26,13 +27,14 @@ struct ConstantOpInterface
                           const BufferizationOptions &options) const {
     auto constantOp = cast<arith::ConstantOp>(op);
 
-    // TODO: Implement memory space for this op. E.g., by adding a memory_space
-    // attribute to ConstantOp.
-    if (options.defaultMemorySpace != Attribute())
-      return op->emitError("memory space not implemented yet");
+    Attribute memorySpace;
+    if (options.defaultMemorySpace.has_value())
+      memorySpace = *options.defaultMemorySpace;
+    else
+      return constantOp->emitError("could not infer memory space");
 
     // Only ranked tensors are supported.
-    if (!constantOp.getType().isa<RankedTensorType>())
+    if (!isa<RankedTensorType>(constantOp.getType()))
       return failure();
 
     // Only constants inside a module are supported.
@@ -43,7 +45,7 @@ struct ConstantOpInterface
     // Create global memory segment and replace tensor with memref pointing to
     // that memory segment.
     FailureOr<memref::GlobalOp> globalOp =
-        getGlobalFor(constantOp, options.bufferAlignment);
+        getGlobalFor(constantOp, options.bufferAlignment, memorySpace);
     if (failed(globalOp))
       return failure();
     memref::GlobalOp globalMemref = *globalOp;
@@ -56,7 +58,7 @@ struct ConstantOpInterface
   bool isWritable(Operation *op, Value value,
                   const AnalysisState &state) const {
     // Memory locations returned by memref::GetGlobalOp may not be written to.
-    assert(value.isa<OpResult>());
+    assert(isa<OpResult>(value));
     return false;
   }
 };
@@ -82,21 +84,21 @@ struct IndexCastOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
     auto castOp = cast<arith::IndexCastOp>(op);
-    auto resultTensorType = castOp.getType().cast<TensorType>();
+    auto resultTensorType = cast<TensorType>(castOp.getType());
 
     FailureOr<Value> source = getBuffer(rewriter, castOp.getIn(), options);
     if (failed(source))
       return failure();
-    auto sourceType = source->getType().cast<BaseMemRefType>();
+    auto sourceType = cast<BaseMemRefType>(source->getType());
 
     // Result type should have same layout and address space as the source type.
     BaseMemRefType resultType;
-    if (auto rankedMemRefType = sourceType.dyn_cast<MemRefType>()) {
+    if (auto rankedMemRefType = dyn_cast<MemRefType>(sourceType)) {
       resultType = MemRefType::get(
           rankedMemRefType.getShape(), resultTensorType.getElementType(),
           rankedMemRefType.getLayout(), rankedMemRefType.getMemorySpace());
     } else {
-      auto unrankedMemrefType = sourceType.cast<UnrankedMemRefType>();
+      auto unrankedMemrefType = cast<UnrankedMemRefType>(sourceType);
       resultType = UnrankedMemRefType::get(resultTensorType.getElementType(),
                                            unrankedMemrefType.getMemorySpace());
     }

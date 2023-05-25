@@ -34,19 +34,19 @@ using IsValidCoordType = typename is_contained<
 // The formula for unnormalization coordinates:
 // NormalizedCoords = [UnnormalizedCoords[i] * Range[i] for i in range(0, 3)]
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, T>
+std::enable_if_t<IsValidCoordType<T>::value, T>
 UnnormalizeCoordinates(const T &Coords, const range<3> &Range) {
   return Coords * Range[0];
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, vec<T, 2>>
+std::enable_if_t<IsValidCoordType<T>::value, vec<T, 2>>
 UnnormalizeCoordinates(const vec<T, 2> &Coords, const range<3> &Range) {
   return {Coords.x() * Range[0], Coords.y() * Range[1]};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, vec<T, 4>>
+std::enable_if_t<IsValidCoordType<T>::value, vec<T, 4>>
 UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
   return {Coords.x() * Range[0], Coords.y() * Range[1], Coords.z() * Range[2],
           0};
@@ -57,20 +57,19 @@ UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
 // calculation won't pass 0.
 // Non-valid coordinates are written as 0.
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, float4>
-convertToFloat4(T Coords) {
+std::enable_if_t<IsValidCoordType<T>::value, float4> convertToFloat4(T Coords) {
   return {static_cast<float>(Coords), 0.5f, 0.5f, 0.f};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, float4>
+std::enable_if_t<IsValidCoordType<T>::value, float4>
 convertToFloat4(vec<T, 2> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.5f,
           0.f};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, float4>
+std::enable_if_t<IsValidCoordType<T>::value, float4>
 convertToFloat4(vec<T, 4> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()),
           static_cast<float>(Coords.z()), 0.f};
@@ -80,20 +79,20 @@ convertToFloat4(vec<T, 4> Coords) {
 // Retured offset is used to find the address location of a pixel from a base
 // ptr.
 template <typename T>
-detail::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const T &Coords, const id<3>, const uint8_t ElementSize) {
   return Coords * ElementSize;
 }
 
 template <typename T>
-detail::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const vec<T, 2> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0];
 }
 
 template <typename T>
-detail::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0] +
@@ -1020,17 +1019,12 @@ DataT ReadPixelDataLinearFiltMode(const int8 CoordValues, const float4 abc,
 // the values returned are undefined."
 
 template <typename CoordT, typename DataT>
-DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
-                               /*All image information*/ range<3> ImgRange,
-                               id<3> ImgPitch,
-                               image_channel_type ImgChannelType,
-                               image_channel_order ImgChannelOrder,
-                               void *BasePtr, uint8_t ElementSize) {
-
-  coordinate_normalization_mode SmplNormMode =
-      Smpl.get_coordinate_normalization_mode();
-  addressing_mode SmplAddrMode = Smpl.get_addressing_mode();
-  filtering_mode SmplFiltMode = Smpl.get_filtering_mode();
+DataT imageReadSamplerHostImpl(
+    const CoordT &Coords, coordinate_normalization_mode SmplNormMode,
+    addressing_mode SmplAddrMode, filtering_mode SmplFiltMode,
+    /*All image information*/ range<3> ImgRange, id<3> ImgPitch,
+    image_channel_type ImgChannelType, image_channel_order ImgChannelOrder,
+    void *BasePtr, uint8_t ElementSize) {
 
   CoordT Coorduvw;
   float4 FloatCoorduvw;
@@ -1120,6 +1114,42 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
   }
 
   return RetData;
+}
+
+// SYCL 1.2.1 sampler overload.
+template <typename CoordT, typename DataT>
+DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
+                               /*All image information*/ range<3> ImgRange,
+                               id<3> ImgPitch,
+                               image_channel_type ImgChannelType,
+                               image_channel_order ImgChannelOrder,
+                               void *BasePtr, uint8_t ElementSize) {
+
+  coordinate_normalization_mode SmplNormMode =
+      Smpl.get_coordinate_normalization_mode();
+  addressing_mode SmplAddrMode = Smpl.get_addressing_mode();
+  filtering_mode SmplFiltMode = Smpl.get_filtering_mode();
+
+  return imageReadSamplerHostImpl<CoordT, DataT>(
+      Coords, SmplNormMode, SmplAddrMode, SmplFiltMode, ImgRange, ImgPitch,
+      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
+}
+
+// SYCL 2020 image_sampler overload.
+template <typename CoordT, typename DataT>
+DataT imageReadSamplerHostImpl(const CoordT &Coords, const image_sampler &Smpl,
+                               /*All image information*/ range<3> ImgRange,
+                               id<3> ImgPitch,
+                               image_channel_type ImgChannelType,
+                               image_channel_order ImgChannelOrder,
+                               void *BasePtr, uint8_t ElementSize) {
+  coordinate_normalization_mode SmplNormMode = Smpl.coordinate;
+  addressing_mode SmplAddrMode = Smpl.addressing;
+  filtering_mode SmplFiltMode = Smpl.filtering;
+
+  return imageReadSamplerHostImpl<CoordT, DataT>(
+      Coords, SmplNormMode, SmplAddrMode, SmplFiltMode, ImgRange, ImgPitch,
+      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
 }
 
 } // namespace detail

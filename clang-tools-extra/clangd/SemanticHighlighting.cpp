@@ -156,7 +156,7 @@ std::optional<HighlightingKind> kindForDecl(const NamedDecl *D,
     return HighlightingKind::Concept;
   if (const auto *UUVD = dyn_cast<UnresolvedUsingValueDecl>(D)) {
     auto Targets = Resolver->resolveUsingValueDecl(UUVD);
-    if (!Targets.empty()) {
+    if (!Targets.empty() && Targets[0] != UUVD) {
       return kindForDecl(Targets[0], Resolver);
     }
     return HighlightingKind::Unknown;
@@ -357,9 +357,10 @@ resolveConflict(ArrayRef<HighlightingToken> Tokens) {
 /// Consumes source locations and maps them to text ranges for highlightings.
 class HighlightingsBuilder {
 public:
-  HighlightingsBuilder(const ParsedAST &AST)
+  HighlightingsBuilder(const ParsedAST &AST, bool IncludeInactiveRegionTokens)
       : TB(AST.getTokens()), SourceMgr(AST.getSourceManager()),
-        LangOpts(AST.getLangOpts()) {}
+        LangOpts(AST.getLangOpts()),
+        IncludeInactiveRegionTokens(IncludeInactiveRegionTokens) {}
 
   HighlightingToken &addToken(SourceLocation Loc, HighlightingKind Kind) {
     auto Range = getRangeForSourceLocation(Loc);
@@ -458,6 +459,9 @@ public:
       TokRef = TokRef.drop_front(Conflicting.size());
     }
 
+    if (!IncludeInactiveRegionTokens)
+      return NonConflicting;
+
     const auto &SM = AST.getSourceManager();
     StringRef MainCode = SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
 
@@ -531,6 +535,7 @@ private:
   const syntax::TokenBuffer &TB;
   const SourceManager &SourceMgr;
   const LangOptions &LangOpts;
+  bool IncludeInactiveRegionTokens;
   std::vector<HighlightingToken> Tokens;
   std::map<Range, llvm::SmallVector<HighlightingModifier, 1>> ExtraModifiers;
   const HeuristicResolver *Resolver = nullptr;
@@ -1096,10 +1101,11 @@ private:
 };
 } // namespace
 
-std::vector<HighlightingToken> getSemanticHighlightings(ParsedAST &AST) {
+std::vector<HighlightingToken>
+getSemanticHighlightings(ParsedAST &AST, bool IncludeInactiveRegionTokens) {
   auto &C = AST.getASTContext();
   // Add highlightings for AST nodes.
-  HighlightingsBuilder Builder(AST);
+  HighlightingsBuilder Builder(AST, IncludeInactiveRegionTokens);
   // Highlight 'decltype' and 'auto' as their underlying types.
   CollectExtraHighlightings(Builder).TraverseAST(C);
   // Highlight all decls and references coming from the AST.

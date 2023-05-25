@@ -9,14 +9,6 @@
 // Ensure that none of the standard C++ headers implicitly include cassert or
 // assert.h (because assert() is implemented as a macro).
 
-// The system-provided <uchar.h> seems to be broken on AIX
-// XFAIL: LIBCXX-AIX-FIXME
-
-// Prevent <ext/hash_map> from generating deprecated warnings for this test.
-#if defined(__DEPRECATED)
-#    undef __DEPRECATED
-#endif
-
 /*
 BEGIN-SCRIPT
 
@@ -213,16 +205,10 @@ END-SCRIPT
 #   include <wctype.h>
 #endif
 #if __cplusplus >= 201103L
-#   include <experimental/algorithm>
-#endif
-#if __cplusplus >= 201103L
 #   include <experimental/deque>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/forward_list>
-#endif
-#if __cplusplus >= 201103L
-#   include <experimental/functional>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/iterator>
@@ -266,8 +252,6 @@ END-SCRIPT
 #if __cplusplus >= 201103L
 #   include <experimental/vector>
 #endif
-#include <ext/hash_map>
-#include <ext/hash_set>
 // GENERATED-MARKER
 
 #ifdef assert

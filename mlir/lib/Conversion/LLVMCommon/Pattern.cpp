@@ -72,14 +72,14 @@ Value ConvertToLLVMPattern::getStridedElementPtr(
   auto [strides, offset] = getStridesAndOffset(type);
 
   MemRefDescriptor memRefDescriptor(memRefDesc);
-  Value base = memRefDescriptor.alignedPtr(rewriter, loc);
+  // Use a canonical representation of the start address so that later
+  // optimizations have a longer sequence of instructions to CSE.
+  // If we don't do that we would sprinkle the memref.offset in various
+  // position of the different address computations.
+  Value base =
+      memRefDescriptor.bufferPtr(rewriter, loc, *getTypeConverter(), type);
 
   Value index;
-  if (offset != 0) // Skip if offset is zero.
-    index = ShapedType::isDynamic(offset)
-                ? memRefDescriptor.offset(rewriter, loc)
-                : createIndexConstant(rewriter, loc, offset);
-
   for (int i = 0, e = indices.size(); i < e; ++i) {
     Value increment = indices[i];
     if (strides[i] != 1) { // Skip if stride is 1.
@@ -235,7 +235,7 @@ LogicalResult ConvertToLLVMPattern::copyUnrankedDescriptors(
   SmallVector<UnrankedMemRefDescriptor> unrankedMemrefs;
   SmallVector<unsigned> unrankedAddressSpaces;
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
-    if (auto memRefType = origTypes[i].dyn_cast<UnrankedMemRefType>()) {
+    if (auto memRefType = dyn_cast<UnrankedMemRefType>(origTypes[i])) {
       unrankedMemrefs.emplace_back(operands[i]);
       FailureOr<unsigned> addressSpace =
           getTypeConverter()->getMemRefAddressSpace(memRefType);
@@ -276,7 +276,7 @@ LogicalResult ConvertToLLVMPattern::copyUnrankedDescriptors(
   unsigned unrankedMemrefPos = 0;
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     Type type = origTypes[i];
-    if (!type.isa<UnrankedMemRefType>())
+    if (!isa<UnrankedMemRefType>(type))
       continue;
     Value allocationSize = sizes[unrankedMemrefPos++];
     UnrankedMemRefDescriptor desc(operands[i]);
@@ -329,7 +329,7 @@ LogicalResult LLVM::detail::oneToOneRewrite(
   SmallVector<Type> resultTypes;
   if (numResults != 0) {
     resultTypes.push_back(
-        typeConverter.packFunctionResults(op->getResultTypes()));
+        typeConverter.packOperationResults(op->getResultTypes()));
     if (!resultTypes.back())
       return failure();
   }

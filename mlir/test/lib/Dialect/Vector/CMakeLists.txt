@@ -7,6 +7,7 @@ add_mlir_library(MLIRVectorTestPasses
   LINK_LIBS PUBLIC
   MLIRAffineDialect
   MLIRAnalysis
+  MLIRArithDialect
   MLIRFuncDialect
   MLIRGPUOps
   MLIRLinalgDialect
@@ -15,6 +16,7 @@ add_mlir_library(MLIRVectorTestPasses
   MLIRMemRefDialect
   MLIRPass
   MLIRSCFDialect
+  MLIRTensorDialect
   MLIRTransformUtils
   MLIRVectorDialect
   MLIRVectorToSCF

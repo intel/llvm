@@ -27,6 +27,14 @@
 #endif
 #endif
 
+// Don't add the deprecated attribute when generating the bindings or when
+// building for anything older than C++14 which is the first version that
+// supports the attribute.
+#if defined(SWIG) || _cplusplus < 201402L
+#undef LLDB_DEPRECATED
+#define LLDB_DEPRECATED(MSG, FIX)
+#endif
+
 // Forward Declarations
 namespace lldb {
 
@@ -110,6 +118,10 @@ class LLDB_API SBUnixSignals;
 typedef bool (*SBBreakpointHitCallback)(void *baton, SBProcess &process,
                                         SBThread &thread,
                                         lldb::SBBreakpointLocation &location);
+
+typedef void (*SBDebuggerDestroyCallback)(lldb::user_id_t debugger_id,
+                                          void *baton);
+
 typedef void *ScriptedObject;
 }
 

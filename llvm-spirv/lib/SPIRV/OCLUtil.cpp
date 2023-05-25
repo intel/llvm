@@ -890,6 +890,7 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
   case OpTypeSampler:
     return SPIRV_SAMPLER_T_ADDR_SPACE;
   case internal::OpTypeJointMatrixINTEL:
+  case internal::OpTypeJointMatrixINTELv2:
     return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))
@@ -1350,6 +1351,9 @@ bool isSamplerTy(Type *Ty) {
   if (auto *TPT = dyn_cast_or_null<TypedPointerType>(Ty)) {
     auto *STy = dyn_cast_or_null<StructType>(TPT->getElementType());
     return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+  }
+  if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
+    return TET->getName() == "spirv.Sampler";
   }
   return false;
 }

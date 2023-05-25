@@ -23,6 +23,7 @@
 #endif
 
 #if defined(__apple_build_version__)
+// Given AppleClang XX.Y.Z, _LIBCPP_APPLE_CLANG_VER is XXYZ (e.g. AppleClang 14.0.3 => 1403)
 #  define _LIBCPP_COMPILER_CLANG_BASED
 #  define _LIBCPP_APPLE_CLANG_VER (__apple_build_version__ / 10000)
 #elif defined(__clang__)
@@ -50,6 +51,7 @@
 #    define _LIBCPP_FREESTANDING
 #  endif
 
+// NOLINTBEGIN(libcpp-cpp-version-check)
 #  ifndef _LIBCPP_STD_VER
 #    if __cplusplus <= 201103L
 #      define _LIBCPP_STD_VER 11
@@ -64,6 +66,7 @@
 #      define _LIBCPP_STD_VER 23
 #    endif
 #  endif // _LIBCPP_STD_VER
+// NOLINTEND(libcpp-cpp-version-check)
 
 #  if defined(__ELF__)
 #    define _LIBCPP_OBJECT_FORMAT_ELF 1
@@ -164,6 +167,12 @@
 #    if defined(__FreeBSD__)
 #      define _LIBCPP_DEPRECATED_ABI_DISABLE_PAIR_TRIVIAL_COPY_CTOR
 #    endif
+// For XCOFF linkers, we have problems if we see a weak hidden version of a symbol
+// in user code (like you get with -fvisibility-inlines-hidden) and then a strong def
+// in the library, so we need to always rely on the library version.
+#    if defined(_AIX)
+#      define _LIBCPP_ABI_BAD_FUNCTION_CALL_KEY_FUNCTION
+#    endif
 #  endif
 
 #  if defined(_LIBCPP_BUILDING_LIBRARY) || _LIBCPP_ABI_VERSION >= 2
@@ -181,6 +190,7 @@
 #  define _LIBCPP_TOSTRING2(x) #x
 #  define _LIBCPP_TOSTRING(x) _LIBCPP_TOSTRING2(x)
 
+// NOLINTNEXTLINE(libcpp-cpp-version-check)
 #  if __cplusplus < 201103L
 #    define _LIBCPP_CXX03_LANG
 #  endif
@@ -262,6 +272,7 @@
 // easier to grep for target specific flags once the feature is complete.
 #  if !defined(_LIBCPP_ENABLE_EXPERIMENTAL) && !defined(_LIBCPP_BUILDING_LIBRARY)
 #    define _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
+#    define _LIBCPP_HAS_NO_INCOMPLETE_PSTL
 #  endif
 
 // Need to detect which libc we're using if we're on Linux.
@@ -334,15 +345,6 @@
 #    define _LIBCPP_HAS_OPEN_WITH_WCHAR
 #  endif // defined(_WIN32)
 
-#  ifdef __sun__
-#    include <sys/isa_defs.h>
-#    ifdef _LITTLE_ENDIAN
-#      define _LIBCPP_LITTLE_ENDIAN
-#    else
-#      define _LIBCPP_BIG_ENDIAN
-#    endif
-#  endif // __sun__
-
 #  if defined(_AIX) && !defined(__64BIT__)
 // The size of wchar is 2 byte on 32-bit mode on AIX.
 #    define _LIBCPP_SHORT_WCHAR 1
@@ -387,7 +389,7 @@
 //      When this option is used, the token passed to `std::random_device`'s
 //      constructor *must* be "/dev/urandom" -- anything else is an error.
 #  if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||                     \
-      defined(__DragonFly__) || defined(__sun__)
+      defined(__DragonFly__)
 #    define _LIBCPP_USING_ARC4_RANDOM
 #  elif defined(__wasi__) || defined(__EMSCRIPTEN__)
 #    define _LIBCPP_USING_GETENTROPY
@@ -686,12 +688,6 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #    define _LIBCPP_HAS_NO_INT128
 #  endif
 
-#  ifndef __cpp_consteval
-#    define _LIBCPP_CONSTEVAL _LIBCPP_CONSTEXPR
-#  else
-#    define _LIBCPP_CONSTEVAL consteval
-#  endif
-
 #  if __has_attribute(__malloc__)
 #    define _LIBCPP_NOALIAS __attribute__((__malloc__))
 #  else
@@ -722,8 +718,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #    define _LIBCPP_DECLARE_STRONG_ENUM_EPILOG(x)
 #  endif // _LIBCPP_CXX03_LANG
 
-#  if defined(__APPLE__) || defined(__FreeBSD__) || defined(_LIBCPP_MSVCRT_LIKE) || defined(__sun__) ||                \
-      defined(__NetBSD__)
+#  if defined(__APPLE__) || defined(__FreeBSD__) || defined(_LIBCPP_MSVCRT_LIKE) || defined(__NetBSD__)
 #    define _LIBCPP_LOCALE__L_EXTENSIONS 1
 #  endif
 
@@ -763,7 +758,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #    define _LIBCPP_HAS_DEFAULTRUNELOCALE
 #  endif
 
-#  if defined(__APPLE__) || defined(__FreeBSD__) || defined(__sun__)
+#  if defined(__APPLE__) || defined(__FreeBSD__)
 #    define _LIBCPP_WCTYPE_IS_MASK
 #  endif
 
@@ -844,6 +839,12 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #    define _LIBCPP_EXPLICIT_SINCE_CXX14 explicit
 #  endif
 
+#  if _LIBCPP_STD_VER >= 23
+#    define _LIBCPP_EXPLICIT_SINCE_CXX23 explicit
+#  else
+#    define _LIBCPP_EXPLICIT_SINCE_CXX23
+#  endif
+
 #  if _LIBCPP_STD_VER >= 14
 #    define _LIBCPP_CONSTEXPR_SINCE_CXX14 constexpr
 #  else
@@ -869,7 +870,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #  endif
 
 #  if __has_cpp_attribute(nodiscard)
-#    define _LIBCPP_NODISCARD [[nodiscard]]
+#    define _LIBCPP_NODISCARD [[__nodiscard__]]
 #  else
 // We can't use GCC's [[gnu::warn_unused_result]] and
 // __attribute__((warn_unused_result)), because GCC does not silence them via
@@ -926,7 +927,6 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
         defined(__linux__) ||                                                                                          \
         defined(__GNU__) ||                                                                                            \
         defined(__APPLE__) ||                                                                                          \
-        defined(__sun__) ||                                                                                            \
         defined(__MVS__) ||                                                                                            \
         defined(_AIX) ||                                                                                               \
         defined(__EMSCRIPTEN__)
@@ -1188,7 +1188,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 // [[msvc::no_unique_address]], this should be preferred though.
 #    define _LIBCPP_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
 #  elif __has_cpp_attribute(no_unique_address)
-#    define _LIBCPP_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#    define _LIBCPP_NO_UNIQUE_ADDRESS [[__no_unique_address__]]
 #  else
 #    define _LIBCPP_NO_UNIQUE_ADDRESS /* nothing */
 // Note that this can be replaced by #error as soon as clang-cl
@@ -1251,13 +1251,66 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 // macro is used to mark them as such, which suppresses the
 // '-Wctad-maybe-unsupported' compiler warning when CTAD is used in user code
 // with these classes.
-#if _LIBCPP_STD_VER >= 17
-#    define _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(_ClassName)                                                                \
-      template <class ..._Tag>                                                                                         \
-      _ClassName(typename _Tag::__allow_ctad...) -> _ClassName<_Tag...>
-#else
-#  define _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(_ClassName) static_assert(true, "")
-#endif
+#  if _LIBCPP_STD_VER >= 17
+#    ifdef _LIBCPP_COMPILER_CLANG_BASED
+#      define _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(_ClassName)                                                              \
+        template <class... _Tag>                                                                                       \
+        [[maybe_unused]] _ClassName(typename _Tag::__allow_ctad...)->_ClassName<_Tag...>
+#    else
+#      define _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(ClassName)                                                               \
+        template <class... _Tag>                                                                                       \
+        ClassName(typename _Tag::__allow_ctad...)->ClassName<_Tag...>
+#    endif
+#  else
+#    define _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(_ClassName) static_assert(true, "")
+#  endif
+
+// TODO(varconst): currently, there are bugs in Clang's intrinsics when handling Objective-C++ `id`, so don't use
+// compiler intrinsics in the Objective-C++ mode.
+#  ifdef __OBJC__
+#    define _LIBCPP_WORKAROUND_OBJCXX_COMPILER_INTRINSICS
+#  endif
+
+// TODO: Make this a proper configuration option
+#define _PSTL_PAR_BACKEND_SERIAL
+#define _PSTL_CPU_BACKEND_SERIAL
+
+#define _PSTL_PRAGMA(x) _Pragma(#    x)
+
+// Enable SIMD for compilers that support OpenMP 4.0
+#if (defined(_OPENMP) && _OPENMP >= 201307)
+
+#  define _PSTL_UDR_PRESENT
+#  define _PSTL_PRAGMA_SIMD _PSTL_PRAGMA(omp simd)
+#  define _PSTL_PRAGMA_DECLARE_SIMD _PSTL_PRAGMA(omp declare simd)
+#  define _PSTL_PRAGMA_SIMD_REDUCTION(PRM) _PSTL_PRAGMA(omp simd reduction(PRM))
+#  define _PSTL_PRAGMA_SIMD_SCAN(PRM) _PSTL_PRAGMA(omp simd reduction(inscan, PRM))
+#  define _PSTL_PRAGMA_SIMD_INCLUSIVE_SCAN(PRM) _PSTL_PRAGMA(omp scan inclusive(PRM))
+#  define _PSTL_PRAGMA_SIMD_EXCLUSIVE_SCAN(PRM) _PSTL_PRAGMA(omp scan exclusive(PRM))
+
+// Declaration of reduction functor, where
+// NAME - the name of the functor
+// OP - type of the callable object with the reduction operation
+// omp_in - refers to the local partial result
+// omp_out - refers to the final value of the combiner operator
+// omp_priv - refers to the private copy of the initial value
+// omp_orig - refers to the original variable to be reduced
+#  define _PSTL_PRAGMA_DECLARE_REDUCTION(NAME, OP)                                                                     \
+    _PSTL_PRAGMA(omp declare reduction(NAME:OP : omp_out(omp_in)) initializer(omp_priv = omp_orig))
+
+#else // (defined(_OPENMP) && _OPENMP >= 201307)
+
+#  define _PSTL_PRAGMA_SIMD
+#  define _PSTL_PRAGMA_DECLARE_SIMD
+#  define _PSTL_PRAGMA_SIMD_REDUCTION(PRM)
+#  define _PSTL_PRAGMA_SIMD_SCAN(PRM)
+#  define _PSTL_PRAGMA_SIMD_INCLUSIVE_SCAN(PRM)
+#  define _PSTL_PRAGMA_SIMD_EXCLUSIVE_SCAN(PRM)
+#  define _PSTL_PRAGMA_DECLARE_REDUCTION(NAME, OP)
+
+#endif // (defined(_OPENMP) && _OPENMP >= 201307)
+
+#define _PSTL_USE_NONTEMPORAL_STORES_IF_ALLOWED
 
 #endif // __cplusplus
 

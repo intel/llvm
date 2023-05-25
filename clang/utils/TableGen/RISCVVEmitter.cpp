@@ -57,9 +57,6 @@ struct SemaRecord {
   // Suffix of overloaded intrinsic name.
   SmallVector<PrototypeDescriptor> OverloadedSuffix;
 
-  // BitMask for supported policies.
-  uint16_t PolicyBitMask;
-
   // Number of field, large than 1 if it's segment load/store.
   unsigned NF;
 
@@ -636,6 +633,7 @@ void RVVEmitter::createRVVIntrinsics(
       RVVRequire RequireExt = StringSwitch<RVVRequire>(RequiredFeature)
                                   .Case("RV64", RVV_REQ_RV64)
                                   .Case("FullMultiply", RVV_REQ_FullMultiply)
+                                  .Case("Xsfvcp", RVV_REQ_Xsfvcp)
                                   .Default(RVV_REQ_None);
       assert(RequireExt != RVV_REQ_None && "Unrecognized required feature?");
       SR.RequiredExtensions |= RequireExt;

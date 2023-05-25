@@ -56,14 +56,14 @@
 
 5 ExtInst 3 27 2 DebugInfoNone 
 7 ExtInst 3 30 2 DebugSource 29 27 
-9 ExtInst 3 31 2 DebugCompileUnit 65536 4 30 21 
+9 ExtInst 3 31 2 DebugCompilationUnit 65536 4 30 21
 7 ExtInst 3 32 2 DebugTypeFunction 0 27 
 8 ExtInst 3 35 2 DebugTypeBasic 33 34 3 
 7 ExtInst 3 36 2 DebugTypeArray 35 11 ; Count = 1000
 8 ExtInst 3 37 2 DebugTypePointer 36 4294967295 0 
 16 ExtInst 3 40 2 DebugFunction 38 32 30 25 0 31 39 44 25 27 27 
 12 ExtInst 3 42 2 DebugLocalVariable 41 37 30 15 0 40 0 
-6 ExtInst 3 43 2 DebugTemplate 40 
+6 ExtInst 3 43 2 DebugTypeTemplate 40
 6 ExtInst 3 44 2 DebugOperation 0 
 6 ExtInst 3 45 2 DebugExpression 44 
 

@@ -15,6 +15,7 @@
 #include "NVPTXAliasAnalysis.h"
 #include "NVPTXAllocaHoisting.h"
 #include "NVPTXAtomicLower.h"
+#include "NVPTXCtorDtorLowering.h"
 #include "NVPTXLowerAggrCopies.h"
 #include "NVPTXMachineFunctionInfo.h"
 #include "NVPTXTargetObjectFile.h"
@@ -37,7 +38,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
-#include "llvm/Transforms/Vectorize.h"
+#include "llvm/Transforms/Vectorize/LoadStoreVectorizer.h"
 #include <cassert>
 #include <optional>
 #include <string>
@@ -73,12 +74,14 @@ static cl::opt<bool>
 
 namespace llvm {
 
-void initializeGenericToNVVMPass(PassRegistry&);
+void initializeGenericToNVVMLegacyPassPass(PassRegistry &);
 void initializeNVPTXAllocaHoistingPass(PassRegistry &);
 void initializeNVPTXAssignValidGlobalNamesPass(PassRegistry&);
 void initializeNVPTXAtomicLowerPass(PassRegistry &);
+void initializeNVPTXCtorDtorLoweringLegacyPass(PassRegistry &);
 void initializeNVPTXLowerAggrCopiesPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
+void initializeNVPTXCtorDtorLoweringLegacyPass(PassRegistry &);
 void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 void initializeNVVMIntrRangePass(PassRegistry &);
@@ -101,12 +104,13 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   // but it's very NVPTX-specific.
   initializeNVVMReflectPass(PR);
   initializeNVVMIntrRangePass(PR);
-  initializeGenericToNVVMPass(PR);
+  initializeGenericToNVVMLegacyPassPass(PR);
   initializeNVPTXAllocaHoistingPass(PR);
   initializeNVPTXAssignValidGlobalNamesPass(PR);
   initializeNVPTXAtomicLowerPass(PR);
   initializeNVPTXLowerArgsPass(PR);
   initializeNVPTXLowerAllocaPass(PR);
+  initializeNVPTXCtorDtorLoweringLegacyPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
   initializeNVPTXProxyRegErasurePass(PR);
   initializeNVPTXDAGToDAGISelPass(PR);
@@ -262,6 +266,20 @@ void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
     return false;
   });
 
+  PB.registerPipelineParsingCallback(
+      [](StringRef PassName, ModulePassManager &PM,
+         ArrayRef<PassBuilder::PipelineElement>) {
+        if (PassName == "nvptx-lower-ctor-dtor") {
+          PM.addPass(NVPTXCtorDtorLoweringPass());
+          return true;
+        }
+        if (PassName == "generic-to-nvvm") {
+          PM.addPass(GenericToNVVMPass());
+          return true;
+        }
+        return false;
+      });
+
   PB.registerPipelineStartEPCallback(
       [this](ModulePassManager &PM, OptimizationLevel Level) {
         FunctionPassManager FPM;
@@ -371,7 +389,7 @@ void NVPTXPassConfig::addIRPasses() {
   if (getOptLevel() != CodeGenOpt::None)
     addPass(createNVPTXImageOptimizerPass());
   addPass(createNVPTXAssignValidGlobalNamesPass());
-  addPass(createGenericToNVVMPass());
+  addPass(createGenericToNVVMLegacyPass());
 
   // NVPTXLowerArgs is required for correctness and should be run right
   // before the address space inference passes.
@@ -382,6 +400,7 @@ void NVPTXPassConfig::addIRPasses() {
   }
 
   addPass(createAtomicExpandPass());
+  addPass(createNVPTXCtorDtorLoweringLegacyPass());
 
   // === LSR and other generic IR passes ===
   TargetPassConfig::addIRPasses();

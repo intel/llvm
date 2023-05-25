@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -std=c++17 -fsycl-targets=%sycl_triple %s -o %t.run
-// RUN: %GPU_RUN_PLACEHOLDER %t.run
-// RUN: %CPU_RUN_PLACEHOLDER %t.run
-// RUN: %ACC_RUN_PLACEHOLDER %t.run
+// RUN: %{build} -std=c++17 -o %t.run
+// RUN: %{run} %t.run
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -21,16 +19,16 @@ const size_t WorkGroupSize = 8;
 const size_t NWorkGroups = NElems / WorkGroupSize;
 
 template <typename T> void initInputBuffer(buffer<T, 1> &Buf, size_t Stride) {
-  auto Acc = Buf.template get_access<access::mode::write>();
-  for (size_t I = 0; I < Buf.get_count(); I += WorkGroupSize) {
+  host_accessor Acc(Buf, write_only);
+  for (size_t I = 0; I < Buf.size(); I += WorkGroupSize) {
     for (size_t J = 0; J < WorkGroupSize; J++)
       Acc[I + J] = static_cast<T>(I + J + ((J % Stride == 0) ? 100 : 0));
   }
 }
 
 template <typename T> void initOutputBuffer(buffer<T, 1> &Buf) {
-  auto Acc = Buf.template get_access<access::mode::write>();
-  for (size_t I = 0; I < Buf.get_count(); I++)
+  host_accessor Acc(Buf, write_only);
+  for (size_t I = 0; I < Buf.size(); I++)
     Acc[I] = static_cast<T>(0);
 }
 
@@ -80,10 +78,10 @@ toString(T A) {
 }
 
 template <typename T> int checkResults(buffer<T, 1> &OutBuf, size_t Stride) {
-  auto Out = OutBuf.template get_access<access::mode::read>();
+  host_accessor Out(OutBuf, read_only);
   int EarlyFailout = 20;
 
-  for (size_t I = 0; I < OutBuf.get_count(); I += WorkGroupSize) {
+  for (size_t I = 0; I < OutBuf.size(); I += WorkGroupSize) {
     for (size_t J = 0; J < WorkGroupSize; J++) {
       size_t ExpectedVal = (J % Stride == 0) ? (100 + I + J) : 0;
       if (!checkEqual(Out[I + J], ExpectedVal)) {
@@ -122,23 +120,29 @@ template <typename T> int test(size_t Stride) {
        size_t Offset = GrId * WorkGroupSize;
        if (Stride == 1) { // Check the version without stride arg.
          auto E = NDId.async_work_group_copy(
-             local_ptr<T>(Local), In.get_pointer() + Offset, NElemsToCopy);
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             In.template get_multi_ptr<access::decorated::yes>() + Offset,
+             NElemsToCopy);
          E.wait();
        } else {
-         auto E = NDId.async_work_group_copy(local_ptr<T>(Local),
-                                             In.get_pointer() + Offset,
-                                             NElemsToCopy, Stride);
+         auto E = NDId.async_work_group_copy(
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             In.template get_multi_ptr<access::decorated::yes>() + Offset,
+             NElemsToCopy, Stride);
          E.wait();
        }
 
        if (Stride == 1) { // Check the version without stride arg.
          auto E = Group.async_work_group_copy(
-             Out.get_pointer() + Offset, local_ptr<T>(Local), NElemsToCopy);
+             Out.template get_multi_ptr<access::decorated::yes>() + Offset,
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             NElemsToCopy);
          Group.wait_for(E);
        } else {
-         auto E = Group.async_work_group_copy(Out.get_pointer() + Offset,
-                                              local_ptr<T>(Local), NElemsToCopy,
-                                              Stride);
+         auto E = Group.async_work_group_copy(
+             Out.template get_multi_ptr<access::decorated::yes>() + Offset,
+             Local.template get_multi_ptr<access::decorated::yes>(),
+             NElemsToCopy, Stride);
          Group.wait_for(E);
        }
      });

@@ -20,7 +20,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
-#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -31,6 +30,7 @@
 #include <algorithm>
 #include <map>
 #include <utility>
+#include <variant>
 
 using namespace llvm;
 using namespace llvm::module_split;
@@ -199,68 +199,6 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
   return EntryPointGroups;
 }
 
-// This function decides how entry points of the input module M will be
-// distributed ("split") into multiple modules based on the command options and
-// IR attributes. The decision is recorded in the output vector EntryPointGroups
-// which contains pairs of group id and entry points for that group. Each such
-// group along with IR it depends on (globals, functions from its call graph,
-// ...) will constitute a separate module.
-EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
-                                           EntryPointsGroupScope EntryScope,
-                                           bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointGroupVec EntryPointGroups{};
-  // Use MapVector for deterministic order of traversal (helps tests).
-  MapVector<StringRef, EntryPointSet> EntryPointMap;
-  Module &M = MD.getModule();
-
-  // Only process module entry points:
-  for (Function &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F))
-      continue;
-
-    switch (EntryScope) {
-    case Scope_PerKernel:
-      EntryPointMap[F.getName()].insert(&F);
-      break;
-
-    case Scope_PerModule: {
-      if (!llvm::sycl::utils::isSYCLExternalFunction(&F))
-        // TODO It may make sense to group all entry points w/o the attribute
-        // into a separate module rather than issuing an error. Should probably
-        // be controlled by an option.
-        error("no '" + Twine(llvm::sycl::utils::ATTR_SYCL_MODULE_ID) +
-              "' attribute for entry point '" + F.getName() +
-              "', per-module split is not possible");
-
-      Attribute Id = F.getFnAttribute(llvm::sycl::utils::ATTR_SYCL_MODULE_ID);
-      StringRef Val = Id.getValueAsString();
-      EntryPointMap[Val].insert(&F);
-      break;
-    }
-
-    case Scope_Global:
-      // the map key is not significant here
-      EntryPointMap[GLOBAL_SCOPE_NAME].insert(&F);
-      break;
-    }
-  }
-
-  if (!EntryPointMap.empty()) {
-    EntryPointGroups.reserve(EntryPointMap.size());
-    for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
-                                    MD.getEntryPointGroup().Props);
-      EntryPointGroup &G = EntryPointGroups.back();
-      G.Props.Scope = EntryScope;
-    }
-  } else {
-    // No entry points met, record this.
-    EntryPointGroups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
-  }
-  return EntryPointGroups;
-}
-
 // Represents a call graph between functions in a module. Nodes are functions,
 // edges are "calls" relation.
 class CallGraph {
@@ -416,24 +354,6 @@ getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups =
       groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
   bool DoSplit = (Groups.size() > 1);
-
-  if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
-}
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
-                  bool AutoSplitIsGlobalScope,
-                  bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointsGroupScope Scope =
-      selectDeviceCodeGroupScope(MD.getModule(), Mode, AutoSplitIsGlobalScope);
-  EntryPointGroupVec Groups =
-      groupEntryPointsByScope(MD, Scope, EmitOnlyKernelsAsEntryPoints);
-  assert(!Groups.empty() && "At least one group is expected");
-  bool DoSplit = (Mode != SPLIT_NONE &&
-                  (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
@@ -673,8 +593,7 @@ void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
-               << ", LargeGRF:"
-               << (EntryPoints.Props.UsesLargeGRF ? "YES" : "NO") << "\n";
+               << "\n";
   dumpEntryPoints(entries(), EntryPoints.GroupId.c_str(), 1);
   llvm::errs() << "}\n";
 }
@@ -706,179 +625,270 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
 }
 
 namespace {
-// Data structure, which represent a combination of all possible optional
-// features used in a function.
+// This is a helper class, which allows to group/categorize function based on
+// provided rules. It is intended to be used in device code split
+// implementation.
 //
-// It has extra methods to be useable as a key in llvm::DenseMap.
-struct UsedOptionalFeatures {
-  SmallVector<int, 4> Aspects;
-  bool UsesLargeGRF = false;
-  SmallVector<int, 3> ReqdWorkGroupSize;
-  // TODO: extend this further with reqd-sub-group-size and other properties
+// "Rule" is a simple routine, which returns a string for an llvm::Function
+// passed to it. There could be more than one rule and they are applied in order
+// of their registration. Results obtained from those rules are concatenated
+// together to produce the final result.
+//
+// There are some predefined rules for the most popular use-cases, like grouping
+// functions together based on an attribute value or presence of a metadata.
+// However, there is also a possibility to register a custom callback function
+// as a rule, to implement custom/more complex logic.
+class FunctionsCategorizer {
+public:
+  FunctionsCategorizer() = default;
 
-  UsedOptionalFeatures() = default;
+  std::string computeCategoryFor(Function *) const;
 
-  UsedOptionalFeatures(const Function *F) {
-    if (const MDNode *MDN = F->getMetadata("sycl_used_aspects")) {
-      auto ExtractIntegerFromMDNodeOperand = [=](const MDOperand &N) {
-        Constant *C = cast<ConstantAsMetadata>(N.get())->getValue();
-        return C->getUniqueInteger().getSExtValue();
-      };
-
-      // !sycl_used_aspects is supposed to contain unique values, no duplicates
-      // are expected here
-      llvm::transform(MDN->operands(), std::back_inserter(Aspects),
-                      ExtractIntegerFromMDNodeOperand);
-      llvm::sort(Aspects);
-    }
-
-    if (F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF))
-      UsesLargeGRF = true;
-
-    if (const MDNode *MDN = F->getMetadata("reqd_work_group_size")) {
-      size_t NumOperands = MDN->getNumOperands();
-      assert(NumOperands >= 1 && NumOperands <= 3 &&
-             "reqd_work_group_size does not have between 1 and 3 operands.");
-      ReqdWorkGroupSize.reserve(NumOperands);
-      for (const MDOperand &MDOp : MDN->operands())
-        ReqdWorkGroupSize.push_back(
-            mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
-    }
-
-    llvm::hash_code AspectsHash =
-        llvm::hash_combine_range(Aspects.begin(), Aspects.end());
-    llvm::hash_code LargeGRFHash = llvm::hash_value(UsesLargeGRF);
-    llvm::hash_code ReqdWorkGroupSizeHash = llvm::hash_combine_range(
-        ReqdWorkGroupSize.begin(), ReqdWorkGroupSize.end());
-    Hash = static_cast<unsigned>(
-        llvm::hash_combine(AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash));
+  // Accepts a callback, which should return a string based on provided
+  // function, which will be used as an entry points group identifier.
+  void registerRule(const std::function<std::string(Function *)> &Callback) {
+    Rules.emplace_back(Rule::RKind::K_Callback, Callback);
   }
 
-  std::string generateModuleName(StringRef BaseName) const {
-    std::string Ret = BaseName.str();
-    if (!ReqdWorkGroupSize.empty()) {
-      Ret += "-reqd-wg-size";
-      for (int V : ReqdWorkGroupSize)
-        Ret += "-" + std::to_string(V);
-    }
-
-    if (Aspects.empty())
-      return Ret + "-no-aspects";
-
-    Ret += "-aspects";
-    for (int A : Aspects) {
-      Ret += "-" + std::to_string(A);
-    }
-
-    if (UsesLargeGRF)
-      Ret += "-large-grf";
-
-    return Ret;
+  // Creates a simple rule, which adds a value of a string attribute into a
+  // resulting identifier.
+  void registerSimpleStringAttributeRule(StringRef AttrName) {
+    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, AttrName);
   }
 
-  static UsedOptionalFeatures getTombstone() {
-    UsedOptionalFeatures Ret;
-    Ret.IsTombstoneKey = true;
-    return Ret;
+  // Creates a simple rule, which adds one or another value to a resulting
+  // identifier based on the presence of a metadata on a function.
+  void registerSimpleFlagAttributeRule(StringRef AttrName,
+                                       StringRef IfPresentStr,
+                                       StringRef IfAbsentStr = "") {
+    Rules.emplace_back(Rule::RKind::K_FlagAttribute,
+                       Rule::FlagRuleData{AttrName, IfPresentStr, IfAbsentStr});
   }
 
-  static UsedOptionalFeatures getEmpty() {
-    UsedOptionalFeatures Ret;
-    Ret.IsEmpty = true;
-    return Ret;
+  // Creates a simple rule, which adds one or another value to a resulting
+  // identifier based on the presence of a metadata on a function.
+  void registerSimpleFlagMetadataRule(StringRef MetadataName,
+                                      StringRef IfPresentStr,
+                                      StringRef IfAbsentStr = "") {
+    Rules.emplace_back(
+        Rule::RKind::K_FlagMetadata,
+        Rule::FlagRuleData{MetadataName, IfPresentStr, IfAbsentStr});
+  }
+
+  // Creates a rule, which adds a list of dash-separated integers converted
+  // into strings listed in a metadata to a resulting identifier.
+  void registerListOfIntegersInMetadataRule(StringRef MetadataName) {
+    Rules.emplace_back(Rule::RKind::K_IntegersListMetadata, MetadataName);
+  }
+
+  // Creates a rule, which adds a list of sorted dash-separated integers
+  // converted into strings listed in a metadata to a resulting identifier.
+  void registerListOfIntegersInMetadataSortedRule(StringRef MetadataName) {
+    Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
   }
 
 private:
-  // For DenseMap:
-  llvm::hash_code Hash = {};
-  bool IsTombstoneKey = false;
-  bool IsEmpty = false;
+  struct Rule {
+    struct FlagRuleData {
+      StringRef Name, IfPresentStr, IfAbsentStr;
+    };
 
-public:
-  bool operator==(const UsedOptionalFeatures &Other) const {
-    // Tombstone does not compare equal to any other item
-    if (IsTombstoneKey || Other.IsTombstoneKey)
-      return false;
+  private:
+    std::variant<StringRef, FlagRuleData,
+                 std::function<std::string(Function *)>>
+        Storage;
 
-    if (Aspects.size() != Other.Aspects.size())
-      return false;
+  public:
+    enum class RKind {
+      // Custom callback function
+      K_Callback,
+      // Copy value of the specified attribute, if present
+      K_SimpleStringAttribute,
+      // Use one or another string based on the specified metadata presence
+      K_FlagMetadata,
+      // Use one or another string based on the specified attribute presence
+      K_FlagAttribute,
+      // Concatenate and use list of integers from the specified metadata
+      K_IntegersListMetadata,
+      // Sort, concatenate and use list of integers from the specified metadata
+      K_SortedIntegersListMetadata
+    };
+    RKind Kind;
 
-    for (size_t I = 0, E = Aspects.size(); I != E; ++I) {
-      if (Aspects[I] != Other.Aspects[I])
-        return false;
+    // Returns an index into std::variant<...> Storage defined above, which
+    // corresponds to the specified rule Kind.
+    constexpr static std::size_t storage_index(RKind K) {
+      switch (K) {
+      case RKind::K_SimpleStringAttribute:
+      case RKind::K_IntegersListMetadata:
+      case RKind::K_SortedIntegersListMetadata:
+        return 0;
+      case RKind::K_Callback:
+        return 2;
+      case RKind::K_FlagMetadata:
+      case RKind::K_FlagAttribute:
+        return 1;
+      }
+      // can't use llvm_unreachable in constexpr context
+      return std::variant_npos;
     }
 
-    return IsEmpty == Other.IsEmpty && UsesLargeGRF == Other.UsesLargeGRF;
-  }
+    template <RKind K> auto getStorage() const {
+      return std::get<storage_index(K)>(Storage);
+    }
 
-  unsigned hash() const { return static_cast<unsigned>(Hash); }
+    template <typename... Args>
+    Rule(RKind K, Args... args) : Storage(args...), Kind(K) {
+      assert(storage_index(K) == Storage.index());
+    }
+
+    Rule(Rule &&Other) = default;
+  };
+
+  std::vector<Rule> Rules;
 };
 
-struct UsedOptionalFeaturesAsKeyInfo {
-  static inline UsedOptionalFeatures getEmptyKey() {
-    return UsedOptionalFeatures::getEmpty();
+std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
+  SmallString<256> Result;
+  for (const auto &R : Rules) {
+    switch (R.Kind) {
+    case Rule::RKind::K_Callback:
+      Result += R.getStorage<Rule::RKind::K_Callback>()(F);
+      break;
+
+    case Rule::RKind::K_SimpleStringAttribute: {
+      StringRef AttrName = R.getStorage<Rule::RKind::K_SimpleStringAttribute>();
+      if (F->hasFnAttribute(AttrName)) {
+        Attribute Attr = F->getFnAttribute(AttrName);
+        Result += Attr.getValueAsString();
+      }
+    } break;
+
+    case Rule::RKind::K_FlagMetadata: {
+      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagMetadata>();
+      if (F->hasMetadata(Data.Name))
+        Result += Data.IfPresentStr;
+      else
+        Result += Data.IfAbsentStr;
+    } break;
+
+    case Rule::RKind::K_IntegersListMetadata: {
+      StringRef MetadataName =
+          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
+      if (F->hasMetadata(MetadataName)) {
+        auto *MDN = F->getMetadata(MetadataName);
+        for (const MDOperand &MDOp : MDN->operands())
+          Result +=
+              "-" + std::to_string(
+                        mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+      }
+    } break;
+
+    case Rule::RKind::K_SortedIntegersListMetadata: {
+      StringRef MetadataName =
+          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
+      if (F->hasMetadata(MetadataName)) {
+        MDNode *MDN = F->getMetadata(MetadataName);
+
+        SmallVector<std::uint64_t, 8> Values;
+        for (const MDOperand &MDOp : MDN->operands())
+          Values.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+
+        llvm::sort(Values);
+
+        for (std::uint64_t V : Values)
+          Result += "-" + std::to_string(V);
+      }
+    } break;
+
+    case Rule::RKind::K_FlagAttribute: {
+      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagAttribute>();
+      if (F->hasFnAttribute(Data.Name))
+        Result += Data.IfPresentStr;
+      else
+        Result += Data.IfAbsentStr;
+    } break;
+    }
+
+    Result += "-";
   }
 
-  static inline UsedOptionalFeatures getTombstoneKey() {
-    return UsedOptionalFeatures::getTombstone();
-  }
-
-  static unsigned getHashValue(const UsedOptionalFeatures &Value) {
-    return Value.hash();
-  }
-
-  static bool isEqual(const UsedOptionalFeatures &LHS,
-                      const UsedOptionalFeatures &RHS) {
-    return LHS == RHS;
-  }
-};
+  return (std::string)Result;
+}
 } // namespace
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByOptionalFeatures(ModuleDesc &&MD,
-                              bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointGroupVec Groups;
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
+                      bool EmitOnlyKernelsAsEntryPoints) {
+  FunctionsCategorizer Categorizer;
 
-  DenseMap<UsedOptionalFeatures, EntryPointSet, UsedOptionalFeaturesAsKeyInfo>
-      PropertiesToFunctionsMap;
+  EntryPointsGroupScope Scope =
+      selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
 
-  Module &M = MD.getModule();
+  switch (Scope) {
+  case Scope_Global:
+    // We simply perform entry points filtering, but group all of them together.
+    Categorizer.registerRule(
+        [](Function *) -> std::string { return GLOBAL_SCOPE_NAME; });
+    break;
+  case Scope_PerKernel:
+    // Per-kernel split is quite simple: every kernel goes into a separate
+    // module and that's it, no other rules required.
+    Categorizer.registerRule(
+        [](Function *F) -> std::string { return F->getName().str(); });
+    break;
+  case Scope_PerModule:
+    // The most complex case, because we should account for many other features
+    // like aspects used in a kernel, large-grf mode, reqd-work-group-size, etc.
 
-  // Only process module entry points:
-  for (auto &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F)) {
-      continue;
-    }
+    // This is core of per-source device code split
+    Categorizer.registerSimpleStringAttributeRule(
+        sycl::utils::ATTR_SYCL_MODULE_ID);
 
-    auto Key = UsedOptionalFeatures(&F);
-    PropertiesToFunctionsMap[std::move(Key)].insert(&F);
+    // Optional features
+    // Note: Add more rules at the end of the list to avoid chaning orders of
+    // output files in existing tests.
+    Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
+    Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
+    Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+    Categorizer.registerSimpleStringAttributeRule(
+        sycl::utils::ATTR_SYCL_OPTLEVEL);
+    break;
   }
 
-  if (PropertiesToFunctionsMap.empty()) {
+  // std::map is used here to ensure stable ordering of entry point groups,
+  // which is based on their contents, this greatly helps LIT tests
+  std::map<std::string, EntryPointSet> EntryPointsMap;
+
+  // Only process module entry points:
+  for (auto &F : MD.getModule().functions()) {
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
+      continue;
+
+    std::string Key = Categorizer.computeCategoryFor(&F);
+    EntryPointsMap[std::move(Key)].insert(&F);
+  }
+
+  EntryPointGroupVec Groups;
+
+  if (EntryPointsMap.empty()) {
     // No entry points met, record this.
     Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
   } else {
-    Groups.reserve(PropertiesToFunctionsMap.size());
-    for (auto &It : PropertiesToFunctionsMap) {
-      const UsedOptionalFeatures &Features = It.first;
-      EntryPointSet &EntryPoints = It.second;
-
-      // Start with properties of a source module
-      EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
-      // Propagate LargeGRF flag to entry points group
-      if (Features.UsesLargeGRF)
-        MDProps.UsesLargeGRF = true;
-      Groups.emplace_back(
-          Features.generateModuleName(MD.getEntryPointGroup().GroupId),
-          std::move(EntryPoints), MDProps);
-    }
+    Groups.reserve(EntryPointsMap.size());
+    // Start with properties of a source module
+    EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
+    for (auto &[Key, EntryPoints] : EntryPointsMap)
+      Groups.emplace_back(Key, std::move(EntryPoints), MDProps);
   }
 
-  if (Groups.size() > 1)
+  bool DoSplit = (Mode != SPLIT_NONE &&
+                  (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
+
+  if (DoSplit)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+
+  return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
 } // namespace module_split

@@ -23,14 +23,9 @@
 using namespace llvm;
 using namespace llvm::dwarf;
 
-static cl::opt<bool>
-    UseDbgAddr("use-dbg-addr",
-               llvm::cl::desc("Use llvm.dbg.addr for all local variables"),
-               cl::init(false), cl::Hidden);
-
 DIBuilder::DIBuilder(Module &m, bool AllowUnresolvedNodes, DICompileUnit *CU)
     : M(m), VMContext(M.getContext()), CUNode(CU), DeclareFn(nullptr),
-      ValueFn(nullptr), LabelFn(nullptr), AddrFn(nullptr), AssignFn(nullptr),
+      ValueFn(nullptr), LabelFn(nullptr), AssignFn(nullptr),
       AllowUnresolvedNodes(AllowUnresolvedNodes) {
   if (CUNode) {
     if (const auto &ETs = CUNode->getEnumTypes())
@@ -101,8 +96,7 @@ void DIBuilder::finalize() {
   if (!RetainValues.empty())
     CUNode->replaceRetainedTypes(MDTuple::get(VMContext, RetainValues));
 
-  DISubprogramArray SPs = MDTuple::get(VMContext, AllSubprograms);
-  for (auto *SP : SPs)
+  for (auto *SP : AllSubprograms)
     finalizeSubprogram(SP);
   for (auto *N : RetainValues)
     if (auto *SP = dyn_cast<DISubprogram>(N))
@@ -588,14 +582,14 @@ DIBuilder::createArrayType(uint64_t Size, uint32_t AlignInBits, DIType *Ty,
       VMContext, dwarf::DW_TAG_array_type, "", nullptr, 0, nullptr, Ty, Size,
       AlignInBits, 0, DINode::FlagZero, Subscripts, 0, nullptr, nullptr, "",
       nullptr,
-      DL.is<DIExpression *>() ? (Metadata *)DL.get<DIExpression *>()
-                              : (Metadata *)DL.get<DIVariable *>(),
-      AS.is<DIExpression *>() ? (Metadata *)AS.get<DIExpression *>()
-                              : (Metadata *)AS.get<DIVariable *>(),
-      AL.is<DIExpression *>() ? (Metadata *)AL.get<DIExpression *>()
-                              : (Metadata *)AL.get<DIVariable *>(),
-      RK.is<DIExpression *>() ? (Metadata *)RK.get<DIExpression *>()
-                              : (Metadata *)RK.get<DIVariable *>());
+      isa<DIExpression *>(DL) ? (Metadata *)cast<DIExpression *>(DL)
+                              : (Metadata *)cast<DIVariable *>(DL),
+      isa<DIExpression *>(AS) ? (Metadata *)cast<DIExpression *>(AS)
+                              : (Metadata *)cast<DIVariable *>(AS),
+      isa<DIExpression *>(AL) ? (Metadata *)cast<DIExpression *>(AL)
+                              : (Metadata *)cast<DIVariable *>(AL),
+      isa<DIExpression *>(RK) ? (Metadata *)cast<DIExpression *>(RK)
+                              : (Metadata *)cast<DIVariable *>(RK));
   trackIfUnresolved(R);
   return R;
 }
@@ -720,8 +714,8 @@ DIGenericSubrange *DIBuilder::getOrCreateGenericSubrange(
     DIGenericSubrange::BoundType CountNode, DIGenericSubrange::BoundType LB,
     DIGenericSubrange::BoundType UB, DIGenericSubrange::BoundType Stride) {
   auto ConvToMetadata = [&](DIGenericSubrange::BoundType Bound) -> Metadata * {
-    return Bound.is<DIExpression *>() ? (Metadata *)Bound.get<DIExpression *>()
-                                      : (Metadata *)Bound.get<DIVariable *>();
+    return isa<DIExpression *>(Bound) ? (Metadata *)cast<DIExpression *>(Bound)
+                                      : (Metadata *)cast<DIVariable *>(Bound);
   };
   return DIGenericSubrange::get(VMContext, ConvToMetadata(CountNode),
                                 ConvToMetadata(LB), ConvToMetadata(UB),
@@ -1022,24 +1016,6 @@ Instruction *DIBuilder::insertDbgValueIntrinsic(Value *V,
   return insertDbgValueIntrinsic(V, VarInfo, Expr, DL, InsertAtEnd, nullptr);
 }
 
-Instruction *DIBuilder::insertDbgAddrIntrinsic(Value *V,
-                                               DILocalVariable *VarInfo,
-                                               DIExpression *Expr,
-                                               const DILocation *DL,
-                                               Instruction *InsertBefore) {
-  return insertDbgAddrIntrinsic(
-      V, VarInfo, Expr, DL, InsertBefore ? InsertBefore->getParent() : nullptr,
-      InsertBefore);
-}
-
-Instruction *DIBuilder::insertDbgAddrIntrinsic(Value *V,
-                                               DILocalVariable *VarInfo,
-                                               DIExpression *Expr,
-                                               const DILocation *DL,
-                                               BasicBlock *InsertAtEnd) {
-  return insertDbgAddrIntrinsic(V, VarInfo, Expr, DL, InsertAtEnd, nullptr);
-}
-
 /// Initialize IRBuilder for inserting dbg.declare and dbg.value intrinsics.
 /// This abstracts over the various ways to specify an insert position.
 static void initIRBuilder(IRBuilder<> &Builder, const DILocation *DL,
@@ -1057,8 +1033,7 @@ static Value *getDbgIntrinsicValueImpl(LLVMContext &VMContext, Value *V) {
 }
 
 static Function *getDeclareIntrin(Module &M) {
-  return Intrinsic::getDeclaration(&M, UseDbgAddr ? Intrinsic::dbg_addr
-                                                  : Intrinsic::dbg_declare);
+  return Intrinsic::getDeclaration(&M, Intrinsic::dbg_declare);
 }
 
 Instruction *DIBuilder::insertDbgValueIntrinsic(
@@ -1067,15 +1042,6 @@ Instruction *DIBuilder::insertDbgValueIntrinsic(
   if (!ValueFn)
     ValueFn = Intrinsic::getDeclaration(&M, Intrinsic::dbg_value);
   return insertDbgIntrinsic(ValueFn, Val, VarInfo, Expr, DL, InsertBB,
-                            InsertBefore);
-}
-
-Instruction *DIBuilder::insertDbgAddrIntrinsic(
-    llvm::Value *Val, DILocalVariable *VarInfo, DIExpression *Expr,
-    const DILocation *DL, BasicBlock *InsertBB, Instruction *InsertBefore) {
-  if (!AddrFn)
-    AddrFn = Intrinsic::getDeclaration(&M, Intrinsic::dbg_addr);
-  return insertDbgIntrinsic(AddrFn, Val, VarInfo, Expr, DL, InsertBB,
                             InsertBefore);
 }
 

@@ -226,6 +226,7 @@ public:
 
   /// Print this value as if it were an operand.
   void printAsOperand(raw_ostream &os, AsmState &state);
+  void printAsOperand(raw_ostream &os, const OpPrintingFlags &flags);
 
   /// Methods for supporting PointerLikeTypeTraits.
   void *getAsOpaquePointer() const { return impl; }
@@ -432,7 +433,7 @@ struct TypedValue : Value {
   static bool classof(Value value) { return llvm::isa<Ty>(value.getType()); }
 
   /// Return the known Type
-  Ty getType() { return Value::getType().template cast<Ty>(); }
+  Ty getType() { return llvm::cast<Ty>(Value::getType()); }
   void setType(Ty ty) { Value::setType(ty); }
 };
 

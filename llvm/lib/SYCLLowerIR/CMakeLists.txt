@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: "Gorban, Igor" <igor.gorban@intel.com>
-    # Date: Wed Feb 15 09:37:04 2023 +0000
-    # Fix module globals accessors
-    set(LLVMGenXIntrinsics_GIT_TAG 3ac855c9253d608a36d10b8ff87e62aa413bbf23)
+    # Author: "Victor Mustya" <victor.mustya@intel.com>
+    # Date: Mon, 15 May 2023 23:44:14 +0000
+    # Mark new lsc_load_merge intrinsics as LSC ones
+    set(LLVMGenXIntrinsics_GIT_TAG fe92a377338258b725cfbd0a1bd49a9cf5e2864c)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -57,11 +57,12 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMDVecArg.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
+  HostPipes.cpp
   LowerInvokeSimd.cpp
-  LowerKernelProps.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
   MutatePrintfAddrspace.cpp
+  SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLUtils.cpp
 
@@ -90,6 +91,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   Analysis
   Core
   Support
+  ipo
   )
 
 target_include_directories(LLVMSYCLLowerIR

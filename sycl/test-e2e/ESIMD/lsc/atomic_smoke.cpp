@@ -11,8 +11,8 @@
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // TODO: esimd_emulator doesn't support xchg operation
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
@@ -30,13 +30,16 @@ typedef uint64_t Toffset;
 typedef uint32_t Toffset;
 #endif
 
+constexpr int Signed = 1;
+constexpr int Unsigned = 2;
+
 struct Config {
-  int threads_per_group;
-  int n_groups;
-  int start_ind;
-  int masked_lane;
-  int repeat;
-  int stride;
+  int64_t threads_per_group;
+  int64_t n_groups;
+  int64_t start_ind;
+  int64_t masked_lane;
+  int64_t repeat;
+  int64_t stride;
 };
 
 #ifndef PREFER_FULL_BARRIER
@@ -110,16 +113,18 @@ const char *to_string(DWORDAtomicOp op) {
     return "smin";
   case DWORDAtomicOp::smax:
     return "smax";
+#ifndef USE_DWORD_ATOMICS
   case DWORDAtomicOp::fmax:
     return "fmax";
   case DWORDAtomicOp::fmin:
     return "fmin";
-  case DWORDAtomicOp::fcmpxchg:
-    return "fcmpxchg";
   case DWORDAtomicOp::fadd:
     return "fadd";
   case DWORDAtomicOp::fsub:
     return "fsub";
+#endif // !USE_DWORD_ATOMICS
+  case DWORDAtomicOp::fcmpxchg:
+    return "fcmpxchg";
   case DWORDAtomicOp::load:
     return "load";
   case DWORDAtomicOp::store:
@@ -181,19 +186,16 @@ template <int N> inline bool any(simd_mask<N> m, simd_mask<N> ignore_mask) {
 }
 
 // ----------------- The main test function
-
+#ifndef USE_ACCESSORS
 template <class T, int N, template <class, int> class ImplF>
 bool test(queue q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
 
-  std::cout << "Testing "
-            << "mode=" << MODE << " op=" << to_string(op)
+  std::cout << "USM Testing mode=" << MODE << " op=" << to_string(op)
             << " full barrier=" << (USE_FULL_BARRIER ? "yes" : "no")
-            << " T=" << typeid(T).name() << " N=" << N
-            << "\n"
-               "    "
+            << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
             << cfg << "...";
 
   size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
@@ -224,8 +226,9 @@ bool test(queue q, const Config &cfg) {
             Toffset offsets = 0;
 #endif
             simd_mask<N> m = 1;
-            m[cfg.masked_lane] = 0;
-        // barrier to achieve better contention:
+            if (cfg.masked_lane < N)
+              m[cfg.masked_lane] = 0;
+          // barrier to achieve better contention:
 #if USE_FULL_BARRIER
             // Full global barrier, works only with LSC atomics
             // (+ ND range should fit into the available h/w threads).
@@ -297,6 +300,125 @@ bool test(queue q, const Config &cfg) {
 #endif // USE_FULL_BARRIER
   return err_cnt == 0;
 }
+#else
+template <class T, int N, template <class, int> class ImplF>
+bool test(queue q, const Config &cfg) {
+  constexpr auto op = ImplF<T, N>::atomic_op;
+  using CurAtomicOpT = decltype(op);
+  constexpr int n_args = ImplF<T, N>::n_args;
+
+  std::cout << "Accessor Testing mode=" << MODE << " op=" << to_string(op)
+            << " full barrier=" << (USE_FULL_BARRIER ? "yes" : "no")
+            << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
+            << cfg << "...";
+
+  size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
+  T *arr = new T[size];
+
+#if USE_FULL_BARRIER
+  uint32_t *flag_ptr = malloc_shared<uint32_t>(1, q);
+  *flag_ptr = 0;
+#endif // USE_FULL_BARRIER
+  int n_threads = cfg.threads_per_group * cfg.n_groups;
+
+  for (int i = 0; i < size; ++i) {
+    arr[i] = ImplF<T, N>::init(i, cfg);
+  }
+
+  range<1> glob_rng(n_threads);
+  range<1> loc_rng(cfg.threads_per_group);
+  nd_range<1> rng(glob_rng, loc_rng);
+  auto mask = cfg.masked_lane;
+  auto repeat = cfg.repeat;
+  auto start = cfg.start_ind;
+  auto stride = cfg.stride;
+  try {
+    buffer<T, 1> buf(arr, range<1>(size));
+    auto e = q.submit([&](handler &cgh) {
+      auto accessor = buf.template get_access<access::mode::read_write>(cgh);
+      cgh.parallel_for<TestID<T, N, ImplF>>(
+          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
+            int i = ii;
+#ifndef USE_SCALAR_OFFSET
+            simd<Toffset, N> offsets(start * sizeof(T), stride * sizeof(T));
+#else
+            Toffset offsets = 0;
+#endif
+            simd_mask<N> m = 1;
+            if (mask < N)
+              m[mask] = 0;
+          // barrier to achieve better contention:
+#if USE_FULL_BARRIER
+            // Full global barrier, works only with LSC atomics
+            // (+ ND range should fit into the available h/w threads).
+            atomic_update<LSCAtomicOp::inc, uint32_t, 1>(flag_ptr, 0, 1);
+            for (uint32_t x = atomic_load(flag_ptr); x < n_threads;
+                 x = atomic_load(flag_ptr))
+              ;
+#else
+        // Intra-work group barrier.
+        barrier();
+#endif // USE_FULL_BARRIER
+
+            // the atomic operation itself applied in a loop:
+            for (int cnt = 0; cnt < repeat; ++cnt) {
+              if constexpr (n_args == 0) {
+                simd<T, N> res = atomic_update<op, T, N>(accessor, offsets, m);
+              } else if constexpr (n_args == 1) {
+                simd<T, N> v0 = ImplF<T, N>::arg0(i);
+                atomic_update<op, T, N>(accessor, offsets, v0, m);
+              } else if constexpr (n_args == 2) {
+                simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
+                simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
+                // do compare-and-swap in a loop until we get expected value;
+                // arg0 and arg1 must provide values which guarantee the loop
+                // is not endless:
+                for (auto old_val = atomic_update<op, T, N>(
+                         accessor, offsets, new_val, exp_val, m);
+                     any(old_val < exp_val, !m);
+                     old_val = atomic_update<op, T, N>(accessor, offsets,
+                                                       new_val, exp_val, m))
+                  ;
+              }
+            }
+          });
+    });
+    e.wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    delete[] arr;
+#if USE_FULL_BARRIER
+    free(flag_ptr, q);
+#endif // USE_FULL_BARRIER
+    return false;
+  }
+  int err_cnt = 0;
+
+  for (int i = 0; i < size; ++i) {
+    T gold = ImplF<T, N>::gold(i, cfg);
+    T test = arr[i];
+    if ((gold != test) && (++err_cnt < 10)) {
+      if (err_cnt == 1) {
+        std::cout << "\n";
+      }
+      std::cout << "  failed at index " << i << ": " << test << " != " << gold
+                << "(gold)\n";
+    }
+  }
+  if (err_cnt > 0) {
+    std::cout << "  FAILED\n  pass rate: "
+              << ((float)(size - err_cnt) / (float)size) * 100.0f << "% ("
+              << (size - err_cnt) << "/" << size << ")\n";
+  } else {
+    std::cout << " passed\n";
+  }
+#if USE_FULL_BARRIER
+  free(flag_ptr, q);
+#endif // USE_FULL_BARRIER
+  delete[] arr;
+  return err_cnt == 0;
+}
+#endif
 
 // ----------------- Functions providing input and golden values for atomic
 // ----------------- operations.
@@ -316,8 +438,8 @@ static bool is_updated(int ind, int VL, const Config &cfg) {
 
 // ----------------- Actual "traits" for each operation.
 
-template <class T, int N> struct ImplInc {
-  static constexpr AtomicOp atomic_op = AtomicOp::inc;
+template <class T, int N, class C, C Op> struct ImplIncBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 0;
 
   static T init(int i, const Config &cfg) { return (T)0; }
@@ -327,17 +449,18 @@ template <class T, int N> struct ImplInc {
     T gold = is_updated(i, N, cfg)
                  ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups)
 #else
+    int64_t NumLanes = (cfg.masked_lane + 1 <= N) ? (N - 1) : N;
     T gold =
         i == 0
-            ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * (N - 1))
+            ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * NumLanes)
 #endif
                  : init(i, cfg);
     return gold;
   }
 };
 
-template <class T, int N> struct ImplDec {
-  static constexpr AtomicOp atomic_op = AtomicOp::dec;
+template <class T, int N, class C, C Op> struct ImplDecBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 0;
   static constexpr int base = 5;
 
@@ -345,7 +468,8 @@ template <class T, int N> struct ImplDec {
 #ifndef USE_SCALAR_OFFSET
     return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups + base);
 #else
-    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * (N - 1) +
+    int64_t NumLanes = (cfg.masked_lane + 1 <= N) ? (N - 1) : N;
+    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * NumLanes +
                base);
 #endif
   }
@@ -364,8 +488,8 @@ template <class T, int N> struct ImplDec {
 // processed.
 constexpr float FPDELTA = 0.5f;
 
-template <class T, int N> struct ImplLoad {
-  static constexpr AtomicOp atomic_op = AtomicOp::load;
+template <class T, int N, class C, C Op> struct ImplLoadBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 0;
 
   static T init(int i, const Config &cfg) { return (T)(i + FPDELTA); }
@@ -376,8 +500,8 @@ template <class T, int N> struct ImplLoad {
   }
 };
 
-template <class T, int N> struct ImplStore {
-  static constexpr AtomicOp atomic_op = AtomicOp::store;
+template <class T, int N, class C, C Op> struct ImplStoreBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
   static constexpr T base = (T)(2 + FPDELTA);
 
@@ -407,8 +531,9 @@ template <class T, int N, class C, C Op> struct ImplAdd {
                                          cfg.n_groups * (T)(1 + FPDELTA))
                                    : init(i, cfg);
 #else
+    int64_t NumLanes = (cfg.masked_lane + 1 <= N) ? (N - 1) : N;
     T gold = i == 0 ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups *
-                          (N - 1) * (T)(1 + FPDELTA))
+                          NumLanes * (T)(1 + FPDELTA))
                     : init(i, cfg);
 #endif
     return gold;
@@ -428,7 +553,8 @@ template <class T, int N, class C, C Op> struct ImplSub {
                    (T)(1 + FPDELTA) +
                base);
 #else
-    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * (N - 1) *
+    int64_t NumLanes = (cfg.masked_lane + 1 <= N) ? (N - 1) : N;
+    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups * NumLanes *
                    (T)(1 + FPDELTA) +
                base);
 #endif
@@ -449,60 +575,83 @@ template <class T, int N, class C, C Op> struct ImplSub {
 template <class T, int N, class C, C Op> struct ImplMin {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T MIN = (T)(1 + FPDELTA);
 
   static T init(int i, const Config &cfg) {
-    return (T)(cfg.threads_per_group * cfg.n_groups + MIN + 1);
+    return std::numeric_limits<T>::max();
   }
 
   static T gold(int i, const Config &cfg) {
+    T ExpectedFoundMin;
+    if constexpr (std::is_signed_v<T>)
+      ExpectedFoundMin = FPDELTA - (cfg.threads_per_group * cfg.n_groups - 1);
+    else
+      ExpectedFoundMin = FPDELTA;
 #ifndef USE_SCALAR_OFFSET
-    T gold = is_updated(i, N, cfg) ? (T)MIN : init(i, cfg);
+    T gold = is_updated(i, N, cfg) ? ExpectedFoundMin : init(i, cfg);
 #else
-    T gold = i == 0 ? (T)MIN : init(i, cfg);
+    T gold = i == 0 ? ExpectedFoundMin : init(i, cfg);
 #endif
     return gold;
   }
 
-  static T arg0(int i) { return i + MIN; }
+  static T arg0(int i) {
+    int64_t sign = std::is_signed_v<T> ? -1 : 1;
+    return sign * i + FPDELTA;
+  }
 };
 
 template <class T, int N, class C, C Op> struct ImplMax {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(5 + FPDELTA);
 
-  static T init(int i, const Config &cfg) { return (T)FPDELTA; }
+  static T init(int i, const Config &cfg) {
+    return std::numeric_limits<T>::lowest();
+  }
 
   static T gold(int i, const Config &cfg) {
+    T ExpectedFoundMax = FPDELTA;
+    if constexpr (!std::is_signed_v<T>)
+      ExpectedFoundMax += cfg.threads_per_group * cfg.n_groups - 1;
+
 #ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg)
 #else
     T gold = i == 0
 #endif
-                 ? (T)(cfg.threads_per_group * cfg.n_groups - 1 + FPDELTA)
+                 ? ExpectedFoundMax
                  : init(i, cfg);
     return gold;
   }
 
-  static T arg0(int i) { return (T)(i + FPDELTA); }
+  static T arg0(int i) {
+    int64_t sign = std::is_signed_v<T> ? -1 : 1;
+    return sign * i + FPDELTA;
+  }
 };
-
-template <class T, int N>
-struct ImplIntAdd : ImplAdd<T, N, DWORDAtomicOp, DWORDAtomicOp::add> {};
-template <class T, int N>
-struct ImplIntSub : ImplSub<T, N, DWORDAtomicOp, DWORDAtomicOp::sub> {};
-template <class T, int N>
-struct ImplSMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::smin> {};
-template <class T, int N>
-struct ImplUMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::umin> {};
-template <class T, int N>
-struct ImplSMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::smax> {};
-template <class T, int N>
-struct ImplUMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::umax> {};
 
 #ifndef USE_DWORD_ATOMICS
 // These will be redirected by API implementation to LSC ones:
+template <class T, int N>
+struct ImplStore : ImplStoreBase<T, N, LSCAtomicOp, LSCAtomicOp::store> {};
+template <class T, int N>
+struct ImplLoad : ImplLoadBase<T, N, LSCAtomicOp, LSCAtomicOp::load> {};
+template <class T, int N>
+struct ImplInc : ImplIncBase<T, N, LSCAtomicOp, LSCAtomicOp::inc> {};
+template <class T, int N>
+struct ImplDec : ImplDecBase<T, N, LSCAtomicOp, LSCAtomicOp::dec> {};
+template <class T, int N>
+struct ImplIntAdd : ImplAdd<T, N, LSCAtomicOp, LSCAtomicOp::add> {};
+template <class T, int N>
+struct ImplIntSub : ImplSub<T, N, LSCAtomicOp, LSCAtomicOp::sub> {};
+template <class T, int N>
+struct ImplSMin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::smin> {};
+template <class T, int N>
+struct ImplUMin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::umin> {};
+template <class T, int N>
+struct ImplSMax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::smax> {};
+template <class T, int N>
+struct ImplUMax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::umax> {};
+
 template <class T, int N>
 struct ImplFadd : ImplAdd<T, N, DWORDAtomicOp, DWORDAtomicOp::fadd> {};
 template <class T, int N>
@@ -520,6 +669,27 @@ template <class T, int N>
 struct ImplLSCFmin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::fmin> {};
 template <class T, int N>
 struct ImplLSCFmax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::fmax> {};
+#else
+template <class T, int N>
+struct ImplIntAdd : ImplAdd<T, N, DWORDAtomicOp, DWORDAtomicOp::add> {};
+template <class T, int N>
+struct ImplIntSub : ImplSub<T, N, DWORDAtomicOp, DWORDAtomicOp::sub> {};
+template <class T, int N>
+struct ImplSMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::smin> {};
+template <class T, int N>
+struct ImplUMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::umin> {};
+template <class T, int N>
+struct ImplSMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::smax> {};
+template <class T, int N>
+struct ImplUMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::umax> {};
+template <class T, int N>
+struct ImplStore : ImplStoreBase<T, N, DWORDAtomicOp, DWORDAtomicOp::store> {};
+template <class T, int N>
+struct ImplLoad : ImplLoadBase<T, N, DWORDAtomicOp, DWORDAtomicOp::load> {};
+template <class T, int N>
+struct ImplInc : ImplIncBase<T, N, DWORDAtomicOp, DWORDAtomicOp::inc> {};
+template <class T, int N>
+struct ImplDec : ImplDecBase<T, N, DWORDAtomicOp, DWORDAtomicOp::dec> {};
 #endif // USE_DWORD_ATOMICS
 
 template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
@@ -547,12 +717,11 @@ template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
   static inline T arg1(int i) { return i + base - 1; }
 };
 
-template <class T, int N>
-struct ImplCmpxchg
-    : ImplCmpxchgBase<T, N, DWORDAtomicOp, DWORDAtomicOp::cmpxchg> {};
-
 #ifndef USE_DWORD_ATOMICS
 // This will be redirected by API implementation to LSC one:
+template <class T, int N>
+struct ImplCmpxchg : ImplCmpxchgBase<T, N, LSCAtomicOp, LSCAtomicOp::cmpxchg> {
+};
 template <class T, int N>
 struct ImplFcmpwr
     : ImplCmpxchgBase<T, N, DWORDAtomicOp, DWORDAtomicOp::fcmpxchg> {};
@@ -560,23 +729,115 @@ struct ImplFcmpwr
 template <class T, int N>
 struct ImplLSCFcmpwr
     : ImplCmpxchgBase<T, N, LSCAtomicOp, LSCAtomicOp::fcmpxchg> {};
+#else
+template <class T, int N>
+struct ImplCmpxchg
+    : ImplCmpxchgBase<T, N, DWORDAtomicOp, DWORDAtomicOp::cmpxchg> {};
 #endif // USE_DWORD_ATOMICS
 
 // ----------------- Main function and test combinations.
 
-template <int N, template <class, int> class Op>
+template <int N, template <class, int> class Op,
+          int SignMask = (Signed | Unsigned)>
 bool test_int_types(queue q, const Config &cfg) {
   bool passed = true;
-  passed &= test<int32_t, N, Op>(q, cfg);
-  passed &= test<uint32_t, N, Op>(q, cfg);
-  passed &= test<int64_t, N, Op>(q, cfg);
-  passed &= test<uint64_t, N, Op>(q, cfg);
-  if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
-                !std::is_same_v<unsigned long, uint32_t>) {
-    // Test 'long' types if they are not aliased with int types tested above.
-    passed &= test<unsigned long, N, Op>(q, cfg);
-    passed &= test<signed long, N, Op>(q, cfg);
+  if constexpr (SignMask & Signed) {
+#ifndef USE_DWORD_ATOMICS
+    passed &= test<int16_t, N, Op>(q, cfg);
+#endif
+
+    // TODO: Enable testing of 8-bit integers is supported in HW.
+    // passed &= test<int8_t, N, Op>(q, cfg);
+
+    passed &= test<int32_t, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
+    passed &= test<int64_t, N, Op>(q, cfg);
+    if constexpr (!std::is_same_v<signed long, int64_t> &&
+                  !std::is_same_v<signed long, int32_t>) {
+      passed &= test<signed long, N, Op>(q, cfg);
+    }
+#endif
   }
+
+  if constexpr (SignMask & Unsigned) {
+#ifndef USE_DWORD_ATOMICS
+    passed &= test<uint16_t, N, Op>(q, cfg);
+#endif
+
+    // TODO: Enable testing of 8-bit integers is supported in HW.
+    // passed &= test<uint8_t, N, Op>(q, cfg);
+
+    passed &= test<uint32_t, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
+    passed &= test<uint64_t, N, Op>(q, cfg);
+    if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
+                  !std::is_same_v<unsigned long, uint32_t>) {
+      passed &= test<unsigned long, N, Op>(q, cfg);
+    }
+#endif
+  }
+  return passed;
+}
+
+template <int N, template <class, int> class Op>
+bool test_fp_types(queue q, const Config &cfg) {
+  bool passed = true;
+#ifndef USE_DWORD_ATOMICS
+  if constexpr (std::is_same_v<Op<sycl::half, N>, ImplLSCFmax<sycl::half, N>> ||
+                std::is_same_v<Op<sycl::half, N>, ImplLSCFmin<sycl::half, N>> ||
+                std::is_same_v<Op<sycl::half, N>,
+                               ImplLSCFcmpwr<sycl::half, N>>) {
+    auto dev = q.get_device();
+    if (dev.has(sycl::aspect::fp16)) {
+      passed &= test<sycl::half, N, Op>(q, cfg);
+    }
+  }
+#endif
+  passed &= test<float, N, Op>(q, cfg);
+#ifndef USE_ACCESSORS
+#ifndef CMPXCHG_TEST
+  if (q.get_device().has(sycl::aspect::atomic64) &&
+      q.get_device().has(sycl::aspect::fp64)) {
+    // Disable double data type for fcmpxchg operation as D64 data is not
+    // supported for that operation.
+    passed &= test<double, N, Op>(q, cfg);
+  }
+#endif
+#endif
+  return passed;
+}
+
+template <template <class, int> class Op, int SignMask = (Signed | Unsigned)>
+bool test_int_types_and_sizes(queue q, const Config &cfg) {
+  bool passed = true;
+
+  passed &= test_int_types<1, Op, SignMask>(q, cfg);
+  passed &= test_int_types<2, Op, SignMask>(q, cfg);
+  passed &= test_int_types<4, Op, SignMask>(q, cfg);
+
+  passed &= test_int_types<8, Op, SignMask>(q, cfg);
+
+#ifndef USE_DWORD_ATOMICS
+  passed &= test_int_types<16, Op, SignMask>(q, cfg);
+  passed &= test_int_types<32, Op, SignMask>(q, cfg);
+#endif // !USE_DWORD_ATOMICS
+
+  return passed;
+}
+
+template <template <class, int> class Op>
+bool test_fp_types_and_sizes(queue q, const Config &cfg) {
+  bool passed = true;
+
+  passed &= test_fp_types<1, Op>(q, cfg);
+  passed &= test_fp_types<2, Op>(q, cfg);
+  passed &= test_fp_types<4, Op>(q, cfg);
+
+  passed &= test_fp_types<8, Op>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
+  passed &= test_fp_types<16, Op>(q, cfg);
+  passed &= test_fp_types<32, Op>(q, cfg);
+#endif // !USE_DWORD_ATOMICS
   return passed;
 }
 
@@ -590,57 +851,31 @@ int main(void) {
       11,  // int threads_per_group;
       11,  // int n_groups;
       5,   // int start_ind;
-      5,   // int masked_lane;
+      1,   // int masked_lane;
       100, // int repeat;
       111  // int stride;
   };
 
   bool passed = true;
 #ifndef CMPXCHG_TEST
-  // Template params:
-  // - element type, simd size, threads per group, num groups, atomic op,
-  //   verification function, argument generation functions...
-  // Actual params:
-  // - queue, start index in data, masked lane, repeat count
-  passed &= test_int_types<8, ImplInc>(q, cfg);
-  passed &= test_int_types<8, ImplDec>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplInc>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplDec>(q, cfg);
 
-  // TODO: support sizes other than 8 when compiler is fixed
-  // passed &= test<uint32_t, 16, ImplDec>(q, cfg);
-  // TODO: support 16-bit types when compiler is fixed
-  // passed &= test<uint16_t, 8, ImplDec>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplIntAdd>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplIntSub>(q, cfg);
 
-  passed &= test_int_types<8, ImplIntAdd>(q, cfg);
-  passed &= test_int_types<8, ImplIntSub>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplSMax, Signed>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplSMin, Signed>(q, cfg);
 
-  passed &= test<int, 8, ImplSMax>(q, cfg);
-  passed &= test<int, 8, ImplSMin>(q, cfg);
-
-  passed &= test<uint32_t, 8, ImplUMax>(q, cfg);
-  passed &= test<uint32_t, 8, ImplUMin>(q, cfg);
-
-  // TODO: add other operations
+  passed &= test_int_types_and_sizes<ImplUMax, Unsigned>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplUMin, Unsigned>(q, cfg);
 
 #ifndef USE_DWORD_ATOMICS
-  passed &= test<float, 8, ImplFadd>(q, cfg);
-  passed &= test<float, 8, ImplFsub>(q, cfg);
-  passed &= test<float, 16, ImplFadd>(q, cfg);
-  passed &= test<float, 16, ImplFsub>(q, cfg);
-  passed &= test<float, 32, ImplFadd>(q, cfg);
-  passed &= test<float, 32, ImplFsub>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplFadd>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplFsub>(q, cfg);
 
-  // TODO: support sycl::half when compiler is fixed
-  // passed &= test<sycl::half, 8, ImplFmin>(q, cfg);
-  passed &= test<float, 8, ImplFmax>(q, cfg);
-  passed &= test<float, 16, ImplFmin>(q, cfg);
-  passed &= test<float, 16, ImplFmax>(q, cfg);
-  passed &= test<float, 32, ImplFmin>(q, cfg);
-  // passed &= test<sycl::half, 32, ImplFmax>(q, cfg);
-
-  passed &= test<float, 8, ImplLSCFmax>(q, cfg);
-  passed &= test<float, 16, ImplLSCFmin>(q, cfg);
-  passed &= test<float, 16, ImplLSCFmax>(q, cfg);
-  passed &= test<float, 32, ImplLSCFmin>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLSCFmax>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLSCFmin>(q, cfg);
 #endif // USE_DWORD_ATOMICS
 #else  // CMPXCHG_TEST
   // Can't easily reset input to initial state, so just 1 iteration for CAS.
@@ -648,25 +883,26 @@ int main(void) {
   // Decrease number of threads to reduce risk of halting kernel by the driver.
   cfg.n_groups = 7;
   cfg.threads_per_group = 3;
-  passed &= test_int_types<8, ImplCmpxchg>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplCmpxchg>(q, cfg);
 #ifndef USE_DWORD_ATOMICS
-  passed &= test<float, 8, ImplFcmpwr>(q, cfg);
-  passed &= test<float, 8, ImplLSCFcmpwr>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplFcmpwr>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLSCFcmpwr>(q, cfg);
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
-
-  // Check load/store operations
-  passed &= test_int_types<8, ImplLoad>(q, cfg);
+#ifndef CMPXCHG_TEST
+  // TODO: Investigate test failures on emulator
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
+    // Check load/store operations
+    passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
+    passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
+  }
 #ifndef USE_SCALAR_OFFSET
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
-    passed &= test_int_types<8, ImplStore>(q, cfg);
-#ifndef USE_DWORD_ATOMICS
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator)
-    passed &= test<float, 8, ImplStore>(q, cfg);
-#endif // USE_DWORD_ATOMICS
+  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
+    passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
+    passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
+  }
 #endif
-  // TODO: check double other vector lengths in LSC mode.
-
+#endif
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }

@@ -211,6 +211,8 @@ An overview of all the command-line options:
                                      format to stderr. When this option is passed,
                                      these per-TU profiles are instead stored as JSON.
     --system-headers               - Display the errors from system headers.
+                                     This option overrides the 'SystemHeaders' option
+                                     in .clang-tidy file, if any.
     --use-color                    - Use colors in diagnostics. If not set, colors
                                      will be used if the terminal connected to
                                      standard output supports colors.
@@ -259,11 +261,18 @@ An overview of all the command-line options:
                                    options. Example:
                                      CheckOptions:
                                        some-check.SomeOption: 'some value'
-    Checks                       - Same as '--checks'.
+    Checks                       - Same as '--checks'. Additionally, the list of
+                                   globs can be specified as a list instead of a
+                                   string.
     ExtraArgs                    - Same as '--extra-args'.
     ExtraArgsBefore              - Same as '--extra-args-before'.
     FormatStyle                  - Same as '--format-style'.
+    HeaderFileExtensions         - File extensions to consider to determine if a
+                                   given diagnostic is located in a header file.
     HeaderFilterRegex            - Same as '--header-filter-regex'.
+    ImplementationFileExtensions - File extensions to consider to determine if a
+                                   given diagnostic is located in an
+                                   implementation file.
     InheritParentConfig          - If this option is true in a config file, the
                                    configuration file in the parent directory
                                    (if any exists) will be taken and the current
@@ -283,6 +292,8 @@ An overview of all the command-line options:
       ---
       Checks:              '-*,some-check'
       WarningsAsErrors:    ''
+      HeaderFileExtensions:         ['', 'h','hh','hpp','hxx']
+      ImplementationFileExtensions: ['c','cc','cpp','cxx']
       HeaderFilterRegex:   ''
       FormatStyle:         none
       InheritParentConfig: true

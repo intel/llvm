@@ -9,14 +9,6 @@
 // Test that headers are not tripped up by the surrounding code defining the
 // min() and max() macros.
 
-// The system-provided <uchar.h> seems to be broken on AIX
-// XFAIL: LIBCXX-AIX-FIXME
-
-// Prevent <ext/hash_map> from generating deprecated warnings for this test.
-#if defined(__DEPRECATED)
-#    undef __DEPRECATED
-#endif
-
 #define TEST_MACROS() static_assert(min() == true && max() == true, "")
 #define min() true
 #define max() true
@@ -338,19 +330,11 @@ TEST_MACROS();
 TEST_MACROS();
 #endif
 #if __cplusplus >= 201103L
-#   include <experimental/algorithm>
-TEST_MACROS();
-#endif
-#if __cplusplus >= 201103L
 #   include <experimental/deque>
 TEST_MACROS();
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/forward_list>
-TEST_MACROS();
-#endif
-#if __cplusplus >= 201103L
-#   include <experimental/functional>
 TEST_MACROS();
 #endif
 #if __cplusplus >= 201103L
@@ -409,8 +393,4 @@ TEST_MACROS();
 #   include <experimental/vector>
 TEST_MACROS();
 #endif
-#include <ext/hash_map>
-TEST_MACROS();
-#include <ext/hash_set>
-TEST_MACROS();
 // GENERATED-MARKER

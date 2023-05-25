@@ -270,6 +270,7 @@ public:
 
   bool exist(SPIRVId) const;
   template <class T> T *get(SPIRVId TheId) const {
+    // NOLINTNEXTLINE
     return static_cast<T *>(getEntry(TheId));
   }
   SPIRVEntry *getEntry(SPIRVId) const;

@@ -1,11 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %clangxx -DRESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
+// RUN: %{run} %t.out
+// RUN: %{build} -DRESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR -fsycl-dead-args-optimization -o %t1.out
+// RUN: %{run} %t1.out
 
 //==-------- multi_ptr_legacy.cpp - SYCL multi_ptr legacy test -------------==//
 //

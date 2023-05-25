@@ -202,10 +202,13 @@ public:
   }
 
   bool VisitDesignatedInitExpr(DesignatedInitExpr *E) {
-    for (Designator &D : llvm::reverse(E->designators())) {
-      if (D.isFieldDesignator() && D.getField())
-        return IndexCtx.handleReference(D.getField(), D.getFieldLoc(), Parent,
-                                        ParentDC, SymbolRoleSet(), {}, E);
+    for (DesignatedInitExpr::Designator &D : llvm::reverse(E->designators())) {
+      if (D.isFieldDesignator()) {
+        if (const FieldDecl *FD = D.getFieldDecl()) {
+          return IndexCtx.handleReference(FD, D.getFieldLoc(), Parent,
+                                          ParentDC, SymbolRoleSet(), {}, E);
+        }
+      }
     }
     return true;
   }
@@ -416,11 +419,14 @@ public:
     };
 
     auto visitSyntacticDesignatedInitExpr = [&](DesignatedInitExpr *E) -> bool {
-      for (Designator &D : llvm::reverse(E->designators())) {
-        if (D.isFieldDesignator() && D.getField())
-          return IndexCtx.handleReference(D.getField(), D.getFieldLoc(),
-                                          Parent, ParentDC, SymbolRoleSet(),
-                                          {}, E);
+      for (DesignatedInitExpr::Designator &D : llvm::reverse(E->designators())) {
+        if (D.isFieldDesignator()) {
+          if (const FieldDecl *FD = D.getFieldDecl()) {
+            return IndexCtx.handleReference(FD, D.getFieldLoc(), Parent,
+                                            ParentDC, SymbolRoleSet(),
+                                            /*Relations=*/{}, E);
+          }
+        }
       }
       return true;
     };

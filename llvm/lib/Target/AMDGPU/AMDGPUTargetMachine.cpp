@@ -22,6 +22,7 @@
 #include "AMDGPURegBankSelect.h"
 #include "AMDGPUTargetObjectFile.h"
 #include "AMDGPUTargetTransformInfo.h"
+#include "AMDGPUUnifyDivergentExitNodes.h"
 #include "GCNIterativeScheduler.h"
 #include "GCNSchedStrategy.h"
 #include "GCNVOPDUtils.h"
@@ -60,7 +61,7 @@
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/SimplifyLibCalls.h"
-#include "llvm/Transforms/Vectorize.h"
+#include "llvm/Transforms/Vectorize/LoadStoreVectorizer.h"
 #include <optional>
 
 using namespace llvm;
@@ -218,6 +219,12 @@ static cl::opt<bool> EarlyInlineAll(
   cl::init(false),
   cl::Hidden);
 
+static cl::opt<bool> RemoveIncompatibleFunctions(
+    "amdgpu-enable-remove-incompatible-functions", cl::Hidden,
+    cl::desc("Enable removal of functions when they"
+             "use features not supported by the target GPU"),
+    cl::init(true));
+
 static cl::opt<bool> EnableSDWAPeephole(
   "amdgpu-sdwa-peephole",
   cl::desc("Enable SDWA peepholer"),
@@ -311,11 +318,6 @@ static cl::opt<bool> EnableStructurizerWorkarounds(
     cl::desc("Enable workarounds for the StructurizeCFG pass"), cl::init(true),
     cl::Hidden);
 
-static cl::opt<bool> EnableLDSReplaceWithPointer(
-    "amdgpu-enable-lds-replace-with-pointer",
-    cl::desc("Enable LDS replace with pointer pass"), cl::init(false),
-    cl::Hidden);
-
 static cl::opt<bool, true> EnableLowerModuleLDS(
     "amdgpu-enable-lower-module-lds", cl::desc("Enable lower module lds pass"),
     cl::location(AMDGPUTargetMachine::EnableLowerModuleLDS), cl::init(true),
@@ -382,7 +384,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPULateCodeGenPreparePass(*PR);
   initializeAMDGPUPropagateAttributesEarlyPass(*PR);
   initializeAMDGPUPropagateAttributesLatePass(*PR);
-  initializeAMDGPUReplaceLDSUseWithPointerPass(*PR);
+  initializeAMDGPURemoveIncompatibleFunctionsPass(*PR);
   initializeAMDGPULowerModuleLDSPass(*PR);
   initializeAMDGPURewriteOutArgumentsPass(*PR);
   initializeAMDGPURewriteUndefForPHIPass(*PR);
@@ -512,11 +514,15 @@ static StringRef computeDataLayout(const Triple &TT) {
   }
 
   // 32-bit private, local, and region pointers. 64-bit global, constant and
-  // flat, non-integral buffer fat pointers.
+  // flat. 160-bit non-integral fat buffer pointers that include a 128-bit
+  // buffer descriptor and a 32-bit offset, which are indexed by 32-bit values
+  // (address space 7), and 128-bit non-integral buffer resourcees (address
+  // space 8) which cannot be non-trivilally accessed by LLVM memory operations
+  // like getelementptr.
   return "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
-         "-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-         "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1"
-         "-ni:7";
+         "-p7:160:256:256:32-p8:128:128-i64:64-v16:16-v24:32-v32:32-v48:64-v96:"
+         "128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-"
+         "G1-ni:7:8";
 }
 
 LLVM_READNONE
@@ -612,10 +618,6 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           PM.addPass(AMDGPUAlwaysInlinePass());
           return true;
         }
-        if (PassName == "amdgpu-replace-lds-use-with-pointer") {
-          PM.addPass(AMDGPUReplaceLDSUseWithPointerPass());
-          return true;
-        }
         if (PassName == "amdgpu-lower-module-lds") {
           PM.addPass(AMDGPULowerModuleLDSPass());
           return true;
@@ -665,6 +667,14 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           PM.addPass(AMDGPUPromoteKernelArgumentsPass());
           return true;
         }
+        if (PassName == "amdgpu-unify-divergent-exit-nodes") {
+          PM.addPass(AMDGPUUnifyDivergentExitNodesPass());
+          return true;
+        }
+        if (PassName == "amdgpu-atomic-optimizer") {
+          PM.addPass(AMDGPUAtomicOptimizerPass(*this));
+          return true;
+        }
         return false;
       });
 
@@ -692,11 +702,12 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerPipelineEarlySimplificationEPCallback(
       [this](ModulePassManager &PM, OptimizationLevel Level) {
+        PM.addPass(AMDGPUPrintfRuntimeBindingPass());
+
         if (Level == OptimizationLevel::O0)
           return;
 
         PM.addPass(AMDGPUUnifyMetadataPass());
-        PM.addPass(AMDGPUPrintfRuntimeBindingPass());
 
         if (InternalizeSymbols) {
           PM.addPass(InternalizePass(mustPreserveGV));
@@ -984,12 +995,6 @@ void AMDGPUPassConfig::addIRPasses() {
   // Function calls are not supported, so make sure we inline everything.
   addPass(createAMDGPUAlwaysInlinePass());
   addPass(createAlwaysInlinerLegacyPass());
-  // We need to add the barrier noop pass, otherwise adding the function
-  // inlining pass will cause all of the PassConfigs passes to be run
-  // one function at a time, which means if we have a module with two
-  // functions, then we will generate code for the first function
-  // without ever running any passes on the second.
-  addPass(createBarrierNoopPass());
 
   // Handle uses of OpenCL image2d_t, image3d_t and sampler_t arguments.
   if (TM.getTargetTriple().getArch() == Triple::r600)
@@ -998,14 +1003,8 @@ void AMDGPUPassConfig::addIRPasses() {
   // Replace OpenCL enqueued block function pointers with global variables.
   addPass(createAMDGPUOpenCLEnqueuedBlockLoweringPass());
 
-  // Can increase LDS used by kernel so runs before PromoteAlloca
+  // Runs before PromoteAlloca so the latter can account for function uses
   if (EnableLowerModuleLDS) {
-    // The pass "amdgpu-replace-lds-use-with-pointer" need to be run before the
-    // pass "amdgpu-lower-module-lds", and also it required to be run only if
-    // "amdgpu-lower-module-lds" pass is enabled.
-    if (EnableLDSReplaceWithPointer)
-      addPass(createAMDGPUReplaceLDSUseWithPointerPass());
-
     addPass(createAMDGPULowerModuleLDSPass());
   }
 
@@ -1063,6 +1062,9 @@ void AMDGPUPassConfig::addIRPasses() {
 
 void AMDGPUPassConfig::addCodeGenPrepare() {
   if (TM->getTargetTriple().getArch() == Triple::amdgcn) {
+    if (RemoveIncompatibleFunctions)
+      addPass(createAMDGPURemoveIncompatibleFunctionsPass(TM));
+
     addPass(createAMDGPUAttributorPass());
 
     // FIXME: This pass adds 2 hacky attributes that can be replaced with an

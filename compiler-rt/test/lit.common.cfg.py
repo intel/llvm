@@ -6,20 +6,12 @@
 import os
 import platform
 import re
+import shlex
 import subprocess
 import json
 
 import lit.formats
 import lit.util
-
-# Get shlex.quote if available (added in 3.3), and fall back to pipes.quote if
-# it's not available.
-try:
-  import shlex
-  sh_quote = shlex.quote
-except:
-  import pipes
-  sh_quote = pipes.quote
 
 def find_compiler_libdir():
   """
@@ -102,17 +94,19 @@ config.test_format = lit.formats.ShTest(execute_external)
 if execute_external:
   config.available_features.add('shell')
 
+target_is_msvc = bool(re.match(r'.*-windows-msvc$', config.target_triple))
+
 compiler_id = getattr(config, 'compiler_id', None)
 if compiler_id == "Clang":
-  if platform.system() != 'Windows':
+  if not (platform.system() == 'Windows' and target_is_msvc):
     config.cxx_mode_flags = ["--driver-mode=g++"]
   else:
     config.cxx_mode_flags = []
   # We assume that sanitizers should provide good enough error
   # reports and stack traces even with minimal debug info.
   config.debug_info_flags = ["-gline-tables-only"]
-  if platform.system() == 'Windows':
-    # On Windows, use CodeView with column info instead of DWARF. Both VS and
+  if platform.system() == 'Windows' and target_is_msvc:
+    # On MSVC, use CodeView with column info instead of DWARF. Both VS and
     # windbg do not behave well when column info is enabled, but users have
     # requested it because it makes ASan reports more precise.
     config.debug_info_flags.append("-gcodeview")
@@ -185,8 +179,8 @@ possibly_dangerous_env_vars = ['ASAN_OPTIONS', 'DFSAN_OPTIONS', 'HWASAN_OPTIONS'
                                'LIBCLANG_RESOURCE_USAGE',
                                'LIBCLANG_CODE_COMPLETION_LOGGING',
                                'XRAY_OPTIONS']
-# Clang/Win32 may refer to %INCLUDE%. vsvarsall.bat sets it.
-if platform.system() != 'Windows':
+# Clang/MSVC may refer to %INCLUDE%. vsvarsall.bat sets it.
+if not (platform.system() == 'Windows' and target_is_msvc):
     possibly_dangerous_env_vars.append('INCLUDE')
 for name in possibly_dangerous_env_vars:
   if name in config.environment:
@@ -200,7 +194,7 @@ config.environment['PATH'] = path
 
 # Help MSVS link.exe find the standard libraries.
 # Make sure we only try to use it when targetting Windows.
-if platform.system() == 'Windows' and '-win' in config.target_triple:
+if platform.system() == 'Windows' and target_is_msvc:
   config.environment['LIB'] = os.environ['LIB']
 
 config.available_features.add(config.host_os.lower())
@@ -401,8 +395,8 @@ if config.host_os == 'Darwin':
     if osx_version >= (10, 11):
       config.available_features.add('osx-autointerception')
       config.available_features.add('osx-ld64-live_support')
-    if osx_version >= (10, 15):
-      config.available_features.add('osx-swift-runtime')
+    if osx_version >= (13, 1):
+      config.available_features.add('jit-compatible-osx-swift-runtime')
   except subprocess.CalledProcessError:
     pass
 
@@ -516,9 +510,13 @@ if config.host_os == 'Linux':
   if not config.android and len(ver_lines) and ver_lines[0].startswith(b"ldd "):
     from distutils.version import LooseVersion
     ver = LooseVersion(ver_lines[0].split()[-1].decode())
-    for required in ["2.27", "2.30", "2.34"]:
+    any_glibc = False
+    for required in ["2.19", "2.27", "2.30", "2.34", "2.37"]:
       if ver >= LooseVersion(required):
         config.available_features.add("glibc-" + required)
+        any_glibc = True
+      if any_glibc:
+        config.available_features.add("glibc")
 
 sancovcc_path = os.path.join(config.llvm_tools_dir, "sancov")
 if os.path.exists(sancovcc_path):
@@ -550,6 +548,8 @@ def is_binutils_lto_supported():
   return True
 
 def is_windows_lto_supported():
+  if not target_is_msvc:
+    return True
   return os.path.exists(os.path.join(config.llvm_tools_dir, 'lld-link.exe'))
 
 if config.host_os == 'Darwin' and is_darwin_lto_supported():
@@ -722,15 +722,15 @@ if config.host_os == 'Darwin':
   config.substitutions.append((
     "%get_pid_from_output",
     "{} {}/get_pid_from_output.py".format(
-      sh_quote(config.python_executable),
-      sh_quote(get_ios_commands_dir())
+      shlex.quote(config.python_executable),
+      shlex.quote(get_ios_commands_dir())
     ))
   )
   config.substitutions.append(
     ("%print_crashreport_for_pid",
     "{} {}/print_crashreport_for_pid.py".format(
-      sh_quote(config.python_executable),
-      sh_quote(get_ios_commands_dir())
+      shlex.quote(config.python_executable),
+      shlex.quote(get_ios_commands_dir())
     ))
   )
 

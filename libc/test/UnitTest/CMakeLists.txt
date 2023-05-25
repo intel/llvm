@@ -1,54 +1,117 @@
-add_library(
-  LibcUnitTest
+set(libc_test_srcs_common
   Test.h
   LibcTest.cpp
+  CmakeFilePath.cpp
   LibcTest.h
+  TestLogger.cpp
+  TestLogger.h
 )
-target_include_directories(LibcUnitTest PUBLIC ${LIBC_SOURCE_DIR})
-add_dependencies(LibcUnitTest libc.src.__support.CPP.type_traits libc.src.__support.uint128)
-target_link_libraries(LibcUnitTest PUBLIC libc_test_utils)
+
+set(libc_death_test_srcs ExecuteFunction.h)
+if(${LIBC_TARGET_OS} STREQUAL "linux")
+  list(APPEND libc_death_test_srcs 
+       LibcDeathTestExecutors.cpp ExecuteFunctionUnix.cpp)
+endif()
+
+# The Nvidia 'nvlink' linker does not support static libraries.
+if(LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
+  set(library_type OBJECT)
+else()
+  set(library_type STATIC)
+endif()
+
+add_library(
+  LibcUnitTest
+  ${library_type}
+  EXCLUDE_FROM_ALL
+  ${libc_test_srcs_common}
+  ${libc_death_test_srcs}
+)
+
+add_library(
+  LibcHermeticTest
+  ${library_type}
+  EXCLUDE_FROM_ALL
+  ${libc_test_srcs_common}
+  HermeticTestUtils.cpp
+)
 
 add_library(
   LibcUnitTestMain
+  ${library_type}
+  EXCLUDE_FROM_ALL
   LibcTestMain.cpp
 )
-
-target_include_directories(LibcUnitTestMain PUBLIC ${LIBC_SOURCE_DIR})
 add_dependencies(LibcUnitTestMain LibcUnitTest)
-target_link_libraries(LibcUnitTestMain PUBLIC LibcUnitTest libc_test_utils)
+
+add_library(
+  LibcHermeticTestMain
+  ${library_type}
+  EXCLUDE_FROM_ALL
+  LibcTestMain.cpp
+)
+add_dependencies(LibcHermeticTestMain LibcHermeticTest)
+
+foreach(lib LibcUnitTest LibcUnitTestMain LibcHermeticTest LibcHermeticTestMain)
+  target_include_directories(${lib} PUBLIC ${LIBC_SOURCE_DIR})
+  target_compile_options(${lib} PRIVATE -fno-exceptions -fno-rtti)
+  add_dependencies(${lib}
+    libc.src.__support.c_string
+    libc.src.__support.CPP.string
+    libc.src.__support.CPP.string_view
+    libc.src.__support.CPP.type_traits
+    libc.src.__support.OSUtil.osutil
+    libc.src.__support.uint128
+  )
+endforeach()
+
+foreach(lib LibcHermeticTest LibcHermeticTestMain)
+  target_include_directories(${lib} PRIVATE ${LIBC_BUILD_DIR}/include)
+  target_compile_options(${lib}
+      PRIVATE ${LIBC_HERMETIC_TEST_COMPILE_OPTIONS} -ffreestanding -nostdlib -nostdlib++)
+endforeach()
 
 add_header_library(
   string_utils
   HDRS
-    StringUtils.h
+  StringUtils.h
   DEPENDS
-  libc.src.__support.CPP.type_traits
+    libc.src.__support.CPP.string
+    libc.src.__support.CPP.type_traits
 )
 
 add_library(
   LibcFPTestHelpers
-    FPExceptMatcher.cpp
-    FPExceptMatcher.h
-    FPMatcher.cpp
-    FPMatcher.h
+  FPMatcher.h
+  RoundingModeUtils.cpp
+  RoundingModeUtils.h
 )
-target_include_directories(LibcFPTestHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcFPTestHelpers LibcUnitTest libc_test_utils)
 add_dependencies(
   LibcFPTestHelpers
   LibcUnitTest
   libc.test.UnitTest.string_utils
   libc.src.__support.FPUtil.fp_bits
   libc.src.__support.FPUtil.fenv_impl
+  libc.test.UnitTest.string_utils
+)
+add_library(
+  LibcFPExceptionHelpers
+  FPExceptMatcher.cpp
+  FPExceptMatcher.h
+)
+add_dependencies(
+  LibcFPExceptionHelpers
+  LibcUnitTest
+  libc.src.__support.FPUtil.fp_bits
+  libc.src.__support.FPUtil.fenv_impl
 )
 
 add_library(
   LibcMemoryHelpers
-    MemoryMatcher.h
-    MemoryMatcher.cpp
+  ${library_type}
+  MemoryMatcher.h
+  MemoryMatcher.cpp
 )
-target_include_directories(LibcMemoryHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcMemoryHelpers LibcUnitTest)
 add_dependencies(
   LibcMemoryHelpers
   LibcUnitTest
@@ -57,11 +120,9 @@ add_dependencies(
 
 add_library(
   LibcPrintfHelpers
-    PrintfMatcher.h
-    PrintfMatcher.cpp
+  PrintfMatcher.h
+  PrintfMatcher.cpp
 )
-target_include_directories(LibcPrintfHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcPrintfHelpers LibcUnitTest)
 add_dependencies(
   LibcPrintfHelpers
   LibcUnitTest
@@ -72,11 +133,9 @@ add_dependencies(
 
 add_library(
   LibcScanfHelpers
-    ScanfMatcher.h
-    ScanfMatcher.cpp
+  ScanfMatcher.h
+  ScanfMatcher.cpp
 )
-target_include_directories(LibcScanfHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcScanfHelpers LibcUnitTest)
 add_dependencies(
   LibcScanfHelpers
   LibcUnitTest
@@ -84,3 +143,19 @@ add_dependencies(
   libc.src.stdio.scanf_core.core_structs
   libc.test.UnitTest.string_utils
 )
+
+foreach(lib LibcFPTestHelpers LibcFPExceptionHelpers LibcMemoryHelpers 
+            LibcPrintfHelpers LibcScanfHelpers)
+  target_include_directories(${lib} PUBLIC ${LIBC_SOURCE_DIR})
+  target_compile_options(${lib} PRIVATE -fno-exceptions -fno-rtti)
+  target_link_libraries(${lib} LibcUnitTest)
+endforeach()
+
+# The GPU needs these flags applied to override the system triple.
+if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+  foreach(lib LibcMemoryHelpers)
+    target_include_directories(${lib} PRIVATE ${LIBC_BUILD_DIR}/include)
+    target_compile_options(${lib}
+        PRIVATE ${LIBC_HERMETIC_TEST_COMPILE_OPTIONS} -ffreestanding -nostdlib -nostdlib++)
+  endforeach()
+endif()

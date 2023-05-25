@@ -395,7 +395,7 @@ CXX11_KEYWORD(nullptr               , KEYC2X)
 CXX11_KEYWORD(static_assert         , KEYMSCOMPAT|KEYC2X)
 CXX11_KEYWORD(thread_local          , KEYC2X)
 
-// C++20 / coroutines TS keywords
+// C++20 / coroutines keywords
 COROUTINES_KEYWORD(co_await)
 COROUTINES_KEYWORD(co_return)
 COROUTINES_KEYWORD(co_yield)
@@ -437,6 +437,7 @@ KEYWORD(__attribute                 , KEYALL)
 KEYWORD(__builtin_choose_expr       , KEYALL)
 KEYWORD(__builtin_offsetof          , KEYALL)
 KEYWORD(__builtin_FILE              , KEYALL)
+KEYWORD(__builtin_FILE_NAME         , KEYALL)
 KEYWORD(__builtin_FUNCTION          , KEYALL)
 KEYWORD(__builtin_LINE              , KEYALL)
 KEYWORD(__builtin_COLUMN            , KEYALL)
@@ -525,6 +526,7 @@ KEYWORD(__builtin_base_type, KEYSYCL)
 
 // Clang-only C++ Type Traits
 TYPE_TRAIT_1(__is_trivially_relocatable, IsTriviallyRelocatable, KEYCXX)
+TYPE_TRAIT_1(__is_trivially_equality_comparable, IsTriviallyEqualityComparable, KEYCXX)
 TYPE_TRAIT_1(__is_bounded_array, IsBoundedArray, KEYCXX)
 TYPE_TRAIT_1(__is_unbounded_array, IsUnboundedArray, KEYCXX)
 TYPE_TRAIT_1(__is_nullptr, IsNullPointer, KEYCXX)
@@ -685,6 +687,9 @@ KEYWORD(_Nonnull                 , KEYALL)
 KEYWORD(_Nullable                , KEYALL)
 KEYWORD(_Nullable_result         , KEYALL)
 KEYWORD(_Null_unspecified        , KEYALL)
+
+// WebAssembly Type Extension
+KEYWORD(__funcref                     , KEYALL)
 
 // Microsoft extensions which should be disabled in strict conformance mode
 KEYWORD(__ptr64                       , KEYMS)

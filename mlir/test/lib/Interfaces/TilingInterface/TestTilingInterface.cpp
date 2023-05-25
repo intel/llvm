@@ -335,7 +335,7 @@ struct TestTileConsumerFuseAndYieldProducerUsingSCFForOp
     scf::ForOp outermostLoop = tilingResult->loops.front();
     for (auto [index, origVal] : llvm::enumerate(yieldedValuesToOrigValues)) {
       Value replacement = outermostLoop.getResult(index);
-      rewriter.replaceUseIf(origVal, replacement, [&](OpOperand &use) {
+      rewriter.replaceUsesWithIf(origVal, replacement, [&](OpOperand &use) {
         return !isIgnoredUser(use.getOwner(), outermostLoop);
       });
     }
@@ -401,8 +401,9 @@ struct TestTilingInterfacePass
   TestTilingInterfacePass(const TestTilingInterfacePass &pass)
       : PassWrapper(pass) {}
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
-                    scf::SCFDialect, tensor::TensorDialect>();
+    registry.insert<affine::AffineDialect, linalg::LinalgDialect,
+                    memref::MemRefDialect, scf::SCFDialect,
+                    tensor::TensorDialect>();
     linalg::registerTilingInterfaceExternalModels(registry);
     tensor::registerTilingInterfaceExternalModels(registry);
   }

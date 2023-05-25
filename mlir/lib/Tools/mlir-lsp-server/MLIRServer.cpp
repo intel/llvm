@@ -58,7 +58,7 @@ getLocationFromLoc(llvm::SourceMgr &sourceMgr, Location loc,
                    StringRef uriScheme, const lsp::URIForFile *uri = nullptr) {
   std::optional<lsp::Location> location;
   loc->walk([&](Location nestedLoc) {
-    FileLineColLoc fileLoc = nestedLoc.dyn_cast<FileLineColLoc>();
+    FileLineColLoc fileLoc = dyn_cast<FileLineColLoc>(nestedLoc);
     if (!fileLoc)
       return WalkResult::advance();
 
@@ -91,7 +91,7 @@ static void collectLocationsFromLoc(Location loc,
                                     const lsp::URIForFile &uri) {
   SetVector<Location> visitedLocs;
   loc->walk([&](Location nestedLoc) {
-    FileLineColLoc fileLoc = nestedLoc.dyn_cast<FileLineColLoc>();
+    FileLineColLoc fileLoc = dyn_cast<FileLineColLoc>(nestedLoc);
     if (!fileLoc || !visitedLocs.insert(nestedLoc))
       return WalkResult::advance();
 
@@ -516,22 +516,11 @@ std::optional<lsp::Hover> MLIRDocument::buildHoverForOperation(
 
   os << "Generic Form:\n\n```mlir\n";
 
-  // Temporary drop the regions of this operation so that they don't get
-  // printed in the output. This helps keeps the size of the output hover
-  // small.
-  SmallVector<std::unique_ptr<Region>> regions;
-  for (Region &region : op.op->getRegions()) {
-    regions.emplace_back(std::make_unique<Region>());
-    regions.back()->takeBody(region);
-  }
-
-  op.op->print(
-      os, OpPrintingFlags().printGenericOpForm().elideLargeElementsAttrs());
+  op.op->print(os, OpPrintingFlags()
+                       .printGenericOpForm()
+                       .elideLargeElementsAttrs()
+                       .skipRegions());
   os << "\n```\n";
-
-  // Move the regions back to the current operation.
-  for (Region &region : op.op->getRegions())
-    region.takeBody(*regions.back());
 
   return hover;
 }
@@ -896,7 +885,8 @@ MLIRDocument::convertToBytecode() {
 
     std::string rawBytecodeBuffer;
     llvm::raw_string_ostream os(rawBytecodeBuffer);
-    writeBytecodeToFile(&parsedIR.front(), os, writerConfig);
+    // No desired bytecode version set, so no need to check for error.
+    (void)writeBytecodeToFile(&parsedIR.front(), os, writerConfig);
     result.output = llvm::encodeBase64(rawBytecodeBuffer);
   }
   return result;

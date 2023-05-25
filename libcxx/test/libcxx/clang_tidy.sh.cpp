@@ -15,11 +15,6 @@
 // RUN: %{clang-tidy} %s --warnings-as-errors=* -header-filter=.* --checks='-*,libcpp-*' --load=%{test-tools}/clang_tidy_checks/libcxx-tidy.plugin -- %{compile_flags} -fno-modules
 // RUN: %{clang-tidy} %s --warnings-as-errors=* -header-filter=.* --config-file=%S/../../.clang-tidy -- -Wweak-vtables %{compile_flags} -fno-modules
 
-// Prevent <ext/hash_map> from generating deprecated warnings for this test.
-#if defined(__DEPRECATED)
-#    undef __DEPRECATED
-#endif
-
 /*
 BEGIN-SCRIPT
 
@@ -215,16 +210,10 @@ END-SCRIPT
 #   include <wctype.h>
 #endif
 #if __cplusplus >= 201103L
-#   include <experimental/algorithm>
-#endif
-#if __cplusplus >= 201103L
 #   include <experimental/deque>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/forward_list>
-#endif
-#if __cplusplus >= 201103L
-#   include <experimental/functional>
 #endif
 #if __cplusplus >= 201103L
 #   include <experimental/iterator>
@@ -268,6 +257,4 @@ END-SCRIPT
 #if __cplusplus >= 201103L
 #   include <experimental/vector>
 #endif
-#include <ext/hash_map>
-#include <ext/hash_set>
 // GENERATED-MARKER

@@ -11,18 +11,14 @@
 // TODO FMT Fix this test using GCC, it currently times out.
 // UNSUPPORTED: gcc-12
 
-// This test requires the dylib support introduced in D92214.
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{.+}}
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx11.{{.+}}
-
 // <format>
 
 // template<class T, class charT = char>
 //   requires same_as<remove_cvref_t<T>, T> && formattable<T, charT>
 // class range_formatter
 
-// constexpr formatter<T, charT>& underlying();
-// constexpr const formatter<T, charT>& underlying() const;
+// constexpr formatter<T, charT>& underlying() noexcept;
+// constexpr const formatter<T, charT>& underlying() const noexcept;
 
 #include <concepts>
 #include <format>
@@ -34,10 +30,12 @@ constexpr void test_underlying() {
   {
     std::range_formatter<int, CharT> formatter;
     [[maybe_unused]] std::same_as<std::formatter<int, CharT>&> decltype(auto) underlying = formatter.underlying();
+    static_assert(noexcept(formatter.underlying()));
   }
   {
     const std::range_formatter<int, CharT> formatter;
     [[maybe_unused]] std::same_as<const std::formatter<int, CharT>&> decltype(auto) underlying = formatter.underlying();
+    static_assert(noexcept(formatter.underlying()));
   }
 }
 

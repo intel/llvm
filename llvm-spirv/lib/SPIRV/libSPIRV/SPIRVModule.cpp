@@ -157,6 +157,9 @@ public:
   const std::vector<SPIRVExtInst *> &getDebugInstVec() const override {
     return DebugInstVec;
   }
+  const std::vector<SPIRVExtInst *> &getAuxDataInstVec() const override {
+    return AuxDataInstVec;
+  }
   const std::vector<SPIRVString *> &getStringVec() const override {
     return StringVec;
   }
@@ -308,6 +311,8 @@ public:
                                SPIRVInstruction * = nullptr) override;
   SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *TheType,
                            const std::vector<SPIRVWord> &) override;
+  SPIRVEntry *addAuxData(SPIRVWord, SPIRVType *TheType,
+                         const std::vector<SPIRVWord> &) override;
   SPIRVEntry *addModuleProcessed(const std::string &) override;
   std::vector<SPIRVModuleProcessed *> getModuleProcessedVec() override;
   SPIRVInstruction *addBinaryInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
@@ -532,6 +537,7 @@ private:
   std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
+  std::vector<SPIRVExtInst *> AuxDataInstVec;
   std::vector<SPIRVModuleProcessed *> ModuleProcessedVec;
   SPIRVAliasInstMDVec AliasInstMDVec;
   SPIRVAliasInstMDMap AliasInstMDMap;
@@ -655,13 +661,17 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
   case OpExtInst: {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
     if ((EI->getExtSetKind() == SPIRVEIS_Debug ||
-         EI->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100) &&
+         EI->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100 ||
+         EI->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+         EI->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) &&
         EI->getExtOp() != SPIRVDebug::Declare &&
         EI->getExtOp() != SPIRVDebug::Value &&
         EI->getExtOp() != SPIRVDebug::Scope &&
         EI->getExtOp() != SPIRVDebug::NoScope) {
       DebugInstVec.push_back(EI);
     }
+    if (EI->getExtSetKind() == SPIRVEIS_NonSemantic_AuxData)
+      AuxDataInstVec.push_back(EI);
     break;
   }
   case OpAsmTargetINTEL: {
@@ -1313,6 +1323,13 @@ SPIRVEntry *SPIRVModuleImpl::addDebugInfo(SPIRVWord InstId, SPIRVType *TheType,
                        ExtInstSetIds[getDebugInfoEIS()], InstId, Args));
 }
 
+SPIRVEntry *SPIRVModuleImpl::addAuxData(SPIRVWord InstId, SPIRVType *TheType,
+                                        const std::vector<SPIRVWord> &Args) {
+  return addEntry(new SPIRVExtInst(
+      this, getId(), TheType, SPIRVEIS_NonSemantic_AuxData,
+      getExtInstSetId(SPIRVEIS_NonSemantic_AuxData), InstId, Args));
+}
+
 SPIRVEntry *SPIRVModuleImpl::addModuleProcessed(const std::string &Process) {
   ModuleProcessedVec.push_back(new SPIRVModuleProcessed(this, Process));
   return ModuleProcessedVec.back();
@@ -1895,7 +1912,19 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
     O << SPIRVNL() << MI.AsmTargetVec << MI.AsmVec;
   }
 
-  O << SPIRVNL() << MI.DebugInstVec << SPIRVNL() << MI.FuncVec;
+  // At this point we know that FunctionDefinition could have been included both
+  // into DebugInstVec and into basick block of function from FuncVec.
+  // By spec we should only have this instruction to be present inside the
+  // function body, so removing it from the DebugInstVec to avoid duplication.
+  MI.DebugInstVec.erase(
+      std::remove_if(MI.DebugInstVec.begin(), MI.DebugInstVec.end(),
+                     [](SPIRVExtInst *I) {
+                       return I->getExtOp() == SPIRVDebug::FunctionDefinition;
+                     }),
+      MI.DebugInstVec.end());
+
+  O << SPIRVNL() << MI.DebugInstVec << MI.AuxDataInstVec << SPIRVNL()
+    << MI.FuncVec;
   return O;
 }
 

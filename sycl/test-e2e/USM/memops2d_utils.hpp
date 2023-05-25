@@ -15,8 +15,6 @@ using namespace sycl;
 enum OperationPath {
   Expanded,
   ExpandedDependsOn,
-  ShortcutNoEvent,
-  ShortcutOneEvent,
   ShortcutEventList
 };
 
@@ -33,10 +31,6 @@ std::string operationPathToString(OperationPath PathKind) {
     return "no shortcut and no depends_on";
   case ExpandedDependsOn:
     return "no shortcut";
-  case ShortcutNoEvent:
-    return "shortcut with no dependency events";
-  case ShortcutOneEvent:
-    return "shortcut with one dependency event";
   case ShortcutEventList:
     return "shortcut with dependency event list";
   default:

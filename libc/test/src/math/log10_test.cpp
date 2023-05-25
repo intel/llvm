@@ -7,18 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/errno/libc_errno.h"
 #include "src/math/log10.h"
 #include "test/UnitTest/FPMatcher.h"
 #include "test/UnitTest/Test.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
-#include "utils/testutils/StreamWrapper.h"
 #include <math.h>
 
 #include <errno.h>
 #include <stdint.h>
 
 namespace mpfr = __llvm_libc::testing::mpfr;
-auto outs = __llvm_libc::testutils::outs();
 
 DECLARE_SPECIAL_CONSTANTS(double)
 
@@ -84,7 +83,7 @@ TEST(LlvmLibcLog10Test, InDoubleRange) {
       double x = FPBits(v).get_val();
       if (isnan(x) || isinf(x) || x < 0.0)
         continue;
-      errno = 0;
+      libc_errno = 0;
       double result = __llvm_libc::log10(x);
       ++cc;
       if (isnan(result))
@@ -103,23 +102,16 @@ TEST(LlvmLibcLog10Test, InDoubleRange) {
         }
       }
     }
-    outs << " Log10 failed: " << fails << "/" << count << "/" << cc
-         << " tests.\n";
-    outs << "   Max ULPs is at most: " << tol << ".\n";
     if (fails) {
       EXPECT_MPFR_MATCH(mpfr::Operation::Log10, mx, mr, 0.5, rounding_mode);
     }
   };
 
-  outs << " Test Rounding To Nearest...\n";
   test(mpfr::RoundingMode::Nearest);
 
-  outs << " Test Rounding Downward...\n";
   test(mpfr::RoundingMode::Downward);
 
-  outs << " Test Rounding Upward...\n";
   test(mpfr::RoundingMode::Upward);
 
-  outs << " Test Rounding Toward Zero...\n";
   test(mpfr::RoundingMode::TowardZero);
 }

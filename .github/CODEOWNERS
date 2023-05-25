@@ -80,6 +80,8 @@ sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @intel/dpcpp-esimd-rev
 sycl/include/std/experimental/simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
 llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @intel/dpcpp-esimd-reviewers
 llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @intel/dpcpp-esimd-reviewers
+invoke_simd/ @intel/dpcpp-esimd-reviewers
+InvokeSimd/ @intel/dpcpp-esimd-reviewers
 
 # DevOps configs
 .github/workflows/ @intel/dpcpp-devops-reviewers
@@ -88,6 +90,7 @@ devops/ @intel/dpcpp-devops-reviewers
 
 # Kernel fusion JIT compiler
 sycl-fusion/ @victor-eds @Naghasan @sommerlukas
+sycl/doc/design/KernelFusionJIT.md @victor-eds @Naghasan @sommerlukas
 sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @victor-eds @Naghasan @sommerlukas
 sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @victor-eds @Naghasan @sommerlukas
 sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @victor-eds @Naghasan @sommerlukas
@@ -96,3 +99,7 @@ sycl/source/detail/jit_compiler.hpp @victor-eds @Naghasan @sommerlukas
 sycl/source/detail/jit_compiler.cpp @victor-eds @Naghasan @sommerlukas
 sycl/source/detail/jit_device_binaries.hpp @victor-eds @Naghasan @sommerlukas
 sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas
+sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
+
+# Matrix tests
+sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y

@@ -1017,7 +1017,7 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
     }
   }
 
-  if (D->hasDefinition()) {
+  if (D->hasDefinition() && !Policy.SuppressFinalSpecifier) {
     if (D->hasAttr<FinalAttr>()) {
       Out << " final";
     }

@@ -30,7 +30,7 @@ def generate_map(include):
             c_headers.append(i.name)
 
     result = []
-    temporary_mappings = {'__tuple_dir': 'tuple'}
+    temporary_mappings = {'__locale_dir' : 'locale'}
     for i in detail_directories:
         public_header = temporary_mappings.get(i, i.lstrip('_'))
         result.append(f'{generate(f"@<{i}/.*>", public_header)},')
@@ -41,8 +41,6 @@ def generate_map(include):
         elif i == '__availability': continue
         elif i == '__bit_reference': continue
         elif i == '__bits': public = ['bits']
-        elif i == '__bsd_locale_defaults.h': continue
-        elif i == '__bsd_locale_fallbacks.h': continue
         elif i == '__config_site.in': continue
         elif i == '__config': continue
         elif i == '__debug': continue
@@ -52,13 +50,18 @@ def generate_map(include):
         elif i == '__mbstate_t.h': continue
         elif i == '__mutex_base': continue
         elif i == '__node_handle': public = ['map', 'set', 'unordered_map', 'unordered_set']
+        elif i == '__pstl_algorithm': continue
+        elif i == '__pstl_config_site.in': continue
+        elif i == '__pstl_execution': continue
+        elif i == '__pstl_memory': continue
+        elif i == '__pstl_numeric': continue
         elif i == '__split_buffer': public = ['deque', 'vector']
-        elif i == '__std_stream': public = ['iostream']
+        elif i == '__std_mbstate_t.h': continue
         elif i == '__threading_support': public = ['atomic', 'mutex', 'semaphore', 'thread']
         elif i == '__tree': public = ['map', 'set']
         elif i == '__undef_macros': continue
         elif i == '__verbose_abort': continue
-        else: panic()
+        else: panic(i)
 
         for p in public:
             result.append(f'{generate(f"<{i}>", p)},')

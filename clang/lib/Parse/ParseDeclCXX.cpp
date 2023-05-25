@@ -23,6 +23,7 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/SmallString.h"
@@ -958,14 +959,16 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
   assert(Tok.isOneOf(tok::kw_static_assert, tok::kw__Static_assert) &&
          "Not a static_assert declaration");
 
-  // Save the token used for static assertion.
-  Token SavedTok = Tok;
+  // Save the token name used for static assertion.
+  const char *TokName = Tok.getName();
 
   if (Tok.is(tok::kw__Static_assert) && !getLangOpts().C11)
     Diag(Tok, diag::ext_c11_feature) << Tok.getName();
   if (Tok.is(tok::kw_static_assert)) {
     if (!getLangOpts().CPlusPlus) {
-      if (!getLangOpts().C2x)
+      if (getLangOpts().C2x)
+        Diag(Tok, diag::warn_c2x_compat_keyword) << Tok.getName();
+      else
         Diag(Tok, diag::ext_ms_static_assert) << FixItHint::CreateReplacement(
             Tok.getLocation(), "_Static_assert");
     } else
@@ -1025,9 +1028,7 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
   T.consumeClose();
 
   DeclEnd = Tok.getLocation();
-  // Passing the token used to the error message.
-  ExpectAndConsumeSemi(diag::err_expected_semi_after_static_assert,
-                       SavedTok.getName());
+  ExpectAndConsumeSemi(diag::err_expected_semi_after_static_assert, TokName);
 
   return Actions.ActOnStaticAssertDeclaration(StaticAssertLoc, AssertExpr.get(),
                                               AssertMessage.get(),
@@ -1075,7 +1076,7 @@ SourceLocation Parser::ParseDecltypeSpecifier(DeclSpec &DS) {
     // Check for C++1y 'decltype(auto)'.
     if (Tok.is(tok::kw_auto) && NextToken().is(tok::r_paren)) {
       // the typename-specifier in a function-style cast expression may
-      // be 'auto' since C++2b.
+      // be 'auto' since C++23.
       Diag(Tok.getLocation(),
            getLangOpts().CPlusPlus14
                ? diag::warn_cxx11_compat_decltype_auto_type_specifier
@@ -1370,9 +1371,9 @@ void Parser::ParseMicrosoftInheritanceClassAttributes(ParsedAttributes &attrs) {
                      tok::kw___multiple_inheritance,
                      tok::kw___virtual_inheritance)) {
     IdentifierInfo *AttrName = Tok.getIdentifierInfo();
+    auto Kind = Tok.getKind();
     SourceLocation AttrNameLoc = ConsumeToken();
-    attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0,
-                 ParsedAttr::AS_Keyword);
+    attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0, Kind);
   }
 }
 
@@ -1622,6 +1623,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           tok::kw___is_signed,
           tok::kw___is_standard_layout,
           tok::kw___is_trivial,
+          tok::kw___is_trivially_equality_comparable,
           tok::kw___is_trivially_assignable,
           tok::kw___is_trivially_constructible,
           tok::kw___is_trivially_copyable,
@@ -1674,6 +1676,9 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     ColonProtectionRAIIObject X(*this);
 
     CXXScopeSpec Spec;
+    if (TemplateInfo.TemplateParams)
+      Spec.setTemplateParamLists(*TemplateInfo.TemplateParams);
+
     bool HasValidSpec = true;
     if (ParseOptionalCXXScopeSpecifier(Spec, /*ObjectType=*/nullptr,
                                        /*ObjectHasErrors=*/false,
@@ -4351,19 +4356,19 @@ bool Parser::ParseCXX11AttributeArgs(
   assert(Tok.is(tok::l_paren) && "Not a C++11 attribute argument list");
   SourceLocation LParenLoc = Tok.getLocation();
   const LangOptions &LO = getLangOpts();
-  ParsedAttr::Syntax Syntax =
-      LO.CPlusPlus ? ParsedAttr::AS_CXX11 : ParsedAttr::AS_C2x;
+  ParsedAttr::Form Form =
+      LO.CPlusPlus ? ParsedAttr::Form::CXX11() : ParsedAttr::Form::C2x();
 
   // Try parsing microsoft attributes
   if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {
     if (hasAttribute(AttributeCommonInfo::Syntax::AS_Microsoft, ScopeName,
                      AttrName, getTargetInfo(), getLangOpts()))
-      Syntax = ParsedAttr::AS_Microsoft;
+      Form = ParsedAttr::Form::Microsoft();
   }
 
   // If the attribute isn't known, we will not attempt to parse any
   // arguments.
-  if (Syntax != ParsedAttr::AS_Microsoft &&
+  if (Form.getSyntax() != ParsedAttr::AS_Microsoft &&
       !hasAttribute(LO.CPlusPlus ? AttributeCommonInfo::Syntax::AS_CXX11
                                  : AttributeCommonInfo::Syntax::AS_C2x,
                     ScopeName, AttrName, getTargetInfo(), getLangOpts())) {
@@ -4379,7 +4384,7 @@ bool Parser::ParseCXX11AttributeArgs(
     // GNU-scoped attributes have some special cases to handle GNU-specific
     // behaviors.
     ParseGNUAttributeArgs(AttrName, AttrNameLoc, Attrs, EndLoc, ScopeName,
-                          ScopeLoc, Syntax, nullptr);
+                          ScopeLoc, Form, nullptr);
     return true;
   }
 
@@ -4399,10 +4404,10 @@ bool Parser::ParseCXX11AttributeArgs(
   // Some Clang-scoped attributes have some special parsing behavior.
   if (ScopeName && (ScopeName->isStr("clang") || ScopeName->isStr("_Clang")))
     NumArgs = ParseClangAttributeArgs(AttrName, AttrNameLoc, Attrs, EndLoc,
-                                      ScopeName, ScopeLoc, Syntax);
+                                      ScopeName, ScopeLoc, Form);
   else
     NumArgs = ParseAttributeArgsCommon(AttrName, AttrNameLoc, Attrs, EndLoc,
-                                       ScopeName, ScopeLoc, Syntax);
+                                       ScopeName, ScopeLoc, Form);
 
   if (!Attrs.empty() &&
       IsBuiltInOrStandardCXX11Attribute(AttrName, ScopeName)) {
@@ -4457,7 +4462,10 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
                                                   CachedTokens &OpenMPTokens,
                                                   SourceLocation *EndLoc) {
   if (Tok.is(tok::kw_alignas)) {
-    Diag(Tok.getLocation(), diag::warn_cxx98_compat_alignas);
+    if (getLangOpts().C2x)
+      Diag(Tok, diag::warn_c2x_compat_keyword) << Tok.getName();
+    else
+      Diag(Tok.getLocation(), diag::warn_cxx98_compat_alignas);
     ParseAlignmentSpecifier(Attrs, EndLoc);
     return;
   }
@@ -4549,7 +4557,8 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
           AttrName,
           SourceRange(ScopeLoc.isValid() ? ScopeLoc : AttrLoc, AttrLoc),
           ScopeName, ScopeLoc, nullptr, 0,
-          getLangOpts().CPlusPlus ? ParsedAttr::AS_CXX11 : ParsedAttr::AS_C2x);
+          getLangOpts().CPlusPlus ? ParsedAttr::Form::CXX11()
+                                  : ParsedAttr::Form::C2x());
       AttrParsed = true;
     }
 
@@ -4709,7 +4718,7 @@ void Parser::ParseMicrosoftUuidAttributeArgs(ParsedAttributes &Attrs) {
   if (!T.consumeClose()) {
     Attrs.addNew(UuidIdent, SourceRange(UuidLoc, T.getCloseLocation()), nullptr,
                  SourceLocation(), ArgExprs.data(), ArgExprs.size(),
-                 ParsedAttr::AS_Microsoft);
+                 ParsedAttr::Form::Microsoft());
   }
 }
 
@@ -4765,7 +4774,7 @@ void Parser::ParseMicrosoftAttributes(ParsedAttributes &Attrs) {
           }
           if (!AttrParsed) {
             Attrs.addNew(II, NameLoc, nullptr, SourceLocation(), nullptr, 0,
-                         ParsedAttr::AS_Microsoft);
+                         ParsedAttr::Form::Microsoft());
           }
         }
       }

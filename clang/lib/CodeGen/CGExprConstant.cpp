@@ -932,12 +932,12 @@ tryEmitGlobalCompoundLiteral(ConstantEmitter &emitter,
     return ConstantAddress::invalid();
   }
 
-  auto GV = new llvm::GlobalVariable(CGM.getModule(), C->getType(),
-                                     CGM.isTypeConstant(E->getType(), true),
-                                     llvm::GlobalValue::InternalLinkage,
-                                     C, ".compoundliteral", nullptr,
-                                     llvm::GlobalVariable::NotThreadLocal,
-                    CGM.getContext().getTargetAddressSpace(addressSpace));
+  auto GV = new llvm::GlobalVariable(
+      CGM.getModule(), C->getType(),
+      CGM.isTypeConstant(E->getType(), true, false),
+      llvm::GlobalValue::InternalLinkage, C, ".compoundliteral", nullptr,
+      llvm::GlobalVariable::NotThreadLocal,
+      CGM.getContext().getTargetAddressSpace(addressSpace));
   emitter.finalize(GV);
   GV->setAlignment(Align.getAsAlign());
   CGM.setAddrOfConstantCompoundLiteral(E, GV);
@@ -1570,7 +1570,7 @@ namespace {
     }
 
     void setLocation(llvm::GlobalVariable *placeholder) {
-      assert(Locations.find(placeholder) == Locations.end() &&
+      assert(!Locations.contains(placeholder) &&
              "already found location for placeholder!");
 
       // Lazily fill in IndexValues with the values from Indices.
@@ -1730,7 +1730,7 @@ llvm::Constant *ConstantEmitter::emitForMemory(CodeGenModule &CGM,
   }
 
   // Zero-extend bool.
-  if (C->getType()->isIntegerTy(1)) {
+  if (C->getType()->isIntegerTy(1) && !destType->isBitIntType()) {
     llvm::Type *boolTy = CGM.getTypes().ConvertTypeForMem(destType);
     return llvm::ConstantExpr::getZExt(C, boolTy);
   }

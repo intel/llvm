@@ -263,9 +263,9 @@ enum NodeType {
   /// These nodes take two operands of the same value type, and produce two
   /// results.  The first result is the normal add or sub result, the second
   /// result is the carry flag result.
-  /// FIXME: These nodes are deprecated in favor of ADDCARRY and SUBCARRY.
+  /// FIXME: These nodes are deprecated in favor of UADDO_CARRY and USUBO_CARRY.
   /// They are kept around for now to provide a smooth transition path
-  /// toward the use of ADDCARRY/SUBCARRY and will eventually be removed.
+  /// toward the use of UADDO_CARRY/USUBO_CARRY and will eventually be removed.
   ADDC,
   SUBC,
 
@@ -297,11 +297,11 @@ enum NodeType {
   /// it, as the carry is a regular value rather than a glue, which allows
   /// further optimisation.
   ///
-  /// These opcodes are different from [US]{ADD,SUB}O in that ADDCARRY/SUBCARRY
-  /// consume and produce a carry/borrow, whereas [US]{ADD,SUB}O produce an
-  /// overflow.
-  ADDCARRY,
-  SUBCARRY,
+  /// These opcodes are different from [US]{ADD,SUB}O in that
+  /// U{ADD,SUB}O_CARRY consume and produce a carry/borrow, whereas
+  /// [US]{ADD,SUB}O produce an overflow.
+  UADDO_CARRY,
+  USUBO_CARRY,
 
   /// Carry-using overflow-aware nodes for multiple precision addition and
   /// subtraction. These nodes take three operands: The first two are normal lhs
@@ -571,6 +571,19 @@ enum NodeType {
   /// vector, but not the other way around.
   EXTRACT_SUBVECTOR,
 
+  /// VECTOR_DEINTERLEAVE(VEC1, VEC2) - Returns two vectors with all input and
+  /// output vectors having the same type. The first output contains the even
+  /// indices from CONCAT_VECTORS(VEC1, VEC2), with the second output
+  /// containing the odd indices. The relative order of elements within an
+  /// output match that of the concatenated input.
+  VECTOR_DEINTERLEAVE,
+
+  /// VECTOR_INTERLEAVE(VEC1, VEC2) - Returns two vectors with all input and
+  /// output vectors having the same type. The first output contains the
+  /// result of interleaving the low half of CONCAT_VECTORS(VEC1, VEC2), with
+  /// the second output containing the result of interleaving the high half.
+  VECTOR_INTERLEAVE,
+
   /// VECTOR_REVERSE(VECTOR) - Returns a vector, of the same type as VECTOR,
   /// whose elements are shuffled using the following algorithm:
   ///   RESULT[i] = VECTOR[VECTOR.ElementCount - 1 - i]
@@ -739,7 +752,7 @@ enum NodeType {
   /// op #2 is a boolean indicating if there is an incoming carry. This
   /// operator checks the result of "LHS - RHS - Carry", and can be used to
   /// compare two wide integers:
-  /// (setcccarry lhshi rhshi (subcarry lhslo rhslo) cc).
+  /// (setcccarry lhshi rhshi (usubo_carry lhslo rhslo) cc).
   /// Only valid for integers.
   SETCCCARRY,
 
@@ -1499,6 +1512,12 @@ CondCode getSetCCInverse(CondCode Operation, EVT Type);
 inline bool isExtOpcode(unsigned Opcode) {
   return Opcode == ISD::ANY_EXTEND || Opcode == ISD::ZERO_EXTEND ||
          Opcode == ISD::SIGN_EXTEND;
+}
+
+inline bool isExtVecInRegOpcode(unsigned Opcode) {
+  return Opcode == ISD::ANY_EXTEND_VECTOR_INREG ||
+         Opcode == ISD::ZERO_EXTEND_VECTOR_INREG ||
+         Opcode == ISD::SIGN_EXTEND_VECTOR_INREG;
 }
 
 namespace GlobalISel {

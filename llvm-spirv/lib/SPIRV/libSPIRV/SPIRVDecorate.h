@@ -60,6 +60,11 @@ public:
   // Complete constructor for decorations with two word literals
   SPIRVDecorateGeneric(Op OC, SPIRVWord WC, Decoration TheDec,
                        SPIRVEntry *TheTarget, SPIRVWord V1, SPIRVWord V2);
+  // Complete constructor for decorations with three word literals
+  SPIRVDecorateGeneric(Op OC, SPIRVWord WC, Decoration TheDec,
+                       SPIRVEntry *TheTarget, SPIRVWord V1, SPIRVWord V2,
+                       SPIRVWord V3);
+
   // Incomplete constructor
   SPIRVDecorateGeneric(Op OC);
 
@@ -124,6 +129,11 @@ public:
   SPIRVDecorate(Decoration TheDec, SPIRVEntry *TheTarget, SPIRVWord V1,
                 SPIRVWord V2)
       : SPIRVDecorateGeneric(OC, 5, TheDec, TheTarget, V1, V2) {}
+  // Complete constructor for decorations with three word literals
+  SPIRVDecorate(Decoration TheDec, SPIRVEntry *TheTarget, SPIRVWord V1,
+                SPIRVWord V2, SPIRVWord V3)
+      : SPIRVDecorateGeneric(OC, 6, TheDec, TheTarget, V1, V2, V3) {}
+
   // Incomplete constructor
   SPIRVDecorate() : SPIRVDecorateGeneric(OC) {}
 
@@ -188,6 +198,9 @@ public:
     case DecorationMMHostInterfaceMaxBurstINTEL:
     case DecorationMMHostInterfaceWaitRequestINTEL:
       return ExtensionID::SPV_INTEL_fpga_argument_interfaces;
+    case DecorationLatencyControlLabelINTEL:
+    case DecorationLatencyControlConstraintINTEL:
+      return ExtensionID::SPV_INTEL_fpga_latency_control;
     default:
       return {};
     }

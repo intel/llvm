@@ -36,6 +36,33 @@ spirv.module Logical GLSL450 {
   spirv.GlobalVariable @var01s bind(0, 1) {aliased} : !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>
   spirv.GlobalVariable @var01v bind(0, 1) {aliased} : !spirv.ptr<!spirv.struct<(!spirv.rtarray<vector<4xf32>, stride=16> [0])>, StorageBuffer>
 
+  spirv.func @load_store_scalar_64bit(%index: i64) -> f32 "None" {
+    %c0 = spirv.Constant 0 : i64
+    %addr = spirv.mlir.addressof @var01s : !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>
+    %ac = spirv.AccessChain %addr[%c0, %index] : !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>, i64, i64
+    %value = spirv.Load "StorageBuffer" %ac : f32
+    spirv.Store "StorageBuffer" %ac, %value : f32
+    spirv.ReturnValue %value : f32
+  }
+}
+
+// CHECK-LABEL: spirv.module
+
+// CHECK-NOT: @var01s
+//     CHECK: spirv.GlobalVariable @var01v bind(0, 1) : !spirv.ptr<!spirv.struct<(!spirv.rtarray<vector<4xf32>, stride=16> [0])>, StorageBuffer>
+// CHECK-NOT: @var01s
+
+//     CHECK: spirv.func @load_store_scalar_64bit(%[[INDEX:.+]]: i64)
+// CHECK-DAG:   %[[C4:.+]] = spirv.Constant 4 : i64
+//     CHECK:   spirv.SDiv %[[INDEX]], %[[C4]] : i64
+//     CHECK:   spirv.SMod %[[INDEX]], %[[C4]] : i64
+
+// -----
+
+spirv.module Logical GLSL450 {
+  spirv.GlobalVariable @var01s bind(0, 1) {aliased} : !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>
+  spirv.GlobalVariable @var01v bind(0, 1) {aliased} : !spirv.ptr<!spirv.struct<(!spirv.rtarray<vector<4xf32>, stride=16> [0])>, StorageBuffer>
+
   spirv.func @multiple_uses(%i0: i32, %i1: i32) -> f32 "None" {
     %c0 = spirv.Constant 0 : i32
     %addr = spirv.mlir.addressof @var01s : !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>
@@ -479,3 +506,19 @@ spirv.module Logical GLSL450 {
 // CHECK:   %[[CC:.+]] = spirv.CompositeConstruct %[[BC0]], %[[BC1]] : (vector<2xf32>, vector<2xf32>) -> vector<4xf32>
 // CHECK:   spirv.ReturnValue %[[CC]]
 
+// -----
+
+// Make sure we do not crash on function arguments.
+
+spirv.module Logical GLSL450 {
+  spirv.func @main(%arg0: !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>) "None" {
+    %cst0_i32 = spirv.Constant 0 : i32
+    %0 = spirv.AccessChain %arg0[%cst0_i32, %cst0_i32] : !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>, i32, i32
+    spirv.Return
+  }
+}
+
+// CHECK-LABEL: spirv.module
+// CHECK-LABEL: spirv.func @main
+// CHECK-SAME:  (%{{.+}}: !spirv.ptr<!spirv.struct<(!spirv.rtarray<f32, stride=4> [0])>, StorageBuffer>) "None"
+// CHECK:       spirv.Return

@@ -1137,11 +1137,14 @@ void OCLToSPIRVBase::visitCallRelational(CallInst *CI,
   OCLSPIRVBuiltinMap::find(DemangledName.str(), &OC);
   // i1 or <i1 x N>, depending on whether it returns a vector type.
   Type *BoolTy = CI->getType()->getWithNewType(Type::getInt1Ty(*Ctx));
-  mutateCallInst(CI, OC).changeReturnType(BoolTy, [=](IRBuilder<> &Builder,
-                                                      CallInst *NewCI) {
-    return Builder.CreateSelect(NewCI, Constant::getAllOnesValue(CI->getType()),
-                                Constant::getNullValue(CI->getType()));
-  });
+  mutateCallInst(CI, OC).changeReturnType(
+      BoolTy, [=](IRBuilder<> &Builder, CallInst *NewCI) {
+        Value *TrueOp = CI->getType()->isVectorTy()
+                            ? Constant::getAllOnesValue(CI->getType())
+                            : getInt32(M, 1);
+        return Builder.CreateSelect(NewCI, TrueOp,
+                                    Constant::getNullValue(CI->getType()));
+      });
 }
 
 void OCLToSPIRVBase::visitCallVecLoadStore(CallInst *CI, StringRef MangledName,
@@ -1661,7 +1664,9 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
     return; // this is not a VME built-in
 
   SmallVector<Type *, 4> ParamTys;
-  getParameterTypes(CI->getCalledFunction(), ParamTys);
+  [[maybe_unused]] bool DidDemangle =
+      getParameterTypes(CI->getCalledFunction(), ParamTys);
+  assert(DidDemangle && "Expected SPIR-V builtins to be properly mangled");
   auto *TyIt = std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerTy);
   assert(TyIt != ParamTys.end() && "Invalid Subgroup AVC Intel built-in call");
   unsigned SamplerIndex = TyIt - ParamTys.begin();

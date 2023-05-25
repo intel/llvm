@@ -116,6 +116,11 @@ static cl::opt<unsigned> OutlinerReruns(
     cl::desc(
         "Number of times to rerun the outliner after the initial outline"));
 
+static cl::opt<unsigned> OutlinerBenefitThreshold(
+    "outliner-benefit-threshold", cl::init(1), cl::Hidden,
+    cl::desc(
+        "The minimum size in bytes before an outlining candidate is accepted"));
+
 namespace {
 
 /// Maps \p MachineInstrs to unsigned integers and stores the mappings.
@@ -655,21 +660,21 @@ void MachineOutliner::findCandidates(
     const TargetInstrInfo *TII =
         CandidatesForRepeatedSeq[0].getMF()->getSubtarget().getInstrInfo();
 
-    OutlinedFunction OF =
+    std::optional<OutlinedFunction> OF =
         TII->getOutliningCandidateInfo(CandidatesForRepeatedSeq);
 
     // If we deleted too many candidates, then there's nothing worth outlining.
     // FIXME: This should take target-specified instruction sizes into account.
-    if (OF.Candidates.size() < 2)
+    if (!OF || OF->Candidates.size() < 2)
       continue;
 
     // Is it better to outline this candidate than not?
-    if (OF.getBenefit() < 1) {
-      emitNotOutliningCheaperRemark(StringLen, CandidatesForRepeatedSeq, OF);
+    if (OF->getBenefit() < OutlinerBenefitThreshold) {
+      emitNotOutliningCheaperRemark(StringLen, CandidatesForRepeatedSeq, *OF);
       continue;
     }
 
-    FunctionList.push_back(OF);
+    FunctionList.push_back(*OF);
   }
 }
 
@@ -720,6 +725,7 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
 
   MachineModuleInfo &MMI = getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
   MachineFunction &MF = MMI.getOrCreateMachineFunction(*F);
+  MF.setIsOutlined(true);
   MachineBasicBlock &MBB = *MF.CreateMachineBasicBlock();
 
   // Insert the new function into the module.
@@ -840,7 +846,7 @@ bool MachineOutliner::outline(Module &M,
     });
 
     // If we made it unbeneficial to outline this function, skip it.
-    if (OF.getBenefit() < 1)
+    if (OF.getBenefit() < OutlinerBenefitThreshold)
       continue;
 
     // It's beneficial. Create the function and outline its sequence's

@@ -644,6 +644,9 @@ public:
     return getModuleOwnershipKind() > ModuleOwnershipKind::VisibleWhenImported;
   }
 
+  /// Whether this declaration comes from another module unit.
+  bool isInAnotherModuleUnit() const;
+
   /// FIXME: Implement discarding declarations actually in global module
   /// fragment. See [module.global.frag]p3,4 for details.
   bool isDiscardedInGlobalModuleFragment() const { return false; }
@@ -1172,6 +1175,12 @@ public:
     }
   }
 
+  /// Clears the namespace of this declaration.
+  ///
+  /// This is useful if we want this declaration to be available for
+  /// redeclaration lookup but otherwise hidden for ordinary name lookups.
+  void clearIdentifierNamespace() { IdentifierNamespace = 0; }
+
   enum FriendObjectKind {
     FOK_None,      ///< Not a friend object.
     FOK_Declared,  ///< A friend of a previously-declared entity.
@@ -1226,6 +1235,10 @@ public:
   /// when possible. Will return null if the type underlying the Decl does not
   /// have a FunctionType.
   const FunctionType *getFunctionType(bool BlocksToo = true) const;
+
+  // Looks through the Decl's underlying type to determine if it's a
+  // function pointer type.
+  bool isFunctionPointerType() const;
 
 private:
   void setAttrsImpl(const AttrVec& Attrs, ASTContext &Ctx);
@@ -1597,7 +1610,7 @@ class DeclContext {
     uint64_t : NumDeclContextBits;
 
     /// Kind of initializer,
-    /// function call or omp_priv<init_expr> initializtion.
+    /// function call or omp_priv<init_expr> initialization.
     uint64_t InitializerKind : 2;
   };
 
@@ -2527,10 +2540,8 @@ public:
                  D == LastDecl);
   }
 
-  bool setUseQualifiedLookup(bool use = true) const {
-    bool old_value = DeclContextBits.UseQualifiedLookup;
+  void setUseQualifiedLookup(bool use = true) const {
     DeclContextBits.UseQualifiedLookup = use;
-    return old_value;
   }
 
   bool shouldUseQualifiedLookup() const {

@@ -22,7 +22,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
@@ -34,8 +33,11 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 
 #include <cctype>
 #include <cstring>
@@ -131,8 +133,8 @@ enum class lsc_subopcode : uint8_t {
 // /^_Z(\d+)__esimd_\w+/
 static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
 static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
+static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
-
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
   enum GenXArgRuleKind {
@@ -672,11 +674,24 @@ public:
         {"slm_init", {"slm.init", {a(0)}}},
         {"bf_cvt", {"bf.cvt", {a(0)}}},
         {"tf32_cvt", {"tf32.cvt", {a(0)}}},
+        {"__devicelib_ConvertFToBF16INTEL",
+         {"__spirv_ConvertFToBF16INTEL", {a(0)}}},
+        {"__devicelib_ConvertBF16ToFINTEL",
+         {"__spirv_ConvertBF16ToFINTEL", {a(0)}}},
+        {"addc", {"addc", {l(0)}}},
+        {"subb", {"subb", {l(0)}}},
         {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
 };
+
+static bool isStructureReturningFunction(StringRef FunctionName) {
+  return llvm::StringSwitch<bool>(FunctionName)
+      .Case("addc", true)
+      .Case("subb", true)
+      .Default(false);
+}
 
 // The C++11 "magic static" idiom to lazily initialize the ESIMD intrinsic table
 static const IntrinTable &getIntrinTable() {
@@ -692,6 +707,33 @@ static const ESIMDIntrinDesc &getIntrinDesc(StringRef SrcSpelling) {
   llvm::esimd::assert_and_diag(It != Table.end(),
                                "unknown ESIMD intrinsic: ", SrcSpelling);
   return It->second;
+}
+
+static bool isDevicelibFunction(StringRef FunctionName) {
+  return llvm::StringSwitch<bool>(FunctionName)
+      .Case("__devicelib_ConvertFToBF16INTEL", true)
+      .Case("__devicelib_ConvertBF16ToFINTEL", true)
+      .Default(false);
+}
+
+static std::string mangleFunction(StringRef FunctionName) {
+  // Mangle deviceLib function to make it pass through the regular workflow
+  // These functions are defined as extern "C" which Demangler that is used
+  // fails to handle properly.
+  if (isDevicelibFunction(FunctionName)) {
+    if (FunctionName.startswith("__devicelib_ConvertFToBF16INTEL")) {
+      return (Twine("_Z31") + FunctionName + "RKf").str();
+    }
+    if (FunctionName.startswith("__devicelib_ConvertBF16ToFINTEL")) {
+      return (Twine("_Z31") + FunctionName + "RKt").str();
+    }
+  }
+  // Every inserted vstore gets its own function with the same name,
+  // so they are mangled with ".[0-9]+". Just use the
+  // raw name to pass through the demangler.
+  if (FunctionName.startswith(ESIMD_INSERTED_VSTORE_FUNC_NAME))
+    return ESIMD_INSERTED_VSTORE_FUNC_NAME;
+  return FunctionName.str();
 }
 
 Type *parsePrimitiveTypeString(StringRef TyStr, LLVMContext &Ctx) {
@@ -737,7 +779,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   const auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
   id::NodeArray Args = ArgsN->getParams();
   assert(N < Args.size() && "too few template arguments");
-  id::StringView Val;
+  std::string_view Val;
   switch (Conv) {
   case ESIMDIntrinDesc::GenXArgConversion::NONE:
     // Default fallback case, if we cannot deduce bitsize
@@ -760,11 +802,11 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   switch (Args[N]->getKind()) {
   case id::Node::KIntegerLiteral: {
     auto *ValL = castNode(Args[N], IntegerLiteral);
-    const id::StringView &TyStr = ValL->getType();
+    const std::string_view &TyStr = ValL->getType();
     if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
       // Overwrite Ty with IntegerLiteral's size
       Ty =
-          parsePrimitiveTypeString(StringRef(TyStr.begin(), TyStr.size()), Ctx);
+          parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()), Ctx);
     Val = ValL->getValue();
     break;
   }
@@ -781,7 +823,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   default:
     llvm_unreachable_internal("bad esimd intrinsic template parameter");
   }
-  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(Val.begin(), Val.size()),
+  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(&*Val.begin(), Val.size()),
                10);
 }
 
@@ -985,7 +1027,7 @@ static void translateUnPackMask(CallInst &CI) {
   CI.replaceAllUsesWith(TransCI);
 }
 
-static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
+static bool translateVLoad(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   if (GVTS.find(CI.getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
@@ -995,7 +1037,7 @@ static bool translateVLoad(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   return true;
 }
 
-static bool translateVStore(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
+static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   if (GVTS.find(CI.getOperand(1)->getType()) != GVTS.end())
     return false;
   IRBuilder<> Builder(&CI);
@@ -1019,9 +1061,10 @@ static void translateGetSurfaceIndex(CallInst &CI) {
 // This helper function creates cast operation from GenX intrinsic return type
 // to currently expected. Returns pointer to created cast instruction if it
 // was created, otherwise returns NewI.
-static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
+static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
+                                        Type *UseType = nullptr) {
   Type *NITy = NewI->getType();
-  Type *OITy = OldI->getType();
+  Type *OITy = UseType ? UseType : OldI->getType();
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
@@ -1162,6 +1205,46 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
   }
 }
 
+// Create a spirv function declaration
+// This is used for lowering devicelib functions.
+// The function
+// 1. Generates spirv function definition
+// 2. Converts passed by reference argument of devicelib function into passed by
+// value argument of spirv functions
+// 3. Assigns proper attributes to generated function
+static Function *
+createDeviceLibESIMDDeclaration(const ESIMDIntrinDesc &Desc,
+                                SmallVector<Value *, 16> &GenXArgs,
+                                CallInst &CI) {
+  SmallVector<Type *, 16> ArgTypes;
+  IRBuilder<> Bld(&CI);
+  for (unsigned i = 0; i < GenXArgs.size(); ++i) {
+    Type *NTy = llvm::StringSwitch<Type *>(Desc.GenXSpelling)
+                    .Case("__spirv_ConvertFToBF16INTEL",
+                          Type::getFloatTy(CI.getContext()))
+                    .Case("__spirv_ConvertBF16ToFINTEL",
+                          Type::getInt16Ty(CI.getContext()))
+                    .Default(nullptr);
+
+    auto LI = Bld.CreateLoad(NTy, GenXArgs[i]);
+    GenXArgs[i] = LI;
+    ArgTypes.push_back(NTy);
+  }
+  auto *FType = FunctionType::get(CI.getType(), ArgTypes, false);
+  Function *F = CI.getModule()->getFunction(Desc.GenXSpelling);
+  if (!F) {
+    F = Function::Create(FType, GlobalVariable::ExternalLinkage,
+                         Desc.GenXSpelling, CI.getModule());
+    F->addFnAttr(Attribute::NoUnwind);
+    F->addFnAttr(Attribute::Convergent);
+    F->setDSOLocal(true);
+
+    F->setCallingConv(CallingConv::SPIR_FUNC);
+  }
+
+  return F;
+}
+
 // Create a simple function declaration
 // This is used for testing purposes, when it is impossible to query
 // vc-intrinsics
@@ -1239,7 +1322,9 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
   llvm::esimd::assert_and_diag(F, "function to translate is invalid");
-  StringRef MnglName = F->getName();
+  std::string MnglNameStr = mangleFunction(F->getName());
+  StringRef MnglName = MnglNameStr;
+
   Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
 
@@ -1250,10 +1335,12 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
                                "bad ESIMD intrinsic: ", MnglName);
 
   auto *FE = static_cast<id::FunctionEncoding *>(AST);
-  id::StringView BaseNameV = FE->getName()->getBaseName();
+  std::string_view BaseNameV = FE->getName()->getBaseName();
 
-  auto PrefLen = StringRef(ESIMD_INTRIN_PREF1).size();
-  StringRef BaseName(BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
+  auto PrefLen = isDevicelibFunction(F->getName())
+                     ? 0
+                     : StringRef(ESIMD_INTRIN_PREF1).size();
+  StringRef BaseName(&*BaseNameV.begin() + PrefLen, BaseNameV.size() - PrefLen);
   const auto &Desc = getIntrinDesc(BaseName);
   if (!Desc.isValid()) // TODO remove this once all intrinsics are supported
     return;
@@ -1263,7 +1350,11 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   SmallVector<Value *, 16> GenXArgs;
   createESIMDIntrinsicArgs(Desc, GenXArgs, CI, FE);
   Function *NewFDecl = nullptr;
-  if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
+  bool DoesFunctionReturnStructure =
+      isStructureReturningFunction(Desc.GenXSpelling);
+  if (isDevicelibFunction(F->getName())) {
+    NewFDecl = createDeviceLibESIMDDeclaration(Desc, GenXArgs, CI);
+  } else if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
     // Special case for testing purposes
     NewFDecl = createTestESIMDDeclaration(Desc, GenXArgs, CI);
   } else {
@@ -1271,8 +1362,17 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
         GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
 
     SmallVector<Type *, 16> GenXOverloadedTypes;
-    if (GenXIntrinsic::isOverloadedRet(ID))
-      GenXOverloadedTypes.push_back(CI.getType());
+    if (GenXIntrinsic::isOverloadedRet(ID)) {
+      if (DoesFunctionReturnStructure) {
+        // TODO implement more generic handling of returned structure
+        // current code assumes that returned code has 2 members of the
+        // same type as arguments.
+        GenXOverloadedTypes.push_back(GenXArgs[1]->getType());
+        GenXOverloadedTypes.push_back(GenXArgs[1]->getType());
+      } else {
+        GenXOverloadedTypes.push_back(CI.getType());
+      }
+    }
     for (unsigned i = 0; i < GenXArgs.size(); ++i)
       if (GenXIntrinsic::isOverloadedArg(ID, i))
         GenXOverloadedTypes.push_back(GenXArgs[i]->getType());
@@ -1286,6 +1386,17 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
   if (FixReadNone)
     NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
+  Instruction *NewInst = nullptr;
+  AddrSpaceCastInst *CastInstruction = nullptr;
+  if (DoesFunctionReturnStructure) {
+    llvm::esimd::assert_and_diag(
+        isa<AddrSpaceCastInst>(GenXArgs[0]),
+        "Unexpected instruction for returning a structure from a function.");
+    CastInstruction = static_cast<AddrSpaceCastInst *>(GenXArgs[0]);
+    // Remove 1st argument that is used to return the structure
+    GenXArgs.erase(GenXArgs.begin());
+  }
+
   CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
@@ -1293,8 +1404,16 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   if (FixReadNone)
     NewCI->setMemoryEffects(MemoryEffects::none());
   NewCI->setDebugLoc(CI.getDebugLoc());
+  if (DoesFunctionReturnStructure) {
+    IRBuilder<> Builder(&CI);
 
-  Instruction *NewInst = addCastInstIfNeeded(&CI, NewCI);
+    NewInst = Builder.CreateStore(
+        NewCI, Builder.CreateBitCast(CastInstruction->getPointerOperand(),
+                                     NewCI->getType()->getPointerTo()));
+  } else {
+    NewInst = addCastInstIfNeeded(&CI, NewCI);
+  }
+
   CI.replaceAllUsesWith(NewInst);
   CI.eraseFromParent();
 }
@@ -1376,17 +1495,24 @@ void generateKernelMetadata(Module &M) {
         StringRef ArgDesc = "";
 
         if (Arg.getType()->isPointerTy()) {
-          const auto *IsAccMD =
-              KernelArgAccPtrs
-                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
-                  : nullptr;
-          unsigned IsAcc =
-              IsAccMD
-                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
-                                              ->getValue()
-                                              .getZExtValue())
-                  : 0;
-          if (IsAcc && !ForceStatelessMem) {
+          bool IsAcc = false;
+          bool IsLocalAcc = false;
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            IsLocalAcc =
+                IsAcc &&
+                cast<PointerType>(Arg.getType())->getAddressSpace() == LocalAS;
+          }
+
+          if (IsLocalAcc) {
+            // Local accessor doesn't need any changes.
+          } else if (IsAcc && !ForceStatelessMem) {
             ArgDesc = "buffer_t";
             Kind = AK_SURFACE;
           } else
@@ -1452,40 +1578,219 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   return GenXVolatileTypeSet;
 }
 
+// genx_volatile variables are special and require vstores instead of stores.
+// In most cases, the vstores are called directly in the implementation
+// of the simd object operations, but in some cases clang can implicitly
+// insert stores, such as after a write in inline assembly. To handle that
+// case, lower any stores of genx_volatiles into vstores.
+void lowerGlobalStores(Module &M, const SmallPtrSetImpl<Type *> &GVTS) {
+  SmallVector<Instruction *, 4> ToErase;
+  for (auto &F : M.functions()) {
+    for (Instruction &I : instructions(F)) {
+      auto SI = dyn_cast_or_null<StoreInst>(&I);
+      if (!SI)
+        continue;
+      if (GVTS.find(SI->getValueOperand()->getType()) == GVTS.end())
+        continue;
+      SmallVector<Type *, 2> ArgTypes;
+      IRBuilder<> Builder(SI);
+      ArgTypes.push_back(SI->getPointerOperand()->getType());
+      ArgTypes.push_back(SI->getValueOperand()->getType());
+      auto *NewFType = FunctionType::get(SI->getType(), ArgTypes, false);
+      auto *NewF =
+          Function::Create(NewFType, GlobalVariable::ExternalWeakLinkage,
+                           ESIMD_INSERTED_VSTORE_FUNC_NAME, M);
+      NewF->addFnAttr(Attribute::NoUnwind);
+      NewF->addFnAttr(Attribute::Convergent);
+      NewF->setDSOLocal(true);
+      NewF->setCallingConv(CallingConv::SPIR_FUNC);
+      SmallVector<Value *, 2> Args;
+      Args.push_back(SI->getPointerOperand());
+      Args.push_back(SI->getValueOperand());
+      auto *NewCI = Builder.CreateCall(NewFType, NewF, Args);
+      NewCI->setDebugLoc(SI->getDebugLoc());
+      ToErase.push_back(SI);
+    }
+  }
+  for (auto *Inst : ToErase) {
+    Inst->eraseFromParent();
+  }
+}
+
+// Change in global variables:
+//
+// Old IR:
+// ======
+// @vc = global %"class.cm::gen::simd"
+//          zeroinitializer, align 64 #0
+//
+// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
+//    <16 x i32> addrspace(4) * getelementptr(
+//    % "class.cm::gen::simd",
+//    % "class.cm::gen::simd" addrspace(4) *
+//    addrspacecast(% "class.cm::gen::simd" * @vc to
+//    % "class.cm::gen::simd" addrspace(4) *), i64 0,
+//    i32 0))
+//
+// New IR:
+// ======
+//
+// @0 = dso_local global <16 x i32> zeroinitializer, align 64 #0 <-- New Global
+// Variable
+//
+// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
+//        <16 x i32> addrspace(4) * getelementptr(
+//        % "class.cm::gen::simd",
+//        % "class.cm::gen::simd" addrspace(4) *
+//        addrspacecast(% "class.cm::gen::simd" *
+//        bitcast(<16 x i32> * @0 to
+//        %"class.cm::gen::simd" *) to %
+//        "class.cm::gen::simd" addrspace(4) *),
+//        i64 0, i32 0))
+void lowerGlobalsToVector(Module &M) {
+  // Create new global variables of type vector* type
+  // when old one is of simd* type.
+  DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
+  for (auto &G : M.globals()) {
+    Type *GVTy = G.getValueType();
+    Type *NewTy = esimd::getVectorTyOrNull(dyn_cast<StructType>(GVTy));
+    if (NewTy && !G.user_empty()) {
+      auto InitVal =
+          G.hasInitializer() && isa<UndefValue>(G.getInitializer())
+              ? static_cast<ConstantData *>(UndefValue::get(NewTy))
+              : static_cast<ConstantData *>(ConstantAggregateZero::get(NewTy));
+      auto NewGlobalVar =
+          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), InitVal, "",
+                             G.getThreadLocalMode(), G.getAddressSpace());
+      NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
+      NewGlobalVar->setVisibility(G.getVisibility());
+      NewGlobalVar->copyAttributesFrom(&G);
+      NewGlobalVar->takeName(&G);
+      NewGlobalVar->copyMetadata(&G, 0);
+      M.insertGlobalVariable(NewGlobalVar);
+      OldNewGlobal.insert(std::make_pair(&G, NewGlobalVar));
+    }
+  }
+
+  // Remove old global variables from the program.
+  for (auto &G : OldNewGlobal) {
+    auto OldGlob = G.first;
+    auto NewGlobal = G.second;
+    OldGlob->replaceAllUsesWith(
+        ConstantExpr::getBitCast(NewGlobal, OldGlob->getType()));
+    OldGlob->eraseFromParent();
+  }
+}
+
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
+bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
+
+  auto markAlwaysInlined = [](Function &F) -> bool {
+    if (F.hasFnAttribute(llvm::Attribute::NoInline))
+      F.removeFnAttr(llvm::Attribute::NoInline);
+    if (F.hasFnAttribute(llvm::Attribute::InlineHint))
+      F.removeFnAttr(llvm::Attribute::InlineHint);
+    F.addFnAttr(llvm::Attribute::AlwaysInline);
+    return true;
+  };
+
+  bool NeedInline = false;
+  for (auto &F : M) {
+    // If some function already has 'alwaysinline' attribute, then request
+    // inliner pass.
+    if (F.hasFnAttribute(Attribute::AlwaysInline)) {
+      NeedInline = true;
+      continue;
+    }
+
+    // VC BE forbids 'alwaysinline' and "VCStackCall" on the same function.
+    // Such function may be used in other module, we cannot remove it
+    // after inlining.
+    if (F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
+      continue;
+
+    if (isESIMDKernel(F))
+      continue;
+
+    if (isSlmAllocatorConstructor(F) || isSlmAllocatorDestructor(F)) {
+      // slm_allocator constructor and destructor must be inlined
+      // to help SLM reservation analysis.
+      NeedInline |= markAlwaysInlined(F);
+      continue;
+    }
+
+    // TODO: The next code and comment was placed to ESIMDLoweringPass
+    // 2 years ago, when GPU VC BE did not support function calls and
+    // required everything to be inlined right into the kernel unless
+    // it had noinline or VCStackCall attrubute.
+    // This code migrated to here without changes, but... VC BE does support
+    //  the calls of spir_func these days, so this code may need re-visiting.
+    if (!F.hasFnAttribute(Attribute::NoInline))
+      NeedInline |= markAlwaysInlined(F);
+
+    if (!isSlmInit(F))
+      continue;
+
+    for (User *U : F.users()) {
+      auto *FCall = dyn_cast<CallInst>(U);
+      if (FCall && FCall->getCalledFunction() == &F) {
+        Function *GenF = FCall->getFunction();
+        // The original kernel (UserK) if often automatically separated into
+        // a spir_func (GenF) that is then called from spir_kernel (GenK).
+        // When that happens, the calls of slm_init<N>() originally placed
+        // in 'UserK' get moved to spir_func 'GenF', which creates wrong IR
+        // because slm_init() must be called only from a kernel.
+        // Fix it here: If 'GenF' has only 1 caller spir_kernel 'GenK',
+        // then inline 'GenF' to move slm_init call from spir_kernel 'GenK'.
+        SmallPtrSet<Function *, 1> GenFCallers;
+        for (User *GenFU : GenF->users()) {
+          auto *GenFCall = dyn_cast<CallInst>(GenFU);
+          if (GenFCall && GenFCall->getCalledFunction() == GenF) {
+            Function *GenK = GenFCall->getFunction();
+            GenFCallers.insert(GenK);
+          } else {
+            // Unexpected user of GenF. Do not require GenF inlining.
+            GenFCallers.clear();
+            break;
+          }
+        } // end for (User *GenFU : GenF->users())
+        if (GenFCallers.size() == 1 && isESIMDKernel(**GenFCallers.begin()))
+          NeedInline |= markAlwaysInlined(*GenF);
+      }
+    } // end for (User *U : F.users())
+  }
+  return NeedInline;
+}
+
+PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
+                                          ModuleAnalysisManager &MAM) {
+  // AlwaysInlinerPass is required for correctness.
+  bool ForceInline = prepareForAlwaysInliner(M);
+  if (ForceInline) {
+    ModulePassManager MPM;
+    MPM.addPass(AlwaysInlinerPass{});
+    MPM.run(M, MAM);
+  }
+
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
   // uses the generated metadata:
   size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
-
+  lowerGlobalStores(M, GVTS);
+  lowerGlobalsToVector(M);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
 
   // TODO FIXME ESIMD figure out less conservative result
-  return AmountOfESIMDIntrCalls > 0 ? PreservedAnalyses::none()
-                                    : PreservedAnalyses::all();
+  return AmountOfESIMDIntrCalls > 0 || ForceInline ? PreservedAnalyses::none()
+                                                   : PreservedAnalyses::all();
 }
 
 size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
-                                         SmallPtrSet<Type *, 4> &GVTS) {
-  // There is a current limitation of GPU vector backend that requires kernel
-  // functions to be inlined into the kernel itself. To overcome this
-  // limitation, mark every function called from ESIMD kernel with
-  // 'alwaysinline' attribute, except few cases:
-  //     - kernels are not called from device code, so can't be inlined
-  if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
-      // - 'noninline' should not be overridden
-      !F.hasFnAttribute(Attribute::NoInline) &&
-      // - 'alwaysinline' should not be duplicated
-      !F.hasFnAttribute(Attribute::AlwaysInline) &&
-      // - VC BE forbids 'alwaysinline' and "VCStackCall" on the same function
-      !F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
-    F.addFnAttr(Attribute::AlwaysInline);
-
+                                         SmallPtrSetImpl<Type *> &GVTS) {
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
 
@@ -1530,7 +1835,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // See if the Name represents an ESIMD intrinsic and demangle only if it
       // does.
-      if (!Name.consume_front(ESIMD_INTRIN_PREF0))
+      if (!Name.consume_front(ESIMD_INTRIN_PREF0) && !isDevicelibFunction(Name))
         continue;
       // now skip the digits
       Name = Name.drop_while([](char C) { return std::isdigit(C); });
@@ -1574,10 +1879,9 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      assert(!Name.startswith("__sycl_set_kernel_properties") &&
-             "__sycl_set_kernel_properties must have been lowered");
 
-      if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
+      if (Name.empty() ||
+          (!Name.startswith(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))
         continue;
       // this is ESIMD intrinsic - record for later translation
       ESIMDIntrCalls.push_back(CI);

@@ -378,15 +378,17 @@ void HeaderSearch::indexInitialHeaderMaps() {
   llvm::StringMap<unsigned, llvm::BumpPtrAllocator> Index(SearchDirs.size());
 
   // Iterate over all filename keys and associate them with the index i.
-  unsigned i = 0;
-  for (; i != SearchDirs.size(); ++i) {
+  for (unsigned i = 0; i != SearchDirs.size(); ++i) {
     auto &Dir = SearchDirs[i];
 
     // We're concerned with only the initial contiguous run of header
     // maps within SearchDirs, which can be 99% of SearchDirs when
     // SearchDirs.size() is ~10000.
-    if (!Dir.isHeaderMap())
+    if (!Dir.isHeaderMap()) {
+      SearchDirHeaderMapIndex = std::move(Index);
+      FirstNonHeaderMapSearchDirIdx = i;
       break;
+    }
 
     // Give earlier keys precedence over identical later keys.
     auto Callback = [&](StringRef Filename) {
@@ -394,9 +396,6 @@ void HeaderSearch::indexInitialHeaderMaps() {
     };
     Dir.getHeaderMap()->forEachKey(Callback);
   }
-
-  SearchDirHeaderMapIndex = std::move(Index);
-  FirstNonHeaderMapSearchDirIdx = i;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1566,13 +1565,14 @@ HeaderSearch::findModuleForHeader(const FileEntry *File, bool AllowTextual,
 }
 
 ArrayRef<ModuleMap::KnownHeader>
-HeaderSearch::findAllModulesForHeader(const FileEntry *File) const {
+HeaderSearch::findAllModulesForHeader(const FileEntry *File,
+                                      bool AllowCreation) const {
   if (ExternalSource) {
     // Make sure the external source has handled header info about this file,
     // which includes whether the file is part of a module.
     (void)getExistingFileInfo(File);
   }
-  return ModMap.findAllModulesForHeader(File);
+  return ModMap.findAllModulesForHeader(File, AllowCreation);
 }
 
 static bool suggestModule(HeaderSearch &HS, const FileEntry *File,
@@ -1929,7 +1929,7 @@ std::string HeaderSearch::suggestPathToFileForDiagnostics(
     llvm::StringRef File, llvm::StringRef WorkingDir, llvm::StringRef MainFile,
     bool *IsSystem) {
   using namespace llvm::sys;
-  
+
   llvm::SmallString<32> FilePath = File;
   // remove_dots switches to backslashes on windows as a side-effect!
   // We always want to suggest forward slashes for includes.

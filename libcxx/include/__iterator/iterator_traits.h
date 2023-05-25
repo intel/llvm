@@ -531,8 +531,8 @@ using __iterator_pointer_type = typename iterator_traits<_Iter>::pointer;
 template <class _Iter>
 using __iter_diff_t = typename iterator_traits<_Iter>::difference_type;
 
-template<class _InputIterator>
-using __iter_value_type = typename iterator_traits<_InputIterator>::value_type;
+template <class _Iter>
+using __iter_reference = typename iterator_traits<_Iter>::reference;
 
 _LIBCPP_END_NAMESPACE_STD
 

@@ -125,6 +125,9 @@ llvm::raw_ostream &operator<<(
   if (x.moduleInterface_) {
     os << " moduleInterface: " << *x.moduleInterface_;
   }
+  if (x.defaultIgnoreTKR_) {
+    os << " defaultIgnoreTKR";
+  }
   return os;
 }
 
@@ -332,6 +335,30 @@ void Symbol::SetBindName(std::string &&name) {
       details_);
 }
 
+bool Symbol::GetIsExplicitBindName() const {
+  return common::visit(
+      [&](auto &x) -> bool {
+        if constexpr (HasBindName<decltype(&x)>) {
+          return x.isExplicitBindName();
+        } else {
+          return false;
+        }
+      },
+      details_);
+}
+
+void Symbol::SetIsExplicitBindName(bool yes) {
+  common::visit(
+      [&](auto &x) {
+        if constexpr (HasBindName<decltype(&x)>) {
+          x.set_isExplicitBindName(yes);
+        } else {
+          DIE("bind name not allowed on this kind of symbol");
+        }
+      },
+      details_);
+}
+
 bool Symbol::IsFuncResult() const {
   return common::visit(
       common::visitors{[](const EntityDetails &x) { return x.isFuncResult(); },
@@ -382,6 +409,10 @@ llvm::raw_ostream &operator<<(
   DumpExpr(os, "init", x.init_);
   if (x.unanalyzedPDTComponentInit()) {
     os << " (has unanalyzedPDTComponentInit)";
+  }
+  if (!x.ignoreTKR_.empty()) {
+    os << ' ';
+    x.ignoreTKR_.Dump(os, common::EnumToString);
   }
   return os;
 }
@@ -670,7 +701,7 @@ std::string GenericKind::ToString() const {
   return common::visit(
       common::visitors {
         [](const OtherKind &x) { return std::string{EnumToString(x)}; },
-            [](const DefinedIo &x) { return AsFortran(x).ToString(); },
+            [](const common::DefinedIo &x) { return AsFortran(x).ToString(); },
 #if !__clang__ && __GNUC__ == 7 && __GNUC_MINOR__ == 2
             [](const common::NumericOperator &x) {
               return std::string{common::EnumToString(x)};
@@ -688,23 +719,8 @@ std::string GenericKind::ToString() const {
       u);
 }
 
-SourceName GenericKind::AsFortran(DefinedIo x) {
-  const char *name{nullptr};
-  switch (x) {
-    SWITCH_COVERS_ALL_CASES
-  case DefinedIo::ReadFormatted:
-    name = "read(formatted)";
-    break;
-  case DefinedIo::ReadUnformatted:
-    name = "read(unformatted)";
-    break;
-  case DefinedIo::WriteFormatted:
-    name = "write(formatted)";
-    break;
-  case DefinedIo::WriteUnformatted:
-    name = "write(unformatted)";
-    break;
-  }
+SourceName GenericKind::AsFortran(common::DefinedIo x) {
+  const char *name{common::AsFortran(x)};
   return {name, std::strlen(name)};
 }
 

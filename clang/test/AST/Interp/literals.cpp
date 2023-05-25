@@ -80,6 +80,12 @@ static_assert(~255 == -256, "");
 static_assert(~INT_MIN == INT_MAX, "");
 static_assert(~INT_MAX == INT_MIN, "");
 
+static_assert(-(1 << 31), ""); // expected-error {{not an integral constant expression}} \
+                               // expected-note {{outside the range of representable values}} \
+                               // ref-error {{not an integral constant expression}} \
+                               // ref-note {{outside the range of representable values}} \
+
+
 enum E {};
 constexpr E e = static_cast<E>(0);
 static_assert(~e == -1, "");
@@ -100,6 +106,19 @@ constexpr int gimme(int k) {
   return k;
 }
 static_assert(gimme(5) == 5, "");
+
+namespace PointerToBool {
+
+  constexpr void *N = nullptr;
+  constexpr bool B = N;
+  static_assert(!B, "");
+  static_assert(!N, "");
+
+  constexpr float F = 1.0;
+  constexpr const float *FP = &F;
+  static_assert(FP, "");
+  static_assert(!!FP, "");
+}
 
 namespace SizeOf {
   constexpr int soint = sizeof(int);
@@ -706,5 +725,107 @@ namespace IncDec {
              // ref-note {{cannot refer to element -1 of array of 3 elements}}
     return *p;
   }
+
+  /// This used to leave a 0 on the stack instead of the previous
+  /// value of a.
+  constexpr int bug1Inc() {
+    int a = 3;
+    int b = a++;
+    return b;
+  }
+  static_assert(bug1Inc() == 3);
+
+  constexpr int bug1Dec() {
+    int a = 3;
+    int b = a--;
+    return b;
+  }
+  static_assert(bug1Dec() == 3);
+
 };
+#endif
+
+namespace CompoundLiterals {
+  constexpr int get5() {
+    return (int[]){1,2,3,4,5}[4];
+  }
+  static_assert(get5() == 5, "");
+
+  constexpr int get6(int f = (int[]){1,2,6}[2]) { // ref-note {{subexpression not valid in a constant expression}} \
+                                                  // ref-note {{declared here}}
+    return f;
+  }
+  static_assert(get6(6) == 6, "");
+  // FIXME: Who's right here?
+  static_assert(get6() == 6, ""); // ref-error {{not an integral constant expression}}
+
+  constexpr int x = (int){3};
+  static_assert(x == 3, "");
+#if __cplusplus >= 201402L
+  constexpr int getX() {
+    int x = (int){3};
+    x = (int){5};
+    return x;
+  }
+  static_assert(getX() == 5, "");
+#endif
+
+#if __cplusplus >= 202002L
+  constexpr int get3() {
+    int m;
+    m = (int){3};
+    return m;
+  }
+  static_assert(get3() == 3, "");
+#endif
+};
+
+namespace TypeTraits {
+  static_assert(__is_trivial(int), "");
+  static_assert(__is_trivial(float), "");
+  static_assert(__is_trivial(E), "");
+  struct S{};
+  static_assert(__is_trivial(S), "");
+  struct S2 {
+    S2() {}
+  };
+  static_assert(!__is_trivial(S2), "");
+
+  template <typename T>
+  struct S3 {
+    constexpr bool foo() const { return __is_trivial(T); }
+  };
+  struct T {
+    ~T() {}
+  };
+  struct U {};
+  static_assert(S3<U>{}.foo(), "");
+  static_assert(!S3<T>{}.foo(), "");
+}
+
+#if __cplusplus >= 201402L
+constexpr int ignoredDecls() {
+  static_assert(true, "");
+  struct F { int a; };
+  enum E { b };
+  using A = int;
+  typedef int Z;
+
+  return F{12}.a;
+}
+static_assert(ignoredDecls() == 12, "");
+
+struct A{};
+constexpr int ignoredExprs() {
+  (void)(1 / 2);
+  A a;
+  a; // expected-warning {{unused}} \
+     // ref-warning {{unused}}
+  (void)a;
+  (a); // expected-warning {{unused}} \
+       // ref-warning {{unused}}
+
+  return 0;
+}
+
 #endif

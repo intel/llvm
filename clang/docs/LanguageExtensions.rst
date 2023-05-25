@@ -631,6 +631,7 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
 =========================================== ================================================================ =========================================
  T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
                                              the most negative integer remains the most negative integer
+ T __builtin_elementwise_fma(T x, T y, T z)  fused multiply add, (x * y) +  z.                                              floating point types
  T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
  T __builtin_elementwise_sin(T x)            return the sine of x interpreted as an angle in radians          floating point types
  T __builtin_elementwise_cos(T x)            return the cosine of x interpreted as an angle in radians        floating point types
@@ -638,6 +639,8 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
  T __builtin_elementwise_log(T x)            return the natural logarithm of x                                floating point types
  T __builtin_elementwise_log2(T x)           return the base 2 logarithm of x                                 floating point types
  T __builtin_elementwise_log10(T x)          return the base 10 logarithm of x                                floating point types
+ T __builtin_elementwise_exp(T x)            returns the base-e exponential, e^x, of the specified value      floating point types
+ T __builtin_elementwise_exp2(T x)           returns the base-2 exponential, 2^x, of the specified value      floating point types
  T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
                                              rounding halfway cases to even (that is, to the nearest value
                                              that is an even integer), regardless of the current rounding
@@ -1367,6 +1370,41 @@ For example, compiling code with ``-fmodules`` enables the use of Modules.
 
 More information could be found `here <https://clang.llvm.org/docs/Modules.html>`_.
 
+Language Extensions Back-ported to Previous Standards
+=====================================================
+
+=================================== ================================ ============= ============= ==================================
+Feature                             Feature Test Macro               Introduced In Backported To Required Flags
+=================================== ================================ ============= ============= ==================================
+variadic templates                  __cpp_variadic_templates         C++11         C++03
+Alias templates                     __cpp_alias_templates            C++11         C++03
+Non-static data member initializers __cpp_nsdmi                      C++11         C++03
+Range-based ``for`` loop            __cpp_range_based_for            C++11         C++03
+RValue references                   __cpp_rvalue_references          C++11         C++03
+Attributes                          __cpp_attributes                 C++11         C++03         -fdouble-square-bracket-attributes
+variable templates                  __cpp_variable_templates         C++14         C++03
+Binary literals                     __cpp_binary_literals            C++14         C++03
+Relaxed constexpr                   __cpp_constexpr                  C++14         C++11
+``if constexpr``                    __cpp_if_constexpr               C++17         C++11
+fold expressions                    __cpp_fold_expressions           C++17         C++03
+Lambda capture of \*this by value   __cpp_capture_star_this          C++17         C++11
+Attributes on enums                 __cpp_enumerator_attributes      C++17         C++11
+Guaranteed copy elision             __cpp_guaranteed_copy_elision    C++17         C++03
+Hexadecimal floating literals       __cpp_hex_float                  C++17         C++03
+``inline`` variables                __cpp_inline_variables           C++17         C++03
+Attributes on namespaces            __cpp_namespace_attributes       C++17         C++11
+Structured bindings                 __cpp_structured_bindings        C++17         C++03
+template template arguments         __cpp_template_template_args     C++17         C++03
+``static operator[]``               __cpp_multidimensional_subscript C++20         C++03
+Designated initializers             __cpp_designated_initializers    C++20         C++03
+Conditional ``explicit``            __cpp_conditional_explicit       C++20         C++03
+``using enum``                      __cpp_using_enum                 C++20         C++03
+``if consteval``                    __cpp_if_consteval               C++23         C++20
+``static operator()``               __cpp_static_call_operator       C++23         C++03
+----------------------------------- -------------------------------- ------------- ------------- ----------------------------------
+Designated initializers                                              C99           C89
+=================================== ================================ ============= ============= ==================================
+
 Type Trait Primitives
 =====================
 
@@ -1504,6 +1542,9 @@ The following type trait primitives are supported by Clang. Those traits marked
   functionally equivalent to copying the underlying bytes and then dropping the
   source object on the floor. This is true of trivial types and types which
   were made trivially relocatable via the ``clang::trivial_abi`` attribute.
+* ``__is_trivially_equality_comparable`` (Clang): Returns true if comparing two
+  objects of the provided type is known to be equivalent to comparing their
+  value representations.
 * ``__is_unbounded_array`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
@@ -2355,6 +2396,46 @@ evaluated, so any side effects of the expression will be discarded.
 
 Query for this feature with ``__has_builtin(__builtin_assume)``.
 
+.. _langext-__builtin_assume_separate_storage:
+
+``__builtin_assume_separate_storage``
+-------------------------------------
+
+``__builtin_assume_separate_storage`` is used to provide the optimizer with the
+knowledge that its two arguments point to separately allocated objects.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    __builtin_assume_separate_storage(const volatile void *, const volatile void *)
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  int foo(int *x, int *y) {
+      __builtin_assume_separate_storage(x, y);
+      *x = 0;
+      *y = 1;
+      // The optimizer may optimize this to return 0 without reloading from *x.
+      return *x;
+  }
+
+**Description**:
+
+The arguments to this function are assumed to point into separately allocated
+storage (either different variable definitions or different dynamic storage
+allocations). The optimizer may use this fact to aid in alias analysis. If the
+arguments point into the same storage, the behavior is undefined. Note that the
+definition of "storage" here refers to the outermost enclosing allocation of any
+particular object (so for example, it's never correct to call this function
+passing the addresses of fields in the same struct, elements of the same array,
+etc.).
+
+Query for this feature with ``__has_builtin(__builtin_assume_separate_storage)``.
+
+
 ``__builtin_offsetof``
 ----------------------
 
@@ -2532,7 +2613,7 @@ In the format string, a suitable format specifier will be used for builtin
 types that Clang knows how to format. This includes standard builtin types, as
 well as aggregate structures, ``void*`` (printed with ``%p``), and ``const
 char*`` (printed with ``%s``). A ``*%p`` specifier will be used for a field
-that Clang doesn't know how to format, and the corresopnding argument will be a
+that Clang doesn't know how to format, and the corresponding argument will be a
 pointer to the field. This allows a C++ templated formatting function to detect
 this case and implement custom formatting. A ``*`` will otherwise not precede a
 format specifier.
@@ -2882,7 +2963,7 @@ data into the cache before it gets used.
 **Description**:
 
 The ``__builtin_prefetch(addr, rw, locality)`` builtin is expected to be used to
-avoid cache misses when the developper has a good understanding of which data
+avoid cache misses when the developer has a good understanding of which data
 are going to be used next. ``addr`` is the address that needs to be brought into
 the cache. ``rw`` indicates the expected access mode: ``0`` for *read* and ``1``
 for *write*. In case of *read write* access, ``1`` is to be used. ``locality``
@@ -3264,13 +3345,35 @@ Floating point builtins
 
    double __builtin_canonicalize(double);
    float __builtin_canonicalizef(float);
-   long double__builtin_canonicalizel(long double);
+   long double __builtin_canonicalizel(long double);
 
 Returns the platform specific canonical encoding of a floating point
 number. This canonicalization is useful for implementing certain
 numeric primitives such as frexp. See `LLVM canonicalize intrinsic
 <https://llvm.org/docs/LangRef.html#llvm-canonicalize-intrinsic>`_ for
 more information on the semantics.
+
+``__builtin_flt_rounds`` and ``__builtin_set_flt_rounds``
+---------------------------------------------------------
+
+.. code-block:: c
+
+   int __builtin_flt_rounds();
+   void __builtin_set_flt_rounds(int);
+
+Returns and sets current floating point rounding mode. The encoding of returned
+values and input parameters is same as the result of FLT_ROUNDS, specified by C
+standard:
+- ``0``  - toward zero
+- ``1``  - to nearest, ties to even
+- ``2``  - toward positive infinity
+- ``3``  - toward negative infinity
+- ``4``  - to nearest, ties away from zero
+The effect of passing some other value to ``__builtin_flt_rounds`` is
+implementation-defined. ``__builtin_set_flt_rounds`` is currently only supported
+to work on x86, x86_64, Arm and AArch64 targets. These builtins read and modify
+the floating-point environment, which is not always allowed and may have unexpected
+behavior. Please see the section on `Accessing the floating point environment <https://clang.llvm.org/docs/UsersManual.html#accessing-the-floating-point-environment>`_ for more information.
 
 String builtins
 ---------------
@@ -3350,7 +3453,7 @@ longer usable unless re-initialized with a call to ``__builtin_va_start`` or
 
 A builtin function for the target-specific ``va_arg`` function-like macro. This
 function returns the value of the next variadic argument to the call. It is
-undefined behavior to call this builtin when there is no next varadic argument
+undefined behavior to call this builtin when there is no next variadic argument
 to retrieve or if the next variadic argument does not have a type compatible
 with the given ``type-name``. The return type of the function is the
 ``type-name`` given as the second argument. It is undefined behavior to call
@@ -3629,13 +3732,15 @@ Source location builtins
 
 Clang provides builtins to support C++ standard library implementation
 of ``std::source_location`` as specified in C++20.  With the exception
-of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
+of ``__builtin_COLUMN`` and ``__builtin_FILE_NAME``,
+these builtins are also implemented by GCC.
 
 **Syntax**:
 
 .. code-block:: c
 
   const char *__builtin_FILE();
+  const char *__builtin_FILE_NAME(); // Clang only
   const char *__builtin_FUNCTION();
   unsigned    __builtin_LINE();
   unsigned    __builtin_COLUMN(); // Clang only
@@ -3666,11 +3771,11 @@ of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
 
 **Description**:
 
-The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, and ``__builtin_FILE``
-return the values, at the "invocation point", for ``__LINE__``,
-``__FUNCTION__``, and ``__FILE__`` respectively. ``__builtin_COLUMN`` similarly
-returns the column, though there is no corresponding macro. These builtins are
-constant expressions.
+The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, ``__builtin_FILE`` and
+``__builtin_FILE_NAME`` return the values, at the "invocation point", for
+``__LINE__``, ``__FUNCTION__``, ``__FILE__`` and ``__FILE_NAME__`` respectively.
+``__builtin_COLUMN`` similarly returns the column,
+though there is no corresponding macro. These builtins are constant expressions.
 
 When the builtins appear as part of a default function argument the invocation
 point is the location of the caller. When the builtins appear as part of a
@@ -4686,7 +4791,7 @@ provide deprecation warnings for macro uses. For example:
    #define MIN(x, y) x < y ? x : y
    #pragma clang deprecated(MIN, "use std::min instead")
 
-   void min(int a, int b) {
+   int min(int a, int b) {
      return MIN(a, b); // warning: MIN is deprecated: use std::min instead
    }
 
@@ -4893,3 +4998,21 @@ The following x86-specific intrinsics can be used in constant expressions:
 * ``_rotwr``
 * ``_lrotl``
 * ``_lrotr``
+
+Debugging the Compiler
+======================
+
+Clang supports a number of pragma directives that help debugging the compiler itself.
+Syntax is the following: `#pragma clang __debug <command> <arguments>`.
+Note, all of debugging pragmas are subject to change.
+
+`dump`
+------
+Accepts either a single identifier or an expression. When a single identifier is passed,
+the lookup results for the identifier are printed to `stderr`. When an expression is passed,
+the AST for the expression is printed to `stderr`. The expression is an unevaluated operand,
+so things like overload resolution and template instantiations are performed,
+but the expression has no runtime effects.
+Type- and value-dependent expressions are not supported yet.
+
+This facility is designed to aid with testing name lookup machinery.

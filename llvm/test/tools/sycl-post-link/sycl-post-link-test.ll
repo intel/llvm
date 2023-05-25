@@ -10,7 +10,6 @@ target triple = "spir64-unknown-unknown"
 @__spirv_BuiltInSubgroupSize = external dso_local local_unnamed_addr addrspace(1) constant i32, align 4
 @__spirv_BuiltInSubgroupMaxSize = external dso_local local_unnamed_addr addrspace(1) constant i32, align 4
 
-
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupLocalInvocationId(i64 addrspace(1)* noundef align 8 %_arg_DoNotOptimize, i32 addrspace(1)* noundef align 4 %_arg_DoNotOptimize32) #0 !sycl_explicit_simd !3 {
 entry:

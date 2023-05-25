@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks whether the Kernel object returned from
 // kernel_bundle::get_kernel<typename KernelName>() is the same as a Kernel
@@ -33,17 +31,11 @@ int main() {
   auto ExpectedKernelName =
       ExpectedKernel.get_info<sycl::info::kernel::function_name>();
 
-  auto FoundKernelNumArgs =
-      FoundKernel.get_info<sycl::info::kernel::num_args>();
-  auto ExpectedKernelNumArgs =
-      ExpectedKernel.get_info<sycl::info::kernel::num_args>();
-
   auto FoundKernelContext = FoundKernel.get_info<sycl::info::kernel::context>();
   auto ExpectedKernelContext =
       ExpectedKernel.get_info<sycl::info::kernel::context>();
 
   assert(FoundKernelName == ExpectedKernelName);
-  assert(FoundKernelNumArgs == ExpectedKernelNumArgs);
   assert(FoundKernelContext == ExpectedKernelContext);
 
   return 0;

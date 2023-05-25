@@ -1,20 +1,44 @@
 ; This test checks that DW_OP_LLVM_arg operation goes through round trip translation correctly.
+; DW_OP_LLVM_arg is mapped on 165 in SPIR-V
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-allow-extra-diexpressions
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV-OCL
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-OCL
 
-; CHECK-SPIRV: Undef [[#]] [[#UNDEF:]]
-; CHECK-SPIRV: [[#DEBUG_LOC_VAR:]] [[#]] DebugLocalVariable
-; CHECK-SPIRV: [[#EXPR_ARG_0:]] [[#]] DebugOperation 165 0
-; CHECK-SPIRV: [[#EXPRESSION:]] [[#]] DebugExpression [[#EXPR_ARG_0]]
-; CHECK-SPIRV: [[#EXPR_EMPTY:]] [[#]] DebugExpression{{ *$}}
-; CHECK-SPIRV: Variable [[#]] [[#VAL:]]
-; CHECK-SPIRV: DebugValue [[#DEBUG_LOC_VAR]] [[#VAL]] [[#EXPRESSION]]
-; CHECK-SPIRV: DebugValue [[#DEBUG_LOC_VAR]] [[#UNDEF]] [[#EXPR_EMPTY]]
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-200
+
+; CHECK-SPIRV-200-DAG: TypeInt [[#INT32:]] 32 0
+; CHECK-SPIRV-200-DAG: Constant [[#INT32:]] [[#CONST1:]] 1 {{$}}
+; CHECK-SPIRV-200-DAG: Constant [[#INT32]] [[#CONST0:]] 0
+; CHECK-SPIRV-200-DAG: Constant [[#INT32]] [[#CONST165:]] 165
+; CHECK-SPIRV-200-NOT: Undef
+; CHECK-SPIRV-200: [[#DEBUG_LOC_VAR:]] [[#]] DebugLocalVariable
+; CHECK-SPIRV-200: [[#EXPR_1_ARG_0:]] [[#]] DebugOperation [[#CONST165]] [[#CONST0]]
+; CHECK-SPIRV-200: [[#EXPR_1:]] [[#]] DebugExpression [[#EXPR_1_ARG_0]]
+; CHECK-SPIRV-200: [[#EXPR_2_ARG_0:]] [[#]] DebugOperation [[#CONST165]] [[#CONST0]]
+; CHECK-SPIRV-200: [[#EXPR_2_ARG_1:]] [[#]] DebugOperation [[#CONST165]] [[#CONST1]]
+; CHECK-SPIRV-200: [[#EXPR_2_ARG_2:]] [[#]] DebugOperation [[#CONST1:]]
+; CHECK-SPIRV-200: [[#EXPR_2:]] [[#]] DebugExpression [[#EXPR_2_ARG_0]] [[#EXPR_2_ARG_1]] [[#EXPR_2_ARG_2]]
+; CHECK-SPIRV-200: Variable [[#]] [[#VAL:]]
+; CHECK-SPIRV-200: DebugValue [[#DEBUG_LOC_VAR]] [[#VAL]] [[#EXPR_1]]
+; CHECK-SPIRV-200: DebugValue [[#DEBUG_LOC_VAR]] [[#VAL]] [[#EXPR_2]]
+
+; CHECK-SPIRV-OCL: Undef [[#]] [[#UNDEF:]]
+; CHECK-SPIRV-OCL: [[#DEBUG_LOC_VAR:]] [[#]] DebugLocalVariable
+; CHECK-SPIRV-OCL: [[#EXPR_ARG_0:]] [[#]] DebugOperation 165 0
+; CHECK-SPIRV-OCL: [[#EXPRESSION:]] [[#]] DebugExpression [[#EXPR_ARG_0]]
+; CHECK-SPIRV-OCL: [[#EXPR_EMPTY:]] [[#]] DebugExpression{{ *$}}
+; CHECK-SPIRV-OCL: Variable [[#]] [[#VAL:]]
+; CHECK-SPIRV-OCL: DebugValue [[#DEBUG_LOC_VAR]] [[#VAL]] [[#EXPRESSION]]
+; CHECK-SPIRV-OCL: DebugValue [[#DEBUG_LOC_VAR]] [[#UNDEF]] [[#EXPR_EMPTY]]
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
@@ -24,9 +48,11 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone spe
 define void @DbgIntrinsics() sanitize_memtag {
 entry:
   %x = alloca i32, align 4
-; CHECK-LLVM: call void @llvm.dbg.value(metadata !DIArgList(ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
+; CHECK-LLVM-OCL: call void @llvm.dbg.value(metadata !DIArgList(ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
+; CHECK-LLVM-200: call void @llvm.dbg.value(metadata !DIArgList(ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
   call void @llvm.dbg.value(metadata !DIArgList(i32* %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0)), !dbg !10
-; CHECK-LLVM: call void @llvm.dbg.value(metadata ptr undef, metadata ![[#]], metadata !DIExpression())
+; CHECK-LLVM-OCL: call void @llvm.dbg.value(metadata ptr undef, metadata ![[#]], metadata !DIExpression())
+; CHECK-LLVM-200: call void @llvm.dbg.value(metadata !DIArgList(ptr %x, ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus))
   call void @llvm.dbg.value(metadata !DIArgList(i32* %x, i32* %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus)), !dbg !10
   store i32 42, i32* %x, align 4
   ret void

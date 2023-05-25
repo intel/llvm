@@ -53,6 +53,13 @@ struct SparseCompilerOptions
               "any-storage-any-loop",
               "Enable sparse parallelization for any storage and loop."))};
 
+  PassOptions::Option<bool> enableIndexReduction{
+      *this, "enable-index-reduction",
+      desc("Enable dependent index reduction based algorithm to handle "
+           "non-trivial index expressions on sparse inputs (experimental "
+           "features)"),
+      init(false)};
+
   PassOptions::Option<bool> enableRuntimeLibrary{
       *this, "enable-runtime-library",
       desc("Enable runtime library for manipulating sparse tensors"),
@@ -65,6 +72,15 @@ struct SparseCompilerOptions
   PassOptions::Option<bool> enableBufferInitialization{
       *this, "enable-buffer-initialization",
       desc("Enable zero-initialization of memory buffers"), init(false)};
+
+  PassOptions::Option<bool> createSparseDeallocs{
+      *this, "create-sparse-deallocs",
+      desc("Specify if the temporary buffers created by the sparse "
+           "compiler should be deallocated. For compatibility with core "
+           "bufferization passes. "
+           "This option is only used when enable-runtime-library=false. "
+           "See also create-deallocs for BufferizationOption."),
+      init(true)};
 
   PassOptions::Option<int32_t> vectorLength{
       *this, "vl", desc("Set the vector length (0 disables vectorization)"),
@@ -106,9 +122,24 @@ struct SparseCompilerOptions
            "dialect"),
       init(false)};
 
+  /// These options are used to enable GPU code generation.
+  PassOptions::Option<std::string> gpuTriple{*this, "gpu-triple",
+                                             desc("GPU target triple")};
+  PassOptions::Option<std::string> gpuChip{*this, "gpu-chip",
+                                           desc("GPU target architecture")};
+  PassOptions::Option<std::string> gpuFeatures{*this, "gpu-features",
+                                               desc("GPU target features")};
+
+  /// This option is used to enable GPU library generation.
+  PassOptions::Option<bool> enableGPULibgen{
+      *this, "enable-gpu-libgen",
+      desc("Enables GPU acceleration by means of direct library calls (like "
+           "cuSPARSE)")};
+
   /// Projects out the options for `createSparsificationPass`.
   SparsificationOptions sparsificationOptions() const {
-    return SparsificationOptions(parallelization);
+    return SparsificationOptions(parallelization, enableIndexReduction,
+                                 enableGPULibgen, enableRuntimeLibrary);
   }
 
   /// Projects out the options for `createSparseTensorConversionPass`.

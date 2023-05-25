@@ -12,6 +12,7 @@
 #include "flang/Common/Fortran.h"
 #include "flang/Common/enum-set.h"
 #include "flang/Common/idioms.h"
+#include <vector>
 
 namespace Fortran::common {
 
@@ -31,7 +32,7 @@ ENUM_CLASS(LanguageFeature, BackslashEscapes, OldDebugLines,
     EquivalenceSameNonSequence, AdditionalIntrinsics, AnonymousParents,
     OldLabelDoEndStatements, LogicalIntegerAssignment, EmptySourceFile,
     ProgramReturn, ImplicitNoneTypeNever, ImplicitNoneTypeAlways,
-    ForwardRefDummyImplicitNone, OpenAccessAppend, BOZAsDefaultInteger,
+    ForwardRefImplicitNone, OpenAccessAppend, BOZAsDefaultInteger,
     DistinguishableSpecifics, DefaultSave, PointerInSeqType, NonCharacterFormat,
     SaveMainProgram, SaveBigMainProgramVariables)
 

@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -28,7 +29,6 @@
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/MachineValueType.h"
 #include <optional>
 #include <utility>
 
@@ -210,8 +210,8 @@ namespace llvm {
     BCTRL_RM,
     BCTRL_LOAD_TOC_RM,
 
-    /// Return with a flag operand, matched by 'blr'
-    RET_FLAG,
+    /// Return with a glue operand, matched by 'blr'
+    RET_GLUE,
 
     /// R32 = MFOCRF(CRREG, INFLAG) - Represents the MFOCRF instruction.
     /// This copies the bits corresponding to the specified CRREG into the
@@ -439,21 +439,6 @@ namespace llvm {
     /// An SDNode for swaps that are not associated with any loads/stores
     /// and thereby have no chain.
     SWAP_NO_CHAIN,
-
-    /// An SDNode for Power9 vector absolute value difference.
-    /// operand #0 vector
-    /// operand #1 vector
-    /// operand #2 constant i32 0 or 1, to indicate whether needs to patch
-    /// the most significant bit for signed i32
-    ///
-    /// Power9 VABSD* instructions are designed to support unsigned integer
-    /// vectors (byte/halfword/word), if we want to make use of them for signed
-    /// integer vectors, we have to flip their sign bits first. To flip sign bit
-    /// for byte/halfword integer vector would become inefficient, but for word
-    /// integer vector, we can leverage XVNEGSP to make it efficiently. eg:
-    /// abs(sub(a,b)) => VABSDUW(a+0x80000000, b+0x80000000)
-    ///               => VABSDUW((XVNEGSP a), (XVNEGSP b))
-    VABSD,
 
     /// FP_EXTEND_HALF(VECTOR, IDX) - Custom extend upper (IDX=0) half or
     /// lower (IDX=1) half of v4f32 to v2f64.
@@ -1187,6 +1172,7 @@ namespace llvm {
 
     CCAssignFn *ccAssignFnForCall(CallingConv::ID CC, bool Return,
                                   bool IsVarArg) const;
+    bool supportsTailCallFor(const CallBase *CB) const;
 
   private:
     struct ReuseLoadInfo {
@@ -1239,17 +1225,25 @@ namespace llvm {
     SDValue getFramePointerFrameIndex(SelectionDAG & DAG) const;
     SDValue getReturnAddrFrameIndex(SelectionDAG & DAG) const;
 
-    bool
-    IsEligibleForTailCallOptimization(SDValue Callee,
-                                      CallingConv::ID CalleeCC,
-                                      bool isVarArg,
-                                      const SmallVectorImpl<ISD::InputArg> &Ins,
-                                      SelectionDAG& DAG) const;
+    bool IsEligibleForTailCallOptimization(
+        const GlobalValue *CalleeGV, CallingConv::ID CalleeCC,
+        CallingConv::ID CallerCC, bool isVarArg,
+        const SmallVectorImpl<ISD::InputArg> &Ins) const;
 
     bool IsEligibleForTailCallOptimization_64SVR4(
-        SDValue Callee, CallingConv::ID CalleeCC, const CallBase *CB,
-        bool isVarArg, const SmallVectorImpl<ISD::OutputArg> &Outs,
-        const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
+        const GlobalValue *CalleeGV, CallingConv::ID CalleeCC,
+        CallingConv::ID CallerCC, const CallBase *CB, bool isVarArg,
+        const SmallVectorImpl<ISD::OutputArg> &Outs,
+        const SmallVectorImpl<ISD::InputArg> &Ins, const Function *CallerFunc,
+        bool isCalleeExternalSymbol) const;
+
+    bool isEligibleForTCO(const GlobalValue *CalleeGV, CallingConv::ID CalleeCC,
+                          CallingConv::ID CallerCC, const CallBase *CB,
+                          bool isVarArg,
+                          const SmallVectorImpl<ISD::OutputArg> &Outs,
+                          const SmallVectorImpl<ISD::InputArg> &Ins,
+                          const Function *CallerFunc,
+                          bool isCalleeExternalSymbol) const;
 
     SDValue EmitTailCallLoadFPAndRetAddr(SelectionDAG &DAG, int SPDiff,
                                          SDValue Chain, SDValue &LROpOut,
@@ -1299,6 +1293,7 @@ namespace llvm {
     SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBSWAP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerIS_FPCLASS(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerToLibCall(const char *LibCallName, SDValue Op,
                            SelectionDAG &DAG) const;
     SDValue lowerLibCallBasedOnType(const char *LibCallFloatName,
@@ -1328,7 +1323,7 @@ namespace llvm {
     SDValue LowerVectorLoad(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVectorStore(SDValue Op, SelectionDAG &DAG) const;
 
-    SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
+    SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
                             CallingConv::ID CallConv, bool isVarArg,
                             const SmallVectorImpl<ISD::InputArg> &Ins,
                             const SDLoc &dl, SelectionDAG &DAG,
@@ -1336,7 +1331,7 @@ namespace llvm {
 
     SDValue FinishCall(CallFlags CFlags, const SDLoc &dl, SelectionDAG &DAG,
                        SmallVector<std::pair<unsigned, SDValue>, 8> &RegsToPass,
-                       SDValue InFlag, SDValue Chain, SDValue CallSeqStart,
+                       SDValue InGlue, SDValue Chain, SDValue CallSeqStart,
                        SDValue &Callee, int SPDiff, unsigned NumBytes,
                        const SmallVectorImpl<ISD::InputArg> &Ins,
                        SmallVectorImpl<SDValue> &InVals,
@@ -1422,8 +1417,6 @@ namespace llvm {
     SDValue combineFMALike(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineTRUNCATE(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineSetCC(SDNode *N, DAGCombinerInfo &DCI) const;
-    SDValue combineABS(SDNode *N, DAGCombinerInfo &DCI) const;
-    SDValue combineVSelect(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineVectorShuffle(ShuffleVectorSDNode *SVN,
                                  SelectionDAG &DAG) const;
     SDValue combineVReverseMemOP(ShuffleVectorSDNode *SVN, LSBaseSDNode *LSBase,

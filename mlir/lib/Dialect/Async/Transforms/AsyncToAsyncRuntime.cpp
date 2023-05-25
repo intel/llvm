@@ -161,7 +161,7 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
 
   // We treat TokenType as state update marker to represent side-effects of
   // async computations
-  bool isStateful = func.getCallableResults().front().isa<TokenType>();
+  bool isStateful = isa<TokenType>(func.getCallableResults().front());
 
   std::optional<Value> retToken;
   if (isStateful)
@@ -535,7 +535,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     // We can only await on one the `AwaitableType` (for `await` it can be
     // a `token` or a `value`, for `await_all` it must be a `group`).
-    if (!op.getOperand().getType().template isa<AwaitableType>())
+    if (!isa<AwaitableType>(op.getOperand().getType()))
       return rewriter.notifyMatchFailure(op, "unsupported awaitable type");
 
     // Check if await operation is inside the coroutine function.
@@ -555,7 +555,7 @@ public:
     // Inside regular functions we use the blocking wait operation to wait for
     // the async object (token, value or group) to become available.
     if (!isInCoroutine) {
-      ImplicitLocOpBuilder builder(loc, op, rewriter.getListener());
+      ImplicitLocOpBuilder builder(loc, op, &rewriter);
       builder.create<RuntimeAwaitOp>(loc, operand);
 
       // Assert that the awaited operands is not in the error state.
@@ -574,7 +574,7 @@ public:
       CoroMachinery &coro = funcCoro->getSecond();
       Block *suspended = op->getBlock();
 
-      ImplicitLocOpBuilder builder(loc, op, rewriter.getListener());
+      ImplicitLocOpBuilder builder(loc, op, &rewriter);
       MLIRContext *ctx = op->getContext();
 
       // Save the coroutine state and resume on a runtime managed thread when
@@ -646,7 +646,7 @@ public:
   getReplacementValue(AwaitOp op, Value operand,
                       ConversionPatternRewriter &rewriter) const override {
     // Load from the async value storage.
-    auto valueType = operand.getType().cast<ValueType>().getValueType();
+    auto valueType = cast<ValueType>(operand.getType()).getValueType();
     return rewriter.create<RuntimeLoadOp>(op->getLoc(), valueType, operand);
   }
 };

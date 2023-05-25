@@ -324,7 +324,7 @@ define i32 @vec_extract_branch(<2 x double> %x)  {
 ; CHECK-NEXT:    xorpd %xmm1, %xmm1
 ; CHECK-NEXT:    cmpltpd %xmm0, %xmm1
 ; CHECK-NEXT:    movmskpd %xmm1, %eax
-; CHECK-NEXT:    cmpb $3, %al
+; CHECK-NEXT:    cmpl $3, %eax
 ; CHECK-NEXT:    jne .LBB16_2
 ; CHECK-NEXT:  # %bb.1: # %true
 ; CHECK-NEXT:    movl $42, %eax
@@ -456,8 +456,8 @@ define zeroext i1 @ne_neg1_and_ne_zero(i64 %x) nounwind {
 ; CHECK-LABEL: ne_neg1_and_ne_zero:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    incq %rdi
-; CHECK-NEXT:    cmpq $2, %rdi
-; CHECK-NEXT:    setae %al
+; CHECK-NEXT:    testq $-2, %rdi
+; CHECK-NEXT:    setne %al
 ; CHECK-NEXT:    retq
   %cmp1 = icmp ne i64 %x, -1
   %cmp2 = icmp ne i64 %x, 0

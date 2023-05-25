@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // XFAIL: level_zero&&gpu
 
@@ -66,7 +64,7 @@ int main() {
   });
 
   {
-    auto acc = buf_i.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc(buf_i, sycl::read_only);
     if (acc[0] != UINT_MAX) {
       std::cout << acc[0] << std::endl;
       std::cout << "line: " << __LINE__ << " array[" << 0 << "] is " << acc[0]
@@ -92,7 +90,7 @@ int main() {
   });
 
   {
-    auto acc = buf_1d.get_access<sycl::access::mode::read>();
+    sycl::host_accessor acc(buf_1d, sycl::read_only);
     for (auto i = 0u; i < r1d.size(); i++) {
       size_t expected = (i % 4) ? 0 : 1;
       if (acc[i] != expected) {
@@ -176,14 +174,14 @@ int main() {
     {
       sycl::buffer<int, 2> buffer_2d(data.data(), rng);
       sycl::buffer<int, 1> buffer_1d =
-          buffer_2d.reinterpret<int, 1>(sycl::range<1>(buffer_2d.get_count()));
+          buffer_2d.reinterpret<int, 1>(sycl::range<1>(buffer_2d.size()));
       // let's make an offset like for 2d buffer {offset_rows, cols}
       // with a range = {1, cols}
       sycl::buffer<int, 1> subbuffer_1d(
           buffer_1d, sycl::id<1>(offset_rows * cols), sycl::range<1>(cols));
 
       sycl::buffer<char, 1> reinterpret_subbuf =
-          subbuffer_1d.reinterpret<char, 1>(subbuffer_1d.get_size());
+          subbuffer_1d.reinterpret<char, 1>(subbuffer_1d.byte_size());
 
       cmd_queue.submit([&](sycl::handler &cgh) {
         auto rb_acc =

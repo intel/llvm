@@ -396,7 +396,7 @@ def RCR64ri : RIi8<0xC1, MRM3r, (outs GR64:$dst), (ins GR64:$src1, u8imm:$cnt),
 
 } // Constraints = "$src = $dst"
 
-let mayStore = 1 in {
+let mayLoad = 1, mayStore = 1 in {
 let Uses = [EFLAGS], SchedRW = [WriteRotateLd, WriteRMW] in {
 def RCL8m1 : I<0xD0, MRM2m, (outs), (ins i8mem:$dst),
                "rcl{b}\t$dst", []>;
@@ -456,7 +456,7 @@ def RCR64mCL : RI<0xD3, MRM3m, (outs), (ins i64mem:$dst),
                   "rcr{q}\t{%cl, $dst|$dst, cl}", []>,
                   Requires<[In64BitMode]>;
 } // Uses = [CL, EFLAGS], SchedRW
-} // mayStore
+} // mayLoad, mayStore
 } // hasSideEffects = 0
 
 let Constraints = "$src1 = $dst" in {
@@ -913,13 +913,13 @@ let hasSideEffects = 0 in {
 
 let Predicates = [HasBMI2] in {
   defm RORX32 : bmi_rotate<"rorx{l}", GR32, i32mem>;
-  defm RORX64 : bmi_rotate<"rorx{q}", GR64, i64mem>, VEX_W;
+  defm RORX64 : bmi_rotate<"rorx{q}", GR64, i64mem>, REX_W;
   defm SARX32 : bmi_shift<"sarx{l}", GR32, i32mem>, T8XS;
-  defm SARX64 : bmi_shift<"sarx{q}", GR64, i64mem>, T8XS, VEX_W;
+  defm SARX64 : bmi_shift<"sarx{q}", GR64, i64mem>, T8XS, REX_W;
   defm SHRX32 : bmi_shift<"shrx{l}", GR32, i32mem>, T8XD;
-  defm SHRX64 : bmi_shift<"shrx{q}", GR64, i64mem>, T8XD, VEX_W;
+  defm SHRX64 : bmi_shift<"shrx{q}", GR64, i64mem>, T8XD, REX_W;
   defm SHLX32 : bmi_shift<"shlx{l}", GR32, i32mem>, T8PD;
-  defm SHLX64 : bmi_shift<"shlx{q}", GR64, i64mem>, T8PD, VEX_W;
+  defm SHLX64 : bmi_shift<"shlx{q}", GR64, i64mem>, T8PD, REX_W;
 
   // Prefer RORX which is non-destructive and doesn't update EFLAGS.
   let AddedComplexity = 10 in {

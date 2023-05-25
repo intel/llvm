@@ -581,6 +581,11 @@ def StdC : StandardSpec<"stdc"> {
               [ArgSpec<FILEPtr>]
           >,
           FunctionSpec<
+              "getchar",
+              RetValSpec<IntType>,
+              [ArgSpec<VoidType>]
+          >,
+          FunctionSpec<
               "putc",
               RetValSpec<IntType>,
               [ArgSpec<IntType>,
@@ -1069,6 +1074,27 @@ def StdC : StandardSpec<"stdc"> {
       ]
   >;
 
+  HeaderSpec WChar = HeaderSpec<
+      "wchar.h",
+      [ // Macros
+        Macro<"WEOF">,
+      ], 
+      [ //Types
+        SizeTType,
+        WIntType,
+        WCharType,
+      ],
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "wctob",
+              RetValSpec<IntType>,
+              [ArgSpec<WIntType>]
+          >,
+      ]
+  >;
+
+
   let Headers = [
     Assert,
     CType,
@@ -1083,5 +1109,6 @@ def StdC : StandardSpec<"stdc"> {
     Signal,
     Threads,
     Time,
+    WChar,
   ];
 }

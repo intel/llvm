@@ -14,6 +14,7 @@
 #include "bolt/Core/BinaryBasicBlock.h"
 #include "bolt/Core/BinaryDomTree.h"
 #include "bolt/Core/DynoStats.h"
+#include "bolt/Core/HashUtilities.h"
 #include "bolt/Core/MCPlusBuilder.h"
 #include "bolt/Utils/NameResolver.h"
 #include "bolt/Utils/NameShortener.h"
@@ -470,6 +471,7 @@ void BinaryFunction::print(raw_ostream &OS, std::string Annotation) {
     OS << "\n  Image       : 0x" << Twine::utohexstr(getImageAddress());
   if (ExecutionCount != COUNT_NO_PROFILE) {
     OS << "\n  Exec Count  : " << ExecutionCount;
+    OS << "\n  Branch Count: " << RawBranchCount;
     OS << "\n  Profile Acc : " << format("%.1f%%", ProfileMatchRatio * 100.0f);
   }
 
@@ -987,7 +989,7 @@ size_t BinaryFunction::getSizeOfDataInCodeAt(uint64_t Offset) const {
   if (!Islands)
     return 0;
 
-  if (Islands->DataOffsets.find(Offset) == Islands->DataOffsets.end())
+  if (!llvm::is_contained(Islands->DataOffsets, Offset))
     return 0;
 
   auto Iter = Islands->CodeOffsets.upper_bound(Offset);
@@ -1535,8 +1537,7 @@ bool BinaryFunction::scanExternalRefs() {
     // Emit the instruction using temp emitter and generate relocations.
     SmallString<256> Code;
     SmallVector<MCFixup, 4> Fixups;
-    raw_svector_ostream VecOS(Code);
-    Emitter.MCE->encodeInstruction(Instruction, VecOS, Fixups, *BC.STI);
+    Emitter.MCE->encodeInstruction(Instruction, Code, Fixups, *BC.STI);
 
     // Create relocation for every fixup.
     for (const MCFixup &Fixup : Fixups) {
@@ -1770,6 +1771,8 @@ bool BinaryFunction::validateExternallyReferencedOffsets() {
 bool BinaryFunction::postProcessIndirectBranches(
     MCPlusBuilder::AllocatorIdTy AllocId) {
   auto addUnknownControlFlow = [&](BinaryBasicBlock &BB) {
+    LLVM_DEBUG(dbgs() << "BOLT-DEBUG: adding unknown control flow in " << *this
+                      << " for " << BB.getName() << "\n");
     HasUnknownControlFlow = true;
     BB.removeAllSuccessors();
     for (uint64_t PossibleDestination : ExternallyReferencedOffsets)
@@ -1877,7 +1880,10 @@ bool BinaryFunction::postProcessIndirectBranches(
   // references, then we should be able to derive the jump table even if we
   // fail to match the pattern.
   if (HasUnknownControlFlow && NumIndirectJumps == 1 &&
-      JumpTables.size() == 1 && LastIndirectJump) {
+      JumpTables.size() == 1 && LastIndirectJump &&
+      !BC.getJumpTableContainingAddress(LastJT)->IsSplit) {
+    LLVM_DEBUG(dbgs() << "BOLT-DEBUG: unsetting unknown control flow in "
+                      << *this << '\n');
     BC.MIB->setJumpTable(*LastIndirectJump, LastJT, LastJTIndexReg, AllocId);
     HasUnknownControlFlow = false;
 
@@ -2033,6 +2039,7 @@ bool BinaryFunction::buildCFG(MCPlusBuilder::AllocatorIdTy AllocatorId) {
       MCInst *PrevInstr = PrevBB->getLastNonPseudoInstr();
       assert(PrevInstr && "no previous instruction for a fall through");
       if (MIB->isUnconditionalBranch(Instr) &&
+          !MIB->isIndirectBranch(*PrevInstr) &&
           !MIB->isUnconditionalBranch(*PrevInstr) &&
           !MIB->getConditionalTailCall(*PrevInstr) &&
           !MIB->isReturn(*PrevInstr)) {
@@ -2584,8 +2591,7 @@ struct CFISnapshotDiff : public CFISnapshot {
       if (RestoredRegs[Reg])
         return true;
       RestoredRegs[Reg] = true;
-      const int32_t CurRegRule =
-          RegRule.find(Reg) != RegRule.end() ? RegRule[Reg] : UNKNOWN;
+      const int32_t CurRegRule = RegRule.contains(Reg) ? RegRule[Reg] : UNKNOWN;
       if (CurRegRule == UNKNOWN) {
         if (Instr.getOperation() == MCCFIInstruction::OpRestore ||
             Instr.getOperation() == MCCFIInstruction::OpSameValue)
@@ -2726,7 +2732,7 @@ BinaryFunction::unwindCFIState(int32_t FromState, int32_t ToState,
         Reg = *R;
       }
 
-      if (ToCFITable.RegRule.find(Reg) == ToCFITable.RegRule.end()) {
+      if (!ToCFITable.RegRule.contains(Reg)) {
         FrameInstructions.emplace_back(
             MCCFIInstruction::createRestore(nullptr, Reg));
         if (FromCFITable.isRedundant(FrameInstructions.back())) {
@@ -2897,16 +2903,12 @@ void BinaryFunction::clearDisasmState() {
 void BinaryFunction::setTrapOnEntry() {
   clearDisasmState();
 
-  auto addTrapAtOffset = [&](uint64_t Offset) {
+  forEachEntryPoint([&](uint64_t Offset, const MCSymbol *Label) -> bool {
     MCInst TrapInstr;
     BC.MIB->createTrap(TrapInstr);
     addInstruction(Offset, std::move(TrapInstr));
-  };
-
-  addTrapAtOffset(0);
-  for (const std::pair<const uint32_t, MCSymbol *> &KV : getLabels())
-    if (getSecondaryEntryPointSymbol(KV.second))
-      addTrapAtOffset(KV.first);
+    return true;
+  });
 
   TrapsOnEntry = true;
 }
@@ -3603,34 +3605,18 @@ size_t BinaryFunction::computeHash(bool UseDFS,
   // The hash is computed by creating a string of all instruction opcodes and
   // possibly their operands and then hashing that string with std::hash.
   std::string HashString;
-  for (const BinaryBasicBlock *BB : Order) {
-    for (const MCInst &Inst : *BB) {
-      unsigned Opcode = Inst.getOpcode();
-
-      if (BC.MIB->isPseudo(Inst))
-        continue;
-
-      // Ignore unconditional jumps since we check CFG consistency by processing
-      // basic blocks in order and do not rely on branches to be in-sync with
-      // CFG. Note that we still use condition code of conditional jumps.
-      if (BC.MIB->isUnconditionalBranch(Inst))
-        continue;
-
-      if (Opcode == 0)
-        HashString.push_back(0);
-
-      while (Opcode) {
-        uint8_t LSB = Opcode & 0xff;
-        HashString.push_back(LSB);
-        Opcode = Opcode >> 8;
-      }
-
-      for (const MCOperand &Op : MCPlus::primeOperands(Inst))
-        HashString.append(OperandHashFunc(Op));
-    }
-  }
+  for (const BinaryBasicBlock *BB : Order)
+    HashString.append(hashBlock(BC, *BB, OperandHashFunc));
 
   return Hash = std::hash<std::string>{}(HashString);
+}
+
+void BinaryFunction::computeBlockHashes() const {
+  for (const BinaryBasicBlock *BB : BasicBlocks) {
+    std::string Hash =
+        hashBlock(BC, *BB, [](const MCOperand &Op) { return std::string(); });
+    BB->setHash(std::hash<std::string>{}(Hash));
+  }
 }
 
 void BinaryFunction::insertBasicBlocks(
@@ -4087,6 +4073,16 @@ void BinaryFunction::updateOutputValues(const MCAsmLayout &Layout) {
       const uint64_t DataOffset =
           Layout.getSymbolOffset(*getFunctionConstantIslandLabel());
       setOutputDataAddress(BaseAddress + DataOffset);
+      for (auto It : Islands->Offsets) {
+        const uint64_t OldOffset = It.first;
+        BinaryData *BD = BC.getBinaryDataAtAddress(getAddress() + OldOffset);
+        if (!BD)
+          continue;
+
+        MCSymbol *Symbol = It.second;
+        const uint64_t NewOffset = Layout.getSymbolOffset(*Symbol);
+        BD->setOutputLocation(*getCodeSection(), NewOffset);
+      }
     }
     if (isSplit()) {
       for (FunctionFragment &FF : getLayout().getSplitFragments()) {
@@ -4504,6 +4500,22 @@ bool BinaryFunction::isAArch64Veneer() const {
   }
 
   return true;
+}
+
+void BinaryFunction::addRelocation(uint64_t Address, MCSymbol *Symbol,
+                                   uint64_t RelType, uint64_t Addend,
+                                   uint64_t Value) {
+  assert(Address >= getAddress() && Address < getAddress() + getMaxSize() &&
+         "address is outside of the function");
+  uint64_t Offset = Address - getAddress();
+  LLVM_DEBUG(dbgs() << "BOLT-DEBUG: addRelocation in "
+                    << formatv("{0}@{1:x} against {2}\n", this, Offset,
+                               Symbol->getName()));
+  bool IsCI = BC.isAArch64() && isInConstantIsland(Address);
+  std::map<uint64_t, Relocation> &Rels =
+      IsCI ? Islands->Relocations : Relocations;
+  if (BC.MIB->shouldRecordCodeRelocation(RelType))
+    Rels[Offset] = Relocation{Offset, Symbol, RelType, Addend, Value};
 }
 
 } // namespace bolt

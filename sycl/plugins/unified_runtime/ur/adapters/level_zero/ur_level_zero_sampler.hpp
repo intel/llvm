@@ -9,6 +9,6 @@
 
 #include "ur_level_zero_common.hpp"
 
-struct _ur_sampler_handle_t : _pi_object {
+struct _ur_sampler_handle_t : _ur_object {
   _ur_sampler_handle_t() {}
 };

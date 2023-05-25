@@ -628,13 +628,6 @@ public:
   /// Determine if this is an integer-only cast.
   bool isIntegerCast() const;
 
-  /// A lossless cast is one that does not alter the basic value. It implies
-  /// a no-op cast but is more stringent, preventing things like int->float,
-  /// long->double, or int->ptr.
-  /// @returns true iff the cast is lossless.
-  /// Determine if this is a lossless cast.
-  bool isLosslessCast() const;
-
   /// A no-op cast is one that can be effected without changing any bits.
   /// It implies that the source and destination types are the same size. The
   /// DataLayout argument is to determine the pointer size when examining casts
@@ -1073,6 +1066,8 @@ struct OperandTraits<CmpInst> : public FixedNumOperandTraits<CmpInst, 2> {
 };
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CmpInst, Value)
+
+raw_ostream &operator<<(raw_ostream &OS, CmpInst::Predicate Pred);
 
 /// A lightweight accessor for an operand bundle meant to be passed
 /// around by value.
@@ -1564,6 +1559,11 @@ public:
     Attrs = Attrs.removeFnAttribute(getContext(), Kind);
   }
 
+  /// Removes the attribute from the function
+  void removeFnAttr(StringRef Kind) {
+    Attrs = Attrs.removeFnAttribute(getContext(), Kind);
+  }
+
   /// Removes the attribute from the return value
   void removeRetAttr(Attribute::AttrKind Kind) {
     Attrs = Attrs.removeRetAttribute(getContext(), Kind);
@@ -1832,6 +1832,14 @@ public:
   uint64_t getParamDereferenceableOrNullBytes(unsigned i) const {
     return Attrs.getParamDereferenceableOrNullBytes(i);
   }
+
+  /// Extract a test mask for disallowed floating-point value classes for the
+  /// return value.
+  FPClassTest getRetNoFPClass() const;
+
+  /// Extract a test mask for disallowed floating-point value classes for the
+  /// parameter.
+  FPClassTest getParamNoFPClass(unsigned i) const;
 
   /// Return true if the return value is known to be not null.
   /// This may be because it has the nonnull attribute, or because at least

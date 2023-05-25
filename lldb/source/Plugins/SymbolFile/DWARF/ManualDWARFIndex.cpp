@@ -223,60 +223,58 @@ void ManualDWARFIndex::IndexUnitImpl(DWARFUnit &unit,
       continue;
     }
 
-    DWARFAttributes attributes;
     const char *name = nullptr;
     const char *mangled_cstr = nullptr;
     bool is_declaration = false;
-    // bool is_artificial = false;
     bool has_address = false;
     bool has_location_or_const_value = false;
     bool is_global_or_static_variable = false;
 
     DWARFFormValue specification_die_form;
-    const size_t num_attributes = die.GetAttributes(&unit, attributes);
-    if (num_attributes > 0) {
-      for (uint32_t i = 0; i < num_attributes; ++i) {
-        dw_attr_t attr = attributes.AttributeAtIndex(i);
-        DWARFFormValue form_value;
-        switch (attr) {
-        case DW_AT_name:
-          if (attributes.ExtractFormValueAtIndex(i, form_value))
-            name = form_value.AsCString();
-          break;
+    DWARFAttributes attributes = die.GetAttributes(&unit);
+    for (size_t i = 0; i < attributes.Size(); ++i) {
+      dw_attr_t attr = attributes.AttributeAtIndex(i);
+      DWARFFormValue form_value;
+      switch (attr) {
+      default:
+        break;
+      case DW_AT_name:
+        if (attributes.ExtractFormValueAtIndex(i, form_value))
+          name = form_value.AsCString();
+        break;
 
-        case DW_AT_declaration:
-          if (attributes.ExtractFormValueAtIndex(i, form_value))
-            is_declaration = form_value.Unsigned() != 0;
-          break;
+      case DW_AT_declaration:
+        if (attributes.ExtractFormValueAtIndex(i, form_value))
+          is_declaration = form_value.Unsigned() != 0;
+        break;
 
-        case DW_AT_MIPS_linkage_name:
-        case DW_AT_linkage_name:
-          if (attributes.ExtractFormValueAtIndex(i, form_value))
-            mangled_cstr = form_value.AsCString();
-          break;
+      case DW_AT_MIPS_linkage_name:
+      case DW_AT_linkage_name:
+        if (attributes.ExtractFormValueAtIndex(i, form_value))
+          mangled_cstr = form_value.AsCString();
+        break;
 
-        case DW_AT_low_pc:
-        case DW_AT_high_pc:
-        case DW_AT_ranges:
-          has_address = true;
-          break;
+      case DW_AT_low_pc:
+      case DW_AT_high_pc:
+      case DW_AT_ranges:
+        has_address = true;
+        break;
 
-        case DW_AT_entry_pc:
-          has_address = true;
-          break;
+      case DW_AT_entry_pc:
+        has_address = true;
+        break;
 
-        case DW_AT_location:
-        case DW_AT_const_value:
-          has_location_or_const_value = true;
-          is_global_or_static_variable = die.IsGlobalOrStaticScopeVariable();
+      case DW_AT_location:
+      case DW_AT_const_value:
+        has_location_or_const_value = true;
+        is_global_or_static_variable = die.IsGlobalOrStaticScopeVariable();
 
-          break;
+        break;
 
-        case DW_AT_specification:
-          if (attributes.ExtractFormValueAtIndex(i, form_value))
-            specification_die_form = form_value;
-          break;
-        }
+      case DW_AT_specification:
+        if (attributes.ExtractFormValueAtIndex(i, form_value))
+          specification_die_form = form_value;
+        break;
       }
     }
 
@@ -401,7 +399,6 @@ void ManualDWARFIndex::GetGlobalVariables(
 
 void ManualDWARFIndex::GetGlobalVariables(
     DWARFUnit &unit, llvm::function_ref<bool(DWARFDIE die)> callback) {
-  lldbassert(!unit.GetSymbolFileDWARF().GetDwoNum());
   Index();
   m_set.globals.FindAllEntriesForUnit(unit, DIERefCallback(callback));
 }
@@ -539,7 +536,10 @@ enum DataID {
   kDataIDEnd = 255u,
 
 };
-constexpr uint32_t CURRENT_CACHE_VERSION = 1;
+
+// Version 2 changes the encoding of DIERef objects used in the DWARF manual
+// index name tables. See DIERef class for details.
+constexpr uint32_t CURRENT_CACHE_VERSION = 2;
 
 bool ManualDWARFIndex::IndexSet::Decode(const DataExtractor &data,
                                         lldb::offset_t *offset_ptr) {

@@ -98,6 +98,13 @@ KnownBits computeKnownBits(const Value *V, const APInt &DemandedElts,
 /// \p KnownOne the set of bits that are known to be one
 void computeKnownBitsFromRangeMetadata(const MDNode &Ranges, KnownBits &Known);
 
+/// Using KnownBits LHS/RHS produce the known bits for logic op (and/xor/or).
+KnownBits analyzeKnownBitsFromAndXorOr(
+    const Operator *I, const KnownBits &KnownLHS, const KnownBits &KnownRHS,
+    unsigned Depth, const DataLayout &DL, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+
 /// Return true if LHS and RHS have no common bits set.
 bool haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
                          const DataLayout &DL, AssumptionCache *AC = nullptr,
@@ -210,6 +217,203 @@ unsigned ComputeMaxSignificantBits(const Value *Op, const DataLayout &DL,
 Intrinsic::ID getIntrinsicForCallSite(const CallBase &CB,
                                       const TargetLibraryInfo *TLI);
 
+/// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
+/// same result as an fcmp with the given operands.
+///
+/// If \p LookThroughSrc is true, consider the input value when computing the
+/// mask.
+///
+/// If \p LookThroughSrc is false, ignore the source value (i.e. the first pair
+/// element will always be LHS.
+std::pair<Value *, FPClassTest> fcmpToClassTest(CmpInst::Predicate Pred,
+                                                const Function &F, Value *LHS,
+                                                Value *RHS,
+                                                bool LookThroughSrc = true);
+
+struct KnownFPClass {
+  /// Floating-point classes the value could be one of.
+  FPClassTest KnownFPClasses = fcAllFlags;
+
+  /// std::nullopt if the sign bit is unknown, true if the sign bit is
+  /// definitely set or false if the sign bit is definitely unset.
+  std::optional<bool> SignBit;
+
+  /// Return true if it's known this can never be one of the mask entries.
+  bool isKnownNever(FPClassTest Mask) const {
+    return (KnownFPClasses & Mask) == fcNone;
+  }
+
+  bool isUnknown() const {
+    return KnownFPClasses == fcAllFlags && !SignBit;
+  }
+
+  /// Return true if it's known this can never be a nan.
+  bool isKnownNeverNaN() const {
+    return isKnownNever(fcNan);
+  }
+
+  /// Return true if it's known this can never be an infinity.
+  bool isKnownNeverInfinity() const {
+    return isKnownNever(fcInf);
+  }
+
+  /// Return true if it's known this can never be +infinity.
+  bool isKnownNeverPosInfinity() const {
+    return isKnownNever(fcPosInf);
+  }
+
+  /// Return true if it's known this can never be -infinity.
+  bool isKnownNeverNegInfinity() const {
+    return isKnownNever(fcNegInf);
+  }
+
+  /// Return true if it's known this can never be a subnormal
+  bool isKnownNeverSubnormal() const {
+    return isKnownNever(fcSubnormal);
+  }
+
+  /// Return true if it's known this can never be a negativesubnormal
+  bool isKnownNeverNegSubnormal() const {
+    return isKnownNever(fcNegSubnormal);
+  }
+
+  /// Return true if it's known this can never be a zero. This means a literal
+  /// [+-]0, and does not include denormal inputs implicitly treated as [+-]0.
+  bool isKnownNeverZero() const {
+    return isKnownNever(fcZero);
+  }
+
+  /// Return true if it's known this can never be a literal negative zero.
+  bool isKnownNeverNegZero() const {
+    return isKnownNever(fcNegZero);
+  }
+
+  /// Return true if it's know this can never be interpreted as a zero. This
+  /// extends isKnownNeverZero to cover the case where the assumed
+  /// floating-point mode for the function interprets denormals as zero.
+  bool isKnownNeverLogicalZero(const Function &F, Type *Ty) const;
+
+  static constexpr FPClassTest OrderedLessThanZeroMask =
+      fcNegSubnormal | fcNegNormal | fcNegInf;
+  static constexpr FPClassTest OrderedGreaterThanZeroMask =
+      fcPosSubnormal | fcPosNormal | fcPosInf;
+
+  /// Return true if we can prove that the analyzed floating-point value is
+  /// either NaN or never less than -0.0.
+  ///
+  ///      NaN --> true
+  ///       +0 --> true
+  ///       -0 --> true
+  ///   x > +0 --> true
+  ///   x < -0 --> false
+  bool cannotBeOrderedLessThanZero() const {
+  return isKnownNever(OrderedLessThanZeroMask);
+  }
+
+  /// Return true if we can prove that the analyzed floating-point value is
+  /// either NaN or never greater than -0.0.
+  ///      NaN --> true
+  ///       +0 --> true
+  ///       -0 --> true
+  ///   x > +0 --> false
+  ///   x < -0 --> true
+  bool cannotBeOrderedGreaterThanZero() const {
+    return isKnownNever(OrderedGreaterThanZeroMask);
+  }
+
+  KnownFPClass &operator|=(const KnownFPClass &RHS) {
+    KnownFPClasses = KnownFPClasses | RHS.KnownFPClasses;
+
+    if (SignBit != RHS.SignBit)
+      SignBit = std::nullopt;
+    return *this;
+  }
+
+  void knownNot(FPClassTest RuleOut) {
+    KnownFPClasses = KnownFPClasses & ~RuleOut;
+  }
+
+  void fneg() {
+    KnownFPClasses = llvm::fneg(KnownFPClasses);
+    if (SignBit)
+      SignBit = !*SignBit;
+  }
+
+  void fabs() {
+    KnownFPClasses &= (fcPositive | fcNan);
+    SignBit = false;
+  }
+
+  /// Return true if the sign bit must be 0, ignoring the sign of nans.
+  bool signBitIsZeroOrNaN() const {
+    return isKnownNever(fcNegative);
+  }
+
+  /// Assume the sign bit is zero.
+  void signBitMustBeZero() {
+    KnownFPClasses &= (fcPositive | fcNan);
+    SignBit = false;
+  }
+
+  void copysign(const KnownFPClass &Sign) {
+    // Don't know anything about the sign of the source. Expand the possible set
+    // to its opposite sign pair.
+    if (KnownFPClasses & fcZero)
+      KnownFPClasses |= fcZero;
+    if (KnownFPClasses & fcSubnormal)
+      KnownFPClasses |= fcSubnormal;
+    if (KnownFPClasses & fcNormal)
+      KnownFPClasses |= fcNormal;
+    if (KnownFPClasses & fcInf)
+      KnownFPClasses |= fcInf;
+
+    // Sign bit is exactly preserved even for nans.
+    SignBit = Sign.SignBit;
+
+    // Clear sign bits based on the input sign mask.
+    if (Sign.isKnownNever(fcPositive | fcNan) || (SignBit && *SignBit))
+      KnownFPClasses &= (fcNegative | fcNan);
+    if (Sign.isKnownNever(fcNegative | fcNan) || (SignBit && !*SignBit))
+      KnownFPClasses &= (fcPositive | fcNan);
+  }
+
+  void resetAll() { *this = KnownFPClass(); }
+};
+
+inline KnownFPClass operator|(KnownFPClass LHS, const KnownFPClass &RHS) {
+  LHS |= RHS;
+  return LHS;
+}
+
+inline KnownFPClass operator|(const KnownFPClass &LHS, KnownFPClass &&RHS) {
+  RHS |= LHS;
+  return std::move(RHS);
+}
+
+/// Determine which floating-point classes are valid for \p V, and return them
+/// in KnownFPClass bit sets.
+///
+/// This function is defined on values with floating-point type, values vectors
+/// of floating-point type, and arrays of floating-point type.
+
+/// \p InterestedClasses is a compile time optimization hint for which floating
+/// point classes should be queried. Queries not specified in \p
+/// InterestedClasses should be reliable if they are determined during the
+/// query.
+KnownFPClass computeKnownFPClass(
+    const Value *V, const APInt &DemandedElts, const DataLayout &DL,
+    FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
+    const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+
+KnownFPClass computeKnownFPClass(
+    const Value *V, const DataLayout &DL,
+    FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
+    const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+
 /// Return true if we can prove that the specified FP value is never equal to
 /// -0.0.
 bool CannotBeNegativeZero(const Value *V, const TargetLibraryInfo *TLI,
@@ -230,6 +434,17 @@ bool CannotBeOrderedLessThanZero(const Value *V, const TargetLibraryInfo *TLI);
 /// could ever be infinity.
 bool isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
                           unsigned Depth = 0);
+
+/// Return true if the floating-point value can never contain a NaN or infinity.
+inline bool isKnownNeverInfOrNaN(
+    const Value *V, const DataLayout &DL, const TargetLibraryInfo *TLI,
+    unsigned Depth = 0, AssumptionCache *AC = nullptr,
+    const Instruction *CtxI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true) {
+  KnownFPClass Known = computeKnownFPClass(V, DL, fcInf | fcNan, Depth, TLI, AC,
+                                           CtxI, DT, ORE, UseInstrInfo);
+  return Known.isKnownNeverNaN() && Known.isKnownNeverInfinity();
+}
 
 /// Return true if the floating-point scalar value is not a NaN or if the
 /// floating-point vector value has no NaN elements. Return false if a value
@@ -554,6 +769,10 @@ OverflowResult computeOverflowForSignedSub(const Value *LHS, const Value *RHS,
 bool isOverflowIntrinsicNoWrap(const WithOverflowInst *WO,
                                const DominatorTree &DT);
 
+/// Determine the possible constant range of vscale with the given bit width,
+/// based on the vscale_range function attribute.
+ConstantRange getVScaleRange(const Function *F, unsigned BitWidth);
+
 /// Determine the possible constant range of an integer or vector of integer
 /// value. This is intended as a cheap, non-recursive check.
 ConstantRange computeConstantRange(const Value *V, bool ForSigned,
@@ -629,7 +848,7 @@ void getGuaranteedWellDefinedOps(const Instruction *I,
 /// when I is executed with any operands which appear in KnownPoison holding
 /// a poison value at the point of execution.
 bool mustTriggerUB(const Instruction *I,
-                   const SmallSet<const Value *, 16> &KnownPoison);
+                   const SmallPtrSetImpl<const Value *> &KnownPoison);
 
 /// Return true if this function can prove that if Inst is executed
 /// and yields a poison value or undef bits, then that will trigger
@@ -685,6 +904,17 @@ bool isGuaranteedNotToBePoison(const Value *V, AssumptionCache *AC = nullptr,
                                const Instruction *CtxI = nullptr,
                                const DominatorTree *DT = nullptr,
                                unsigned Depth = 0);
+
+/// Return true if undefined behavior would provable be executed on the path to
+/// OnPathTo if Root produced a posion result.  Note that this doesn't say
+/// anything about whether OnPathTo is actually executed or whether Root is
+/// actually poison.  This can be used to assess whether a new use of Root can
+/// be added at a location which is control equivalent with OnPathTo (such as
+/// immediately before it) without introducing UB which didn't previously
+/// exist.  Note that a false result conveys no information.
+bool mustExecuteUBIfPoisonOnPathTo(Instruction *Root,
+                                   Instruction *OnPathTo,
+                                   DominatorTree *DT);
 
 /// Specific patterns of select instructions we can match.
 enum SelectPatternFlavor {
@@ -845,12 +1075,6 @@ std::optional<bool> isImpliedByDomCondition(CmpInst::Predicate Pred,
                                             const Value *LHS, const Value *RHS,
                                             const Instruction *ContextI,
                                             const DataLayout &DL);
-
-/// If Ptr1 is provably equal to Ptr2 plus a constant offset, return that
-/// offset. For example, Ptr1 might be &A[42], and Ptr2 might be &A[40]. In
-/// this case offset would be -8.
-std::optional<int64_t> isPointerOffset(const Value *Ptr1, const Value *Ptr2,
-                                       const DataLayout &DL);
 } // end namespace llvm
 
 #endif // LLVM_ANALYSIS_VALUETRACKING_H

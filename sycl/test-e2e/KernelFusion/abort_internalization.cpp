@@ -1,10 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O2 -o %t.out
-// RUN: env SYCL_ENABLE_FUSION_CACHING=0 SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_ENABLE_FUSION_CACHING=0 SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
+// RUN: %{build} -O2 -fsycl-embed-ir -o %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 SYCL_ENABLE_FUSION_CACHING=0 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test incomplete internalization: Different scenarios causing the JIT compiler
 // to abort internalization due to target or parameter mismatch. Also check that

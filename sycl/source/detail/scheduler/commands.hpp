@@ -290,6 +290,17 @@ public:
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();
 
+  /// Clear all dependency events This should only be used if a command is about
+  /// to be deleted without being executed before that. As of now, the only
+  /// valid use case for this function is in kernel fusion, where the fused
+  /// kernel commands are replaced by the fused command without ever being
+  /// executed.
+  void clearAllDependencies() {
+    MPreparedDepsEvents.clear();
+    MPreparedHostDepsEvents.clear();
+    MDeps.clear();
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -584,6 +595,12 @@ private:
   Requirement MDstReq;
   void **MDstPtr = nullptr;
 };
+
+pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
+                                  const std::string &PipeName, bool blocking,
+                                  void *ptr, size_t size,
+                                  std::vector<RT::PiEvent> &RawEvents,
+                                  RT::PiEvent *OutEvent, bool read);
 
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,

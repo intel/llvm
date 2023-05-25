@@ -24,7 +24,7 @@ def FoldMemRefAliasOps : Pass<"fold-memref-alias-ops"> {
   }];
   let constructor = "mlir::memref::createFoldMemRefAliasOpsPass()";
   let dependentDialects = [
-      "AffineDialect", "memref::MemRefDialect", "vector::VectorDialect"
+      "affine::AffineDialect", "memref::MemRefDialect", "vector::VectorDialect"
   ];
 }
 
@@ -48,18 +48,17 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
   let summary = "Normalize memrefs";
    let description = [{
     This pass transforms memref types with a non-trivial
-    [layout map](https://mlir.llvm.org/docs/LangRef/#layout-map) into
-    memref types with an identity layout map, e.g. (i, j) -> (i, j). This
+    [layout map](https://mlir.llvm.org/docs/Dialects/Builtin/#affine-map-layout)
+    into memref types with an identity layout map, e.g. (i, j) -> (i, j). This
     pass is inter-procedural, in the sense that it can modify function
     interfaces and call sites that pass memref types. In order to modify
     memref types while preserving the original behavior, users of those
     memref types are also modified to incorporate the resulting layout map.
-    For instance, an [AffineLoadOp]
-    (https://mlir.llvm.org/docs/Dialects/Affine/#affineload-affineloadop)
+    For instance, an [AffineLoadOp](https://mlir.llvm.org/docs/Dialects/Affine/#affineload-mliraffineloadop)
     will be updated to compose the layout map with with the affine expression
-    contained in the op. Operations marked with the [MemRefsNormalizable]
-    (https://mlir.llvm.org/docs/Traits/#memrefsnormalizable) trait are
-    expected to be normalizable. Supported operations include affine
+    contained in the op. Operations marked with the
+    [MemRefsNormalizable](https://mlir.llvm.org/docs/Traits/#memrefsnormalizable)
+    trait are expected to be normalizable. Supported operations include affine
     operations, memref.alloc, memref.dealloc, and func.return.
 
     Given an appropriate layout map specified in the code, this transformation
@@ -157,7 +156,7 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
   ```
   }];
   let constructor = "mlir::memref::createNormalizeMemRefsPass()";
-  let dependentDialects = ["AffineDialect"];
+  let dependentDialects = ["affine::AffineDialect"];
 }
 
 def ResolveRankedShapeTypeResultDims :
@@ -185,7 +184,7 @@ def ResolveShapedTypeResultDims : Pass<"resolve-shaped-type-result-dims"> {
   }];
   let constructor = "mlir::memref::createResolveShapedTypeResultDimsPass()";
   let dependentDialects = [
-    "AffineDialect", "memref::MemRefDialect", "tensor::TensorDialect"
+    "affine::AffineDialect", "memref::MemRefDialect", "tensor::TensorDialect"
   ];
 }
 
@@ -200,7 +199,7 @@ def ExpandStridedMetadata : Pass<"expand-strided-metadata"> {
   }];
   let constructor = "mlir::memref::createExpandStridedMetadataPass()";
   let dependentDialects = [
-      "AffineDialect", "memref::MemRefDialect"
+      "affine::AffineDialect", "memref::MemRefDialect"
   ];
 }
 #endif // MLIR_DIALECT_MEMREF_TRANSFORMS_PASSES

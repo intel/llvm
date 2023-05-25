@@ -105,7 +105,7 @@ KnownBits KnownBits::sextInReg(unsigned SrcBitWidth) const {
 KnownBits KnownBits::makeGE(const APInt &Val) const {
   // Count the number of leading bit positions where our underlying value is
   // known to be less than or equal to Val.
-  unsigned N = (Zero | Val).countLeadingOnes();
+  unsigned N = (Zero | Val).countl_one();
 
   // For each of those bit positions, if Val has a 1 in that bit then our
   // underlying value must also have a 1.
@@ -432,7 +432,7 @@ KnownBits KnownBits::mul(const KnownBits &LHS, const KnownBits &RHS,
   // fit in the bitwidth (it must not overflow).
   bool HasOverflow;
   APInt UMaxResult = UMaxLHS.umul_ov(UMaxRHS, HasOverflow);
-  unsigned LeadZ = HasOverflow ? 0 : UMaxResult.countLeadingZeros();
+  unsigned LeadZ = HasOverflow ? 0 : UMaxResult.countl_zero();
 
   // The result of the bottom bits of an integer multiply can be
   // inferred by looking at the bottom bits of both operands and
@@ -481,8 +481,8 @@ KnownBits KnownBits::mul(const KnownBits &LHS, const KnownBits &RHS,
 
   // How many times we'd be able to divide each argument by 2 (shr by 1).
   // This gives us the number of trailing zeros on the multiplication result.
-  unsigned TrailBitsKnown0 = (LHS.Zero | LHS.One).countTrailingOnes();
-  unsigned TrailBitsKnown1 = (RHS.Zero | RHS.One).countTrailingOnes();
+  unsigned TrailBitsKnown0 = (LHS.Zero | LHS.One).countr_one();
+  unsigned TrailBitsKnown1 = (RHS.Zero | RHS.One).countr_one();
   unsigned TrailZero0 = LHS.countMinTrailingZeros();
   unsigned TrailZero1 = RHS.countMinTrailingZeros();
   unsigned TrailZ = TrailZero0 + TrailZero1;
@@ -546,16 +546,27 @@ KnownBits KnownBits::udiv(const KnownBits &LHS, const KnownBits &RHS) {
   return Known;
 }
 
-KnownBits KnownBits::urem(const KnownBits &LHS, const KnownBits &RHS) {
+KnownBits KnownBits::remGetLowBits(const KnownBits &LHS, const KnownBits &RHS) {
   unsigned BitWidth = LHS.getBitWidth();
-  assert(!LHS.hasConflict() && !RHS.hasConflict());
-  KnownBits Known(BitWidth);
+  if (!RHS.isZero() && RHS.Zero[0]) {
+    // rem X, Y where Y[0:N] is zero will preserve X[0:N] in the result.
+    unsigned RHSZeros = RHS.countMinTrailingZeros();
+    APInt Mask = APInt::getLowBitsSet(BitWidth, RHSZeros);
+    APInt OnesMask = LHS.One & Mask;
+    APInt ZerosMask = LHS.Zero & Mask;
+    return KnownBits(ZerosMask, OnesMask);
+  }
+  return KnownBits(BitWidth);
+}
 
+KnownBits KnownBits::urem(const KnownBits &LHS, const KnownBits &RHS) {
+  assert(!LHS.hasConflict() && !RHS.hasConflict());
+
+  KnownBits Known = remGetLowBits(LHS, RHS);
   if (RHS.isConstant() && RHS.getConstant().isPowerOf2()) {
-    // The upper bits are all zero, the lower ones are unchanged.
-    APInt LowBits = RHS.getConstant() - 1;
-    Known.Zero = LHS.Zero | ~LowBits;
-    Known.One = LHS.One & LowBits;
+    // NB: Low bits set in `remGetLowBits`.
+    APInt HighBits = ~(RHS.getConstant() - 1);
+    Known.Zero |= HighBits;
     return Known;
   }
 
@@ -568,16 +579,12 @@ KnownBits KnownBits::urem(const KnownBits &LHS, const KnownBits &RHS) {
 }
 
 KnownBits KnownBits::srem(const KnownBits &LHS, const KnownBits &RHS) {
-  unsigned BitWidth = LHS.getBitWidth();
   assert(!LHS.hasConflict() && !RHS.hasConflict());
-  KnownBits Known(BitWidth);
 
+  KnownBits Known = remGetLowBits(LHS, RHS);
   if (RHS.isConstant() && RHS.getConstant().isPowerOf2()) {
-    // The low bits of the first operand are unchanged by the srem.
+    // NB: Low bits are set in `remGetLowBits`.
     APInt LowBits = RHS.getConstant() - 1;
-    Known.Zero = LHS.Zero & LowBits;
-    Known.One = LHS.One & LowBits;
-
     // If the first operand is non-negative or has all low bits zero, then
     // the upper bits are all zero.
     if (LHS.isNonNegative() || LowBits.isSubsetOf(LHS.Zero))
@@ -623,8 +630,40 @@ KnownBits &KnownBits::operator^=(const KnownBits &RHS) {
   return *this;
 }
 
+KnownBits KnownBits::blsi() const {
+  unsigned BitWidth = getBitWidth();
+  KnownBits Known(Zero, APInt(BitWidth, 0));
+  unsigned Max = countMaxTrailingZeros();
+  Known.Zero.setBitsFrom(std::min(Max + 1, BitWidth));
+  unsigned Min = countMinTrailingZeros();
+  if (Max == Min && Max < BitWidth)
+    Known.One.setBit(Max);
+  return Known;
+}
+
+KnownBits KnownBits::blsmsk() const {
+  unsigned BitWidth = getBitWidth();
+  KnownBits Known(BitWidth);
+  unsigned Max = countMaxTrailingZeros();
+  Known.Zero.setBitsFrom(std::min(Max + 1, BitWidth));
+  unsigned Min = countMinTrailingZeros();
+  Known.One.setLowBits(std::min(Min + 1, BitWidth));
+  return Known;
+}
+
 void KnownBits::print(raw_ostream &OS) const {
-  OS << "{Zero=" << Zero << ", One=" << One << "}";
+  unsigned BitWidth = getBitWidth();
+  for (unsigned I = 0; I < BitWidth; ++I) {
+    unsigned N = BitWidth - I - 1;
+    if (Zero[N] && One[N])
+      OS << "!";
+    else if (Zero[N])
+      OS << "0";
+    else if (One[N])
+      OS << "1";
+    else
+      OS << "?";
+  }
 }
 void KnownBits::dump() const {
   print(dbgs());

@@ -24,7 +24,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
-
   const std::vector<device> Devs = SyclContext.get_devices();
 
   auto Comp = [&DeviceSelector](const device &d1, const device &d2) {
@@ -51,13 +50,6 @@ queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
       detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
 }
 
-queue::queue(cl_command_queue clQueue, const context &SyclContext,
-             const async_handler &AsyncHandler) {
-  impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<RT::PiQueue>(clQueue),
-      detail::getSyclObjImpl(SyclContext), AsyncHandler);
-}
-
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
              const property_list &PropList)
     : queue(SyclContext, deviceSelector,
@@ -69,6 +61,14 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
     : queue(SyclContext, SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
+
+queue::queue(cl_command_queue clQueue, const context &SyclContext,
+             const async_handler &AsyncHandler) {
+  const property_list PropList{};
+  impl = std::make_shared<detail::queue_impl>(
+      reinterpret_cast<RT::PiQueue>(clQueue),
+      detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
+}
 
 cl_command_queue queue::get() const { return impl->get(); }
 
@@ -207,7 +207,9 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
-pi_native_handle queue::getNative() const { return impl->getNative(); }
+pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
+  return impl->getNative(NativeHandleDesc);
+}
 
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();

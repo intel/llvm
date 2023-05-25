@@ -39,6 +39,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -165,6 +166,24 @@ thread_local char ErrorMessage[MaxMessageSize];
 pi_result piPluginGetLastError(char **message) {
   *message = &ErrorMessage[0];
   return ErrorMessageCode;
+}
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return empty string for esimd emulator.
+// TODO: Determine correct string to be passed.
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
+                                   const char **backend_option) {
+  using namespace std::literals;
+  if (frontend_option == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv) {
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 using IDBuilder = sycl::detail::Builder;
@@ -464,6 +483,11 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
 
   case PI_PLATFORM_INFO_EXTENSIONS:
     return ReturnValue("");
+
+  case PI_EXT_PLATFORM_INFO_BACKEND:
+    return getInfo<pi_platform_backend>(ParamValueSize, ParamValue,
+                                        ParamValueSizeRet,
+                                        PI_EXT_PLATFORM_BACKEND_ESIMD);
 
   default:
     // TODO: implement other parameters
@@ -789,6 +813,12 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_int32{1});
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
     return ReturnValue(pi_uint32{1}); // Minimum required by SYCL 2020 spec
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    // The mem-channel buffer property is not supported on the ESIMD emulator.
+    return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_IMAGE_SRGB:
+    // The sRGB images are not supported on the ESIMD emulator.
+    return ReturnValue(pi_bool{false});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
@@ -802,10 +832,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IMAGE_SRGB)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_64)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
@@ -941,6 +972,7 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   return piQueueCreate(Context, Device, Flags, Queue);
 }
+
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
@@ -1009,12 +1041,13 @@ pi_result piQueueFlush(pi_queue) {
   CONTINUE_NO_IMPLEMENTATION;
 }
 
-pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
+pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *, int32_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                           pi_device, bool, pi_queue *) {
+pi_result piextQueueCreateWithNativeHandle(pi_native_handle, int32_t,
+                                           pi_context, pi_device, bool,
+                                           pi_queue_properties *, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1295,6 +1328,12 @@ pi_result piextMemGetNativeHandle(pi_mem, pi_native_handle *) {
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
                                          pi_mem *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextMemImageCreateWithNativeHandle(pi_native_handle, pi_context,
+                                              bool, const pi_image_format *,
+                                              const pi_image_desc *, pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -2003,6 +2042,19 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
   DIE_NO_IMPLEMENTATION;
 }
 
+/// Host Pipes
+pi_result piextEnqueueReadHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                   void *, size_t, pi_uint32, const pi_event *,
+                                   pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue, pi_program, const char *, pi_bool,
+                                    void *, size_t, pi_uint32, const pi_event *,
+                                    pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
                               const void *) {
   DIE_NO_IMPLEMENTATION;
@@ -2053,7 +2105,7 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);
@@ -2069,8 +2121,7 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
-pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
-                                  uint64_t *hostTime) {
+pi_result piGetDeviceAndHostTimer(pi_device, uint64_t *, uint64_t *) {
   PiTrace(
       "Warning : Querying device clock not supported under PI_ESIMD_EMULATOR");
   return PI_SUCCESS;

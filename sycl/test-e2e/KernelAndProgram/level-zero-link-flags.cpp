@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -Xsycl-target-linker=spir64 -foo %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: level_zero
+// RUN: %{build} -Xsycl-target-linker=spir64 -foo -o %t.out
+// RUN: %{run} %t.out
 //==--- level-zero-link-flags.cpp - Error handling for link flags --==//
 //
 // The Level Zero backend does not accept any online linker options.

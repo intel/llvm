@@ -656,7 +656,7 @@ public:
 
   // If we discover a new machine location, assign it an mphi with this
   // block number.
-  unsigned CurBB;
+  unsigned CurBB = 0; // FIXME: https://reviews.llvm.org/D150420
 
   /// Cached local copy of the number of registers the target has.
   unsigned NumRegs;
@@ -740,7 +740,7 @@ public:
   unsigned getLocID(SpillLocationNo Spill, StackSlotPos Idx) {
     unsigned SlotNo = Spill.id() - 1;
     SlotNo *= NumSlotIdxes;
-    assert(StackSlotIdxes.find(Idx) != StackSlotIdxes.end());
+    assert(StackSlotIdxes.contains(Idx));
     SlotNo += StackSlotIdxes[Idx];
     SlotNo += NumRegs;
     return SlotNo;
@@ -1197,7 +1197,7 @@ private:
 
   /// For an instruction reference given by \p InstNo and \p OpNo in instruction
   /// \p MI returns the Value pointed to by that instruction reference if any
-  /// exists, otherwise returns None.
+  /// exists, otherwise returns std::nullopt.
   std::optional<ValueIDNum> getValueForInstrRef(unsigned InstNo, unsigned OpNo,
                                                 MachineInstr &MI,
                                                 const ValueTable *MLiveOuts,

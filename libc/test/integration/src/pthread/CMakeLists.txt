@@ -6,8 +6,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_mutex_test.cpp
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.errno.errno
@@ -25,8 +23,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_test.cpp
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.pthread.pthread_create
@@ -39,8 +35,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_equal_test.cpp
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.errno.errno
@@ -60,8 +54,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_name_test.cpp
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     libc.include.errno
     libc.include.pthread
@@ -83,8 +75,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_exit_test.cpp
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.pthread.pthread_create
@@ -98,8 +88,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_tss_test.cpp
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.pthread.pthread_create
@@ -117,8 +105,6 @@ add_integration_test(
     libc-pthread-integration-tests
   SRCS
     pthread_once_test.cpp
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     libc.include.pthread
     libc.src.pthread.pthread_once
@@ -129,4 +115,18 @@ add_integration_test(
     libc.src.pthread.pthread_create
     libc.src.pthread.pthread_join
     libc.src.__support.CPP.atomic
+)
+
+add_integration_test(
+  pthread_join_test
+  SUITE
+    libc-pthread-integration-tests
+  SRCS
+    pthread_join_test.cpp
+  DEPENDS
+    libc.include.pthread
+    libc.include.errno
+    libc.include.stdio
+    libc.src.pthread.pthread_create
+    libc.src.pthread.pthread_join
 )

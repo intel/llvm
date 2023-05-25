@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This performs basic checks such as reduction creation, identity methods,
 // and the combine() method of the aux class 'reducer'.
@@ -25,7 +23,7 @@ void test_reducer(Reduction &Redu, T A, T B) {
 
   typename Reduction::binary_operation BOp;
   T ExpectedValue = BOp(A, B);
-  assert(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0) &&
+  assert(ExpectedValue == *detail::ReducerAccess{Reducer}.getElement(0) &&
          "Wrong result of binary operation.");
   assert(
       toBool(Reducer.identity() == Redu.getIdentityContainer().getIdentity()) &&
@@ -40,7 +38,7 @@ void test_reducer(Reduction &Redu, T Identity, BinaryOperation BOp, T A, T B) {
 
   T ExpectedValue = BOp(A, B);
   assert(
-      toBool(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0)) &&
+      toBool(ExpectedValue == *detail::ReducerAccess{Reducer}.getElement(0)) &&
       "Wrong result of binary operation.");
   assert(
       toBool(Reducer.identity() == Redu.getIdentityContainer().getIdentity()) &&

@@ -11,17 +11,12 @@ import lit.formats
 import lit.util
 
 from lit.llvm import llvm_config
+from lit.llvm.subst import ToolSubst, FindTool
 
 # Configuration file for the 'lit' test runner.
 
 # name: The name of this test suite.
 config.name = 'SYCL'
-
-# testFormat: The test format to use to interpret tests.
-#
-# For now we require '&&' between commands, until they get globally killed and
-# the test runner updated.
-config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp']
@@ -34,6 +29,13 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = config.sycl_obj_root
 
+# allow expanding substitutions that are based on other substitutions
+config.recursiveExpansionLimit = 10
+
+# To be filled by lit.local.cfg files.
+config.required_features = []
+config.unsupported_features = []
+
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = ['COMPILER_PATH', 'RC_DEBUG_OPTIONS',
                                'CINDEXTEST_PREAMBLE_FILE', 'LIBRARY_PATH',
@@ -44,6 +46,7 @@ possibly_dangerous_env_vars = ['COMPILER_PATH', 'RC_DEBUG_OPTIONS',
                                'LIBCLANG_BGPRIO_EDIT', 'LIBCLANG_NOTHREADS',
                                'LIBCLANG_RESOURCE_USAGE',
                                'LIBCLANG_CODE_COMPLETION_LOGGING']
+
 # Clang/Win32 may refer to %INCLUDE%. vsvarsall.bat sets it.
 if platform.system() != 'Windows':
     possibly_dangerous_env_vars.append('INCLUDE')
@@ -127,6 +130,11 @@ if lit_config.params.get('ze_debug'):
     config.ze_debug = lit_config.params.get('ze_debug')
     lit_config.note("ZE_DEBUG: "+config.ze_debug)
 
+# Make sure that any dynamic checks below are done in the build directory and
+# not where the sources are located. This is important for the in-tree
+# configuration (as opposite to the standalone one).
+os.chdir(config.sycl_obj_root)
+
 # check if compiler supports CL command line options
 cl_options=False
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' /help')
@@ -188,7 +196,7 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl6.lib /I' +
+    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl7.lib /I' +
                                 config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
@@ -197,7 +205,7 @@ if cl_options:
     config.substitutions.append( ('%shared_lib', '/LD') )
 else:
     config.substitutions.append( ('%sycl_options',
-                                  (' -lsycl6' if platform.system() == "Windows" else " -lsycl") + ' -I' +
+                                  (' -lsycl7' if platform.system() == "Windows" else " -lsycl") + ' -I' +
                                   config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl') +
                                   ' -L' + config.sycl_libs_dir) )
     config.substitutions.append( ('%include_option',  '-include' ) )
@@ -215,48 +223,37 @@ if not config.gpu_aot_target_opts:
 
 config.substitutions.append( ('%gpu_aot_target_opts',  config.gpu_aot_target_opts ) )
 
-if not config.sycl_be:
-     lit_config.error("SYCL backend is not specified")
-
-# Transforming from SYCL_BE backend definition style to SYCL_DEVICE_FILTER used
-# for backward compatibility : e.g. 'PI_ABC_XYZ' -> 'abc_xyz'
-if config.sycl_be.startswith("PI_"):
-    config.sycl_be = config.sycl_be[3:]
-config.sycl_be = config.sycl_be.lower()
-
-# Replace deprecated backend names
-deprecated_names_mapping = {'cuda'       : 'ext_oneapi_cuda',
-                            'hip'        : 'ext_oneapi_hip',
-                            'level_zero' : 'ext_oneapi_level_zero',
-                            'esimd_cpu'  : 'ext_intel_esimd_emulator'}
-if config.sycl_be in deprecated_names_mapping.keys():
-    config.sycl_be = deprecated_names_mapping[config.sycl_be]
-
-lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
-
-config.substitutions.append( ('%sycl_be', config.sycl_be) )
-# Use short names for LIT rules
-config.available_features.add(config.sycl_be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
-config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)) )
-
 if config.dump_ir_supported:
-   config.available_features.add('dump_ir')
+    config.available_features.add('dump_ir')
 
-supported_sycl_be = ['opencl',
-                     'ext_oneapi_cuda',
-                     'ext_oneapi_hip',
-                     'ext_oneapi_level_zero',
-                     'ext_intel_esimd_emulator']
+lit_config.note("Targeted devices: {}".format(', '.join(config.sycl_devices)))
 
-if config.sycl_be not in supported_sycl_be:
-   lit_config.error("Unknown SYCL BE specified '" +
-                    config.sycl_be +
-                    "'. Supported values are {}".format(', '.join(supported_sycl_be)))
+if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
+    devices = set()
+    sp = subprocess.getstatusoutput('sycl-ls')
+    for line in sp[1].split('\n'):
+        (backend, device, _) = line[1:].split(':', 2)
+        devices.add('{}:{}'.format(backend, device))
+    config.sycl_devices = list(devices)
+
+if len(config.sycl_devices) > 1:
+    lit_config.note('Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices')
+
+available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
+                     'ext_oneapi_cuda':('gpu'),
+                     'ext_oneapi_level_zero':('gpu'),
+                     'ext_oneapi_hip':('gpu'),
+                     'ext_intel_esimd_emulator':('gpu')}
+for d in config.sycl_devices:
+     be, dev = d.split(':')
+     if be not in available_devices or dev not in available_devices[be]:
+          lit_config.error('Unsupported device {}'.format(d))
 
 # Run only tests in ESIMD subforlder for the ext_intel_esimd_emulator
-if config.sycl_be == 'ext_intel_esimd_emulator':
-   config.test_source_root += "/ESIMD"
-   config.test_exec_root += "/ESIMD"
+# TODO: Can it work in multiple devices configuration at all?
+if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'ext_intel_esimd_emulator:gpu':
+     config.test_source_root += "/ESIMD"
+     config.test_exec_root += "/ESIMD"
 
 # If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
 supported_hip_platforms=["AMD", "NVIDIA"]
@@ -265,10 +262,11 @@ if config.hip_platform == "":
 if config.hip_platform not in supported_hip_platforms:
     lit_config.error("Unknown HIP platform '" + config.hip_platform + "' supported platforms are " + ', '.join(supported_hip_platforms))
 
-if config.sycl_be == "ext_oneapi_hip" and config.hip_platform == "AMD":
+# FIXME: This needs to be made per-device as well, possibly with a helper.
+if "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
     config.available_features.add('hip_amd')
     arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=' + config.amd_arch
-elif config.sycl_be == "ext_oneapi_hip" and config.hip_platform == "NVIDIA":
+elif "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
     config.available_features.add('hip_nvidia')
     arch_flag = ""
 else:
@@ -283,119 +281,11 @@ else:
 
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 
-# Configure device-specific substitutions based on availability of corresponding
-# devices/runtimes
-
-found_at_least_one_device = False
-
-supported_device_types=['cpu', 'gpu', 'acc']
-
-for target_device in config.target_devices.split(','):
-    if target_device == 'host':
-        lit_config.warning("Host device type is no longer supported.")
-    elif ( target_device not in supported_device_types ):
-        lit_config.error("Unknown SYCL target device type specified '" +
-                         target_device +
-                         "' supported devices are " + ', '.join(supported_device_types))
-
-cpu_run_substitute = "true"
-cpu_run_on_linux_substitute = "true "
-cpu_check_substitute = ""
-cpu_check_on_linux_substitute = ""
-
-if 'cpu' in config.target_devices.split(','):
-    found_at_least_one_device = True
-    lit_config.note("Test CPU device")
-    cpu_run_substitute = "env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:cpu ".format(SYCL_PLUGIN=config.sycl_be)
-    cpu_check_substitute = "| FileCheck %s"
-    config.available_features.add('cpu')
-    if platform.system() == "Linux":
-        cpu_run_on_linux_substitute = cpu_run_substitute
-        cpu_check_on_linux_substitute = "| FileCheck %s"
-
-    if config.run_launcher:
-        cpu_run_substitute += " {}".format(config.run_launcher)
-else:
-    lit_config.warning("CPU device not used")
-
-config.substitutions.append( ('%CPU_RUN_PLACEHOLDER',  cpu_run_substitute) )
-config.substitutions.append( ('%CPU_RUN_ON_LINUX_PLACEHOLDER',  cpu_run_on_linux_substitute) )
-config.substitutions.append( ('%CPU_CHECK_PLACEHOLDER',  cpu_check_substitute) )
-config.substitutions.append( ('%CPU_CHECK_ON_LINUX_PLACEHOLDER',  cpu_check_on_linux_substitute) )
-
-gpu_run_substitute = "true"
-gpu_run_on_linux_substitute = "true "
-gpu_check_substitute = ""
-gpu_l0_check_substitute = ""
-gpu_check_on_linux_substitute = ""
-
-if 'gpu' in config.target_devices.split(','):
-    found_at_least_one_device = True
-    lit_config.note("Test GPU device")
-    gpu_run_substitute = " env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
-    gpu_check_substitute = "| FileCheck %s"
-    config.available_features.add('gpu')
-
-    if config.sycl_be == "ext_oneapi_level_zero":
-        gpu_l0_check_substitute = "| FileCheck %s"
-        if lit_config.params.get('ze_debug'):
-            gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} ONEAPI_DEVICE_SELECTOR=level_zero:gpu ".format(ZE_DEBUG=config.ze_debug)
-            config.available_features.add('ze_debug'+config.ze_debug)
-    elif config.sycl_be == "ext_intel_esimd_emulator":
-        # ESIMD_EMULATOR backend uses CM_EMU library package for
-        # multi-threaded execution on CPU, and the package emulates
-        # multiple target platforms. In case user does not specify
-        # what target platform to emulate, 'skl' is chosen by default.
-        if not "CM_RT_PLATFORM" in os.environ:
-            gpu_run_substitute += "CM_RT_PLATFORM=skl "
-
-    if platform.system() == "Linux":
-        gpu_run_on_linux_substitute = "env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
-        gpu_check_on_linux_substitute = "| FileCheck %s"
-
-    if config.sycl_be == "ext_oneapi_cuda":
-        gpu_run_substitute += "SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 "
-
-    if config.run_launcher:
-        gpu_run_substitute += " {}".format(config.run_launcher)
-else:
-    lit_config.warning("GPU device not used")
-
-config.substitutions.append( ('%GPU_RUN_PLACEHOLDER',  gpu_run_substitute) )
-config.substitutions.append( ('%GPU_RUN_ON_LINUX_PLACEHOLDER',  gpu_run_on_linux_substitute) )
-config.substitutions.append( ('%GPU_CHECK_PLACEHOLDER',  gpu_check_substitute) )
-config.substitutions.append( ('%GPU_L0_CHECK_PLACEHOLDER',  gpu_l0_check_substitute) )
-config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_linux_substitute) )
-
-acc_run_substitute = "true"
-acc_check_substitute = ""
-if 'acc' in config.target_devices.split(','):
-    found_at_least_one_device = True
-    lit_config.note("Tests accelerator device")
-    acc_run_substitute = " env ONEAPI_DEVICE_SELECTOR='*:acc' "
-    acc_check_substitute = "| FileCheck %s"
-    config.available_features.add('accelerator')
-
-    if config.run_launcher:
-        acc_run_substitute += " {}".format(config.run_launcher)
-else:
-    lit_config.warning("Accelerator device not used")
-config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
-config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
+if lit_config.params.get('ze_debug'):
+    config.available_features.add('ze_debug')
 
 if config.run_launcher:
     config.substitutions.append(('%e2e_tests_root', config.test_source_root))
-    config.recursiveExpansionLimit = 10
-
-if config.sycl_be == 'ext_oneapi_cuda' or (config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'NVIDIA'):
-    config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda" ) )
-elif config.sycl_be == 'ext_oneapi_hip' and config.hip_platform == 'AMD':
-    config.substitutions.append( ('%sycl_triple',  "amdgcn-amd-amdhsa" ) )
-else:
-    config.substitutions.append( ('%sycl_triple',  "spir64" ) )
-
-if find_executable('sycl-ls'):
-    config.available_features.add('sycl-ls')
 
 # TODO properly set XPTIFW include and runtime dirs
 xptifw_lib_dir = os.path.join(config.dpcpp_root_dir, 'lib')
@@ -413,17 +303,32 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(os.path.join(xptifw_include
     else:
         config.substitutions.append(('%xptifw_lib', " -L{} -lxptifw -I{} ".format(xptifw_lib_dir, xptifw_includes)))
 
+# Tools for which we add a corresponding feature when available.
+feature_tools = [
+  ToolSubst('llvm-spirv', unresolved='ignore'),
+  ToolSubst('llvm-link', unresolved='ignore'),
+]
 
-llvm_tools = ["llvm-spirv", "llvm-link"]
-for llvm_tool in llvm_tools:
-  llvm_tool_path = find_executable(llvm_tool)
-  if llvm_tool_path:
-    lit_config.note("Found " + llvm_tool)
-    config.available_features.add(llvm_tool)
-    config.substitutions.append( ('%' + llvm_tool.replace('-', '_'),
-                                  os.path.realpath(llvm_tool_path)) )
-  else:
-    lit_config.warning("Can't find " + llvm_tool)
+tools = [
+  ToolSubst('FileCheck', unresolved='ignore'),
+  # not is only substituted in certain circumstances; this is lit's default
+  # behaviour.
+  ToolSubst(r'\| \bnot\b', command=FindTool('not'),
+    verbatim=True, unresolved='ignore'),
+  ToolSubst('sycl-ls', unresolved='ignore'),
+] + feature_tools
+
+# Try and find each of these tools in the llvm tools directory or the PATH, in
+# that order. If found, they will be added as substitutions with the full path
+# to the tool. This allows us to support both in-tree builds and standalone
+# builds, where the tools may be externally defined.
+llvm_config.add_tool_substitutions(tools, [config.llvm_tools_dir,
+                                           os.environ.get('PATH', '')])
+for tool in feature_tools:
+    if tool.was_resolved:
+        config.available_features.add(tool.key)
+    else:
+        lit_config.warning("Can't find " + tool.key)
 
 if find_executable('cmc'):
     config.available_features.add('cm-compiler')
@@ -455,6 +360,53 @@ status = subprocess.getstatusoutput(config.dpcpp_compiler + ' -fsycl  ' +
 if status[0] == 0:
     lit_config.note('Kernel fusion extension enabled')
     config.available_features.add('fusion')
+
+for sycl_device in config.sycl_devices:
+    be, dev = sycl_device.split(':')
+    config.available_features.add('any-device-is-' + dev)
+    # Use short names for LIT rules.
+    config.available_features.add(
+        'any-device-is-' + be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
+
+# That has to be executed last so that all device-independent features have been
+# discovered already.
+config.sycl_dev_features = {}
+for sycl_device in config.sycl_devices:
+    cmd = 'env '
+    if sycl_device.startswith('ext_oneapi_cuda:'):
+        cmd += 'SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 '
+    cmd += 'ONEAPI_DEVICE_SELECTOR={} sycl-ls --verbose'.format(sycl_device)
+    sp = subprocess.run((cmd), env=llvm_config.config.environment,
+                        shell=True, capture_output=True, text=True)
+    if sp.returncode != 0:
+        lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
+            be, device, sp.stdout, sp.stderr))
+
+    dev_aspects = []
+    for line in sp.stdout.split('\n'):
+        if not re.search(r'^ *Aspects *:', line):
+            continue
+        _, aspects_str = line.split(':', 1)
+        dev_aspects.append(aspects_str.strip().split(' '))
+
+    if dev_aspects == []:
+        lit_config.error('Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n'.format(
+            sycl_device, sp.stdout, sp.stderr))
+        sycl_dev_aspects.append(set())
+        continue
+
+    # We might have several devices matching the same filter in the system.
+    # Compute intersection of aspects.
+    aspects = set(dev_aspects[0]).intersection(*dev_aspects)
+    lit_config.note('Aspects for {}: {}'.format(sycl_device, ', '.join(aspects)))
+
+    features = set('aspect-' + a for a in aspects)
+    be, dev = sycl_device.split(':')
+    features.add(dev.replace('acc', 'accelerator'))
+    # Use short names for LIT rules.
+    features.add(be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
+
+    config.sycl_dev_features[sycl_device] = features.union(config.available_features)
 
 # Set timeout for a single test
 try:

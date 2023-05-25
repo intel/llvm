@@ -254,10 +254,10 @@ image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
 template <typename T>
 static void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
                          T &Dest, RT::PiMem InteropMemObject) {
-  const detail::plugin &Plugin = Context->getPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   RT::PiMem Mem = pi::cast<RT::PiMem>(InteropMemObject);
-  Plugin.call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
-                                            nullptr);
+  Plugin->call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
+                                             nullptr);
 }
 
 image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
@@ -269,9 +269,9 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
       MDimensions(Dimensions), MRange({0, 0, 0}) {
   RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
-  const detail::plugin &Plugin = Context->getPlugin();
-  Plugin.call<PiApiKind::piMemGetInfo>(Mem, PI_MEM_SIZE, sizeof(size_t),
-                                       &(BaseT::MSizeInBytes), nullptr);
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piMemGetInfo>(Mem, PI_MEM_SIZE, sizeof(size_t),
+                                        &(BaseT::MSizeInBytes), nullptr);
 
   RT::PiMemImageFormat Format;
   getImageInfo(Context, PI_IMAGE_INFO_FORMAT, Format, Mem);
@@ -295,6 +295,24 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
   case 1:
     getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0], Mem);
   }
+}
+
+image_impl::image_impl(pi_native_handle MemObject, const context &SyclContext,
+                       event AvailableEvent,
+                       std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                       uint8_t Dimensions, image_channel_order Order,
+                       image_channel_type Type, bool OwnNativeHandle,
+                       range<3> Range3WithOnes)
+    : BaseT(MemObject, SyclContext, OwnNativeHandle, std::move(AvailableEvent),
+            std::move(Allocator), detail::convertChannelOrder(Order),
+            detail::convertChannelType(Type), Range3WithOnes, Dimensions,
+            getImageElementSize(getImageNumberChannels(Order), Type)),
+      MDimensions(Dimensions), MRange(Range3WithOnes) {
+  MOrder = Order;
+  MType = Type;
+  MNumChannels = getImageNumberChannels(MOrder);
+  MElementSize = getImageElementSize(MNumChannels, Type);
+  setPitches(); // sets MRowPitch, MSlice and BaseT::MSizeInBytes
 }
 
 void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,

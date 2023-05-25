@@ -252,6 +252,25 @@ def ROCDL_RawBufferStoreOp :
   let hasCustomAssemblyFormat = 1;
 }
 
+def ROCDL_RawBufferAtomicCmpSwap :
+  ROCDL_Op<"raw.buffer.atomic.cmpswap", [AllTypesMatch<["res", "src", "cmp"]>]>,
+  Results<(outs LLVM_Type:$res)>,
+  Arguments<(ins LLVM_Type:$src,
+                 LLVM_Type:$cmp,
+                 LLVM_Type:$rsrc,
+                 I32:$offset,
+                 I32:$soffset,
+                 I32:$aux)>{
+  string llvmBuilder = [{
+      $res = createIntrinsicCall(builder,
+          llvm::Intrinsic::amdgcn_raw_buffer_atomic_cmpswap, {$src, $cmp, $rsrc,
+            $offset, $soffset, $aux}, {$_resultType});
+  }];
+  let assemblyFormat = [{
+    attr-dict `(` operands `)` `:` type($res) `,` type($rsrc)
+  }];
+}
+
 //===---------------------------------------------------------------------===//
 // MI-100 and MI-200 buffer atomic floating point add intrinsic
 
@@ -266,6 +285,63 @@ def ROCDL_RawBufferAtomicFAddOp :
       auto vdataType = moduleTranslation.convertType(op.getVdata().getType());
       createIntrinsicCall(builder,
           llvm::Intrinsic::amdgcn_raw_buffer_atomic_fadd, {$vdata, $rsrc,
+            $offset, $soffset, $aux}, {vdataType});
+  }];
+  let hasCustomAssemblyFormat = 1;
+}
+
+//===---------------------------------------------------------------------===//
+// Buffer atomic floating point max intrinsic. GFX9 does not support fp32.
+
+def ROCDL_RawBufferAtomicFMaxOp :
+  ROCDL_Op<"raw.buffer.atomic.fmax">,
+  Arguments<(ins LLVM_Type:$vdata,
+                 LLVM_Type:$rsrc,
+                 LLVM_Type:$offset,
+                 LLVM_Type:$soffset,
+                 LLVM_Type:$aux)>{
+  string llvmBuilder = [{
+      auto vdataType = moduleTranslation.convertType(op.getVdata().getType());
+      createIntrinsicCall(builder,
+          llvm::Intrinsic::amdgcn_raw_buffer_atomic_fmax, {$vdata, $rsrc,
+            $offset, $soffset, $aux}, {vdataType});
+  }];
+  let hasCustomAssemblyFormat = 1;
+}
+
+//===---------------------------------------------------------------------===//
+// Buffer atomic signed integer max intrinsic.
+
+def ROCDL_RawBufferAtomicSMaxOp :
+  ROCDL_Op<"raw.buffer.atomic.smax">,
+  Arguments<(ins LLVM_Type:$vdata,
+                 LLVM_Type:$rsrc,
+                 LLVM_Type:$offset,
+                 LLVM_Type:$soffset,
+                 LLVM_Type:$aux)>{
+  string llvmBuilder = [{
+      auto vdataType = moduleTranslation.convertType(op.getVdata().getType());
+      createIntrinsicCall(builder,
+          llvm::Intrinsic::amdgcn_raw_buffer_atomic_smax, {$vdata, $rsrc,
+            $offset, $soffset, $aux}, {vdataType});
+  }];
+  let hasCustomAssemblyFormat = 1;
+}
+
+//===---------------------------------------------------------------------===//
+// Buffer atomic unsigned integer min intrinsic.
+
+def ROCDL_RawBufferAtomicUMinOp :
+  ROCDL_Op<"raw.buffer.atomic.umin">,
+  Arguments<(ins LLVM_Type:$vdata,
+                 LLVM_Type:$rsrc,
+                 LLVM_Type:$offset,
+                 LLVM_Type:$soffset,
+                 LLVM_Type:$aux)>{
+  string llvmBuilder = [{
+      auto vdataType = moduleTranslation.convertType(op.getVdata().getType());
+      createIntrinsicCall(builder,
+          llvm::Intrinsic::amdgcn_raw_buffer_atomic_umin, {$vdata, $rsrc,
             $offset, $soffset, $aux}, {vdataType});
   }];
   let hasCustomAssemblyFormat = 1;

@@ -22,23 +22,22 @@ define linkonce_odr hidden spir_func void @foo() {
 entry:
 ; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[Cast:[0-9]+]]
 ; CHECK-SPIRV: InBoundsPtrAccessChain {{[0-9]+}} [[Gep:[0-9]+]] [[Cast]]
-; CHECK-SPIRV: InBoundsPtrAccessChain {{[0-9]+}} [[Gep1:[0-9]+]] [[Cast]]
-; CHECK-SPIRV: ConvertPtrToU {{[0-9]+}} [[PtrToU1:[0-9]+]] [[Gep1]]
+; CHECK-SPIRV: ConvertPtrToU {{[0-9]+}} [[PtrToU1:[0-9]+]] [[Gep]]
 ; CHECK-SPIRV: ConvertPtrToU {{[0-9]+}} [[PtrToU2:[0-9]+]]
 ; CHECK-SPIRV: IEqual {{[0-9]+}} [[IEq:[0-9]+]] [[PtrToU1]] [[PtrToU2]]
 ; CHECK-SPIRV: ConvertUToPtr {{[0-9]+}} [[UToPtr:[0-9]+]]
-; CHECK-SPIRV: Select {{[0-9]+}} [[Sel:[0-9]+]] [[IEq]] [[UToPtr]] [[Gep1]]
+; CHECK-SPIRV: Select {{[0-9]+}} [[Sel:[0-9]+]] [[IEq]] [[UToPtr]] [[Gep]]
 ; CHECK-SPIRV: FunctionCall [[Void_Ty]] {{[0-9]+}} [[Func:[0-9]+]] [[Gep]] [[Sel]]
 ; CHECK-LLVM:  %[[Cast:[0-9]+]] = addrspacecast ptr addrspace(1) @.str.1 to ptr addrspace(4)
 ; CHECK-LLVM:  %[[Gep:[0-9]+]] = getelementptr inbounds [1 x i8], ptr addrspace(4) %0, i64 0, i64 0
-; CHECK-LLVM:  %[[Gep1:[0-9]+]] = getelementptr inbounds [1 x i8], ptr addrspace(4) %0, i64 0, i64 0
-; CHECK-LLVM:  %[[PtrToU1:[0-9]+]] = ptrtoint ptr addrspace(4) %[[Gep1]] to i64
+; CHECK-LLVM:  %[[PtrToU1:[0-9]+]] = ptrtoint ptr addrspace(4) %[[Gep]] to i64
 ; CHECK-LLVM:  %[[PtrToU2:[0-9]+]] = ptrtoint ptr addrspace(4) null to i64
 ; CHECK-LLVM:  %[[IEq:[0-9]+]] = icmp eq i64 %[[PtrToU1]], %[[PtrToU2]]
 ; CHECK-LLVM:  %[[UToPtr:[0-9]+]] = inttoptr i64 -1 to ptr addrspace(4)
-; CHECK-LLVM:  %[[Sel:[0-9]+]] = select i1 %[[IEq]], ptr addrspace(4) %[[UToPtr]], ptr addrspace(4) %[[Gep1]]
+; CHECK-LLVM:  %[[Sel:[0-9]+]] = select i1 %[[IEq]], ptr addrspace(4) %[[UToPtr]], ptr addrspace(4) %[[Gep]]
 ; CHECK-LLVM:  call spir_func void @bar(ptr addrspace(4) %[[Gep]], ptr addrspace(4) %[[Sel]]) #0
-  call spir_func void @bar(i8 addrspace(4)* getelementptr inbounds ([1 x i8], [1 x i8] addrspace(4)* addrspacecast ([1 x i8] addrspace(1)* @.str.1 to [1 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* select (i1 icmp eq (i8 addrspace(4)* getelementptr inbounds ([1 x i8], [1 x i8] addrspace(4)* addrspacecast ([1 x i8] addrspace(1)* @.str.1 to [1 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null), i8 addrspace(4)* inttoptr (i64 -1 to i8 addrspace(4)*), i8 addrspace(4)* getelementptr inbounds ([1 x i8], [1 x i8] addrspace(4)* addrspacecast ([1 x i8] addrspace(1)* @.str.1 to [1 x i8] addrspace(4)*), i64 0, i64 0)))
+  %0 = select i1 icmp eq (i8 addrspace(4)* getelementptr inbounds ([1 x i8], [1 x i8] addrspace(4)* addrspacecast ([1 x i8] addrspace(1)* @.str.1 to [1 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null), i8 addrspace(4)* inttoptr (i64 -1 to i8 addrspace(4)*), i8 addrspace(4)* getelementptr inbounds ([1 x i8], [1 x i8] addrspace(4)* addrspacecast ([1 x i8] addrspace(1)* @.str.1 to [1 x i8] addrspace(4)*), i64 0, i64 0)
+  call spir_func void @bar(i8 addrspace(4)* getelementptr inbounds ([1 x i8], [1 x i8] addrspace(4)* addrspacecast ([1 x i8] addrspace(1)* @.str.1 to [1 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* %0)
   ret void
 }
 

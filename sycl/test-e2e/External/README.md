@@ -56,8 +56,8 @@ is specified binaries will be used directly ignoring other parameters.
 Get sources
 
 ```
-git clone https://github.com/intel/llvm-test-suite
-cd llvm-test-suite
+git clone https://github.com/intel/llvm
+cd llvm/sycl/test-e2e
 mkdir build
 cd build
 ```
@@ -68,13 +68,12 @@ With compiler tools available in the PATH:
 # Configure
 cmake \
  -DCMAKE_CXX_COMPILER=clang++ \
- -DTEST_SUITE_SUBDIRS=SYCL \
- -DCHECK_SYCL_ALL="level_zero:gpu" \
+ -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" \
  -DSYCL_EXTERNAL_TESTS="RSBench" \
  ..
 
 # Build and Run
-make check-sycl-all
+make check-sycl-e2e
 
 ```
 

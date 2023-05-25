@@ -811,7 +811,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
                                      UserFilesAreVolatile);
   AST->ModuleCache = new InMemoryModuleCache;
   AST->HSOpts = std::make_shared<HeaderSearchOptions>();
-  AST->HSOpts->ModuleFormat = std::string(PCHContainerRdr.getFormat());
+  AST->HSOpts->ModuleFormat = std::string(PCHContainerRdr.getFormats().front());
   AST->HeaderInfo.reset(new HeaderSearch(AST->HSOpts,
                                          AST->getSourceManager(),
                                          AST->getDiagnostics(),
@@ -879,7 +879,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
 
   Module *M = HeaderInfo.lookupModule(AST->getLangOpts().CurrentModule);
   if (M && AST->getLangOpts().isCompilingModule() && M->isModulePurview())
-    AST->Ctx->setNamedModuleForCodeGen(M);
+    AST->Ctx->setCurrentNamedModule(M);
 
   // Create an AST consumer, even though it isn't used.
   if (ToLoad >= LoadASTOnly)
@@ -1397,7 +1397,8 @@ ASTUnit::getMainBufferWithPrecompiledPreamble(
 
     llvm::ErrorOr<PrecompiledPreamble> NewPreamble = PrecompiledPreamble::Build(
         PreambleInvocationIn, MainFileBuffer.get(), Bounds, *Diagnostics, VFS,
-        PCHContainerOps, /*StoreInMemory=*/false, Callbacks);
+        PCHContainerOps, StorePreamblesInMemory, PreambleStoragePath,
+        Callbacks);
 
     PreambleInvocationIn.getFrontendOpts().SkipFunctionBodies =
         PreviousSkipFunctionBodies;
@@ -1741,6 +1742,7 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
     const char **ArgBegin, const char **ArgEnd,
     std::shared_ptr<PCHContainerOperations> PCHContainerOps,
     IntrusiveRefCntPtr<DiagnosticsEngine> Diags, StringRef ResourceFilesPath,
+    bool StorePreamblesInMemory, StringRef PreambleStoragePath,
     bool OnlyLocalDecls, CaptureDiagsKind CaptureDiagnostics,
     ArrayRef<RemappedFile> RemappedFiles, bool RemappedFilesKeepOriginalName,
     unsigned PrecompilePreambleAfterNParses, TranslationUnitKind TUKind,
@@ -1801,6 +1803,8 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
     VFS = llvm::vfs::getRealFileSystem();
   VFS = createVFSFromCompilerInvocation(*CI, *Diags, VFS);
   AST->FileMgr = new FileManager(AST->FileSystemOpts, VFS);
+  AST->StorePreamblesInMemory = StorePreamblesInMemory;
+  AST->PreambleStoragePath = PreambleStoragePath;
   AST->ModuleCache = new InMemoryModuleCache;
   AST->OnlyLocalDecls = OnlyLocalDecls;
   AST->CaptureDiagnostics = CaptureDiagnostics;

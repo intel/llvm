@@ -88,7 +88,7 @@ namespace clang {
   };
 
   static void reportOptRecordError(Error E, DiagnosticsEngine &Diags,
-                                   const CodeGenOptions CodeGenOpts) {
+                                   const CodeGenOptions &CodeGenOpts) {
     handleAllErrors(
         std::move(E),
       [&](const LLVMRemarkSetupFileError &E) {
@@ -272,7 +272,8 @@ namespace clang {
             // in LLVM IR.
             if (F.isIntrinsic())
               continue;
-            Gen->CGM().addDefaultFunctionDefinitionAttributes(F);
+            Gen->CGM().mergeDefaultFunctionDefinitionAttributes(F,
+                                                                LM.Internalize);
           }
 
         CurLinkModule = LM.Module.get();

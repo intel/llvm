@@ -299,6 +299,7 @@ public:
     if (It != FlagTypes.end()) {
       uint64_t Mask = It->getValue();
       unsigned Shift = llvm::countr_zero(Mask);
+      assert(Shift < 64 && "Mask value produced an invalid shift value");
       return (V << Shift) & Mask;
     }
     llvm_unreachable("Unsupported flag");
@@ -1103,7 +1104,6 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
   OS << "typedef __SVBFloat16_t svbfloat16_t;\n";
 
   OS << "#include <arm_bf16.h>\n";
-  OS << "typedef __bf16 bfloat16_t;\n";
 
   OS << "typedef __SVFloat32_t svfloat32_t;\n";
   OS << "typedef __SVFloat64_t svfloat64_t;\n";
@@ -1140,7 +1140,9 @@ void SVEEmitter::createHeader(raw_ostream &OS) {
   OS << "typedef __clang_svfloat16x4_t svfloat16x4_t;\n";
   OS << "typedef __clang_svfloat32x4_t svfloat32x4_t;\n";
   OS << "typedef __clang_svfloat64x4_t svfloat64x4_t;\n";
-  OS << "typedef __SVBool_t  svbool_t;\n\n";
+  OS << "typedef __SVBool_t  svbool_t;\n";
+  OS << "typedef __clang_svboolx2_t  svboolx2_t;\n";
+  OS << "typedef __clang_svboolx4_t  svboolx4_t;\n\n";
 
   OS << "typedef __clang_svbfloat16x2_t svbfloat16x2_t;\n";
   OS << "typedef __clang_svbfloat16x3_t svbfloat16x3_t;\n";

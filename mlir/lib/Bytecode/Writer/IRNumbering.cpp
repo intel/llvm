@@ -7,11 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "IRNumbering.h"
+#include "../Encoding.h"
 #include "mlir/Bytecode/BytecodeImplementation.h"
 #include "mlir/Bytecode/BytecodeWriter.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace mlir;
 using namespace mlir::bytecode::detail;
@@ -40,6 +42,10 @@ struct IRNumberingState::NumberingDialectWriter : public DialectBytecodeWriter {
     // file locations.
   }
   void writeOwnedBlob(ArrayRef<char> blob) override {}
+
+  int64_t getBytecodeVersion() const override {
+    llvm_unreachable("unexpected querying of version in IRNumbering");
+  }
 
   /// The parent numbering state that is populated by this writer.
   IRNumberingState &state;
@@ -98,8 +104,8 @@ static void groupByDialectPerByte(T range) {
   }
 
   // Assign the entry numbers based on the sort order.
-  for (auto &entry : llvm::enumerate(range))
-    entry.value()->number = entry.index();
+  for (auto [idx, value] : llvm::enumerate(range))
+    value->number = idx;
 }
 
 IRNumberingState::IRNumberingState(Operation *op) {
@@ -132,8 +138,8 @@ IRNumberingState::IRNumberingState(Operation *op) {
   // found, given that the number of dialects on average is small enough to fit
   // within a singly byte (128). If we ever have real world use cases that have
   // a huge number of dialects, this could be made more intelligent.
-  for (auto &it : llvm::enumerate(dialects))
-    it.value().second->number = it.index();
+  for (auto [idx, dialect] : llvm::enumerate(dialects))
+    dialect.second->number = idx;
 
   // Number each of the recorded components within each dialect.
 
@@ -174,7 +180,7 @@ void IRNumberingState::number(Attribute attr) {
   // have a registered dialect when it got created. We don't want to encode this
   // as the builtin OpaqueAttr, we want to encode it as if the dialect was
   // actually loaded.
-  if (OpaqueAttr opaqueAttr = attr.dyn_cast<OpaqueAttr>()) {
+  if (OpaqueAttr opaqueAttr = dyn_cast<OpaqueAttr>(attr)) {
     numbering->dialect = &numberDialect(opaqueAttr.getDialectNamespace());
     return;
   }
@@ -245,7 +251,7 @@ void IRNumberingState::number(Region &region) {
 
   // Number the blocks within this region.
   size_t blockCount = 0;
-  for (auto &it : llvm::enumerate(region)) {
+  for (auto it : llvm::enumerate(region)) {
     blockIDs.try_emplace(&it.value(), it.index());
     number(it.value());
     ++blockCount;
@@ -304,7 +310,7 @@ void IRNumberingState::number(Type type) {
   // registered dialect when it got created. We don't want to encode this as the
   // builtin OpaqueType, we want to encode it as if the dialect was actually
   // loaded.
-  if (OpaqueType opaqueType = type.dyn_cast<OpaqueType>()) {
+  if (OpaqueType opaqueType = dyn_cast<OpaqueType>(type)) {
     numbering->dialect = &numberDialect(opaqueType.getDialectNamespace());
     return;
   }

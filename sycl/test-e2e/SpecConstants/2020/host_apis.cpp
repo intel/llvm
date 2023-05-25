@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out \
-// RUN:          -fsycl-dead-args-optimization
-// RUN: %BE_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -fsycl-dead-args-optimization
+// RUN: %{run} %t.out
 
 // UNSUPPORTED: hip
 
@@ -65,7 +64,7 @@ int main() {
         Acc[0] = KH.get_specialization_constant<SpecConst2>();
       });
     });
-    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor Acc(Buf, sycl::read_only);
     assert(Acc[0] == 1);
   }
 
@@ -80,7 +79,7 @@ int main() {
         Acc[0] = KH.get_specialization_constant<SpecConst3>();
       });
     });
-    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor Acc(Buf, sycl::read_only);
     assert(Acc[0].a == 1 && Acc[0].b == 2);
   }
 

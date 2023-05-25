@@ -14,12 +14,20 @@
 
 namespace Fortran::runtime::io {
 
+// In output statement, add a space between numbers and characters.
+static void addSpaceBeforeCharacter(IoStatementState &io) {
+  if (auto *list{io.get_if<ListDirectedStatementState<Direction::Output>>()}) {
+    list->set_lastWasUndelimitedCharacter(false);
+  }
+}
+
 // B/O/Z output of arbitrarily sized data emits a binary/octal/hexadecimal
 // representation of what is interpreted to be a single unsigned integer value.
 // When used with character data, endianness is exposed.
 template <int LOG2_BASE>
 static bool EditBOZOutput(IoStatementState &io, const DataEdit &edit,
     const unsigned char *data0, std::size_t bytes) {
+  addSpaceBeforeCharacter(io);
   int digits{static_cast<int>((bytes * 8) / LOG2_BASE)};
   int get{static_cast<int>(bytes * 8) - digits * LOG2_BASE};
   if (get > 0) {
@@ -100,6 +108,7 @@ static bool EditBOZOutput(IoStatementState &io, const DataEdit &edit,
 template <int KIND>
 bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
     common::HostSignedIntType<8 * KIND> n) {
+  addSpaceBeforeCharacter(io);
   char buffer[130], *end{&buffer[sizeof buffer]}, *p{end};
   bool isNegative{n < 0};
   using Unsigned = common::HostUnsignedIntType<8 * KIND>;
@@ -130,6 +139,8 @@ bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
   case 'Z':
     return EditBOZOutput<4>(
         io, edit, reinterpret_cast<const unsigned char *>(&n), KIND);
+  case 'L':
+    return EditLogicalOutput(io, edit, *reinterpret_cast<const char *>(&n));
   case 'A': // legacy extension
     return EditCharacterOutput(
         io, edit, reinterpret_cast<char *>(&n), sizeof n);
@@ -238,8 +249,8 @@ bool RealOutputEditingBase::EmitSuffix(const DataEdit &edit) {
   }
 }
 
-template <int binaryPrecision>
-decimal::ConversionToDecimalResult RealOutputEditing<binaryPrecision>::Convert(
+template <int KIND>
+decimal::ConversionToDecimalResult RealOutputEditing<KIND>::Convert(
     int significantDigits, enum decimal::FortranRounding rounding, int flags) {
   auto converted{decimal::ConvertToDecimal<binaryPrecision>(buffer_,
       sizeof buffer_, static_cast<enum decimal::DecimalConversionFlags>(flags),
@@ -253,8 +264,9 @@ decimal::ConversionToDecimalResult RealOutputEditing<binaryPrecision>::Convert(
 }
 
 // 13.7.2.3.3 in F'2018
-template <int binaryPrecision>
-bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
+template <int KIND>
+bool RealOutputEditing<KIND>::EditEorDOutput(const DataEdit &edit) {
+  addSpaceBeforeCharacter(io_);
   int editDigits{edit.digits.value_or(0)}; // 'd' field
   int editWidth{edit.width.value_or(0)}; // 'w' field
   int significantDigits{editDigits};
@@ -379,8 +391,9 @@ bool RealOutputEditing<binaryPrecision>::EditEorDOutput(const DataEdit &edit) {
 }
 
 // 13.7.2.3.2 in F'2018
-template <int binaryPrecision>
-bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
+template <int KIND>
+bool RealOutputEditing<KIND>::EditFOutput(const DataEdit &edit) {
+  addSpaceBeforeCharacter(io_);
   int fracDigits{edit.digits.value_or(0)}; // 'd' field
   const int editWidth{edit.width.value_or(0)}; // 'w' field
   enum decimal::FortranRounding rounding{edit.modes.round};
@@ -485,8 +498,8 @@ bool RealOutputEditing<binaryPrecision>::EditFOutput(const DataEdit &edit) {
 }
 
 // 13.7.5.2.3 in F'2018
-template <int binaryPrecision>
-DataEdit RealOutputEditing<binaryPrecision>::EditForGOutput(DataEdit edit) {
+template <int KIND>
+DataEdit RealOutputEditing<KIND>::EditForGOutput(DataEdit edit) {
   edit.descriptor = 'E';
   int editWidth{edit.width.value_or(0)};
   int significantDigits{
@@ -525,9 +538,8 @@ DataEdit RealOutputEditing<binaryPrecision>::EditForGOutput(DataEdit edit) {
 }
 
 // 13.10.4 in F'2018
-template <int binaryPrecision>
-bool RealOutputEditing<binaryPrecision>::EditListDirectedOutput(
-    const DataEdit &edit) {
+template <int KIND>
+bool RealOutputEditing<KIND>::EditListDirectedOutput(const DataEdit &edit) {
   decimal::ConversionToDecimalResult converted{Convert(1, edit.modes.round)};
   if (IsInfOrNaN(converted)) {
     return EditEorDOutput(edit);
@@ -547,8 +559,8 @@ bool RealOutputEditing<binaryPrecision>::EditListDirectedOutput(
 }
 
 // 13.7.5.2.6 in F'2018
-template <int binaryPrecision>
-bool RealOutputEditing<binaryPrecision>::EditEXOutput(const DataEdit &) {
+template <int KIND>
+bool RealOutputEditing<KIND>::EditEXOutput(const DataEdit &) {
   io_.GetIoErrorHandler().Crash(
       "not yet implemented: EX output editing"); // TODO
 }
@@ -579,6 +591,8 @@ template <int KIND> bool RealOutputEditing<KIND>::Edit(const DataEdit &edit) {
         common::BitsForBinaryPrecision(common::PrecisionOfRealKind(KIND)) >> 3);
   case 'G':
     return Edit(EditForGOutput(edit));
+  case 'L':
+    return EditLogicalOutput(io_, edit, *reinterpret_cast<const char *>(&x_));
   case 'A': // legacy extension
     return EditCharacterOutput(
         io_, edit, reinterpret_cast<char *>(&x_), sizeof x_);
@@ -702,6 +716,8 @@ bool EditCharacterOutput(IoStatementState &io, const DataEdit &edit,
   case 'Z':
     return EditBOZOutput<4>(io, edit,
         reinterpret_cast<const unsigned char *>(x), sizeof(CHAR) * length);
+  case 'L':
+    return EditLogicalOutput(io, edit, *reinterpret_cast<const char *>(x));
   default:
     io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with a CHARACTER data item",

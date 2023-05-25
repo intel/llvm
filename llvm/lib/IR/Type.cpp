@@ -80,6 +80,12 @@ bool Type::isIEEE() const {
   return APFloat::getZero(getFltSemantics()).isIEEE();
 }
 
+bool Type::isScalableTargetExtTy() const {
+  if (auto *TT = dyn_cast<TargetExtType>(this))
+    return isa<ScalableVectorType>(TT->getLayoutType());
+  return false;
+}
+
 Type *Type::getFloatingPointTy(LLVMContext &C, const fltSemantics &S) {
   Type *Ty;
   if (&S == &APFloat::IEEEhalf())
@@ -748,9 +754,8 @@ PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   if (CImpl->getOpaquePointers())
     return get(EltTy->getContext(), AddressSpace);
 
-  // Since AddressSpace #0 is the common case, we special case it.
-  PointerType *&Entry = AddressSpace == 0 ? CImpl->PointerTypes[EltTy]
-     : CImpl->ASPointerTypes[std::make_pair(EltTy, AddressSpace)];
+  PointerType *&Entry =
+      CImpl->LegacyPointerTypes[std::make_pair(EltTy, AddressSpace)];
 
   if (!Entry)
     Entry = new (CImpl->Alloc) PointerType(EltTy, AddressSpace);
@@ -763,10 +768,8 @@ PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
          "Can only create opaque pointers in opaque pointer mode");
 
   // Since AddressSpace #0 is the common case, we special case it.
-  PointerType *&Entry =
-      AddressSpace == 0
-          ? CImpl->PointerTypes[nullptr]
-          : CImpl->ASPointerTypes[std::make_pair(nullptr, AddressSpace)];
+  PointerType *&Entry = AddressSpace == 0 ? CImpl->AS0PointerType
+                                          : CImpl->PointerTypes[AddressSpace];
 
   if (!Entry)
     Entry = new (CImpl->Alloc) PointerType(C, AddressSpace);
@@ -862,10 +865,14 @@ struct TargetTypeInfo {
 static TargetTypeInfo getTargetTypeInfo(const TargetExtType *Ty) {
   LLVMContext &C = Ty->getContext();
   StringRef Name = Ty->getName();
-  if (Name.startswith("spirv.")) {
+  if (Name.startswith("spirv."))
     return TargetTypeInfo(Type::getInt8PtrTy(C, 0), TargetExtType::HasZeroInit,
                           TargetExtType::CanBeGlobal);
-  }
+
+  // Opaque types in the AArch64 name space.
+  if (Name == "aarch64.svcount")
+    return TargetTypeInfo(ScalableVectorType::get(Type::getInt1Ty(C), 16));
+
   return TargetTypeInfo(Type::getVoidTy(C));
 }
 

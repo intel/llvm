@@ -32,7 +32,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   pi::PiDevice PiDevice;
-  Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
       NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
 
   return detail::createSyclObjFromImpl<device>(
@@ -51,7 +51,7 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
   for (auto Dev : DeviceList) {
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
-  Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
+  Plugin->call<PiApiKind::piextContextCreateWithNativeHandle>(
       NativeHandle, DeviceHandles.size(), DeviceHandles.data(), !KeepOwnership,
       &PiContext);
   // Construct the SYCL context from PI context.
@@ -61,22 +61,14 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<queue>
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle,
-                               bool KeepOwnership) {
-  const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, nullptr, KeepOwnership,
-                            ContextImpl->get_async_handler(),
-                            backend::ext_oneapi_level_zero);
-}
-
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
-                               pi_native_handle NativeHandle,
-                               bool KeepOwnership) {
+                               pi_native_handle NativeHandle, bool IsImmCmdList,
+                               bool KeepOwnership,
+                               const property_list &Properties) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, &Device, KeepOwnership,
-                            ContextImpl->get_async_handler(),
-                            backend::ext_oneapi_level_zero);
+  return detail::make_queue(
+      NativeHandle, IsImmCmdList, Context, &Device, KeepOwnership, Properties,
+      ContextImpl->get_async_handler(), backend::ext_oneapi_level_zero);
 }
 
 //----------------------------------------------------------------------------

@@ -100,7 +100,7 @@ public:
     return result;
   }
 
-  /// Get the last modifications of a value. Returns none if the last
+  /// Get the last modifications of a value. Returns std::nullopt if the last
   /// modifications are not known.
   std::optional<ArrayRef<Operation *>> getLastModifiers(Value value) const {
     auto it = lastMods.find(value);
@@ -254,9 +254,9 @@ struct TestLastModifiedPass
       const LastModification *lastMods =
           solver.lookupState<LastModification>(op);
       assert(lastMods && "expected a dense lattice");
-      for (auto &it : llvm::enumerate(op->getOperands())) {
-        os << " operand #" << it.index() << "\n";
-        Value value = getMostUnderlyingValue(it.value(), [&](Value value) {
+      for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
+        os << " operand #" << index << "\n";
+        Value value = getMostUnderlyingValue(operand, [&](Value value) {
           return solver.lookupState<UnderlyingValueLattice>(value);
         });
         assert(value && "expected an underlying value");

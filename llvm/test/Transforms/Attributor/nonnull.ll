@@ -957,7 +957,7 @@ define ptr addrspace(3) @gep2(ptr addrspace(3) %p) {
 define ptr addrspace(3) @as(ptr addrspace(3) dereferenceable(4) %p) {
 ; CHECK: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; CHECK-LABEL: define {{[^@]+}}@as
-; CHECK-SAME: (ptr addrspace(3) nofree nonnull readnone returned dereferenceable(4) "no-capture-maybe-returned" [[P:%.*]]) #[[ATTR1]] {
+; CHECK-SAME: (ptr addrspace(3) nofree noundef nonnull readnone returned dereferenceable(4) "no-capture-maybe-returned" [[P:%.*]]) #[[ATTR1]] {
 ; CHECK-NEXT:    ret ptr addrspace(3) [[P]]
 ;
   ret ptr addrspace(3) %p
@@ -1495,10 +1495,15 @@ define ptr @nonnull_function_ptr_1() {
 
 declare ptr @function_decl()
 define ptr @nonnull_function_ptr_2() {
-; CHECK: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
-; CHECK-LABEL: define {{[^@]+}}@nonnull_function_ptr_2
-; CHECK-SAME: () #[[ATTR1]] {
-; CHECK-NEXT:    ret ptr @function_decl
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
+; TUNIT-LABEL: define {{[^@]+}}@nonnull_function_ptr_2
+; TUNIT-SAME: () #[[ATTR1]] {
+; TUNIT-NEXT:    ret ptr @function_decl
+;
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
+; CGSCC-LABEL: define {{[^@]+}}@nonnull_function_ptr_2
+; CGSCC-SAME: () #[[ATTR1]] {
+; CGSCC-NEXT:    ret ptr @function_decl
 ;
   ret ptr @function_decl
 }

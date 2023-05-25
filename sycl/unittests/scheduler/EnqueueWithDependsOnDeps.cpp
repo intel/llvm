@@ -20,8 +20,7 @@
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 
-constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+constexpr auto DisableCleanupName = "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 std::vector<std::pair<pi_uint32, const pi_event *>> PassedNumEvents;
 
@@ -153,8 +152,8 @@ protected:
 
   unittest::PiMock Mock;
   unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+      DisableCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl;

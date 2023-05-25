@@ -179,16 +179,18 @@ bool DerivedTypeSpec::IsForwardReferenced() const {
   return typeSymbol_.get<DerivedTypeDetails>().isForwardReferenced();
 }
 
-bool DerivedTypeSpec::HasDefaultInitialization(bool ignoreAllocatable) const {
+bool DerivedTypeSpec::HasDefaultInitialization(
+    bool ignoreAllocatable, bool ignorePointer) const {
   DirectComponentIterator components{*this};
   return bool{std::find_if(
       components.begin(), components.end(), [&](const Symbol &component) {
-        return IsInitialized(component, true, ignoreAllocatable);
+        return IsInitialized(component, /*ignoreDataStatements=*/true,
+            ignoreAllocatable, ignorePointer);
       })};
 }
 
 bool DerivedTypeSpec::HasDestruction() const {
-  if (!typeSymbol().get<DerivedTypeDetails>().finals().empty()) {
+  if (!FinalsForDerivedTypeInstantiation(*this).empty()) {
     return true;
   }
   DirectComponentIterator components{*this};
@@ -366,7 +368,7 @@ void DerivedTypeSpec::Instantiate(Scope &containingScope) {
     }
     newScope.set_instantiationContext(contextMessage);
   }
-  // Instantiate every non-parameter symbol from the original derived
+  // Instantiate nearly every non-parameter symbol from the original derived
   // type's scope into the new instance.
   auto restorer2{foldingContext.messages().SetContext(contextMessage)};
   if (PlumbPDTInstantiationDepth(&containingScope) > 100) {

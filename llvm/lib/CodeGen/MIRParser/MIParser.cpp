@@ -24,6 +24,7 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/AsmParser/SlotMapping.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -62,7 +63,6 @@
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
@@ -470,7 +470,7 @@ public:
   bool parseJumpTableIndexOperand(MachineOperand &Dest);
   bool parseExternalSymbolOperand(MachineOperand &Dest);
   bool parseMCSymbolOperand(MachineOperand &Dest);
-  bool parseMDNode(MDNode *&Node);
+  [[nodiscard]] bool parseMDNode(MDNode *&Node);
   bool parseDIExpression(MDNode *&Expr);
   bool parseDILocation(MDNode *&Expr);
   bool parseMetadataOperand(MachineOperand &Dest);
@@ -2414,7 +2414,7 @@ bool MIParser::parseMetadataOperand(MachineOperand &Dest) {
 bool MIParser::parseCFIOffset(int &Offset) {
   if (Token.isNot(MIToken::IntegerLiteral))
     return error("expected a cfi offset");
-  if (Token.integerValue().getMinSignedBits() > 32)
+  if (Token.integerValue().getSignificantBits() > 32)
     return error("expected a 32 bit integer (the cfi offset is too large)");
   Offset = (int)Token.integerValue().getExtValue();
   lex();
@@ -3001,7 +3001,7 @@ bool MIParser::parseOffset(int64_t &Offset) {
   lex();
   if (Token.isNot(MIToken::IntegerLiteral))
     return error("expected an integer literal after '" + Sign + "'");
-  if (Token.integerValue().getMinSignedBits() > 64)
+  if (Token.integerValue().getSignificantBits() > 64)
     return error("expected 64-bit integer (too large)");
   Offset = Token.integerValue().getExtValue();
   if (IsNegative)
@@ -3471,7 +3471,8 @@ bool MIParser::parseHeapAllocMarker(MDNode *&Node) {
   assert(Token.is(MIToken::kw_heap_alloc_marker) &&
          "Invalid token for a heap alloc marker!");
   lex();
-  parseMDNode(Node);
+  if (parseMDNode(Node))
+    return true;
   if (!Node)
     return error("expected a MDNode after 'heap-alloc-marker'");
   if (Token.isNewlineOrEOF() || Token.is(MIToken::coloncolon) ||
@@ -3487,7 +3488,8 @@ bool MIParser::parsePCSections(MDNode *&Node) {
   assert(Token.is(MIToken::kw_pcsections) &&
          "Invalid token for a PC sections!");
   lex();
-  parseMDNode(Node);
+  if (parseMDNode(Node))
+    return true;
   if (!Node)
     return error("expected a MDNode after 'pcsections'");
   if (Token.isNewlineOrEOF() || Token.is(MIToken::coloncolon) ||

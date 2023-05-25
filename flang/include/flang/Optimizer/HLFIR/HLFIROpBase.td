@@ -118,6 +118,11 @@ def IsFortranNumericalOrLogicalArrayObjectPred
 def AnyFortranNumericalOrLogicalArrayObject : Type<IsFortranNumericalOrLogicalArrayObjectPred,
     "any array-like object containing a numerical or logical type">;
 
+def IsFortranArrayObjectPred
+        : CPred<"::hlfir::isFortranArrayObject($_self)">;
+def AnyFortranArrayObject : Type<IsFortranArrayObjectPred,
+    "any array-like object">;
+
 def IsPassByRefOrIntegerTypePred
         : CPred<"::hlfir::isPassByRefOrIntegerType($_self)">;
 def AnyPassByRefOrIntegerType : Type<IsPassByRefOrIntegerTypePred,
@@ -127,5 +132,10 @@ def IsMaskArgumentPred
         : CPred<"::hlfir::isMaskArgument($_self)">;
 def AnyFortranLogicalOrI1ArrayObject : Type<IsMaskArgumentPred,
     "A scalar i1 or logical or an array-like object containing logicals">;
+
+def IsFortranLogicalArrayPred
+        : CPred<"::hlfir::isFortranLogicalArrayObject($_self)">;
+def AnyFortranLogicalArrayObject : Type<IsFortranLogicalArrayPred,
+    "any array-like object containing logicals">;
 
 #endif // FORTRAN_DIALECT_HLFIR_OP_BASE

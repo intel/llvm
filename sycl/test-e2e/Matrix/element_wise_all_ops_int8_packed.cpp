@@ -7,14 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{run} %t.out
 
 // This test stores the matrix B that is VNNIed (packed).
-// This is expected to fail on the GPU because some built-ins are missing still.
-
-// XFAIL: gpu
 
 #include <iostream>
 #include <random>

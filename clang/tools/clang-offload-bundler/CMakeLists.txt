@@ -22,8 +22,6 @@ set(CLANG_OFFLOAD_BUNDLER_LIB_DEPS
   clangDriver
   )
 
-add_dependencies(clang clang-offload-bundler)
-
 # A standalone clang build uses a pre-installed llvm-objcopy
 if (NOT CLANG_BUILT_STANDALONE)
   add_dependencies(clang-offload-bundler llvm-objcopy)
