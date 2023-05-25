@@ -497,9 +497,6 @@ etors:
     - name: BY_COUNTS
       desc: "Partition by counts"
       value: "0x1087"
-    - name: BY_COUNTS_LIST_END
-      desc: "End of by counts list"
-      value: "0x0"
     - name: BY_AFFINITY_DOMAIN
       desc: "Partition by affinity domain"
       value: "0x1088"
