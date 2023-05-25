@@ -718,12 +718,12 @@ public:
     return IsOffload ? OffloadLTOMode : LTOMode;
   }
 
-  /// FPGA Emulation Mode.  By default, this is true due to the fact that
-  /// an external option setting is required to target hardware.
+  // FPGA Offload Modes.
   enum DeviceMode {
+    UnsetDeviceMode,
     FPGAHWMode,
     FPGAEmulationMode
-  } OffloadCompileMode = FPGAEmulationMode;
+  } OffloadCompileMode = UnsetDeviceMode;
 
   bool IsFPGAHWMode() const { return OffloadCompileMode == FPGAHWMode; }
 
@@ -731,11 +731,8 @@ public:
     return OffloadCompileMode == FPGAEmulationMode;
   }
 
-  void setOffloadCompileMode(StringRef ModeVale) {
-    if (auto M = llvm::StringSwitch<std::optional<DeviceMode>>(ModeVale)
-                     .Case("FPGAHWMode", FPGAHWMode)
-                     .Default(FPGAEmulationMode))
-      OffloadCompileMode = *M;
+  void setOffloadCompileMode(DeviceMode ModeValue) {
+    OffloadCompileMode = ModeValue;
   }
 
   DeviceMode getOffloadCompileMode() { return OffloadCompileMode; }
@@ -899,10 +896,6 @@ public:
   const std::string getFPGATempDepFile(const std::string &FileName) const {
     return FPGATempDepFiles[FileName];
   }
-
-  /// isFPGAEmulationMode - Compilation mode is determined to be used for
-  /// FPGA Emulation.  This is only used for SYCL offloading to FPGA device.
-  bool isFPGAEmulationMode() const { return FPGAEmulationMode; };
 
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
   /// added or should be added given proper criteria.

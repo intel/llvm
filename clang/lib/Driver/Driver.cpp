@@ -1801,9 +1801,12 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
           static_cast<const toolchains::SYCLToolChain *>(TI->second);
       FPGATC->TranslateBackendTargetArgs(FPGATC->getTriple(), *TranslatedArgs,
                                          TargetArgs);
+      // By default, FPGAEmulationMode is true due to the fact that
+      // an external option setting is required to target hardware.
+      setOffloadCompileMode(FPGAEmulationMode);
       for (StringRef ArgString : TargetArgs) {
         if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
-          setOffloadCompileMode("FPGAHWMode");
+          setOffloadCompileMode(FPGAHWMode);
           break;
         }
       }
