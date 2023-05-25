@@ -13,7 +13,6 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -108,14 +107,14 @@ LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
       newNestedLoops.begin() + numLoops, newNestedLoops.end());
   return res;
 }
-LogicalResult tile(SmallVectorImpl<scf::ForOp> &nestedLoops,
-                   ArrayRef<Value> tileSizes,
+LogicalResult tile(ArrayRef<scf::ForOp> nestedLoops, ArrayRef<Value> tileSizes,
                    SmallVectorImpl<scf::ForOp> &tiledNest) {
   tiledNest = tile(nestedLoops, tileSizes, nestedLoops.back());
   return success();
 }
 
 void createLocalBarrier(OpBuilder builder) {
+  // TODO: Use gpu.barrier, require GPUToSPIRV conversion in the pipeline.
   builder.create<spirv::ControlBarrierOp>(
       builder.getUnknownLoc(), spirv::Scope::Workgroup, spirv::Scope::Workgroup,
       spirv::MemorySemantics::SequentiallyConsistent |
