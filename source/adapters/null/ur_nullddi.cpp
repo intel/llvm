@@ -354,7 +354,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
 __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice, ///< [in] handle of the device to partition.
     const ur_device_partition_properties_t
-        *pProperties,    ///< [in] Array of partition descriptors.
+        *pProperties,    ///< [in] Device partition properties.
     uint32_t NumDevices, ///< [in] the number of sub-devices.
     ur_device_handle_t *
         phSubDevices, ///< [out][optional][range(0, NumDevices)] array of handle of devices.

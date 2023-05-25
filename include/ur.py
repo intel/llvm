@@ -639,7 +639,7 @@ class ur_device_partition_properties_t(Structure):
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
                                                                         ## ::UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES
         ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
-        ("pProperties", *),                                             ## [in] Pointer to the beginning of the properties array.
+        ("pProperties", POINTER(ur_device_partition_property_t)),       ## [in] Pointer to the beginning of the properties array.
         ("PropCount", c_size_t)                                         ## [in] The length of properties pointed to by `pProperties`.
     ]
 

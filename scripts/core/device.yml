@@ -540,7 +540,7 @@ name: $x_device_partition_properties_t
 class: $xDevice
 base: $x_base_properties_t
 members:
-    - type: const $x_device_partition_property_t *
+    - type: const $x_device_partition_property_t*
       name: pProperties
       desc: "[in] Pointer to the beginning of the properties array."
     - type: size_t
@@ -565,10 +565,10 @@ params:
       name: hDevice
       desc: |
             [in] handle of the device to partition.
-    - type: const $x_device_partition_properties_t*
+    - type: "const $x_device_partition_properties_t*"
       name: pProperties
       desc: |
-            [in] Array of partition descriptors.
+            [in] Device partition properties.
     - type: "uint32_t"
       name: NumDevices
       desc: |
