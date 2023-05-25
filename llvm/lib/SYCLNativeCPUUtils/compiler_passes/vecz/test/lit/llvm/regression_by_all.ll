@@ -15,7 +15,7 @@
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-; RUN: %veczc -k regression_by_all -vecz-passes=vecz-loop-rotate,cfg-convert -S < %s | %filecheck %s
+; RUN: veczc -k regression_by_all -vecz-passes=vecz-loop-rotate,cfg-convert -S < %s | FileCheck %s
 
 ; The purpose of this test is to make sure the block `c` does not get considered
 ; as a by_all because one of its predecessors is by_all. In fact, because `c`

@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k vecz_scalar_interleaved_load -vecz-passes=cfg-convert,packetizer -vecz-simd-width=4 -S < %s | %filecheck %s
+; RUN: veczc -k vecz_scalar_interleaved_load -vecz-passes=cfg-convert,packetizer -vecz-simd-width=4 -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"

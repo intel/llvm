@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -vecz-fail-quietly -k test -vecz-passes="cfg-convert" -S < %s
+; RUN: veczc -vecz-fail-quietly -k test -vecz-passes="cfg-convert" -S < %s
 
 ; This tests only that the kernel does not crash the vectorizer.
 

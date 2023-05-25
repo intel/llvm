@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k split_branch -vecz-simd-width=4 -vecz-passes=uniform-reassoc -S < %s | %filecheck %s
+; RUN: veczc -k split_branch -vecz-simd-width=4 -vecz-passes=uniform-reassoc -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

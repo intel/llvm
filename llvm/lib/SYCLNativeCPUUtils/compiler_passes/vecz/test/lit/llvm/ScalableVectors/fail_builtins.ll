@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %not %veczc -k fail_builtins -vecz-scalable -vecz-simd-width=4 -S < %s 2>&1 | %filecheck %s
+; RUN: not veczc -k fail_builtins -vecz-scalable -vecz-simd-width=4 -S < %s 2>&1 | FileCheck %s
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

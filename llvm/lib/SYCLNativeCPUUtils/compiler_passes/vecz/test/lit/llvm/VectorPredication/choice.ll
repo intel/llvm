@@ -16,7 +16,7 @@
 
 ; REQUIRES: llvm-13+
 ; Just check that the VectorPredication choice is valid
-; RUN: %veczc -k foo -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s
+; RUN: veczc -k foo -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

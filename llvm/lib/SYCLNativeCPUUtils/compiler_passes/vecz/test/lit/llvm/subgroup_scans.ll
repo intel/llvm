@@ -14,8 +14,8 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: sed 's/VERSION/i32 1, i32 2/g' %s | %veczc -w 4 -S -vecz-passes=packetizer | %filecheck %s --check-prefixes CHECK,CHECK-12
-; RUN: sed 's/VERSION/i32 3, i32 0/g' %s | %veczc -w 4 -S -vecz-passes=packetizer | %filecheck %s --check-prefixes CHECK,CHECK-30
+; RUN: sed 's/VERSION/i32 1, i32 2/g' %s | veczc -w 4 -S -vecz-passes=packetizer | FileCheck %s --check-prefixes CHECK,CHECK-12
+; RUN: sed 's/VERSION/i32 3, i32 0/g' %s | veczc -w 4 -S -vecz-passes=packetizer | FileCheck %s --check-prefixes CHECK,CHECK-30
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

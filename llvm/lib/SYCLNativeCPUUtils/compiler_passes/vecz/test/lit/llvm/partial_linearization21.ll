@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k partial_linearization21 -vecz-passes=vecz-loop-rotate,cfg-convert -S < %s | %filecheck %s
+; RUN: veczc -k partial_linearization21 -vecz-passes=vecz-loop-rotate,cfg-convert -S < %s | FileCheck %s
 
 ; The CFG of the following kernel is:
 ;

@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k test -w 4 -S < %s | %filecheck %s
+; RUN: veczc -k test -w 4 -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"

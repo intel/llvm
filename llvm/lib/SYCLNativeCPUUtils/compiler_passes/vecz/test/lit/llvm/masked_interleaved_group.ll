@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k mask -vecz-simd-width=16 -vecz-choices=TargetIndependentPacketization -S < %s | %filecheck %s
+; RUN: veczc -k mask -vecz-simd-width=16 -vecz-choices=TargetIndependentPacketization -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 source_filename = "kernel.opencl"

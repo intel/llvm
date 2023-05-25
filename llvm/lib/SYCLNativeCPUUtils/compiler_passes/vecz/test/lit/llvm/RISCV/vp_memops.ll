@@ -15,12 +15,12 @@
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 ; REQUIRES: llvm-13+
-; RUN: %veczc -k store_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=4 -vecz-scalable -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-STORE-4
-; RUN: %veczc -k store_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=8 -vecz-scalable -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-STORE-8
-; RUN: %veczc -k store_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=16 -vecz-scalable -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-STORE-16
-; RUN: %veczc -k load_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=4 -vecz-scalable -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-LOAD-4
-; RUN: %veczc -k load_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=8 -vecz-scalable -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-LOAD-8
-; RUN: %veczc -k load_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=16 -vecz-scalable -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-LOAD-16
+; RUN: veczc -k store_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=4 -vecz-scalable -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-STORE-4
+; RUN: veczc -k store_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=8 -vecz-scalable -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-STORE-8
+; RUN: veczc -k store_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=16 -vecz-scalable -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-STORE-16
+; RUN: veczc -k load_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=4 -vecz-scalable -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-LOAD-4
+; RUN: veczc -k load_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=8 -vecz-scalable -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-LOAD-8
+; RUN: veczc -k load_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+f,+d,%vattr -vecz-simd-width=16 -vecz-scalable -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-LOAD-16
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"

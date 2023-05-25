@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k scalar_vector_user -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | %filecheck %s
+; RUN: veczc -k scalar_vector_user -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"

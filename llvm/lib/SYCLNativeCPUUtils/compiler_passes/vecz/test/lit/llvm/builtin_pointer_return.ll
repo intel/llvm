@@ -17,7 +17,7 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-; RUN: %veczc -vecz-simd-width=4 -S < %s | %filecheck %s
+; RUN: veczc -vecz-simd-width=4 -S < %s | FileCheck %s
 
 declare spir_func i64 @_Z13get_global_idj(i32)
 

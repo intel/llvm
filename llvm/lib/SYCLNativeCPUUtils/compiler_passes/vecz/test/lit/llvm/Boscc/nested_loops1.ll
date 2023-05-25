@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k nested_loops1 -vecz-passes="function(simplifycfg),mergereturn,vecz-loop-rotate,cfg-convert" -vecz-choices=LinearizeBOSCC -S < %s | %filecheck %s
+; RUN: veczc -k nested_loops1 -vecz-passes="function(simplifycfg),mergereturn,vecz-loop-rotate,cfg-convert" -vecz-choices=LinearizeBOSCC -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"

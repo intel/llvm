@@ -16,7 +16,7 @@
 
 ; TODO(CA-1981): Using `not` in qemu does not work.
 ; REQUIRES: native
-; RUN: %not %veczc -k printf_add -vecz-simd-width=4 -S -vecz-passes=cfg-convert -vecz-choices=LinearizeBOSCC < %s 2>&1 | %filecheck %s
+; RUN: not veczc -k printf_add -vecz-simd-width=4 -S -vecz-passes=cfg-convert -vecz-choices=LinearizeBOSCC < %s 2>&1 | FileCheck %s
 
 ; This test just checks that we don't crash while converting the control flow.
 ; LinearizeBOSCC would leave behind an invalid function when control flow fails

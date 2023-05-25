@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k multiple_exit_blocks -vecz-passes="function(simplifycfg,dce),mergereturn,cfg-convert" -S < %s | %filecheck %s
+; RUN: veczc -k multiple_exit_blocks -vecz-passes="function(simplifycfg,dce),mergereturn,cfg-convert" -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"

@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k multiple_dimensions_0 -vecz-simd-width 4 -S < %s | %filecheck %s
+; RUN: veczc -k multiple_dimensions_0 -vecz-simd-width 4 -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 source_filename = "kernel.opencl"

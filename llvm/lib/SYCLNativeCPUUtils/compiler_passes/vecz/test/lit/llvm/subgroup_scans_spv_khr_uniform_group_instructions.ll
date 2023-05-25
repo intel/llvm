@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -w 4 -S -vecz-passes=packetizer < %s | %filecheck %s
+; RUN: veczc -w 4 -S -vecz-passes=packetizer < %s | FileCheck %s
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k nested_loops4 -vecz-passes=vecz-loop-rotate,cfg-convert -vecz-choices=LinearizeBOSCC -S < %s | %filecheck %s
+; RUN: veczc -k nested_loops4 -vecz-passes=vecz-loop-rotate,cfg-convert -vecz-choices=LinearizeBOSCC -S < %s | FileCheck %s
 
 source_filename = "Unknown buffer"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

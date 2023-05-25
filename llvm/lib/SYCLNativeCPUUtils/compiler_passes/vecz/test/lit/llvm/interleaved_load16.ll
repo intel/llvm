@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k load16 -vecz-simd-width 4 -S < %s | %filecheck %s
+; RUN: veczc -k load16 -vecz-simd-width 4 -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "kernel.opencl"

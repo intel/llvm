@@ -15,8 +15,8 @@
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 ; REQUIRES: llvm-13+
-; RUN: %veczc -k get_sub_group_size -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-F2
-; RUN: %veczc -k get_sub_group_size -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK-S4
+; RUN: veczc -k get_sub_group_size -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-F2
+; RUN: veczc -k get_sub_group_size -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK-S4
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
