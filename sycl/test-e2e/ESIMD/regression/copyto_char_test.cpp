@@ -1,5 +1,7 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
+
+// UNSUPPORTED: opencl && gpu-intel-pvc
 
 //==- copyto_char_test.cpp - Test for using copy_to to copy char buffers -==//
 //
