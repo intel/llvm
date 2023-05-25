@@ -17,7 +17,6 @@
 #ifndef LLVM_CLANG_DRIVER_OFFLOADBUNDLER_H
 #define LLVM_CLANG_DRIVER_OFFLOADBUNDLER_H
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/TargetParser/Triple.h"
 #include <string>
@@ -64,9 +63,6 @@ public:
   llvm::Error BundleFiles();
   llvm::Error UnbundleFiles();
   llvm::Error UnbundleArchive();
-
-private:
-  bool CheckTripleIsExcluded(llvm::StringRef Triple);
 };
 
 /// Obtain the offload kind, real machine triple, and an optional GPUArch

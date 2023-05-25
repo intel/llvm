@@ -59,6 +59,7 @@
 #include <set>
 #include <string>
 #include <system_error>
+#include <unordered_set>
 #include <utility>
 
 using namespace llvm;
@@ -1017,6 +1018,10 @@ class ArchiveFileHandler final : public FileHandler {
           .Case("a", OutputType::Archive)
           .Default(OutputType::Unknown);
 
+  // Set contains indexes of Children that should be skipped during
+  // unbundling.
+  std::unordered_set<size_t> ExcludedChildIndexes;
+
 public:
   ArchiveFileHandler(const OffloadBundlerConfig &BC) : BundlerConfig(BC) {}
   ~ArchiveFileHandler() = default;
@@ -1031,8 +1036,10 @@ public:
     Ar = std::move(*ArOrErr);
 
     // Read all children.
+    ssize_t ChildIndex = -1;
     Error Err = Error::success();
     for (auto &C : Ar->children(Err)) {
+      ++ChildIndex;
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
@@ -1043,6 +1050,16 @@ public:
       auto &Bin = BinOrErr.get();
       if (!Bin->isObject())
         continue;
+
+      auto CheckOrErr = CheckObjectFileContainsExcludedTargets(C);
+      if (!CheckOrErr)
+        return CheckOrErr.takeError();
+
+      if (*CheckOrErr) {
+        LLVM_DEBUG(outs() << "Add child to ban list. Index: " << ChildIndex
+                          << "\n");
+        ExcludedChildIndexes.emplace(ChildIndex);
+      }
 
       auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
       auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
@@ -1101,7 +1118,14 @@ public:
 
     // Read all children.
     Error Err = Error::success();
+    ssize_t ChildIndex = -1;
     for (auto &C : Ar->children(Err)) {
+      ++ChildIndex;
+      if (ExcludedChildIndexes.count(ChildIndex)) {
+        LLVM_DEBUG(outs() << "Skip Child. Index: " << ChildIndex << "\n");
+        continue;
+      }
+
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
@@ -1216,6 +1240,66 @@ public:
 
   Error WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
     llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+private:
+  // NOTE: mostly a copy-paste of ReadHeader method.
+  Expected<std::vector<std::string>>
+  ReadTargetsFromChildren(const Archive::Child &C) {
+    auto BinOrErr = C.getAsBinary();
+    if (!BinOrErr)
+      return BinOrErr.takeError();
+
+    auto &Bin = BinOrErr.get();
+    auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+    auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+    ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
+    if (Error Err = OFH.ReadHeader(*Buf))
+      return Err;
+    Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
+    if (!NameOrErr)
+      return NameOrErr.takeError();
+
+    std::vector<std::string> Targets;
+    while (*NameOrErr) {
+      if (*NameOrErr)
+        Targets.emplace_back((**NameOrErr).str());
+      NameOrErr = OFH.ReadBundleStart(*Buf);
+      if (!NameOrErr)
+        return NameOrErr.takeError();
+    }
+
+    return Targets;
+  }
+
+  bool CheckTargetIsExcluded(StringRef Triple) {
+    // NOTE: "-sycldevice" Triple component has been deprecated.
+    // However, it still can be met in libraries that have been compiled before
+    // deprecation. For example, here Triple might be the following:
+    //  sycl-fpga_aoco-intel-unknown-sycldevice
+    //
+    // The workaround is to strip this Triple component if it is present.
+    Triple.consume_back("-sycldevice");
+    const auto &ExcludedTargetNames = BundlerConfig.ExcludedTargetNames;
+    auto it = std::find(ExcludedTargetNames.begin(), ExcludedTargetNames.end(),
+                        Triple);
+    return it != ExcludedTargetNames.end();
+  }
+
+  // Function reads targets from Child and checks whether one of Targets
+  // is in Excluded list.
+  Expected<bool>
+  CheckObjectFileContainsExcludedTargets(const Archive::Child &C) {
+    auto TargetNamesOrErr = ReadTargetsFromChildren(C);
+    if (!TargetNamesOrErr)
+      return TargetNamesOrErr.takeError();
+
+    auto TargetNames = TargetNamesOrErr.get();
+    for (const auto &TargetName : TargetNames)
+      if (CheckTargetIsExcluded(TargetName))
+        return true;
+
+    return false;
   }
 };
 
@@ -1367,20 +1451,6 @@ Error OffloadBundler::BundleFiles() {
   return Error::success();
 }
 
-bool OffloadBundler::CheckTripleIsExcluded(StringRef Triple) {
-  // NOTE: "-sycldevice" Triple component has been deprecated.
-  // However, it still can be met in libraries that have been compiled before
-  // deprecation. For example, here Triple might be the following:
-  //  sycl-fpga_aoco-intel-unknown-sycldevice
-  //
-  // The workaround is to strip this Triple component if it is present.
-  Triple.consume_back("-sycldevice");
-  const auto &ExcludedTargetNames = BundlerConfig.ExcludedTargetNames;
-  auto it =
-      std::find(ExcludedTargetNames.begin(), ExcludedTargetNames.end(), Triple);
-  return it != ExcludedTargetNames.end();
-}
-
 // Unbundle the files. Return true if an error was found.
 Error OffloadBundler::UnbundleFiles() {
   // Open Input file.
@@ -1430,11 +1500,6 @@ Error OffloadBundler::UnbundleFiles() {
 
     StringRef CurTriple = **CurTripleOrErr;
     assert(!CurTriple.empty());
-    if (CheckTripleIsExcluded(CurTriple)) {
-      LLVM_DEBUG(outs() << "Triple: \"" << CurTriple.str()
-                        << "\" has been skipped by -excluded-targets list\n");
-      continue;
-    }
 
     auto Output = Worklist.begin();
     for (auto E = Worklist.end(); Output != E; Output++) {
