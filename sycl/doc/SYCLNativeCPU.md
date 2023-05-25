@@ -32,7 +32,9 @@ In order to execute kernels compiled for `native-cpu`, we provide a PI Plugin. T
 # Supported features and limitations
 
 The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barrier` and all the math builtins are not supported, and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](sycl/test/native_cpu).
-To execute `e2e` tests on the Native CPU, configure the test suite with:
+
+
+To execute the `e2e` tests on the Native CPU, configure the test suite with:
 
 ```bash
 # make sure that DPC++ is in your $PATH and your environment is configured for DPC++
@@ -46,5 +48,111 @@ cmake \
 
 ```
 
+# Running example
+
+The following section gives a brief overview of how a simple SYCL application is compiled for the Native CPU target. Consider the following SYCL sample, which performs vector addition using USM:
+
+```c++
+  cl::sycl::queue deviceQueue;
+  cl::sycl::range<1> numOfItems{N};
+  auto a_ptr = sycl::malloc_device<int>(N, deviceQueue);
+  auto b_ptr = sycl::malloc_device<int>(N, deviceQueue);
+  auto c_ptr = sycl::malloc_device<int>(N, deviceQueue);
+
+  // copy mem to device, omitted
+  deviceQueue
+      .submit([&](cl::sycl::handler &cgh) {
+        auto kern = [=](cl::sycl::id<1> wiID) {
+          c_ptr[wiID] = a_ptr[wiID] + b_ptr[wiID];
+        };
+        cgh.parallel_for<class Sample>(numOfItems, kern);
+      })
+      .wait();
+  deviceQueue.memcpy(C.data(), c_ptr, N * sizeof(int));
+
+```
+
+The extracted device code produces the following LLVM-IR:
+
+```llvm
+define weak_odr dso_local spir_kernel void @_Z6Sample(ptr noundef align 4 %_arg_c_ptr, ptr noundef align 4 %_arg_a_ptr, ptr noundef align 4 %_arg_b_ptr) local_unnamed_addr #1 comdat !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
+entry:
+  %0 = load i64, ptr @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !78
+  %arrayidx.i = getelementptr inbounds i32, ptr %_arg_a_ptr, i64 %0
+  %1 = load i32, ptr %arrayidx.i, align 4, !tbaa !72
+  %arrayidx4.i = getelementptr inbounds i32, ptr %_arg_b_ptr, i64 %0
+  %2 = load i32, ptr %arrayidx4.i, align 4, !tbaa !72
+  %add.i = add nsw i32 %1, %2
+  %cmp.i8.i = icmp ult i64 %0, 2147483648
+  tail call void @llvm.assume(i1 %cmp.i8.i)
+  %arrayidx6.i = getelementptr inbounds i32, ptr %_arg_c_ptr, i64 %0
+  store i32 %add.i, ptr %arrayidx6.i, align 4, !tbaa !72
+  ret void
+}
+```
+
+For the Native CPU target, the device compiler needs to perform two main operations:
+* Materialize the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp).
+* Allow the SYCL runtime to call the kernel, by registering it to the SYCL runtime, operation performed by the [EmitSYCLNativeCPUHeader pass](llvm/lib/SYCLLowerIR/EmitSYCLNativeCPUHeader.cpp).
 
 
+## PrepareSYCLNativeCPU Pass
+
+This pass will add a pointer to a `nativecpu_state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `nativecpu_state` struct. The `nativecpu_state` struct and the builtin functions are defined in [native_cpu.hpp](sycl/include/sycl/detail/native_cpu.hpp).
+
+
+The resulting IR is:
+
+```llvm
+define weak dso_local void @_Z6Sample(ptr noundef align 4 %0, ptr noundef align 4 %1, ptr noundef align 4 %2, ptr %3) local_unnamed_addr #3 !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
+entry:
+  %ncpu_builtin = call ptr @_Z13get_global_idmP15nativecpu_state(ptr %3)
+  %4 = load i64, ptr %ncpu_builtin, align 32, !noalias !78
+  %arrayidx.i = getelementptr inbounds i32, ptr %1, i64 %4
+  %5 = load i32, ptr %arrayidx.i, align 4, !tbaa !72
+  %arrayidx4.i = getelementptr inbounds i32, ptr %2, i64 %4
+  %6 = load i32, ptr %arrayidx4.i, align 4, !tbaa !72
+  %add.i = add nsw i32 %5, %6
+  %cmp.i8.i = icmp ult i64 %4, 2147483648
+  tail call void @llvm.assume(i1 %cmp.i8.i)
+  %arrayidx6.i = getelementptr inbounds i32, ptr %0, i64 %4
+  store i32 %add.i, ptr %arrayidx6.i, align 4, !tbaa !72
+  ret void
+}
+```
+This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime.
+
+## EmitSYCLNativeCPUHeader pass
+
+This pass emits an additional integration header, that will be compiled by the host compiler during the host compilation step. The header contains, for each kernel:
+* The kernel declaration as a C++ function, all pointer arguments are emitted as `void *`, the scalar arguments maintain their type.
+* A `subhandler` definition, which unpacks the vector of kernel arguments coming from the SYCL runtime, and forwards only the used arguments to the kernel.
+* The definition of `_pi_offload_entry_struct`, `pi_device_binary_struct` and `pi_device_binaries_struct` variables, and a call to `__sycl_register_lib`, which allows to register the kernel to the sycl runtime (the call to `__sycl_register_lib` is performed at program startup via the constructor of a global). The Native CPU integration header is always named `<main-sycl-int-header>.hc`.
+
+The Native CPU integration header for our example is:
+
+```c++
+extern "C" void _Z6Sample(void *, void *, void *, nativecpu_state *);
+
+inline static void _Z6Samplesubhandler(const std::vector<sycl::detail::NativeCPUArgDesc>& MArgs, nativecpu_state *state) {
+  void* arg0 = MArgs[0].getPtr();
+  void* arg1 = MArgs[1].getPtr();
+  void* arg2 = MArgs[2].getPtr();
+  _Z6Sample(arg0, arg1, arg2, state);
+};
+
+static _pi_offload_entry_struct _pi_offload_entry_struct_Z6Sample{(void*)&_Z6Samplesubhandler, "_Z6Sample", 1, 0, 0 };
+static pi_device_binary_struct pi_device_binary_struct_Z6Sample{0, 4, 0, __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN, nullptr, nullptr, nullptr, nullptr, (unsigned char*)&_Z6Samplesubhandler, (unsigned char*)&_Z6Samplesubhandler + 1, &_pi_offload_entry_struct_Z6Sample, &_pi_offload_entry_struct_Z6Sample+1, nullptr, nullptr };
+static pi_device_binaries_struct pi_device_binaries_struct_Z6Sample{0, 1, &pi_device_binary_struct_Z6Sample, nullptr, nullptr };
+struct init_native_cpu_Z6Sample_t{
+	init_native_cpu_Z6Sample_t(){
+		__sycl_register_lib(&pi_device_binaries_struct_Z6Sample);
+	}
+};
+static init_native_cpu_Z6Sample_t init_native_cpu_Z6Sample;
+
+```
+
+## Kernel lowering and execution
+
+The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is ran using the Native CPU PI Plug-in, defined in [pi_native_cpu.cpp](sycl/plugins/native_cpu/pi_native_cpu.cpp).
