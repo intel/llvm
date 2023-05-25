@@ -603,7 +603,6 @@ class ur_device_affinity_domain_flags_t(c_int):
 class ur_device_partition_v(IntEnum):
     EQUALLY = 0x1086                                ## Partition Equally
     BY_COUNTS = 0x1087                              ## Partition by counts
-    BY_COUNTS_LIST_END = 0x0                        ## End of by counts list
     BY_AFFINITY_DOMAIN = 0x1088                     ## Partition by affinity domain
     BY_CSLICE = 0x1089                              ## Partition by c-slice
 

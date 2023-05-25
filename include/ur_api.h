@@ -1047,7 +1047,6 @@ typedef enum ur_device_affinity_domain_flag_t {
 typedef enum ur_device_partition_t {
     UR_DEVICE_PARTITION_EQUALLY = 0x1086,            ///< Partition Equally
     UR_DEVICE_PARTITION_BY_COUNTS = 0x1087,          ///< Partition by counts
-    UR_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0,    ///< End of by counts list
     UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088, ///< Partition by affinity domain
     UR_DEVICE_PARTITION_BY_CSLICE = 0x1089,          ///< Partition by c-slice
     /// @cond
