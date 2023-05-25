@@ -353,10 +353,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
 /// @brief Intercept function for urDevicePartition
 __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice, ///< [in] handle of the device to partition.
-    const ur_device_partition_desc_t
-        *pProperties, ///< [in] Array of partition descriptors.
-    size_t
-        DescCount, ///< [in] Number of descriptors pointed to by `pProperties`.
+    const ur_device_partition_properties_t
+        *pProperties,    ///< [in] Array of partition descriptors.
     uint32_t NumDevices, ///< [in] the number of sub-devices.
     ur_device_handle_t *
         phSubDevices, ///< [out][optional][range(0, NumDevices)] array of handle of devices.
@@ -371,8 +369,8 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnPartition = d_context.urDdiTable.Device.pfnPartition;
     if (nullptr != pfnPartition) {
-        result = pfnPartition(hDevice, pProperties, DescCount, NumDevices,
-                              phSubDevices, pNumDevicesRet);
+        result = pfnPartition(hDevice, pProperties, NumDevices, phSubDevices,
+                              pNumDevicesRet);
     } else {
         // generic implementation
         for (size_t i = 0; (nullptr != phSubDevices) && (i < NumDevices); ++i) {

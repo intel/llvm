@@ -395,10 +395,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
 /// @brief Intercept function for urDevicePartition
 __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice, ///< [in] handle of the device to partition.
-    const ur_device_partition_desc_t
-        *pProperties, ///< [in] Array of partition descriptors.
-    size_t
-        DescCount, ///< [in] Number of descriptors pointed to by `pProperties`.
+    const ur_device_partition_properties_t
+        *pProperties,    ///< [in] Array of partition descriptors.
     uint32_t NumDevices, ///< [in] the number of sub-devices.
     ur_device_handle_t *
         phSubDevices, ///< [out][optional][range(0, NumDevices)] array of handle of devices.
@@ -414,14 +412,13 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_device_partition_params_t params = {&hDevice,      &pProperties,
-                                           &DescCount,    &NumDevices,
+    ur_device_partition_params_t params = {&hDevice, &pProperties, &NumDevices,
                                            &phSubDevices, &pNumDevicesRet};
     uint64_t instance = context.notify_begin(UR_FUNCTION_DEVICE_PARTITION,
                                              "urDevicePartition", &params);
 
-    ur_result_t result = pfnPartition(hDevice, pProperties, DescCount,
-                                      NumDevices, phSubDevices, pNumDevicesRet);
+    ur_result_t result = pfnPartition(hDevice, pProperties, NumDevices,
+                                      phSubDevices, pNumDevicesRet);
 
     context.notify_end(UR_FUNCTION_DEVICE_PARTITION, "urDevicePartition",
                        &params, &result, instance);

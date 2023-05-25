@@ -42,21 +42,26 @@ urGetSubDevices(ur_device_handle_t hDevice) {
         return {ret, {}};
     }
 
-    ur_device_partition_desc_t properties;
-    properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_DESC;
-    properties.pNext = nullptr;
-    properties.type = UR_DEVICE_PARTITION_EQUALLY;
-    properties.value.equally = nComputeUnits;
+    ur_device_partition_property_t prop;
+    prop.type = UR_DEVICE_PARTITION_EQUALLY;
+    prop.value.equally = nComputeUnits;
+
+    ur_device_partition_properties_t properties{
+        UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+        nullptr,
+        &prop,
+        1,
+    };
 
     // Get the number of devices that will be created
     uint32_t deviceCount;
-    ret = urDevicePartition(hDevice, &properties, 1, 0, nullptr, &deviceCount);
+    ret = urDevicePartition(hDevice, &properties, 0, nullptr, &deviceCount);
     if (ret != UR_RESULT_SUCCESS) {
         return {ret, {}};
     }
 
     std::vector<ur_device_handle_t> sub_devices(deviceCount);
-    ret = urDevicePartition(hDevice, &properties, 1,
+    ret = urDevicePartition(hDevice, &properties,
                             static_cast<uint32_t>(sub_devices.size()),
                             sub_devices.data(), nullptr);
     if (ret != UR_RESULT_SUCCESS) {
