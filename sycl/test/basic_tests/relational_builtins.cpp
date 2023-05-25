@@ -1,4 +1,7 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %clangxx -fsycl %s -o %t.out
+
+// NOTE: Compile the test fully to ensure the library exports the right host
+// symbols.
 
 #include <CL/sycl.hpp>
 
