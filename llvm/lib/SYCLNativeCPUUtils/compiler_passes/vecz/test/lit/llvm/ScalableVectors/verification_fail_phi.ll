@@ -16,7 +16,7 @@
 
 ; Check that we fail to vectorize but don't leave behind an invalid function.
 ; REQUIRES: llvm-13+
-; RUN: %not %veczc -k regression_phis -vecz-scalable -w 1 -vecz-passes=packetizer,verify -S < %s
+; RUN: not veczc -k regression_phis -vecz-scalable -w 1 -vecz-passes=packetizer,verify -S < %s
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

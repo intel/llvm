@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k partial_linearization8 -vecz-passes=cfg-convert -vecz-choices=LinearizeBOSCC -S < %s | %filecheck %s
+; RUN: veczc -k partial_linearization8 -vecz-passes=cfg-convert -vecz-choices=LinearizeBOSCC -S < %s | FileCheck %s
 
 ; The CFG of the following kernel is:
 ;

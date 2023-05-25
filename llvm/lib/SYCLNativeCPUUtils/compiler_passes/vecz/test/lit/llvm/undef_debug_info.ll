@@ -17,7 +17,7 @@
 ; Check that debug info intrinsics aren't created using undef values.
 ; These cause the backend to assert in codegen.
 
-; RUN: %veczc -k test_fn -S < %s | %filecheck %s
+; RUN: veczc -k test_fn -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

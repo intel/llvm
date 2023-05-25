@@ -16,7 +16,7 @@
 
 ; Check that veczc can vectorize a kernel multiple times in one go, with an
 ; equal width but with one enabling vector predication.
-; RUN: %veczc -k add:1s,1sp -S < %s | %filecheck %s
+; RUN: veczc -k add:1s,1sp -S < %s | FileCheck %s
 
 declare spir_func i64 @_Z13get_global_idj(i32)
 

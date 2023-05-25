@@ -18,7 +18,7 @@
 ; Specifically that the scalarization pass doesn't destroy DI
 ; intrinsics attached to the vector instructions it scalarizes.
 
-; RUN: %veczc -k mul2 -vecz-passes="scalarize,function(mem2reg)" -vecz-choices=FullScalarization -S < %s | %filecheck %s
+; RUN: veczc -k mul2 -vecz-passes="scalarize,function(mem2reg)" -vecz-choices=FullScalarization -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

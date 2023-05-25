@@ -18,7 +18,7 @@
 ; vectorizations works in various configurations. The kernel outputs here are
 ; not interesting, only their names.
 ; REQUIRES: llvm-12+
-; RUN: %veczc -w 8 -k foo:4,8,16.2@32s -k bar:,64s -S < %s | %filecheck %s
+; RUN: veczc -w 8 -k foo:4,8,16.2@32s -k bar:,64s -S < %s | FileCheck %s
 
 ; CHECK-DAG: define spir_kernel void @foo
 ; CHECK-DAG: define spir_kernel void @bar

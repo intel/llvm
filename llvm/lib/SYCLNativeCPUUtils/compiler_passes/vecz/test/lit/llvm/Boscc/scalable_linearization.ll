@@ -15,7 +15,7 @@
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 ; Check that we don't crash when costing a scalable reduction
-; RUN: %veczc -vecz-scalable -vecz-passes="pre-linearize" -vecz-choices=LinearizeBOSCC -S < %s
+; RUN: veczc -vecz-scalable -vecz-passes="pre-linearize" -vecz-choices=LinearizeBOSCC -S < %s
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

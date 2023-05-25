@@ -14,13 +14,13 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k ctpop -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | %filecheck %s --check-prefix CTPOP
-; RUN: %veczc -k ctlz -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | %filecheck %s --check-prefix CTLZ
-; RUN: %veczc -k cttz -vecz-simd-width=8 -vecz-choices=FullScalarization -S < %s | %filecheck %s --check-prefix CTTZ
-; RUN: %veczc -k sadd_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | %filecheck %s --check-prefix SADD_SAT
-; RUN: %veczc -k uadd_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | %filecheck %s --check-prefix UADD_SAT
-; RUN: %veczc -k ssub_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | %filecheck %s --check-prefix SSUB_SAT
-; RUN: %veczc -k usub_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | %filecheck %s --check-prefix USUB_SAT
+; RUN: veczc -k ctpop -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | FileCheck %s --check-prefix CTPOP
+; RUN: veczc -k ctlz -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %s --check-prefix CTLZ
+; RUN: veczc -k cttz -vecz-simd-width=8 -vecz-choices=FullScalarization -S < %s | FileCheck %s --check-prefix CTTZ
+; RUN: veczc -k sadd_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | FileCheck %s --check-prefix SADD_SAT
+; RUN: veczc -k uadd_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | FileCheck %s --check-prefix UADD_SAT
+; RUN: veczc -k ssub_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | FileCheck %s --check-prefix SSUB_SAT
+; RUN: veczc -k usub_sat -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | FileCheck %s --check-prefix USUB_SAT
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

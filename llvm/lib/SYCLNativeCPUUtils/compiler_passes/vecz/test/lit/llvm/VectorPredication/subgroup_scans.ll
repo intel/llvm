@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -w 4 -S -vecz-passes=packetizer -vecz-choices=VectorPredication < %s | %filecheck %s 
+; RUN: veczc -w 4 -S -vecz-passes=packetizer -vecz-choices=VectorPredication < %s | FileCheck %s 
 
 ; Tests the use of the VectorPredication choice. However, note that this option
 ; currently makes no difference on fixed length vectors.

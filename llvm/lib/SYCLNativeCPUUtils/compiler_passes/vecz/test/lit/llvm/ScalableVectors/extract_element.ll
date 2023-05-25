@@ -15,11 +15,11 @@
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 ; REQUIRES: llvm-13+
-; RUN: %veczc -k extract_element -vecz-scalable -vecz-simd-width=4 -S < %s | %filecheck %s --check-prefix=EE
-; RUN: %veczc -k extract_element_uniform -vecz-scalable -vecz-simd-width=4 -S < %s | %filecheck %s --check-prefix=EE-UNI
-; RUN: %veczc -k extract_element_uniform_vec -vecz-scalable -vecz-simd-width=4 -S < %s | %filecheck %s --check-prefix=EE-UNI-VEC
-; RUN: %veczc -k extract_element_varying_indices -vecz-scalable -vecz-simd-width=4 -S < %s | %filecheck %s --check-prefix=EE-INDICES
-; RUN: %veczc -k extract_element_bool -vecz-scalable -vecz-simd-width=4 -S < %s | %filecheck %s --check-prefix=EE-BOOL
+; RUN: veczc -k extract_element -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=EE
+; RUN: veczc -k extract_element_uniform -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=EE-UNI
+; RUN: veczc -k extract_element_uniform_vec -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=EE-UNI-VEC
+; RUN: veczc -k extract_element_varying_indices -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=EE-INDICES
+; RUN: veczc -k extract_element_bool -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=EE-BOOL
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

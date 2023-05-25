@@ -16,7 +16,7 @@
 
 ; REQUIRES: llvm-13+
 
-; RUN: %veczc -k udiv -vecz-scalable -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | %filecheck %s
+; RUN: veczc -k udiv -vecz-scalable -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | FileCheck %s
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

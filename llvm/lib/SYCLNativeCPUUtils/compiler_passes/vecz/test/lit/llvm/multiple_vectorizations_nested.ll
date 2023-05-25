@@ -17,8 +17,8 @@
 ; Check that veczc can vectorize a kernel then vectorize the vectorized kernel,
 ; with base mappings from 1->2 and 2->3 and derived mappings back from 2->1 and
 ; 3->2.
-; RUN: %veczc -k add:2 -S < %s > %t2
-; RUN: %veczc -k __vecz_v2_add:4 -S < %t2 | %filecheck %s
+; RUN: veczc -k add:2 -S < %s > %t2
+; RUN: veczc -k __vecz_v2_add:4 -S < %t2 | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"

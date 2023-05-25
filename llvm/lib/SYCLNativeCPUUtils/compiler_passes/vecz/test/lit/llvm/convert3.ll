@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k convert3 -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | %filecheck %s
+; RUN: veczc -k convert3 -vecz-simd-width=2 -vecz-choices=FullScalarization -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 source_filename = "kernel.opencl"

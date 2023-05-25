@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k test < %s
+; RUN: veczc -k test < %s
 
 ; This test ensures that VECZ does not crash during control flow conversion due
 ; to a missing exit mask. As such, we need only verify that the return code from

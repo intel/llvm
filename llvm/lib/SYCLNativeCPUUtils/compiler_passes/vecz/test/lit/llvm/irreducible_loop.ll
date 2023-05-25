@@ -15,7 +15,7 @@
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 ; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
-; RUN: %veczc -k irreducible_loop -S < %s | %filecheck %t
+; RUN: veczc -k irreducible_loop -S < %s | FileCheck %t
 
 ; ModuleID = 'Unknown buffer'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

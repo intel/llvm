@@ -15,7 +15,7 @@
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 ; REQUIRES: linux
-; RUN: %veczc -k add -vecz-simd-width=4 -S < %s | %filecheck %s
+; RUN: veczc -k add -vecz-simd-width=4 -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

@@ -16,7 +16,7 @@
 
 ; Note: *not* running LLVM's mem2reg pass as before LLVM 15 it crashes for the
 ; same reason we used to!
-; RUN: %veczc -vecz-passes=vecz-mem2reg -vecz-simd-width=4 -S < %s | %filecheck %s
+; RUN: veczc -vecz-passes=vecz-mem2reg -vecz-simd-width=4 -S < %s | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"

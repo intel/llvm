@@ -18,7 +18,7 @@
 ; of the uniform and the predicated paths for a loop that has not been
 ; duplicated (because of the barrier in it).
 
-; RUN: %veczc -k duplicate_preheader -vecz-passes="function(instcombine,simplifycfg),mergereturn,vecz-loop-rotate,function(loop(indvars)),cfg-convert,cleanup-divergence" -vecz-choices=LinearizeBOSCC -S < %s | %filecheck %s
+; RUN: veczc -k duplicate_preheader -vecz-passes="function(instcombine,simplifycfg),mergereturn,vecz-loop-rotate,function(loop(indvars)),cfg-convert,cleanup-divergence" -vecz-choices=LinearizeBOSCC -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"

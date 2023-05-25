@@ -16,10 +16,10 @@
 
 ; REQUIRES: llvm-13+
 
-; RUN: %veczc -k load_add_store_i32 -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK_4F
-; RUN: %veczc -k load_add_store_i32 -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK_1S
-; RUN: %veczc -k load_add_store_v4i32 -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK_V4_2F
-; RUN: %veczc -k load_add_store_v4i32 -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | %filecheck %s --check-prefix CHECK_V4_1S
+; RUN: veczc -k load_add_store_i32 -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK_4F
+; RUN: veczc -k load_add_store_i32 -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK_1S
+; RUN: veczc -k load_add_store_v4i32 -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK_V4_2F
+; RUN: veczc -k load_add_store_v4i32 -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK_V4_1S
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

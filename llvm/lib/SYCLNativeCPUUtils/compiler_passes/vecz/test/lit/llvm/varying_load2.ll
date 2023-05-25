@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -k varying_load2 -vecz-passes=cfg-convert -S < %s | %filecheck %s
+; RUN: veczc -k varying_load2 -vecz-passes=cfg-convert -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 source_filename = "kernel.opencl"

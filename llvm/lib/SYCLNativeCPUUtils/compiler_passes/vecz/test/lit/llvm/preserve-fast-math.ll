@@ -14,7 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %veczc -S -vecz-passes=packetizer < %s | %filecheck %s
+; RUN: veczc -S -vecz-passes=packetizer < %s | FileCheck %s
 
 ; CHECK: %{{.*}} = fcmp nnan ninf olt <4 x float> %{{.*}}, %{{.*}}
 
