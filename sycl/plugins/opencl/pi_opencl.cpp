@@ -1478,6 +1478,9 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
     } else if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
       // Return the maximum sub group size for the device
       size_t result_size = 0;
+      // Two calls to piDeviceGetInfo are needed: the first determines the size
+      // required to store the result, and the second returns the actual size
+      // values.
       pi_result pi_ret_err =
           piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0,
                           nullptr, &result_size);
