@@ -3484,7 +3484,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".pProperties = ";
 
-    os << (params.pProperties);
+    ur_params::serializePtr(os, (params.pProperties));
 
     os << ", ";
     os << ".PropCount = ";
