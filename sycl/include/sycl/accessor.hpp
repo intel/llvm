@@ -1210,6 +1210,11 @@ protected:
             std::is_same<TagT, mode_tag_t<AccessMode>>,
             std::is_same<TagT, mode_target_tag_t<AccessMode, AccessTarget>>> {};
 
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
+  friend class accessor;
+
 #ifdef __SYCL_DEVICE_ONLY__
 
   id<AdjustedDim> &getOffset() { return impl.Offset; }
@@ -1259,11 +1264,6 @@ protected:
   }
 
   ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
-
-  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
-            access::target AccessTarget_, access::placeholder IsPlaceholder_,
-            typename PropertyListT_>
-  friend class accessor;
 
 #ifndef __SYCL_DEVICE_ONLY__
   using AccessorBaseHost::impl;
@@ -1407,7 +1407,7 @@ public:
   accessor(const accessor<DataT_, Dimensions, AccessMode, AccessTarget,
                           IsPlaceholder, PropertyListT> &other)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(other.impl) {
+      : impl(other.impl), MData(other.MData) {
 #else
       : accessor(other.impl) {
 #endif // __SYCL_DEVICE_ONLY__
@@ -1423,7 +1423,7 @@ public:
   accessor(const accessor<DataT_, Dimensions, AccessMode_, AccessTarget,
                           IsPlaceholder, PropertyListT> &other)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(other.impl) {
+      : impl(other.impl), MData(other.MData) {
 #else
       : accessor(other.impl) {
 #endif // __SYCL_DEVICE_ONLY__
@@ -2100,9 +2100,9 @@ public:
                      ext::oneapi::accessor_property_list<NewPropsT...>> &Other,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(Other.impl)
+      : impl(Other.impl), MData(Other.MData)
 #else
-      : detail::AccessorBaseHost(Other)
+      : detail::AccessorBaseHost(Other), MAccData(Other.MAccData)
 #endif
   {
     static_assert(detail::IsCxPropertyList<PropertyListT>::value,
@@ -2118,7 +2118,9 @@ public:
 
   void swap(accessor &other) {
     std::swap(impl, other.impl);
-#ifndef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
+    std::swap(MData, other.MData);
+#else
     std::swap(MAccData, other.MAccData);
 #endif
   }
