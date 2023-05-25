@@ -255,6 +255,14 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
+  if (const auto *CI = dyn_cast<const CallInst>(&I))
+    if (const auto *F = CI->getCalledFunction())
+      if (const auto *MD = F->getMetadata("sycl_declared_aspects"))
+        for (const auto &Op : MD->operands()) {
+          Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
+          Result.insert(cast<ConstantInt>(C)->getSExtValue());
+        }
+
   return Result;
 }
 

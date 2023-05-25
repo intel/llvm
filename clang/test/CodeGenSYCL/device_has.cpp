@@ -38,6 +38,10 @@ template <sycl::aspect... Asp>
 template <sycl::aspect Asp, sycl::aspect... AspPack>
 [[sycl::device_has(Asp, AspPack...)]] void func8() {}
 
+// CHECK: declare !sycl_declared_aspects ![[ASPECTS6:[0-9]+]] spir_func void @{{.*}}func9{{.*}}
+[[sycl::device_has(sycl::aspect::fp16)]]
+SYCL_EXTERNAL void func9();
+
 class KernelFunctor {
 public:
   [[sycl::device_has(sycl::aspect::cpu)]] void operator()() const {
@@ -50,6 +54,7 @@ public:
     func7<sycl::aspect::cpu>();
     func7<sycl::aspect::cpu, sycl::aspect::host>();
     func8<sycl::aspect::cpu, sycl::aspect::host>();
+    func9();
   }
 };
 
@@ -74,5 +79,6 @@ void foo() {
 // CHECK: [[SRCLOC6]] = !{i32 {{[0-9]+}}}
 // CHECK: [[SRCLOC7]] = !{i32 {{[0-9]+}}}
 // CHECK: [[ASPECTS5]] = !{i32 1, i32 0}
+// CHECK: [[ASPECTS6]] = !{i32 5}
 // CHECK: [[ASPECTS4]] = !{i32 2}
 // CHECK: [[SRCLOC8]] = !{i32 {{[0-9]+}}}
