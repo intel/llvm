@@ -480,11 +480,13 @@ public:
   /// trivially copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   /// \return an event representing fill operation.
-  template <typename T> event fill(void *Ptr, const T &Pattern, size_t Count) {
-    // TODO: to add code location as parameter when ABI break is permitted
-    const detail::code_location CodeLoc("sycl/queue.hpp", "fill", 0, 0);
-    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); },
-                  CodeLoc);
+  template <typename T>
+  event fill(void *Ptr, const T &Pattern,
+             size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); });
   }
 
   /// Fills the specified memory with the specified pattern.
@@ -496,7 +498,10 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing fill operation.
   template <typename T>
-  event fill(void *Ptr, const T &Pattern, size_t Count, event DepEvent) {
+  event fill(void *Ptr, const T &Pattern, size_t Count,
+             event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvent);
       CGH.fill<T>(Ptr, Pattern, Count);
@@ -514,7 +519,9 @@ public:
   /// \return an event representing fill operation.
   template <typename T>
   event fill(void *Ptr, const T &Pattern, size_t Count,
-             const std::vector<event> &DepEvents) {
+             const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.fill<T>(Ptr, Pattern, Count);
@@ -530,7 +537,7 @@ public:
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
   /// \return an event representing fill operation.
-  event memset(void *Ptr, int Value, size_t Count);
+  event memset(void *Ptr, int Value, size_t Count _CODELOCPARAM(&CodeLoc));
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
@@ -542,7 +549,8 @@ public:
   /// \param Count is a number of bytes to fill.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing fill operation.
-  event memset(void *Ptr, int Value, size_t Count, event DepEvent);
+  event memset(void *Ptr, int Value, size_t Count,
+               event DepEvent _CODELOCPARAM(&CodeLoc));
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
@@ -556,7 +564,7 @@ public:
   /// dependencies.
   /// \return an event representing fill operation.
   event memset(void *Ptr, int Value, size_t Count,
-               const std::vector<event> &DepEvents);
+               const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc));
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on the device
@@ -569,7 +577,8 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
   /// \return an event representing copy operation.
-  event memcpy(void *Dest, const void *Src, size_t Count);
+  event memcpy(void *Dest, const void *Src,
+               size_t Count _CODELOCPARAM(&CodeLoc));
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on the device
@@ -583,7 +592,8 @@ public:
   /// \param Count is a number of bytes to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing copy operation.
-  event memcpy(void *Dest, const void *Src, size_t Count, event DepEvent);
+  event memcpy(void *Dest, const void *Src, size_t Count,
+               event DepEvent _CODELOCPARAM(&CodeLoc));
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on the device
@@ -599,7 +609,7 @@ public:
   /// dependencies.
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count,
-               const std::vector<event> &DepEvents);
+               const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc));
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on the device
@@ -670,7 +680,8 @@ public:
   /// \param Advice is a device-defined advice for the specified allocation.
   /// \return an event representing advice operation.
   __SYCL2020_DEPRECATED("use the overload with int Advice instead")
-  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
+  event mem_advise(const void *Ptr, size_t Length,
+                   pi_mem_advice Advice _CODELOCPARAM(&CodeLoc));
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -679,7 +690,8 @@ public:
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
   /// \return an event representing advice operation.
-  event mem_advise(const void *Ptr, size_t Length, int Advice);
+  event mem_advise(const void *Ptr, size_t Length,
+                   int Advice _CODELOCPARAM(&CodeLoc));
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -689,7 +701,8 @@ public:
   /// \param Advice is a device-defined advice for the specified allocation.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing advice operation.
-  event mem_advise(const void *Ptr, size_t Length, int Advice, event DepEvent);
+  event mem_advise(const void *Ptr, size_t Length, int Advice,
+                   event DepEvent _CODELOCPARAM(&CodeLoc));
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -701,7 +714,7 @@ public:
   /// dependencies.
   /// \return an event representing advice operation.
   event mem_advise(const void *Ptr, size_t Length, int Advice,
-                   const std::vector<event> &DepEvents);
+                   const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc));
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -710,10 +723,10 @@ public:
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
   /// \return an event representing prefetch operation.
-  event prefetch(const void *Ptr, size_t Count) {
-    // TODO: to add code location as parameter when ABI break is permitted
-    const detail::code_location CodeLoc("sycl/queue.hpp", "prefetch", 0, 0);
-    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); }, CodeLoc);
+  event prefetch(const void *Ptr, size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 
   /// Provides hints to the runtime library that data should be made available
@@ -724,7 +737,10 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing prefetch operation.
-  event prefetch(const void *Ptr, size_t Count, event DepEvent) {
+  event prefetch(const void *Ptr, size_t Count,
+                 event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([=](handler &CGH) {
       CGH.depends_on(DepEvent);
       CGH.prefetch(Ptr, Count);
@@ -741,7 +757,9 @@ public:
   /// dependencies.
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count,
-                 const std::vector<event> &DepEvents) {
+                 const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([=](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.prefetch(Ptr, Count);
@@ -1085,7 +1103,9 @@ public:
   template <typename T, typename PropertyListT>
   event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
                const void *Src, size_t NumBytes, size_t Offset,
-               const std::vector<event> &DepEvents) {
+               const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy to device_global is out of bounds.");
@@ -1120,7 +1140,9 @@ public:
   template <typename T, typename PropertyListT>
   event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
                const void *Src, size_t NumBytes, size_t Offset,
-               event DepEvent) {
+               event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset,
                         std::vector<event>{DepEvent});
   }
@@ -1138,7 +1160,9 @@ public:
   template <typename T, typename PropertyListT>
   event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
                const void *Src, size_t NumBytes = sizeof(T),
-               size_t Offset = 0) {
+               size_t Offset = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
   }
 
@@ -1158,7 +1182,10 @@ public:
   event
   memcpy(void *Dest,
          const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
-         size_t NumBytes, size_t Offset, const std::vector<event> &DepEvents) {
+         size_t NumBytes, size_t Offset,
+         const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy from device_global is out of bounds.");
@@ -1194,7 +1221,10 @@ public:
   event
   memcpy(void *Dest,
          const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
-         size_t NumBytes, size_t Offset, event DepEvent) {
+         size_t NumBytes, size_t Offset,
+         event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset,
                         std::vector<event>{DepEvent});
   }
@@ -1213,7 +1243,10 @@ public:
   event
   memcpy(void *Dest,
          const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
-         size_t NumBytes = sizeof(T), size_t Offset = 0) {
+         size_t NumBytes = sizeof(T),
+         size_t Offset = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
   }
 
@@ -1234,7 +1267,9 @@ public:
   event copy(const std::remove_all_extents_t<T> *Src,
              ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
              size_t Count, size_t StartIndex,
-             const std::vector<event> &DepEvents) {
+             const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
                         DepEvents);
@@ -1256,7 +1291,10 @@ public:
   template <typename T, typename PropertyListT>
   event copy(const std::remove_all_extents_t<T> *Src,
              ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
-             size_t Count, size_t StartIndex, event DepEvent) {
+             size_t Count, size_t StartIndex,
+             event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
                         DepEvent);
@@ -1277,7 +1315,9 @@ public:
   event copy(const std::remove_all_extents_t<T> *Src,
              ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
              size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
-             size_t StartIndex = 0) {
+             size_t StartIndex = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
@@ -1299,7 +1339,9 @@ public:
   event
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
        std::remove_all_extents_t<T> *Dest, size_t Count, size_t StartIndex,
-       const std::vector<event> &DepEvents) {
+       const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
                         DepEvents);
@@ -1322,7 +1364,9 @@ public:
   event
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
        std::remove_all_extents_t<T> *Dest, size_t Count, size_t StartIndex,
-       event DepEvent) {
+       event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
                         DepEvent);
@@ -1344,7 +1388,9 @@ public:
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
        std::remove_all_extents_t<T> *Dest,
        size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
-       size_t StartIndex = 0) {
+       size_t StartIndex = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
