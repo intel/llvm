@@ -50,6 +50,7 @@ add_subdirectory(memory)
 add_subdirectory(usm)
 add_subdirectory(event)
 add_subdirectory(queue)
+add_subdirectory(sampler)
 add_subdirectory(enqueue)
 
 if(DEFINED UR_DPCXX)

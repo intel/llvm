@@ -1019,9 +1019,10 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     size_t
         propSize, ///< [in] size in bytes of the sampler property value provided
     void *
-        pPropValue, ///< [out][typename(propName, propSize)] value of the sampler property
+        pPropValue, ///< [out][typename(propName, propSize)][optional] value of the sampler
+                    ///< property
     size_t *
-        pPropSizeRet ///< [out] size in bytes returned in sampler property value
+        pPropSizeRet ///< [out][optional] size in bytes returned in sampler property value
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 

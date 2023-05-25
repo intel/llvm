@@ -136,6 +136,29 @@ struct urContextTest : urDeviceTest {
     ur_context_handle_t context = nullptr;
 };
 
+struct urSamplerTest : urContextTest {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        sampler_desc = {
+            UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
+            nullptr,                          /* pNext */
+            true,                             /* normalizedCoords */
+            UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
+            UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
+        };
+        ASSERT_SUCCESS(urSamplerCreate(context, &sampler_desc, &sampler));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    ur_sampler_handle_t sampler;
+    ur_sampler_desc_t sampler_desc;
+};
+
 struct urMemBufferTest : urContextTest {
 
     void SetUp() override {
@@ -178,6 +201,29 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
         UUR_RETURN_ON_FATAL_FAILURE(urDeviceTestWithParam<T>::TearDown());
     }
     ur_context_handle_t context;
+};
+
+template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        sampler_desc = {
+            UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
+            nullptr,                          /* pNext */
+            true,                             /* normalizedCoords */
+            UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
+            UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
+        };
+        ASSERT_SUCCESS(urSamplerCreate(this->context, &sampler_desc, &sampler));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+    }
+
+    ur_sampler_handle_t sampler;
+    ur_sampler_desc_t sampler_desc;
 };
 
 template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {

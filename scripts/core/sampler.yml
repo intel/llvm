@@ -155,10 +155,10 @@ params:
       desc: "[in] size in bytes of the sampler property value provided"
     - type: "void*"
       name: pPropValue
-      desc: "[out][typename(propName, propSize)] value of the sampler property"
+      desc: "[out][typename(propName, propSize)][optional] value of the sampler property"
     - type: "size_t*"
       name: pPropSizeRet
-      desc: "[out] size in bytes returned in sampler property value"
+      desc: "[out][optional] size in bytes returned in sampler property value"
 returns:
     - $X_RESULT_ERROR_INVALID_SAMPLER
     - $X_RESULT_ERROR_INVALID_VALUE
