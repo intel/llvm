@@ -7563,7 +7563,7 @@ bool Sema::CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD,
     }
   }
 
-  const FunctionProtoType *Type = MD->getType()->getAs<FunctionProtoType>();
+  const FunctionProtoType *Type = MD->getType()->castAs<FunctionProtoType>();
 
   bool CanHaveConstParam = false;
   if (CSM == CXXCopyConstructor)
