@@ -97,8 +97,8 @@ TEST_F(test, memoryPoolWithCustomProviders) {
     struct pool : public uma_test::pool_base {
         uma_result_t initialize(uma_memory_provider_handle_t *providers,
                                 size_t numProviders) noexcept {
-            EXPECT_NE(providers, nullptr);
-            EXPECT_EQ(numProviders, 2);
+            EXPECT_NE_NOEXCEPT(providers, nullptr);
+            EXPECT_EQ_NOEXCEPT(numProviders, 2);
             return UMA_RESULT_SUCCESS;
         }
     };

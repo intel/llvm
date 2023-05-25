@@ -12,27 +12,20 @@ namespace logger {
 class Logger {
   public:
     Logger(std::unique_ptr<logger::Sink> sink) : sink(std::move(sink)) {
-        if (!this->sink) {
-            throw std::invalid_argument(
-                "Can't create logger with nullptr Sink!");
-        }
         this->level = logger::Level::QUIET;
     }
 
     Logger(logger::Level level, std::unique_ptr<logger::Sink> sink)
-        : level(level), sink(std::move(sink)) {
-        if (!this->sink) {
-            throw std::invalid_argument(
-                "Can't create logger with nullptr Sink!");
-        }
-    }
+        : level(level), sink(std::move(sink)) {}
 
     ~Logger() = default;
 
     void setLevel(logger::Level level) { this->level = level; }
 
     void setFlushLevel(logger::Level level) {
-        this->sink->setFlushLevel(level);
+        if (sink) {
+            this->sink->setFlushLevel(level);
+        }
     }
 
     template <typename... Args> void debug(const char *format, Args &&...args) {
@@ -62,7 +55,9 @@ class Logger {
             return;
         }
 
-        sink->log(level, format, std::forward<Args>(args)...);
+        if (sink) {
+            sink->log(level, format, std::forward<Args>(args)...);
+        }
     }
 
   private:
