@@ -77,9 +77,9 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   MockScheduler MS;
 
   for (auto &Arg : InputEventWaitLists) {
-    std::unique_ptr<detail::CG> CommandGroup(
-        new detail::CGBarrier(std::move(Arg), {}, {}, {}, {}, {},
-                              detail::CG::CGTYPE::BarrierWaitlist, {}));
+    std::unique_ptr<detail::CG> CommandGroup(new detail::CGBarrier(
+        std::move(Arg), detail::CG::Data({}, {}, {}, {}, {}),
+        detail::CG::CGTYPE::BarrierWaitlist, {}));
     MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl);
   }
 }

@@ -64,17 +64,19 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   detail::HostKernel<decltype(Kernel), void, 1> HKernel(Kernel);
   auto [NDRDesc, MockReq] = initializeRefValues();
 
+  detail::CG::Data CGData(
+      /*ArgsStorage*/ {},
+      /*AccStorage*/ {},
+      /*SharedPtrStorage*/ {},
+      /*Requirements*/ {&MockReq},
+      /*Events*/ {});
   std::unique_ptr<detail::CG> CG{new detail::CGExecKernel(
       /*NDRDesc*/ NDRDesc,
       /*HKernel*/
       std::make_unique<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
       /*SyclKernel*/ nullptr,
       /*KernelBundle*/ nullptr,
-      /*ArgsStorage*/ {},
-      /*AccStorage*/ {},
-      /*SharedPtrStorage*/ {},
-      /*Requirements*/ {&MockReq},
-      /*Events*/ {},
+      std::move(CGData),
       /*Args*/ {},
       /*KernelName*/ "",
       /*OSModuleHandle*/ detail::OSUtil::ExeModuleHandle,

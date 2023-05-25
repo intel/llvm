@@ -343,12 +343,12 @@ private:
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
 
-  /// Stores copy of Arg passed to the MArgsStorage.
+  /// Stores copy of Arg passed to the CGData.MArgsStorage.
   template <typename T, typename F = typename std::remove_const_t<
                             typename std::remove_reference_t<T>>>
   F *storePlainArg(T &&Arg) {
-    MArgsStorage.emplace_back(sizeof(T));
-    auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
+    CGData.MArgsStorage.emplace_back(sizeof(T));
+    auto Storage = reinterpret_cast<F *>(CGData.MArgsStorage.back().data());
     *Storage = Arg;
     return Storage;
   }
@@ -513,9 +513,9 @@ private:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of requirements.
-    MRequirements.push_back(Req);
+    CGData.MRequirements.push_back(Req);
     // Store copy of the accessor.
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MAccStorage.push_back(std::move(AccImpl));
     // Add accessor to the list of arguments.
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
                        static_cast<int>(AccessTarget), ArgIndex);
@@ -2207,7 +2207,7 @@ public:
                   "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
-    MSharedPtrStorage.push_back(Dst);
+    CGData.MSharedPtrStorage.push_back(Dst);
     typename std::shared_ptr<T_Dst>::element_type *RawDstPtr = Dst.get();
     copy(Src, RawDstPtr);
   }
@@ -2235,7 +2235,7 @@ public:
                   "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
-    MSharedPtrStorage.push_back(Src);
+    CGData.MSharedPtrStorage.push_back(Src);
     typename std::shared_ptr<T_Src>::element_type *RawSrcPtr = Src.get();
     copy(RawSrcPtr, Dst);
   }
@@ -2273,12 +2273,12 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MRequirements.push_back(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
     MSrcPtr = static_cast<void *>(AccImpl.get());
     MDstPtr = static_cast<void *>(Dst);
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
   /// Copies the content of memory pointed by Src into the memory object
@@ -2315,12 +2315,12 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MRequirements.push_back(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
     MSrcPtr = const_cast<T_Src *>(Src);
     MDstPtr = static_cast<void *>(AccImpl.get());
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
   /// Copies the content of memory object accessed by Src to the memory
@@ -2371,14 +2371,14 @@ public:
     detail::AccessorBaseHost *AccBaseDst = (detail::AccessorBaseHost *)&Dst;
     detail::AccessorImplPtr AccImplDst = detail::getSyclObjImpl(*AccBaseDst);
 
-    MRequirements.push_back(AccImplSrc.get());
-    MRequirements.push_back(AccImplDst.get());
+    CGData.MRequirements.push_back(AccImplSrc.get());
+    CGData.MRequirements.push_back(AccImplDst.get());
     MSrcPtr = AccImplSrc.get();
     MDstPtr = AccImplDst.get();
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    MAccStorage.push_back(std::move(AccImplSrc));
-    MAccStorage.push_back(std::move(AccImplDst));
+    CGData.MAccStorage.push_back(std::move(AccImplSrc));
+    CGData.MAccStorage.push_back(std::move(AccImplDst));
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -2402,8 +2402,8 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    MRequirements.push_back(AccImpl.get());
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MRequirements.push_back(AccImpl.get());
+    CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
   /// Fills memory pointed by accessor with the pattern given.
@@ -2439,8 +2439,8 @@ public:
       detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
       MDstPtr = static_cast<void *>(AccImpl.get());
-      MRequirements.push_back(AccImpl.get());
-      MAccStorage.push_back(std::move(AccImpl));
+      CGData.MRequirements.push_back(AccImpl.get());
+      CGData.MAccStorage.push_back(std::move(AccImpl));
 
       MPattern.resize(sizeof(T));
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
@@ -2853,19 +2853,15 @@ private:
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
   /// we exit the method they are passed in.
-  std::vector<std::vector<char>> MArgsStorage;
-  std::vector<detail::AccessorImplPtr> MAccStorage;
+  mutable detail::CG::Data CGData;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  mutable std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
   std::vector<detail::ArgDesc> MArgs;
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or
   /// have become required for this handler via require method.
   std::vector<detail::ArgDesc> MAssociatedAccesors;
-  /// The list of requirements to the memory objects for the scheduling.
-  std::vector<detail::AccessorImplHost *> MRequirements;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;
@@ -2890,8 +2886,6 @@ private:
   detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   std::unique_ptr<detail::InteropTask> MInteropTask;
-  /// The list of events that order this operation.
-  std::vector<detail::EventImplPtr> MEvents;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
