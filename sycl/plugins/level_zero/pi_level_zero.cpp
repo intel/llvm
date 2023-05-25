@@ -8477,7 +8477,7 @@ pi_result piTearDown(void *PluginParameter) {
   // Print the balance of various create/destroy native calls.
   // The idea is to verify if the number of create(+) and destroy(-) calls are
   // matched.
-  if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
+  if (ZeCallCount && (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) != 0) {
     // clang-format off
     //
     // The format of this table is such that each row accounts for a
