@@ -22,6 +22,8 @@ using scalar_comp_t =
     std::conditional_t<std::is_same_v<OpClass, esimd_test::CmpOp>,
                        typename esimd::simd_mask<Size>::element_type,
                        __ESIMD_DNS::computation_type_t<T1, T2>>;
+// Number of test cases for every operator type
+constexpr int TestCaseNumber = 7;
 
 // Result type of a vector binary Op
 template <class T1, class T2, class OpClass, int N = 0>
@@ -31,15 +33,38 @@ using comp_t = std::conditional_t<
         std::is_same_v<OpClass, esimd_test::CmpOp>, esimd::simd_mask<N>,
         esimd::simd<__ESIMD_DNS::computation_type_t<T1, T2>, N>>>;
 
-template <class T, class OpClass, class Ops>
-bool test(Ops ops, queue &q, int expectedValues[]) {
+template <class T, class OpClass, class Ops> bool test(Ops ops, queue &q) {
   T *Input = sycl::malloc_shared<T>(Size, q);
   constexpr int NumOps = (int)Ops::size;
   int CSize = NumOps * Size;
-  T *Output = sycl::malloc_shared<T>(CSize * 7, q);
+  T *Output = sycl::malloc_shared<T>(CSize * TestCaseNumber, q);
   for (int i = 0; i < Size; ++i)
     Input[i] = i;
   constexpr T TestValue = 2;
+  std::vector<int> expectedValues;
+
+  // esimd_test::ArithBinaryOpsNoDiv has 3 members for general arithmetic
+  // operations: +, -, *.
+  if constexpr (std::is_same_v<OpClass, esimd_test::BinaryOp> &&
+                Ops::size == 3) {
+    expectedValues = {3, 2, 1, 2, 2, 0, 3,  2,  -1, -2, 2,  0,  3, 2,
+                      1, 2, 2, 0, 3, 2, -1, -2, 2,  0,  2,  0,  0, 0,
+                      1, 0, 3, 2, 1, 2, 2,  0,  3,  2,  -1, -2, 2, 0};
+  } else if constexpr (std::is_same_v<OpClass, esimd_test::CmpOp>) {
+    expectedValues = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+                      0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+                      1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1,
+                      1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+                      1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0};
+  } else {
+    // esimd_test::IntBinaryOpsNoShiftNoDivRem has 6 members for integer
+    // arithmetic operations: +, -, *, |, & ^
+    expectedValues = {3, 2, 1, 2, 2,  0,  3,  2,  0, 0, 3, 2, 3, 2, -1, -2, 2,
+                      0, 3, 2, 0, 0,  3,  2,  3,  2, 1, 2, 2, 0, 3, 2,  0,  0,
+                      3, 2, 3, 2, -1, -2, 2,  0,  3, 2, 0, 0, 3, 2, 2,  0,  0,
+                      0, 1, 0, 1, 0,  1,  0,  0,  0, 3, 2, 1, 2, 2, 0,  3,  2,
+                      0, 0, 3, 2, 3,  2,  -1, -2, 2, 0, 3, 2, 0, 0, 3,  2};
+  }
 
   try {
     q.submit([&](sycl::handler &cgh) {
@@ -100,7 +125,7 @@ bool test(Ops ops, queue &q, int expectedValues[]) {
   bool Result = true;
   int err_cnt = 0;
 
-  for (int i = 0; i < CSize * 7; ++i) {
+  for (int i = 0; i < CSize * TestCaseNumber; ++i) {
     if (Output[i] != expectedValues[i]) {
       Result = false;
       if (++err_cnt < 10) {
@@ -118,32 +143,16 @@ bool test(Ops ops, queue &q, int expectedValues[]) {
 int main(int, char **) {
 
   sycl::queue q;
-  int BinOpExpectedValues[] = {3, 2, 1, 2, 2, 0, 3,  2,  -1, -2, 2,  0,  3, 2,
-                               1, 2, 2, 0, 3, 2, -1, -2, 2,  0,  2,  0,  0, 0,
-                               1, 0, 3, 2, 1, 2, 2,  0,  3,  2,  -1, -2, 2, 0};
-  int CmpOpExpectedValues[] = {
-      0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
-      1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0,
-      0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0};
-  int IntBinOpExpectedValues[] = {
-      3, 2, 1, 2, 2, 0, 3, 2, 0, 0, 3, 2,  3,  2, -1, -2, 2, 0,  3,  2, 0,
-      0, 3, 2, 3, 2, 1, 2, 2, 0, 3, 2, 0,  0,  3, 2,  3,  2, -1, -2, 2, 0,
-      3, 2, 0, 0, 3, 2, 2, 0, 0, 0, 1, 0,  1,  0, 1,  0,  0, 0,  3,  2, 1,
-      2, 2, 0, 3, 2, 0, 0, 3, 2, 3, 2, -1, -2, 2, 0,  3,  2, 0,  0,  3, 2};
   bool Passed = true;
   auto arith_ops = esimd_test::ArithBinaryOpsNoDiv;
-  Passed &=
-      test<float, esimd_test::BinaryOp>(arith_ops, q, BinOpExpectedValues);
-  Passed &=
-      test<uint32_t, esimd_test::BinaryOp>(arith_ops, q, BinOpExpectedValues);
+  Passed &= test<float, esimd_test::BinaryOp>(arith_ops, q);
+  Passed &= test<uint32_t, esimd_test::BinaryOp>(arith_ops, q);
 
   auto int_arith_ops = esimd_test::IntBinaryOpsNoShiftNoDivRem;
+  Passed &= test<int32_t, esimd_test::BinaryOp>(int_arith_ops, q);
 
-  Passed &= test<int32_t, esimd_test::BinaryOp>(int_arith_ops, q,
-                                                IntBinOpExpectedValues);
   auto cmp_ops = esimd_test::CmpOps;
-  Passed &= test<uint16_t, esimd_test::CmpOp>(cmp_ops, q, CmpOpExpectedValues);
+  Passed &= test<uint16_t, esimd_test::CmpOp>(cmp_ops, q);
 
   if (!Passed) {
     std::cout << "Test failed." << std::endl;
