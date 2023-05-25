@@ -40,6 +40,7 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 static llvm::cl::opt<bool> LICMEnableSYCLAccessorVersioning(
     DEBUG_TYPE "-enable-sycl-accessor-versioning", llvm::cl::init(true),
@@ -598,8 +599,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (LICMCandidates.empty())
     return 0;
 
-  polygeist::LoopTools loopTools;
-  loopTools.guardLoop(loop);
+  LoopTools::guardLoop(loop);
 
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
@@ -608,11 +608,10 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
-      std::unique_ptr<polygeist::VersionCondition> condition =
-          polygeist::VersionConditionBuilder(accessorPairs, builder,
-                                             loop->getLoc())
+      std::unique_ptr<VersionCondition> condition =
+          VersionConditionBuilder(accessorPairs, builder, loop->getLoc())
               .createCondition(useOpaquePointers);
-      loopTools.versionLoop(loop, *condition);
+      LoopTools::versionLoop(loop, *condition);
     }
 
     loop.moveOutOfLoop(&candidate.getOperation());

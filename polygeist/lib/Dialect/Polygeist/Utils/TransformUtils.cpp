@@ -512,13 +512,63 @@ AffineMap AffineParallelGuardBuilder::getUpperBoundsMap() const {
 // Loop Tools
 //===----------------------------------------------------------------------===//
 
-void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
+void LoopTools::guardLoop(LoopLikeOpInterface loop) {
   LoopGuardBuilder::create(loop)->guardLoop();
 }
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
-                            const VersionCondition &versionCond) const {
+                            const VersionCondition &versionCond) {
   VersionBuilder(loop).version(versionCond);
+}
+
+bool LoopTools::isPerfectLoopNest(LoopLikeOpInterface root) {
+  assert(root && "Expecting a valid pointer");
+
+  LoopLikeOpInterface previousLoop = root;
+  WalkResult walkResult = root->walk([&](LoopLikeOpInterface loop) {
+    if (!arePerfectlyNested(previousLoop, loop))
+      return WalkResult::interrupt();
+
+    previousLoop = loop;
+    return WalkResult::advance();
+  });
+
+  return !walkResult.wasInterrupted();
+}
+
+std::optional<LoopLikeOpInterface>
+LoopTools::getInnermostLoop(LoopLikeOpInterface root) {
+  assert(root && "Expecting a valid pointer");
+
+  LoopLikeOpInterface previousLoop = root;
+  WalkResult walkResult = root->walk([&](LoopLikeOpInterface loop) {
+    llvm::dbgs() << "loop: \n";
+    loop.dump();
+
+    if (!arePerfectlyNested(previousLoop, loop))
+      return WalkResult::interrupt();
+
+    previousLoop = loop;
+    return WalkResult::advance();
+  });
+
+  if (!walkResult.wasInterrupted())
+    return previousLoop;
+  return std::nullopt;
+}
+
+bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
+                                   LoopLikeOpInterface inner) {
+  assert(outer && inner && "Expecting valid pointers");
+
+  if (outer == inner)
+    return true;
+
+  Block &outerLoopBody = outer.getLoopBody().front();
+  if (outerLoopBody.begin() != std::prev(outerLoopBody.end(), 2))
+    return false;
+
+  return inner != dyn_cast<LoopLikeOpInterface>(&outerLoopBody.front());
 }
 
 //===----------------------------------------------------------------------===//

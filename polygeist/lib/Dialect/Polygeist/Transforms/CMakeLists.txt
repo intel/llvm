@@ -24,7 +24,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   DEPENDS
   MLIRPolygeistOpsIncGen
   MLIRPolygeistPassIncGen
-
+  
   LINK_LIBS PUBLIC
   MLIRAffineDialect
   MLIRAsyncDialect
@@ -37,6 +37,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRMemRefDialect
   MLIRNVVMDialect
   MLIRPass
+  MLIRPolygeistAnalysis  
   MLIRPolygeistDialect
   MLIRPolygeistUtils
   MLIRSCFUtils

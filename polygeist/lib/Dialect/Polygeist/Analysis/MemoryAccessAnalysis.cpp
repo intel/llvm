@@ -357,16 +357,6 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
       .Default([&](auto) { return expr; });
 }
 
-static Value removeConversions(Value expr) {
-  if (!expr.getDefiningOp())
-    return expr;
-
-  if (auto op = dyn_cast<CastOpInterface>(expr.getDefiningOp()))
-    return removeConversions(op->getOperand(0));
-
-  return expr;
-}
-
 // Visit a binary operation of type \tparam T. The LHS and RHS operand of the
 // binary operation are processed by applying the function \p getOffset. The
 // result of the visit is computed via the \p computeResult function.
@@ -1166,8 +1156,7 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
 
 void MemoryAccessAnalysis::build() {
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(
-      sycl::AliasAnalysis(false /* relaxedAliasing*/));
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   // Run the dataflow analysis we depend on.
   DataFlowSolver solver;

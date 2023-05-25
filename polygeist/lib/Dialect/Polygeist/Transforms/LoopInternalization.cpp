@@ -11,9 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
@@ -30,38 +33,21 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 static llvm::cl::list<unsigned> LoopInternalizationTileSizes(
     DEBUG_TYPE "-tile-sizes", llvm::cl::CommaSeparated,
     llvm::cl::desc("Tile sizes used in LoopInternalization"));
 
 namespace {
-/// Collect perfectly nested loops starting from \p root.  Loops are
-/// perfectly nested if each loop is the first and only non-terminator operation
-/// in the parent loop.
-template <typename T, typename = std::enable_if_t<llvm::is_one_of<
-                          T, affine::AffineForOp, scf::ForOp>::value>>
-void getPerfectlyNestedLoops(SmallVector<T> &nestedLoops, T root) {
-  for (unsigned i = 0; i < std::numeric_limits<unsigned>::max(); ++i) {
-    nestedLoops.push_back(root);
-    assert(root.getLoopBody().hasOneBlock() && "Expecting single block");
-    Block &body = root.getLoopBody().front();
-    if (body.begin() != std::prev(body.end(), 2))
-      return;
 
-    root = dyn_cast<T>(&body.front());
-    if (!root)
-      return;
-  }
-}
-
-bool isOutermostLoop(LoopLikeOpInterface loop) {
-  return !loop->getParentOfType<LoopLikeOpInterface>();
-}
+//===----------------------------------------------------------------------===//
+// Utilities functions
+//===----------------------------------------------------------------------===//
 
 /// A loop is a candidate when it is the outermost affine or scf for loop.
 bool isCandidate(LoopLikeOpInterface loop) {
-  if (!isOutermostLoop(loop)) {
+  if (!LoopTools::isOutermostLoop(loop)) {
     LLVM_DEBUG(llvm::dbgs() << "not candidate: not outermost loop\n");
     return false;
   }
@@ -105,50 +91,233 @@ LogicalResult tile(SmallVectorImpl<scf::ForOp> &nestedLoops,
   return success();
 }
 
-template <typename T, typename = std::enable_if_t<llvm::is_one_of<
-                          T, affine::AffineForOp, scf::ForOp>::value>>
-void transform(T loop) {
-  FunctionOpInterface func =
-      loop->template getParentOfType<FunctionOpInterface>();
-  SmallVector<T> nestedLoops;
-  getPerfectlyNestedLoops(nestedLoops, loop);
-  SmallVector<Value> tileSizes;
-  if (getTileSizes(nestedLoops, tileSizes).failed())
-    return;
-  SmallVector<T> tiledNest;
-  LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
-  LLVM_DEBUG({
-    if (res.succeeded())
-      llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n";
-    else
-      llvm::dbgs() << "Tile NOT performed\n";
+//===----------------------------------------------------------------------===//
+// MemorySelector
+//===----------------------------------------------------------------------===//
+
+/// Collect memory accesses in a loop and determine the memory space each access
+/// should ideally use.
+class MemorySelector {
+public:
+  MemorySelector(LoopLikeOpInterface loop,
+                 const MemoryAccessAnalysis &memAccessAnalysis)
+      : loop(loop), memAccessAnalysis(memAccessAnalysis) {
+    assert(!loop->getParentOfType<LoopLikeOpInterface>() &&
+           "Expecting an inner loop");
+    populate();
+  };
+
+  /// Enumerate memory spaces.
+  enum class MemorySpace { Global, Shared, Constant, Texture };
+
+  /// Returns the memory space the given \p memRefAccess should use.
+  MemorySpace selectMemorySpace(affine::MemRefAccess access) const {
+    auto it = accessToMemSpace.find(&access);
+    if (it == accessToMemSpace.end())
+      return MemorySpace::Global;
+    return accessToMemSpace.at(&access);
+  }
+
+private:
+  void populate();
+
+  /// Add the given \p access to the 'accesses' map.
+  void addMemRefAccess(affine::MemRefAccess access);
+
+  /// Retrieve all the memref accesses for \p access.
+  const SmallVector<affine::MemRefAccess *> *
+  getMemRefAccesses(affine::MemRefAccess *access) const;
+
+  /// Return true iff no memref accesses in \p accesses are stores.
+  bool isReadOnly(ArrayRef<affine::MemRefAccess *> accesses) const;
+
+  /// Return true iff all memref accesses in \p accesses are stores.
+  bool isWriteOnly(ArrayRef<affine::MemRefAccess *> accesses) const;
+
+  /// Return true if memref accesses in \p accesses are a mix of loads and
+  /// stores.
+  bool isReadWrite(ArrayRef<affine::MemRefAccess *> accesses) const;
+
+  /// Return true if the access is coalesced.
+  bool isCoalesced(affine::MemRefAccess *access) const;
+
+private:
+  /// The loop to analyze.
+  LoopLikeOpInterface loop;
+
+  /// An immutable reference to the memory access analysis.
+  const MemoryAccessAnalysis &memAccessAnalysis;
+
+  /// Collects all memory accesses for a given memref value.
+  DenseMap<Value, SmallVector<affine::MemRefAccess *>> accesses;
+
+  /// The preferred memory space for each memref access;
+  DenseMap<affine::MemRefAccess *, MemorySpace> accessToMemSpace;
+};
+
+void MemorySelector::populate() {
+  assert(accesses.empty() && accessToMemSpace.empty() &&
+         "Expecting empty maps");
+
+  // Collect all memref accesses in the loop that have an entry in the memory
+  // access analysis.
+  loop->walk([&](Operation *op) {
+    if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+      return;
+
+    affine::MemRefAccess access(op);
+    const std::optional<MemoryAccess> memAccess =
+        memAccessAnalysis.getMemoryAccess(access);
+    if (!memAccess)
+      return;
+
+    addMemRefAccess(access);
   });
-  // TODO: promote loop accesses to local memory.
+
+  // Analyze the memref accesses collected.
+  for (auto entry : accesses) {
+    const SmallVector<affine::MemRefAccess *> &accesses = entry.second;
+    unsigned numAccesses = accesses.size();
+
+    isReadOnly(entry.second);
+    isReadWrite(entry.second);
+    isWriteOnly(entry.second);
+
+    for (const affine::MemRefAccess *memRefAccess : entry.second) {
+      assert(0 && "TODO");
+    }
+  }
 }
 
-void transform(LoopLikeOpInterface loop) {
-  TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
-      [&](auto loop) { transform(loop); });
+void MemorySelector::addMemRefAccess(affine::MemRefAccess access) {
+  auto it = accesses.find(access.memref);
+  if (it == accesses.end())
+    accesses[access.memref] = {&access};
+  else
+    it->second.push_back(&access);
 }
+
+const SmallVector<affine::MemRefAccess *> *
+MemorySelector::getMemRefAccesses(affine::MemRefAccess *access) const {
+  assert(access && "Expecting a valid pointer");
+  auto it = accesses.find(access->memref);
+  if (it == accesses.end())
+    return nullptr;
+  return &it->second;
+}
+
+bool MemorySelector::isReadOnly(
+    ArrayRef<affine::MemRefAccess *> accesses) const {
+  return llvm::none_of(accesses, [](const affine::MemRefAccess *access) {
+    return access->isStore();
+  });
+}
+
+bool MemorySelector::isWriteOnly(
+    ArrayRef<affine::MemRefAccess *> accesses) const {
+  return llvm::all_of(accesses, [](const affine::MemRefAccess *access) {
+    return access->isStore();
+  });
+}
+
+bool MemorySelector::isReadWrite(
+    ArrayRef<affine::MemRefAccess *> accesses) const {
+  bool hasStores =
+      llvm::any_of(accesses, [](const affine::MemRefAccess *access) {
+        return access->isStore();
+      });
+  bool hasLoads =
+      llvm::any_of(accesses, [](const affine::MemRefAccess *access) {
+        return !access->isStore();
+      });
+  return hasLoads && hasStores;
+}
+
+//===----------------------------------------------------------------------===//
+// LoopInternalization
+//===----------------------------------------------------------------------===//
 
 struct LoopInternalization
     : public polygeist::impl::LoopInternalizationBase<LoopInternalization> {
-  void runOnOperation() override {
-    getOperation()->walk([&](LoopLikeOpInterface loop) {
-      LLVM_DEBUG({
-        FunctionOpInterface func = loop->getParentOfType<FunctionOpInterface>();
-        llvm::dbgs() << "LoopInternalization: Visiting Function "
-                     << func.getName() << "\n Loop: ";
-        loop.dump();
-      });
+  using LoopInternalizationBase<LoopInternalization>::LoopInternalizationBase;
 
-      if (!isCandidate(loop))
-        return;
+  void runOnOperation() final;
 
-      transform(loop);
+private:
+  void transform(LoopLikeOpInterface loop,
+                 const MemoryAccessAnalysis &memAccessAnalysis) const;
+
+  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                            T, affine::AffineForOp, scf::ForOp>::value>>
+  void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis) const {
+    FunctionOpInterface func =
+        loop->template getParentOfType<FunctionOpInterface>();
+
+    // Retrieve the innermost loop (exits iff the loop nest is perfect).
+    std::optional<LoopLikeOpInterface> innermostLoop =
+        LoopTools::getInnermostLoop(loop);
+    if (!innermostLoop)
+      return;
+
+    assert(LoopTools::isPerfectLoopNest(loop) &&
+           "Expecting a perfect loop nest");
+
+    LLVM_DEBUG({
+      llvm::dbgs() << "innermostLoop:\n";
+      innermostLoop->dump();
     });
+
+    // Analyze the memory accesses in the innermost loop.
+    MemorySelector memorySelector(*innermostLoop, memAccessAnalysis);
+
+    SmallVector<T> nestedLoops;
+    LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
+
+    SmallVector<Value> tileSizes;
+    if (getTileSizes(nestedLoops, tileSizes).failed())
+      return;
+
+    SmallVector<T> tiledNest;
+    LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
+    LLVM_DEBUG({
+      if (res.succeeded())
+        llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n";
+      else
+        llvm::dbgs() << "Tile NOT performed\n";
+    });
+    // TODO: promote loop accesses to local memory.
   }
 };
+
+void LoopInternalization::runOnOperation() {
+  Operation *op = getOperation();
+  ModuleAnalysisManager mam(op, /*passInstrumentor=*/nullptr);
+  AnalysisManager am = mam;
+  auto &memAccessAnalysis =
+      am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
+
+  op->walk([&](LoopLikeOpInterface loop) {
+    LLVM_DEBUG({
+      FunctionOpInterface func = loop->getParentOfType<FunctionOpInterface>();
+      llvm::dbgs() << "LoopInternalization: Visiting Function "
+                   << func.getName() << "\n Loop: ";
+      loop.dump();
+    });
+
+    if (!isCandidate(loop))
+      return;
+
+    transform(loop, memAccessAnalysis);
+  });
+}
+
+void LoopInternalization::transform(
+    LoopLikeOpInterface loop,
+    const MemoryAccessAnalysis &memAccessAnalysis) const {
+  TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
+      [&](auto loop) { transform(loop, memAccessAnalysis); });
+}
+
 } // namespace
 
 std::unique_ptr<Pass> polygeist::createLoopInternalizationPass() {
