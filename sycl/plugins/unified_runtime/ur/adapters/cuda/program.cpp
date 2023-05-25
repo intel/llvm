@@ -281,6 +281,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
 /// \return TBD
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
+    const ur_program_native_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
