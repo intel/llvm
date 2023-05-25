@@ -601,37 +601,6 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piSamplerCreate(pi_context context,
-                          const pi_sampler_properties *sampler_properties,
-                          pi_sampler *result_sampler) {
-  // Initialize properties according to OpenCL 2.1 spec.
-  pi_result error_code;
-  pi_bool normalizedCoords = PI_TRUE;
-  pi_sampler_addressing_mode addressingMode = PI_SAMPLER_ADDRESSING_MODE_CLAMP;
-  pi_sampler_filter_mode filterMode = PI_SAMPLER_FILTER_MODE_NEAREST;
-
-  // Unpack sampler properties
-  for (std::size_t i = 0; sampler_properties && sampler_properties[i] != 0;
-       ++i) {
-    if (sampler_properties[i] == PI_SAMPLER_INFO_NORMALIZED_COORDS) {
-      normalizedCoords = static_cast<pi_bool>(sampler_properties[++i]);
-    } else if (sampler_properties[i] == PI_SAMPLER_INFO_ADDRESSING_MODE) {
-      addressingMode =
-          static_cast<pi_sampler_addressing_mode>(sampler_properties[++i]);
-    } else if (sampler_properties[i] == PI_SAMPLER_INFO_FILTER_MODE) {
-      filterMode = static_cast<pi_sampler_filter_mode>(sampler_properties[++i]);
-    } else {
-      assert(false && "Cannot recognize sampler property");
-    }
-  }
-
-  // Always call OpenCL 1.0 API
-  *result_sampler = cast<pi_sampler>(
-      clCreateSampler(cast<cl_context>(context), normalizedCoords,
-                      addressingMode, filterMode, cast<cl_int *>(&error_code)));
-  return error_code;
-}
-
 pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
                                   const pi_mem_obj_property *arg_properties,
                                   const pi_mem *arg_value) {
@@ -2117,10 +2086,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEventGetNativeHandle, piextGetNativeHandle)
   _PI_CL(piextEventCreateWithNativeHandle, piextEventCreateWithNativeHandle)
   // Sampler
-  _PI_CL(piSamplerCreate, piSamplerCreate)
-  _PI_CL(piSamplerGetInfo, clGetSamplerInfo)
-  _PI_CL(piSamplerRetain, clRetainSampler)
-  _PI_CL(piSamplerRelease, clReleaseSampler)
+  _PI_CL(piSamplerCreate, pi2ur::piSamplerCreate)
+  _PI_CL(piSamplerGetInfo, pi2ur::piSamplerGetInfo)
+  _PI_CL(piSamplerRetain, pi2ur::piSamplerRetain)
+  _PI_CL(piSamplerRelease, pi2ur::piSamplerRelease)
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, clEnqueueNDRangeKernel)
   _PI_CL(piEnqueueEventsWait, clEnqueueMarkerWithWaitList)

@@ -12,8 +12,6 @@
 #include <sycl/detail/cl.h>
 #include <ur/ur.hpp>
 
-#include <sycl/detail/pi.h>
-
 #define CL_RETURN_ON_FAILURE(clCall)                                           \
   if (const cl_int cl_result = clCall != CL_SUCCESS) {                         \
     return map_cl_error_to_ur(cl_result);                                      \

@@ -8,8 +8,6 @@
 
 #include "common.hpp"
 
-#include <sycl/detail/pi.h>
-
 namespace cl {
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
@@ -51,7 +49,7 @@ ur_result_t map_cl_error_to_ur(cl_int result) {
 /// \param urObj is the UR object to get the native handle of
 /// \param nativeHandle is a pointer to be set to the native handle
 ///
-/// PI_SUCCESS
+/// UR_RESULT_SUCCESS
 ur_result_t urGetNativeHandle(void *urObj, ur_native_handle_t *nativeHandle) {
   UR_ASSERT(nativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER)
   *nativeHandle = reinterpret_cast<ur_native_handle_t>(urObj);

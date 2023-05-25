@@ -271,7 +271,7 @@ public:
                             param_value_size_ret, t);
   }
 
-  // Array return value where element type is differrent from T
+  // Array return value where element type is different from T
   template <class RetType, class T>
   ur_result_t operator()(const T *t, size_t s) {
     return ur::getInfoArray<T, RetType>(s, param_value_size, param_value,

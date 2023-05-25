@@ -11,9 +11,7 @@
 #include <cstdarg>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
-#include <ur/adapters/opencl/common.hpp>
 #include <ur/ur.hpp>
-
 
 // Map of UR error codes to PI error codes
 static pi_result ur2piResult(ur_result_t urResult) {
