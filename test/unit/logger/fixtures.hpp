@@ -23,8 +23,8 @@ class LoggerCommonSetup : public ::testing::Test {
 
 class LoggerWithFileSink : public LoggerCommonSetup {
   protected:
-    const std::filesystem::path file_name = "ur_test_logger.log";
-    std::filesystem::path file_path = file_name;
+    const filesystem::path file_name = "ur_test_logger.log";
+    filesystem::path file_path = file_name;
     std::stringstream test_msg;
 
     void TearDown() override {
@@ -34,7 +34,7 @@ class LoggerWithFileSink : public LoggerCommonSetup {
         printed_msg << test_log.rdbuf();
         test_log.close();
 
-        ASSERT_GT(std::filesystem::remove_all(*file_path.begin()), 0);
+        ASSERT_GT(filesystem::remove_all(*file_path.begin()), 0);
         ASSERT_EQ(printed_msg.str(), test_msg.str());
     }
 };
