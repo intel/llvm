@@ -1607,7 +1607,7 @@
 ?sycl_host_LessOrGreater@__host_std@@YA?AV?$vec@_J$0BA@@_V1@sycl@@V?$vec@N$0BA@@34@0@Z
 ?sycl_host_LessOrGreater@__host_std@@YAEMM@Z
 ?sycl_host_LessOrGreater@__host_std@@YAENN@Z
-?sycl_host_LessOrGreater@__host_std@@YAHVhalf@half_impl@detail@_V1@sycl@@0@Z
+?sycl_host_LessOrGreater@__host_std@@YAEVhalf@half_impl@detail@_V1@sycl@@0@Z
 ?sycl_host_Ordered@__host_std@@YA?AV?$vec@F$00@_V1@sycl@@V?$vec@Vhalf@half_impl@detail@_V1@sycl@@$00@34@0@Z
 ?sycl_host_Ordered@__host_std@@YA?AV?$vec@F$01@_V1@sycl@@V?$vec@Vhalf@half_impl@detail@_V1@sycl@@$01@34@0@Z
 ?sycl_host_Ordered@__host_std@@YA?AV?$vec@F$02@_V1@sycl@@V?$vec@Vhalf@half_impl@detail@_V1@sycl@@$02@34@0@Z

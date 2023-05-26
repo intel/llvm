@@ -245,7 +245,7 @@ __SYCL_EXPORT s::cl_long __vFOrdLessThan(s::cl_double x,
                                          s::cl_double y) __NOEXC {
   return -(x < y);
 }
-__SYCL_EXPORT s::cl_int sycl_host_FOrdLessThan(s::cl_half x,
+__SYCL_EXPORT rel_res_t sycl_host_FOrdLessThan(s::cl_half x,
                                                s::cl_half y) __NOEXC {
   return (x < y);
 }
@@ -326,13 +326,13 @@ __SYCL_EXPORT rel_res_t sycl_host_IsFinite(s::cl_float x) __NOEXC {
 __SYCL_EXPORT rel_res_t sycl_host_IsFinite(s::cl_double x) __NOEXC {
   return std::isfinite(x);
 }
-__SYCL_EXPORT rel_res_t __vIsFinite(s::cl_float x) __NOEXC {
+__SYCL_EXPORT s::cl_int __vIsFinite(s::cl_float x) __NOEXC {
   return -static_cast<s::cl_int>(std::isfinite(x));
 }
 __SYCL_EXPORT s::cl_long __vIsFinite(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isfinite(x));
 }
-__SYCL_EXPORT s::cl_int sycl_host_IsFinite(s::cl_half x) __NOEXC {
+__SYCL_EXPORT rel_res_t sycl_host_IsFinite(s::cl_half x) __NOEXC {
   return std::isfinite(d::cast_if_host_half(x));
 }
 __SYCL_EXPORT s::cl_short __vIsFinite(s::cl_half x) __NOEXC {
@@ -355,7 +355,7 @@ __SYCL_EXPORT s::cl_int __vIsInf(s::cl_float x) __NOEXC {
 __SYCL_EXPORT s::cl_long __vIsInf(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isinf(x));
 }
-__SYCL_EXPORT s::cl_int sycl_host_IsInf(s::cl_half x) __NOEXC {
+__SYCL_EXPORT rel_res_t sycl_host_IsInf(s::cl_half x) __NOEXC {
   return std::isinf(d::cast_if_host_half(x));
 }
 __SYCL_EXPORT s::cl_short __vIsInf(s::cl_half x) __NOEXC {
@@ -379,7 +379,7 @@ __SYCL_EXPORT s::cl_long __vIsNan(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isnan(x));
 }
 
-__SYCL_EXPORT s::cl_int sycl_host_IsNan(s::cl_half x) __NOEXC {
+__SYCL_EXPORT rel_res_t sycl_host_IsNan(s::cl_half x) __NOEXC {
   return std::isnan(d::cast_if_host_half(x));
 }
 __SYCL_EXPORT s::cl_short __vIsNan(s::cl_half x) __NOEXC {
@@ -402,7 +402,7 @@ __SYCL_EXPORT s::cl_int __vIsNormal(s::cl_float x) __NOEXC {
 __SYCL_EXPORT s::cl_long __vIsNormal(s::cl_double x) __NOEXC {
   return -static_cast<s::cl_long>(std::isnormal(x));
 }
-__SYCL_EXPORT s::cl_int sycl_host_IsNormal(s::cl_half x) __NOEXC {
+__SYCL_EXPORT rel_res_t sycl_host_IsNormal(s::cl_half x) __NOEXC {
   return std::isnormal(d::cast_if_host_half(x));
 }
 __SYCL_EXPORT s::cl_short __vIsNormal(s::cl_half x) __NOEXC {
