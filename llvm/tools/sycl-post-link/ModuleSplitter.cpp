@@ -222,6 +222,14 @@ public:
         // TODO: consider limiting set of potential callees to functions marked
         // with special attribute (like [[intel::device_indirectly_callable]])
         const FunctionType *Signature = CI->getFunctionType();
+        // Note: strictly speaking, virtual functions are allowed to use
+        // co-variant return types, i.e. we can actually miss a potential callee
+        // here, because it has different signature (different return type).
+        // However, this is not a problem for two reasons:
+        // - opaque pointers will be enabled at some point and will make
+        //   signatures the same in that case
+        // - all virtual functions are referenced from vtable and therefore will
+        //   anyway be preserved in a module
         const auto &PotentialCallees = FuncTypeToFuncMap[Signature];
         Graph[&F].insert(PotentialCallees.begin(), PotentialCallees.end());
       }
