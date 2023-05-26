@@ -2,6 +2,7 @@
 // and checks -exclude-target command line option.
 // Option should exclude fat_device_aoco object file.
 
+// UNSUPPORTED: system-windows
 
 // RUN: echo "DUMMY IR FILE" > %t-device
 // RUN: echo "DUMMY IR2 FILE" > %t-device2
