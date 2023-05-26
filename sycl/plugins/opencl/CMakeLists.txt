@@ -27,6 +27,7 @@ add_sycl_plugin(opencl
     "../unified_runtime/ur/adapters/opencl/platform.cpp"
     "../unified_runtime/ur/adapters/opencl/sampler.cpp"
     "../unified_runtime/ur/adapters/opencl/memory.cpp"
+    "../unified_runtime/ur/adapters/opencl/usm.cpp"
     # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"
