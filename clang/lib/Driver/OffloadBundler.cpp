@@ -1290,6 +1290,9 @@ private:
   // is in Excluded list.
   Expected<bool>
   CheckObjectFileContainsExcludedTargets(const Archive::Child &C) {
+    if (BundlerConfig.ExcludedTargetNames.empty())
+      return false;
+
     auto TargetNamesOrErr = ReadTargetsFromChildren(C);
     if (!TargetNamesOrErr)
       return TargetNamesOrErr.takeError();
