@@ -290,6 +290,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_platform_handle_t Driver, ///< [in] handle of the platform
     ur_api_version_t *Version    ///< [out] api version
 ) {
+  std::ignore = Driver;
   *Version = UR_API_VERSION_0_6;
   return UR_RESULT_SUCCESS;
 }
@@ -550,6 +551,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
         *PlatformOption ///< [out] returns the correct platform specific
                         ///< compiler option based on the frontend option.
 ) {
+  std::ignore = Platform;
   using namespace std::literals;
   if (FrontendOption == nullptr) {
     return UR_RESULT_SUCCESS;
