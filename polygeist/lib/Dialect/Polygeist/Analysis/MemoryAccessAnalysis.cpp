@@ -1073,8 +1073,7 @@ OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
 // MemoryAccess
 //===----------------------------------------------------------------------===//
 
-MemoryAccessPattern
-MemoryAccess::classifyMemoryAccess(DataFlowSolver &solver) const {
+MemoryAccessPattern MemoryAccess::classify(DataFlowSolver &solver) const {
   bool isZeroVector = offsets.isZero(solver);
 
   if (isZeroVector) {

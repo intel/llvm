@@ -525,13 +525,14 @@ bool LoopTools::isPerfectLoopNest(LoopLikeOpInterface root) {
   assert(root && "Expecting a valid pointer");
 
   LoopLikeOpInterface previousLoop = root;
-  WalkResult walkResult = root->walk([&](LoopLikeOpInterface loop) {
-    if (!arePerfectlyNested(previousLoop, loop))
-      return WalkResult::interrupt();
+  WalkResult walkResult =
+      root->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        if (!arePerfectlyNested(previousLoop, loop))
+          return WalkResult::interrupt();
 
-    previousLoop = loop;
-    return WalkResult::advance();
-  });
+        previousLoop = loop;
+        return WalkResult::advance();
+      });
 
   return !walkResult.wasInterrupted();
 }
@@ -541,16 +542,16 @@ LoopTools::getInnermostLoop(LoopLikeOpInterface root) {
   assert(root && "Expecting a valid pointer");
 
   LoopLikeOpInterface previousLoop = root;
-  WalkResult walkResult = root->walk([&](LoopLikeOpInterface loop) {
-    llvm::dbgs() << "loop: \n";
-    loop.dump();
+  WalkResult walkResult =
+      root->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        if (!arePerfectlyNested(previousLoop, loop)) {
+          llvm::errs() << "Not perfectly nested\n";
+          return WalkResult::interrupt();
+        }
 
-    if (!arePerfectlyNested(previousLoop, loop))
-      return WalkResult::interrupt();
-
-    previousLoop = loop;
-    return WalkResult::advance();
-  });
+        previousLoop = loop;
+        return WalkResult::advance();
+      });
 
   if (!walkResult.wasInterrupted())
     return previousLoop;
@@ -565,10 +566,15 @@ bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
     return true;
 
   Block &outerLoopBody = outer.getLoopBody().front();
-  if (outerLoopBody.begin() != std::prev(outerLoopBody.end(), 2))
+  if (outerLoopBody.begin() != std::prev(outerLoopBody.end(), 2)) {
+    llvm::errs() << "line " << __LINE__ << "\n";
     return false;
+  }
 
-  return inner != dyn_cast<LoopLikeOpInterface>(&outerLoopBody.front());
+  llvm::errs() << "line " << __LINE__ << "\n";
+  llvm::errs() << "inner: " << inner << "\n";
+
+  return inner == dyn_cast<LoopLikeOpInterface>(&outerLoopBody.front());
 }
 
 //===----------------------------------------------------------------------===//

@@ -403,7 +403,7 @@ public:
   const OffsetVector &getOffsetVector() const { return offsets; }
 
   /// Analyze the memory access and classify its access pattern.
-  MemoryAccessPattern classifyMemoryAccess(DataFlowSolver &solver) const;
+  MemoryAccessPattern classify(DataFlowSolver &solver) const;
 
 private:
   MemoryAccessMatrix matrix; /// The memory access matrix.

@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
@@ -100,8 +102,9 @@ LogicalResult tile(SmallVectorImpl<scf::ForOp> &nestedLoops,
 class MemorySelector {
 public:
   MemorySelector(LoopLikeOpInterface loop,
-                 const MemoryAccessAnalysis &memAccessAnalysis)
-      : loop(loop), memAccessAnalysis(memAccessAnalysis) {
+                 const MemoryAccessAnalysis &memAccessAnalysis,
+                 DataFlowSolver &solver)
+      : loop(loop), memAccessAnalysis(memAccessAnalysis), solver(solver) {
     assert(!loop->getParentOfType<LoopLikeOpInterface>() &&
            "Expecting an inner loop");
     populate();
@@ -120,6 +123,10 @@ public:
 
 private:
   void populate();
+
+  /// Fill in \p threadsVars with the threads used in function containing the
+  /// loop.
+  void computeThreadVector(SmallVectorImpl<Value> &threadsVars) const;
 
   /// Add the given \p access to the 'accesses' map.
   void addMemRefAccess(affine::MemRefAccess access);
@@ -142,11 +149,11 @@ private:
   bool isCoalesced(affine::MemRefAccess *access) const;
 
 private:
-  /// The loop to analyze.
   LoopLikeOpInterface loop;
 
-  /// An immutable reference to the memory access analysis.
   const MemoryAccessAnalysis &memAccessAnalysis;
+
+  DataFlowSolver &solver;
 
   /// Collects all memory accesses for a given memref value.
   DenseMap<Value, SmallVector<affine::MemRefAccess *>> accesses;
@@ -161,7 +168,7 @@ void MemorySelector::populate() {
 
   // Collect all memref accesses in the loop that have an entry in the memory
   // access analysis.
-  loop->walk([&](Operation *op) {
+  loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
     if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
       return;
 
@@ -183,10 +190,28 @@ void MemorySelector::populate() {
     isReadWrite(entry.second);
     isWriteOnly(entry.second);
 
-    for (const affine::MemRefAccess *memRefAccess : entry.second) {
+    for (const affine::MemRefAccess *access : entry.second) {
+      std::optional<MemoryAccess> memAccess =
+          memAccessAnalysis.getMemoryAccess(*access);
+      assert(memAccess.has_value() &&
+             "Expecting an entry in the memory access analysis");
+
+      // Get the sub matrix describing the inter-thread access pattern.
+
+      MemoryAccessPattern pattern = memAccess->classify(solver);
+
       assert(0 && "TODO");
     }
   }
+}
+
+void MemorySelector::computeThreadVector(
+    SmallVectorImpl<Value> &threadsVars) const {
+  assert(threadsVars.empty() && "Expecting an empty vector");
+
+  assert(false && "TODO");
+  //  for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
+  //  loopAndThreadVars.emplace_back(getGlobalIdOp.getResult());
 }
 
 void MemorySelector::addMemRefAccess(affine::MemRefAccess access) {
@@ -245,30 +270,30 @@ struct LoopInternalization
 
 private:
   void transform(LoopLikeOpInterface loop,
-                 const MemoryAccessAnalysis &memAccessAnalysis) const;
+                 const MemoryAccessAnalysis &memAccessAnalysis,
+                 DataFlowSolver &solver) const;
 
   template <typename T, typename = std::enable_if_t<llvm::is_one_of<
                             T, affine::AffineForOp, scf::ForOp>::value>>
-  void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis) const {
+  void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis,
+                 DataFlowSolver &solver) const {
     FunctionOpInterface func =
         loop->template getParentOfType<FunctionOpInterface>();
 
     // Retrieve the innermost loop (exits iff the loop nest is perfect).
     std::optional<LoopLikeOpInterface> innermostLoop =
         LoopTools::getInnermostLoop(loop);
-    if (!innermostLoop)
+    if (!innermostLoop) {
+      llvm::dbgs() << "Not able to find innermost loop\n";
       return;
+    }
 
     assert(LoopTools::isPerfectLoopNest(loop) &&
            "Expecting a perfect loop nest");
 
-    LLVM_DEBUG({
-      llvm::dbgs() << "innermostLoop:\n";
-      innermostLoop->dump();
-    });
-
     // Analyze the memory accesses in the innermost loop.
-    MemorySelector memorySelector(*innermostLoop, memAccessAnalysis);
+    //    MemorySelector memorySelector(*innermostLoop, memAccessAnalysis,
+    //    solver);
 
     SmallVector<T> nestedLoops;
     LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
@@ -296,26 +321,39 @@ void LoopInternalization::runOnOperation() {
   auto &memAccessAnalysis =
       am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
 
-  op->walk([&](LoopLikeOpInterface loop) {
-    LLVM_DEBUG({
-      FunctionOpInterface func = loop->getParentOfType<FunctionOpInterface>();
-      llvm::dbgs() << "LoopInternalization: Visiting Function "
-                   << func.getName() << "\n Loop: ";
-      loop.dump();
+  auto walkResult = op->walk([&](FunctionOpInterface func) {
+    DataFlowSolver solver;
+    //    solver.load<dataflow::DeadCodeAnalysis>();
+    //  solver.load<dataflow::IntegerRangeAnalysis>();
+
+    // if (failed(solver.initializeAndRun(func)))
+    //  return WalkResult::interrupt();
+
+    func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+      LLVM_DEBUG({
+        llvm::dbgs() << "LoopInternalization: Visiting Function "
+                     << func.getName() << "\n Loop: ";
+        loop.dump();
+      });
+
+      if (!isCandidate(loop))
+        return;
+
+      transform(loop, memAccessAnalysis, solver);
     });
 
-    if (!isCandidate(loop))
-      return;
-
-    transform(loop, memAccessAnalysis);
+    return WalkResult::advance();
   });
+
+  if (walkResult.wasInterrupted())
+    signalPassFailure();
 }
 
 void LoopInternalization::transform(
-    LoopLikeOpInterface loop,
-    const MemoryAccessAnalysis &memAccessAnalysis) const {
+    LoopLikeOpInterface loop, const MemoryAccessAnalysis &memAccessAnalysis,
+    DataFlowSolver &solver) const {
   TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
-      [&](auto loop) { transform(loop, memAccessAnalysis); });
+      [&](auto loop) { transform(loop, memAccessAnalysis, solver); });
 }
 
 } // namespace

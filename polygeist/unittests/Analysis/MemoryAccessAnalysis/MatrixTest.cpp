@@ -339,8 +339,7 @@ TEST(MatrixTest, PatternClassification) {
 
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(linearAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
-                MemoryAccessPattern::Linear);
+    EXPECT_THAT(memoryAccess.classify(solver), MemoryAccessPattern::Linear);
   }
 
   // Test reverse linear access pattern.
@@ -355,7 +354,7 @@ TEST(MatrixTest, PatternClassification) {
 
     OffsetVector offsets({zero, zero, two});
     MemoryAccess memoryAccess(std::move(reverseAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::ReverseLinear);
   }
 
@@ -373,7 +372,7 @@ TEST(MatrixTest, PatternClassification) {
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(linearOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::LinearOverlapped);
   }
 
@@ -389,8 +388,7 @@ TEST(MatrixTest, PatternClassification) {
 
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(stridedAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
-                MemoryAccessPattern::Strided);
+    EXPECT_THAT(memoryAccess.classify(solver), MemoryAccessPattern::Strided);
   }
 
   // Test strided overlapped access pattern.
@@ -408,7 +406,7 @@ TEST(MatrixTest, PatternClassification) {
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(stridedOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::StridedOverlapped);
   }
 
@@ -419,7 +417,7 @@ TEST(MatrixTest, PatternClassification) {
 
     OffsetVector offsets({zero, zero, two});
     MemoryAccess memoryAccess(std::move(linearAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::LinearShifted);
   }
 
@@ -435,7 +433,7 @@ TEST(MatrixTest, PatternClassification) {
 
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::ReverseLinearShifted);
   }
 
@@ -455,7 +453,7 @@ TEST(MatrixTest, PatternClassification) {
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseLinearOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::ReverseLinearOverlapped);
   }
 
@@ -473,7 +471,7 @@ TEST(MatrixTest, PatternClassification) {
     OffsetVector offsets({zero, zero, two});
     MemoryAccess memoryAccess(std::move(reverseStridedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::ReverseStrided);
   }
 
@@ -490,7 +488,7 @@ TEST(MatrixTest, PatternClassification) {
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(stridedShiftedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::StridedShifted);
   }
 
@@ -509,7 +507,7 @@ TEST(MatrixTest, PatternClassification) {
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseStridedShiftedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::ReverseStridedShifted);
   }
 
@@ -529,7 +527,7 @@ TEST(MatrixTest, PatternClassification) {
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseStridedOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classifyMemoryAccess(solver),
+    EXPECT_THAT(memoryAccess.classify(solver),
                 MemoryAccessPattern::ReverseStridedOverlapped);
   }
 }
