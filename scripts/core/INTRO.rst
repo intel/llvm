@@ -302,3 +302,11 @@ Specific environment variables can be set to control the behavior of unified run
    .. note::
 
     This environment variable should be used together with :envvar:`UR_ENABLE_VALIDATION_LAYER` and :envvar:`UR_LOG_VALIDATION`.
+
+Service identifiers
+---------------------
+
+Unified Runtime may create logs containing Personally Identifiable Information (PII)
+in the form of unique device identifiers during its use.
+This capability is turned off by default.
+Please refer to the Logging_ and `Environment Variables`_ sections above for more information.
