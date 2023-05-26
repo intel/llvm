@@ -1180,6 +1180,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
                         ///< array of binaries. If a suitable binary was not
                         ///< found the function returns ${X}_INVALID_BINARY.
 ) {
+  std::ignore = Device;
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
   // image is preferred over SPIR-V for known devices (i.e. Intel devices)
