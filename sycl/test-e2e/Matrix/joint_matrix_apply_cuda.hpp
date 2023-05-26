@@ -73,11 +73,11 @@ void matrix_verify_lambda(queue q,
 
         sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
 
-        joint_matrix_store(sg, sub_c,
-                           accC.get_pointer() +
-                               (sg_startx * M) * (N * nWGperDim) +
-                               sg_starty / SG_SZ * N,
-                           (N * nWGperDim), layout::row_major);
+        joint_matrix_store(
+            sg, sub_c,
+            accC.template get_multi_ptr<access::decorated::no>() +
+                (sg_startx * M) * (N * nWGperDim) + sg_starty / SG_SZ * N,
+            (N * nWGperDim), layout::row_major);
       }); // parallel for
     });
   }
@@ -156,11 +156,11 @@ void matrix_verify_op(queue q, big_matrix<T2, M * nWGperDim, N * nWGperDim> &C,
 
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
 
-             joint_matrix_store(sg, sub_c,
-                                accC.get_pointer() +
-                                    (sg_startx * M) * (N * nWGperDim) +
-                                    sg_starty / SG_SZ * N,
-                                (N * nWGperDim), layout::row_major);
+             joint_matrix_store(
+                 sg, sub_c,
+                 accC.template get_multi_ptr<access::decorated::no>() +
+                     (sg_startx * M) * (N * nWGperDim) + sg_starty / SG_SZ * N,
+                 (N * nWGperDim), layout::row_major);
            }); // parallel for
      })
         .wait();

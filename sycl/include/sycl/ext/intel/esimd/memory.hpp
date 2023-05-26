@@ -171,9 +171,7 @@ template <typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N> gather(const Tx *p,
                                simd_view<Toffset, RegionTy> offsets,
                                simd_mask<N> mask = 1) {
-  using T = detail::__raw_t<Tx>;
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  return gather<Tx, N>(p, simd<Ty, N>(offsets), mask);
+  return gather<Tx, N>(p, offsets.read(), mask);
 }
 
 /// A variation of \c gather API with \c offsets represented as scalar.
@@ -250,9 +248,7 @@ template <typename Tx, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>>
 __ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
                          simd<Tx, N> vals, simd_mask<N> mask = 1) {
-  using T = detail::__raw_t<Tx>;
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  scatter<Tx, N>(p, simd<Ty, N>(offsets), vals, mask);
+  scatter<Tx, N>(p, offsets.read(), vals, mask);
 }
 
 /// A variation of \c scatter API with \c offsets represented as scalar.
@@ -525,6 +521,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 ///   \c float.
 /// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
 /// @tparam AccessorTy The accessor type.
+/// @tparam Toffset The offset type.
 /// @param acc The accessor to gather from.
 /// @param offsets Per-element offsets in bytes.
 /// @param glob_offset Offset in bytes added to each individual element's offset
@@ -533,12 +530,17 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 ///   predicate are not accessed, their values in the resulting vector are
 ///   undefined.
 ///
-template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
-                                 (N == 1 || N == 8 || N == 16 || N == 32) &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<T, N>>
-gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset>,
+    simd<T, N>>
+gather(AccessorTy acc, simd<Toffset, N> offsets,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+       uint64_t glob_offset = 0,
+#else
+       uint32_t glob_offset = 0,
+#endif
        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
@@ -558,6 +560,7 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 ///   \c float.
 /// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
 /// @tparam AccessorTy The accessor type.
+/// @tparam Toffset The offset type.
 /// @param acc The accessor to scatter to.
 /// @param offsets Per-element offsets in bytes.
 /// @param vals Values to write.
@@ -567,12 +570,17 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 ///   predicate are not accessed.
 ///
 ///
-template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
-                             (N == 1 || N == 8 || N == 16 || N == 32) &&
-                             !std::is_pointer<AccessorTy>::value>
-scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset>>
+scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+        uint64_t glob_offset = 0,
+#else
+        uint32_t glob_offset = 0,
+#endif
+        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
                 vals, mask);
@@ -675,8 +683,7 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
 __ESIMD_API simd<T, N * get_num_channels_enabled(RGBAMask)>
 gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
             simd_mask<N> mask = 1) {
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  return gather_rgba<RGBAMask, T, N>(p, simd<Ty, N>(offsets), mask);
+  return gather_rgba<RGBAMask, T, N>(p, offsets.read(), mask);
 }
 
 /// A variation of \c gather_rgba API with \c offsets represented as
@@ -782,8 +789,7 @@ __ESIMD_API void
 scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  scatter_rgba<RGBAMask, T, N>(p, simd<Ty, N>(offsets), vals, mask);
+  scatter_rgba<RGBAMask, T, N>(p, offsets.read(), vals, mask);
 }
 
 /// A variation of \c scatter_rgba API with \c offsets represented as
@@ -905,8 +911,10 @@ namespace detail {
 ///
 template <__ESIMD_NS::atomic_op Op, typename T, int N, unsigned NumSrc>
 constexpr void check_atomic() {
+
   static_assert((detail::isPowerOf2(N, 32)),
                 "Execution size 1, 2, 4, 8, 16, 32 are supported");
+
   static_assert(NumSrc == __ESIMD_DNS::get_num_args<Op>(),
                 "wrong number of operands");
   constexpr bool IsInt2BytePlus =
@@ -916,8 +924,7 @@ constexpr void check_atomic() {
                 Op == __ESIMD_NS::atomic_op::cmpxchg ||
                 Op == __ESIMD_NS::atomic_op::predec ||
                 Op == __ESIMD_NS::atomic_op::inc ||
-                Op == __ESIMD_NS::atomic_op::dec ||
-                Op == __ESIMD_NS::atomic_op::load) {
+                Op == __ESIMD_NS::atomic_op::dec) {
 
     static_assert(IsInt2BytePlus, "Integral 16-bit or wider type is expected");
   }
@@ -983,15 +990,23 @@ template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd<Tx, N> src0, simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  detail::check_atomic<Op, Tx, N, 1>();
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
                                                                 mask);
   } else if constexpr (Op == atomic_op::store) {
-    return atomic_update<atomic_op::xchg, Tx, N>(p, offset, src0, mask);
+    if constexpr (std::is_integral_v<Tx>) {
+      return atomic_update<atomic_op::xchg, Tx, N>(p, offset, src0, mask);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(Tx)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
+          reinterpret_cast<Tint *>(p), offset,
+          src0.template bit_cast_view<Tint>(), mask);
+      return Res.template bit_cast_view<Tx>();
+    }
   } else {
+    detail::check_atomic<Op, Tx, N, 1>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
@@ -1026,8 +1041,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
                                       simd_view<Toffset, RegionTy> offsets,
                                       simd<Tx, N> src0, simd_mask<N> mask) {
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), src0, mask);
+  return atomic_update<Op, Tx, N>(p, offsets.read(), src0, mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -1080,11 +1094,19 @@ template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  detail::check_atomic<Op, Tx, N, 0>();
   if constexpr (Op == atomic_op::load) {
-    return atomic_update<atomic_op::bit_or, Tx, N>(p, offset, simd<Tx, N>(0),
-                                                   mask);
+    if constexpr (std::is_integral_v<Tx>) {
+      return atomic_update<atomic_op::bit_or, Tx, N>(p, offset, simd<Tx, N>(0),
+                                                     mask);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(Tx)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
+          reinterpret_cast<Tint *>(p), offset, simd<Tint, N>(0), mask);
+      return Res.template bit_cast_view<Tx>();
+    }
   } else {
+    detail::check_atomic<Op, Tx, N, 0>();
+
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
@@ -1112,8 +1134,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p,
                                       simd_view<Toffset, RegionTy> offsets,
                                       simd_mask<N> mask = 1) {
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), mask);
+  return atomic_update<Op, Tx, N>(p, offsets.read(), mask);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -1160,12 +1181,12 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd<Tx, N> src0, simd<Tx, N> src1,
                                       simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  detail::check_atomic<Op, Tx, N, 2>();
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
                                                                 src1, mask);
   } else {
+    detail::check_atomic<Op, Tx, N, 2>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
@@ -1196,8 +1217,7 @@ template <atomic_op Op, typename Tx, int N, typename Toffset,
 __ESIMD_API simd<Tx, N>
 atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
-  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
-  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), src0, src1, mask);
+  return atomic_update<Op, Tx, N>(p, offsets.read(), src0, src1, mask);
 }
 
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -1221,6 +1241,352 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
 atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd<Tx, N> src1,
               simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), src0, src1,
+                                  mask);
+}
+
+/// @anchor accessor_atomic_update1
+/// @brief Single-argument variant of the atomic update operation.
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets, and returns a vector of old values found at the
+/// memory locations before update. The update operation has 1 additional
+/// argument.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
+              simd_mask<N> mask) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
+                                  offset, src0, mask);
+#else
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
+  if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
+                (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
+    // Auto-convert FP atomics to LSC version. Warning is given - see enum.
+    return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(acc, offset,
+                                                                src0, mask);
+  } else if constexpr (Op == atomic_op::store) {
+    if constexpr (std::is_integral_v<Tx>) {
+      return atomic_update<atomic_op::xchg, Tx, N>(acc, offset, src0, mask);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(Tx)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
+          acc, offset, src0.template bit_cast_view<Tint>(), mask);
+      return Res.template bit_cast_view<Tx>();
+    }
+  } else {
+    detail::check_atomic<Op, Tx, N, 1>();
+    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
+    const auto si = __ESIMD_NS::get_surface_index(acc);
+    using T = typename detail::__raw_t<Tx>;
+    return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offset.data(),
+                                           src0.data());
+  }
+#endif
+}
+
+/// A variation of \c atomic_update API with \c offsets represented as
+/// \c simd_view object.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
+/// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
+/// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
+/// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
+/// atomic_op::store.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offsets The simd_view of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+              simd<Tx, N> src0, simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, mask);
+}
+
+/// A variation of \c atomic_update API with \c offset represented as
+/// scalar object.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin \c atomic_op::store.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The scalar 32-bit or 64-bit offset in bytes. 64-bit
+/// offset are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer<AccessorTy>::value &&
+        ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
+    simd<Tx, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
+              simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, mask);
+}
+
+/// @anchor accessor_atomic_update0
+/// @brief No-argument variant of the atomic update operation.
+///
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets, and returns a vector of old values found at the
+/// memory locations before update. The update operation has no arguments
+/// in addition to the value at the memory location.
+///
+/// @tparam Op The atomic operation - can be \c atomic_op::inc or
+/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     !std::is_pointer<AccessorTy>::value,
+                                 simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
+                                  offset, mask);
+#else
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  if constexpr (Op == atomic_op::load) {
+    if constexpr (std::is_integral_v<Tx>) {
+      return atomic_update<atomic_op::bit_or, Tx, N>(acc, offset,
+                                                     simd<Tx, N>(0), mask);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(Tx)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
+          acc, offset, simd<Tint, N>(0), mask);
+      return Res.template bit_cast_view<Tx>();
+    }
+  } else {
+    detail::check_atomic<Op, Tx, N, 0>();
+    static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
+
+    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
+    const auto si = __ESIMD_NS::get_surface_index(acc);
+    using T = typename detail::__raw_t<Tx>;
+    return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offset.data());
+  }
+#endif
+}
+
+/// A variation of \c atomic_update API with \c offsets represented as
+/// \c simd_view object.
+///
+/// @tparam Op The atomic operation - can be \c atomic_op::inc or
+/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The simd_view of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+              simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(acc, offsets.read(), mask);
+}
+
+/// A variation of \c atomic_update API with \c offset represented as
+/// scalar.
+///
+/// @tparam Op The atomic operation - can be \c atomic_op::inc or
+/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The scalar 32-bit or 64-bit offset in bytes. 64-bit
+/// offset are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), mask);
+}
+
+/// @anchor accessor_atomic_update2
+/// Atomically updates \c N memory locations represented by an accessor and
+/// a vector of offsets and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpwr.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The vector of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
+              simd<Tx, N> src1, simd_mask<N> mask) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
+                                  offset, src0, src1, mask);
+#else
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
+  if constexpr (Op == atomic_op::fcmpwr) {
+    // Auto-convert FP atomics to LSC version. Warning is given - see enum.
+    return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(
+        acc, offset, src0, src1, mask);
+  } else {
+    detail::check_atomic<Op, Tx, N, 2>();
+    static_assert(sizeof(Tx) == 4, "Only 32 bit data is supported");
+    const auto si = __ESIMD_NS::get_surface_index(acc);
+    using T = typename detail::__raw_t<Tx>;
+    return __esimd_dword_atomic2<Op, T, N>(mask.data(), si, offset.data(),
+                                           src0.data(), src1.data());
+  }
+#endif
+}
+
+/// A variation of \c atomic_update API with \c offsets represented as
+/// \c simd_view object.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpwr.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The simd_view of 32-bit or 64-bit offsets in bytes. 64-bit
+/// offsets are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+              simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, src1, mask);
+}
+
+/// A variation of \c atomic_update API with \c offsets represented as
+/// scalar.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpwr.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @tparam AccessorTy type of the SYCL accessor.
+/// @param acc The SYCL accessor.
+/// @param offset The scalar 32-bit or 64-bit offset in bytes. 64-bit
+/// offset are supported only when stateless memory accesses are enforced, i.e.
+/// accessor based accesses are automatically converted to stateless accesses.
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<Tx, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
+              simd<Tx, N> src1, simd_mask<N> mask) {
+  return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
                                   mask);
 }
 

@@ -339,7 +339,11 @@ public:
   /// If this instruction already has !annotation metadata, append \p Annotation
   /// to the existing node.
   void addAnnotationMetadata(StringRef Annotation);
-
+  /// Adds an !annotation metadata node with an array of \p Annotations
+  /// as a tuple to this instruction. If this instruction already has
+  /// !annotation metadata, append the tuple to
+  /// the existing node.
+  void addAnnotationMetadata(SmallVector<StringRef> Annotations);
   /// Returns the AA metadata for this instruction.
   AAMDNodes getAAMetadata() const;
 
@@ -517,7 +521,7 @@ public:
   ///     applications, thus the N-way merging should be in code path.
   /// The DebugLoc attached to this instruction will be overwritten by the
   /// merged DebugLoc.
-  void applyMergedLocation(const DILocation *LocA, const DILocation *LocB);
+  void applyMergedLocation(DILocation *LocA, DILocation *LocB);
 
   /// Updates the debug location given that the instruction has been hoisted
   /// from a block to a predecessor of that block.

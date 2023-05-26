@@ -1,8 +1,8 @@
 // REQUIRES: opencl, cpu
 // RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.out 1 &> tmp.txt
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*,cpu" cat tmp.txt | %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:cpu,cpu" cat tmp.txt | %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.out 1 &> tmp.txt
+// RUN: cat tmp.txt | env ONEAPI_DEVICE_SELECTOR="opencl:*,cpu" %{run-unfiltered-devices} %t.out
+// RUN: cat tmp.txt | env ONEAPI_DEVICE_SELECTOR="opencl:cpu,cpu" %{run-unfiltered-devices} %t.out
 
 // on the first run we pass a dummy arg to the app. On seeing that, we count the
 // number of CPU devices and output it. That is piped  to a file. On subsequent
