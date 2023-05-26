@@ -54,6 +54,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_program_handle_t
         *Program ///< [out] pointer to handle of program object created.
 ) {
+  std::ignore = Properties;
   try {
     ur_program_handle_t_ *UrProgram =
         new ur_program_handle_t_(ur_program_handle_t_::IL, Context, IL, Length);
@@ -78,6 +79,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_program_handle_t
         *Program ///< [out] pointer to handle of Program object created.
 ) {
+  std::ignore = Device;
+  std::ignore = Properties;
   // In OpenCL, clCreateProgramWithBinary() can be used to load any of the
   // following: "program executable", "compiled program", or "library of
   // compiled programs".  In addition, the loaded program can be either
@@ -191,7 +194,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
     const char *Options ///< [in][optional] pointer to build options
                         ///< null-terminated string.
 ) {
-
+  std::ignore = Context;
   std::scoped_lock<ur_shared_mutex> Guard(Program->Mutex);
 
   // It's only valid to compile a program created from IL (we don't support
