@@ -1824,7 +1824,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int minor;
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&minor,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                              device->get()) == CUDA_SUCCESS);
     s << "." << minor;
     return getInfo(param_value_size, param_value, param_value_size_ret,
