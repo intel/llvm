@@ -1246,13 +1246,14 @@ private:
   // NOTE: mostly a copy-paste of ReadHeader method.
   Expected<std::vector<std::string>>
   ReadTargetsFromChild(const Archive::Child &C) {
-    auto BinOrErr = C.getAsBinary();
+    Expected<std::unique_ptr<Binary>> BinOrErr = C.getAsBinary();
     if (!BinOrErr)
       return BinOrErr.takeError();
 
-    auto &Bin = BinOrErr.get();
+    std::unique_ptr<Binary> &Bin = BinOrErr.get();
     auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
-    auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+    std::unique_ptr<MemoryBuffer> Buf =
+        MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
     ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
     if (Error Err = OFH.ReadHeader(*Buf))
       return Err;
@@ -1281,9 +1282,9 @@ private:
     // The workaround is to strip this Triple component if it is present.
     Triple.consume_back("-sycldevice");
     const auto &ExcludedTargetNames = BundlerConfig.ExcludedTargetNames;
-    auto it = std::find(ExcludedTargetNames.begin(), ExcludedTargetNames.end(),
+    auto It = std::find(ExcludedTargetNames.begin(), ExcludedTargetNames.end(),
                         Triple);
-    return it != ExcludedTargetNames.end();
+    return It != ExcludedTargetNames.end();
   }
 
   // Function reads targets from Child and checks whether one of Targets
