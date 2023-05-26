@@ -245,6 +245,16 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
+  // Opaque pointer arguments may hide types of pointer arguments until elements
+  // inside the types are accessed through a GEP instruction. However, this will
+  // not be caught by the operands check above, so we must extract the
+  // information directly from the GEP.
+  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I)) {
+    const AspectsSetTy &Aspects =
+        getAspectsFromType(GEPI->getSourceElementType(), Types);
+    Result.insert(Aspects.begin(), Aspects.end());
+  }
+
   return Result;
 }
 

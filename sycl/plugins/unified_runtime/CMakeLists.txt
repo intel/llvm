@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 74843ea0800e6fb7ce0f82e0ef991fc258f4b9bd)
+  set(UNIFIED_RUNTIME_TAG 620ddb1e8bb1f5ef6cc775edf79ba4674057fe2e)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -37,7 +37,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   # Restore original flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
-  add_library(UnifiedRuntimeLoader ALIAS loader)
+  add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
@@ -71,6 +71,7 @@ add_sycl_plugin(unified_runtime
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    LevelZeroLoader-Headers # we need for #include <ze_api.h> in ur_level_zero_common.h
 )
 
 # Build level zero adapter
@@ -90,22 +91,24 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_device.hpp"
     "ur/adapters/level_zero/ur_level_zero_event.hpp"
     "ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "ur/adapters/level_zero/ur_level_zero_module.hpp"
+    "ur/adapters/level_zero/ur_level_zero_kernel.hpp"
     "ur/adapters/level_zero/ur_level_zero_platform.hpp"
     "ur/adapters/level_zero/ur_level_zero_program.hpp"
     "ur/adapters/level_zero/ur_level_zero_queue.hpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
+    "ur/adapters/level_zero/ur_level_zero_usm.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_level_zero_common.cpp"
     "ur/adapters/level_zero/ur_level_zero_context.cpp"
     "ur/adapters/level_zero/ur_level_zero_device.cpp"
     "ur/adapters/level_zero/ur_level_zero_event.cpp"
     "ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "ur/adapters/level_zero/ur_level_zero_module.cpp"
+    "ur/adapters/level_zero/ur_level_zero_kernel.cpp"
     "ur/adapters/level_zero/ur_level_zero_platform.cpp"
     "ur/adapters/level_zero/ur_level_zero_program.cpp"
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
+    "ur/adapters/level_zero/ur_level_zero_usm.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES
@@ -127,16 +130,16 @@ if (TARGET UnifiedRuntimeLoader)
   # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
   # When UR is moved to its separate repo perhaps we should introduce new component,
   # e.g. unified-runtime-sycl-dev.
-  install(TARGETS loader
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+  install(TARGETS ur_loader
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
   )
 endif()
 
 # Install the UR adapters too
 install(TARGETS ur_adapter_level_zero
-ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
-LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
 )
