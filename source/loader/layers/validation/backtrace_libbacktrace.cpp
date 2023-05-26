@@ -42,14 +42,16 @@ int backtrace_cb(void *data, uintptr_t pc, const char *filename, int lineno,
     } else if (function != NULL) {
         backtraceLine << "(" << function << ") ";
     } else {
-        backtraceLine << "(????????) ";
+        // Note: Escaping the last '?' character to avoid creation of a trigraph character
+        backtraceLine << "(???????\?) ";
     }
 
     char filepath[PATH_MAX];
     if (realpath(filename, filepath) != NULL) {
         backtraceLine << "(" << filepath << ":" << std::dec << lineno << ")";
     } else {
-        backtraceLine << "(????????)";
+        // Note: Escaping the last '?' character to avoid creation of a trigraph character
+        backtraceLine << "(???????\?)";
     }
 
     std::vector<std::string> *backtrace =

@@ -36,7 +36,7 @@ target_link_libraries(ur_loader PRIVATE
 )
 
 if(UR_ENABLE_TRACING)
-    target_link_libraries(ur_loader PRIVATE xpti)
+    target_link_libraries(ur_loader PRIVATE ${TARGET_XPTI})
     target_include_directories(ur_loader PRIVATE ${xpti_SOURCE_DIR}/include)
     target_compile_definitions(ur_loader PRIVATE XPTI_STATIC_LIBRARY)
 endif()
@@ -92,8 +92,10 @@ endif()
 
 
 # link validation backtrace dependencies
-find_package(Libbacktrace)
-if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND AND UNIX)
+if(UNIX)
+    find_package(Libbacktrace)
+endif()
+if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND)
     message(STATUS "Using libbacktrace backtrace for validation")
 
     target_sources(ur_loader PRIVATE
