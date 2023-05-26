@@ -21,10 +21,23 @@ namespace d = s::detail;
 namespace __host_std {
 namespace {
 
-template <typename T> inline T __abs_diff(T x, T y) {
+template <typename T> inline std::make_unsigned_t<T> __abs_diff(T x, T y) {
   static_assert(std::is_integral<T>::value,
                 "Only integral types are supported");
-  return (x > y) ? (x - y) : (y - x);
+  if constexpr (std::is_unsigned_v<T>) {
+    return (x > y) ? (x - y) : (y - x);
+  } else {
+    // We need to be careful too avoid undefined behavior from signed integer
+    // overflow.
+    using UT = std::make_unsigned_t<T>;
+    UT ax = std::abs(x);
+    UT ay = std::abs(y);
+    // If only one of them was negative, the distance is the sum.
+    if ((x < 0) != (y < 0))
+      return ax + ay;
+    // Otherwise it is simply the distance between the absolute values.
+    return (ax > ay) ? (ax - ay) : (ay - ax);
+  }
 }
 
 template <typename T> inline T __u_add_sat(T x, T y) {
