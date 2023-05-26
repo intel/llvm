@@ -521,6 +521,10 @@ void LoopTools::versionLoop(LoopLikeOpInterface loop,
   VersionBuilder(loop).version(versionCond);
 }
 
+bool LoopTools::isOutermostLoop(LoopLikeOpInterface loop) {
+  return !loop->getParentOfType<LoopLikeOpInterface>();
+}
+
 bool LoopTools::isPerfectLoopNest(LoopLikeOpInterface root) {
   assert(root && "Expecting a valid pointer");
 
@@ -561,18 +565,12 @@ LoopTools::getInnermostLoop(LoopLikeOpInterface root) {
 bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
                                    LoopLikeOpInterface inner) {
   assert(outer && inner && "Expecting valid pointers");
-
   if (outer == inner)
     return true;
 
   Block &outerLoopBody = outer.getLoopBody().front();
-  if (outerLoopBody.begin() != std::prev(outerLoopBody.end(), 2)) {
-    llvm::errs() << "line " << __LINE__ << "\n";
+  if (outerLoopBody.begin() != std::prev(outerLoopBody.end(), 2))
     return false;
-  }
-
-  llvm::errs() << "line " << __LINE__ << "\n";
-  llvm::errs() << "inner: " << inner << "\n";
 
   return inner == dyn_cast<LoopLikeOpInterface>(&outerLoopBody.front());
 }
