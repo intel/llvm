@@ -1986,8 +1986,18 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    static_cast<uint32_t>(max_registers));
   }
 
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    sycl::detail::pi::assertion(
+        hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
+        hipSuccess);
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize) + 1,
+                        param_value_size, param_value, param_value_size_ret,
+                        AddressBuffer);
+  }
   // TODO: Investigate if this information is available on HIP.
-  case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
