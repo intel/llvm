@@ -1849,8 +1849,14 @@ static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracyStr) {
 void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
     const llvm::Type *FuncType) {
-  // First check that a specific accuracy hasn't been requested for this
-  // function.
+  // Priority is given to to the accuracy specific to the function.
+  // So, for example if the command line is something like this:
+  // 'clang -fp-accuracy = high -fp-accuracy = low:[sin]'.
+  // This means, all library functions will have the accuracy 'high'
+  // except 'sin', which should have an accuracy value of 'low'. To
+  // ensure that, first check that a specific accuracy hasn't been
+  // requested for this function, by visiting the 'FPAccuracyFuncMap', then
+  // set the accuracy for all other functions than 'sin'.
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
@@ -5595,7 +5601,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   Attrs = AllocAlignAttrEmitter.TryEmitAsCallSiteAttribute(Attrs);
 
   // Emit the actual call/invoke instruction.
-  llvm::CallBase *CI = nullptr;
+  llvm::CallBase *CI;
   if (!InvokeDest) {
     if (CGM.getCodeGenOpts().FPAccuracy) {
       const auto *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl);

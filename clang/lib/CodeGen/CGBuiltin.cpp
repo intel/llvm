@@ -496,7 +496,7 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
   llvm::CallInst *CI = CGF.Builder.CreateCall(FPBuiltinF, Args);
   llvm::AttributeList AttrList;
   // sincos() doesn 't return a value, but it still has a type associated with
-  // it that corresponds the operand type.
+  // it that corresponds to the operand type.
   if (Name == "sincos")
     CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID, Args[0]->getType());
   else
@@ -21895,7 +21895,6 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     llvm::Value *FnPtr, const FunctionDecl *FD) {
   llvm::Function *Func;
   unsigned FPAccuracyIntrinsicID = 0;
-  llvm::CallInst *CI = nullptr;
   StringRef Name;
   if (CurrentBuiltinID == 0) {
     // Even if the current function doesn't have a clang builtin, create
@@ -21916,7 +21915,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
               .Default(-1);
       assert(FPAccuracyIntrinsicID != -1 && "unexpected fpbuiltin ID");
     } else {
-      return CI;
+      return nullptr;
     }
   } else {
     // The function has a clang builtin. Create an attribute for it
@@ -21998,9 +21997,8 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     }
   }
   Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
-  CI = CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
-                                 FPAccuracyIntrinsicID);
-  return CI;
+  return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
+                                   FPAccuracyIntrinsicID);
 }
 
 Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,

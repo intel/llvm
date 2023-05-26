@@ -2897,7 +2897,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       HonorNaNs = true;
       ApproxFunc = false;
       // Turning *off* -ffast-math restores the toolchain default,
-      // unless the -fp-accuracy is used.
+      // unless -fp-accuracy is used.
       if (FPAccuracy.empty())
         MathErrno = TC.IsMathErrnoDefault();
       AssociativeMath = false;
@@ -3167,7 +3167,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       HonorNaNs = true;
       // Turning on -ffast-math (with either flag) removes the need for
       // MathErrno. However, turning *off* -ffast-math merely restores the
-      // toolchain default (which may be false). Unless -fp-accuracy is used.
+      // toolchain default (which may be false), unless -fp-accuracy is used.
       if (FPAccuracy.empty())
         MathErrno = TC.IsMathErrnoDefault();
       AssociativeMath = false;
