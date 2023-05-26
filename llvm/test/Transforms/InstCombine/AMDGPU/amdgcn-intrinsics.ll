@@ -567,9 +567,32 @@ define i1 @test_class_undef_mask_f32(float %x) nounwind {
   ret i1 %val
 }
 
+define i1 @test_class_poison_poison_f32(float %x) nounwind {
+; CHECK-LABEL: @test_class_poison_poison_f32(
+; CHECK-NEXT:    ret i1 undef
+;
+  %val = call i1 @llvm.amdgcn.class.f32(float poison, i32 poison)
+  ret i1 %val
+}
+define i1 @test_class_val_poison_f32(float %arg) nounwind {
+; CHECK-LABEL: @test_class_val_poison_f32(
+; CHECK-NEXT:    ret i1 false
+;
+  %val = call i1 @llvm.amdgcn.class.f32(float %arg, i32 poison)
+  ret i1 %val
+}
+
+define i1 @test_class_poison_val_f32(i32 %arg) nounwind {
+; CHECK-LABEL: @test_class_poison_val_f32(
+; CHECK-NEXT:    ret i1 undef
+;
+  %val = call i1 @llvm.amdgcn.class.f32(float poison, i32 %arg)
+  ret i1 %val
+}
+
 define i1 @test_class_over_max_mask_f32(float %x) nounwind {
 ; CHECK-LABEL: @test_class_over_max_mask_f32(
-; CHECK-NEXT:    [[VAL:%.*]] = call i1 @llvm.amdgcn.class.f32(float [[X:%.*]], i32 1)
+; CHECK-NEXT:    [[VAL:%.*]] = call i1 @llvm.is.fpclass.f32(float [[X:%.*]], i32 1)
 ; CHECK-NEXT:    ret i1 [[VAL]]
 ;
   %val = call i1 @llvm.amdgcn.class.f32(float %x, i32 1025)
@@ -616,6 +639,14 @@ define i1 @test_class_undef_val_f32() nounwind {
   ret i1 %val
 }
 
+define i1 @test_class_val_undef_f32(float %arg) nounwind {
+; CHECK-LABEL: @test_class_val_undef_f32(
+; CHECK-NEXT:    ret i1 false
+;
+  %val = call i1 @llvm.amdgcn.class.f32(float %arg, i32 undef)
+  ret i1 %val
+}
+
 define i1 @test_class_undef_undef_f32() nounwind {
 ; CHECK-LABEL: @test_class_undef_undef_f32(
 ; CHECK-NEXT:    ret i1 undef
@@ -644,7 +675,7 @@ define i1 @test_class_isnan_f32(float %x) nounwind {
 
 define i1 @test_class_isnan_f32_strict(float %x) nounwind {
 ; CHECK-LABEL: @test_class_isnan_f32_strict(
-; CHECK-NEXT:    [[VAL:%.*]] = call i1 @llvm.amdgcn.class.f32(float [[X:%.*]], i32 3) #[[ATTR15:[0-9]+]]
+; CHECK-NEXT:    [[VAL:%.*]] = call i1 @llvm.is.fpclass.f32(float [[X:%.*]], i32 3) #[[ATTR15:[0-9]+]]
 ; CHECK-NEXT:    ret i1 [[VAL]]
 ;
   %val = call i1 @llvm.amdgcn.class.f32(float %x, i32 3) strictfp
@@ -662,7 +693,7 @@ define i1 @test_class_is_p0_n0_f32(float %x) nounwind {
 
 define i1 @test_class_is_p0_n0_f32_strict(float %x) nounwind {
 ; CHECK-LABEL: @test_class_is_p0_n0_f32_strict(
-; CHECK-NEXT:    [[VAL:%.*]] = call i1 @llvm.amdgcn.class.f32(float [[X:%.*]], i32 96) #[[ATTR15]]
+; CHECK-NEXT:    [[VAL:%.*]] = call i1 @llvm.is.fpclass.f32(float [[X:%.*]], i32 96) #[[ATTR15]]
 ; CHECK-NEXT:    ret i1 [[VAL]]
 ;
   %val = call i1 @llvm.amdgcn.class.f32(float %x, i32 96) strictfp
@@ -883,7 +914,7 @@ define i1 @test_class_is_nan_nnan_src(float %x) {
 define i1 @test_class_is_nan_other_nnan_src(float %x) {
 ; CHECK-LABEL: @test_class_is_nan_other_nnan_src(
 ; CHECK-NEXT:    [[NNAN:%.*]] = fadd nnan float [[X:%.*]], 1.000000e+00
-; CHECK-NEXT:    [[CLASS:%.*]] = call i1 @llvm.amdgcn.class.f32(float [[NNAN]], i32 264)
+; CHECK-NEXT:    [[CLASS:%.*]] = call i1 @llvm.is.fpclass.f32(float [[NNAN]], i32 264)
 ; CHECK-NEXT:    ret i1 [[CLASS]]
 ;
   %nnan = fadd nnan float %x, 1.0
