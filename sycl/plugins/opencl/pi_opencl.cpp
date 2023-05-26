@@ -2300,6 +2300,16 @@ pi_result piextCommandBufferNDRangeKernel(
   return {};
 }
 
+pi_result
+piextCommandBufferMemcpyUSM(pi_ext_command_buffer command_buffer, void *dst_ptr,
+                            const void *src_ptr, size_t size,
+                            pi_uint32 num_sync_points_in_wait_list,
+                            const pi_ext_sync_point *sync_point_wait_list,
+                            pi_ext_sync_point *sync_point) {
+  // Not implemented
+  return {};
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
                                     pi_queue queue,
                                     pi_uint32 num_events_in_wait_list,
@@ -2509,6 +2519,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferRetain, piextCommandBufferRetain)
   _PI_CL(piextCommandBufferRelease, piextCommandBufferRelease)
   _PI_CL(piextCommandBufferNDRangeKernel, piextCommandBufferNDRangeKernel)
+  _PI_CL(piextCommandBufferMemcpyUSM, piextCommandBufferMemcpyUSM)
   _PI_CL(piextEnqueueCommandBuffer, piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)

@@ -8831,6 +8831,23 @@ pi_result _pi_buffer::free() {
 
 /// command-buffer Extension
 
+/// Helper function to take a list of pi_ext_sync_points and fill the provided
+/// vector with the associated ZeEvents
+static pi_result getEventsFromSyncPoints(
+    const std::unordered_map<pi_ext_sync_point, pi_event> &SyncPoints,
+    size_t NumSyncPointsInWaitList, const pi_ext_sync_point *SyncPointWaitList,
+    std::vector<ze_event_handle_t> &ZeEventList) {
+  for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
+    if (auto EventHandle = SyncPoints.find(SyncPointWaitList[i]);
+        EventHandle != SyncPoints.end()) {
+      ZeEventList.push_back(EventHandle->second->ZeEvent);
+    } else {
+      return PI_ERROR_INVALID_VALUE;
+    }
+  }
+  return PI_SUCCESS;
+}
+
 pi_result piextCommandBufferCreate(pi_context Context, pi_device Device,
                                    const pi_ext_command_buffer_desc *Desc,
                                    pi_ext_command_buffer *RetCommandBuffer) {
@@ -8935,19 +8952,16 @@ pi_result piextCommandBufferNDRangeKernel(
 
   ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
-  std::vector<ze_event_handle_t> ZeEventList(NumSyncPointsInWaitList);
-  for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
-    if (auto EventHandle = CommandBuffer->SyncPoints.find(SyncPointWaitList[i]);
-        EventHandle != CommandBuffer->SyncPoints.end()) {
-      ZeEventList[i] = CommandBuffer->SyncPoints[SyncPointWaitList[i]]->ZeEvent;
-    } else {
-      return PI_ERROR_INVALID_VALUE;
-    }
+  std::vector<ze_event_handle_t> ZeEventList;
+  pi_result Res = getEventsFromSyncPoints(CommandBuffer->SyncPoints,
+                                          NumSyncPointsInWaitList,
+                                          SyncPointWaitList, ZeEventList);
+  if (Res) {
+    return Res;
   }
-
   pi_event LaunchEvent;
-  auto res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
-  if (res)
+  Res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
+  if (Res)
     return PI_ERROR_OUT_OF_HOST_MEMORY;
 
   LaunchEvent->CommandData = (void *)Kernel;
@@ -8963,6 +8977,41 @@ pi_result piextCommandBufferNDRangeKernel(
            ZeEventList.data()));
 
   urPrint("calling zeCommandListAppendLaunchKernel() with"
+          "  ZeEvent %#lx\n",
+          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+  return PI_SUCCESS;
+}
+
+pi_result piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer CommandBuffer, void *DstPtr, const void *SrcPtr,
+    size_t Size, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  if (!DstPtr) {
+    return PI_ERROR_INVALID_VALUE;
+  }
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  pi_result Res = getEventsFromSyncPoints(CommandBuffer->SyncPoints,
+                                          NumSyncPointsInWaitList,
+                                          SyncPointWaitList, ZeEventList);
+  if (Res) {
+    return Res;
+  }
+
+  pi_event LaunchEvent;
+  Res = EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent);
+  if (Res)
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+
+  ZE_CALL(zeCommandListAppendMemoryCopy,
+          (CommandBuffer->ZeCommandList, DstPtr, SrcPtr, Size,
+           LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+
+  urPrint("calling zeCommandListAppendMemoryCopy() with"
           "  ZeEvent %#lx\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 

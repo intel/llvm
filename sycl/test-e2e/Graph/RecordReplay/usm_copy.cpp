@@ -2,9 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Expected fail as mem copy not implemented yet
-// XFAIL: *
-
 // Tests recording and submission of a graph containing usm memcpy commands.
 
 #include "../graph_common.hpp"
@@ -58,7 +55,8 @@ int main() {
   });
 
   // memcpy from A to B
-  auto EventC = Queue.copy(PtrA, PtrB, Size, EventB);
+  // Test memcpy specifically
+  auto EventC = Queue.memcpy(PtrB, PtrA, Size * sizeof(T), EventB);
 
   // Read and write B
   auto EventD = Queue.submit([&](handler &CGH) {
@@ -70,7 +68,11 @@ int main() {
   });
 
   // memcpy from B to C
-  Queue.copy(PtrB, PtrC, Size, EventD);
+  // Test handler submission instead of shortcut
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(EventD);
+    CGH.copy(PtrB, PtrC, Size);
+  });
 
   Graph.end_recording();
   auto GraphExec = Graph.finalize();
@@ -82,11 +84,12 @@ int main() {
       CGH.ext_oneapi_graph(GraphExec);
     });
   }
-  Queue.wait_and_throw();
 
-  Queue.copy(PtrA, DataA.data(), Size);
-  Queue.copy(PtrB, DataB.data(), Size);
-  Queue.copy(PtrC, DataC.data(), Size);
+  Queue.copy(PtrA, DataA.data(), Size, Event);
+  Queue.copy(PtrB, DataB.data(), Size, Event);
+  Queue.copy(PtrC, DataC.data(), Size, Event);
+
+  Queue.wait_and_throw();
 
   free(PtrA, Queue);
   free(PtrB, Queue);

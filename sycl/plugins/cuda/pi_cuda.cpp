@@ -5836,6 +5836,15 @@ pi_result cuda_piextCommandBufferNDRangeKernel(
   return {};
 }
 
+pi_result cuda_piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer command_buffer, void *dst_ptr, const void *src_ptr,
+    size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  sycl::detail::pi::die("command-buffer API not implemented in CUDA backend");
+  return {};
+}
+
 pi_result cuda_piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
                                          pi_queue queue,
                                          pi_uint32 num_events_in_wait_list,
@@ -6040,6 +6049,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextCommandBufferRetain, cuda_piextCommandBufferRetain)
   _PI_CL(piextCommandBufferRelease, cuda_piextCommandBufferRelease)
   _PI_CL(piextCommandBufferNDRangeKernel, cuda_piextCommandBufferNDRangeKernel)
+  _PI_CL(piextCommandBufferMemcpyUSM, cuda_piextCommandBufferMemcpyUSM)
   _PI_CL(piextEnqueueCommandBuffer, cuda_piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)

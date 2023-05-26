@@ -2,9 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Expected fail as memcopy not implemented yet
-// XFAIL: *
-
 // Tests adding a usm memcpy node using the explicit API and submitting
 // the graph.
 
@@ -45,7 +42,7 @@ int main() {
   Queue.copy(DataC.data(), PtrC, Size);
   Queue.wait_and_throw();
 
-  // memcpy from B to A
+  // Copy from B to A
   auto NodeA = Graph.add([&](handler &CGH) { CGH.copy(PtrB, PtrA, Size); });
 
   // Read & write A
@@ -58,9 +55,20 @@ int main() {
       },
       {exp_ext::property::node::depends_on(NodeA)});
 
-  // memcpy from B to A
-  auto NodeC = Graph.add([&](handler &CGH) { CGH.copy(PtrA, PtrB, Size); },
-                         {exp_ext::property::node::depends_on(NodeB)});
+  // Read & write B
+  auto NodeModB = Graph.add(
+      [&](handler &CGH) {
+        CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+          auto LinID = id.get_linear_id();
+          PtrB[LinID] += ModValue;
+        });
+      },
+      {exp_ext::property::node::depends_on(NodeA)});
+
+  // memcpy from A to B
+  auto NodeC =
+      Graph.add([&](handler &CGH) { CGH.memcpy(PtrB, PtrA, Size * sizeof(T)); },
+                {exp_ext::property::node::depends_on(NodeB, NodeModB)});
 
   // Read and write B
   auto NodeD = Graph.add(
@@ -72,9 +80,9 @@ int main() {
       },
       {exp_ext::property::node::depends_on(NodeC)});
 
-  // memcpy from B to C
+  // Copy from B to C
   Graph.add([&](handler &CGH) { CGH.copy(PtrB, PtrC, Size); },
-            {exp_ext::property::node::depends_on(NodeB)});
+            {exp_ext::property::node::depends_on(NodeD)});
 
   auto GraphExec = Graph.finalize();
 
@@ -86,11 +94,10 @@ int main() {
     });
   }
 
+  Queue.copy(PtrA, DataA.data(), Size, Event);
+  Queue.copy(PtrB, DataB.data(), Size, Event);
+  Queue.copy(PtrC, DataC.data(), Size, Event);
   Queue.wait_and_throw();
-
-  Queue.copy(PtrA, DataA.data(), Size);
-  Queue.copy(PtrB, DataB.data(), Size);
-  Queue.copy(PtrC, DataC.data(), Size);
 
   free(PtrA, Queue);
   free(PtrB, Queue);

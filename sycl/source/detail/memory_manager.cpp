@@ -1223,6 +1223,21 @@ void MemoryManager::copy_from_device_global(
                               DepEvents, OutEvent);
 }
 
+// Command buffer methods
+void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
+    ContextImplPtr Context, const void *SrcMem,
+    RT::PiExtCommandBuffer CommandBuffer, size_t Len, void *DstMem,
+    std::vector<RT::PiExtSyncPoint> Deps, RT::PiExtSyncPoint *OutSyncPoint) {
+  if (!SrcMem || !DstMem)
+    throw runtime_error("NULL pointer argument in memory copy operation.",
+                        PI_ERROR_INVALID_VALUE);
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferMemcpyUSM>(
+      CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
+      OutSyncPoint);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

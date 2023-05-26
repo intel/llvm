@@ -2487,6 +2487,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
                         MCommandGroup->MRequirements.size() == 0)
                            ? nullptr
                            : &MEvent->getHandleRef();
+  RT::PiExtSyncPoint OutSyncPoint;
   switch (MCommandGroup->getType()) {
   case CG::CGTYPE::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
@@ -2506,12 +2507,19 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         Event = &MEvent->getHandleRef();
       }
     }
-    RT::PiExtSyncPoint OutSyncPoint;
     auto result = enqueueImpCommandBufferKernel(
         MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
         *ExecKernel, MSyncPointDeps, &OutSyncPoint, getMemAllocationFunc);
     MEvent->setSyncPoint(OutSyncPoint);
     return result;
+  }
+  case CG::CGTYPE::CopyUSM: {
+    CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
+    MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
+        MQueue->getContextImplPtr(), Copy->getSrc(), MCommandBuffer,
+        Copy->getLength(), Copy->getDst(), MSyncPointDeps, &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
   }
   default:
     throw runtime_error("CG type not implemented for command buffers.",

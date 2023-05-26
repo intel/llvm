@@ -147,6 +147,7 @@ _PI_API(piextCommandBufferRetain)
 _PI_API(piextCommandBufferRelease)
 _PI_API(piextCommandBufferFinalize)
 _PI_API(piextCommandBufferNDRangeKernel)
+_PI_API(piextCommandBufferMemcpyUSM)
 _PI_API(piextEnqueueCommandBuffer)
 _PI_API(piPluginGetLastError)
 
