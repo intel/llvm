@@ -62,7 +62,7 @@ CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+CONSTFIX char clEnqueueMemFillName[] = "clEnqueueMemFillINTEL";
 CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
@@ -224,7 +224,7 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clMemBlockingFreeINTEL_fn> clMemBlockingFreeINTELCache;
   FuncPtrCache<clSetKernelArgMemPointerINTEL_fn>
       clSetKernelArgMemPointerINTELCache;
-  FuncPtrCache<clEnqueueMemsetINTEL_fn> clEnqueueMemsetINTELCache;
+  FuncPtrCache<clEnqueueMemFillINTEL_fn> clEnqueueMemFillINTELCache;
   FuncPtrCache<clEnqueueMemcpyINTEL_fn> clEnqueueMemcpyINTELCache;
   FuncPtrCache<clGetMemAllocInfoINTEL_fn> clGetMemAllocInfoINTELCache;
   FuncPtrCache<clEnqueueWriteGlobalVariable_fn>
@@ -1756,14 +1756,14 @@ pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     return cast<pi_result>(CLErr);
   }
 
-  clEnqueueMemsetINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal = getExtFuncFromContext<clEnqueueMemsetINTEL_fn>(
-      CLContext, ExtFuncPtrCache->clEnqueueMemsetINTELCache,
-      clEnqueueMemsetName, &FuncPtr);
+  clEnqueueMemFillINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clEnqueueMemFillINTELCache,
+      clEnqueueMemFillName, &FuncPtr);
 
   if (FuncPtr) {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, value,
-                                     count, num_events_in_waitlist,
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, &value,
+                                     1, count, num_events_in_waitlist,
                                      cast<const cl_event *>(events_waitlist),
                                      cast<cl_event *>(event)));
   }
