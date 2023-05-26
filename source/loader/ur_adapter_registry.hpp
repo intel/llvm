@@ -14,7 +14,7 @@
 #include "ur_loader_location.hpp"
 #include "ur_util.hpp"
 
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 
 namespace ur_loader {
 

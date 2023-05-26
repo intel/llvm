@@ -169,7 +169,7 @@ class FileSink : public Sink {
 
 inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
                                            std::string name,
-                                           std::filesystem::path file_path = "",
+                                           filesystem::path file_path = "",
                                            bool skip_prefix = false) {
     if (name == "stdout" && file_path.empty()) {
         return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix);

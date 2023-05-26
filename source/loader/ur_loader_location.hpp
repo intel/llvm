@@ -11,7 +11,7 @@
 
 #include "ur_filesystem_resolved.hpp"
 
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 
 namespace ur_loader {
 

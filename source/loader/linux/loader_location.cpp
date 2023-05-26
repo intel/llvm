@@ -12,7 +12,7 @@
 #include "ur_filesystem_resolved.hpp"
 #include "ur_loader.hpp"
 
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 
 namespace ur_loader {
 
