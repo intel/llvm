@@ -62,7 +62,7 @@ CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+CONSTFIX char clEnqueueMemFillName[] = "clEnqueueMemFillINTEL";
 CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
@@ -224,7 +224,7 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clMemBlockingFreeINTEL_fn> clMemBlockingFreeINTELCache;
   FuncPtrCache<clSetKernelArgMemPointerINTEL_fn>
       clSetKernelArgMemPointerINTELCache;
-  FuncPtrCache<clEnqueueMemsetINTEL_fn> clEnqueueMemsetINTELCache;
+  FuncPtrCache<clEnqueueMemFillINTEL_fn> clEnqueueMemFillINTELCache;
   FuncPtrCache<clEnqueueMemcpyINTEL_fn> clEnqueueMemcpyINTELCache;
   FuncPtrCache<clGetMemAllocInfoINTEL_fn> clGetMemAllocInfoINTELCache;
   FuncPtrCache<clEnqueueWriteGlobalVariable_fn>
@@ -605,7 +605,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
-    cl_bool result = CL_FALSE;
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
     bool supported = false;
 
     ret_err = checkDeviceExtensions(
@@ -616,18 +618,22 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
-    cl_bool result = false;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
-    cl_bool result = true;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = true;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
@@ -637,8 +643,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     // FIXME: here we assume that program built for a root GPU device can be
     // used on its sub-devices without re-building
-    cl_bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
@@ -715,7 +723,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
     cl_int ret_err = CL_SUCCESS;
-    cl_bool result = CL_FALSE;
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
     bool supported = false;
 
     ret_err =
@@ -725,7 +735,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   default:
@@ -1746,14 +1756,14 @@ pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     return cast<pi_result>(CLErr);
   }
 
-  clEnqueueMemsetINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal = getExtFuncFromContext<clEnqueueMemsetINTEL_fn>(
-      CLContext, ExtFuncPtrCache->clEnqueueMemsetINTELCache,
-      clEnqueueMemsetName, &FuncPtr);
+  clEnqueueMemFillINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clEnqueueMemFillINTELCache,
+      clEnqueueMemFillName, &FuncPtr);
 
   if (FuncPtr) {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, value,
-                                     count, num_events_in_waitlist,
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, &value,
+                                     1, count, num_events_in_waitlist,
                                      cast<const cl_event *>(events_waitlist),
                                      cast<cl_event *>(event)));
   }

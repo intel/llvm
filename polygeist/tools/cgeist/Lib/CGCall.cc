@@ -438,7 +438,7 @@ void MLIRScanner::emitCallToInheritedCtor(
     FunctionOpInterface::BlockArgListType Args) {
   // The constructor to call
   clang::CXXConstructorDecl *CtorDecl = InheritedCtor->getConstructor();
-  FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
+  FunctionToEmit F(*CtorDecl, FuncContext);
   auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
 
   // The arguments to the constructor
@@ -529,11 +529,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
             while (auto *CE = dyn_cast<llvm::ConstantExpr>(LC))
               LC = CE->getOperand(0);
             std::string Val = cast<llvm::GlobalVariable>(LC)->getName().str();
-            return CommonArrayToPointer(ValueCategory(
-                Glob.getOrCreateGlobalLLVMString(
-                    Loc, Builder, Val, mlirclang::getFuncContext(Function)),
-                /*isReference*/ true,
-                mlir::IntegerType::get(Builder.getContext(), 8)));
+            return CommonArrayToPointer(
+                ValueCategory(Glob.getOrCreateGlobalLLVMString(
+                                  Loc, Builder, Val, FuncContext),
+                              /*isReference*/ true,
+                              mlir::IntegerType::get(Builder.getContext(), 8)));
           }
         }
     }
@@ -957,7 +957,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       }
     }
 
-  FunctionContext FuncContext = mlirclang::getFuncContext(Function);
   if (auto *Ic = dyn_cast<clang::ImplicitCastExpr>(Expr->getCallee()))
     if (auto *Sr = dyn_cast<clang::DeclRefExpr>(Ic->getSubExpr())) {
       if ((Sr->getDecl()->getIdentifier() &&
@@ -1171,7 +1170,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
     return ValueCategory(Called, IsReference, ElementType);
   }
 
-  FunctionToEmit F(*Callee, mlirclang::getInputContext(Builder));
+  FunctionToEmit F(*Callee, FuncContext);
   auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> Args;
@@ -1233,8 +1232,8 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
 
         if (isa<LLVM::LLVMPointerType>(Arg.getType())) {
           const clang::FunctionDecl *Callee = EmitCallee(Expr->getCallee());
-          LLVM::LLVMFuncOp StrcmpF = Glob.getOrCreateLLVMFunction(
-              Callee, mlirclang::getFuncContext(Function));
+          LLVM::LLVMFuncOp StrcmpF =
+              Glob.getOrCreateLLVMFunction(Callee, FuncContext);
           Builder.create<LLVM::CallOp>(
               Loc, StrcmpF,
               ValueRange({Builder.create<LLVM::BitcastOp>(

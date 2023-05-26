@@ -172,6 +172,11 @@ public:
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs) const;
+  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+                          llvm::opt::ArgStringList &CmdArgs,
+                          llvm::opt::OptSpecifier Opt,
+                          llvm::opt::OptSpecifier Opt_EQ,
+                          StringRef Device) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }
@@ -198,11 +203,6 @@ protected:
   Tool *buildLinker() const override;
 
 private:
-  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
-                          llvm::opt::ArgStringList &CmdArgs,
-                          llvm::opt::OptSpecifier Opt,
-                          llvm::opt::OptSpecifier Opt_EQ,
-                          StringRef Device) const;
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;

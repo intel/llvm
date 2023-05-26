@@ -9652,6 +9652,14 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       ExtArg += ",+SPV_KHR_non_semantic_info";
 
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
+
+    const toolchains::SYCLToolChain &TC =
+        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
+    // Handle -Xspirv-translator
+    TC.TranslateTargetOpt(
+        TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
+        options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
   }
   for (auto I : Inputs) {
     std::string Filename(I.getFilename());
@@ -10028,8 +10036,13 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
   // Make sure we preserve any auxiliary data which may be present in the
-  // SPIR-V object, which we need for SPIR-V-based fat objects.
-  addArgs(CmdArgs, TCArgs, {"-llvm-spirv-opts", "--spirv-preserve-auxdata"});
+  // SPIR-V object, use SPIR-V style IR as opposed to OpenCL, and represent
+  // SPIR-V globals as global variables instead of functions, all of which we
+  // need for SPIR-V-based fat objects.
+  addArgs(CmdArgs, TCArgs,
+          {"-llvm-spirv-opts",
+           "--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
+           "--spirv-builtin-format=global"});
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),

@@ -351,6 +351,7 @@ InvokeSimd/Feature/ImplicitSubgroup/invoke_simd_struct_by_pointer.cpp
 InvokeSimd/Feature/invoke_simd_struct.cpp
 InvokeSimd/Feature/popcnt_emu.cpp
 InvokeSimd/Feature/scale.cpp
+InvokeSimd/Feature/scale_double.cpp
 InvokeSimd/Feature/split_module/SPMD_module.cpp
 InvokeSimd/Feature/void_retval.cpp
 InvokeSimd/Regression/call_vadd_1d_loop.cpp
