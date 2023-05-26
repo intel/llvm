@@ -1245,7 +1245,7 @@ public:
 private:
   // NOTE: mostly a copy-paste of ReadHeader method.
   Expected<std::vector<std::string>>
-  ReadTargetsFromChildren(const Archive::Child &C) {
+  ReadTargetsFromChild(const Archive::Child &C) {
     auto BinOrErr = C.getAsBinary();
     if (!BinOrErr)
       return BinOrErr.takeError();
@@ -1293,7 +1293,7 @@ private:
     if (BundlerConfig.ExcludedTargetNames.empty())
       return false;
 
-    auto TargetNamesOrErr = ReadTargetsFromChildren(C);
+    auto TargetNamesOrErr = ReadTargetsFromChild(C);
     if (!TargetNamesOrErr)
       return TargetNamesOrErr.takeError();
 
