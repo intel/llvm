@@ -6391,7 +6391,6 @@ public:
                           DerivedArgList &Args) {
     std::string InputName = InputArg->getAsString(Args);
     const Driver &D = C.getDriver();
-    bool IsFPGAEmulation = D.IsFPGAEmulationMode();
     // Only check for FPGA device information when using fpga SubArch.
     if (A->getType() == types::TY_Object && isObjectFile(InputName))
       return true;
