@@ -6419,12 +6419,13 @@ public:
         {types::TY_FPGA_AOCR_EMU, true}};
     for (const auto &ArchiveType : FPGAAOCTypes) {
       bool BinaryFound = hasFPGABinary(C, InputName, ArchiveType.first);
-      if (BinaryFound && ArchiveType.second == IsFPGAEmulation) {
+      if (BinaryFound && ArchiveType.second == D.IsFPGAEmulationMode()) {
         // Binary matches check and emulation type, we keep this one.
         A = C.MakeAction<InputAction>(*InputArg, ArchiveType.first);
         return true;
       }
-      ArchiveTypeMismatch(BinaryFound && ArchiveType.second != IsFPGAEmulation);
+      ArchiveTypeMismatch(BinaryFound &&
+                          ArchiveType.second == D.IsFPGAHWMode());
     }
     return true;
   }
