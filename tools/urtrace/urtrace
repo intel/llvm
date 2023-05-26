@@ -56,6 +56,7 @@ parser.add_argument("--time-unit", choices=['ns', 'us', 'ms', 's', 'auto'], defa
 parser.add_argument("--libpath", default=['.', '../lib/', '/lib/', '/usr/local/lib/', '/usr/lib/'], action="append", help="Search path for adapters and xpti libraries.")
 parser.add_argument("--recursive", help="Use recursive library search.", action="store_true")
 parser.add_argument("--debug", help="Print tool debug information.", action="store_true")
+parser.add_argument("--flush", choices=['debug', 'info', 'warning', 'error'], default='error', help="Set the flushing level of messages.", )
 args = parser.parse_args()
 config = vars(args)
 if args.debug:
@@ -80,10 +81,9 @@ env['UR_COLLECTOR_ARGS'] = collector_args
 log_collector = ""
 if args.debug:
     log_collector += "level:debug;"
-    log_collector += "flush:debug;"
 else:
     log_collector += "level:info;"
-    log_collector += "flush:info;"
+log_collector += f"flush:{args.flush};"
 if args.file:
     log_collector += "output:file," + args.file + ";"
 elif args.stdout:
