@@ -880,8 +880,6 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
-    // FIXME: this step should be conditional depending on whether or not ESIMD
-    // is actually used in a module
     SmallVector<module_split::ModuleDesc, 2> MMs =
         handleESIMD(std::move(MDesc), Modified, SplitOccurred);
 
