@@ -632,6 +632,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
                                ur_usm_device_mem_flags_t *Flags, size_t Size,
                                uint32_t Alignment) {
+  std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
   ZeDesc.flags = 0;
@@ -693,6 +694,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                              ur_usm_host_mem_flags_t *Flags, size_t Size,
                              uint32_t Alignment) {
+  std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
   ZeHostDesc.flags = 0;

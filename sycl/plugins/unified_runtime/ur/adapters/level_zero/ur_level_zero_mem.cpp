@@ -1236,6 +1236,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
+  std::ignore = Flags;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -1826,6 +1827,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     ur_mem_handle_t
         *RetMem ///< [out] pointer to the handle of sub buffer created
 ) {
+  std::ignore = BufferCreateType;
   UR_ASSERT(Buffer && !Buffer->isImage() &&
                 !(static_cast<_ur_buffer *>(Buffer))->isSubBuffer(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);

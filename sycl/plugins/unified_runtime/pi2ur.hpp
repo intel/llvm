@@ -1137,6 +1137,9 @@ inline pi_result piContextCreate(const pi_context_properties *Properties,
                                                    const void *PrivateInfo,
                                                    size_t CB, void *UserData),
                                  void *UserData, pi_context *RetContext) {
+  std::ignore = Properties;
+  std::ignore = PFnNotify;
+  std::ignore = UserData;
   auto UrDevices = reinterpret_cast<const ur_device_handle_t *>(Devices);
 
   ur_context_handle_t *UrContext =
@@ -1213,8 +1216,8 @@ inline pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
     ContextInfoType = UR_CONTEXT_INFO_REFERENCE_COUNT;
     break;
   }
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT: {
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT: {
     ContextInfoType = UR_CONTEXT_INFO_USM_FILL2D_SUPPORT;
     break;
   }
@@ -2337,6 +2340,7 @@ inline pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
                                    pi_usm_mem_properties *Properties,
                                    size_t Size, pi_uint32 Alignment) {
 
+  std::ignore = Properties;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_usm_desc_t USMDesc{};
@@ -2744,6 +2748,7 @@ inline pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                                      pi_usm_mem_properties *Properties,
                                      size_t Size, pi_uint32 Alignment) {
 
+  std::ignore = Properties;
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
@@ -2762,6 +2767,7 @@ inline pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                                      pi_usm_mem_properties *Properties,
                                      size_t Size, pi_uint32 Alignment) {
 
+  std::ignore = Properties;
   if (Properties && *Properties != 0) {
     PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
               PI_ERROR_INVALID_VALUE);
