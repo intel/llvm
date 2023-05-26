@@ -12,6 +12,7 @@
 // CHECK-NEXT:      affine.for %arg1 = [[MAP2]](%arg0)[[[TILESIZE]]] to min [[MAP3]](%arg0)[[[TILESIZE]]] {
 // CHECK-NEXT:        "test.foo"(%arg1) : (index) -> ()
 // CHECK-NEXT:      }
+// CHECK-NEXT:      spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
@@ -42,6 +43,7 @@ func.func @affine_1d() {
 // CHECK-NEXT:            "test.foo"(%arg2, %arg3) : (index, index) -> ()
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
+// CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
@@ -72,6 +74,7 @@ func.func @affine_2d() {
 // CHECK-NEXT:      scf.for %arg2 = %arg1 to [[VAL_3]] step %c1 {
 // CHECK-NEXT:        "test.foo"(%arg2) : (index) -> ()
 // CHECK-NEXT:      }
+// CHECK-NEXT:      spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
@@ -111,6 +114,7 @@ func.func @scf_1d(%arg0: memref<?x?xf32>) {
 // CHECK-NEXT:            "test.foo"(%arg3, %arg4) : (index, index) -> ()
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
+// CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return

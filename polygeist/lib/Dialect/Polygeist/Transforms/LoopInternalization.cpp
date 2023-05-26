@@ -143,6 +143,8 @@ void transform(T loop) {
   OpBuilder builder(loop);
   builder.setInsertionPointToStart(tiledNest.front()->getBlock());
   createLocalBarrier(builder);
+  builder.setInsertionPointAfter(tiledNest.front());
+  createLocalBarrier(builder);
 }
 
 void transform(LoopLikeOpInterface loop) {
