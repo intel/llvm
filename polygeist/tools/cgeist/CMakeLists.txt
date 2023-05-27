@@ -59,7 +59,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRSPIRVDialect
   MLIRSYCLDialect
   MLIROpenMPDialect
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRTransforms
   MLIRSCFToControlFlow
   MLIRFuncToLLVM
