@@ -147,9 +147,10 @@ define i1 @icmp_mismatch_flat_group_private_cmp_undef_swap(ptr addrspace(3) %gro
   ret i1 %cmp
 }
 
-; TODO: Should be handled
 ; CHECK-LABEL: @icmp_flat_flat_from_group_vector(
+; ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 ; CHECK: %cmp = icmp eq <2 x ptr> %cast0, %cast1
+; endif
 define <2 x i1> @icmp_flat_flat_from_group_vector(<2 x ptr addrspace(3)> %group.ptr.0, <2 x ptr addrspace(3)> %group.ptr.1) #0 {
   %cast0 = addrspacecast <2 x ptr addrspace(3)> %group.ptr.0 to <2 x ptr>
   %cast1 = addrspacecast <2 x ptr addrspace(3)> %group.ptr.1 to <2 x ptr>
