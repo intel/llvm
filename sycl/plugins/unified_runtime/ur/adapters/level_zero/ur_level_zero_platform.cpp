@@ -23,6 +23,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urInit(
 UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
     void *Params ///< [in] pointer to tear down parameters
 ) {
+  std::ignore = Params;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (ur_platform_handle_t Platform : *PiPlatformsCache) {
     delete Platform;
