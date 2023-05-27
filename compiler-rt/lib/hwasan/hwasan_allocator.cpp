@@ -149,8 +149,9 @@ void HwasanAllocatorInit() {
   atomic_store_relaxed(&hwasan_allocator_tagging_enabled,
                        !flags()->disable_allocator_tagging);
   SetAllocatorMayReturnNull(common_flags()->allocator_may_return_null);
-  allocator.Init(common_flags()->allocator_release_to_os_interval_ms,
-                 GetAliasRegionStart());
+  allocator.InitLinkerInitialized(
+      common_flags()->allocator_release_to_os_interval_ms,
+      GetAliasRegionStart());
   for (uptr i = 0; i < sizeof(tail_magic); i++)
     tail_magic[i] = GetCurrentThread()->GenerateRandomTag();
   if (common_flags()->max_allocation_size_mb) {
@@ -165,8 +166,11 @@ void HwasanAllocatorLock() { allocator.ForceLock(); }
 
 void HwasanAllocatorUnlock() { allocator.ForceUnlock(); }
 
-void AllocatorSwallowThreadLocalCache(AllocatorCache *cache) {
+void AllocatorThreadStart(AllocatorCache *cache) { allocator.InitCache(cache); }
+
+void AllocatorThreadFinish(AllocatorCache *cache) {
   allocator.SwallowCache(cache);
+  allocator.DestroyCache(cache);
 }
 
 static uptr TaggedSize(uptr size) {
@@ -288,8 +292,6 @@ static bool CheckInvalidFree(StackTrace *stack, void *untagged_ptr,
 
 static void HwasanDeallocate(StackTrace *stack, void *tagged_ptr) {
   CHECK(tagged_ptr);
-  RunFreeHooks(tagged_ptr);
-
   void *untagged_ptr = UntagPtr(tagged_ptr);
 
   if (CheckInvalidFree(stack, untagged_ptr, tagged_ptr))
@@ -304,6 +306,9 @@ static void HwasanDeallocate(StackTrace *stack, void *tagged_ptr) {
     ReportInvalidFree(stack, reinterpret_cast<uptr>(tagged_ptr));
     return;
   }
+
+  RunFreeHooks(tagged_ptr);
+
   uptr orig_size = meta->GetRequestedSize();
   u32 free_context_id = StackDepotPut(*stack);
   u32 alloc_context_id = meta->GetAllocStackId();

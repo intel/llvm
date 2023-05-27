@@ -980,10 +980,11 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
   if (attrs.name) {
     bool type_handled = false;
     if (tag == DW_TAG_subprogram || tag == DW_TAG_inlined_subroutine) {
-      ObjCLanguage::MethodName objc_method(attrs.name.GetStringRef(), true);
-      if (objc_method.IsValid(true)) {
+      std::optional<const ObjCLanguage::MethodName> objc_method =
+          ObjCLanguage::MethodName::Create(attrs.name.GetStringRef(), true);
+      if (objc_method) {
         CompilerType class_opaque_type;
-        ConstString class_name(objc_method.GetClassName());
+        ConstString class_name(objc_method->GetClassName());
         if (class_name) {
           TypeSP complete_objc_class_type_sp(
               dwarf->FindCompleteObjCDefinitionTypeForDIE(DWARFDIE(),
@@ -2617,13 +2618,19 @@ PropertyAttributes::PropertyAttributes(const DWARFDIE &die) {
   // Check if the property getter/setter were provided as full names.
   // We want basenames, so we extract them.
   if (prop_getter_name && prop_getter_name[0] == '-') {
-    ObjCLanguage::MethodName prop_getter_method(prop_getter_name, true);
-    prop_getter_name = prop_getter_method.GetSelector().GetCString();
+    std::optional<const ObjCLanguage::MethodName> prop_getter_method =
+        ObjCLanguage::MethodName::Create(prop_getter_name, true);
+    if (prop_getter_method)
+      prop_getter_name =
+          ConstString(prop_getter_method->GetSelector()).GetCString();
   }
 
   if (prop_setter_name && prop_setter_name[0] == '-') {
-    ObjCLanguage::MethodName prop_setter_method(prop_setter_name, true);
-    prop_setter_name = prop_setter_method.GetSelector().GetCString();
+    std::optional<const ObjCLanguage::MethodName> prop_setter_method =
+        ObjCLanguage::MethodName::Create(prop_setter_name, true);
+    if (prop_setter_method)
+      prop_setter_name =
+          ConstString(prop_setter_method->GetSelector()).GetCString();
   }
 
   // If the names haven't been provided, they need to be filled in.
@@ -2880,9 +2887,8 @@ void DWARFASTParserClang::ParseSingleMember(
 
     if (detect_unnamed_bitfields) {
       std::optional<FieldInfo> unnamed_field_info;
-      uint64_t last_field_end = 0;
-
-      last_field_end = last_field_info.bit_offset + last_field_info.bit_size;
+      uint64_t last_field_end =
+          last_field_info.bit_offset + last_field_info.bit_size;
 
       if (!last_field_info.IsBitfield()) {
         // The last field was not a bit-field...
@@ -2893,20 +2899,8 @@ void DWARFASTParserClang::ParseSingleMember(
           last_field_end += word_width - (last_field_end % word_width);
       }
 
-      // If we have a gap between the last_field_end and the current
-      // field we have an unnamed bit-field.
-      // If we have a base class, we assume there is no unnamed
-      // bit-field if this is the first field since the gap can be
-      // attributed to the members from the base class. This assumption
-      // is not correct if the first field of the derived class is
-      // indeed an unnamed bit-field. We currently do not have the
-      // machinary to track the offset of the last field of classes we
-      // have seen before, so we are not handling this case.
-      if (this_field_info.bit_offset != last_field_end &&
-          this_field_info.bit_offset > last_field_end &&
-          !(last_field_info.bit_offset == 0 &&
-            last_field_info.bit_size == 0 &&
-            layout_info.base_offsets.size() != 0)) {
+      if (ShouldCreateUnnamedBitfield(last_field_info, last_field_end,
+                                      this_field_info, layout_info)) {
         unnamed_field_info = FieldInfo{};
         unnamed_field_info->bit_size =
             this_field_info.bit_offset - last_field_end;
@@ -2947,8 +2941,10 @@ void DWARFASTParserClang::ParseSingleMember(
   // artificial member with (unnamed bitfield) padding.
   // FIXME: This check should verify that this is indeed an artificial member
   // we are supposed to ignore.
-  if (attrs.is_artificial)
+  if (attrs.is_artificial) {
+    last_field_info.SetIsArtificial(true);
     return;
+  }
 
   if (!member_clang_type.IsCompleteType())
     member_clang_type.GetCompleteType();
@@ -3700,4 +3696,36 @@ bool DWARFASTParserClang::CopyUniqueClassMethodTypes(
   }
 
   return !failures.empty();
+}
+
+bool DWARFASTParserClang::ShouldCreateUnnamedBitfield(
+    FieldInfo const &last_field_info, uint64_t last_field_end,
+    FieldInfo const &this_field_info,
+    lldb_private::ClangASTImporter::LayoutInfo const &layout_info) const {
+  // If we have a gap between the last_field_end and the current
+  // field we have an unnamed bit-field.
+  if (this_field_info.bit_offset <= last_field_end)
+    return false;
+
+  // If we have a base class, we assume there is no unnamed
+  // bit-field if either of the following is true:
+  // (a) this is the first field since the gap can be
+  // attributed to the members from the base class.
+  // FIXME: This assumption is not correct if the first field of
+  // the derived class is indeed an unnamed bit-field. We currently
+  // do not have the machinary to track the offset of the last field
+  // of classes we have seen before, so we are not handling this case.
+  // (b) Or, the first member of the derived class was a vtable pointer.
+  // In this case we don't want to create an unnamed bitfield either
+  // since those will be inserted by clang later.
+  const bool have_base = layout_info.base_offsets.size() != 0;
+  const bool this_is_first_field =
+      last_field_info.bit_offset == 0 && last_field_info.bit_size == 0;
+  const bool first_field_is_vptr =
+      last_field_info.bit_offset == 0 && last_field_info.IsArtificial();
+
+  if (have_base && (this_is_first_field || first_field_is_vptr))
+    return false;
+
+  return true;
 }
