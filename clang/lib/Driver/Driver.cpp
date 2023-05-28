@@ -115,6 +115,12 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
+static std::string standardizedTriple(std::string OrigTriple) {
+  llvm::Triple t = llvm::Triple(OrigTriple);
+  return llvm::Triple(t.getArchName(), t.getVendorName(),
+                      t.getOSName(), t.getEnvironmentName()).str() + "-";
+}
+
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
                                                           const ArgList &Args) {
   auto OffloadTargets = Args.getAllArgValues(options::OPT_offload_EQ);
@@ -5978,7 +5984,7 @@ class OffloadingActionBuilder final {
           SectionTriple += "-";
           SectionTriple += SyclTarget.BoundArch;
         }
-
+        SectionTriple = standardizedTriple(SectionTriple);
         // If any matching section is found, we are good.
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())
