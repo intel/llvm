@@ -116,6 +116,8 @@ using namespace clang;
 using namespace llvm::opt;
 
 static std::string standardizedTriple(std::string OrigTriple) {
+  if (OrigTriple.back() == '-') // Already standardized
+    return OrigTriple;
   llvm::Triple t = llvm::Triple(OrigTriple);
   return llvm::Triple(t.getArchName(), t.getVendorName(), t.getOSName(),
                       t.getEnvironmentName())
@@ -5973,7 +5975,7 @@ class OffloadingActionBuilder final {
             Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
           if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
               UniqueSections.end())
-            UniqueSections.push_back(Arch);
+            UniqueSections.push_back(standardizedTriple(Arch));
         }
       }
 
