@@ -117,8 +117,10 @@ using namespace llvm::opt;
 
 static std::string standardizedTriple(std::string OrigTriple) {
   llvm::Triple t = llvm::Triple(OrigTriple);
-  return llvm::Triple(t.getArchName(), t.getVendorName(),
-                      t.getOSName(), t.getEnvironmentName()).str() + "-";
+  return llvm::Triple(t.getArchName(), t.getVendorName(), t.getOSName(),
+                      t.getEnvironmentName())
+             .str() +
+         "-";
 }
 
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
