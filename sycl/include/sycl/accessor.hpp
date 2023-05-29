@@ -2377,13 +2377,6 @@ private:
 
   void preScreenAccessor(const size_t elemInBuffer,
                          const PropertyListT &PropertyList) {
-    // check device accessor buffer size
-    if (!IsHostBuf && elemInBuffer == 0)
-      throw sycl::invalid_object_error(
-          "SYCL buffer size is zero. To create a device accessor, SYCL "
-          "buffer size must be greater than zero.",
-          PI_ERROR_INVALID_VALUE);
-
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
