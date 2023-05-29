@@ -64,6 +64,8 @@ struct KernelsEnvironment : DevicesEnvironment {
     void LoadSource(const std::string &kernel_name, uint32_t device_index,
                     std::shared_ptr<std::vector<char>> &binary_out);
 
+    std::vector<std::string> GetEntryPointNames(std::string program);
+
     static KernelsEnvironment *instance;
 
   private:

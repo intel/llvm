@@ -49,7 +49,6 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
                                            nullptr, 1, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-    // does this make sense??
     ur_event_handle_t validEvent;
     ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
 
@@ -90,8 +89,8 @@ TEST_P(urEnqueueKernelLaunch2DTest, Success) {
     AddBuffer1DArg(buffer_size, &buffer);
     AddPodArg(val);
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         global_offset, global_size, nullptr,
-                                         0, nullptr, nullptr));
+                                         global_offset, global_size, nullptr, 0,
+                                         nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
     ValidateBuffer(buffer, buffer_size, val);
 }
@@ -105,7 +104,8 @@ struct urEnqueueKernelLaunch3DTest : uur::urKernelExecutionTest {
     uint32_t val = 42;
     size_t global_size[3] = {4, 4, 4};
     size_t global_offset[3] = {0, 0, 0};
-    size_t buffer_size = sizeof(val) * global_size[0] * global_size[1] * global_size[2];
+    size_t buffer_size =
+        sizeof(val) * global_size[0] * global_size[1] * global_size[2];
     size_t n_dimensions = 3;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunch3DTest);
@@ -115,8 +115,8 @@ TEST_P(urEnqueueKernelLaunch3DTest, Success) {
     AddBuffer1DArg(buffer_size, &buffer);
     AddPodArg(val);
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         global_offset, global_size, nullptr,
-                                         0, nullptr, nullptr));
+                                         global_offset, global_size, nullptr, 0,
+                                         nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
     ValidateBuffer(buffer, buffer_size, val);
 }

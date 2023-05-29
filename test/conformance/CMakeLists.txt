@@ -28,6 +28,7 @@ function(add_conformance_test_with_kernels_environment name)
     add_conformance_test(${name} ${ARGN})
     target_compile_definitions("test-${name}" PRIVATE KERNELS_ENVIRONMENT PRIVATE
       KERNELS_DEFAULT_DIR="${UR_CONFORMANCE_DEVICE_BINARIES_DIR}")
+    target_include_directories("test-${name}" PRIVATE ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
     add_dependencies("test-${name}" generate_device_binaries)
 endfunction()
 

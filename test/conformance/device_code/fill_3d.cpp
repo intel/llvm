@@ -1,5 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// SPDX-License-Identifier: MIT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// See LICENSE.TXT
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <CL/sycl.hpp>
 
@@ -13,7 +15,8 @@ int main() {
     uint32_t val = 42;
     cl::sycl::queue sycl_queue;
 
-    auto work_range = cl::sycl::nd_range<3>(nd_range, cl::sycl::range<3>(1, 1, 1));
+    auto work_range =
+        cl::sycl::nd_range<3>(nd_range, cl::sycl::range<3>(1, 1, 1));
     auto A_buff = cl::sycl::buffer<uint32_t>(
         A.data(), cl::sycl::range<1>(nd_range_x * nd_range_y));
     sycl_queue.submit([&](cl::sycl::handler &cgh) {

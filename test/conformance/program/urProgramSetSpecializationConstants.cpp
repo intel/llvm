@@ -20,11 +20,13 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramSetSpecializationConstantsTest);
 TEST_P(urProgramSetSpecializationConstantsTest, Success) {
     ASSERT_SUCCESS(urProgramSetSpecializationConstants(program, 1, &info));
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-    kernel_name = uur::getKernelName(program);
+    auto entry_points =
+        uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
+    kernel_name = entry_points[0];
     ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
 
     ur_mem_handle_t buffer;
-    AddBufferArg(sizeof(spec_value), &buffer);
+    AddBuffer1DArg(sizeof(spec_value), &buffer);
     Launch1DRange(1);
     ValidateBuffer<uint32_t>(buffer, sizeof(spec_value), spec_value);
 }
