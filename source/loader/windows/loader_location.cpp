@@ -16,7 +16,7 @@
 
 #define MAX_PATH_LEN_WIN 32767
 
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 
 namespace ur_loader {
 
