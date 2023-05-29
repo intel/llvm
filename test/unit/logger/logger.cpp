@@ -111,7 +111,7 @@ TEST_F(UniquePtrLoggerWithFilesink, NestedFilePath) {
     for (int i = 0; i < 20; ++i) {
         file_path /= dir_name;
     }
-    std::filesystem::create_directories(file_path);
+    filesystem::create_directories(file_path);
     file_path /= file_name;
     logger = std::make_unique<logger::Logger>(
         logger::Level::WARN, std::make_unique<logger::FileSink>(
