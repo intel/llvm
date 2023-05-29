@@ -863,9 +863,7 @@ int main() {
     } catch (const sycl::exception &e) {
       CaughtException = std::string(e.what()).find("Invalid memory object") !=
                         std::string::npos;
-      std::cout << e.what() << std::endl;
     }
-    std::cout << CaughtException << std::endl;
     assert(CaughtException && "Expected exception!");
   }
 
