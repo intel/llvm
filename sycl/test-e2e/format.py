@@ -13,6 +13,8 @@ def get_triple(test, backend):
             return 'nvptx64-nvidia-cuda'
         else:
             return 'amdgcn-amd-amdhsa'
+    if backend == 'native_cpu':
+        return 'native_cpu'
     return 'spir64'
 
 class SYCLEndToEndTest(lit.formats.ShTest):
