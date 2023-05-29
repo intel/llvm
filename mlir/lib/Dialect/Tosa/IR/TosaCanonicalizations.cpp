@@ -648,13 +648,13 @@ OpFoldResult MulOp::fold(FoldAdaptor adaptor) {
   const int64_t shift = llvm::isa<IntegerType>(resultETy) ? getShift() : 0;
   if (rhsTy == resultTy) {
     if (isSplatZero(resultETy, lhsAttr))
-      return lhsAttr;
+      return lhsAttr.resizeSplat(resultTy);
     if (isSplatOne(resultETy, lhsAttr, shift))
       return rhs;
   }
   if (lhsTy == resultTy) {
     if (isSplatZero(resultETy, rhsAttr))
-      return rhsAttr;
+      return rhsAttr.resizeSplat(resultTy);
     if (isSplatOne(resultETy, rhsAttr, shift))
       return lhs;
   }
@@ -1016,4 +1016,58 @@ OpFoldResult tosa::ExpOp::fold(FoldAdaptor adaptor) {
   }
 
   return {};
+}
+
+OpFoldResult tosa::NegateOp::fold(FoldAdaptor adaptor) {
+  auto input = getInput1();
+  // Element-wise negate(negate(x)) = x
+  if (auto op = input.getDefiningOp<tosa::NegateOp>()) {
+    return op.getInput1();
+  }
+
+  return {};
+}
+
+OpFoldResult tosa::AbsOp::fold(FoldAdaptor adaptor) {
+  auto input = getInput1();
+  // Element-wise abs(abs(x)) = abs(x)
+  if (auto op = input.getDefiningOp<tosa::AbsOp>()) {
+    return input;
+  }
+
+  return {};
+}
+
+OpFoldResult ConcatOp::fold(FoldAdaptor adaptor) {
+  // Fold consecutive concats on the same axis into a single op.
+  // Keep track of the operands so we are able to construct a new concat
+  // later. Conservatively assume that we double the number of operands when
+  // folding
+  SmallVector<Value, 8> concatOperands;
+  concatOperands.reserve(2 * getNumOperands());
+
+  // Find all operands that are foldable concats
+  bool foundFoldableConcat = false;
+  for (Value operand : getOperands()) {
+    concatOperands.emplace_back(operand);
+
+    auto producer = dyn_cast_or_null<ConcatOp>(operand.getDefiningOp());
+    if (!producer)
+      continue;
+
+    // Not foldable if axes are not the same
+    if (getAxis() != producer.getAxis())
+      continue;
+
+    // Replace the original operand with all incoming operands
+    foundFoldableConcat = true;
+    concatOperands.pop_back();
+    llvm::append_range(concatOperands, producer->getOperands());
+  }
+
+  if (!foundFoldableConcat)
+    return {};
+
+  getOperation()->setOperands(concatOperands);
+  return getResult();
 }
