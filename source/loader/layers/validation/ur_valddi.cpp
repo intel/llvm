@@ -3614,20 +3614,30 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         }
 
         if (bufferSlicePitch != 0 &&
-            bufferSlicePitch < region.height * bufferRowPitch) {
+            bufferSlicePitch <
+                region.height *
+                    (bufferRowPitch != 0 ? bufferRowPitch : region.width)) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0) {
+        if (bufferSlicePitch != 0 &&
+            bufferSlicePitch %
+                    (bufferRowPitch != 0 ? bufferRowPitch : region.width) !=
+                0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
         if (hostSlicePitch != 0 &&
-            hostSlicePitch < region.height * hostRowPitch) {
+            hostSlicePitch <
+                region.height *
+                    (hostRowPitch != 0 ? hostRowPitch : region.width)) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0) {
+        if (hostSlicePitch != 0 &&
+            hostSlicePitch %
+                    (hostRowPitch != 0 ? hostRowPitch : region.width) !=
+                0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
@@ -3715,20 +3725,30 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         }
 
         if (bufferSlicePitch != 0 &&
-            bufferSlicePitch < region.height * bufferRowPitch) {
+            bufferSlicePitch <
+                region.height *
+                    (bufferRowPitch != 0 ? bufferRowPitch : region.width)) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0) {
+        if (bufferSlicePitch != 0 &&
+            bufferSlicePitch %
+                    (bufferRowPitch != 0 ? bufferRowPitch : region.width) !=
+                0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
         if (hostSlicePitch != 0 &&
-            hostSlicePitch < region.height * hostRowPitch) {
+            hostSlicePitch <
+                region.height *
+                    (hostRowPitch != 0 ? hostRowPitch : region.width)) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0) {
+        if (hostSlicePitch != 0 &&
+            hostSlicePitch %
+                    (hostRowPitch != 0 ? hostRowPitch : region.width) !=
+                0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
@@ -3862,19 +3882,27 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (srcSlicePitch != 0 && srcSlicePitch < region.height * srcRowPitch) {
+        if (srcSlicePitch != 0 &&
+            srcSlicePitch < region.height * (srcRowPitch != 0 ? srcRowPitch
+                                                              : region.width)) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (srcSlicePitch != 0 && srcSlicePitch % srcRowPitch != 0) {
+        if (srcSlicePitch != 0 &&
+            srcSlicePitch % (srcRowPitch != 0 ? srcRowPitch : region.width) !=
+                0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (dstSlicePitch != 0 && dstSlicePitch < region.height * dstRowPitch) {
+        if (dstSlicePitch != 0 &&
+            dstSlicePitch < region.height * (dstRowPitch != 0 ? dstRowPitch
+                                                              : region.width)) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (dstSlicePitch != 0 && dstSlicePitch % dstRowPitch != 0) {
+        if (dstSlicePitch != 0 &&
+            dstSlicePitch % (dstRowPitch != 0 ? dstRowPitch : region.width) !=
+                0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
