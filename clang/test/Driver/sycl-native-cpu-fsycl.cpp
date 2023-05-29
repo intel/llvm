@@ -1,4 +1,3 @@
-//REQUIRES: native_cpu_be
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -ccc-print-bindings %s 2>&1 | FileCheck %s --check-prefix=CHECK_BINDINGS
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_INVO

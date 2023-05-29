@@ -1,4 +1,3 @@
-// REQUIRES: native_cpu_be
 // Checks that kernelhandler and subhandler are emitted in the integration headers.
 // The sycl-native-cpu helper header is always named <sycl-int-header>.hc
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -o %t.bc %s 

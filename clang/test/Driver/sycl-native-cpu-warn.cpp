@@ -1,4 +1,3 @@
-// REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets="native_cpu,spir64" -### %s 2>&1 | FileCheck %s
 
 // checks that we emit the correct warning when native_cpu is listed together with other sycl targets
