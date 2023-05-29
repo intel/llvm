@@ -1538,22 +1538,25 @@ ur_result_t UR_APICALL urSamplerRelease(
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_SAMPLER_INFO_FILTER_MODE < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pPropValue`
-///         + `NULL == pPropSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
 ur_result_t UR_APICALL urSamplerGetInfo(
     ur_sampler_handle_t hSampler, ///< [in] handle of the sampler object
     ur_sampler_info_t propName, ///< [in] name of the sampler property to query
     size_t
         propSize, ///< [in] size in bytes of the sampler property value provided
     void *
-        pPropValue, ///< [out][typename(propName, propSize)] value of the sampler property
+        pPropValue, ///< [out][typename(propName, propSize)][optional] value of the sampler
+                    ///< property
     size_t *
-        pPropSizeRet ///< [out] size in bytes returned in sampler property value
+        pPropSizeRet ///< [out][optional] size in bytes returned in sampler property value
     ) try {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Sampler.pfnGetInfo;
     if (nullptr == pfnGetInfo) {
