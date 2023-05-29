@@ -164,6 +164,11 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`propSize == 0 && pPropValue != NULL`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`propSize != 0 && pPropValue == NULL`"
+      - "`pPropValue == NULL && pPropSizeRet == NULL`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return sampler native sampler handle."

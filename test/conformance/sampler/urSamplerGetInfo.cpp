@@ -71,8 +71,22 @@ TEST_P(urSamplerGetInfoTest, InvalidEnumerationInfo) {
                      UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
-TEST_P(urSamplerGetInfoTest, InvalidValueNull) {
+TEST_P(urSamplerGetInfoTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(urSamplerGetInfo(sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
                                       0, nullptr, nullptr),
-                     UR_RESULT_ERROR_INVALID_VALUE);
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urSamplerGetInfoTest, InvalidNullPointerPropValue) {
+    ASSERT_EQ_RESULT(urSamplerGetInfo(sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
+                                      sizeof(ur_sampler_addressing_mode_t),
+                                      nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urSamplerGetInfoTest, InvalidSizePropSize) {
+    ur_sampler_addressing_mode_t mode;
+    ASSERT_EQ_RESULT(urSamplerGetInfo(sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
+                                      0, &mode, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
 }
