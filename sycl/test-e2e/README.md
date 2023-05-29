@@ -191,14 +191,14 @@ Defaults to AMD if no value is given. Supported values are:
 compilation command line for GPU device. If not specified "-device *" value
 is used.
 
-***SYCL_TEST_E2E_SUBDIR*** - to specify sub-directory(s) instead of running
-whole test cases in sycl/test-e2e.
+***SYCL_TEST_E2E_SUBDIR*** - to specify sub-directory(s) with semicolon-separated list
+instead of running whole test cases in sycl/test-e2e.
 Default value is '.' if no value is given. Example:
 ```
 -DSYCL_TEST_E2E_SUBDIR="Basic"
 ```
 ```
--DSYCL_TEST_E2E_SUBDIR="ESIMD InvokeSimd"
+-DSYCL_TEST_E2E_SUBDIR="Basic;OptionalKernelFeatures;DeviceGlobal"
 ```
 
 # Special test categories
