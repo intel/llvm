@@ -1168,6 +1168,14 @@ inline pi_result mock_piextCommandBufferNDRangeKernel(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextCommandBufferMemcpyUSM(
+    pi_ext_command_buffer command_buffer, void *dst_ptr, const void *src_ptr,
+    size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextEnqueueCommandBuffer(
     pi_ext_command_buffer command_buffer, pi_queue queue,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
