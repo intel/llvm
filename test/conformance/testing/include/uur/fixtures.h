@@ -628,41 +628,13 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     ur_program_handle_t program = nullptr;
 };
 
-inline std::string getKernelName(ur_program_handle_t program) {
-    size_t kernel_string_size = 0;
-    if (UR_RESULT_SUCCESS != urProgramGetInfo(program,
-                                              UR_PROGRAM_INFO_KERNEL_NAMES, 0,
-                                              nullptr, &kernel_string_size)) {
-        return "";
-    }
-    std::string kernel_string;
-    kernel_string.resize(kernel_string_size);
-    if (UR_RESULT_SUCCESS !=
-        urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                         kernel_string.size(), kernel_string.data(), nullptr)) {
-        return "";
-    }
-    std::stringstream kernel_stream(kernel_string);
-    std::string kernel_name;
-    bool found_kernel = false;
-    // Go through the semi-colon separated list of kernel names looking for
-    // one that isn't a wrapper or an offset handler.
-    while (kernel_stream.good()) {
-        getline(kernel_stream, kernel_name, ';');
-        if (kernel_name.find("wrapper") == std::string::npos &&
-            kernel_name.find("offset") == std::string::npos) {
-            found_kernel = true;
-            break;
-        }
-    }
-    return found_kernel ? kernel_name : "";
-}
-
 struct urKernelTest : urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-        kernel_name = getKernelName(program);
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
+        kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
         ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
     }
@@ -682,7 +654,10 @@ template <class T> struct urKernelTestWithParam : urProgramTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urProgramBuild(this->context, this->program, nullptr));
-        kernel_name = getKernelName(this->program);
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(
+                this->program_name);
+        kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
         ASSERT_SUCCESS(
             urKernelCreate(this->program, kernel_name.data(), &kernel));
@@ -717,12 +692,14 @@ struct urKernelExecutionTest : urKernelTest {
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
                                          nullptr, &mem_handle));
         char zero = 0;
-        ASSERT_SUCCESS(urEnqueueMemBufferFill(
-            queue, mem_handle, &zero, sizeof(zero), 0, size, 0, nullptr, nullptr));
+        ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, mem_handle, &zero,
+                                              sizeof(zero), 0, size, 0, nullptr,
+                                              nullptr));
         ASSERT_SUCCESS(urQueueFinish(queue));
         ASSERT_SUCCESS(
             urKernelSetArgMemObj(kernel, current_arg_index, mem_handle));
 
+        // This emulates the offset struct sycl adds for a 1D buffer accessor.
         struct {
             size_t offsets[1] = {0};
         } accessor;

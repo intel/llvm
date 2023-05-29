@@ -8,6 +8,10 @@
 
 #include "ur_filesystem_resolved.hpp"
 
+#ifdef KERNELS_ENVIRONMENT
+#include "kernel_entry_points.h"
+#endif
+
 #include <uur/environment.h>
 #include <uur/utils.h>
 
@@ -322,6 +326,15 @@ void KernelsEnvironment::LoadSource(
         std::make_shared<std::vector<char>>(std::move(device_binary));
     cached_kernels[kernel_name] = binary_ptr;
     binary_out = binary_ptr;
+}
+
+std::vector<std::string>
+KernelsEnvironment::GetEntryPointNames(std::string program_name) {
+    std::vector<std::string> entry_points;
+#ifdef KERNELS_ENVIRONMENT
+    entry_points = uur::device_binaries::program_kernel_map[program_name];
+#endif
+    return entry_points;
 }
 
 void KernelsEnvironment::SetUp() {

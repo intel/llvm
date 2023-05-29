@@ -13,8 +13,8 @@ TEST_P(urProgramGetNativeHandleTest, Success) {
     ASSERT_SUCCESS(urProgramGetNativeHandle(program, &native_program_handle));
 
     ur_program_handle_t native_program = nullptr;
-    ASSERT_SUCCESS(urProgramCreateWithNativeHandle(native_program_handle,
-                                                   context, &native_program));
+    ASSERT_SUCCESS(urProgramCreateWithNativeHandle(
+        native_program_handle, context, nullptr, &native_program));
 
     uint32_t ref_count = 0;
     ASSERT_SUCCESS(urProgramGetInfo(native_program,
