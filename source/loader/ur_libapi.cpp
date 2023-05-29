@@ -4006,10 +4006,10 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 ///         + `region.width == 0 || region.height == 0 || region.width == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
-///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height * bufferRowPitch`
-///         + `bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0`
-///         + `hostSlicePitch != 0 && hostSlicePitch < region.height * hostRowPitch`
-///         + `hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch % (bufferRowPitch != 0 ? bufferRowPitch : region.width) != 0`
+///         + `hostSlicePitch != 0 && hostSlicePitch < region.height * (hostRowPitch != 0 ? hostRowPitch : region.width)`
+///         + `hostSlicePitch != 0 && hostSlicePitch % (hostRowPitch != 0 ? hostRowPitch : region.width) != 0`
 ///         + If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -4090,10 +4090,10 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///         + `region.width == 0 || region.height == 0 || region.width == 0`
 ///         + `bufferRowPitch != 0 && bufferRowPitch < region.width`
 ///         + `hostRowPitch != 0 && hostRowPitch < region.width`
-///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height * bufferRowPitch`
-///         + `bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0`
-///         + `hostSlicePitch != 0 && hostSlicePitch < region.height * hostRowPitch`
-///         + `hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`
+///         + `bufferSlicePitch != 0 && bufferSlicePitch % (bufferRowPitch != 0 ? bufferRowPitch : region.width) != 0`
+///         + `hostSlicePitch != 0 && hostSlicePitch < region.height * (hostRowPitch != 0 ? hostRowPitch : region.width)`
+///         + `hostSlicePitch != 0 && hostSlicePitch % (hostRowPitch != 0 ? hostRowPitch : region.width) != 0`
 ///         + If the combination of `bufferOrigin`, `region`, `bufferRowPitch`, and `bufferSlicePitch` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -4227,10 +4227,10 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 ///         + `region.width == 0 || region.height == 0 || region.depth == 0`
 ///         + `srcRowPitch != 0 && srcRowPitch < region.height`
 ///         + `dstRowPitch != 0 && dstRowPitch < region.height`
-///         + `srcSlicePitch != 0 && srcSlicePitch < region.height * srcRowPitch`
-///         + `srcSlicePitch != 0 && srcSlicePitch % srcRowPitch != 0`
-///         + `dstSlicePitch != 0 && dstSlicePitch < region.height * dstRowPitch`
-///         + `dstSlicePitch != 0 && dstSlicePitch % dstRowPitch != 0`
+///         + `srcSlicePitch != 0 && srcSlicePitch < region.height * (srcRowPitch != 0 ? srcRowPitch : region.width)`
+///         + `srcSlicePitch != 0 && srcSlicePitch % (srcRowPitch != 0 ? srcRowPitch : region.width) != 0`
+///         + `dstSlicePitch != 0 && dstSlicePitch < region.height * (dstRowPitch != 0 ? dstRowPitch : region.width)`
+///         + `dstSlicePitch != 0 && dstSlicePitch % (dstRowPitch != 0 ? dstRowPitch : region.width) != 0`
 ///         + If the combination of `srcOrigin`, `region`, `srcRowPitch`, and `srcSlicePitch` results in an out-of-bounds access.
 ///         + If the combination of `dstOrigin`, `region`, `dstRowPitch`, and `dstSlicePitch` results in an out-of-bounds access.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
