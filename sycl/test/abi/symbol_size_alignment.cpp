@@ -52,7 +52,7 @@ int main() {
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
 #ifdef _MSC_VER
-  check<handler, 600, 8>();
+  check<handler, 624, 8>();
 #else
   check<handler, 608, 8>();
 #endif
