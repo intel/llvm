@@ -18,7 +18,10 @@ void testCospi() {
       0.042921588887841428949787569990803604014217853546142578125; // calculated
                                                                    // with
                                                                    // oclmath
-  const unsigned int ulpsExpected = 4; // from OpenCL spec
+  const unsigned int ulpsExpected =
+      4; // according to section 4.17.5 of the SYCL 2020 spec, math functions
+         // correspond to those from OpenCL 1.2 spec, so this accuracy comes
+         // from the OpenCL 1.2 spec
   const double differenceExpected = ulpsExpected * get_ulp_std(reference);
   const double hostDifference = std::fabs(sycl::cospi(value) - reference);
 
