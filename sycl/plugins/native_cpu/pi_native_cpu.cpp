@@ -600,12 +600,12 @@ pi_result piQueueFinish(pi_queue) {
 
 pi_result piQueueFlush(pi_queue) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
+pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *, int32_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                           pi_device, bool, pi_queue *) {
+pi_result piextQueueCreateWithNativeHandle(pi_native_handle, int32_t, pi_context,
+                                           pi_device, bool, pi_queue_properties *,  pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1185,7 +1185,7 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
 
 pi_result piextQueueCreate(pi_context context, pi_device device,
                            pi_queue_properties *properties, pi_queue *queue) {
-  DIE_NO_IMPLEMENTATION;
+  CONTINUE_NO_IMPLEMENTATION;
 }
 pi_result piextMemImageCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
