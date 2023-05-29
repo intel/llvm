@@ -37,6 +37,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRMemRefDialect
   MLIRNVVMDialect
   MLIRPass
+  MLIRPolygeistAnalysis  
   MLIRPolygeistDialect
   MLIRPolygeistUtils
   MLIRSCFUtils

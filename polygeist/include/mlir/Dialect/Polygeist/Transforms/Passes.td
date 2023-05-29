@@ -131,6 +131,11 @@ def LoopInternalization : Pass<"loop-internalization"> {
     memory by leveraging the loop tiling infrastructure.
   }];
   let constructor = "mlir::polygeist::createLoopInternalizationPass()";
+  let options = [
+    Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
+           /*default=*/"false", 
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+  ];
   let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect", "spirv::SPIRVDialect"];
 }
 

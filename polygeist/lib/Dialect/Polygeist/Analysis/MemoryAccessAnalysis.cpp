@@ -1075,8 +1075,7 @@ OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
 // MemoryAccess
 //===----------------------------------------------------------------------===//
 
-MemoryAccessPattern
-MemoryAccess::classifyMemoryAccess(DataFlowSolver &solver) const {
+MemoryAccessPattern MemoryAccess::classify(DataFlowSolver &solver) const {
   bool isZeroVector = offsets.isZero(solver);
 
   if (isZeroVector) {
@@ -1158,8 +1157,7 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
 
 void MemoryAccessAnalysis::build() {
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(
-      sycl::AliasAnalysis(false /* relaxedAliasing*/));
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   // Run the dataflow analysis we depend on.
   DataFlowSolver solver;

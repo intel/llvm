@@ -40,6 +40,7 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 static llvm::cl::opt<bool> LICMEnableSYCLAccessorVersioning(
     DEBUG_TYPE "-enable-sycl-accessor-versioning", llvm::cl::init(true),
@@ -56,7 +57,7 @@ static llvm::cl::opt<unsigned> LICMVersionLimit(
 
 namespace {
 
-struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
+struct LICM : public polygeist::impl::LICMBase<LICM> {
   using LICMBase<LICM>::LICMBase;
 
   void runOnOperation() override;
@@ -381,9 +382,9 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
     }
 
     Optional<sycl::AccessorPtrValue> opAccessor =
-        polygeist::getAccessorUsedByOperation(op);
+        getAccessorUsedByOperation(op);
     Optional<sycl::AccessorPtrValue> otherAccessor =
-        polygeist::getAccessorUsedByOperation(other);
+        getAccessorUsedByOperation(other);
     if (opAccessor.has_value() && otherAccessor.has_value())
       if (*opAccessor != *otherAccessor &&
           loop.isDefinedOutsideOfLoop(*opAccessor) &&
@@ -598,8 +599,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (LICMCandidates.empty())
     return 0;
 
-  polygeist::LoopTools loopTools;
-  loopTools.guardLoop(loop);
+  LoopTools::guardLoop(loop);
 
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
@@ -608,11 +608,10 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);
-      std::unique_ptr<polygeist::VersionCondition> condition =
-          polygeist::VersionConditionBuilder(accessorPairs, builder,
-                                             loop->getLoc())
+      std::unique_ptr<VersionCondition> condition =
+          VersionConditionBuilder(accessorPairs, builder, loop->getLoc())
               .createCondition(useOpaquePointers);
-      loopTools.versionLoop(loop, *condition);
+      LoopTools::versionLoop(loop, *condition);
     }
 
     loop.moveOutOfLoop(&candidate.getOperation());
@@ -682,11 +681,10 @@ void LICM::runOnOperation() {
   });
 }
 
-std::unique_ptr<Pass> mlir::polygeist::createLICMPass() {
+std::unique_ptr<Pass> polygeist::createLICMPass() {
   return std::make_unique<LICM>();
 }
 
-std::unique_ptr<Pass>
-mlir::polygeist::createLICMPass(const LICMOptions &options) {
+std::unique_ptr<Pass> polygeist::createLICMPass(const LICMOptions &options) {
   return std::make_unique<LICM>(options);
 }

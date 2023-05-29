@@ -388,7 +388,6 @@ private:
 ///   | 0  c3|   |j|   |c4|
 ///
 class MemoryAccess {
-  template <typename T>
   friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess &);
 
 public:
@@ -404,14 +403,13 @@ public:
   const OffsetVector &getOffsetVector() const { return offsets; }
 
   /// Analyze the memory access and classify its access pattern.
-  MemoryAccessPattern classifyMemoryAccess(DataFlowSolver &solver) const;
+  MemoryAccessPattern classify(DataFlowSolver &solver) const;
 
 private:
   MemoryAccessMatrix matrix; /// The memory access matrix.
   OffsetVector offsets;      /// The offset vector.
 };
 
-template <typename OpTy>
 inline raw_ostream &operator<<(raw_ostream &os, const MemoryAccess &access) {
   os << "--- MemoryAccess ---\n\n";
   os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
@@ -423,6 +421,11 @@ inline raw_ostream &operator<<(raw_ostream &os, const MemoryAccess &access) {
 class MemoryAccessAnalysis {
 public:
   MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
+
+  MemoryAccessAnalysis &initialize(bool relaxedAliasing) {
+    this->relaxedAliasing = relaxedAliasing;
+    return *this;
+  }
 
   bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa);
 
@@ -486,6 +489,10 @@ private:
 
   /// The analysis manager.
   AnalysisManager &am;
+
+  /// Whether to assume the program abides to strict aliasing rules (i.e type
+  /// based aliasing) or not.
+  bool relaxedAliasing = false;
 };
 
 } // namespace polygeist

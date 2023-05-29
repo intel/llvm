@@ -11,9 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
@@ -32,44 +36,32 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 static llvm::cl::list<unsigned> LoopInternalizationTileSizes(
     DEBUG_TYPE "-tile-sizes", llvm::cl::CommaSeparated,
     llvm::cl::desc("Tile sizes used in LoopInternalization"));
 
 namespace {
-/// Collect perfectly nested loops starting from \p root.  Loops are
-/// perfectly nested if each loop is the first and only non-terminator operation
-/// in the parent loop.
-template <typename T, typename = std::enable_if_t<llvm::is_one_of<
-                          T, affine::AffineForOp, scf::ForOp>::value>>
-void getPerfectlyNestedLoops(SmallVector<T> &nestedLoops, T root) {
-  for (unsigned i = 0; i < std::numeric_limits<unsigned>::max(); ++i) {
-    nestedLoops.push_back(root);
-    assert(root.getLoopBody().hasOneBlock() && "Expecting single block");
-    Block &body = root.getLoopBody().front();
-    if (body.begin() != std::prev(body.end(), 2))
-      return;
 
-    root = dyn_cast<T>(&body.front());
-    if (!root)
-      return;
-  }
-}
-
-bool isOutermostLoop(LoopLikeOpInterface loop) {
-  return !loop->getParentOfType<LoopLikeOpInterface>();
-}
+//===----------------------------------------------------------------------===//
+// Utilities functions
+//===----------------------------------------------------------------------===//
 
 /// A loop is a candidate when it is the outermost affine or scf for loop.
 bool isCandidate(LoopLikeOpInterface loop) {
-  if (!isOutermostLoop(loop)) {
+  if (!isa<affine::AffineForOp, scf::ForOp>(loop)) {
+    LLVM_DEBUG(llvm::dbgs() << "not candidate: not affine or scf for loop\n");
+    return false;
+  }
+
+  if (!LoopTools::isOutermostLoop(loop)) {
     LLVM_DEBUG(llvm::dbgs() << "not candidate: not outermost loop\n");
     return false;
   }
 
-  if (!isa<affine::AffineForOp, scf::ForOp>(loop)) {
-    LLVM_DEBUG(llvm::dbgs() << "not candidate: not affine or scf for loop\n");
+  if (!LoopTools::isPerfectLoopNest(loop)) {
+    LLVM_DEBUG(llvm::dbgs() << "not candidate: not perfect loop nest\n");
     return false;
   }
 
@@ -121,55 +113,88 @@ void createLocalBarrier(OpBuilder builder) {
           spirv::MemorySemantics::WorkgroupMemory);
 }
 
-template <typename T, typename = std::enable_if_t<llvm::is_one_of<
-                          T, affine::AffineForOp, scf::ForOp>::value>>
-void transform(T loop) {
-  FunctionOpInterface func =
-      loop->template getParentOfType<FunctionOpInterface>();
-  SmallVector<T> nestedLoops;
-  getPerfectlyNestedLoops(nestedLoops, loop);
-  SmallVector<Value> tileSizes;
-  if (getTileSizes(nestedLoops, tileSizes).failed())
-    return;
-  SmallVector<T> tiledNest;
-  LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
-  LLVM_DEBUG({
-    if (res.succeeded())
-      llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n";
-    else
-      llvm::dbgs() << "Tile NOT performed\n";
-  });
-  // TODO: promote loop accesses to local memory.
-  OpBuilder builder(loop);
-  builder.setInsertionPointToStart(tiledNest.front()->getBlock());
-  createLocalBarrier(builder);
-  builder.setInsertionPointAfter(tiledNest.front());
-  createLocalBarrier(builder);
-}
-
-void transform(LoopLikeOpInterface loop) {
-  TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
-      [&](auto loop) { transform(loop); });
-}
+//===----------------------------------------------------------------------===//
+// LoopInternalization
+//===----------------------------------------------------------------------===//
 
 struct LoopInternalization
     : public polygeist::impl::LoopInternalizationBase<LoopInternalization> {
-  void runOnOperation() override {
-    getOperation()->walk([&](LoopLikeOpInterface loop) {
-      LLVM_DEBUG({
-        FunctionOpInterface func = loop->getParentOfType<FunctionOpInterface>();
-        llvm::dbgs() << "LoopInternalization: Visiting Function "
-                     << func.getName() << "\n Loop: ";
-        loop.dump();
+  using LoopInternalizationBase<LoopInternalization>::LoopInternalizationBase;
+
+  void runOnOperation() final {
+    Operation *module = getOperation();
+    ModuleAnalysisManager mam(module, /*passInstrumentor=*/nullptr);
+    AnalysisManager am = mam;
+    auto &memAccessAnalysis =
+        am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
+
+    auto walkResult = module->walk([&](FunctionOpInterface func) {
+      DataFlowSolver solver;
+      solver.load<dataflow::DeadCodeAnalysis>();
+      solver.load<dataflow::IntegerRangeAnalysis>();
+      if (failed(solver.initializeAndRun(func)))
+        return WalkResult::interrupt();
+
+      LLVM_DEBUG(llvm::dbgs() << "LoopInternalization: Visiting Function "
+                              << func.getName() << "\n");
+      func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "LoopInternalization: Visiting Loop " << loop << "\n");
+
+        if (!isCandidate(loop))
+          return;
+
+        transform(loop, memAccessAnalysis, solver);
       });
 
-      if (!isCandidate(loop))
-        return;
-
-      transform(loop);
+      return WalkResult::advance();
     });
+
+    if (walkResult.wasInterrupted())
+      signalPassFailure();
+  }
+
+private:
+  void transform(LoopLikeOpInterface loop,
+                 const MemoryAccessAnalysis &memAccessAnalysis,
+                 DataFlowSolver &solver) const {
+    TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
+        [&](auto loop) { transform(loop, memAccessAnalysis, solver); });
+  }
+
+  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                            T, affine::AffineForOp, scf::ForOp>::value>>
+  void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis,
+                 DataFlowSolver &solver) const {
+    FunctionOpInterface func =
+        loop->template getParentOfType<FunctionOpInterface>();
+
+    LoopLikeOpInterface innermostLoop = *LoopTools::getInnermostLoop(loop);
+
+    SmallVector<T> nestedLoops;
+    LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
+
+    SmallVector<Value> tileSizes;
+    if (getTileSizes(nestedLoops, tileSizes).failed())
+      return;
+
+    SmallVector<T> tiledNest;
+    LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
+    LLVM_DEBUG({
+      if (res.succeeded())
+        llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n";
+      else
+        llvm::dbgs() << "Tile NOT performed\n";
+    });
+    // TODO: promote loop accesses to local memory.
+    OpBuilder builder(loop);
+    builder.setInsertionPointToStart(tiledNest.front()->getBlock());
+    createLocalBarrier(builder);
+    builder.setInsertionPointAfter(tiledNest.front());
+    createLocalBarrier(builder);
   }
 };
+
 } // namespace
 
 std::unique_ptr<Pass> polygeist::createLoopInternalizationPass() {

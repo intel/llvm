@@ -264,15 +264,51 @@ private:
 // Loop Tools
 //===----------------------------------------------------------------------===//
 
-/// A collection of tools for loop transformations.
+/// A collection of tools for loop analysis and transformations.
 class LoopTools {
 public:
   /// Guard the given loop \p loop.
-  void guardLoop(LoopLikeOpInterface loop) const;
+  static void guardLoop(LoopLikeOpInterface loop);
 
   /// Version the given loop \p loop using the condition \p versionCond.
-  void versionLoop(LoopLikeOpInterface loop,
-                   const VersionCondition &versionCond) const;
+  static void versionLoop(LoopLikeOpInterface loop,
+                          const VersionCondition &versionCond);
+
+  /// Return true is \p loop is the outermost loop in a loop nest and false
+  /// otherwise.
+  static bool isOutermostLoop(LoopLikeOpInterface loop);
+
+  /// Collect perfectly nested loops starting from \p root. Loops are perfectly
+  /// nested if each loop is the first and only non-terminator operation in the
+  /// parent loop.
+  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                            T, affine::AffineForOp, scf::ForOp>::value>>
+  static void getPerfectlyNestedLoops(SmallVector<T> &nestedLoops, T root) {
+    LoopLikeOpInterface previousLoop = root;
+    root->template walk<WalkOrder::PreOrder>([&](T loop) {
+      if (!arePerfectlyNested(previousLoop, loop))
+        return WalkResult::interrupt();
+      nestedLoops.push_back(loop);
+      previousLoop = loop;
+      return WalkResult::advance();
+    });
+  }
+
+  /// Return true if the loop nest rooted at \p root is perfectly nested.
+  /// Note that \p root can, but it need not, be the outermost loop in a loop
+  /// nest.
+  static bool isPerfectLoopNest(LoopLikeOpInterface root);
+
+  /// Return the innermost loop in the perfect loop nest rooted by \p root or
+  /// std::nullopt if the loop nest is not perfect.
+  static std::optional<LoopLikeOpInterface>
+  getInnermostLoop(LoopLikeOpInterface root);
+
+private:
+  /// Return true if \p outer and \p inner are perfectly nested with respect to
+  /// each other and false otherwise.
+  static bool arePerfectlyNested(LoopLikeOpInterface outer,
+                                 LoopLikeOpInterface inner);
 };
 
 //===----------------------------------------------------------------------===//
