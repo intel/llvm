@@ -133,7 +133,7 @@ void emitSubKernelHandler(const Function *F, const SmallVector<bool> &argMask,
   };
 
   O << "\ninline static void " << F->getName() << "subhandler(";
-  O << "const std::vector<sycl::detail::NativeCPUArgDesc>& MArgs, "
+  O << "const sycl::detail::NativeCPUArgDesc *MArgs, "
        "nativecpu_state *state) {\n";
   // Retrieve only the args that are used
   for (unsigned I = 0, UsedI = 0;
@@ -180,10 +180,10 @@ void emitSYCLRegisterLib(const Function *F, raw_ostream &O) {
   // Fill in the offload entry struct for this kernel
   O << "static " << OffloadEntryT << " " << OffloadEntry << "{"
     << "(void*)&" << SubHandlerName << ", " // addr
-    << "\"" << KernelName << "\", "         // name
-    << "1, "                                // size
-    << "0, "                                // flags
-    << "0 "                                 // reserved
+    << "const_cast<char*>(\"" << KernelName << "\"), "   // name
+    << "1, "                                             // size
+    << "0, "                                             // flags
+    << "0 "                                              // reserved
     << "};\n";
   // Fill in the binary struct
   O << "static " << BinaryT << " " << Binary << "{"

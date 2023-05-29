@@ -1,3 +1,4 @@
+// REQUIRES: native_cpu_be
 // Checks that kernelhandler and subhandler are emitted in the integration headers.
 // The sycl-native-cpu helper header is always named <sycl-int-header>.hc
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -o %t.bc %s 
@@ -32,14 +33,14 @@ int main() {
 //CHECK-HC-NEXT: #include <sycl/detail/pi.h>
 //CHECK-HC-NEXT: extern "C" void __sycl_register_lib(pi_device_binaries desc);
 //CHECK-HC:extern "C" void _Z5Test1(void *, void *, nativecpu_state *);
-//CHECK-HC:inline static void _Z5Test1subhandler(const std::vector<sycl::detail::NativeCPUArgDesc>& MArgs, nativecpu_state *state) {
+//CHECK-HC:inline static void _Z5Test1subhandler(const sycl::detail::NativeCPUArgDesc *MArgs, nativecpu_state *state) {
 //CHECK-HC-NEXT:  void* arg0 = MArgs[0].getPtr();
 //CHECK-HC-NEXT:  void* arg3 = MArgs[3].getPtr();
 //CHECK-HC-NEXT:  _Z5Test1(arg0, arg3, state);
 //CHECK-HC-NEXT:};
 
 // check that we are emitting the call to __sycl_register_lib
-//CHECK-HC: static _pi_offload_entry_struct _pi_offload_entry_struct_Z5Test1{(void*)&_Z5Test1subhandler, "_Z5Test1", 1, 0, 0 };
+//CHECK-HC: static _pi_offload_entry_struct _pi_offload_entry_struct_Z5Test1{(void*)&_Z5Test1subhandler, const_cast<char*>("_Z5Test1"), 1, 0, 0 };
 //CHECK-HC-NEXT: static pi_device_binary_struct pi_device_binary_struct_Z5Test1{0, 4, 0, __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN, nullptr, nullptr, nullptr, nullptr, (unsigned char*)&_Z5Test1subhandler, (unsigned char*)&_Z5Test1subhandler + 1, &_pi_offload_entry_struct_Z5Test1, &_pi_offload_entry_struct_Z5Test1+1, nullptr, nullptr };
 //CHECK-HC-NEXT: static pi_device_binaries_struct pi_device_binaries_struct_Z5Test1{0, 1, &pi_device_binary_struct_Z5Test1, nullptr, nullptr };
 //CHECK-HC-NEXT: struct init_native_cpu_Z5Test1_t{

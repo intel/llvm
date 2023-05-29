@@ -180,7 +180,11 @@ public:
                           StringRef Device) const;
 
   bool useIntegratedAs() const override { return true; }
-  bool isPICDefault() const override { return false; }
+  bool isPICDefault() const override {
+    if (this->IsSYCLNativeCPU)
+      return this->HostTC.isPICDefault();
+    return false;
+  }
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;
   }

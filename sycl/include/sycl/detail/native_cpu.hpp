@@ -8,7 +8,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-struct __SYCL_EXPORT NativeCPUArgDesc {
+struct NativeCPUArgDesc {
   void *MPtr;
 
   void *getPtr() const { return MPtr; }

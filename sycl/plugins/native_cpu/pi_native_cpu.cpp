@@ -55,10 +55,9 @@ struct _pi_program : _pi_object {
   const unsigned char *_ptr;
 };
 
-using nativecpu_ptr_t = void (*)(
-    const std::vector<sycl::detail::NativeCPUArgDesc> &, nativecpu_state *);
-using nativecpu_task_t = std::function<void(
-    const std::vector<sycl::detail::NativeCPUArgDesc> &, nativecpu_state *)>;
+using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc*, nativecpu_state*);
+using nativecpu_ptr_t = nativecpu_kernel_t *;
+using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 struct _pi_kernel : _pi_object {
   const char *_name;
   nativecpu_task_t _subhandler;
@@ -983,7 +982,7 @@ pi_result piEnqueueMemBufferFill(pi_queue, pi_mem buffer, const void *pattern, s
   void *startingPtr = buffer->_mem + offset;
   unsigned steps = size / pattern_size;
   for(unsigned i = 0; i < steps; i++) {
-    memcpy(startingPtr + i*pattern_size, pattern, pattern_size);
+    memcpy(static_cast<int8_t*>(startingPtr) + i*pattern_size, pattern, pattern_size);
   }
   return PI_SUCCESS;
 }
@@ -1063,7 +1062,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
           for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
             for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
               state.update(g0, g1, g2, local0, local1, local2);
-              Kernel->_subhandler(Kernel->_args, &state);
+              Kernel->_subhandler(Kernel->_args.data(), &state);
             }
           }
         }

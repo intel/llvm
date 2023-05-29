@@ -29,7 +29,7 @@ clang++ -L<sycl-lib-path> -lsycl <device-o> <host-o> -o <output>
 ```
 In order to execute kernels compiled for `native-cpu`, we provide a PI Plugin. The plugin needs to be enabled when configuring DPC++ (e.g. `python buildbot/configure.py --enable-plugin native_cpu`) and needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
-# Supported features and limitations
+# Supported features and current limitations
 
 The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barrier` and all the math builtins are not supported, and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](sycl/test/native_cpu).
 
@@ -47,6 +47,8 @@ cmake \
  -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" 
 
 ```
+
+Note that a number of `e2e` tests are currently still failing.
 
 # Running example
 
@@ -124,7 +126,7 @@ This pass will also set the correct calling convention for the target, and handl
 
 ## EmitSYCLNativeCPUHeader pass
 
-This pass emits an additional integration header, that will be compiled by the host compiler during the host compilation step. The header contains, for each kernel:
+This pass emits an additional integration header, that will be compiled by the host compiler during the host compilation step. This header is included by the main integration header and does not need to be managed manually. Its main purpose is to enable the SYCL runtime to register kernels and to call kernels that had unused parameters removed by the optimizer. The header contains, for each kernel:
 * The kernel declaration as a C++ function, all pointer arguments are emitted as `void *`, the scalar arguments maintain their type.
 * A `subhandler` definition, which unpacks the vector of kernel arguments coming from the SYCL runtime, and forwards only the used arguments to the kernel.
 * The definition of `_pi_offload_entry_struct`, `pi_device_binary_struct` and `pi_device_binaries_struct` variables, and a call to `__sycl_register_lib`, which allows to register the kernel to the sycl runtime (the call to `__sycl_register_lib` is performed at program startup via the constructor of a global). The Native CPU integration header is always named `<main-sycl-int-header>.hc`.
@@ -134,14 +136,14 @@ The Native CPU integration header for our example is:
 ```c++
 extern "C" void _Z6Sample(void *, void *, void *, nativecpu_state *);
 
-inline static void _Z6Samplesubhandler(const std::vector<sycl::detail::NativeCPUArgDesc>& MArgs, nativecpu_state *state) {
+inline static void _Z6Samplesubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, nativecpu_state *state) {
   void* arg0 = MArgs[0].getPtr();
   void* arg1 = MArgs[1].getPtr();
   void* arg2 = MArgs[2].getPtr();
   _Z6Sample(arg0, arg1, arg2, state);
 };
 
-static _pi_offload_entry_struct _pi_offload_entry_struct_Z6Sample{(void*)&_Z6Samplesubhandler, "_Z6Sample", 1, 0, 0 };
+static _pi_offload_entry_struct _pi_offload_entry_struct_Z6Sample{(void*)&_Z6Samplesubhandler, const_cast<char*>("_Z6Sample"), 1, 0, 0 };
 static pi_device_binary_struct pi_device_binary_struct_Z6Sample{0, 4, 0, __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN, nullptr, nullptr, nullptr, nullptr, (unsigned char*)&_Z6Samplesubhandler, (unsigned char*)&_Z6Samplesubhandler + 1, &_pi_offload_entry_struct_Z6Sample, &_pi_offload_entry_struct_Z6Sample+1, nullptr, nullptr };
 static pi_device_binaries_struct pi_device_binaries_struct_Z6Sample{0, 1, &pi_device_binary_struct_Z6Sample, nullptr, nullptr };
 struct init_native_cpu_Z6Sample_t{
@@ -156,3 +158,13 @@ static init_native_cpu_Z6Sample_t init_native_cpu_Z6Sample;
 ## Kernel lowering and execution
 
 The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is ran using the Native CPU PI Plug-in, defined in [pi_native_cpu.cpp](sycl/plugins/native_cpu/pi_native_cpu.cpp).
+
+## Ongoing work
+
+* Complete support for remaining SYCL features, including but not limited to
+  * kernels with barriers
+  * math and other builtins
+* Vectorization (e.g. Whole Function Vectorization)
+* Subgroup support
+* Performance optimizations
+

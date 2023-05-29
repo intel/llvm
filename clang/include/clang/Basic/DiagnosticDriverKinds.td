@@ -186,7 +186,7 @@ def warn_drv_mismatch_fpga_archive : Warning<
   "FPGA archive '%0' does not contain matching emulation/hardware expectancy">,
   InGroup<SyclFPGAMismatch>;
 def warn_drv_sycl_native_cpu_and_targets: Warning<
-  "-fsycl-native-cpu overrides SYCL targets option">,
+  "-fsycl-targets=native_cpu overrides SYCL targets option">,
   InGroup<SyclNativeCPUTargets>;
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<

@@ -1,3 +1,4 @@
+//REQUIRES: native_cpu_be
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -ccc-print-bindings %s 2>&1 | FileCheck %s --check-prefix=CHECK_BINDINGS
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_INVO
@@ -27,7 +28,7 @@
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINK]].bc"], output: "[[KERNELOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "Append Footer to source", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[SRCWFOOTER:.*]].cpp"
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[SRCWFOOTER]].cpp", "[[KERNELIR]].bc"], output: "[[HOSTOBJ:.*]].o"
-//CHECK_BINDINGS:# "{{.*}}" - "GNU::Linker", inputs: ["[[HOSTOBJ]].o", "[[KERNELOBJ]].o"], output: "a.out"
+//CHECK_BINDINGS:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[HOSTOBJ]].o", "[[KERNELOBJ]].o"], output: "a.{{.*}}"
 
 //CHECK_INVO:{{.*}}clang{{.*}}-fsycl-is-device{{.*}}"-mllvm" "-sycl-native-cpu" "-D" "__SYCL_NATIVE_CPU__" 
 //CHECK_INVO:{{.*}}clang{{.*}}"-x" "ir"
