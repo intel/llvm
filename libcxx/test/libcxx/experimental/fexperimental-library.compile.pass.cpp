@@ -23,6 +23,6 @@
 
 #include <version>
 
-#ifdef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
-#   error "-fexperimental-library should enable <format>"
+#ifdef _LIBCPP_HAS_NO_INCOMPLETE_PSTL
+#  error "-fexperimental-library should enable the PSTL"
 #endif

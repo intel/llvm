@@ -19,6 +19,8 @@
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -63,6 +65,8 @@ bool isCandidate(LoopLikeOpInterface loop) {
     return false;
   }
 
+  // TODO: check uniformity.
+
   return true;
 }
 
@@ -87,14 +91,26 @@ LogicalResult getTileSizes(const SmallVector<T> &nestedLoops,
 LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
                    ArrayRef<Value> tileSizes,
                    SmallVectorImpl<affine::AffineForOp> &tiledNest) {
-  return tilePerfectlyNestedParametric(nestedLoops, tileSizes, &tiledNest);
+  SmallVector<affine::AffineForOp> newNestedLoops;
+  unsigned numLoops = nestedLoops.size();
+  LogicalResult res =
+      tilePerfectlyNestedParametric(nestedLoops, tileSizes, &newNestedLoops);
+  tiledNest = SmallVector<affine::AffineForOp>(
+      newNestedLoops.begin() + numLoops, newNestedLoops.end());
+  return res;
 }
-LogicalResult tile(SmallVectorImpl<scf::ForOp> &nestedLoops,
-                   ArrayRef<Value> tileSizes,
+LogicalResult tile(ArrayRef<scf::ForOp> nestedLoops, ArrayRef<Value> tileSizes,
                    SmallVectorImpl<scf::ForOp> &tiledNest) {
-  tile(nestedLoops, tileSizes, nestedLoops.back());
-  tiledNest = nestedLoops;
+  tiledNest = tile(nestedLoops, tileSizes, nestedLoops.back());
   return success();
+}
+  
+void createLocalBarrier(OpBuilder builder) {
+  // TODO: Use gpu.barrier, require GPUToSPIRV conversion in the pipeline.
+  builder.create<spirv::ControlBarrierOp>(
+      builder.getUnknownLoc(), spirv::Scope::Workgroup, spirv::Scope::Workgroup,
+      spirv::MemorySemantics::SequentiallyConsistent |
+          spirv::MemorySemantics::WorkgroupMemory);
 }
 
 //===----------------------------------------------------------------------===//
@@ -171,6 +187,11 @@ private:
         llvm::dbgs() << "Tile NOT performed\n";
     });
     // TODO: promote loop accesses to local memory.
+    OpBuilder builder(loop);
+    builder.setInsertionPointToStart(tiledNest.front()->getBlock());
+    createLocalBarrier(builder);
+    builder.setInsertionPointAfter(tiledNest.front());
+    createLocalBarrier(builder);
   }
 };
 

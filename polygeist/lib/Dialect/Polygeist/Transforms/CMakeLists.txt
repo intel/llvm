@@ -30,7 +30,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRAsyncDialect
   MLIRAffineUtils
   MLIRFuncDialect
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRIR
   MLIRLLVMCommonConversion
   MLIRMathDialect
@@ -41,6 +41,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRPolygeistDialect
   MLIRPolygeistUtils
   MLIRSCFUtils
+  MLIRSPIRVDialect
   MLIRSYCLAnalysis  
   MLIRSYCLDialect
   MLIRSideEffectInterfaces

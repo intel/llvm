@@ -653,7 +653,7 @@ llvm::hash_code OperationEquivalence::computeHash(
   //   - Attributes
   //   - Result Types
   llvm::hash_code hash =
-      llvm::hash_combine(op->getName(), op->getAttrDictionary(),
+      llvm::hash_combine(op->getName(), op->getDiscardableAttrDictionary(),
                          op->getResultTypes(), op->hashProperties());
 
   //   - Operands
@@ -768,11 +768,13 @@ OperationEquivalence::isRegionEquivalentTo(Region *lhs, Region *rhs,
 
   // 1. Compare the operation properties.
   if (lhs->getName() != rhs->getName() ||
-      lhs->getAttrDictionary() != rhs->getAttrDictionary() ||
+      lhs->getDiscardableAttrDictionary() !=
+          rhs->getDiscardableAttrDictionary() ||
       lhs->getNumRegions() != rhs->getNumRegions() ||
       lhs->getNumSuccessors() != rhs->getNumSuccessors() ||
       lhs->getNumOperands() != rhs->getNumOperands() ||
-      lhs->getNumResults() != rhs->getNumResults())
+      lhs->getNumResults() != rhs->getNumResults() ||
+      lhs->hashProperties() != rhs->hashProperties())
     return false;
   if (!(flags & IgnoreLocations) && lhs->getLoc() != rhs->getLoc())
     return false;
@@ -875,8 +877,13 @@ OperationFingerPrint::OperationFingerPrint(Operation *topOp) {
   topOp->walk([&](Operation *op) {
     //   - Operation pointer
     addDataToHash(hasher, op);
+    //   - Parent operation pointer (to take into account the nesting structure)
+    if (op != topOp)
+      addDataToHash(hasher, op->getParentOp());
     //   - Attributes
-    addDataToHash(hasher, op->getAttrDictionary());
+    addDataToHash(hasher, op->getDiscardableAttrDictionary());
+    //   - Properties
+    addDataToHash(hasher, op->hashProperties());
     //   - Blocks in Regions
     for (Region &region : op->getRegions()) {
       for (Block &block : region) {

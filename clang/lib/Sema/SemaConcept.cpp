@@ -764,6 +764,15 @@ static const Expr *SubstituteConstraintExpression(Sema &S, const NamedDecl *ND,
     return ConstrExpr;
 
   Sema::SFINAETrap SFINAE(S, /*AccessCheckingSFINAE=*/false);
+
+  Sema::InstantiatingTemplate Inst(
+      S, ND->getLocation(),
+      Sema::InstantiatingTemplate::ConstraintNormalization{},
+      const_cast<NamedDecl *>(ND), SourceRange{});
+
+  if (Inst.isInvalid())
+    return nullptr;
+
   std::optional<Sema::CXXThisScopeRAII> ThisScope;
   if (auto *RD = dyn_cast<CXXRecordDecl>(ND->getDeclContext()))
     ThisScope.emplace(S, const_cast<CXXRecordDecl *>(RD), Qualifiers());
@@ -780,7 +789,9 @@ bool Sema::AreConstraintExpressionsEqual(const NamedDecl *Old,
                                          const Expr *NewConstr) {
   if (OldConstr == NewConstr)
     return true;
-  if (Old && New && Old != New) {
+  // C++ [temp.constr.decl]p4
+  if (Old && New && Old != New &&
+      Old->getLexicalDeclContext() != New->getLexicalDeclContext()) {
     if (const Expr *SubstConstr =
             SubstituteConstraintExpression(*this, Old, OldConstr))
       OldConstr = SubstConstr;

@@ -136,7 +136,7 @@ def LoopInternalization : Pass<"loop-internalization"> {
            /*default=*/"false", 
            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
   ];
-  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect"];
+  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect", "spirv::SPIRVDialect"];
 }
 
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {

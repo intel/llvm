@@ -720,9 +720,15 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
         Fortran::common::LanguageFeature::OpenACC);
   }
   if (args.hasArg(clang::driver::options::OPT_fopenmp)) {
+    // By default OpenMP is set to 1.1 version
+    res.getLangOpts().OpenMPVersion = 11;
     res.getFrontendOpts().features.Enable(
         Fortran::common::LanguageFeature::OpenMP);
-
+    if (int Version = getLastArgIntValue(
+            args, clang::driver::options::OPT_fopenmp_version_EQ,
+            res.getLangOpts().OpenMPVersion, diags)) {
+      res.getLangOpts().OpenMPVersion = Version;
+    }
     if (args.hasArg(clang::driver::options::OPT_fopenmp_is_device)) {
       res.getLangOpts().OpenMPIsDevice = 1;
 
@@ -774,8 +780,9 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
   // -pedantic
   if (args.hasArg(clang::driver::options::OPT_pedantic)) {
     res.setEnableConformanceChecks();
+    res.setEnableUsageChecks();
   }
-  // -std=f2018 (currently this implies -pedantic)
+  // -std=f2018
   // TODO: Set proper options when more fortran standards
   // are supported.
   if (args.hasArg(clang::driver::options::OPT_std_EQ)) {
@@ -1045,9 +1052,11 @@ void CompilerInvocation::setFortranOpts() {
   if (frontendOptions.needProvenanceRangeToCharBlockMappings)
     fortranOptions.needProvenanceRangeToCharBlockMappings = true;
 
-  if (getEnableConformanceChecks()) {
+  if (getEnableConformanceChecks())
     fortranOptions.features.WarnOnAllNonstandard();
-  }
+
+  if (getEnableUsageChecks())
+    fortranOptions.features.WarnOnAllUsage();
 }
 
 void CompilerInvocation::setSemanticsOpts(
@@ -1060,7 +1069,6 @@ void CompilerInvocation::setSemanticsOpts(
   semanticsContext->set_moduleDirectory(getModuleDir())
       .set_searchDirectories(fortranOptions.searchDirectories)
       .set_intrinsicModuleDirectories(fortranOptions.intrinsicModuleDirectories)
-      .set_warnOnNonstandardUsage(getEnableConformanceChecks())
       .set_warningsAreErrors(getWarnAsErr())
       .set_moduleFileSuffix(getModuleFileSuffix());
 

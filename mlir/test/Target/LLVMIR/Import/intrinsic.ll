@@ -448,6 +448,60 @@ define void @umul_with_overflow_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3)
   ret void
 }
 
+; CHECK-LABEL:  llvm.func @sadd_sat_test
+define void @sadd_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.sadd.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.sadd.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.sadd.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.sadd.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @uadd_sat_test
+define void @uadd_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.uadd.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.uadd.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.uadd.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.uadd.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @ssub_sat_test
+define void @ssub_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.ssub.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.ssub.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.ssub.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.ssub.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @usub_sat_test
+define void @usub_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.usub.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.usub.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.usub.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.usub.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @sshl_sat_test
+define void @sshl_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.sshl.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.sshl.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.sshl.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.sshl.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
+; CHECK-LABEL:  llvm.func @ushl_sat_test
+define void @ushl_sat_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
+  ; CHECK: llvm.intr.ushl.sat(%{{.*}}, %{{.*}}) : (i32, i32) -> i32
+  %5 = call i32 @llvm.ushl.sat.i32(i32 %0, i32 %1)
+  ; CHECK: llvm.intr.ushl.sat(%{{.*}}, %{{.*}}) : (vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+  %6 = call <8 x i32> @llvm.ushl.sat.v8i32(<8 x i32> %2, <8 x i32> %3)
+  ret void
+}
+
 ; CHECK-LABEL: llvm.func @va_intrinsics_test
 define void @va_intrinsics_test(ptr %0, ptr %1) {
 ; CHECK: llvm.intr.vastart %{{.*}}
@@ -464,6 +518,32 @@ define void @va_intrinsics_test(ptr %0, ptr %1) {
 define void @assume(i1 %true) {
   ; CHECK:  "llvm.intr.assume"(%[[TRUE]]) : (i1) -> ()
   call void @llvm.assume(i1 %true)
+  ret void
+}
+
+; CHECK-LABEL: @is_constant
+; CHECK-SAME:  %[[VAL:[a-zA-Z0-9]+]]
+define void @is_constant(i32 %0) {
+  ; CHECK:  "llvm.intr.is.constant"(%[[VAL]]) : (i32) -> i1
+  %2 = call i1 @llvm.is.constant.i32(i32 %0)
+  ret void
+}
+
+; CHECK-LABEL: @expect
+; CHECK-SAME:  %[[VAL:[a-zA-Z0-9]+]]
+define void @expect(i32 %0) {
+  ; CHECK:  %[[EXP:.+]] = llvm.mlir.constant(42 : i32) : i32
+  ; CHECK:  llvm.intr.expect %[[VAL]], %[[EXP]] : i32
+  %2 = call i32 @llvm.expect.i32(i32 %0, i32 42)
+  ret void
+}
+
+; CHECK-LABEL: @expect_with_probability
+; CHECK-SAME:  %[[VAL:[a-zA-Z0-9]+]]
+define void @expect_with_probability(i16 %0) {
+  ; CHECK:  %[[EXP:.+]] = llvm.mlir.constant(42 : i16) : i16
+  ; CHECK:  llvm.intr.expect.with.probability %[[VAL]], %[[EXP]], 5.000000e-01 : i16
+  %2 = call i16 @llvm.expect.with.probability.i16(i16 %0, i16 42, double 0.5)
   ret void
 }
 
@@ -774,6 +854,21 @@ declare { i32, i1 } @llvm.smul.with.overflow.i32(i32, i32)
 declare { <8 x i32>, <8 x i1> } @llvm.smul.with.overflow.v8i32(<8 x i32>, <8 x i32>)
 declare { i32, i1 } @llvm.umul.with.overflow.i32(i32, i32)
 declare { <8 x i32>, <8 x i1> } @llvm.umul.with.overflow.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.sadd.sat.i32(i32, i32)
+declare <8 x i32> @llvm.sadd.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.uadd.sat.i32(i32, i32)
+declare <8 x i32> @llvm.uadd.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.ssub.sat.i32(i32, i32)
+declare <8 x i32> @llvm.ssub.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.usub.sat.i32(i32, i32)
+declare <8 x i32> @llvm.usub.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.sshl.sat.i32(i32, i32)
+declare <8 x i32> @llvm.sshl.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i32 @llvm.ushl.sat.i32(i32, i32)
+declare <8 x i32> @llvm.ushl.sat.v8i32(<8 x i32>, <8 x i32>)
+declare i1 @llvm.is.constant.i32(i32)
+declare i32 @llvm.expect.i32(i32, i32)
+declare i16 @llvm.expect.with.probability.i16(i16, i16, double immarg)
 declare token @llvm.coro.id(i32, ptr readnone, ptr nocapture readonly, ptr)
 declare ptr @llvm.coro.begin(token, ptr writeonly)
 declare i64 @llvm.coro.size.i64()
