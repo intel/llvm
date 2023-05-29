@@ -1335,9 +1335,10 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     size_t
         propSize, ///< [in] size in bytes of the sampler property value provided
     void *
-        pPropValue, ///< [out][typename(propName, propSize)] value of the sampler property
+        pPropValue, ///< [out][typename(propName, propSize)][optional] value of the sampler
+                    ///< property
     size_t *
-        pPropSizeRet ///< [out] size in bytes returned in sampler property value
+        pPropSizeRet ///< [out][optional] size in bytes returned in sampler property value
 ) {
     auto pfnGetInfo = context.urDdiTable.Sampler.pfnGetInfo;
 
@@ -1350,16 +1351,20 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == pPropValue) {
+        if (propSize != 0 && pPropValue == NULL) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == pPropSizeRet) {
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (UR_SAMPLER_INFO_FILTER_MODE < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
