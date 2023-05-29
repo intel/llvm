@@ -104,7 +104,7 @@ LogicalResult tile(ArrayRef<scf::ForOp> nestedLoops, ArrayRef<Value> tileSizes,
   tiledNest = tile(nestedLoops, tileSizes, nestedLoops.back());
   return success();
 }
-  
+
 void createLocalBarrier(OpBuilder builder) {
   // TODO: Use gpu.barrier, require GPUToSPIRV conversion in the pipeline.
   builder.create<spirv::ControlBarrierOp>(
