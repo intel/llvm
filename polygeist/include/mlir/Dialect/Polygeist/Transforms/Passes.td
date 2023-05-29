@@ -131,7 +131,7 @@ def LoopInternalization : Pass<"loop-internalization"> {
     memory by leveraging the loop tiling infrastructure.
   }];
   let constructor = "mlir::polygeist::createLoopInternalizationPass()";
-  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect"];
+  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect", "spirv::SPIRVDialect"];
 }
 
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
