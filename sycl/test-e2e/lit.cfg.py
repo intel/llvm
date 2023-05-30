@@ -388,7 +388,7 @@ for sycl_device in config.sycl_devices:
         if re.search(r'^ *Aspects *:', line):
             _, aspects_str = line.split(':', 1)
             dev_aspects.append(aspects_str.strip().split(' '))
-        if re.search(r'^ *SG sizes *:', line):
+        if re.search(r'^ *info::device::sub_group_sizes:', line):
             _, sg_sizes_str = line.split(':', 1)
             dev_sg_sizes.append(sg_sizes_str.strip().split(' '))
 
