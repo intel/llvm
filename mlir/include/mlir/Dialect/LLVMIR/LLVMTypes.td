@@ -237,13 +237,12 @@ def LLVMTargetExtType : LLVMType<"LLVMTargetExt", "target"> {
 
     Target extension types have a string name, and optionally have type and/or
     integer parameters. The exact meaning of any parameters is dependent on the
-    target. 
+    target.
   }];
 
-  let parameters = (ins StringRefParameter<>:$extTypeName, 
+  let parameters = (ins StringRefParameter<>:$extTypeName,
                         OptionalArrayRefParameter<"Type">:$typeParams,
                         OptionalArrayRefParameter<"unsigned int">:$intParams);
-
 
   let assemblyFormat = [{
     `<` $extTypeName (`,` custom<ExtTypeParams>($typeParams, $intParams)^ )? `>`
@@ -258,8 +257,7 @@ def LLVMTargetExtType : LLVMType<"LLVMTargetExt", "target"> {
     };
 
     bool hasProperty(Property Prop) const;
-
-    bool supportsAlloca() const;
+    bool supportsMemOps() const;
   }];
 }
 

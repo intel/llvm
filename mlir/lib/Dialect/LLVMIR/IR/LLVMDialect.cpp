@@ -267,20 +267,17 @@ static LogicalResult verifyOpaquePtr(Operation *op, LLVMPointerType ptrType,
 
 LogicalResult AllocaOp::verify() {
   LLVMPointerType ptrType = llvm::cast<LLVMPointerType>(getType());
-  if (auto verifyElemTy =
-          verifyOpaquePtr(getOperation(), ptrType, getElemType());
-      failed(verifyElemTy)) {
-    return verifyElemTy;
-  }
+  if (failed(verifyOpaquePtr(getOperation(), ptrType, getElemType())))
+    return failure();
 
   Type elemTy =
       (ptrType.isOpaque()) ? *getElemType() : ptrType.getElementType();
   // Only certain target extension types can be used in 'alloca'.
   if (auto targetExtType = dyn_cast<LLVMTargetExtType>(elemTy);
-      targetExtType && !targetExtType.supportsAlloca()) {
+      targetExtType && !targetExtType.supportsMemOps())
     return emitOpError()
            << "this target extension type cannot be used in alloca";
-  }
+
   return success();
 }
 
@@ -744,9 +741,6 @@ Type LLVM::GEPOp::getSourceElementType() {
 static bool isTypeCompatibleWithAtomicOp(Type type, bool isPointerTypeAllowed) {
   if (llvm::isa<LLVMPointerType>(type))
     return isPointerTypeAllowed;
-
-  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(type))
-    return targetExtType.supportsAlloca();
 
   std::optional<unsigned> bitWidth;
   if (auto floatType = llvm::dyn_cast<FloatType>(type)) {
@@ -1850,17 +1844,18 @@ LogicalResult GlobalOp::verify() {
   }
 
   if (auto targetExtType = dyn_cast<LLVMTargetExtType>(getType())) {
-    if (!targetExtType.hasProperty(LLVMTargetExtType::CanBeGlobal)) {
+    if (!targetExtType.hasProperty(LLVMTargetExtType::CanBeGlobal))
       return emitOpError()
              << "this target extension type cannot be used in a global";
-    }
+
     if (Attribute value = getValueOrNull()) {
-      // Only a single, zero integer attribute (=zeroinitializer) is allowed a
-      // value for a global with TargetExtType.
-      if (!isa<IntegerAttr>(value) || !isZeroAttribute(value)) {
+      // Only a single, zero integer attribute (=zeroinitializer) is allowed for
+      // a global value with TargetExtType.
+      // TODO: Replace with 'zeroinitializer' once there is a dedicated
+      // zeroinitializer operation in the LLVM dialect.
+      if (!isa<IntegerAttr>(value) || !isZeroAttribute(value))
         return emitOpError()
                << "expected zero value for global with target extension type";
-      }
     }
   }
 
@@ -2321,16 +2316,15 @@ LogicalResult LLVM::ConstantOp::verify() {
     return success();
   }
   if (auto targetExtType = dyn_cast<LLVMTargetExtType>(getType())) {
-    if (!targetExtType.hasProperty(LLVM::LLVMTargetExtType::HasZeroInit)) {
+    if (!targetExtType.hasProperty(LLVM::LLVMTargetExtType::HasZeroInit))
       return emitOpError()
              << "target extension type does not support zero-initializer";
-    }
-    // Only a single, zero integer attribute (=zeroinitializer) is allowed a
-    // value for a global with TargetExtType.
-    if (!isa<IntegerAttr>(getValue()) || !isZeroAttribute(getValue())) {
+    // Only a single, zero integer attribute (=zeroinitializer) is allowed for a
+    // global value with TargetExtType.
+    if (!isa<IntegerAttr>(getValue()) || !isZeroAttribute(getValue()))
       return emitOpError()
              << "only zero-initializer allowed for target extension types";
-    }
+
     return success();
   }
   if (!llvm::isa<IntegerAttr, ArrayAttr, FloatAttr, ElementsAttr>(getValue()))

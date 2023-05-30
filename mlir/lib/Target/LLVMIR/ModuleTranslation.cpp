@@ -343,8 +343,10 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
     return llvm::ConstantStruct::get(structType, {real, imag});
   }
   if (auto *targetExtType = dyn_cast<::llvm::TargetExtType>(llvmType)) {
-    if (auto intAttr = dyn_cast<IntegerAttr>(attr);
-        !intAttr || intAttr.getInt() != 0)
+    // TODO: Replace with 'zeroinitializer' once there is a dedicated
+    // zeroinitializer operation in the LLVM dialect.
+    auto intAttr = dyn_cast<IntegerAttr>(attr);
+    if (!intAttr || intAttr.getInt() != 0)
       emitError(loc,
                 "Only zero-initialization allowed for target extension type");
 

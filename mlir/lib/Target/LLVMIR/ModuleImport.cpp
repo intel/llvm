@@ -1074,6 +1074,8 @@ FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
     // opaque to the compiler, use a single i64 zero-valued attribute to
     // represent the 'zeroinitializer', which is the only constant value allowed
     // for target extension types (besides poison and undef).
+    // TODO: Replace with 'zeroinitializer' once there is a dedicated
+    // zeroinitializer operation in the LLVM dialect.
     return builder
         .create<LLVM::ConstantOp>(loc, targetExtType,
                                   builder.getI64IntegerAttr(0))

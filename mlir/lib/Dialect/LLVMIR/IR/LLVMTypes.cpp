@@ -113,39 +113,42 @@ static void printPointer(AsmPrinter &p, Type elementType,
 // custom<ExtTypeParams>
 //===----------------------------------------------------------------------===//
 
-static bool parseTypeOrIntParam(AsmParser &p, SmallVectorImpl<Type> &typeParams,
-                                SmallVectorImpl<unsigned int> &intParams,
-                                bool &parseType) {
-  unsigned int i;
-  if (p.parseOptionalInteger(i).has_value()) {
-    // Successfully parsed an integer.
-    intParams.push_back(i);
-    // After the first integer was successfully parsed, no more types can be
-    // parsed.
-    parseType = false;
-    return true;
-  }
-  if (parseType) {
-    Type t;
-    if (!parsePrettyLLVMType(p, t)) {
-      // Successfully parsed a type.
-      typeParams.push_back(t);
-      return true;
-    }
-  }
-  // Failed to parse a type or an integer.
-  return false;
-}
-
+/// Parses the parameter list for a target extension type. The parameter list
+/// contains an optional list of type parameters, followed by an optional list
+/// of integer parameters. Type and integer parameters cannot be interleaved in
+/// the list.
+/// extTypeParams ::= typeList? | intList? | (typeList "," intList)
+/// typeList      ::= type ("," type)*
+/// intList       ::= integer ("," integer)*
 static ParseResult
 parseExtTypeParams(AsmParser &p, SmallVectorImpl<Type> &typeParams,
                    SmallVectorImpl<unsigned int> &intParams) {
   bool parseType = true;
-  // ([type | integer ])? (, [type | integer])* | empty
-  bool keepParsing = parseTypeOrIntParam(p, typeParams, intParams, parseType);
-  while (keepParsing) {
-    keepParsing = !p.parseOptionalComma() &&
-                  parseTypeOrIntParam(p, typeParams, intParams, parseType);
+  auto typeOrIntParser = [&]() -> ParseResult {
+    unsigned int i;
+    auto intResult = p.parseOptionalInteger(i);
+    if (intResult.has_value() && !failed(*intResult)) {
+      // Successfully parsed an integer.
+      intParams.push_back(i);
+      // After the first integer was successfully parsed, no
+      // more types can be parsed.
+      parseType = false;
+      return success();
+    }
+    if (parseType) {
+      Type t;
+      if (!parsePrettyLLVMType(p, t)) {
+        // Successfully parsed a type.
+        typeParams.push_back(t);
+        return success();
+      }
+    }
+    return failure();
+  };
+  if (p.parseCommaSeparatedList(typeOrIntParser)) {
+    p.emitError(p.getCurrentLocation(),
+                "failed to parse parameter list for target extension type");
+    return failure();
   }
   return success();
 }
@@ -775,23 +778,26 @@ LLVMScalableVectorType::verify(function_ref<InFlightDiagnostic()> emitError,
 // LLVMTargetExtType.
 //===----------------------------------------------------------------------===//
 
+static constexpr llvm::StringRef kSpirvPrefix = "spirv.";
+static constexpr llvm::StringRef kArmSVCount = "aarch64.svcount";
+
 bool LLVM::LLVMTargetExtType::hasProperty(Property prop) const {
   // See llvm/lib/IR/Type.cpp for reference.
   uint64_t properties = 0;
 
-  if (getExtTypeName().starts_with("spirv."))
+  if (getExtTypeName().starts_with(kSpirvPrefix))
     properties |=
         (LLVMTargetExtType::HasZeroInit | LLVM::LLVMTargetExtType::CanBeGlobal);
 
   return (properties & prop) == prop;
 }
 
-bool LLVM::LLVMTargetExtType::supportsAlloca() const {
+bool LLVM::LLVMTargetExtType::supportsMemOps() const {
   // See llvm/lib/IR/Type.cpp for reference.
-  if (getExtTypeName().starts_with("spirv."))
+  if (getExtTypeName().starts_with(kSpirvPrefix))
     return true;
 
-  if (getExtTypeName() == "aarch64.svcount")
+  if (getExtTypeName() == kArmSVCount)
     return true;
 
   return false;

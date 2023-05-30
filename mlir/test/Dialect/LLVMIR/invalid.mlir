@@ -1398,6 +1398,20 @@ func.func @invalid_target_ext_alloca() {
 
 // -----
 
+func.func @invalid_target_ext_load(%arg0 : !llvm.ptr) {
+  // expected-error@+1 {{result #0 must be LLVM type with size, but got '!llvm.target<"no_load">'}}
+  %0 = llvm.load %arg0 {alignment = 8 : i64} : !llvm.ptr -> !llvm.target<"no_load">
+}
+
+// -----
+
+func.func @invalid_target_ext_atomic(%arg0 : !llvm.ptr) {
+  // expected-error@+1 {{unsupported type '!llvm.target<"spirv.Event">' for atomic access}}
+  %0 = llvm.load %arg0 atomic monotonic {alignment = 8 : i64} : !llvm.ptr -> !llvm.target<"spirv.Event">
+}
+
+// -----
+
 func.func @invalid_target_ext_constant() {
   // expected-error@+1 {{target extension type does not support zero-initializer}}
   %0 = llvm.mlir.constant(0 : index) : !llvm.target<"invalid_constant">
