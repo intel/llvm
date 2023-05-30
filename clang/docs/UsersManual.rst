@@ -574,6 +574,7 @@ output format of the diagnostics that it generates.
                [float != double],
                [...]>>>
 
+
 .. _cl_diag_warning_groups:
 
 Individual Warning Groups
@@ -3263,13 +3264,13 @@ definitions until the end of a translation unit. This flag is enabled by
 default for Windows targets.
 
 For compatibility with existing code that compiles with MSVC, clang defines the
-``_MSC_VER`` and ``_MSC_FULL_VER`` macros. These default to the values of 1800
-and 180000000 respectively, making clang look like an early release of Visual
-C++ 2013. The ``-fms-compatibility-version=`` flag overrides these values.  It
-accepts a dotted version tuple, such as 19.00.23506. Changing the MSVC
-compatibility version makes clang behave more like that version of MSVC. For
-example, ``-fms-compatibility-version=19`` will enable C++14 features and define
-``char16_t`` and ``char32_t`` as builtin types.
+``_MSC_VER`` and ``_MSC_FULL_VER`` macros. When on Windows, these default to
+either the same value as the currently installed version of cl.exe, or ``1920``
+and ``192000000`` (respectively). The ``-fms-compatibility-version=`` flag
+overrides these values.  It accepts a dotted version tuple, such as 19.00.23506.
+Changing the MSVC compatibility version makes clang behave more like that
+version of MSVC. For example, ``-fms-compatibility-version=19`` will enable
+C++14 features and define ``char16_t`` and ``char32_t`` as builtin types.
 
 .. _cxx:
 
@@ -3293,8 +3294,7 @@ Controlling implementation limits
 
 .. option:: -fconstexpr-depth=N
 
-  Sets the limit for recursive constexpr function invocations to N.  The
-  default is 512.
+  Sets the limit for constexpr function invocations to N. The default is 512.
 
 .. option:: -fconstexpr-steps=N
 

@@ -1373,37 +1373,38 @@ More information could be found `here <https://clang.llvm.org/docs/Modules.html>
 Language Extensions Back-ported to Previous Standards
 =====================================================
 
-=================================== ================================ ============= ============= ==================================
-Feature                             Feature Test Macro               Introduced In Backported To Required Flags
-=================================== ================================ ============= ============= ==================================
-variadic templates                  __cpp_variadic_templates         C++11         C++03
-Alias templates                     __cpp_alias_templates            C++11         C++03
-Non-static data member initializers __cpp_nsdmi                      C++11         C++03
-Range-based ``for`` loop            __cpp_range_based_for            C++11         C++03
-RValue references                   __cpp_rvalue_references          C++11         C++03
-Attributes                          __cpp_attributes                 C++11         C++03         -fdouble-square-bracket-attributes
-variable templates                  __cpp_variable_templates         C++14         C++03
-Binary literals                     __cpp_binary_literals            C++14         C++03
-Relaxed constexpr                   __cpp_constexpr                  C++14         C++11
-``if constexpr``                    __cpp_if_constexpr               C++17         C++11
-fold expressions                    __cpp_fold_expressions           C++17         C++03
-Lambda capture of \*this by value   __cpp_capture_star_this          C++17         C++11
-Attributes on enums                 __cpp_enumerator_attributes      C++17         C++11
-Guaranteed copy elision             __cpp_guaranteed_copy_elision    C++17         C++03
-Hexadecimal floating literals       __cpp_hex_float                  C++17         C++03
-``inline`` variables                __cpp_inline_variables           C++17         C++03
-Attributes on namespaces            __cpp_namespace_attributes       C++17         C++11
-Structured bindings                 __cpp_structured_bindings        C++17         C++03
-template template arguments         __cpp_template_template_args     C++17         C++03
-``static operator[]``               __cpp_multidimensional_subscript C++20         C++03
-Designated initializers             __cpp_designated_initializers    C++20         C++03
-Conditional ``explicit``            __cpp_conditional_explicit       C++20         C++03
-``using enum``                      __cpp_using_enum                 C++20         C++03
-``if consteval``                    __cpp_if_consteval               C++23         C++20
-``static operator()``               __cpp_static_call_operator       C++23         C++03
------------------------------------ -------------------------------- ------------- ------------- ----------------------------------
-Designated initializers                                              C99           C89
-=================================== ================================ ============= ============= ==================================
+====================================== ================================ ============= ============= ==================================
+Feature                                Feature Test Macro               Introduced In Backported To Required Flags
+====================================== ================================ ============= ============= ==================================
+variadic templates                     __cpp_variadic_templates         C++11         C++03
+Alias templates                        __cpp_alias_templates            C++11         C++03
+Non-static data member initializers    __cpp_nsdmi                      C++11         C++03
+Range-based ``for`` loop               __cpp_range_based_for            C++11         C++03
+RValue references                      __cpp_rvalue_references          C++11         C++03
+Attributes                             __cpp_attributes                 C++11         C++03         -fdouble-square-bracket-attributes
+variable templates                     __cpp_variable_templates         C++14         C++03
+Binary literals                        __cpp_binary_literals            C++14         C++03
+Relaxed constexpr                      __cpp_constexpr                  C++14         C++11
+``if constexpr``                       __cpp_if_constexpr               C++17         C++11
+fold expressions                       __cpp_fold_expressions           C++17         C++03
+Lambda capture of \*this by value      __cpp_capture_star_this          C++17         C++11
+Attributes on enums                    __cpp_enumerator_attributes      C++17         C++11
+Guaranteed copy elision                __cpp_guaranteed_copy_elision    C++17         C++03
+Hexadecimal floating literals          __cpp_hex_float                  C++17         C++03
+``inline`` variables                   __cpp_inline_variables           C++17         C++03
+Attributes on namespaces               __cpp_namespace_attributes       C++17         C++11
+Structured bindings                    __cpp_structured_bindings        C++17         C++03
+template template arguments            __cpp_template_template_args     C++17         C++03
+``static operator[]``                  __cpp_multidimensional_subscript C++20         C++03
+Designated initializers                __cpp_designated_initializers    C++20         C++03
+Conditional ``explicit``               __cpp_conditional_explicit       C++20         C++03
+``using enum``                         __cpp_using_enum                 C++20         C++03
+``if consteval``                       __cpp_if_consteval               C++23         C++20
+``static operator()``                  __cpp_static_call_operator       C++23         C++03
+-------------------------------------- -------------------------------- ------------- ------------- ----------------------------------
+Designated initializers (N494)                                          C99           C89
+Array & element qualification (N2607)                                   C2x           C89
+====================================== ================================ ============= ============= ==================================
 
 Type Trait Primitives
 =====================
@@ -3732,7 +3733,7 @@ Source location builtins
 
 Clang provides builtins to support C++ standard library implementation
 of ``std::source_location`` as specified in C++20.  With the exception
-of ``__builtin_COLUMN`` and ``__builtin_FILE_NAME``,
+of ``__builtin_COLUMN``, ``__builtin_FILE_NAME`` and ``__builtin_FUNCSIG``,
 these builtins are also implemented by GCC.
 
 **Syntax**:
@@ -3742,6 +3743,7 @@ these builtins are also implemented by GCC.
   const char *__builtin_FILE();
   const char *__builtin_FILE_NAME(); // Clang only
   const char *__builtin_FUNCTION();
+  const char *__builtin_FUNCSIG(); // Microsoft
   unsigned    __builtin_LINE();
   unsigned    __builtin_COLUMN(); // Clang only
   const std::source_location::__impl *__builtin_source_location();
@@ -3771,11 +3773,12 @@ these builtins are also implemented by GCC.
 
 **Description**:
 
-The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, ``__builtin_FILE`` and
-``__builtin_FILE_NAME`` return the values, at the "invocation point", for
-``__LINE__``, ``__FUNCTION__``, ``__FILE__`` and ``__FILE_NAME__`` respectively.
-``__builtin_COLUMN`` similarly returns the column,
-though there is no corresponding macro. These builtins are constant expressions.
+The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, ``__builtin_FUNCSIG``,
+``__builtin_FILE`` and ``__builtin_FILE_NAME`` return the values, at the
+"invocation point", for ``__LINE__``, ``__FUNCTION__``, ``__FUNCSIG__``,
+``__FILE__`` and ``__FILE_NAME__`` respectively. ``__builtin_COLUMN`` similarly
+returns the column, though there is no corresponding macro. These builtins are
+constant expressions.
 
 When the builtins appear as part of a default function argument the invocation
 point is the location of the caller. When the builtins appear as part of a
