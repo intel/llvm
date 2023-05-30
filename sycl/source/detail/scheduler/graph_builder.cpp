@@ -1305,9 +1305,10 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
-        detail::CG::Data(/* ArgsStorage = */ {}, /* AccStorage = */ {},
-                         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-                         /* DepEvents = */ {DepEvent}),
+        detail::CG::StorageInitHelper(
+            /* ArgsStorage = */ {}, /* AccStorage = */ {},
+            /* SharedPtrStorage = */ {}, /* Requirements = */ {},
+            /* DepEvents = */ {DepEvent}),
         CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(

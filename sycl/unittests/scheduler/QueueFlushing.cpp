@@ -141,7 +141,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     std::unique_ptr<detail::CG> CG{
         new detail::CGFill(/*Pattern*/ {}, &MockReq,
-                           detail::CG::Data(
+                           detail::CG::StorageInitHelper(
                                /*ArgsStorage*/ {},
                                /*AccStorage*/ {},
                                /*SharedPtrStorage*/ {},

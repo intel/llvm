@@ -101,7 +101,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   EXPECT_TRUE(ToCleanUp.empty());
   std::unique_ptr<detail::CG> CG{
       new detail::CGFill(/*Pattern*/ {}, &MockReq,
-                         detail::CG::Data(
+                         detail::CG::StorageInitHelper(
                              /*ArgsStorage*/ {},
                              /*AccStorage*/ {},
                              /*SharedPtrStorage*/ {},

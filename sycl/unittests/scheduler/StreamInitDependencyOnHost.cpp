@@ -30,9 +30,9 @@ public:
       CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(MImpl->MKernelBundle),
-          detail::CG::Data(getArgsStorage(), getAccStorage(),
-                           getSharedPtrStorage(), getRequirements(),
-                           getEvents()),
+          detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
+                                        getSharedPtrStorage(),
+                                        getRequirements(), getEvents()),
           getArgs(), getKernelName(), getOSModuleHandle(), getStreamStorage(),
           std::move(MImpl->MAuxiliaryResources), getCGType(), {},
           getCodeLoc()));

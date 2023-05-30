@@ -630,7 +630,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<std::string> InputKernelNames;
   // Collect argument information from all input kernels.
 
-  detail::CG::Data CGData;
+  detail::CG::StorageInitHelper CGData;
   std::vector<std::vector<char>> &ArgsStorage = CGData.MArgsStorage;
   std::vector<detail::AccessorImplPtr> &AccStorage = CGData.MAccStorage;
   std::vector<Requirement *> &Requirements = CGData.MRequirements;

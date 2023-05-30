@@ -28,7 +28,7 @@ void foo() {
 // CHECK-NEXT:  16 |       element_type * _M_ptr
 // CHECK-NEXT:  24 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT:  24 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:  32 |   struct sycl::detail::CG::Data CGData
+// CHECK-NEXT:  32 |   struct sycl::detail::CG::StorageInitHelper CGData
 // CHECK-NEXT:  32 |     class std::vector<class std::vector<char> > MArgsStorage
 // CHECK-NEXT:  32 |       struct std::_Vector_base<class std::vector<char>, class std::allocator<class std::vector<char> > > (base)
 // CHECK-NEXT:  32 |         struct std::_Vector_base<class std::vector<char>, class std::allocator<class std::vector<char> > >::_Vector_impl _M_impl

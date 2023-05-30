@@ -2853,7 +2853,7 @@ private:
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
   /// we exit the method they are passed in.
-  mutable detail::CG::Data CGData;
+  mutable detail::CG::StorageInitHelper CGData;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   /// The list of arguments for the kernel.

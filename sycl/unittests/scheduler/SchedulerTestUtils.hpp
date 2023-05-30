@@ -294,9 +294,9 @@ public:
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;
-    sycl::detail::CG::Data CGData(getArgsStorage(), getAccStorage(),
-                                  getSharedPtrStorage(), getRequirements(),
-                                  getEvents());
+    sycl::detail::CG::StorageInitHelper CGData(
+        getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
+        getRequirements(), getEvents());
     switch (getType()) {
     case sycl::detail::CG::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(

@@ -23,7 +23,7 @@ public:
                    std::unique_ptr<detail::HostKernelBase> HostKernel)
       : CGExecKernel(NDRDesc, std::move(HostKernel), /*SyclKernel*/ nullptr,
                      /*Kernelbundle*/ nullptr,
-                     detail::CG::Data(
+                     detail::CG::StorageInitHelper(
                          /*ArgsStorage*/ {}, /*AccStorage*/ {},
                          /*SharedPtrStorage*/ {}, /*Requirements*/ {},
                          /*Events*/ {}),

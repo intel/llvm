@@ -64,7 +64,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   detail::HostKernel<decltype(Kernel), void, 1> HKernel(Kernel);
   auto [NDRDesc, MockReq] = initializeRefValues();
 
-  detail::CG::Data CGData(
+  detail::CG::StorageInitHelper CGData(
       /*ArgsStorage*/ {},
       /*AccStorage*/ {},
       /*SharedPtrStorage*/ {},
