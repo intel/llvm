@@ -1051,7 +1051,7 @@ public:
       if (!Bin->isObject())
         continue;
 
-      auto CheckOrErr = CheckObjectFileContainsExcludedTargets(C);
+      auto CheckOrErr = CheckIfObjectFileContainsExcludedTargets(C);
       if (!CheckOrErr)
         return CheckOrErr.takeError();
 
@@ -1273,7 +1273,7 @@ private:
     return Targets;
   }
 
-  bool CheckTargetIsExcluded(StringRef Triple) {
+  bool CheckIfTargetIsExcluded(StringRef Triple) {
     // NOTE: "-sycldevice" Triple component has been deprecated.
     // However, it still can be met in libraries that have been compiled before
     // deprecation. For example, here Triple might be the following:
@@ -1290,7 +1290,7 @@ private:
   // Function reads targets from Child and checks whether one of Targets
   // is in Excluded list.
   Expected<bool>
-  CheckObjectFileContainsExcludedTargets(const Archive::Child &C) {
+  CheckIfObjectFileContainsExcludedTargets(const Archive::Child &C) {
     if (BundlerConfig.ExcludedTargetNames.empty())
       return false;
 
@@ -1300,7 +1300,7 @@ private:
 
     auto TargetNames = TargetNamesOrErr.get();
     for (const auto &TargetName : TargetNames)
-      if (CheckTargetIsExcluded(TargetName))
+      if (CheckIfTargetIsExcluded(TargetName))
         return true;
 
     return false;
