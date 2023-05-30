@@ -5,9 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu && !gpu-intel-pvc
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: gpu-intel-pvc
 
 // TODO online_compiler check fails for esimd_emulator.
 // XFAIL: esimd_emulator

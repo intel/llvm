@@ -9,11 +9,6 @@
 // Test that headers are not tripped up by the surrounding code defining the
 // min() and max() macros.
 
-// Prevent <ext/hash_map> from generating deprecated warnings for this test.
-#if defined(__DEPRECATED)
-#    undef __DEPRECATED
-#endif
-
 #define TEST_MACROS() static_assert(min() == true && max() == true, "")
 #define min() true
 #define max() true
@@ -208,6 +203,8 @@ TEST_MACROS();
 TEST_MACROS();
 #include <math.h>
 TEST_MACROS();
+#include <mdspan>
+TEST_MACROS();
 #include <memory>
 TEST_MACROS();
 #include <memory_resource>
@@ -398,8 +395,4 @@ TEST_MACROS();
 #   include <experimental/vector>
 TEST_MACROS();
 #endif
-#include <ext/hash_map>
-TEST_MACROS();
-#include <ext/hash_set>
-TEST_MACROS();
 // GENERATED-MARKER

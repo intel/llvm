@@ -22,7 +22,7 @@ include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
-include "mlir/Interfaces/Mem2RegInterfaces.td"
+include "mlir/Interfaces/MemorySlotInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class LLVM_Builder<string builder> {
@@ -173,7 +173,8 @@ def LLVM_FNegOp : LLVM_UnaryFloatArithmeticOp<
 
 // Memory-related operations.
 def LLVM_AllocaOp : LLVM_Op<"alloca", 
-    [DeclareOpInterfaceMethods<PromotableAllocationOpInterface>]>,
+    [DeclareOpInterfaceMethods<PromotableAllocationOpInterface>,
+     DeclareOpInterfaceMethods<DestructurableAllocationOpInterface>]>,
   LLVM_MemOpPatterns {
   let arguments = (ins AnyInteger:$arraySize,
                    OptionalAttr<I64Attr>:$alignment,
@@ -186,7 +187,7 @@ def LLVM_AllocaOp : LLVM_Op<"alloca",
     auto addrSpace = $_resultType->getPointerAddressSpace();
     llvm::Type *elementType = moduleTranslation.convertType(
         $elem_type ? *$elem_type
-                   : op.getType().cast<LLVMPointerType>().getElementType());
+                   : ::llvm::cast<LLVMPointerType>(op.getType()).getElementType());
     auto *inst = builder.CreateAlloca(elementType, addrSpace, $arraySize);
     }] # setAlignmentCode # [{
     inst->setUsedWithInAlloca($inalloca);
@@ -206,7 +207,7 @@ def LLVM_AllocaOp : LLVM_Op<"alloca",
     OpBuilder<(ins "Type":$resultType, "Value":$arraySize,
                "unsigned":$alignment),
     [{
-      assert(!resultType.cast<LLVMPointerType>().isOpaque() &&
+      assert(!::llvm::cast<LLVMPointerType>(resultType).isOpaque() &&
              "pass the allocated type explicitly if opaque pointers are used");
       if (alignment == 0)
         return build($_builder, $_state, resultType, arraySize, IntegerAttr(),
@@ -218,7 +219,7 @@ def LLVM_AllocaOp : LLVM_Op<"alloca",
                CArg<"unsigned", "0">:$alignment),
     [{
       TypeAttr elemTypeAttr =
-          resultType.cast<LLVMPointerType>().isOpaque() ?
+          ::llvm::cast<LLVMPointerType>(resultType).isOpaque() ?
           TypeAttr::get(elementType) : TypeAttr();
       build($_builder, $_state, resultType, arraySize,
             alignment == 0 ? IntegerAttr()
@@ -232,7 +233,9 @@ def LLVM_AllocaOp : LLVM_Op<"alloca",
 }
 
 def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
-    DeclareOpInterfaceMethods<PromotableOpInterface>]> {
+    DeclareOpInterfaceMethods<PromotableOpInterface>,
+    DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>,
+    DeclareOpInterfaceMethods<DestructurableAccessorOpInterface>]> {
   let arguments = (ins LLVM_ScalarOrVectorOf<LLVM_AnyPointer>:$base,
                    Variadic<LLVM_ScalarOrVectorOf<AnyInteger>>:$dynamicIndices,
                    DenseI32ArrayAttr:$rawConstantIndices,
@@ -287,7 +290,7 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
     GEPIndicesAdaptor<decltype($dynamicIndices)>
         gepIndices(op.getRawConstantIndicesAttr(), $dynamicIndices);
     for (PointerUnion<IntegerAttr, llvm::Value*> valueOrAttr : gepIndices) {
-      if (llvm::Value* value = valueOrAttr.dyn_cast<llvm::Value*>())
+      if (llvm::Value* value = ::llvm::dyn_cast<llvm::Value*>(valueOrAttr))
         indices.push_back(value);
       else
         indices.push_back(
@@ -316,7 +319,8 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
 }
 
 def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
-    [DeclareOpInterfaceMethods<PromotableMemOpInterface>]> {
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+     DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
   dag args = (ins Arg<LLVM_PointerTo<LLVM_LoadableType>, "", [MemRead]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$volatile_,
@@ -388,7 +392,8 @@ def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
 }
 
 def LLVM_StoreOp : LLVM_MemAccessOpBase<"store",
-    [DeclareOpInterfaceMethods<PromotableMemOpInterface>]> {
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+     DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
   dag args = (ins LLVM_LoadableType:$value,
               Arg<LLVM_PointerTo<LLVM_LoadableType>,"",[MemWrite]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
@@ -797,7 +802,7 @@ def LLVM_SelectOp
     $res = op;
   }];
 }
-def LLVM_FreezeOp : LLVM_Op<"freeze", [SameOperandsAndResultType]> {
+def LLVM_FreezeOp : LLVM_Op<"freeze", [Pure, SameOperandsAndResultType]> {
   let arguments = (ins LLVM_Type:$val);
   let results = (outs LLVM_Type:$res);
   let builders = [LLVM_OneResultOpBuilder];
@@ -1562,7 +1567,9 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     OptionalAttr<DictArrayAttr>:$res_attrs,
     OptionalAttr<I64Attr>:$function_entry_count,
     OptionalAttr<LLVM_MemoryEffectsAttr>:$memory,
-    DefaultValuedAttr<Visibility, "mlir::LLVM::Visibility::Default">:$visibility_
+    DefaultValuedAttr<Visibility, "mlir::LLVM::Visibility::Default">:$visibility_,
+    OptionalAttr<UnitAttr>:$arm_streaming,
+    OptionalAttr<UnitAttr>:$arm_locally_streaming
   );
 
   let regions = (region AnyRegion:$body);
@@ -1604,7 +1611,7 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     /// type if it is not void, or an empty array if the function's return type
     /// is void, as void is not assignable to a value.
     ArrayRef<Type> getCallableResults() {
-      if (getFunctionType().getReturnType().isa<LLVM::LLVMVoidType>())
+      if (::llvm::isa<LLVM::LLVMVoidType>(getFunctionType().getReturnType()))
         return {};
       return getFunctionType().getReturnTypes();
     }

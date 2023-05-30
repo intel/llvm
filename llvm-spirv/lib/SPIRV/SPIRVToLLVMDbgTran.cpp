@@ -75,16 +75,17 @@ void SPIRVToLLVMDbgTran::addDbgInfoVersion() {
                    DEBUG_METADATA_VERSION);
 }
 
-DIFile *SPIRVToLLVMDbgTran::getDIFile(
-    const std::string &FileName,
-    std::optional<DIFile::ChecksumInfo<StringRef>> CS) {
+DIFile *
+SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
+                              std::optional<DIFile::ChecksumInfo<StringRef>> CS,
+                              std::optional<StringRef> Source) {
   return getOrInsert(FileMap, FileName, [=]() {
     SplitFileName Split(FileName);
     // Use the first builder from the map to crete DIFile since it's
     // relations with other debug metadata is not going through DICompileUnit
     if (!Split.BaseName.empty())
       return BuilderMap.begin()->second->createFile(Split.BaseName, Split.Path,
-                                                    CS);
+                                                    CS, Source);
     return static_cast<DIFile *>(nullptr);
   });
 }
@@ -132,6 +133,21 @@ const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
   SPIRVString *String = BM->get<SPIRVString>(Id);
   assert(String && "Invalid string");
   return String->getStr();
+}
+
+const std::string
+SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
+                                             SPIRVExtInst *DebugInst) {
+  if (!isValidId(Id) || getDbgInst<SPIRVDebug::DebugInfoNone>(Id))
+    return "";
+  std::string Str = BM->get<SPIRVString>(Id)->getStr();
+  using namespace SPIRVDebug::Operand::SourceContinued;
+  for (auto *I : DebugInst->getContinuedInstructions()) {
+    std::string TmpStr =
+        BM->get<SPIRVString>(I->getArguments()[TextIdx])->getStr();
+    Str.append(TmpStr);
+  }
+  return Str;
 }
 
 void SPIRVToLLVMDbgTran::transDbgInfo(const SPIRVValue *SV, Value *V) {
@@ -201,6 +217,18 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst,
   // TODO: Remove this workaround once we switch to NonSemantic.Shader.* debug
   // info by default
   auto Producer = findModuleProducer();
+  assert(BuilderMap.size() != 0 && "No debug compile units");
+  if (BuilderMap.size()==1)
+    // Only initialize once
+    setBuildIdentifierAndStoragePath();
+
+  if (!StoragePath.empty()) {
+    return BuilderMap[DebugInst->getId()]->createCompileUnit(
+        SourceLang, getFile(Ops[SourceIdx]), Producer, false, "", 0,
+        StoragePath, DICompileUnit::DebugEmissionKind::FullDebug,
+        BuildIdentifier);
+  }
+
   return BuilderMap[DebugInst->getId()]->createCompileUnit(
       SourceLang, getFile(Ops[SourceIdx]), Producer, false, Flags, 0);
 }
@@ -382,8 +410,8 @@ SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
       getDIBuilder(DebugInst).getOrCreateArray(Subscripts);
   size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
 
-  auto TransOperand = [&](SPIRVWord Idx) -> PointerUnion<DIExpression *,
-                                                         DIVariable *> {
+  auto TransOperand =
+      [&](SPIRVWord Idx) -> PointerUnion<DIExpression *, DIVariable *> {
     if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
       if (const auto *GV = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx]))
         return transDebugInst<DIGlobalVariable>(GV);
@@ -1327,6 +1355,9 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
 
   case SPIRVDebug::Operation: // To be translated with transExpression
   case SPIRVDebug::Source:    // To be used by other instructions
+  case SPIRVDebug::SourceContinued:
+  case SPIRVDebug::BuildIdentifier: // To be used by transCompilationUnit
+  case SPIRVDebug::StoragePath:     // To be used by transCompilationUnit
     return nullptr;
 
   case SPIRVDebug::Expression:
@@ -1391,8 +1422,12 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
     auto *DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
         Val, LocalVar.first, Expr, LocalVar.second, BB);
-    if (Expr->getNumLocationOperands() == 1) {
-      SmallVector<ValueAsMetadata *, 1> MDs = {ValueAsMetadata::get(Val)};
+
+    std::vector<ValueAsMetadata *> MDs;
+    for (size_t I = 0; I != Expr->getNumLocationOperands(); ++I) {
+      MDs.emplace_back(ValueAsMetadata::get(Val));
+    }
+    if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
       cast<DbgVariableIntrinsic>(DbgValIntr)->setRawLocation(AL);
     }
@@ -1454,12 +1489,78 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
   assert(Source->getExtOp() == SPIRVDebug::Source &&
          "DebugSource instruction is expected");
   SPIRVWordVec SourceArgs = Source->getArguments();
-  assert(SourceArgs.size() == OperandCount && "Invalid number of operands");
-  std::string ChecksumStr =
-      getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[TextIdx])
-          ? ""
-          : getString(SourceArgs[TextIdx]);
-  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(ChecksumStr));
+  assert(SourceArgs.size() >= MinOperandCount && "Invalid number of operands");
+  if (SourceArgs.size() == MinOperandCount)
+    return getDIFile(getString(SourceArgs[FileIdx]));
+
+  if (!isNonSemanticDebugInfo(Source->getExtSetKind())) {
+    std::string ChecksumStr =
+        getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[TextIdx])
+            ? ""
+            : getString(SourceArgs[TextIdx]);
+    return getDIFile(getString(SourceArgs[FileIdx]),
+                     ParseChecksum(ChecksumStr));
+  }
+
+  std::optional<DIFile::ChecksumInfo<StringRef>> CS;
+  SPIRVWord StrIdx = SourceArgs[TextIdx];
+  if (Source->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
+    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumKind]) &&
+        !getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumValue])) {
+      llvm::DIFile::ChecksumKind Kind = SPIRV::DbgChecksumKindMap::rmap(
+          static_cast<SPIRVDebug::FileChecksumKind>(
+              BM->get<SPIRVConstant>(SourceArgs[ChecksumKind])
+                  ->getZExtIntValue()));
+      StringRef Checksum = getString(SourceArgs[ChecksumValue]);
+      size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
+      CS.emplace(Kind, Checksum.substr(0, ChecksumEndPos));
+    }
+
+    if (SourceArgs.size() == MaxOperandCount)
+      StrIdx = SourceArgs[TextNonSemIdx];
+    else
+      StrIdx = SPIRVID_INVALID;
+  }
+
+  return getDIFile(getString(SourceArgs[FileIdx]), CS,
+                   getStringSourceContinued(StrIdx, Source));
+}
+
+void SPIRVToLLVMDbgTran::setBuildIdentifierAndStoragePath() {
+#ifndef NDEBUG
+  bool FoundBuildIdentifier{false};
+  bool FoundStoragePath{false};
+#endif
+
+  for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
+    if (EI->getExtOp() == SPIRVDebug::BuildIdentifier) {
+      using namespace SPIRVDebug::Operand::BuildIdentifier;
+      SPIRVWordVec BuildIdentifierArgs = EI->getArguments();
+      assert(BuildIdentifierArgs.size() == OperandCount &&
+             "Invalid number of operands");
+      assert(!FoundBuildIdentifier &&
+             "More than one BuildIdentifier instruction not allowed");
+      BuildIdentifier = strtoull(
+          getString(BuildIdentifierArgs[IdentifierIdx]).c_str(), NULL, 10);
+#ifndef NDEBUG
+      FoundBuildIdentifier = true;
+#endif
+    } else if (EI->getExtOp() == SPIRVDebug::StoragePath) {
+      using namespace SPIRVDebug::Operand::StoragePath;
+      SPIRVWordVec StoragePathArgs = EI->getArguments();
+      assert(StoragePathArgs.size() == OperandCount &&
+             "Invalid number of operands");
+      assert(!FoundStoragePath &&
+             "More than one StoragePath instruction not allowed");
+      StoragePath = getString(StoragePathArgs[PathIdx]);
+#ifndef NDEBUG
+      FoundStoragePath = true;
+#endif
+    }
+  }
+  assert(((FoundBuildIdentifier && FoundStoragePath) ||
+          (!FoundBuildIdentifier && !FoundStoragePath)) &&
+         "BuildIdentifier and StoragePath must both be set or both unset");
 }
 
 DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {

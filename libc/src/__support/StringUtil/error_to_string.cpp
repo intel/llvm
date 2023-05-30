@@ -6,18 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/StringUtil/error_to_string.h"
+#include "error_to_string.h"
+#include "platform_errors.h"
 
-#include "src/errno/libc_errno.h" // For error macros
-
-#include "src/__support/CPP/array.h"
 #include "src/__support/CPP/span.h"
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/CPP/stringstream.h"
 #include "src/__support/StringUtil/message_mapper.h"
 #include "src/__support/integer_to_string.h"
-
-#include "src/__support/StringUtil/tables/error_table.h"
 
 #include <stddef.h>
 
@@ -37,9 +33,7 @@ constexpr size_t max_buff_size() {
 constexpr size_t ERR_BUFFER_SIZE = max_buff_size();
 thread_local char error_buffer[ERR_BUFFER_SIZE];
 
-constexpr size_t RAW_ARRAY_LEN = PLATFORM_ERRORS.size();
-constexpr size_t TOTAL_STR_LEN =
-    total_str_len(PLATFORM_ERRORS.data(), RAW_ARRAY_LEN);
+constexpr size_t TOTAL_STR_LEN = total_str_len(PLATFORM_ERRORS);
 
 // Since the StringMappings array is a map from error numbers to their
 // corresponding strings, we have to have an array large enough we can use the
@@ -47,11 +41,10 @@ constexpr size_t TOTAL_STR_LEN =
 // the maximum value being 133 (41 and 58 are skipped). If other platforms use
 // negative numbers or discontiguous ranges, then the array should be turned
 // into a proper hashmap.
-constexpr size_t ERR_ARRAY_SIZE =
-    max_key_val(PLATFORM_ERRORS.data(), RAW_ARRAY_LEN) + 1;
+constexpr size_t ERR_ARRAY_SIZE = max_key_val(PLATFORM_ERRORS) + 1;
 
-static constexpr MessageMapper<ERR_ARRAY_SIZE, TOTAL_STR_LEN>
-    error_mapper(PLATFORM_ERRORS.data(), RAW_ARRAY_LEN);
+constexpr MessageMapper<ERR_ARRAY_SIZE, TOTAL_STR_LEN>
+    error_mapper(PLATFORM_ERRORS);
 
 cpp::string_view build_error_string(int err_num, cpp::span<char> buffer) {
   // if the buffer can't hold "Unknown error" + ' ' + num_str, then just

@@ -100,12 +100,6 @@ if(WIN32)
       support/win32/thread_win32.cpp
       )
   endif()
-elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "SunOS")
-  list(APPEND LIBCXX_SOURCES
-    support/solaris/mbsnrtowcs.inc
-    support/solaris/wcsnrtombs.inc
-    support/solaris/xlocale.cpp
-    )
 elseif(ZOS)
   list(APPEND LIBCXX_SOURCES
     support/ibm/mbsnrtowcs.cpp
@@ -317,7 +311,6 @@ add_custom_target(cxx DEPENDS ${LIBCXX_BUILD_TARGETS})
 
 set(LIBCXX_EXPERIMENTAL_SOURCES
   experimental/memory_resource.cpp
-  format.cpp
   )
 
 add_library(cxx_experimental STATIC ${LIBCXX_EXPERIMENTAL_SOURCES})

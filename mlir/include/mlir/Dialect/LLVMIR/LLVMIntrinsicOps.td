@@ -6,7 +6,7 @@ include "mlir/Dialect/LLVMIR/LLVMAttrDefs.td"
 include "mlir/Dialect/LLVMIR/LLVMEnums.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
-include "mlir/Interfaces/Mem2RegInterfaces.td"
+include "mlir/Interfaces/MemorySlotInterfaces.td"
 
 // Operations that correspond to LLVM intrinsics. With MLIR operation set being
 // extendable, there is no reason to introduce a hard boundary between "core"
@@ -251,7 +251,7 @@ def LLVM_LifetimeEndOp : LLVM_LifetimeBaseOp<"lifetime.end"> {
 // Intrinsics with multiple returns.
 
 class LLVM_ArithWithOverflowOp<string mnem>
-    : LLVM_IntrOp<mnem, [0], [], [SameOperandsElementType], 2>,
+    : LLVM_IntrOp<mnem, [0], [], [Pure, SameOperandsElementType], 2>,
       Arguments<(ins LLVM_ScalarOrVectorOf<AnySignlessInteger>,
                  LLVM_ScalarOrVectorOf<AnySignlessInteger>)>;
 
@@ -262,8 +262,55 @@ def LLVM_USubWithOverflowOp : LLVM_ArithWithOverflowOp<"usub.with.overflow">;
 def LLVM_SMulWithOverflowOp : LLVM_ArithWithOverflowOp<"smul.with.overflow">;
 def LLVM_UMulWithOverflowOp : LLVM_ArithWithOverflowOp<"umul.with.overflow">;
 
+//
+// Saturation Arithmetic Intrinsics.
+//
+
+def LLVM_SAddSat : LLVM_BinarySameArgsIntrOpI<"sadd.sat">;
+def LLVM_UAddSat : LLVM_BinarySameArgsIntrOpI<"uadd.sat">;
+def LLVM_SSubSat : LLVM_BinarySameArgsIntrOpI<"ssub.sat">;
+def LLVM_USubSat : LLVM_BinarySameArgsIntrOpI<"usub.sat">;
+def LLVM_SSHLSat : LLVM_BinarySameArgsIntrOpI<"sshl.sat">;
+def LLVM_USHLSat : LLVM_BinarySameArgsIntrOpI<"ushl.sat">;
+
+//
+// Optimization hint intrinsics.
+//
+
 def LLVM_AssumeOp
   : LLVM_ZeroResultIntrOp<"assume", []>, Arguments<(ins I1:$cond)>;
+
+def LLVM_IsConstantOp : LLVM_IntrOp<"is.constant", [], [0], [Pure], 1> {
+  let arguments = (ins LLVM_Type:$val);
+  let results = (outs I1:$res);
+}
+
+def LLVM_ExpectOp
+  : LLVM_OneResultIntrOp<"expect", [], [0],
+                         [Pure, SameOperandsAndResultType]> {
+  let arguments = (ins AnySignlessInteger:$val,
+                       AnySignlessInteger:$expected);
+  let assemblyFormat = "$val `,` $expected attr-dict `:` type($val)";
+}
+
+def LLVM_ExpectWithProbabilityOp
+  : LLVM_OneResultIntrOp<"expect.with.probability", [], [0],
+                         [Pure, AllTypesMatch<["val", "expected", "res"]>]> {
+  let arguments = (ins AnySignlessInteger:$val,
+                       AnySignlessInteger:$expected,
+                       F64Attr:$prob);
+  string llvmBuilder = [{
+    createIntrinsicCall(
+      builder, llvm::Intrinsic::expect_with_probability,
+      {$val, $expected, llvm::ConstantFP::get(builder.getDoubleTy(), $prob)},
+      {$_resultType});
+  }];
+  string mlirBuilder = [{
+    $res = $_builder.create<LLVM::ExpectWithProbabilityOp>(
+      $_location, $val, $expected, $_float_attr($prob));
+  }];
+  let assemblyFormat = "$val `,` $expected `,` $prob attr-dict `:` type($val)";
+}
 
 //
 // Coroutine intrinsics.
@@ -727,8 +774,8 @@ def LLVM_DebugTrap : LLVM_ZeroResultIntrOp<"debugtrap">;
 def LLVM_UBSanTrap : LLVM_ZeroResultIntrOp<"ubsantrap"> {
   let arguments = (ins I8Attr:$failureKind);
   string llvmBuilder = [{
-    builder.CreateIntrinsic(
-      llvm::Intrinsic::ubsantrap, {}, {builder.getInt8($failureKind)});
+    createIntrinsicCall(
+      builder, llvm::Intrinsic::ubsantrap, {builder.getInt8($failureKind)});
   }];
   string mlirBuilder = [{
     $_op =

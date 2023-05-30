@@ -73,7 +73,7 @@ exposition-only to document what members a char_traits specialization should pro
 
 //
 // Temporary extension to provide a base template for std::char_traits.
-// TODO: Remove in LLVM 18.
+// TODO(LLVM-18): Remove this class.
 //
 template <class _CharT>
 struct _LIBCPP_DEPRECATED_("char_traits<T> for T not equal to char, wchar_t, char8_t, char16_t or char32_t is non-standard and is provided for a temporary period. It will be removed in LLVM 18, so please migrate off of it.")
@@ -212,23 +212,40 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char>
     static inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR bool lt(char_type __c1, char_type __c2) _NOEXCEPT
         {return (unsigned char)__c1 < (unsigned char)__c2;}
 
-  static _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17 int
-  compare(const char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT {
-    if (__n == 0)
-      return 0;
-    return std::__constexpr_memcmp(__s1, __s2, __n);
-  }
+    // __constexpr_memcmp requires a trivially lexicographically comparable type, but char is not when char is a signed type
+    static _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17 int
+    compare(const char_type* __lhs, const char_type* __rhs, size_t __count) _NOEXCEPT {
+      if (__libcpp_is_constant_evaluated()) {
+#ifdef _LIBCPP_COMPILER_CLANG_BASED
+        return __builtin_memcmp(__lhs, __rhs, __count);
+#else
+        while (__count != 0) {
+          if (lt(*__lhs, *__rhs))
+            return -1;
+          if (lt(*__rhs, *__lhs))
+            return 1;
 
-  static inline _LIBCPP_HIDE_FROM_ABI size_t _LIBCPP_CONSTEXPR_SINCE_CXX17 length(const char_type* __s)  _NOEXCEPT {
-    return std::__constexpr_strlen(__s);
-  }
+          __count -= sizeof(char_type);
+          ++__lhs;
+          ++__rhs;
+        }
+        return 0;
+#endif // _LIBCPP_COMPILER_CLANG_BASED
+      } else {
+        return __builtin_memcmp(__lhs, __rhs, __count);
+      }
+    }
 
-  static _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
-  const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT {
-    if (__n == 0)
-        return nullptr;
-    return std::__constexpr_char_memchr(__s, static_cast<int>(__a), __n);
-  }
+    static inline _LIBCPP_HIDE_FROM_ABI size_t _LIBCPP_CONSTEXPR_SINCE_CXX17 length(const char_type* __s)  _NOEXCEPT {
+      return std::__constexpr_strlen(__s);
+    }
+
+    static _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
+    const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT {
+      if (__n == 0)
+          return nullptr;
+      return std::__constexpr_memchr(__s, __a, __n);
+    }
 
     static inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
     char_type* move(char_type* __s1, const char_type* __s2, size_t __n) _NOEXCEPT {

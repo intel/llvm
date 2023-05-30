@@ -215,8 +215,14 @@ struct ApplyOpConversion : public mlir::OpConversionPattern<hlfir::ApplyOp> {
     mlir::Value result = rewriter.create<hlfir::DesignateOp>(
         loc, resultType, bufferizedExpr, adaptor.getIndices(),
         adaptor.getTypeparams());
-    if (fir::isa_trivial(apply.getType()))
+    if (fir::isa_trivial(apply.getType())) {
       result = rewriter.create<fir::LoadOp>(loc, result);
+    } else {
+      auto module = apply->getParentOfType<mlir::ModuleOp>();
+      fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
+      result =
+          packageBufferizedExpr(loc, builder, hlfir::Entity{result}, false);
+    }
     rewriter.replaceOp(apply, result);
     return mlir::success();
   }
@@ -340,12 +346,32 @@ struct AssociateOpConversion
 
     auto replaceWith = [&](mlir::Value hlfirVar, mlir::Value firVar,
                            mlir::Value flag) {
-      hlfirVar =
-          builder.createConvert(loc, associate.getResultTypes()[0], hlfirVar);
+      // 0-dim variables may need special handling:
+      //   %0 = hlfir.as_expr %x move %true :
+      //       (!fir.box<!fir.heap<!fir.type<_T{y:i32}>>>, i1) ->
+      //       !hlfir.expr<!fir.type<_T{y:i32}>>
+      //   %1:3 = hlfir.associate %0 {uniq_name = "adapt.valuebyref"} :
+      //       (!hlfir.expr<!fir.type<_T{y:i32}>>) ->
+      //       (!fir.ref<!fir.type<_T{y:i32}>>,
+      //        !fir.ref<!fir.type<_T{y:i32}>>,
+      //        i1)
+      //
+      // !fir.box<!fir.heap<!fir.type<_T{y:i32}>>> value must be propagated
+      // as the box address !fir.ref<!fir.type<_T{y:i32}>>.
+      mlir::Type associateHlfirVarType = associate.getResultTypes()[0];
+      if (hlfirVar.getType().isa<fir::BaseBoxType>() &&
+          !associateHlfirVarType.isa<fir::BaseBoxType>())
+        hlfirVar = builder.create<fir::BoxAddrOp>(loc, associateHlfirVarType,
+                                                  hlfirVar);
+      else
+        hlfirVar = builder.createConvert(loc, associateHlfirVarType, hlfirVar);
       associate.getResult(0).replaceAllUsesWith(hlfirVar);
+
       mlir::Type associateFirVarType = associate.getResultTypes()[1];
-      if (firVar.getType().isa<fir::BaseBoxType>() &&
-          !associateFirVarType.isa<fir::BaseBoxType>())
+      if ((firVar.getType().isa<fir::BaseBoxType>() &&
+           !associateFirVarType.isa<fir::BaseBoxType>()) ||
+          (firVar.getType().isa<fir::BoxCharType>() &&
+           !associateFirVarType.isa<fir::BoxCharType>()))
         firVar =
             builder.create<fir::BoxAddrOp>(loc, associateFirVarType, firVar);
       else
@@ -451,8 +477,20 @@ struct NoReassocOpConversion
   mlir::LogicalResult
   matchAndRewrite(hlfir::NoReassocOp noreassoc, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<hlfir::NoReassocOp>(
-        noreassoc, getBufferizedExprStorage(adaptor.getVal()));
+    mlir::Location loc = noreassoc->getLoc();
+    auto module = noreassoc->getParentOfType<mlir::ModuleOp>();
+    fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
+    mlir::Value bufferizedExpr = getBufferizedExprStorage(adaptor.getVal());
+    mlir::Value result =
+        builder.create<hlfir::NoReassocOp>(loc, bufferizedExpr);
+
+    if (!fir::isa_trivial(bufferizedExpr.getType())) {
+      // NoReassocOp should not be needed on the mustFree path.
+      mlir::Value mustFree = getBufferizedExprMustFreeFlag(adaptor.getVal());
+      result =
+          packageBufferizedExpr(loc, builder, hlfir::Entity{result}, mustFree);
+    }
+    rewriter.replaceOp(noreassoc, result);
     return mlir::success();
   }
 };
@@ -489,7 +527,13 @@ struct ElementalOpConversion
     : public mlir::OpConversionPattern<hlfir::ElementalOp> {
   using mlir::OpConversionPattern<hlfir::ElementalOp>::OpConversionPattern;
   explicit ElementalOpConversion(mlir::MLIRContext *ctx)
-      : mlir::OpConversionPattern<hlfir::ElementalOp>{ctx} {}
+      : mlir::OpConversionPattern<hlfir::ElementalOp>{ctx} {
+    // This pattern recursively converts nested ElementalOp's
+    // by cloning and then converting them, so we have to allow
+    // for recursive pattern application. The recursion is bounded
+    // by the nesting level of ElementalOp's.
+    setHasBoundedRewriteRecursion();
+  }
   mlir::LogicalResult
   matchAndRewrite(hlfir::ElementalOp elemental, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
@@ -508,12 +552,11 @@ struct ElementalOpConversion
                         adaptor.getTypeparams());
     // Generate a loop nest looping around the fir.elemental shape and clone
     // fir.elemental region inside the inner loop.
-    auto [innerLoop, oneBasedLoopIndices] =
-        hlfir::genLoopNest(loc, builder, extents);
+    hlfir::LoopNest loopNest = hlfir::genLoopNest(loc, builder, extents);
     auto insPt = builder.saveInsertionPoint();
-    builder.setInsertionPointToStart(innerLoop.getBody());
-    auto yield =
-        hlfir::inlineElementalOp(loc, builder, elemental, oneBasedLoopIndices);
+    builder.setInsertionPointToStart(loopNest.innerLoop.getBody());
+    auto yield = hlfir::inlineElementalOp(loc, builder, elemental,
+                                          loopNest.oneBasedIndices);
     hlfir::Entity elementValue(yield.getElementValue());
     // Skip final AsExpr if any. It would create an element temporary,
     // which is no needed since the element will be assigned right away in
@@ -528,7 +571,7 @@ struct ElementalOpConversion
     rewriter.eraseOp(yield);
     // Assign the element value to the temp element for this iteration.
     auto tempElement =
-        hlfir::getElementAt(loc, builder, temp, oneBasedLoopIndices);
+        hlfir::getElementAt(loc, builder, temp, loopNest.oneBasedIndices);
     builder.create<hlfir::AssignOp>(loc, elementValue, tempElement);
     // hlfir.yield_element implicitly marks the end-of-life its operand if
     // it is an expression created in the hlfir.elemental (since it is its
@@ -568,9 +611,14 @@ public:
                     EndAssociateOpConversion, NoReassocOpConversion,
                     SetLengthOpConversion, ShapeOfOpConversion>(context);
     mlir::ConversionTarget target(*context);
+    // Note that YieldElementOp is not marked as an illegal operation.
+    // It must be erased by its parent converter and there is no explicit
+    // conversion pattern to YieldElementOp itself. If any YieldElementOp
+    // survives this pass, the verifier will detect it because it has to be
+    // a child of ElementalOp and ElementalOp's are explicitly illegal.
     target.addIllegalOp<hlfir::ApplyOp, hlfir::AssociateOp, hlfir::ElementalOp,
-                        hlfir::EndAssociateOp, hlfir::SetLengthOp,
-                        hlfir::YieldElementOp>();
+                        hlfir::EndAssociateOp, hlfir::SetLengthOp>();
+
     target.markUnknownOpDynamicallyLegal([](mlir::Operation *op) {
       return llvm::all_of(
                  op->getResultTypes(),

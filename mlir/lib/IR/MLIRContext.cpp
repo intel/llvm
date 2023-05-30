@@ -175,11 +175,6 @@ public:
   /// destruction with the context.
   std::unique_ptr<llvm::ThreadPool> ownedThreadPool;
 
-  /// This is a list of dialects that are created referring to this context.
-  /// The MLIRContext owns the objects.
-  DenseMap<StringRef, std::unique_ptr<Dialect>> loadedDialects;
-  DialectRegistry dialectsRegistry;
-
   /// An allocator used for AbstractAttribute and AbstractType objects.
   llvm::BumpPtrAllocator abstractDialectSymbolAllocator;
 
@@ -192,6 +187,12 @@ public:
   /// This is a sorted container of registered operations for a deterministic
   /// and efficient `getRegisteredOperations` implementation.
   SmallVector<RegisteredOperationName, 0> sortedRegisteredOperations;
+
+  /// This is a list of dialects that are created referring to this context.
+  /// The MLIRContext owns the objects. These need to be declared after the
+  /// registered operations to ensure correct destruction order.
+  DenseMap<StringRef, std::unique_ptr<Dialect>> loadedDialects;
+  DialectRegistry dialectsRegistry;
 
   /// A mutex used when accessing operation information.
   llvm::sys::SmartRWMutex<true> operationInfoMutex;
@@ -802,7 +803,7 @@ OperationName::UnregisteredOpModel::verifyRegionInvariants(Operation *) {
   return success();
 }
 
-Optional<Attribute>
+std::optional<Attribute>
 OperationName::UnregisteredOpModel::getInherentAttr(Operation *op,
                                                     StringRef name) {
   auto dict = dyn_cast_or_null<DictionaryAttr>(getPropertiesAsAttr(op));

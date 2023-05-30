@@ -39,7 +39,7 @@ whether the required libraries have been built, you can use the
   $ <build>/bin/llvm-lit -sv libcxx/test/std/depr/depr.c.headers/stdlib_h.pass.cpp # Run a single test
   $ <build>/bin/llvm-lit -sv libcxx/test/std/atomics libcxx/test/std/threads # Test std::thread and std::atomic
 
-If you used **ninja** as your build system then running ``ninja check-cxx`` will run
+If you used **ninja** as your build system, running ``ninja -C <build> check-cxx`` will run
 all the tests in the libc++ testsuite.
 
 .. note::
@@ -319,7 +319,7 @@ concatenate its arguments to a ``std::string`` and write it to ``stderr``. When
 the output can't be concatenated a default message will be written to
 ``stderr``. This is useful for tests where the arguments use different
 character types like ``char`` and ``wchar_t``, the latter can't simply be
-written to ``stderrr``.
+written to ``stderr``.
 
 This macro is in a different header as ``assert_macros.h`` since it pulls in
 additional headers.

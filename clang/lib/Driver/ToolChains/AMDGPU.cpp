@@ -11,7 +11,6 @@
 #include "clang/Basic/TargetID.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Compilation.h"
-#include "clang/Driver/Distro.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
@@ -309,13 +308,10 @@ RocmInstallationDetector::getInstallationPathCandidates() {
     ROCmSearchDirs.emplace_back(D.SysRoot + "/opt/" + LatestROCm,
                                 /*StrictChecking=*/true);
 
-  Distro Dist(D.getVFS(), llvm::Triple(llvm::sys::getProcessTriple()));
-  if (Dist.IsDebian() || Dist.IsRedhat()) {
-    ROCmSearchDirs.emplace_back(D.SysRoot + "/usr/local",
-                                /*StrictChecking=*/true);
-    ROCmSearchDirs.emplace_back(D.SysRoot + "/usr",
-                                /*StrictChecking=*/true);
-  }
+  ROCmSearchDirs.emplace_back(D.SysRoot + "/usr/local",
+                              /*StrictChecking=*/true);
+  ROCmSearchDirs.emplace_back(D.SysRoot + "/usr",
+                              /*StrictChecking=*/true);
 
   DoPrintROCmSearchDirs();
   return ROCmSearchDirs;
@@ -586,8 +582,8 @@ void amdgpu::getAMDGPUTargetFeatures(const Driver &D,
                    options::OPT_mno_wavefrontsize64, false))
     Features.push_back("+wavefrontsize64");
 
-  handleTargetFeaturesGroup(
-    Args, Features, options::OPT_m_amdgpu_Features_Group);
+  handleTargetFeaturesGroup(D, Triple, Args, Features,
+                            options::OPT_m_amdgpu_Features_Group);
 }
 
 /// AMDGPU Toolchain

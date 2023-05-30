@@ -146,6 +146,10 @@ private:
   template <class T> SPIRVExtInst *getSource(const T *DIEntry);
   SPIRVEntry *transDbgFileType(const DIFile *F);
 
+  // Generate instructions recording identifier and file where debug information
+  // was split to
+  void generateBuildIdentifierAndStoragePath(const DICompileUnit *DIEntry);
+
   // Local Variables
   SPIRVEntry *transDbgLocalVariable(const DILocalVariable *Var);
 
@@ -170,6 +174,9 @@ private:
   std::unordered_map<const DICompileUnit *, SPIRVExtInst *> SPIRVCUMap;
   std::vector<const DbgVariableIntrinsic *> DbgDeclareIntrinsics;
   std::vector<const DbgVariableIntrinsic *> DbgValueIntrinsics;
+
+  inline static SPIRVExtInst *BuildIdentifierInsn{nullptr};
+  inline static SPIRVExtInst *StoragePathInsn{nullptr};
 }; // class LLVMToSPIRVDbgTran
 
 } // namespace SPIRV

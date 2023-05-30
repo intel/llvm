@@ -139,10 +139,11 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
                         ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
-           joint_matrix_load(sg, sub_b,
-                             accB.get_pointer() + (global_idx * (TK / 4) * N) +
-                                 sg_starty / SG_SZ * TN * 4,
-                             N);
+           joint_matrix_load(
+               sg, sub_b,
+               accB.template get_multi_ptr<access::decorated::no>() +
+                   (global_idx * (TK / 4) * N) + sg_starty / SG_SZ * TN * 4,
+               N);
 
            int32_t sum_local_cols[N] = {0}; // 4 local cols, N total
            // sub_b has 32x16 elements, 32 elements per WI, 4 per WI per row

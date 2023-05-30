@@ -748,7 +748,8 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
       !CurrentState.IsCSharpGenericTypeConstraint && Previous.opensScope() &&
       Previous.isNot(TT_ObjCMethodExpr) && Previous.isNot(TT_RequiresClause) &&
       !(Current.MacroParent && Previous.MacroParent) &&
-      (Current.isNot(TT_LineComment) || Previous.is(BK_BracedInit))) {
+      (Current.isNot(TT_LineComment) ||
+       Previous.isOneOf(BK_BracedInit, TT_VerilogMultiLineListLParen))) {
     CurrentState.Indent = State.Column + Spaces;
     CurrentState.IsAligned = true;
   }
@@ -1125,7 +1126,8 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
            Style.IndentWidth;
   }
 
-  if (NextNonComment->is(tok::l_brace) && NextNonComment->is(BK_Block)) {
+  if ((NextNonComment->is(tok::l_brace) && NextNonComment->is(BK_Block)) ||
+      (Style.isVerilog() && Keywords.isVerilogBegin(*NextNonComment))) {
     if (Current.NestingLevel == 0 ||
         (Style.LambdaBodyIndentation == FormatStyle::LBI_OuterScope &&
          State.NextToken->is(TT_LambdaLBrace))) {

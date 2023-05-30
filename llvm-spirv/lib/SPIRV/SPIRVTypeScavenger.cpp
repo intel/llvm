@@ -440,6 +440,17 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
          "Call is not an intrinsic function call");
   LLVMContext &Ctx = TargetFn->getContext();
 
+  // If the type is a pointer type, replace it with a typedptr(typevar) type
+  // instead, using AssociatedTypeVariables.
+  auto GetTypeOrTypeVar = [&](Type *BaseTy) {
+    if (!BaseTy->isPointerTy())
+      return BaseTy;
+    Type *&AssociatedTy = AssociatedTypeVariables[&CB];
+    if (!AssociatedTy)
+      AssociatedTy = allocateTypeVariable(BaseTy);
+    return AssociatedTy;
+  };
+
   StringRef DemangledName;
   if (oclIsBuiltin(TargetFn->getName(), DemangledName) ||
       isDecoratedSPIRVFunc(TargetFn, DemangledName)) {
@@ -536,13 +547,31 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
       // llvm.instrprof.* intrinsics are not supported
       TypeRules.push_back(TypeRule::pointsTo(CB, 0, Type::getInt8Ty(Ctx)));
       break;
-    // TODO: handle masked gather/scatter intrinsics. This requires support
-    // for vector-of-pointers in the type scavenger.
+    case Intrinsic::masked_gather: {
+      Type *ScalarTy = GetTypeOrTypeVar(CB.getType()->getScalarType());
+      TypeRules.push_back(TypeRule::pointsTo(CB, 0, ScalarTy));
+      if (CB.getType()->getScalarType()->isPointerTy())
+        TypeRules.push_back(TypeRule::propagates(CB, 3));
+      break;
+    }
+    case Intrinsic::masked_scatter: {
+      Type *ScalarTy =
+          GetTypeOrTypeVar(CB.getOperand(0)->getType()->getScalarType());
+      TypeRules.push_back(TypeRule::pointsTo(CB, 1, ScalarTy));
+      break;
+    }
     default:
       return false;
     }
   } else if (TargetFn->getName().startswith("_Z18__spirv_ocl_printf")) {
-    TypeRules.push_back(TypeRule::pointsTo(CB, 0, Type::getInt8Ty(Ctx)));
+    Type *Int8Ty = Type::getInt8Ty(Ctx);
+    // The first argument is a string pointer. Subsequent arguments may include
+    // pointer-valued arguments, corresponding to %s or %p parameters.
+    // Therefore, all parameters need to be i8*.
+    for (Use &U : CB.args()) {
+      if (U->getType()->isPointerTy())
+        TypeRules.push_back(TypeRule::pointsTo(U, Int8Ty));
+    }
   } else if (TargetFn->getName() == "__spirv_GetKernelWorkGroupSize__") {
     TypeRules.push_back(TypeRule::pointsTo(CB, 1, Type::getInt8Ty(Ctx)));
   } else if (TargetFn->getName() ==
@@ -558,6 +587,15 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
     TypeRules.push_back(TypeRule::pointsTo(CB, 4, DevEvent));
     TypeRules.push_back(TypeRule::pointsTo(CB, 5, DevEvent));
     TypeRules.push_back(TypeRule::pointsTo(CB, 7, Type::getInt8Ty(Ctx)));
+  } else if (TargetFn->getName().starts_with(
+                 "_Z33__regcall3____builtin_invoke_simd")) {
+    // First argument is a function to call, subsequent arguments are parameters
+    // to said function.
+    auto *FnTy = getFunctionType(cast<Function>(CB.getArgOperand(0)));
+    TypeRules.push_back(TypeRule::pointsTo(CB, 0, FnTy));
+    typeFunctionParams(CB, FnTy, 1, true, TypeRules);
+    // Also apply type rules to the parameter types of the underlying function.
+    return false;
   } else
     return false;
 
@@ -899,6 +937,20 @@ void SPIRVTypeScavenger::getTypeRules(Instruction &I,
         TypeRules.push_back(TypeRule::pointsTo(CB->getCalledOperandUse(), FT));
       typeFunctionParams(*CB, FT, 0, true, TypeRules);
     }
+  } else if (isa<ExtractElementInst>(&I)) {
+    if (!hasPointerType(I.getType()))
+      return;
+    TypeRules.push_back(TypeRule::propagatesIndirect(I, 0));
+  } else if (isa<InsertElementInst>(&I)) {
+    if (!hasPointerType(I.getType()))
+      return;
+    TypeRules.push_back(TypeRule::propagatesIndirect(I, 0));
+    TypeRules.push_back(TypeRule::propagatesIndirect(I, 1));
+  } else if (isa<ShuffleVectorInst>(&I)) {
+    if (!hasPointerType(I.getType()))
+      return;
+    TypeRules.push_back(TypeRule::propagatesIndirect(I, 0));
+    TypeRules.push_back(TypeRule::propagatesIndirect(I, 1));
   }
 
   // TODO: Handle insertvalue, extractvalue that work with pointers (requires

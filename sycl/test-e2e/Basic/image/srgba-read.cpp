@@ -63,7 +63,7 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
     Q.wait_and_throw();
 
     // REPORT RESULTS
-    auto test_acc = testResults.get_access<access::mode::read>();
+    host_accessor test_acc(testResults, read_only);
     for (int i = 0, idx = 0; i < numTests; i++, idx++) {
       if (i == 0) {
         idx = 0;

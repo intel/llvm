@@ -10,6 +10,8 @@
 #ifndef _PSTL_ALGORITHM_IMPL_H
 #define _PSTL_ALGORITHM_IMPL_H
 
+#include <__assert>
+#include <__config>
 #include <algorithm>
 #include <functional>
 #include <iterator>
@@ -21,7 +23,6 @@
 #include "parallel_backend.h"
 #include "parallel_backend_utils.h"
 #include "parallel_impl.h"
-#include "pstl_config.h"
 #include "unseq_backend_simd.h"
 
 namespace __pstl {
@@ -3093,8 +3094,8 @@ bool __pattern_includes(
         __first2,
         __last2,
         [__first1, __last1, __first2, __last2, &__comp](_RandomAccessIterator2 __i, _RandomAccessIterator2 __j) {
-          _PSTL_ASSERT(__j > __i);
-          //_PSTL_ASSERT(__j - __i > 1);
+          _LIBCPP_ASSERT(__j > __i, "");
+          //_LIBCPP_ASSERT(__j - __i > 1, "");
 
           // 1. moving boundaries to "consume" subsequence of equal elements
           auto __is_equal = [&__comp](_RandomAccessIterator2 __a, _RandomAccessIterator2 __b) -> bool {
@@ -3117,8 +3118,8 @@ bool __pattern_includes(
           // 2. testing is __a subsequence of the second range included into the first range
           auto __b = std::lower_bound(__first1, __last1, *__i, __comp);
 
-          _PSTL_ASSERT(!__comp(*(__last1 - 1), *__b));
-          _PSTL_ASSERT(!__comp(*(__j - 1), *__i));
+          _LIBCPP_ASSERT(!__comp(*(__last1 - 1), *__b), "");
+          _LIBCPP_ASSERT(!__comp(*(__j - 1), *__i), "");
           return !std::includes(__b, __last1, __i, __j, __comp);
         });
   });
@@ -3335,7 +3336,7 @@ _OutputIterator __parallel_set_union_op(
   }
 
   const auto __m2 = __left_bound_seq_2 - __first2;
-  _PSTL_ASSERT(__m1 == 0 || __m2 == 0);
+  _LIBCPP_ASSERT(__m1 == 0 || __m2 == 0, "");
   if (__m2 > __set_algo_cut_off) {
     auto __res_or = __result;
     __result += __m2; // we know proper offset due to [first2; left_bound_seq_2) < [first1; last1)
@@ -4161,7 +4162,7 @@ bool __brick_lexicographical_compare(
     _RandomAccessIterator2 __last2,
     _Compare __comp,
     /* __is_vector = */ std::true_type) noexcept {
-  if (__first2 == __last2) {        // if second sequence is empty
+  if (__first2 == __last2) { // if second sequence is empty
     return false;
   } else if (__first1 == __last1) { // if first sequence is empty
     return true;
@@ -4212,7 +4213,7 @@ bool __pattern_lexicographical_compare(
     _Compare __comp) noexcept {
   using __backend_tag = typename decltype(__tag)::__backend_tag;
 
-  if (__first2 == __last2) {        // if second sequence is empty
+  if (__first2 == __last2) { // if second sequence is empty
     return false;
   } else if (__first1 == __last1) { // if first sequence is empty
     return true;

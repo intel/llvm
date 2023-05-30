@@ -1,8 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-embed-ir -O2 %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: hip
 // REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{run} %t.out
 
 // Test complete fusion with local internalization specified on the
 // accessors for a combination of four kernels, forming a diamond-like shape and

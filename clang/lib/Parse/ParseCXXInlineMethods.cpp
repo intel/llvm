@@ -10,12 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Parse/Parser.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Parse/ParseDiagnostic.h"
+#include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Scope.h"
+
 using namespace clang;
 
 /// ParseCXXInlineMethodDef - We parsed and verified that the specified
@@ -836,6 +838,7 @@ bool Parser::ConsumeAndStoreUntil(tok::TokenKind T1, tok::TokenKind T2,
     case tok::annot_module_begin:
     case tok::annot_module_end:
     case tok::annot_module_include:
+    case tok::annot_repl_input_end:
       // Ran out of tokens.
       return false;
 
@@ -1242,6 +1245,7 @@ bool Parser::ConsumeAndStoreInitializer(CachedTokens &Toks,
     case tok::annot_module_begin:
     case tok::annot_module_end:
     case tok::annot_module_include:
+    case tok::annot_repl_input_end:
       // Ran out of tokens.
       return false;
 

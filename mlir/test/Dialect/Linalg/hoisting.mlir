@@ -75,11 +75,11 @@ func.func @hoist_vector_transfer_pairs(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_vector_transfers %0
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
 }
 
 // -----
@@ -164,11 +164,11 @@ func.func @hoist_vector_transfer_pairs_disjoint(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_vector_transfers %0
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
 }
 
 // -----
@@ -209,11 +209,11 @@ func.func @hoist_vector_transfer_pairs_in_affine_loops(%memref0: memref<64x64xi3
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_vector_transfers %0
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
 }
 
 // -----
@@ -298,11 +298,11 @@ func.func @hoist_vector_transfer_pairs_tensor(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_tensor_subsets %0
-    : (!pdl.operation) -> ()
+    : (!transform.any_op) -> ()
 }
 
 // -----
@@ -393,11 +393,11 @@ func.func @hoist_vector_transfer_pairs_disjoint_tensor(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_tensor_subsets %0
-    : (!pdl.operation) -> ()
+    : (!transform.any_op) -> ()
 }
 
 // -----
@@ -510,11 +510,11 @@ func.func @hoist_vector_transfer_pairs_tensor_and_slices(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_tensor_subsets %0
-    : (!pdl.operation) -> ()
+    : (!transform.any_op) -> ()
 }
 
 // -----
@@ -557,11 +557,11 @@ func.func @hoist_vector_transfer_write_pairs_disjoint_tensor(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_tensor_subsets %0
-    : (!pdl.operation) -> ()
+    : (!transform.any_op) -> ()
 }
 
 // -----
@@ -670,11 +670,11 @@ func.func @hoist_vector_transfer_pairs_tensor_and_slices_static_large_tensor(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_tensor_subsets %0
-    : (!pdl.operation) -> ()
+    : (!transform.any_op) -> ()
 }
 
 // -----
@@ -696,6 +696,7 @@ transform.sequence failures(propagate) {
 // CHECK:            "some_use"(%[[D0]], %[[D1]], %[[CAST]]) : (vector<32x64xf32>, vector<32x128xf32>, memref<32x128xf32,
 // CHECK-SAME:         strided<[128, 1], offset: ?>>) -> ()
 // CHECK:          }
+// CHECK:          memref.dealloc %[[ALLOC]] : memref<32x64xf32>
 // CHECK:          return
 func.func @hoist_vector_transfer_read() {
   %c0 = arith.constant 0 : index
@@ -710,13 +711,14 @@ func.func @hoist_vector_transfer_read() {
     %3 = vector.transfer_read %memref0[%c0, %c0], %cst_2 {in_bounds = [true, true]} : memref<32x64xf32>, vector<32x64xf32>
     "some_use"(%3, %2, %subview2) : (vector<32x64xf32>, vector<32x128xf32>, memref<32x128xf32, strided<[128, 1], offset: ?>>) -> ()
   }
+  memref.dealloc %memref0 : memref<32x64xf32>
   return
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
+^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["func.func"]} in %arg1
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
   transform.structured.hoist_redundant_vector_transfers %0
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
 }

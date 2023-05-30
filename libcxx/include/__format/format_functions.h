@@ -10,10 +10,6 @@
 #ifndef _LIBCPP___FORMAT_FORMAT_FUNCTIONS
 #define _LIBCPP___FORMAT_FORMAT_FUNCTIONS
 
-// TODO FMT This is added to fix Apple back-deployment.
-#include <version>
-#if !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
-
 #include <__algorithm/clamp.h>
 #include <__availability>
 #include <__concepts/convertible_to.h>
@@ -89,14 +85,16 @@ namespace __format {
 template <class _CharT>
 class _LIBCPP_TEMPLATE_VIS __compile_time_handle {
 public:
-  _LIBCPP_HIDE_FROM_ABI
-  constexpr void __parse(basic_format_parse_context<_CharT>& __parse_ctx) const { __parse_(__parse_ctx); }
+  template <class _ParseContext>
+  _LIBCPP_HIDE_FROM_ABI constexpr void __parse(_ParseContext& __ctx) const {
+    __parse_(__ctx);
+  }
 
   template <class _Tp>
   _LIBCPP_HIDE_FROM_ABI constexpr void __enable() {
-    __parse_ = [](basic_format_parse_context<_CharT>& __parse_ctx) {
+    __parse_ = [](basic_format_parse_context<_CharT>& __ctx) {
       formatter<_Tp, _CharT> __f;
-      __parse_ctx.advance_to(__f.parse(__parse_ctx));
+      __ctx.advance_to(__f.parse(__ctx));
     };
   }
 
@@ -675,7 +673,5 @@ formatted_size(locale __loc, wformat_string<_Args...> __fmt, _Args&&... __args) 
 #endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
-
-#endif // !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 
 #endif // _LIBCPP___FORMAT_FORMAT_FUNCTIONS

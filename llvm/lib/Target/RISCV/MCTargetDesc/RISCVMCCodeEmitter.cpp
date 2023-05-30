@@ -88,6 +88,10 @@ public:
   unsigned getVMaskReg(const MCInst &MI, unsigned OpNo,
                        SmallVectorImpl<MCFixup> &Fixups,
                        const MCSubtargetInfo &STI) const;
+
+  unsigned getRlistOpValue(const MCInst &MI, unsigned OpNo,
+                           SmallVectorImpl<MCFixup> &Fixups,
+                           const MCSubtargetInfo &STI) const;
 };
 } // end anonymous namespace
 
@@ -444,6 +448,8 @@ unsigned RISCVMCCodeEmitter::getImmOpValue(const MCInst &MI, unsigned OpNo,
       FixupKind = RISCV::fixup_riscv_rvc_jump;
     } else if (MIFrm == RISCVII::InstFormatCB) {
       FixupKind = RISCV::fixup_riscv_rvc_branch;
+    } else if (MIFrm == RISCVII::InstFormatI) {
+      FixupKind = RISCV::fixup_riscv_12_i;
     }
   }
 
@@ -481,6 +487,16 @@ unsigned RISCVMCCodeEmitter::getVMaskReg(const MCInst &MI, unsigned OpNo,
   case RISCV::NoRegister:
     return 1;
   }
+}
+
+unsigned RISCVMCCodeEmitter::getRlistOpValue(const MCInst &MI, unsigned OpNo,
+                                             SmallVectorImpl<MCFixup> &Fixups,
+                                             const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  assert(MO.isImm() && "Rlist operand must be immediate");
+  auto Imm = MO.getImm();
+  assert(Imm >= 4 && "EABI is currently not implemented");
+  return Imm;
 }
 
 #include "RISCVGenMCCodeEmitter.inc"

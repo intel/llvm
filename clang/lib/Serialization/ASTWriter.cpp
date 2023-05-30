@@ -185,7 +185,8 @@ std::set<const FileEntry *> GetAffectingModuleMaps(const Preprocessor &PP,
     if (!HFI || (HFI->isModuleHeader && !HFI->isCompilingModuleHeader))
       continue;
 
-    for (const auto &KH : HS.findAllModulesForHeader(File)) {
+    for (const auto &KH :
+         HS.findAllModulesForHeader(File, /*AllowCreation=*/false)) {
       if (!KH.getModule())
         continue;
       ModulesToProcess.push_back(KH.getModule());
@@ -1243,6 +1244,8 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang maj.
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang min.
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Relocatable
+  // Standard C++ module
+  MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1));
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Timestamps
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Errors
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // SVN branch/tag
@@ -1250,15 +1253,15 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   assert((!WritingModule || isysroot.empty()) &&
          "writing module as a relocatable PCH?");
   {
-    RecordData::value_type Record[] = {
-        METADATA,
-        VERSION_MAJOR,
-        VERSION_MINOR,
-        CLANG_VERSION_MAJOR,
-        CLANG_VERSION_MINOR,
-        !isysroot.empty(),
-        IncludeTimestamps,
-        ASTHasCompilerErrors};
+    RecordData::value_type Record[] = {METADATA,
+                                       VERSION_MAJOR,
+                                       VERSION_MINOR,
+                                       CLANG_VERSION_MAJOR,
+                                       CLANG_VERSION_MINOR,
+                                       !isysroot.empty(),
+                                       isWritingStdCXXNamedModules(),
+                                       IncludeTimestamps,
+                                       ASTHasCompilerErrors};
     Stream.EmitRecordWithBlob(MetadataAbbrevCode, Record,
                               getClangFullRepositoryVersion());
   }
@@ -1349,6 +1352,7 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
         continue;
 
       Record.push_back((unsigned)M.Kind); // FIXME: Stable encoding
+      Record.push_back(M.StandardCXXModule);
       AddSourceLocation(M.ImportLoc, Record);
 
       // If we have calculated signature, there is no need to store
@@ -1884,7 +1888,7 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
 
       // If the file didn't exist, we can still create a module if we were given
       // enough information in the module map.
-      for (auto U : M->MissingHeaders) {
+      for (const auto &U : M->MissingHeaders) {
         // Check that we were given enough information to build a module
         // without this file existing on disk.
         if (!U.Size || (!U.ModTime && IncludeTimestamps)) {
@@ -3554,12 +3558,8 @@ public:
       if (MacroOffset)
         DataLen += 4; // MacroDirectives offset.
 
-      if (NeedDecls) {
-        for (IdentifierResolver::iterator D = IdResolver.begin(II),
-                                       DEnd = IdResolver.end();
-             D != DEnd; ++D)
-          DataLen += 4;
-      }
+      if (NeedDecls)
+        DataLen += std::distance(IdResolver.begin(II), IdResolver.end()) * 4;
     }
     return emitULEBKeyDataLength(KeyLen, DataLen, Out);
   }
@@ -3604,8 +3604,7 @@ public:
       // "stat"), but the ASTReader adds declarations to the end of the list
       // (so we need to see the struct "stat" before the function "stat").
       // Only emit declarations that aren't from a chained PCH, though.
-      SmallVector<NamedDecl *, 16> Decls(IdResolver.begin(II),
-                                         IdResolver.end());
+      SmallVector<NamedDecl *, 16> Decls(IdResolver.decls(II));
       for (NamedDecl *D : llvm::reverse(Decls))
         LE.write<uint32_t>(
             Writer.getDeclID(getDeclForLocalLookup(PP.getLangOpts(), D)));
@@ -3642,13 +3641,13 @@ void ASTWriter::WriteIdentifierTable(Preprocessor &PP,
     // file.
     SmallVector<const IdentifierInfo *, 128> IIs;
     for (const auto &ID : PP.getIdentifierTable())
-      IIs.push_back(ID.second);
-    // Sort the identifiers lexicographically before getting them references so
+      if (Trait.isInterestingNonMacroIdentifier(ID.second))
+        IIs.push_back(ID.second);
+    // Sort the identifiers lexicographically before getting the references so
     // that their order is stable.
     llvm::sort(IIs, llvm::deref<std::less<>>());
     for (const IdentifierInfo *II : IIs)
-      if (Trait.isInterestingNonMacroIdentifier(II))
-        getIdentifierRef(II);
+      getIdentifierRef(II);
 
     // Create the on-disk hash table representation. We only store offsets
     // for identifiers that appear here for the first time.
@@ -4883,13 +4882,9 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
     }
     // Sort the identifiers to visit based on their name.
     llvm::sort(IIs, llvm::deref<std::less<>>());
-    for (const IdentifierInfo *II : IIs) {
-      for (IdentifierResolver::iterator D = SemaRef.IdResolver.begin(II),
-                                     DEnd = SemaRef.IdResolver.end();
-           D != DEnd; ++D) {
-        GetDeclRef(*D);
-      }
-    }
+    for (const IdentifierInfo *II : IIs)
+      for (const Decl *D : SemaRef.IdResolver.decls(II))
+        GetDeclRef(D);
   }
 
   // For method pool in the module, if it contains an entry for a selector,
@@ -5992,13 +5987,20 @@ void ASTRecordWriter::AddVarDeclInit(const VarDecl *VD) {
     return;
   }
 
-  unsigned Val = 1;
+  uint64_t Val = 1;
   if (EvaluatedStmt *ES = VD->getEvaluatedStmt()) {
     Val |= (ES->HasConstantInitialization ? 2 : 0);
     Val |= (ES->HasConstantDestruction ? 4 : 0);
-    // FIXME: Also emit the constant initializer value.
+    APValue *Evaluated = VD->getEvaluatedValue();
+    // If the evaluted result is constant, emit it.
+    if (Evaluated && (Evaluated->isInt() || Evaluated->isFloat()))
+      Val |= 8;
   }
   push_back(Val);
+  if (Val & 8) {
+    AddAPValue(*VD->getEvaluatedValue());
+  }
+
   writeStmtRef(Init);
 }
 

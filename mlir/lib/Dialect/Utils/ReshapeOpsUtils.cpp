@@ -162,7 +162,7 @@ ArrayAttr mlir::getReassociationIndicesAttribute(
   SmallVector<Attribute, 4> reassociationAttr =
       llvm::to_vector<4>(llvm::map_range(
           reassociation, [&](const ReassociationIndices &indices) -> Attribute {
-            return b.getI64ArrayAttr(indices).cast<Attribute>();
+            return cast<Attribute>(b.getI64ArrayAttr(indices));
           }));
   return b.getArrayAttr(reassociationAttr);
 }
@@ -267,7 +267,7 @@ LogicalResult mlir::reshapeLikeShapesAreCompatible(
 }
 
 bool mlir::hasNonIdentityLayout(Type type) {
-  if (auto memrefType = type.dyn_cast<MemRefType>())
+  if (auto memrefType = dyn_cast<MemRefType>(type))
     return !memrefType.getLayout().isIdentity();
   return false;
 }
@@ -356,7 +356,7 @@ SliceFromCollapseHelper::getInsertSliceParams(MLIRContext *ctx,
 
 /// Returns the index of the only non-unit dimension among `indices` of `shape`,
 /// if such a dimension exists and `indices` has more than one element.
-/// Otherwise, return none.
+/// Otherwise, return std::nullopt.
 static std::optional<int64_t> getUniqueNonUnitDim(ArrayRef<int64_t> indices,
                                                   ArrayRef<int64_t> shape) {
   // Return false if more than one of the dimensions in this group are not 1.

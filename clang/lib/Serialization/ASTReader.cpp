@@ -2389,12 +2389,15 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   StringRef Filename = FI.Filename;
   uint64_t StoredContentHash = FI.ContentHash;
 
+  // For standard C++ modules, we don't need to check the inputs.
+  bool SkipChecks = F.StandardCXXModule;
+
   OptionalFileEntryRefDegradesToFileEntryPtr File = OptionalFileEntryRef(
       expectedToOptional(FileMgr.getFileRef(Filename, /*OpenFile=*/false)));
 
   // For an overridden file, create a virtual file with the stored
   // size/timestamp.
-  if ((Overridden || Transient) && !File)
+  if ((Overridden || Transient || SkipChecks) && !File)
     File = FileMgr.getVirtualFileRef(Filename, StoredSize, StoredTime);
 
   if (!File) {
@@ -2417,7 +2420,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   // PCH.
   SourceManager &SM = getSourceManager();
   // FIXME: Reject if the overrides are different.
-  if ((!Overridden && !Transient) && SM.isFileOverridden(File)) {
+  if ((!Overridden && !Transient) && !SkipChecks && SM.isFileOverridden(File)) {
     if (Complain)
       Error(diag::err_fe_pch_file_overridden, Filename);
 
@@ -2476,7 +2479,7 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
   };
 
   bool IsOutOfDate = false;
-  auto FileChange = HasInputFileChanged();
+  auto FileChange = SkipChecks ? Change{Change::None} : HasInputFileChanged();
   // For an overridden file, there is nothing to validate.
   if (!Overridden && FileChange.Kind != Change::None) {
     if (Complain && !Diags.isDiagnosticInFlight()) {
@@ -2821,7 +2824,7 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         return VersionMismatch;
       }
 
-      bool hasErrors = Record[6];
+      bool hasErrors = Record[7];
       if (hasErrors && !DisableValidation) {
         // If requested by the caller and the module hasn't already been read
         // or compiled, mark modules on error as out-of-date.
@@ -2845,7 +2848,9 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       if (F.RelocatablePCH)
         F.BaseDirectory = isysroot.empty() ? "/" : isysroot;
 
-      F.HasTimestamps = Record[5];
+      F.StandardCXXModule = Record[5];
+
+      F.HasTimestamps = Record[6];
 
       const std::string &CurBranch = getClangFullRepositoryVersion();
       StringRef ASTBranch = Blob;
@@ -2869,6 +2874,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       while (Idx < N) {
         // Read information about the AST file.
         ModuleKind ImportedKind = (ModuleKind)Record[Idx++];
+        // Whether we're importing a standard c++ module.
+        bool IsImportingStdCXXModule = Record[Idx++];
         // The import location will be the local one for now; we will adjust
         // all import locations of module imports after the global source
         // location info are setup, in ReadAST.
@@ -2886,18 +2893,25 @@ ASTReader::ReadControlBlock(ModuleFile &F,
 
         // For prebuilt and explicit modules first consult the file map for
         // an override. Note that here we don't search prebuilt module
-        // directories, only the explicit name to file mappings. Also, we will
-        // still verify the size/signature making sure it is essentially the
-        // same file but perhaps in a different location.
+        // directories if we're not importing standard c++ module, only the
+        // explicit name to file mappings. Also, we will still verify the
+        // size/signature making sure it is essentially the same file but
+        // perhaps in a different location.
         if (ImportedKind == MK_PrebuiltModule || ImportedKind == MK_ExplicitModule)
           ImportedFile = PP.getHeaderSearchInfo().getPrebuiltModuleFileName(
-            ImportedName, /*FileMapOnly*/ true);
+              ImportedName, /*FileMapOnly*/ !IsImportingStdCXXModule);
 
-        if (ImportedFile.empty())
+        if (ImportedFile.empty()) {
+          // It is deprecated for C++20 Named modules to use the implicitly
+          // paths.
+          if (IsImportingStdCXXModule)
+            Diag(clang::diag::warn_reading_std_cxx_module_by_implicit_paths)
+                << ImportedName;
+
           // Use BaseDirectoryAsWritten to ensure we use the same path in the
           // ModuleCache as when writing.
           ImportedFile = ReadPath(BaseDirectoryAsWritten, Record, Idx);
-        else
+        } else
           SkipPath(Record, Idx);
 
         // If our client can't cope with us being out of date, we can't cope with
@@ -4425,7 +4439,7 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
       Id->second->setOutOfDate(true);
   }
   // Mark selectors as out of date.
-  for (auto Sel : SelectorGeneration)
+  for (const auto &Sel : SelectorGeneration)
     SelectorOutOfDate[Sel.first] = true;
 
   // Resolve any unresolved module exports.
@@ -4502,18 +4516,16 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
     }
   }
 
-  if (PP.getHeaderSearchInfo()
-          .getHeaderSearchOpts()
-          .ModulesValidateOncePerBuildSession) {
+  HeaderSearchOptions &HSOpts = PP.getHeaderSearchInfo().getHeaderSearchOpts();
+  if (HSOpts.ModulesValidateOncePerBuildSession) {
     // Now we are certain that the module and all modules it depends on are
-    // up to date.  Create or update timestamp files for modules that are
-    // located in the module cache (not for PCH files that could be anywhere
-    // in the filesystem).
+    // up-to-date. For implicitly-built module files, ensure the corresponding
+    // timestamp files are up-to-date in this build session.
     for (unsigned I = 0, N = Loaded.size(); I != N; ++I) {
       ImportedModule &M = Loaded[I];
-      if (M.Mod->Kind == MK_ImplicitModule) {
+      if (M.Mod->Kind == MK_ImplicitModule &&
+          M.Mod->InputFilesValidationTimestamp < HSOpts.BuildSessionTimestamp)
         updateModuleTimestamp(*M.Mod);
-      }
     }
   }
 
@@ -5442,9 +5454,9 @@ bool ASTReader::readASTFileControlBlock(
       unsigned Idx = 0, N = Record.size();
       while (Idx < N) {
         // Read information about the AST file.
-        Idx +=
-            1 + 1 + 1 + 1 +
-            ASTFileSignature::size; // Kind, ImportLoc, Size, ModTime, Signature
+
+        // Kind, StandardCXXModule, ImportLoc, Size, ModTime, Signature
+        Idx += 1 + 1 + 1 + 1 + 1 + ASTFileSignature::size;
         std::string ModuleName = ReadString(Record, Idx);
         std::string Filename = ReadString(Record, Idx);
         ResolveImportedPath(Filename, ModuleDir);
@@ -7700,7 +7712,7 @@ void ASTReader::FindExternalLexicalDecls(
   };
 
   if (isa<TranslationUnitDecl>(DC)) {
-    for (auto Lexical : TULexicalDecls)
+    for (const auto &Lexical : TULexicalDecls)
       Visit(Lexical.first, Lexical.second);
   } else {
     auto I = LexicalDecls.find(DC);

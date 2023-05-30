@@ -1,7 +1,5 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %{build} -o %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: esimd_emulator
 //==- bit_shift_compilation_test.cpp - Test for compilation of bit shift

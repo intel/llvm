@@ -107,11 +107,11 @@ bool OffloadTargetInfo::isOffloadKindCompatible(
   if (OffloadKind == TargetOffloadKind)
     return true;
   if (BundlerConfig.HipOpenmpCompatible) {
-    bool HIPCompatibleWithOpenMP = OffloadKind.startswith_insensitive("hip") &&
+    bool HIPCompatibleWithOpenMP = OffloadKind.starts_with_insensitive("hip") &&
                                    TargetOffloadKind == "openmp";
     bool OpenMPCompatibleWithHIP =
         OffloadKind == "openmp" &&
-        TargetOffloadKind.startswith_insensitive("hip");
+        TargetOffloadKind.starts_with_insensitive("hip");
     return HIPCompatibleWithOpenMP || OpenMPCompatibleWithHIP;
   }
   return false;
@@ -1424,22 +1424,8 @@ Error OffloadBundler::UnbundleFiles() {
       }
     }
 
-    if (Output == Worklist.end()) {
-      // FIXME: temporary solution for supporting binaries produced by old
-      // versions of SYCL toolchain. Old versions used triples with 'sycldevice'
-      // environment component of the triple, whereas new toolchain use
-      // 'unknown' value for that triple component. Here we assume that if we
-      // are looking for a bundle for sycl offload kind, for the same target
-      // triple there might be either one with 'sycldevice' environment or with
-      // 'unknown' environment, but not both. So we will look for any of these
-      // two variants.
-      if (!CurTriple.startswith("sycl-") || !CurTriple.endswith("-sycldevice"))
-        continue;
-      Output =
-          Worklist.find(CurTriple.drop_back(11 /*length of "-sycldevice"*/));
-      if (Output == Worklist.end())
-        continue;
-    }
+    if (Output == Worklist.end())
+      continue;
     // Check if the output file can be opened and copy the bundle to it.
     std::error_code EC;
     raw_fd_ostream OutputFile((*Output).second, EC, sys::fs::OF_None);
@@ -1544,20 +1530,7 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
 
   StringRef triple = BundlerConfig.TargetNames.front();
 
-  // FIXME: temporary solution for supporting binaries produced by old versions
-  // of SYCL toolchain. Old versions used triples with 'sycldevice' environment
-  // component of the triple, whereas new toolchain use 'unknown' value for that
-  // triple component. Here we assume that if we are looking for a bundle for
-  // sycl offload kind, for the same target triple there might be either one
-  // with 'sycldevice' environment or with 'unknown' environment, but not both.
-  // So we will look for any of these two variants.
-  OffloadTargetInfo TI(triple, BundlerConfig);
-  bool checkCompatibleTriple =
-      (TI.OffloadKind == "sycl") &&
-      (TI.Triple.getEnvironment() == Triple::UnknownEnvironment);
-  TI.Triple.setEnvironmentName("sycldevice");
-  std::string compatibleTriple = Twine("sycl-" + TI.Triple.str()).str();
-
+  // Read all the bundles that are in the work list. If we find no bundles we
   // assume the file is meant for the host target.
   bool found = false;
   while (!found) {
@@ -1570,9 +1543,7 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple ||
-        (checkCompatibleTriple &&
-         *CurTripleOrErr == StringRef(compatibleTriple))) {
+    if (*CurTripleOrErr == triple) {
       found = true;
       break;
     }

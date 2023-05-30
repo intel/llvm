@@ -1,5 +1,5 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
-// RUN: %BE_RUN_PLACEHOLDER %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 //==--------------- platform.cpp - SYCL platform test ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

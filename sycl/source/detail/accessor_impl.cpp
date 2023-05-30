@@ -39,6 +39,14 @@ void addHostAccessorAndWait(Requirement *Req) {
   Event->wait(Event);
 }
 
+void addHostUnsampledImageAccessorAndWait(UnsampledImageAccessorImplHost *Req) {
+  addHostAccessorAndWait(Req);
+}
+
+void addHostSampledImageAccessorAndWait(SampledImageAccessorImplHost *Req) {
+  addHostAccessorAndWait(Req);
+}
+
 void constructorNotification(void *BufferObj, void *AccessorObj,
                              sycl::access::target Target,
                              sycl::access::mode Mode,

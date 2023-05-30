@@ -103,6 +103,9 @@ Improvements to clang-tidy
 
 - Fix a potential crash when using the `--dump-config` option.
 
+- Support specifying `SystemHeaders` in the `.clang-tidy` configuration file,
+  with the same functionality as the command-line option `--system-headers`.
+
 New checks
 ^^^^^^^^^^
 
@@ -137,6 +140,12 @@ New checks
   <clang-tidy/checks/cppcoreguidelines/misleading-capture-default-by-value>` check.
 
   Warns when lambda specify a by-value capture default and capture ``this``.
+
+- New :doc:`cppcoreguidelines-missing-std-forward
+  <clang-tidy/checks/cppcoreguidelines/missing-std-forward>` check.
+
+  Warns when a forwarding reference parameter is not forwarded within the
+  function body.
 
 - New :doc:`cppcoreguidelines-rvalue-reference-param-not-moved
   <clang-tidy/checks/cppcoreguidelines/rvalue-reference-param-not-moved>` check.
@@ -192,6 +201,12 @@ New check aliases
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Fixed false-positives in :doc:`bugprone-branch-clone
+  <clang-tidy/checks/bugprone/branch-clone>` check by ignoring auto-generated
+  code, template instances, implicit code patterns and duplicated switch cases
+  marked with the ``[[fallthrough]]`` attribute.
+
 - Improved :doc:`readability-redundant-string-cstr
   <clang-tidy/checks/readability/redundant-string-cstr>` check to recognise
   unnecessary ``std::string::c_str()`` and ``std::string::data()`` calls in
@@ -229,8 +244,9 @@ Changes in existing checks
   to ``std::forward``.
 
 - Improved :doc:`bugprone-use-after-move
-  <clang-tidy/checks/bugprone/use-after-move>` check to also cover constructor
-  initializers.
+  <clang-tidy/checks/bugprone/use-after-move>` check. Detect uses and moves in
+  constructor initializers. Correctly handle constructor arguments as being
+  sequenced when constructor call is written as list-initialization.
 
 - Deprecated :doc:`cert-dcl21-cpp
   <clang-tidy/checks/cert/dcl21-cpp>` check.
@@ -370,6 +386,10 @@ Changes in existing checks
 - Fixed a false positive in :doc:`performance-no-automatic-move
   <clang-tidy/checks/performance/no-automatic-move>` when warning would be
   emitted for a const local variable to which NRVO is applied.
+
+- Improved :doc:`performance-no-automatic-move
+  <clang-tidy/checks/performance/no-automatic-move>`: warn on ``const &&``
+  constructors.
 
 Removed checks
 ^^^^^^^^^^^^^^
