@@ -32,7 +32,7 @@ include(SYCLUtils)
 #
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
-set(SYCL_MAJOR_VERSION 8)
+set(SYCL_MAJOR_VERSION 7)
 set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 

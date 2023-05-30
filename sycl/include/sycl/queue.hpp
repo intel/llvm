@@ -483,6 +483,7 @@ public:
   template <typename T>
   event fill(void *Ptr, const T &Pattern,
              size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
     return submit([&](handler &CGH) {
@@ -501,6 +502,7 @@ public:
   template <typename T>
   event fill(void *Ptr, const T &Pattern, size_t Count,
              event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvent);
@@ -520,6 +522,7 @@ public:
   template <typename T>
   event fill(void *Ptr, const T &Pattern, size_t Count,
              const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
@@ -723,6 +726,7 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [=](handler &CGH) { CGH.prefetch(Ptr, Count); } _CODELOCFW(CodeLoc));
@@ -738,6 +742,7 @@ public:
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count,
                  event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([=](handler &CGH) {
       CGH.depends_on(DepEvent);
@@ -756,6 +761,7 @@ public:
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count,
                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([=](handler &CGH) {
       CGH.depends_on(DepEvents);
@@ -1101,6 +1107,7 @@ public:
   event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
                const void *Src, size_t NumBytes, size_t Offset,
                const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
@@ -1137,6 +1144,7 @@ public:
   event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
                const void *Src, size_t NumBytes, size_t Offset,
                event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset,
                         std::vector<event>{DepEvent});
@@ -1156,6 +1164,7 @@ public:
   event memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
                const void *Src, size_t NumBytes = sizeof(T),
                size_t Offset = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
   }
@@ -1178,6 +1187,7 @@ public:
          const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
          size_t NumBytes, size_t Offset,
          const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
@@ -1216,6 +1226,7 @@ public:
          const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
          size_t NumBytes, size_t Offset,
          event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset,
                         std::vector<event>{DepEvent});
@@ -1237,6 +1248,7 @@ public:
          const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
          size_t NumBytes = sizeof(T),
          size_t Offset = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
   }
@@ -1259,6 +1271,7 @@ public:
              ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
              size_t Count, size_t StartIndex,
              const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1283,6 +1296,7 @@ public:
              ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
              size_t Count, size_t StartIndex,
              event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1305,6 +1319,7 @@ public:
              ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
              size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
              size_t StartIndex = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
@@ -1328,6 +1343,7 @@ public:
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
        std::remove_all_extents_t<T> *Dest, size_t Count, size_t StartIndex,
        const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1352,6 +1368,7 @@ public:
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
        std::remove_all_extents_t<T> *Dest, size_t Count, size_t StartIndex,
        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1375,6 +1392,7 @@ public:
        std::remove_all_extents_t<T> *Dest,
        size_t Count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
        size_t StartIndex = 0 _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
