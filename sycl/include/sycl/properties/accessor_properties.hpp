@@ -102,6 +102,14 @@ class __SYCL_EBO
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
+template <typename DataT, int Dimensions, access_mode AccessMode,
+          image_target AccessTarget>
+class unsampled_image_accessor;
+template <typename DataT, int Dimensions, image_target AccessTarget>
+class sampled_image_accessor;
+template <typename DataT, int Dimensions, access_mode AccessMode>
+class host_unsampled_image_accessor;
+template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 namespace detail::acc_properties {
 template <typename T> struct is_accessor : std::false_type {};
@@ -112,6 +120,33 @@ struct is_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget,
                             IsPlaceholder, PropertyListT>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_accessor_v = is_accessor<T>::value;
+
+template <typename T> struct is_sycl2020_image_accessor : std::false_type {};
+template <typename DataT, int Dimensions, access_mode AccessMode,
+          image_target AccessTarget>
+struct is_sycl2020_image_accessor<
+    unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>>
+    : std::true_type {};
+template <typename DataT, int Dimensions, image_target AccessTarget>
+struct is_sycl2020_image_accessor<
+    sampled_image_accessor<DataT, Dimensions, AccessTarget>> : std::true_type {
+};
+template <typename T>
+inline constexpr bool is_sycl2020_image_accessor_v =
+    is_sycl2020_image_accessor<T>::value;
+
+template <typename T>
+struct is_sycl2020_image_host_accessor : std::false_type {};
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct is_sycl2020_image_host_accessor<
+    host_unsampled_image_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
+template <typename DataT, int Dimensions>
+struct is_sycl2020_image_host_accessor<
+    host_sampled_image_accessor<DataT, Dimensions>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_sycl2020_image_host_accessor_v =
+    is_sycl2020_image_host_accessor<T>::value;
 
 template <typename T> struct is_host_accessor : std::false_type {};
 template <typename DataT, int Dimensions, access::mode AccessMode>
@@ -156,8 +191,11 @@ struct is_property_of<property::noinit, T>
 
 template <typename T>
 struct is_property_of<property::no_init, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
-                         detail::acc_properties::is_host_accessor<T>::value> {};
+    : std::bool_constant<
+          detail::acc_properties::is_accessor_v<T> ||
+          detail::acc_properties::is_host_accessor_v<T> ||
+          detail::acc_properties::is_sycl2020_image_accessor_v<T> ||
+          detail::acc_properties::is_sycl2020_image_host_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_offset, T>
