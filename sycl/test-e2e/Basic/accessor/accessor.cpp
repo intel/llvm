@@ -858,7 +858,10 @@ int main() {
       queue.submit([&](sycl::handler &cgh) {
         auto B = b.template get_access<sycl::access::mode::read_write>(cgh);
 
-        cgh.single_task<class acc_with_zero_sized_buffer>([=]() { B[0] = 1; });
+        cgh.single_task<class acc_with_zero_sized_buffer>([=]() {
+          if (!B.empty())
+            B[0] = 1;
+        });
       });
     } catch (const sycl::exception &e) {
       CaughtException = std::string(e.what()).find("Invalid memory object") !=
