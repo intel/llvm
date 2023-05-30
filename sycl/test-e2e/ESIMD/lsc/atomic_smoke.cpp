@@ -438,8 +438,8 @@ static bool is_updated(int ind, int VL, const Config &cfg) {
 
 // ----------------- Actual "traits" for each operation.
 
-template <class T, int N> struct ImplInc {
-  static constexpr AtomicOp atomic_op = AtomicOp::inc;
+template <class T, int N, class C, C Op> struct ImplIncBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 0;
 
   static T init(int i, const Config &cfg) { return (T)0; }
@@ -459,8 +459,8 @@ template <class T, int N> struct ImplInc {
   }
 };
 
-template <class T, int N> struct ImplDec {
-  static constexpr AtomicOp atomic_op = AtomicOp::dec;
+template <class T, int N, class C, C Op> struct ImplDecBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 0;
   static constexpr int base = 5;
 
@@ -488,8 +488,8 @@ template <class T, int N> struct ImplDec {
 // processed.
 constexpr float FPDELTA = 0.5f;
 
-template <class T, int N> struct ImplLoad {
-  static constexpr AtomicOp atomic_op = AtomicOp::load;
+template <class T, int N, class C, C Op> struct ImplLoadBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 0;
 
   static T init(int i, const Config &cfg) { return (T)(i + FPDELTA); }
@@ -500,8 +500,8 @@ template <class T, int N> struct ImplLoad {
   }
 };
 
-template <class T, int N> struct ImplStore {
-  static constexpr AtomicOp atomic_op = AtomicOp::store;
+template <class T, int N, class C, C Op> struct ImplStoreBase {
+  static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
   static constexpr T base = (T)(2 + FPDELTA);
 
@@ -629,21 +629,29 @@ template <class T, int N, class C, C Op> struct ImplMax {
   }
 };
 
-template <class T, int N>
-struct ImplIntAdd : ImplAdd<T, N, DWORDAtomicOp, DWORDAtomicOp::add> {};
-template <class T, int N>
-struct ImplIntSub : ImplSub<T, N, DWORDAtomicOp, DWORDAtomicOp::sub> {};
-template <class T, int N>
-struct ImplSMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::smin> {};
-template <class T, int N>
-struct ImplUMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::umin> {};
-template <class T, int N>
-struct ImplSMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::smax> {};
-template <class T, int N>
-struct ImplUMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::umax> {};
-
 #ifndef USE_DWORD_ATOMICS
 // These will be redirected by API implementation to LSC ones:
+template <class T, int N>
+struct ImplStore : ImplStoreBase<T, N, LSCAtomicOp, LSCAtomicOp::store> {};
+template <class T, int N>
+struct ImplLoad : ImplLoadBase<T, N, LSCAtomicOp, LSCAtomicOp::load> {};
+template <class T, int N>
+struct ImplInc : ImplIncBase<T, N, LSCAtomicOp, LSCAtomicOp::inc> {};
+template <class T, int N>
+struct ImplDec : ImplDecBase<T, N, LSCAtomicOp, LSCAtomicOp::dec> {};
+template <class T, int N>
+struct ImplIntAdd : ImplAdd<T, N, LSCAtomicOp, LSCAtomicOp::add> {};
+template <class T, int N>
+struct ImplIntSub : ImplSub<T, N, LSCAtomicOp, LSCAtomicOp::sub> {};
+template <class T, int N>
+struct ImplSMin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::smin> {};
+template <class T, int N>
+struct ImplUMin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::umin> {};
+template <class T, int N>
+struct ImplSMax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::smax> {};
+template <class T, int N>
+struct ImplUMax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::umax> {};
+
 template <class T, int N>
 struct ImplFadd : ImplAdd<T, N, DWORDAtomicOp, DWORDAtomicOp::fadd> {};
 template <class T, int N>
@@ -661,6 +669,27 @@ template <class T, int N>
 struct ImplLSCFmin : ImplMin<T, N, LSCAtomicOp, LSCAtomicOp::fmin> {};
 template <class T, int N>
 struct ImplLSCFmax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::fmax> {};
+#else
+template <class T, int N>
+struct ImplIntAdd : ImplAdd<T, N, DWORDAtomicOp, DWORDAtomicOp::add> {};
+template <class T, int N>
+struct ImplIntSub : ImplSub<T, N, DWORDAtomicOp, DWORDAtomicOp::sub> {};
+template <class T, int N>
+struct ImplSMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::smin> {};
+template <class T, int N>
+struct ImplUMin : ImplMin<T, N, DWORDAtomicOp, DWORDAtomicOp::umin> {};
+template <class T, int N>
+struct ImplSMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::smax> {};
+template <class T, int N>
+struct ImplUMax : ImplMax<T, N, DWORDAtomicOp, DWORDAtomicOp::umax> {};
+template <class T, int N>
+struct ImplStore : ImplStoreBase<T, N, DWORDAtomicOp, DWORDAtomicOp::store> {};
+template <class T, int N>
+struct ImplLoad : ImplLoadBase<T, N, DWORDAtomicOp, DWORDAtomicOp::load> {};
+template <class T, int N>
+struct ImplInc : ImplIncBase<T, N, DWORDAtomicOp, DWORDAtomicOp::inc> {};
+template <class T, int N>
+struct ImplDec : ImplDecBase<T, N, DWORDAtomicOp, DWORDAtomicOp::dec> {};
 #endif // USE_DWORD_ATOMICS
 
 template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
@@ -688,12 +717,11 @@ template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
   static inline T arg1(int i) { return i + base - 1; }
 };
 
-template <class T, int N>
-struct ImplCmpxchg
-    : ImplCmpxchgBase<T, N, DWORDAtomicOp, DWORDAtomicOp::cmpxchg> {};
-
 #ifndef USE_DWORD_ATOMICS
 // This will be redirected by API implementation to LSC one:
+template <class T, int N>
+struct ImplCmpxchg : ImplCmpxchgBase<T, N, LSCAtomicOp, LSCAtomicOp::cmpxchg> {
+};
 template <class T, int N>
 struct ImplFcmpwr
     : ImplCmpxchgBase<T, N, DWORDAtomicOp, DWORDAtomicOp::fcmpxchg> {};
@@ -701,6 +729,10 @@ struct ImplFcmpwr
 template <class T, int N>
 struct ImplLSCFcmpwr
     : ImplCmpxchgBase<T, N, LSCAtomicOp, LSCAtomicOp::fcmpxchg> {};
+#else
+template <class T, int N>
+struct ImplCmpxchg
+    : ImplCmpxchgBase<T, N, DWORDAtomicOp, DWORDAtomicOp::cmpxchg> {};
 #endif // USE_DWORD_ATOMICS
 
 // ----------------- Main function and test combinations.
@@ -710,8 +742,9 @@ template <int N, template <class, int> class Op,
 bool test_int_types(queue q, const Config &cfg) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
-    // TODO: Enable testing of 16-bit integers when compiler is fixed.
-    // passed &= test<int16_t, N, Op>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
+    passed &= test<int16_t, N, Op>(q, cfg);
+#endif
 
     // TODO: Enable testing of 8-bit integers is supported in HW.
     // passed &= test<int8_t, N, Op>(q, cfg);
@@ -727,8 +760,9 @@ bool test_int_types(queue q, const Config &cfg) {
   }
 
   if constexpr (SignMask & Unsigned) {
-    // TODO: Enable testing of 16-bit integers when compiler is fixed.
-    // passed &= test<uint16_t, N, Op>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
+    passed &= test<uint16_t, N, Op>(q, cfg);
+#endif
 
     // TODO: Enable testing of 8-bit integers is supported in HW.
     // passed &= test<uint8_t, N, Op>(q, cfg);
@@ -748,10 +782,17 @@ bool test_int_types(queue q, const Config &cfg) {
 template <int N, template <class, int> class Op>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
-
-  // TODO: Enable testing of sycl::half when compiler is fixed.
-  // passed &= test<sycl::half, N, Op>(q, cfg);
-
+#ifndef USE_DWORD_ATOMICS
+  if constexpr (std::is_same_v<Op<sycl::half, N>, ImplLSCFmax<sycl::half, N>> ||
+                std::is_same_v<Op<sycl::half, N>, ImplLSCFmin<sycl::half, N>> ||
+                std::is_same_v<Op<sycl::half, N>,
+                               ImplLSCFcmpwr<sycl::half, N>>) {
+    auto dev = q.get_device();
+    if (dev.has(sycl::aspect::fp16)) {
+      passed &= test<sycl::half, N, Op>(q, cfg);
+    }
+  }
+#endif
   passed &= test<float, N, Op>(q, cfg);
 #ifndef USE_ACCESSORS
 #ifndef CMPXCHG_TEST

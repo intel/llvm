@@ -61,9 +61,11 @@
 #      define _LIBCPP_STD_VER 17
 #    elif __cplusplus <= 202002L
 #      define _LIBCPP_STD_VER 20
+#    elif __cplusplus <= 202302L
+#      define _LIBCPP_STD_VER 23
 #    else
 // Expected release year of the next C++ standard
-#      define _LIBCPP_STD_VER 23
+#      define _LIBCPP_STD_VER 26
 #    endif
 #  endif // _LIBCPP_STD_VER
 // NOLINTEND(libcpp-cpp-version-check)
@@ -271,7 +273,6 @@
 // Incomplete features get their own specific disabling flags. This makes it
 // easier to grep for target specific flags once the feature is complete.
 #  if !defined(_LIBCPP_ENABLE_EXPERIMENTAL) && !defined(_LIBCPP_BUILDING_LIBRARY)
-#    define _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
 #    define _LIBCPP_HAS_NO_INCOMPLETE_PSTL
 #  endif
 
@@ -901,6 +902,12 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #  ifndef _LIBCPP_HAS_NO_ASAN
     extern "C" _LIBCPP_FUNC_VIS void
     __sanitizer_annotate_contiguous_container(const void*, const void*, const void*, const void*);
+#    if _LIBCPP_CLANG_VER >= 1600
+extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_double_ended_contiguous_container(
+    const void*, const void*, const void*, const void*, const void*, const void*);
+extern "C" _LIBCPP_FUNC_VIS int
+__sanitizer_verify_double_ended_contiguous_container(const void*, const void*, const void*, const void*);
+#    endif
 #  endif
 
 // Try to find out if RTTI is disabled.
@@ -1273,7 +1280,6 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 
 // TODO: Make this a proper configuration option
 #define _PSTL_PAR_BACKEND_SERIAL
-#define _PSTL_CPU_BACKEND_SERIAL
 
 #define _PSTL_PRAGMA(x) _Pragma(#    x)
 

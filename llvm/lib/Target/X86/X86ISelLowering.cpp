@@ -529,7 +529,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   }
 
   if (Subtarget.hasSSEPrefetch() || Subtarget.hasThreeDNow())
-    setOperationAction(ISD::PREFETCH      , MVT::Other, Legal);
+    setOperationAction(ISD::PREFETCH      , MVT::Other, Custom);
 
   setOperationAction(ISD::ATOMIC_FENCE  , MVT::Other, Custom);
 
@@ -3074,6 +3074,7 @@ Value *X86TargetLowering::getIRStackGuard(IRBuilderBase &IRB) const {
           GV = new GlobalVariable(*M, Ty, false, GlobalValue::ExternalLinkage,
                                   nullptr, GuardSymb, nullptr,
                                   GlobalValue::NotThreadLocal, AddressSpace);
+          GV->setDSOLocal(M->getDirectAccessExternalData());
         }
         return GV;
       }
@@ -4351,7 +4352,7 @@ SDValue X86TargetLowering::LowerFormalArguments(
     }
   }
 
-  unsigned StackSize = CCInfo.getNextStackOffset();
+  unsigned StackSize = CCInfo.getStackSize();
   // Align stack specially for tail calls.
   if (shouldGuaranteeTCO(CallConv,
                          MF.getTarget().Options.GuaranteedTailCallOpt))
@@ -5330,9 +5331,9 @@ bool X86TargetLowering::IsEligibleForTailCallOptimization(
       CCInfo.AllocateStack(32, Align(8));
 
     CCInfo.AnalyzeCallOperands(Outs, CC_X86);
-    StackArgsSize = CCInfo.getNextStackOffset();
+    StackArgsSize = CCInfo.getStackSize();
 
-    if (CCInfo.getNextStackOffset()) {
+    if (CCInfo.getStackSize()) {
       // Check if the arguments are already laid out in the right way as
       // the caller's fixed stack objects.
       MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -28916,7 +28917,7 @@ static SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, const X86Subtarget &Subtarget,
         SDValue Chain = Op->getOperand(0);
         SDValue CopyRBP = DAG.getCopyFromReg(Chain, dl, X86::RBP, MVT::i64);
         SDValue Result =
-            SDValue(DAG.getMachineNode(X86::SUB64ri8, dl, MVT::i64, CopyRBP,
+            SDValue(DAG.getMachineNode(X86::SUB64ri32, dl, MVT::i64, CopyRBP,
                                        DAG.getTargetConstant(8, dl, MVT::i32)),
                     0);
         // Return { result, chain }.
@@ -33984,6 +33985,18 @@ static SDValue LowerCVTPS2PH(SDValue Op, SelectionDAG &DAG) {
   return DAG.getNode(ISD::CONCAT_VECTORS, dl, VT, Lo, Hi);
 }
 
+static SDValue LowerPREFETCH(SDValue Op, const X86Subtarget &Subtarget,
+                             SelectionDAG &DAG) {
+  unsigned IsData = cast<ConstantSDNode>(Op.getOperand(4))->getZExtValue();
+
+  // We don't support non-data prefetch without PREFETCHI.
+  // Just preserve the chain.
+  if (!IsData && !Subtarget.hasPREFETCHI())
+    return Op.getOperand(0);
+
+  return Op;
+}
+
 static StringRef getInstrStrFromOpNo(const SmallVectorImpl<StringRef> &AsmStrs,
                                      unsigned OpNo) {
   const APInt Operand(32, OpNo);
@@ -34188,6 +34201,7 @@ SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::GC_TRANSITION_END:  return LowerGC_TRANSITION(Op, DAG);
   case ISD::ADDRSPACECAST:      return LowerADDRSPACECAST(Op, DAG);
   case X86ISD::CVTPS2PH:        return LowerCVTPS2PH(Op, DAG);
+  case ISD::PREFETCH:           return LowerPREFETCH(Op, Subtarget, DAG);
   }
 }
 
@@ -36847,16 +36861,11 @@ X86TargetLowering::EmitLoweredSelect(MachineInstr &MI,
   return SinkMBB;
 }
 
-static unsigned getSUBriOpcode(bool IsLP64, int64_t Imm) {
-  if (IsLP64) {
-    if (isInt<8>(Imm))
-      return X86::SUB64ri8;
+static unsigned getSUBriOpcode(bool IsLP64) {
+  if (IsLP64)
     return X86::SUB64ri32;
-  } else {
-    if (isInt<8>(Imm))
-      return X86::SUB32ri8;
+  else
     return X86::SUB32ri;
-  }
 }
 
 MachineBasicBlock *
@@ -36924,12 +36933,12 @@ X86TargetLowering::EmitLoweredProbedAlloca(MachineInstr &MI,
   // The property we want to enforce is to never have more than [page alloc] between two probes.
 
   const unsigned XORMIOpc =
-      TFI.Uses64BitFramePtr ? X86::XOR64mi8 : X86::XOR32mi8;
+      TFI.Uses64BitFramePtr ? X86::XOR64mi32 : X86::XOR32mi;
   addRegOffset(BuildMI(blockMBB, DL, TII->get(XORMIOpc)), physSPReg, false, 0)
       .addImm(0);
 
   BuildMI(blockMBB, DL,
-          TII->get(getSUBriOpcode(TFI.Uses64BitFramePtr, ProbeSize)), physSPReg)
+          TII->get(getSUBriOpcode(TFI.Uses64BitFramePtr)), physSPReg)
       .addReg(physSPReg)
       .addImm(ProbeSize);
 
@@ -37705,10 +37714,11 @@ X86TargetLowering::emitLongJmpShadowStackFix(MachineInstr &MI,
   fixShadowMBB->addSuccessor(fixShadowLoopPrepareMBB);
 
   // Do a single shift left.
-  unsigned ShlR1Opc = (PVT == MVT::i64) ? X86::SHL64r1 : X86::SHL32r1;
+  unsigned ShlR1Opc = (PVT == MVT::i64) ? X86::SHL64ri : X86::SHL32ri;
   Register SspAfterShlReg = MRI.createVirtualRegister(PtrRC);
   BuildMI(fixShadowLoopPrepareMBB, DL, TII->get(ShlR1Opc), SspAfterShlReg)
-      .addReg(SspSecondShrReg);
+      .addReg(SspSecondShrReg)
+      .addImm(1);
 
   // Save the value 128 to a register (will be used next with incssp).
   Register Value128InReg = MRI.createVirtualRegister(PtrRC);
@@ -38751,11 +38761,11 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     KnownBits Known2;
     if (!!DemandedLHS) {
       Known2 = DAG.computeKnownBits(Op.getOperand(0), DemandedLHS, Depth + 1);
-      Known = KnownBits::commonBits(Known, Known2);
+      Known = Known.intersectWith(Known2);
     }
     if (!!DemandedRHS) {
       Known2 = DAG.computeKnownBits(Op.getOperand(1), DemandedRHS, Depth + 1);
-      Known = KnownBits::commonBits(Known, Known2);
+      Known = Known.intersectWith(Known2);
     }
 
     if (Known.countMinLeadingZeros() < BitWidth)
@@ -38842,7 +38852,7 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     KnownBits Known2 = DAG.computeKnownBits(Op.getOperand(0), Depth + 1);
 
     // Only known if known in both the LHS and RHS.
-    Known = KnownBits::commonBits(Known, Known2);
+    Known = Known.intersectWith(Known2);
     break;
   }
   case X86ISD::BEXTR:
@@ -38952,7 +38962,7 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
           break;
         }
         KnownBits Known2 = KnownBits::makeConstant(EltBits[I]);
-        Known = KnownBits::commonBits(Known, Known2);
+        Known = Known.intersectWith(Known2);
       }
       return;
     }
@@ -39003,7 +39013,7 @@ void X86TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
             continue;
           KnownBits Known2 =
               DAG.computeKnownBits(Ops[i], DemandedOps[i], Depth + 1);
-          Known = KnownBits::commonBits(Known, Known2);
+          Known = Known.intersectWith(Known2);
         }
       }
     }
@@ -43947,7 +43957,7 @@ bool X86TargetLowering::SimplifyDemandedBitsForTargetNode(
         return true;
 
       KnownScl = KnownScl.trunc(VecVT.getScalarSizeInBits());
-      Known = KnownBits::commonBits(KnownVec, KnownScl);
+      Known = KnownVec.intersectWith(KnownScl);
       return false;
     }
     break;
@@ -54523,6 +54533,59 @@ static SDValue combineSext(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+// Inverting a constant vector is profitable if it can be eliminated and the
+// inverted vector is already present in DAG. Otherwise, it will be loaded
+// anyway.
+//
+// We determine which of the values can be completely eliminated and invert it.
+// If both are eliminable, select a vector with the first negative element.
+static SDValue getInvertedVectorForFMA(SDValue V, SelectionDAG &DAG) {
+  assert(ISD::isBuildVectorOfConstantFPSDNodes(V.getNode()) &&
+         "ConstantFP build vector expected");
+  // Check if we can eliminate V. We assume if a value is only used in FMAs, we
+  // can eliminate it. Since this function is invoked for each FMA with this
+  // vector.
+  auto IsNotFMA = [](SDNode *Use) {
+    return Use->getOpcode() != ISD::FMA && Use->getOpcode() != ISD::STRICT_FMA;
+  };
+  if (llvm::any_of(V->uses(), IsNotFMA))
+    return SDValue();
+
+  SmallVector<SDValue, 8> Ops;
+  EVT VT = V.getValueType();
+  EVT EltVT = VT.getVectorElementType();
+  for (auto Op : V->op_values()) {
+    if (auto *Cst = dyn_cast<ConstantFPSDNode>(Op)) {
+      Ops.push_back(DAG.getConstantFP(-Cst->getValueAPF(), SDLoc(Op), EltVT));
+    } else {
+      assert(Op.isUndef());
+      Ops.push_back(DAG.getUNDEF(EltVT));
+    }
+  }
+
+  SDNode *NV = DAG.getNodeIfExists(ISD::BUILD_VECTOR, DAG.getVTList(VT), Ops);
+  if (!NV)
+    return SDValue();
+
+  // If an inverted version cannot be eliminated, choose it instead of the
+  // original version.
+  if (llvm::any_of(NV->uses(), IsNotFMA))
+    return SDValue(NV, 0);
+
+  // If the inverted version also can be eliminated, we have to consistently
+  // prefer one of the values. We prefer a constant with a negative value on
+  // the first place.
+  // N.B. We need to skip undefs that may precede a value.
+  for (auto op : V->op_values()) {
+    if (auto *Cst = dyn_cast<ConstantFPSDNode>(op)) {
+      if (Cst->isNegative())
+        return SDValue();
+      break;
+    }
+  }
+  return SDValue(NV, 0);
+}
+
 static SDValue combineFMA(SDNode *N, SelectionDAG &DAG,
                           TargetLowering::DAGCombinerInfo &DCI,
                           const X86Subtarget &Subtarget) {
@@ -54574,7 +54637,13 @@ static SDValue combineFMA(SDNode *N, SelectionDAG &DAG,
         return true;
       }
     }
-
+    // Lookup if there is an inverted version of constant vector V in DAG.
+    if (ISD::isBuildVectorOfConstantFPSDNodes(V.getNode())) {
+      if (SDValue NegV = getInvertedVectorForFMA(V, DAG)) {
+        V = NegV;
+        return true;
+      }
+    }
     return false;
   };
 
@@ -54852,8 +54921,8 @@ static SDValue combineSetCC(SDNode *N, SelectionDAG &DAG,
   if (VT.isVector() && OpVT.isVector() && OpVT.isInteger()) {
     bool CanMakeSigned = false;
     if (ISD::isUnsignedIntSetCC(CC)) {
-      KnownBits CmpKnown = KnownBits::commonBits(DAG.computeKnownBits(LHS),
-                                                 DAG.computeKnownBits(RHS));
+      KnownBits CmpKnown =
+          DAG.computeKnownBits(LHS).intersectWith(DAG.computeKnownBits(RHS));
       // If we know LHS/RHS share the same sign bit at each element we can
       // make this signed.
       // NOTE: `computeKnownBits` on a vector type aggregates common bits

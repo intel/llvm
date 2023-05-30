@@ -73,7 +73,7 @@ exposition-only to document what members a char_traits specialization should pro
 
 //
 // Temporary extension to provide a base template for std::char_traits.
-// TODO: Remove in LLVM 18.
+// TODO(LLVM-18): Remove this class.
 //
 template <class _CharT>
 struct _LIBCPP_DEPRECATED_("char_traits<T> for T not equal to char, wchar_t, char8_t, char16_t or char32_t is non-standard and is provided for a temporary period. It will be removed in LLVM 18, so please migrate off of it.")
@@ -244,7 +244,7 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char>
     const char_type* find(const char_type* __s, size_t __n, const char_type& __a) _NOEXCEPT {
       if (__n == 0)
           return nullptr;
-      return std::__constexpr_char_memchr(__s, static_cast<int>(__a), __n);
+      return std::__constexpr_memchr(__s, __a, __n);
     }
 
     static inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20

@@ -128,15 +128,15 @@ if (TARGET UnifiedRuntimeLoader)
   # When UR is moved to its separate repo perhaps we should introduce new component,
   # e.g. unified-runtime-sycl-dev.
   install(TARGETS loader
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
   )
 endif()
 
 # Install the UR adapters too
 install(TARGETS ur_adapter_level_zero
-ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
-LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
 )
