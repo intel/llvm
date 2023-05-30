@@ -300,7 +300,7 @@ etors:
       desc: "[$x_bool_t] prefer user synchronization when sharing object with other API"
     - name: PARENT_DEVICE
       desc: "[$x_device_handle_t] return parent device handle"
-    - name: PARTITION_PROPERTIES
+    - name: SUPPORTED_PARTITIONS
       desc: "[$x_device_partition_t[]] Returns an array of partition types supported by the device"
     - name: PARTITION_MAX_SUB_DEVICES
       desc: "[uint32_t] maximum number of sub-devices when the device is partitioned"

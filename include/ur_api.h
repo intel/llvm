@@ -852,7 +852,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 74,            ///< [::ur_bool_t] prefer user synchronization when sharing object with
                                                                 ///< other API
     UR_DEVICE_INFO_PARENT_DEVICE = 75,                          ///< [::ur_device_handle_t] return parent device handle
-    UR_DEVICE_INFO_PARTITION_PROPERTIES = 76,                   ///< [::ur_device_partition_t[]] Returns an array of partition types
+    UR_DEVICE_INFO_SUPPORTED_PARTITIONS = 76,                   ///< [::ur_device_partition_t[]] Returns an array of partition types
                                                                 ///< supported by the device
     UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 77,              ///< [uint32_t] maximum number of sub-devices when the device is
                                                                 ///< partitioned

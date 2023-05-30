@@ -483,7 +483,7 @@ ur_result_t
 GetDevicePartitionProperties(ur_device_handle_t device,
                              std::vector<ur_device_partition_t> &properties) {
     return GetDeviceVectorInfo<ur_device_partition_t>(
-        device, UR_DEVICE_INFO_PARTITION_PROPERTIES, properties);
+        device, UR_DEVICE_INFO_SUPPORTED_PARTITIONS, properties);
 }
 
 ur_result_t GetDevicePartitionMaxSubDevices(ur_device_handle_t device,
