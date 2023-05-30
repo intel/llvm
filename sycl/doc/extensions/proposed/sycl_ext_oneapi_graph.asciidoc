@@ -310,6 +310,10 @@ class no_cycle_check {
     no_cycle_check() = default;
 };
 
+class no_host_copy {
+public:
+  no_host_copy() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -329,7 +333,7 @@ namespace device {
 struct graphs_support;
 
 enum class graph_support_level {
-  unsupported = 0,
+  unsupported,
   native,
   emulated
 };
@@ -344,17 +348,6 @@ enum class graph_state {
   modifiable,
   executable
 };
-
-namespace property {
-namespace graph {
-
-class no_host_copy {
-public:
-  no_host_copy() = default;
-};
-
-} // namespace graph
-} // namespace property
 
 // New object representing graph
 template<graph_state State = graph_state::modifiable>
@@ -557,7 +550,8 @@ Table {counter: tableNumber}. Constructor of the `command_graph` class.
 |
 [source,c++]
 ----
-command_graph(const context& syclContext, const device& syclDevice,
+command_graph(const context& syclContext,
+              const device& syclDevice,
               const property_list& propList = {});
 ----
 |Creates a SYCL `command_graph` object in the modifiable state for context
@@ -613,7 +607,9 @@ Preconditions:
 Parameters:
 
 * `propList` - Zero or more properties can be provided to the constructed node
-  via an instance of `property_list`.
+  via an instance of `property_list`. The `property::node::depends_on` property
+  can be passed here with a list of nodes to create dependency edges on.
+
 
 Returns: The empty node which has been added to the graph.
 
@@ -646,7 +642,8 @@ Parameters:
 * `cgf` - Command group function object to be added as a node.
 
 * `propList` - Zero or more properties can be provided to the constructed node
-  via an instance of `property_list`.
+  via an instance of `property_list`. The `property::node::depends_on` property
+  can be passed here with a list of nodes to create dependency edges on.
 
 Returns: The command-group function object node which has been added to the graph.
 
@@ -684,7 +681,7 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if `src` and `dest`
   are the same node.
-  
+
 * Throws synchronously with error code `invalid` if the resulting dependency would
   lead to a cycle. This error is omitted when `property::graph::no_cycle_check` is set.
 
@@ -714,11 +711,6 @@ Parameters:
 
 Returns: A new executable graph object which can be submitted to a queue.
 
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the graph contains a
-  node which targets a device not present in `syclContext`.
-
 |===
 
 Table {counter: tableNumber}. Member functions of the `command_graph` class for queue recording.
@@ -729,7 +721,9 @@ Table {counter: tableNumber}. Member functions of the `command_graph` class for 
 |
 [source, c++]
 ----
-bool begin_recording(queue& recordingQueue, const property_list& propList = {})
+bool
+begin_recording(queue& recordingQueue,
+                const property_list& propList = {})
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
@@ -758,8 +752,9 @@ Exceptions:
 |
 [source, c++]
 ----
-bool begin_recording(const std::vector<queue>& recordingQueues,
-                     const property_list& propList = {})
+bool
+begin_recording(const std::vector<queue>& recordingQueues,
+                const property_list& propList = {})
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
@@ -851,7 +846,8 @@ Table {counter: tableNumber}. Member functions of the `command_graph` class (exe
 |
 [source, c++]
 ----
-void command_graph<graph_state::executable> update(const command_graph<graph_state::modifiable>& graph);
+void
+update(const command_graph<graph_state::modifiable>& graph);
 ----
 
 |Updates the executable graph node inputs & outputs from a topologically
@@ -900,7 +896,7 @@ on construction via the property list parameter.
 1. `property::graph::no_cycle_check` - This property disables any checks if
    a newly added dependency will lead to a cycle in a specific `command_graph`.
    As a result, no errors are reported when a function tries to create a cyclic
-   dependency. Thus, it's the user's responsibility to create an acyclic graph 
+   dependency. Thus, it's the user's responsibility to create an acyclic graph
    for execution when this property is set. Creating a `command_graph` in
    executable state through `finalize` from a graph with cyclic dependencies
    is not allowed and results in undefined behavior.
@@ -994,7 +990,8 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::queue` c
 |
 [source,c++]
 ----
-queue_state queue::ext_oneapi_get_state() const;
+queue_state
+queue::ext_oneapi_get_state() const;
 ----
 
 | Query the <<queue-state, recording state>> of the queue.
@@ -1006,7 +1003,8 @@ object.
 |
 [source,c++]
 ----
-event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
+event
+queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
 |Queue shortcut function that is equivalent to submitting a command-group
@@ -1019,7 +1017,8 @@ all the nodes have finished execution.
 |
 [source,c++]
 ----
-event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+event
+queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         event depEvent);
 ----
 
@@ -1034,7 +1033,8 @@ all the nodes have finished execution.
 |
 [source,c++]
 ----
-event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+event
+queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         const std::vector<event>& depEvents);
 ----
 
@@ -1058,7 +1058,8 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::handler`
 |
 [source,c++]
 ----
-void handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
+void
+handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
 |Invokes the execution of a graph. Only one instance of `graph` may be executing,
@@ -1547,7 +1548,7 @@ submitted in its entirety for execution via
 Enable an instance of a graph in executable state to be submitted for execution
 when a previous submission of the same graph has yet to complete execution.
 
-**UNRESOLVED:** Trending "yes". Backend support for this is inconsistent, but 
+**UNRESOLVED:** Trending "yes". Backend support for this is inconsistent, but
 the runtime could schedule the submissions sequentially for backends which don't
 support it.
 
@@ -1555,8 +1556,8 @@ support it.
 
 Allow an executable graph to contain nodes targeting different devices.
 
-**UNRESOLVED:** Trending "yes". This feature is something that we are considering 
-introducing into the extension in later revisions. It has been planned for to the 
+**UNRESOLVED:** Trending "yes". This feature is something that we are considering
+introducing into the extension in later revisions. It has been planned for to the
 extent that the definition of a graph node is device specific.
 
 === Memory Allocation API
@@ -1571,11 +1572,11 @@ some designs being considered.
 
 === Device Agnostic Graph
 
-Explicit API could support device-agnostic graphs that can be submitted 
-through queues to a particular device. This issue is related to multi-device 
+Explicit API could support device-agnostic graphs that can be submitted
+through queues to a particular device. This issue is related to multi-device
 graphs.
 
-**UNRESOLVED:** Trending "no". Because of current runtime limitations this 
+**UNRESOLVED:** Trending "no". Because of current runtime limitations this
 can't be implemented with a reasonable effort.
 
 === Execution Property
@@ -1594,9 +1595,9 @@ runtime how to schedule a command graph onto a device. This info could effect
 the scheduling policy like breadth or depth-first, or a combination with a
 block size.
 
-**UNRESOLVED:** Trending "yes". A new property could be added to 
+**UNRESOLVED:** Trending "yes". A new property could be added to
 the finalize call either extending the basic command graph proposal
-or layered as a separate extension proposal. 
+or layered as a separate extension proposal.
 
 == Revision History
 
