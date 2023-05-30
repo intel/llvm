@@ -1376,9 +1376,8 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     UR_CALL(urEventRelease(Event));
 
     // Cleanup all events from the synced command list.
-    auto EventListToCleanup = std::move(ImmCmdList->second.EventList);
+    CleanupEventListFromResetCmdList(ImmCmdList->second.EventList, true);
     ImmCmdList->second.EventList.clear();
-    CleanupEventListFromResetCmdList(EventListToCleanup, true);
     return UR_RESULT_SUCCESS;
   };
 
@@ -1389,6 +1388,23 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     // event.
     if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
       ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+
+      // clean up all events known to have been completed as well,
+      // so they can be reused later
+      for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
+        for (auto &QueueGroup : QueueMap) {
+          if (Device->ImmCommandListUsed) {
+            for (auto ImmCmdList : QueueGroup.second.ImmCmdLists) {
+              if (ImmCmdList == this->CommandListMap.end())
+                continue;
+              // Cleanup all events from the synced command list.
+              CleanupEventListFromResetCmdList(ImmCmdList->second.EventList,
+                                               true);
+              ImmCmdList->second.EventList.clear();
+            }
+          }
+        }
+      }
     } else {
       // Otherwise sync all L0 queues/immediate command-lists.
       for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
