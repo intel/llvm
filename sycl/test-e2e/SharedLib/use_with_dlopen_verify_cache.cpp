@@ -2,18 +2,20 @@
 //
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
-// RUN: %{build} -DRUN_FIRST -o %t.out -ldl -Wl,-rpath=%T
+// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -o %t.out -ldl -Wl,-rpath=%T
+
+// RUN: %{compile} -DRUN_FIRST
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild
 
-// RUN: %{build} -DRUN_MIDDLE_BEFORE -o %t.out -ldl -Wl,-rpath=%T
+// RUN: %{compile} -DRUN_MIDDLE_BEFORE
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-BEFORE,CHECK --implicit-check-not=piProgramBuild
 
-// RUN: %{build} -DRUN_MIDDLE_AFTER -o %t.out -ldl -Wl,-rpath=%T
+// RUN: %{compile} -DRUN_MIDDLE_AFTER
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-AFTER,CHECK --implicit-check-not=piProgramBuild
 
 // clang-format off
 // This causes SEG. FAULT.
-// RUNx: %{build} -DRUN_LAST -o %t.out -ldl -Wl,-rpath=%T
+// RUNx: %{compile} -DRUN_LAST
 // RUNx: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 // clang-format on
 
@@ -65,9 +67,15 @@ int main() {
   run();
   run();
 #endif
-  void *handle = dlopen("libuse_with_dlopen_verify_cache.cpp.so", RTLD_LAZY);
+
+#define STRINGIFY_HELPER(A) #A
+#define STRINGIFY(A) STRINGIFY_HELPER(A)
+#define SO_FNAME "lib" STRINGIFY(FNAME) ".so"
+
+  void *handle = dlopen(SO_FNAME, RTLD_LAZY);
   int (*func)();
   *(void **)(&func) = dlsym(handle, "_Z3foov");
+
 #ifdef RUN_MIDDLE_BEFORE
   // CHECK-MIDDLE-BEFORE: piProgramBuild
   // CHECK-MIDDLE-BEFORE: Main: 2
@@ -75,11 +83,13 @@ int main() {
   run();
   run();
 #endif
+
   // CHECK: piProgramBuild
   // CHECK: Foo: 1
   // CHECK: Foo: 1
   assert(func() == 1);
   assert(func() == 1);
+
 #ifdef RUN_MIDDLE_AFTER
   // CHECK-MIDDLE-AFTER: piProgramBuild
   // CHECK-MIDDLE-AFTER: Main: 2
@@ -87,7 +97,9 @@ int main() {
   run();
   run();
 #endif
+
   dlclose(handle);
+
 #ifdef RUN_LAST
   // CHECK-LAST: piProgramBuild
   // CHECK-LAST: Main: 2
@@ -95,6 +107,7 @@ int main() {
   run();
   run();
 #endif
+
   return 0;
 }
 #endif

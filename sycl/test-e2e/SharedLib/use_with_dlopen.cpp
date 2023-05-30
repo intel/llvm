@@ -2,17 +2,19 @@
 //
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
-// RUN: %{build} -DRUN_FIRST -o %t.out -ldl -Wl,-rpath=%T
+// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -o %t.out -ldl -Wl,-rpath=%T
+
+// RUN: %{compile} -DRUN_FIRST
 // RUN: %{run} %t.out
 
-// RUN: %{build} -DRUN_MIDDLE_BEFORE -o %t.out -ldl -Wl,-rpath=%T
+// RUN: %{compile} -DRUN_MIDDLE_BEFORE
 // RUN: %{run} %t.out
 
-// RUN: %{build} -DRUN_MIDDLE_AFTER -o %t.out -ldl -Wl,-rpath=%T
+// RUN: %{compile} -DRUN_MIDDLE_AFTER
 // RUN: %{run} %t.out
 
 // This causes SEG. FAULT.
-// RUNx: %{build} -DRUN_LAST -o %t.out -ldl -Wl,-rpath=%T
+// RUNx: %{compile} -DRUN_LAST
 // RUNx: %{run} %t.out
 
 #include <sycl/sycl.hpp>
@@ -59,20 +61,31 @@ int main() {
 #ifdef RUN_FIRST
   run();
 #endif
-  void *handle = dlopen("libuse_with_dlopen.cpp.so", RTLD_LAZY);
+
+#define STRINGIFY_HELPER(A) #A
+#define STRINGIFY(A) STRINGIFY_HELPER(A)
+#define SO_FNAME "lib" STRINGIFY(FNAME) ".so"
+
+  void *handle = dlopen(SO_FNAME, RTLD_LAZY);
   int (*func)();
   *(void **)(&func) = dlsym(handle, "_Z3foov");
+
 #ifdef RUN_MIDDLE_BEFORE
   run();
 #endif
+
   assert(func() == 1);
+
 #ifdef RUN_MIDDLE_AFTER
   run();
 #endif
+
   dlclose(handle);
+
 #ifdef RUN_LAST
   run();
 #endif
+
   return 0;
 }
 #endif
