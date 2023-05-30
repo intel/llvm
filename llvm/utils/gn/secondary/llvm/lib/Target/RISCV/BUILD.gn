@@ -53,6 +53,7 @@ static_library("LLVMRISCVCodeGen") {
     "//llvm/include/llvm/Config:llvm-config",
     "//llvm/lib/CodeGen",
     "//llvm/lib/CodeGen/AsmPrinter",
+    "//llvm/lib/CodeGen/GlobalISel",
     "//llvm/lib/CodeGen/SelectionDAG",
     "//llvm/lib/IR",
     "//llvm/lib/MC",
@@ -104,6 +105,7 @@ group("RISCV") {
     ":LLVMRISCVCodeGen",
     "AsmParser",
     "Disassembler",
+    "MCA",
     "MCTargetDesc",
     "TargetInfo",
   ]

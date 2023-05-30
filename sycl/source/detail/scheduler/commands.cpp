@@ -2394,7 +2394,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
   RT::PiEvent *Event = (MQueue->has_discard_events_support() &&
-                        MCommandGroup->MRequirements.size() == 0)
+                        MCommandGroup->getRequirements().size() == 0)
                            ? nullptr
                            : &MEvent->getHandleRef();
   switch (MCommandGroup->getType()) {
@@ -2477,7 +2477,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 3);
 
     std::vector<Requirement *> *CopyReqs =
-        new std::vector<Requirement *>(HostTask->MRequirements);
+        new std::vector<Requirement *>(HostTask->getRequirements());
 
     // Not actually a copy, but move. Should be OK as it's not expected that
     // MHostKernel will be used elsewhere.
@@ -2674,7 +2674,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     std::vector<interop_handler::ReqToMem> ReqMemObjs;
     // Extract the Mem Objects for all Requirements, to ensure they are
     // available if a user ask for them inside the interop task scope
-    const auto &HandlerReq = ExecInterop->MRequirements;
+    const auto &HandlerReq = ExecInterop->getRequirements();
     std::for_each(
         std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
           AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -2713,7 +2713,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
-      const std::vector<Requirement *> &HandlerReq = HostTask->MRequirements;
+      const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
       auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
