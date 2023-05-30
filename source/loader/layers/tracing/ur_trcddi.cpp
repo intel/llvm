@@ -106,7 +106,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
     ///< returned and pPlatformInfo is not used.
     size_t *
-        pSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
 ) {
     auto pfnGetInfo = context.urDdiTable.Platform.pfnGetInfo;
 
@@ -115,12 +115,12 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     }
 
     ur_platform_get_info_params_t params = {&hPlatform, &propName, &propSize,
-                                            &pPropValue, &pSizeRet};
+                                            &pPropValue, &pPropSizeRet};
     uint64_t instance = context.notify_begin(UR_FUNCTION_PLATFORM_GET_INFO,
                                              "urPlatformGetInfo", &params);
 
     ur_result_t result =
-        pfnGetInfo(hPlatform, propName, propSize, pPropValue, pSizeRet);
+        pfnGetInfo(hPlatform, propName, propSize, pPropValue, pPropSizeRet);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET_INFO, "urPlatformGetInfo",
                        &params, &result, instance);

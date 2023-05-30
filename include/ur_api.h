@@ -436,6 +436,17 @@ typedef enum ur_platform_info_t {
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PLATFORM_INFO_BACKEND < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_PLATFORM
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform
@@ -446,7 +457,7 @@ urPlatformGetInfo(
                                     ///< If Size is not equal to or greater to the real number of bytes needed
                                     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
                                     ///< returned and pPlatformInfo is not used.
-    size_t *pSizeRet                ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
+    size_t *pPropSizeRet            ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5942,7 +5953,7 @@ typedef struct ur_platform_get_info_params_t {
     ur_platform_info_t *ppropName;
     size_t *ppropSize;
     void **ppPropValue;
-    size_t **ppSizeRet;
+    size_t **ppPropSizeRet;
 } ur_platform_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
