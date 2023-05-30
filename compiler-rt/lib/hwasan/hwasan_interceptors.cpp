@@ -16,6 +16,7 @@
 
 #include "hwasan.h"
 #include "hwasan_checks.h"
+#include "hwasan_platform_interceptors.h"
 #include "hwasan_thread.h"
 #include "hwasan_thread_list.h"
 #include "interception/interception.h"
@@ -44,6 +45,101 @@ using namespace __hwasan;
 #    include "sanitizer_common/sanitizer_common_syscalls.inc"
 #    include "sanitizer_common/sanitizer_syscalls_netbsd.inc"
 
+#define COMMON_INTERCEPTOR_WRITE_RANGE(ctx, ptr, size) \
+  do {                                                \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_READ_RANGE(ctx, ptr, size) \
+  do {                                                \
+    (void)(ctx);                                      \
+    (void)(ptr);                                      \
+    (void)(size);                                     \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_ENTER(ctx, func, ...) \
+  do {                                           \
+    (void)(ctx);                                 \
+    (void)(func);                                \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_DIR_ACQUIRE(ctx, path) \
+  do {                                            \
+    (void)(ctx);                                  \
+    (void)(path);                                 \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_FD_ACQUIRE(ctx, fd) \
+  do {                                         \
+    (void)(ctx);                               \
+    (void)(fd);                                \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_FD_RELEASE(ctx, fd) \
+  do {                                         \
+    (void)(ctx);                               \
+    (void)(fd);                                \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_FD_SOCKET_ACCEPT(ctx, fd, newfd) \
+  do {                                                      \
+    (void)(ctx);                                            \
+    (void)(fd);                                             \
+    (void)(newfd);                                          \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_SET_THREAD_NAME(ctx, name) \
+  do {                                                \
+    (void)(ctx);                                      \
+    (void)(name);                                     \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_SET_PTHREAD_NAME(ctx, thread, name) \
+  do {                                                         \
+    (void)(ctx);                                               \
+    (void)(thread);                                            \
+    (void)(name);                                              \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_BLOCK_REAL(name) \
+  do {                                      \
+    (void)(name);                           \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_MEMMOVE_IMPL(ctx, to, from, size) \
+  do {                                                       \
+    (void)(ctx);                                             \
+    (void)(to);                                              \
+    (void)(from);                                            \
+    (void)(size);                                            \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_MEMCPY_IMPL(ctx, to, from, size) \
+  do {                                                      \
+    (void)(ctx);                                            \
+    (void)(to);                                             \
+    (void)(from);                                           \
+    (void)(size);                                           \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_MEMSET_IMPL(ctx, block, c, size) \
+  do {                                                      \
+    (void)(ctx);                                            \
+    (void)(block);                                          \
+    (void)(c);                                              \
+    (void)(size);                                           \
+  } while (false)
+
+#define COMMON_INTERCEPTOR_STRERROR() \
+  do {                                \
+  } while (false)
+
+#define COMMON_INTERCEPT_FUNCTION(name) \
+  do {                                  \
+    (void)(name);                       \
+  } while (false)
+
+#include "sanitizer_common/sanitizer_common_interceptors.inc"
+
 struct ThreadStartArg {
   __sanitizer_sigset_t starting_sigset_;
 };
@@ -68,9 +164,10 @@ INTERCEPTOR(int, pthread_create, void *thread, void *attr,
             void *(*callback)(void *), void *param) {
   EnsureMainThreadIDIsCorrect();
   ScopedTaggingDisabler tagging_disabler;
-  int detached = 0;
-  if (attr)
-    pthread_attr_getdetachstate(attr, &detached);
+  bool detached = [attr]() {
+    int d = 0;
+    return attr && !pthread_attr_getdetachstate(attr, &d) && IsStateDetached(d);
+  }();
   ThreadStartArg *A = (ThreadStartArg *)InternalAlloc(sizeof(ThreadStartArg));
   ScopedBlockSignals block(&A->starting_sigset_);
   // ASAN uses the same approach to disable leaks from pthread_create.
@@ -316,6 +413,10 @@ namespace __hwasan {
 void InitializeInterceptors() {
   static int inited = 0;
   CHECK_EQ(inited, 0);
+
+  (void)(InitializeCommonInterceptors);
+  (void)(read_iovec);
+  (void)(write_iovec);
 
 #  if HWASAN_WITH_INTERCEPTORS
 #    if defined(__linux__)
