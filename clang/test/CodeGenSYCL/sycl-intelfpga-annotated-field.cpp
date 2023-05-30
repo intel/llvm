@@ -3,7 +3,7 @@
 
 // This test checks that clang emits @llvm.ptr.annotation intrinsic correctly
 // when an annotated field of a kernel functor is assigned.
-// Note this is a tempoary test for the FPGA-specific use model that will be
+// Note this is a temporary test for the FPGA-specific use model that will be
 // replaced by kernel argument compile-time properties.
 
 #include "Inputs/sycl.hpp"

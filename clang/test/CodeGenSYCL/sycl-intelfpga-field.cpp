@@ -9,7 +9,7 @@
 // It also checks that the kernel lambda is not inlined for FPGA, i.e. the kernel entry
 // contains `call @NameOfCallOperator(...)`
 
-// Note this is a tempoary test for the FPGA-specific use model that will be
+// Note this is a temporary test for the FPGA-specific use model that will be
 // replaced by kernel argument compile-time properties.
 
 #include "Inputs/sycl.hpp"
@@ -29,6 +29,7 @@ struct fooA {
 
 // CHECK: call spir_func void @_ZNK4fooAclEv(
 // CHECK: call void @__itt_offload_wi_finish_wrapper()
+// CHECK-NEXT: ret void
     void operator()() const {}
 };
 
