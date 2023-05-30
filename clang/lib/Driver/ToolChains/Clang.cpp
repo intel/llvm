@@ -9133,7 +9133,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // the objects from the archive that do not have AOCO associated in that
   // specific object.  Only do this when in hardware mode.
   if (InputType == types::TY_Archive && HasFPGATarget && !IsFPGADepUnbundle &&
-      !IsFPGADepLibUnbundle && !C.getDriver().isFPGAEmulationMode()) {
+      !IsFPGADepLibUnbundle && C.getDriver().IsFPGAHWMode()) {
     llvm::Triple TT;
     TT.setArchName(types::getTypeName(types::TY_FPGA_AOCO));
     TT.setVendorName("intel");
