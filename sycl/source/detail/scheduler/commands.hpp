@@ -746,8 +746,7 @@ void SetArgBasedOnType(
     size_t NextTrueIndex);
 
 void applyFuncOnFilteredArgs(
-    const KernelArgMask *EliminatedArgMask,
-    std::vector<ArgDesc> &Args,
+    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
     std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func);
 
 void ReverseRangeDimensionsForKernel(NDRDescT &NDR);

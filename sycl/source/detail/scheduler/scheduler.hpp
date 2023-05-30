@@ -540,10 +540,11 @@ protected:
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-                   std::vector<Command *> &ToEnqueue,
-                   RT::PiExtCommandBuffer CommandBuffer = nullptr,
-                   const std::vector<RT::PiExtSyncPoint> &Dependencies = {});
+    GraphBuildResult
+    addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+          std::vector<Command *> &ToEnqueue,
+          RT::PiExtCommandBuffer CommandBuffer = nullptr,
+          const std::vector<RT::PiExtSyncPoint> &Dependencies = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.

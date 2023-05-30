@@ -255,7 +255,7 @@ public:
     ensureContextInitialized();
     return MContext;
   }
-  
+
   // Sets a sync point which is used when this event represents an enqueue to a
   // RT::PiExtCommandBuffer.
   void setSyncPoint(RT::PiExtSyncPoint SyncPoint) { MSyncPoint = SyncPoint; }

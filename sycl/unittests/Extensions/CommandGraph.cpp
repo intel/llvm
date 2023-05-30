@@ -37,7 +37,6 @@ protected:
   experimental::command_graph<experimental::graph_state::modifiable> Graph;
 };
 
-
 TEST_F(CommandGraphTest, AddNode) {
   using namespace sycl::ext::oneapi;
 

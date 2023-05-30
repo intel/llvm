@@ -8987,7 +8987,8 @@ pi_result piextCommandBufferNDRangeKernel(
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(
       Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
-    if (!CommandBuffer->Context->getPlatform()->ZeDriverGlobalOffsetExtensionFound) {
+    if (!CommandBuffer->Context->getPlatform()
+             ->ZeDriverGlobalOffsetExtensionFound) {
       urPrint("No global offset extension found on this driver\n");
       return PI_ERROR_INVALID_VALUE;
     }
@@ -9116,10 +9117,12 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
   ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
   // TODO: Refactor so requiring a map iterator is not required here, currently
   // required for executeCommandList though.
+  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+  ZeQueueDesc.ordinal = QueueGroupOrdinal;
   std::tie(CommandListPtr, std::ignore) = CommandBuffer->CommandListMap.insert(
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
           CommandBuffer->ZeCommandList,
-          {ZeFence, false, false, ZeCommandQueue, QueueGroupOrdinal}));
+          {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
 
   Queue->insertActiveBarriers(CommandListPtr, UseCopyEngine);
 

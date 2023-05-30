@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/graph_impl.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
-#include <detail/handler_impl.hpp> 
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -130,8 +130,8 @@ graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
   if (!Dep.empty()) {
     for (auto N : Dep) {
       N->register_successor(NodeImpl, N); // register successor
-      this->remove_root(NodeImpl);     // remove receiver from root node
-                                       // list
+      this->remove_root(NodeImpl);        // remove receiver from root node
+                                          // list
     }
   } else {
     this->add_root(NodeImpl);
@@ -200,8 +200,8 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   if (!Deps.empty()) {
     for (auto N : Deps) {
       N->register_successor(NodeImpl, N); // register successor
-      this->remove_root(NodeImpl);     // remove receiver from root node
-                                       // list
+      this->remove_root(NodeImpl);        // remove receiver from root node
+                                          // list
     }
   } else {
     this->add_root(NodeImpl);

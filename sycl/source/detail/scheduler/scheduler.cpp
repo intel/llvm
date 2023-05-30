@@ -88,7 +88,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 }
 
 EventImplPtr
-Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
+                 const QueueImplPtr &Queue,
                  RT::PiExtCommandBuffer CommandBuffer,
                  const std::vector<RT::PiExtSyncPoint> &Dependencies) {
   EventImplPtr NewEvent = nullptr;

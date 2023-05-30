@@ -179,26 +179,42 @@ void foo() {
 // CHECK-NEXT: 512 |       element_type * _M_ptr
 // CHECK-NEXT: 520 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 520 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 528 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> MSubgraphNode
-// CHECK-NEXT: 528 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> (base)
-// CHECK-NEXT: 528 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::node_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 528 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::exec_graph_impl> MExecGraph
+// CHECK-NEXT: 528 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::exec_graph_impl> (base)
+// CHECK-NEXT: 528 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::exec_graph_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT: 528 |       element_type * _M_ptr
 // CHECK-NEXT: 536 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 536 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 544 |   _Bool MIsHost
-// CHECK-NEXT: 552 |   struct sycl::detail::code_location MCodeLoc
-// CHECK-NEXT: 552 |     const char * MFileName
-// CHECK-NEXT: 560 |     const char * MFunctionName
-// CHECK-NEXT: 568 |     unsigned long MLineNo
-// CHECK-NEXT: 576 |     unsigned long MColumnNo
-// CHECK-NEXT: 584 |   _Bool MIsFinalized
-// CHECK-NEXT: 592 |   class sycl::event MLastEvent
-// CHECK-NEXT: 592 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
-// CHECK-NEXT: 592 |     class std::shared_ptr<class sycl::detail::event_impl> impl
-// CHECK-NEXT: 592 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
-// CHECK-NEXT: 592 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 592 |         element_type * _M_ptr
-// CHECK-NEXT: 600 |         class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 600 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=608, dsize=608, align=8,
-// CHECK-NEXT:     |  nvsize=608, nvalign=8]
+// CHECK-NEXT: 544 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> MSubgraphNode
+// CHECK-NEXT: 544 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> (base)
+// CHECK-NEXT: 544 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::node_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 544 |       element_type * _M_ptr
+// CHECK-NEXT: 552 |       class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 552 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 560 |   class std::unique_ptr<class sycl::detail::CG> MGraphNodeCG
+// CHECK-NEXT: 560 |     struct std::__uniq_ptr_data<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> > _M_t
+// CHECK-NEXT: 560 |       class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> > (base)
+// CHECK-NEXT: 560 |         class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
+// CHECK-NEXT: 560 |           struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
+// CHECK-NEXT: 560 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
+// CHECK-NEXT: 560 |               struct std::_Head_base<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
+// CHECK-NEXT: 560 |                 struct std::default_delete<class sycl::detail::CG> _M_head_impl (empty)
+// CHECK-NEXT: 560 |             struct std::_Head_base<0, class sycl::detail::CG *> (base)
+// CHECK-NEXT: 560 |               class sycl::detail::CG * _M_head_impl
+// CHECK-NEXT: 568 |   _Bool MIsHost
+// CHECK-NEXT: 576 |   struct sycl::detail::code_location MCodeLoc
+// CHECK-NEXT: 576 |     const char * MFileName
+// CHECK-NEXT: 584 |     const char * MFunctionName
+// CHECK-NEXT: 592 |     unsigned long MLineNo
+// CHECK-NEXT: 600 |     unsigned long MColumnNo
+// CHECK-NEXT: 608 |   _Bool MIsFinalized
+// CHECK-NEXT: 616 |   class sycl::event MLastEvent
+// CHECK-NEXT: 616 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
+// CHECK-NEXT: 616 |     class std::shared_ptr<class sycl::detail::event_impl> impl
+// CHECK-NEXT: 616 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
+// CHECK-NEXT: 616 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 616 |         element_type * _M_ptr
+// CHECK-NEXT: 624 |         class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 624 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:     | [sizeof=632, dsize=632, align=8,
+// CHECK-NEXT:     |  nvsize=632, nvalign=8]

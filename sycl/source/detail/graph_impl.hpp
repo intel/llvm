@@ -68,7 +68,8 @@ public:
 
   /// Construct a node representing a command-group.
   /// @param CGType Type of the command-group.
-  /// @param CommandGroup The CG which stores the command information for this node.
+  /// @param CommandGroup The CG which stores the command information for this
+  /// node.
   node_impl(sycl::detail::CG::CGTYPE CGType,
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
       : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}

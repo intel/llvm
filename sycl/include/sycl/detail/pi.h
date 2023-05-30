@@ -2102,7 +2102,7 @@ __SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime);
-                                                
+
 /// Command buffer extension
 struct _pi_ext_command_buffer;
 struct _pi_ext_sync_point;
