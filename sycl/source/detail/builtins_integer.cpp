@@ -26,7 +26,7 @@ template <typename T> inline std::make_unsigned_t<T> __abs_diff(T x, T y) {
                 "Only integral types are supported");
   using UT = std::make_unsigned_t<T>;
 
-  // We need to be careful too avoid undefined behavior from signed integer
+  // We need to be careful to avoid undefined behavior from signed integer
   // overflow. That is, if only one of the operands are negative we can overflow
   // the distance when using signed values. Instead, compute the distance as the
   // sum of absolule values.
