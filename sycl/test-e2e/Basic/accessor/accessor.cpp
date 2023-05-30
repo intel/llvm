@@ -1340,6 +1340,7 @@ int main() {
     const int data = 123;
     int result = 0;
 
+    // accessor<const T, read_only> to accessor<T, read_only> implicit conversion.
     {
       sycl::buffer<const int, 1> data_buf(&data, 1);
       sycl::buffer<int, 1> res_buf(&result, 1);
