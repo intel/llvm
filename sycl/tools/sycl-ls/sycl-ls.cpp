@@ -77,7 +77,7 @@ static void printDeviceInfo(const device &Device, bool Verbose,
 #include <sycl/info/aspects.def>
     std::cout << std::endl;
     auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
-    std::cout << Prepend << "SG sizes   :";
+    std::cout << Prepend << "info::device::sub_group_sizes:";
     for (auto size : sg_sizes)
       std::cout << " " << size;
     std::cout << std::endl;
