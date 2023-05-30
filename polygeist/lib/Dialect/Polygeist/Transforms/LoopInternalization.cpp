@@ -188,7 +188,8 @@ MemorySelector::selectMemorySpace(Value memref) const {
   auto numShared = [this](ArrayRef<affine::MemRefAccess> accesses) {
     return llvm::count_if(accesses, [this](affine::MemRefAccess access) {
       auto it = accessToMemSpace.find(&access);
-      assert(it != accessToMemSpace.end() && "Failed to find memref entry");
+      if (it == accessToMemSpace.end())
+        return false;
       return (it->second == MemorySpace::Shared);
     });
   };
@@ -237,7 +238,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop) {
           memAccessAnalysis.getMemoryAccess(access);
       if (!memAccess.has_value()) {
         LLVM_DEBUG(llvm::dbgs() << "Unable to analyze memory access\n");
-        break;
+        continue;
       }
 
       // Get the inter-thread access pattern and classify the memory access.
