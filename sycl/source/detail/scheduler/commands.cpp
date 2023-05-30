@@ -1851,11 +1851,11 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
   emitInstrumentationDataProxy();
 }
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const std::string &FunctionName, const std::string &SyclKernelName,
     void *&Address, std::optional<bool> &FromSource) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
@@ -1867,7 +1867,6 @@ std::string instrumentationGetKernelName(
     KernelName = demangleKernelName(SyclKernelName);
   }
   return KernelName;
-#endif
 }
 
 void instrumentationAddExtraKernelMetadata(
@@ -1879,7 +1878,6 @@ void instrumentationAddExtraKernelMetadata(
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
 {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   std::vector<ArgDesc> Args;
 
   auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
@@ -1935,7 +1933,6 @@ void instrumentationAddExtraKernelMetadata(
                                         Args[i].MSize, Args[i].MIndex};
     xpti::addMetadata(CmdTraceEvent, Prefix + std::to_string(i), arg);
   }
-#endif
 }
 
 void instrumentationFillCommonData(const std::string &KernelName,
@@ -2002,6 +1999,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
     }
   }
 }
+#endif
 
 void emitKernelInstrumentationData(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
