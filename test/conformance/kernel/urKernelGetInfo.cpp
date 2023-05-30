@@ -34,6 +34,33 @@ TEST_P(urKernelGetInfoTest, InvalidNullHandleKernel) {
 TEST_P(urKernelGetInfoTest, InvalidEnumeration) {
     size_t bad_enum_length = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
-                     urKernelGetInfo(nullptr, UR_KERNEL_INFO_FORCE_UINT32, 0,
+                     urKernelGetInfo(kernel, UR_KERNEL_INFO_FORCE_UINT32, 0,
                                      nullptr, &bad_enum_length));
+}
+
+TEST_P(urKernelGetInfoTest, InvalidSizeZero) {
+    size_t n_args = 0;
+    ASSERT_EQ_RESULT(
+        urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, &n_args, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urKernelGetInfoTest, InvalidSizeSmall) {
+    size_t n_args = 0;
+    ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
+                                     sizeof(n_args) - 1, &n_args, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urKernelGetInfoTest, InvalidNullPointerPropValue) {
+    size_t n_args = 0;
+    ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
+                                     sizeof(n_args), nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urKernelGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(
+        urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
 }
