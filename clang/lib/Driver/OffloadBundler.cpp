@@ -1256,7 +1256,7 @@ private:
         MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
     ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
     if (Error Err = OFH.ReadHeader(*Buf))
-      return Err;
+      return {std::move(Err)};
     Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
     if (!NameOrErr)
       return NameOrErr.takeError();
