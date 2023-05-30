@@ -105,8 +105,8 @@ public:
   /// Move the internal MBB iterator and update register states until
   /// it has processed the specific iterator.
   void forward(MachineBasicBlock::iterator I) {
-    if (!Tracking && MBB->begin() != I) forward();
-    while (MBBI != I) forward();
+    while (!Tracking || MBBI != I)
+      forward();
   }
 
   /// Update internal register state and move MBB iterator backwards.
@@ -223,6 +223,7 @@ private:
   /// No more than InstrLimit instructions are inspected.
   Register findSurvivorReg(MachineBasicBlock::iterator StartMI,
                            BitVector &Candidates,
+                           ArrayRef<MCPhysReg> AllocationOrder,
                            unsigned InstrLimit,
                            MachineBasicBlock::iterator &UseMI);
 

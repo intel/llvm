@@ -5,6 +5,16 @@ from lit.BooleanExpression import BooleanExpression
 
 import os
 
+def get_triple(test, backend):
+    if backend == 'ext_oneapi_cuda':
+        return 'nvptx64-nvidia-cuda'
+    if backend == 'ext_oneapi_hip':
+        if test.config.hip_platform == 'NVIDIA':
+            return 'nvptx64-nvidia-cuda'
+        else:
+            return 'amdgcn-amd-amdhsa'
+    return 'spir64'
+
 class SYCLEndToEndTest(lit.formats.ShTest):
     def parseTestScript(self, test):
         """This is based on lit.TestRunner.parseIntegratedTestScript but we
@@ -78,10 +88,16 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             return lit.Test.Result(lit.Test.UNSUPPORTED, 'No supported devices to run the test on')
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
+        triples = set()
+        for sycl_device in devices_for_test:
+            (backend, _) = sycl_device.split(':')
+            triples.add(get_triple(test, backend))
+
+        substitutions.append(('%{sycl_triple}', format(','.join(triples))))
         # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
-        substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%sycl_triple %s'))
+        substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s'))
 
         def get_extra_env(sycl_devices):
             # Note: It's possible that the system has a device from below but

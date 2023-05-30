@@ -5708,7 +5708,8 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
       // Create a scalar GEP if there are more than 2 operands.
       if (Ops.size() != 2) {
         // Replace the last index with 0.
-        Ops[FinalIndex] = Constant::getNullValue(ScalarIndexTy);
+        Ops[FinalIndex] =
+            Constant::getNullValue(Ops[FinalIndex]->getType()->getScalarType());
         Base = Builder.CreateGEP(SourceTy, Base, ArrayRef(Ops).drop_front());
         SourceTy = GetElementPtrInst::getIndexedType(
             SourceTy, ArrayRef(Ops).drop_front());
@@ -6060,7 +6061,7 @@ bool CodeGenPrepare::splitLargeGEPOffsets() {
 
       // Generate a new GEP to replace the current one.
       LLVMContext &Ctx = GEP->getContext();
-      Type *IntPtrTy = DL->getIntPtrType(GEP->getType());
+      Type *PtrIdxTy = DL->getIndexType(GEP->getType());
       Type *I8PtrTy =
           Type::getInt8PtrTy(Ctx, GEP->getType()->getPointerAddressSpace());
       Type *I8Ty = Type::getInt8Ty(Ctx);
@@ -6090,7 +6091,7 @@ bool CodeGenPrepare::splitLargeGEPOffsets() {
         }
         IRBuilder<> NewBaseBuilder(NewBaseInsertBB, NewBaseInsertPt);
         // Create a new base.
-        Value *BaseIndex = ConstantInt::get(IntPtrTy, BaseOffset);
+        Value *BaseIndex = ConstantInt::get(PtrIdxTy, BaseOffset);
         NewBaseGEP = OldBase;
         if (NewBaseGEP->getType() != I8PtrTy)
           NewBaseGEP = NewBaseBuilder.CreatePointerCast(NewBaseGEP, I8PtrTy);
@@ -6106,7 +6107,7 @@ bool CodeGenPrepare::splitLargeGEPOffsets() {
           NewGEP = Builder.CreatePointerCast(NewGEP, GEP->getType());
       } else {
         // Calculate the new offset for the new GEP.
-        Value *Index = ConstantInt::get(IntPtrTy, Offset - BaseOffset);
+        Value *Index = ConstantInt::get(PtrIdxTy, Offset - BaseOffset);
         NewGEP = Builder.CreateGEP(I8Ty, NewBaseGEP, Index);
 
         if (GEP->getType() != I8PtrTy)
@@ -7119,7 +7120,7 @@ bool CodeGenPrepare::tryToSinkFreeOperands(Instruction *I) {
 
     if (IsHugeFunc) {
       // Now we clone an instruction, its operands' defs may sink to this BB
-      // now. So we put the operands defs' BBs into FreshBBs to do optmization.
+      // now. So we put the operands defs' BBs into FreshBBs to do optimization.
       for (unsigned I = 0; I < NI->getNumOperands(); ++I) {
         auto *OpDef = dyn_cast<Instruction>(NI->getOperand(I));
         if (!OpDef)

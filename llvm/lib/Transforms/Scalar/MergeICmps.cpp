@@ -615,6 +615,21 @@ private:
 };
 } // namespace
 
+// Check whether the current comparisons is the last comparisons.
+// Only the last comparisons chain include the last link (unconditional jmp).
+// Due to reordering of contiguous comparison blocks, the unconditional
+// comparison of a chain maybe not placed at the end of the array comparisons.
+static bool isLastLinkComparison(ArrayRef<BCECmpBlock> Comparisons) {
+  for (unsigned i = 0; i < Comparisons.size(); i++) {
+    BasicBlock *const BB = Comparisons[i].BB;
+    auto *const BranchI = cast<BranchInst>(BB->getTerminator());
+    // Only the last comparisons chain include the unconditional jmp
+    if (BranchI->isUnconditional())
+      return true;
+  }
+  return false;
+}
+
 // Merges the given contiguous comparison blocks into one memcmp block.
 static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
                                     BasicBlock *const InsertBefore,
@@ -659,11 +674,8 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
   // For a Icmp chain, the Predicate is record the last link in the chain of
   // comparisons. When we spilt the chain The new spilted chain of comparisons
   // is end with ICMP_EQ.
-  // Only the last link in the chain is a unconditionla jmp.
-  BasicBlock *const TailBB = Comparisons[Comparisons.size() - 1].BB;
-  auto *const BranchI = dyn_cast<BranchInst>(TailBB->getTerminator());
   ICmpInst::Predicate Pred =
-      BranchI->isUnconditional() ? Predicate : ICmpInst::ICMP_EQ;
+      isLastLinkComparison(Comparisons) ? Predicate : ICmpInst::ICMP_EQ;
   if (Comparisons.size() == 1) {
     LLVM_DEBUG(dbgs() << "Only one comparison, updating branches\n");
     // Use clone to keep the metadata

@@ -147,7 +147,7 @@ struct alignas(8) GlobalValueSummaryInfo {
     StringRef Name;
   } U;
 
-  GlobalValueSummaryInfo(bool HaveGVs) : U(HaveGVs) {}
+  inline GlobalValueSummaryInfo(bool HaveGVs);
 
   /// List of global value summary structures for a particular value held
   /// in the GlobalValueMap. Requires a vector in the case of multiple
@@ -574,6 +574,8 @@ public:
 
   friend class ModuleSummaryIndex;
 };
+
+GlobalValueSummaryInfo::GlobalValueSummaryInfo(bool HaveGVs) : U(HaveGVs) {}
 
 /// Alias summary information.
 class AliasSummary : public GlobalValueSummary {
@@ -1721,6 +1723,13 @@ public:
 
   /// Return module entry for module with the given \p ModPath.
   ModuleInfo *getModule(StringRef ModPath) {
+    auto It = ModulePathStringTable.find(ModPath);
+    assert(It != ModulePathStringTable.end() && "Module not registered");
+    return &*It;
+  }
+
+  /// Return module entry for module with the given \p ModPath.
+  const ModuleInfo *getModule(StringRef ModPath) const {
     auto It = ModulePathStringTable.find(ModPath);
     assert(It != ModulePathStringTable.end() && "Module not registered");
     return &*It;

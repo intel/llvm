@@ -2147,8 +2147,19 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    static_cast<uint32_t>(max_registers));
   }
 
-    // TODO: Investigate if this information is available on CUDA.
-  case PI_DEVICE_INFO_PCI_ADDRESS:
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    sycl::detail::pi::assertion(
+        cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
+        CUDA_SUCCESS);
+    // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
+                        param_value_size, param_value, param_value_size_ret,
+                        AddressBuffer);
+  }
+  // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
@@ -2773,41 +2784,39 @@ pi_result cuda_piQueueFlush(pi_queue command_queue) {
 /// Gets the native CUDA handle of a PI queue object
 ///
 /// \param[in] queue The PI queue to get the native CUDA object of.
+/// \param[in] NativeHandleDesc Pointer to additional native handle info.
 /// \param[out] nativeHandle Set to the native handle of the PI queue object.
 ///
 /// \return PI_SUCCESS
 pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
-                                         pi_native_handle *nativeHandle) {
+                                         pi_native_handle *nativeHandle,
+                                         int32_t *NativeHandleDesc) {
+  *NativeHandleDesc = 0;
   ScopedContext active(queue->get_context());
   *nativeHandle =
       reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
 }
 
-pi_result cuda_piextQueueGetNativeHandle2(pi_queue queue,
-                                          pi_native_handle *nativeHandle,
-                                          int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
-  return cuda_piextQueueGetNativeHandle(queue, nativeHandle);
-}
-
 /// Created a PI queue object from a CUDA queue handle.
 /// NOTE: The created PI object does not take ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
+/// \param[in] nativeHandleDesc Info about the native handle.
 /// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
 /// \param ownNativeHandle tells if SYCL RT should assume the ownership of
 ///        the native handle, if it can.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_context context,
-                                                pi_device device,
-                                                bool ownNativeHandle,
-                                                pi_queue *queue) {
+pi_result cuda_piextQueueCreateWithNativeHandle(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *queue) {
+  (void)NativeHandleDesc;
   (void)device;
   (void)ownNativeHandle;
+  (void)Properties;
   assert(ownNativeHandle == false);
 
   unsigned int flags;
@@ -2838,16 +2847,6 @@ pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   (*queue)->num_compute_streams_ = 1;
 
   return retErr;
-}
-
-pi_result cuda_piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
-    pi_queue *queue) {
-  (void)NativeHandleDesc;
-  (void)Properties;
-  return cuda_piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                               ownNativeHandle, queue);
 }
 
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -5894,18 +5893,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piextQueueCreate, cuda_piextQueueCreate)
-  _PI_CL(piextQueueCreate2, cuda_piextQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueFlush, cuda_piQueueFlush)
   _PI_CL(piQueueRetain, cuda_piQueueRetain)
   _PI_CL(piQueueRelease, cuda_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, cuda_piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, cuda_piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle,
          cuda_piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2,
-         cuda_piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, cuda_piMemBufferCreate)
   _PI_CL(piMemImageCreate, cuda_piMemImageCreate)

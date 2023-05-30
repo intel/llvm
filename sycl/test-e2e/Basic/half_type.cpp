@@ -39,7 +39,7 @@ void verify_add(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
         r, [=](id<1> index) { C[index] = A[index] + B[index]; });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_min(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
@@ -54,7 +54,7 @@ void verify_min(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
         r, [=](id<1> index) { C[index] = A[index] - B[index]; });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_mul(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
@@ -69,7 +69,7 @@ void verify_mul(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
         r, [=](id<1> index) { C[index] = A[index] * B[index]; });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_div(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
@@ -84,7 +84,7 @@ void verify_div(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
         r, [=](id<1> index) { C[index] = A[index] / B[index]; });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_vec(queue &q) {
@@ -98,85 +98,85 @@ void verify_vec(queue &q) {
         E[0] = 1;
     });
   });
-  assert(e.get_access<access::mode::read>()[0] == 0);
+  assert(host_accessor(e, read_only)[0] == 0);
 }
 
 void verify_numeric_limits(queue &q) {
   // Verify on host side
   // Static member variables
-  std::numeric_limits<sycl::half>::is_specialized;
-  std::numeric_limits<sycl::half>::is_signed;
-  std::numeric_limits<sycl::half>::is_integer;
-  std::numeric_limits<sycl::half>::is_exact;
-  std::numeric_limits<sycl::half>::has_infinity;
-  std::numeric_limits<sycl::half>::has_quiet_NaN;
-  std::numeric_limits<sycl::half>::has_signaling_NaN;
-  std::numeric_limits<sycl::half>::has_denorm;
-  std::numeric_limits<sycl::half>::has_denorm_loss;
-  std::numeric_limits<sycl::half>::tinyness_before;
-  std::numeric_limits<sycl::half>::traps;
-  std::numeric_limits<sycl::half>::max_exponent10;
-  std::numeric_limits<sycl::half>::max_exponent;
-  std::numeric_limits<sycl::half>::min_exponent10;
-  std::numeric_limits<sycl::half>::min_exponent;
-  std::numeric_limits<sycl::half>::radix;
-  std::numeric_limits<sycl::half>::max_digits10;
-  std::numeric_limits<sycl::half>::digits;
-  std::numeric_limits<sycl::half>::is_bounded;
-  std::numeric_limits<sycl::half>::digits10;
-  std::numeric_limits<sycl::half>::is_modulo;
-  std::numeric_limits<sycl::half>::is_iec559;
-  std::numeric_limits<sycl::half>::round_style;
+  std::ignore = std::numeric_limits<sycl::half>::is_specialized;
+  std::ignore = std::numeric_limits<sycl::half>::is_signed;
+  std::ignore = std::numeric_limits<sycl::half>::is_integer;
+  std::ignore = std::numeric_limits<sycl::half>::is_exact;
+  std::ignore = std::numeric_limits<sycl::half>::has_infinity;
+  std::ignore = std::numeric_limits<sycl::half>::has_quiet_NaN;
+  std::ignore = std::numeric_limits<sycl::half>::has_signaling_NaN;
+  std::ignore = std::numeric_limits<sycl::half>::has_denorm;
+  std::ignore = std::numeric_limits<sycl::half>::has_denorm_loss;
+  std::ignore = std::numeric_limits<sycl::half>::tinyness_before;
+  std::ignore = std::numeric_limits<sycl::half>::traps;
+  std::ignore = std::numeric_limits<sycl::half>::max_exponent10;
+  std::ignore = std::numeric_limits<sycl::half>::max_exponent;
+  std::ignore = std::numeric_limits<sycl::half>::min_exponent10;
+  std::ignore = std::numeric_limits<sycl::half>::min_exponent;
+  std::ignore = std::numeric_limits<sycl::half>::radix;
+  std::ignore = std::numeric_limits<sycl::half>::max_digits10;
+  std::ignore = std::numeric_limits<sycl::half>::digits;
+  std::ignore = std::numeric_limits<sycl::half>::is_bounded;
+  std::ignore = std::numeric_limits<sycl::half>::digits10;
+  std::ignore = std::numeric_limits<sycl::half>::is_modulo;
+  std::ignore = std::numeric_limits<sycl::half>::is_iec559;
+  std::ignore = std::numeric_limits<sycl::half>::round_style;
 
   // Static member functions
-  std::numeric_limits<sycl::half>::min();
-  std::numeric_limits<sycl::half>::max();
-  std::numeric_limits<sycl::half>::lowest();
-  std::numeric_limits<sycl::half>::epsilon();
-  std::numeric_limits<sycl::half>::round_error();
-  std::numeric_limits<sycl::half>::infinity();
-  std::numeric_limits<sycl::half>::quiet_NaN();
-  std::numeric_limits<sycl::half>::signaling_NaN();
-  std::numeric_limits<sycl::half>::denorm_min();
+  std::ignore = std::numeric_limits<sycl::half>::min();
+  std::ignore = std::numeric_limits<sycl::half>::max();
+  std::ignore = std::numeric_limits<sycl::half>::lowest();
+  std::ignore = std::numeric_limits<sycl::half>::epsilon();
+  std::ignore = std::numeric_limits<sycl::half>::round_error();
+  std::ignore = std::numeric_limits<sycl::half>::infinity();
+  std::ignore = std::numeric_limits<sycl::half>::quiet_NaN();
+  std::ignore = std::numeric_limits<sycl::half>::signaling_NaN();
+  std::ignore = std::numeric_limits<sycl::half>::denorm_min();
 
   // Verify in kernel function for device side check
   q.submit([&](sycl::handler &cgh) {
     cgh.single_task<class kernel>([]() {
       // Static member variables
-      std::numeric_limits<sycl::half>::is_specialized;
-      std::numeric_limits<sycl::half>::is_signed;
-      std::numeric_limits<sycl::half>::is_integer;
-      std::numeric_limits<sycl::half>::is_exact;
-      std::numeric_limits<sycl::half>::has_infinity;
-      std::numeric_limits<sycl::half>::has_quiet_NaN;
-      std::numeric_limits<sycl::half>::has_signaling_NaN;
-      std::numeric_limits<sycl::half>::has_denorm;
-      std::numeric_limits<sycl::half>::has_denorm_loss;
-      std::numeric_limits<sycl::half>::tinyness_before;
-      std::numeric_limits<sycl::half>::traps;
-      std::numeric_limits<sycl::half>::max_exponent10;
-      std::numeric_limits<sycl::half>::max_exponent;
-      std::numeric_limits<sycl::half>::min_exponent10;
-      std::numeric_limits<sycl::half>::min_exponent;
-      std::numeric_limits<sycl::half>::radix;
-      std::numeric_limits<sycl::half>::max_digits10;
-      std::numeric_limits<sycl::half>::digits;
-      std::numeric_limits<sycl::half>::is_bounded;
-      std::numeric_limits<sycl::half>::digits10;
-      std::numeric_limits<sycl::half>::is_modulo;
-      std::numeric_limits<sycl::half>::is_iec559;
-      std::numeric_limits<sycl::half>::round_style;
+      std::ignore = std::numeric_limits<sycl::half>::is_specialized;
+      std::ignore = std::numeric_limits<sycl::half>::is_signed;
+      std::ignore = std::numeric_limits<sycl::half>::is_integer;
+      std::ignore = std::numeric_limits<sycl::half>::is_exact;
+      std::ignore = std::numeric_limits<sycl::half>::has_infinity;
+      std::ignore = std::numeric_limits<sycl::half>::has_quiet_NaN;
+      std::ignore = std::numeric_limits<sycl::half>::has_signaling_NaN;
+      std::ignore = std::numeric_limits<sycl::half>::has_denorm;
+      std::ignore = std::numeric_limits<sycl::half>::has_denorm_loss;
+      std::ignore = std::numeric_limits<sycl::half>::tinyness_before;
+      std::ignore = std::numeric_limits<sycl::half>::traps;
+      std::ignore = std::numeric_limits<sycl::half>::max_exponent10;
+      std::ignore = std::numeric_limits<sycl::half>::max_exponent;
+      std::ignore = std::numeric_limits<sycl::half>::min_exponent10;
+      std::ignore = std::numeric_limits<sycl::half>::min_exponent;
+      std::ignore = std::numeric_limits<sycl::half>::radix;
+      std::ignore = std::numeric_limits<sycl::half>::max_digits10;
+      std::ignore = std::numeric_limits<sycl::half>::digits;
+      std::ignore = std::numeric_limits<sycl::half>::is_bounded;
+      std::ignore = std::numeric_limits<sycl::half>::digits10;
+      std::ignore = std::numeric_limits<sycl::half>::is_modulo;
+      std::ignore = std::numeric_limits<sycl::half>::is_iec559;
+      std::ignore = std::numeric_limits<sycl::half>::round_style;
 
       // Static member functions
-      std::numeric_limits<sycl::half>::min();
-      std::numeric_limits<sycl::half>::max();
-      std::numeric_limits<sycl::half>::lowest();
-      std::numeric_limits<sycl::half>::epsilon();
-      std::numeric_limits<sycl::half>::round_error();
-      std::numeric_limits<sycl::half>::infinity();
-      std::numeric_limits<sycl::half>::quiet_NaN();
-      std::numeric_limits<sycl::half>::signaling_NaN();
-      std::numeric_limits<sycl::half>::denorm_min();
+      std::ignore = std::numeric_limits<sycl::half>::min();
+      std::ignore = std::numeric_limits<sycl::half>::max();
+      std::ignore = std::numeric_limits<sycl::half>::lowest();
+      std::ignore = std::numeric_limits<sycl::half>::epsilon();
+      std::ignore = std::numeric_limits<sycl::half>::round_error();
+      std::ignore = std::numeric_limits<sycl::half>::infinity();
+      std::ignore = std::numeric_limits<sycl::half>::quiet_NaN();
+      std::ignore = std::numeric_limits<sycl::half>::signaling_NaN();
+      std::ignore = std::numeric_limits<sycl::half>::denorm_min();
     });
   });
 }
@@ -236,7 +236,7 @@ int main() {
   constexpr_verify_mul();
   constexpr_verify_div();
 
-  device dev{default_selector_v};
+  device dev;
 
   std::vector<half> vec_a(N, 5.0);
   std::vector<half> vec_b(N, 2.0);

@@ -150,6 +150,7 @@ def FeatureStdExtZhinx
 def HasStdExtZhinx : Predicate<"Subtarget->hasStdExtZhinx()">,
                                AssemblerPredicate<(all_of FeatureStdExtZhinx),
                                "'Zhinx' (Half Float in Integer)">;
+def NoStdExtZhinx : Predicate<"!Subtarget->hasStdExtZhinx()">;
 
 def HasStdExtZhinxOrZhinxmin
     : Predicate<"Subtarget->hasStdExtZhinx() || Subtarget->hasStdExtZhinxmin()">,
@@ -446,10 +447,32 @@ def HasVInstructionsAnyF : Predicate<"Subtarget->hasVInstructionsAnyF()">,
           "'V' (Vector Extension for Application Processors), 'Zve32f', "
           "'Zve64f' or 'Zve64d' (Vector Extensions for Embedded Processors)">;
 
+def HasVInstructionsF64 : Predicate<"Subtarget->hasVInstructionsF64()">;
+
+def HasVInstructionsFullMultiply : Predicate<"Subtarget->hasVInstructionsFullMultiply()">;
+
+def FeatureStdExtZvfbfmin
+    : SubtargetFeature<"experimental-zvfbfmin", "HasStdExtZvfbfmin", "true",
+                       "'Zvbfmin' (Vector BF16 Converts)",
+                       [FeatureStdExtZve32f]>;
+def HasStdExtZvfbfmin : Predicate<"Subtarget->hasStdExtZvfbfmin()">,
+                                  AssemblerPredicate<(all_of FeatureStdExtZvfbfmin),
+                                  "'Zvfbfmin' (Vector BF16 Converts)">;
+
+def FeatureStdExtZvfbfwma
+    : SubtargetFeature<"experimental-zvfbfwma", "HasStdExtZvfbfwma", "true",
+                       "'Zvfbfwma' (Vector BF16 widening mul-add)",
+                       [FeatureStdExtZve32f]>;
+def HasStdExtZvfbfwma : Predicate<"Subtarget->hasStdExtZvfbfwma()">,
+                                  AssemblerPredicate<(all_of FeatureStdExtZvfbfwma),
+                                  "'Zvfbfwma' (Vector BF16 widening mul-add)">;
+
 def FeatureStdExtZvfh
     : SubtargetFeature<"experimental-zvfh", "HasStdExtZvfh", "true",
                        "'Zvfh' (Vector Half-Precision Floating-Point)",
-                       [FeatureStdExtZve32f]>;
+                       [FeatureStdExtZve32f, FeatureStdExtZfhmin]>;
+
+def HasVInstructionsF16 : Predicate<"Subtarget->hasVInstructionsF16()">;
 
 def HasStdExtZfhOrZvfh
     : Predicate<"Subtarget->hasStdExtZfh() || Subtarget->hasStdExtZvfh()">,
@@ -603,6 +626,23 @@ def FeatureStdExtSsaia
                        "'Ssaia' (Ssaia is essentially the same as Smaia except "
                        "excluding the machine-level CSRs and behavior not "
                        "directly visible to supervisor level.)", []>;
+
+def FeatureStdExtZfbfmin
+    : SubtargetFeature<"experimental-zfbfmin", "HasStdExtZfbfmin", "true",
+                       "'Zfbfmin' (Scalar BF16 Converts)",
+                       [FeatureStdExtF]>;
+def HasStdExtZfbfmin : Predicate<"Subtarget->hasStdExtZfbfmin()">,
+                                 AssemblerPredicate<(all_of FeatureStdExtZfbfmin),
+                                 "'Zfbfmin' (Scalar BF16 Converts)">;
+
+def HasHalfFPLoadStoreMove
+    : Predicate<"Subtarget->hasHalfFPLoadStoreMove()">,
+                AssemblerPredicate<(any_of FeatureStdExtZfh, FeatureStdExtZfhmin,
+                                    FeatureStdExtZfbfmin, FeatureStdExtZvfbfwma),
+                                    "'Zfh' (Half-Precision Floating-Point) or "
+                                    "'Zfhmin' (Half-Precision Floating-Point Minimal) or "
+                                    "'Zfbfmin' (Scalar BF16 Converts) or "
+                                    "'Zvfbfwma' (Vector BF16 widening mul-add)">;
 
 //===----------------------------------------------------------------------===//
 // Vendor extensions

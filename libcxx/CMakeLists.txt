@@ -287,6 +287,12 @@ option(LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY
     "Build libc++ with an externalized threading library.
      This option may only be set to ON when LIBCXX_ENABLE_THREADS=ON" OFF)
 
+if (LIBCXX_ENABLE_THREADS)
+  set(LIBCXX_PSTL_CPU_BACKEND "std_thread" CACHE STRING "Which PSTL CPU backend to use")
+else()
+  set(LIBCXX_PSTL_CPU_BACKEND "serial" CACHE STRING "Which PSTL CPU backend to use")
+endif()
+
 # Misc options ----------------------------------------------------------------
 # FIXME: Turn -pedantic back ON. It is currently off because it warns
 # about #include_next which is used everywhere.
@@ -763,14 +769,6 @@ function(cxx_add_windows_flags target)
                                  # Use the ISO conforming behaviour for conversion
                                  # in printf, scanf.
                                  _CRT_STDIO_ISO_WIDE_SPECIFIERS)
-    # Clang-cl shared builds don't support the experimental library.
-    # To avoid linker errors the format_error destructor is inlined for the
-    # dylib. Users can never use format in this mode.
-    # TODO FMT Remove when format becomes mainline.
-    if (LIBCXX_ENABLE_SHARED)
-      target_compile_definitions(${target} PRIVATE
-                                 _LIBCPP_INLINE_FORMAT_ERROR_DTOR)
-    endif()
   endif()
 endfunction()
 
@@ -802,6 +800,15 @@ if (LIBCXX_ENABLE_ASSERTIONS)
   config_define(1 _LIBCPP_ENABLE_ASSERTIONS_DEFAULT)
 else()
   config_define(0 _LIBCPP_ENABLE_ASSERTIONS_DEFAULT)
+endif()
+
+if (LIBCXX_PSTL_CPU_BACKEND STREQUAL "serial")
+  config_define(1 _LIBCPP_PSTL_CPU_BACKEND_SERIAL)
+elseif(LIBCXX_PSTL_CPU_BACKEND STREQUAL "std_thread")
+  config_define(1 _LIBCPP_PSTL_CPU_BACKEND_THREAD)
+else()
+  message(FATAL_ERROR "LIBCXX_PSTL_CPU_BACKEND is set to ${LIBCXX_PSTL_CPU_BACKEND}, which is not a valid backend.
+                       Valid backends are: serial, std_thread")
 endif()
 
 if (LIBCXX_ABI_DEFINES)

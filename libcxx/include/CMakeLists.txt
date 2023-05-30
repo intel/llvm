@@ -70,9 +70,22 @@ set(files
   __algorithm/pop_heap.h
   __algorithm/prev_permutation.h
   __algorithm/pstl_any_all_none_of.h
+  __algorithm/pstl_backend.h
+  __algorithm/pstl_backends/cpu_backend.h
+  __algorithm/pstl_backends/cpu_backends/any_of.h
+  __algorithm/pstl_backends/cpu_backends/backend.h
+  __algorithm/pstl_backends/cpu_backends/fill.h
+  __algorithm/pstl_backends/cpu_backends/find_if.h
+  __algorithm/pstl_backends/cpu_backends/for_each.h
+  __algorithm/pstl_backends/cpu_backends/serial.h
+  __algorithm/pstl_backends/cpu_backends/thread.h
+  __algorithm/pstl_backends/cpu_backends/transform.h
+  __algorithm/pstl_copy.h
   __algorithm/pstl_fill.h
   __algorithm/pstl_find.h
   __algorithm/pstl_for_each.h
+  __algorithm/pstl_frontend_dispatch.h
+  __algorithm/pstl_transform.h
   __algorithm/push_heap.h
   __algorithm/ranges_adjacent_find.h
   __algorithm/ranges_all_of.h
@@ -155,6 +168,7 @@ set(files
   __algorithm/ranges_sort_heap.h
   __algorithm/ranges_stable_partition.h
   __algorithm/ranges_stable_sort.h
+  __algorithm/ranges_starts_with.h
   __algorithm/ranges_swap_ranges.h
   __algorithm/ranges_transform.h
   __algorithm/ranges_unique.h
@@ -386,7 +400,6 @@ set(files
   __functional/reference_wrapper.h
   __functional/unary_function.h
   __functional/unary_negate.h
-  __functional/unwrap_ref.h
   __functional/weak_result_type.h
   __fwd/array.h
   __fwd/fstream.h
@@ -451,6 +464,7 @@ set(files
   __locale_dir/locale_base_api/bsd_locale_fallbacks.h
   __locale_dir/locale_base_api/locale_guard.h
   __mbstate_t.h
+  __mdspan/extents.h
   __memory/addressof.h
   __memory/align.h
   __memory/aligned_alloc.h
@@ -532,8 +546,6 @@ set(files
   __pstl/internal/parallel_backend_serial.h
   __pstl/internal/parallel_backend_tbb.h
   __pstl/internal/parallel_backend_utils.h
-  __pstl/internal/parallel_impl.h
-  __pstl/internal/pstl_config.h
   __pstl/internal/unseq_backend_simd.h
   __pstl/internal/utils.h
   __pstl_algorithm
@@ -581,6 +593,7 @@ set(files
   __ranges/as_rvalue_view.h
   __ranges/common_view.h
   __ranges/concepts.h
+  __ranges/container_compatible_range.h
   __ranges/copyable_box.h
   __ranges/counted.h
   __ranges/dangling.h
@@ -593,6 +606,7 @@ set(files
   __ranges/enable_borrowed_range.h
   __ranges/enable_view.h
   __ranges/filter_view.h
+  __ranges/from_range.h
   __ranges/iota_view.h
   __ranges/istream_view.h
   __ranges/join_view.h
@@ -616,6 +630,9 @@ set(files
   __ranges/zip_view.h
   __split_buffer
   __std_mbstate_t.h
+  __stop_token/atomic_unique_lock.h
+  __stop_token/intrusive_list_view.h
+  __stop_token/intrusive_shared_ptr.h
   __string/char_traits.h
   __string/constexpr_c_functions.h
   __string/extern_template_lists.h
@@ -675,6 +692,7 @@ set(files
   __type_traits/has_unique_object_representation.h
   __type_traits/has_virtual_destructor.h
   __type_traits/integral_constant.h
+  __type_traits/invoke.h
   __type_traits/is_abstract.h
   __type_traits/is_aggregate.h
   __type_traits/is_allocator.h
@@ -783,6 +801,7 @@ set(files
   __type_traits/type_identity.h
   __type_traits/type_list.h
   __type_traits/underlying_type.h
+  __type_traits/unwrap_ref.h
   __type_traits/void_t.h
   __undef_macros
   __utility/as_const.h
@@ -900,6 +919,7 @@ set(files
   locale.h
   map
   math.h
+  mdspan
   memory
   memory_resource
   mutex

@@ -61,9 +61,11 @@
 #      define _LIBCPP_STD_VER 17
 #    elif __cplusplus <= 202002L
 #      define _LIBCPP_STD_VER 20
+#    elif __cplusplus <= 202302L
+#      define _LIBCPP_STD_VER 23
 #    else
 // Expected release year of the next C++ standard
-#      define _LIBCPP_STD_VER 23
+#      define _LIBCPP_STD_VER 26
 #    endif
 #  endif // _LIBCPP_STD_VER
 // NOLINTEND(libcpp-cpp-version-check)
@@ -271,7 +273,6 @@
 // Incomplete features get their own specific disabling flags. This makes it
 // easier to grep for target specific flags once the feature is complete.
 #  if !defined(_LIBCPP_ENABLE_EXPERIMENTAL) && !defined(_LIBCPP_BUILDING_LIBRARY)
-#    define _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
 #    define _LIBCPP_HAS_NO_INCOMPLETE_PSTL
 #  endif
 
@@ -901,6 +902,12 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #  ifndef _LIBCPP_HAS_NO_ASAN
     extern "C" _LIBCPP_FUNC_VIS void
     __sanitizer_annotate_contiguous_container(const void*, const void*, const void*, const void*);
+#    if _LIBCPP_CLANG_VER >= 1600
+extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_double_ended_contiguous_container(
+    const void*, const void*, const void*, const void*, const void*, const void*);
+extern "C" _LIBCPP_FUNC_VIS int
+__sanitizer_verify_double_ended_contiguous_container(const void*, const void*, const void*, const void*);
+#    endif
 #  endif
 
 // Try to find out if RTTI is disabled.
@@ -1270,6 +1277,46 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #  ifdef __OBJC__
 #    define _LIBCPP_WORKAROUND_OBJCXX_COMPILER_INTRINSICS
 #  endif
+
+// TODO: Make this a proper configuration option
+#define _PSTL_PAR_BACKEND_SERIAL
+
+#define _PSTL_PRAGMA(x) _Pragma(#    x)
+
+// Enable SIMD for compilers that support OpenMP 4.0
+#if (defined(_OPENMP) && _OPENMP >= 201307)
+
+#  define _PSTL_UDR_PRESENT
+#  define _PSTL_PRAGMA_SIMD _PSTL_PRAGMA(omp simd)
+#  define _PSTL_PRAGMA_DECLARE_SIMD _PSTL_PRAGMA(omp declare simd)
+#  define _PSTL_PRAGMA_SIMD_REDUCTION(PRM) _PSTL_PRAGMA(omp simd reduction(PRM))
+#  define _PSTL_PRAGMA_SIMD_SCAN(PRM) _PSTL_PRAGMA(omp simd reduction(inscan, PRM))
+#  define _PSTL_PRAGMA_SIMD_INCLUSIVE_SCAN(PRM) _PSTL_PRAGMA(omp scan inclusive(PRM))
+#  define _PSTL_PRAGMA_SIMD_EXCLUSIVE_SCAN(PRM) _PSTL_PRAGMA(omp scan exclusive(PRM))
+
+// Declaration of reduction functor, where
+// NAME - the name of the functor
+// OP - type of the callable object with the reduction operation
+// omp_in - refers to the local partial result
+// omp_out - refers to the final value of the combiner operator
+// omp_priv - refers to the private copy of the initial value
+// omp_orig - refers to the original variable to be reduced
+#  define _PSTL_PRAGMA_DECLARE_REDUCTION(NAME, OP)                                                                     \
+    _PSTL_PRAGMA(omp declare reduction(NAME:OP : omp_out(omp_in)) initializer(omp_priv = omp_orig))
+
+#else // (defined(_OPENMP) && _OPENMP >= 201307)
+
+#  define _PSTL_PRAGMA_SIMD
+#  define _PSTL_PRAGMA_DECLARE_SIMD
+#  define _PSTL_PRAGMA_SIMD_REDUCTION(PRM)
+#  define _PSTL_PRAGMA_SIMD_SCAN(PRM)
+#  define _PSTL_PRAGMA_SIMD_INCLUSIVE_SCAN(PRM)
+#  define _PSTL_PRAGMA_SIMD_EXCLUSIVE_SCAN(PRM)
+#  define _PSTL_PRAGMA_DECLARE_REDUCTION(NAME, OP)
+
+#endif // (defined(_OPENMP) && _OPENMP >= 201307)
+
+#define _PSTL_USE_NONTEMPORAL_STORES_IF_ALLOWED
 
 #endif // __cplusplus
 
