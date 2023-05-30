@@ -842,7 +842,7 @@ bool Breakpoint::HasResolvedLocations() const {
 size_t Breakpoint::GetNumLocations() const { return m_locations.GetSize(); }
 
 bool Breakpoint::AddName(llvm::StringRef new_name) {
-  m_name_list.insert(new_name.str().c_str());
+  m_name_list.insert(new_name.str());
   return true;
 }
 
@@ -1039,12 +1039,11 @@ Breakpoint::BreakpointEventData::BreakpointEventData(
 
 Breakpoint::BreakpointEventData::~BreakpointEventData() = default;
 
-ConstString Breakpoint::BreakpointEventData::GetFlavorString() {
-  static ConstString g_flavor("Breakpoint::BreakpointEventData");
-  return g_flavor;
+llvm::StringRef Breakpoint::BreakpointEventData::GetFlavorString() {
+  return "Breakpoint::BreakpointEventData";
 }
 
-ConstString Breakpoint::BreakpointEventData::GetFlavor() const {
+llvm::StringRef Breakpoint::BreakpointEventData::GetFlavor() const {
   return BreakpointEventData::GetFlavorString();
 }
 

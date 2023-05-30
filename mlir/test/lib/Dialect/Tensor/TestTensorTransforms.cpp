@@ -43,11 +43,6 @@ struct TestTensorTransforms
 
   void runOnOperation() override;
 
-  Option<bool> testSplitPaddingPatterns{
-      *this, "test-split-padding-patterns",
-      llvm::cl::desc("Test patterns to split tensor.pad ops"),
-      llvm::cl::init(false)};
-
   Option<bool> testFoldConstantExtractSlice{
       *this, "test-fold-constant-extract-slice",
       llvm::cl::desc("Test folding arith.constant and tensor.extract_slice"),
@@ -111,12 +106,6 @@ static void applyFoldIntoPackAndUnpackPatterns(Operation *rootOp) {
   (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
 }
 
-static void applySplitPaddingPatterns(Operation *rootOp) {
-  RewritePatternSet patterns(rootOp->getContext());
-  tensor::populateSplitPaddingPatterns(patterns);
-  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
-}
-
 static void applyFoldConstantExtractSlicePatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
   tensor::ControlConstantExtractSliceFusionFn controlFn =
@@ -124,7 +113,7 @@ static void applyFoldConstantExtractSlicePatterns(Operation *rootOp) {
         if (!op.getSource().hasOneUse())
           return false;
 
-        auto resultType = op.getResult().getType().cast<ShapedType>();
+        auto resultType = cast<ShapedType>(op.getResult().getType());
         constexpr int64_t kConstantFoldingMaxNumElements = 1024;
         return resultType.getNumElements() <= kConstantFoldingMaxNumElements;
       };
@@ -291,8 +280,6 @@ void TestTensorTransforms::runOnOperation() {
   Operation *rootOp = getOperation();
   if (testSimplifyPackPatterns)
     applySimplifyPackPatterns(rootOp);
-  if (testSplitPaddingPatterns)
-    applySplitPaddingPatterns(rootOp);
   if (testFoldConstantExtractSlice)
     applyFoldConstantExtractSlicePatterns(rootOp);
   if (testFoldConsecutiveInsertExtractSlice)

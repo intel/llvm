@@ -185,7 +185,8 @@ std::set<const FileEntry *> GetAffectingModuleMaps(const Preprocessor &PP,
     if (!HFI || (HFI->isModuleHeader && !HFI->isCompilingModuleHeader))
       continue;
 
-    for (const auto &KH : HS.findAllModulesForHeader(File)) {
+    for (const auto &KH :
+         HS.findAllModulesForHeader(File, /*AllowCreation=*/false)) {
       if (!KH.getModule())
         continue;
       ModulesToProcess.push_back(KH.getModule());
@@ -1243,6 +1244,8 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang maj.
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 16)); // Clang min.
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Relocatable
+  // Standard C++ module
+  MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1));
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Timestamps
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Errors
   MetadataAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // SVN branch/tag
@@ -1250,15 +1253,15 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   assert((!WritingModule || isysroot.empty()) &&
          "writing module as a relocatable PCH?");
   {
-    RecordData::value_type Record[] = {
-        METADATA,
-        VERSION_MAJOR,
-        VERSION_MINOR,
-        CLANG_VERSION_MAJOR,
-        CLANG_VERSION_MINOR,
-        !isysroot.empty(),
-        IncludeTimestamps,
-        ASTHasCompilerErrors};
+    RecordData::value_type Record[] = {METADATA,
+                                       VERSION_MAJOR,
+                                       VERSION_MINOR,
+                                       CLANG_VERSION_MAJOR,
+                                       CLANG_VERSION_MINOR,
+                                       !isysroot.empty(),
+                                       isWritingStdCXXNamedModules(),
+                                       IncludeTimestamps,
+                                       ASTHasCompilerErrors};
     Stream.EmitRecordWithBlob(MetadataAbbrevCode, Record,
                               getClangFullRepositoryVersion());
   }
@@ -1349,6 +1352,7 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
         continue;
 
       Record.push_back((unsigned)M.Kind); // FIXME: Stable encoding
+      Record.push_back(M.StandardCXXModule);
       AddSourceLocation(M.ImportLoc, Record);
 
       // If we have calculated signature, there is no need to store
@@ -1884,7 +1888,7 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
 
       // If the file didn't exist, we can still create a module if we were given
       // enough information in the module map.
-      for (auto U : M->MissingHeaders) {
+      for (const auto &U : M->MissingHeaders) {
         // Check that we were given enough information to build a module
         // without this file existing on disk.
         if (!U.Size || (!U.ModTime && IncludeTimestamps)) {
@@ -1903,18 +1907,16 @@ void ASTWriter::WriteHeaderSearch(const HeaderSearch &HS) {
         SavedStrings.push_back(FilenameDup.data());
 
         HeaderFileInfoTrait::key_type Key = {
-          FilenameDup, *U.Size, IncludeTimestamps ? *U.ModTime : 0
-        };
+            FilenameDup, *U.Size, IncludeTimestamps ? *U.ModTime : 0};
         HeaderFileInfoTrait::data_type Data = {
-          Empty, {}, {M, ModuleMap::headerKindToRole(U.Kind)}
-        };
+            Empty, {}, {M, ModuleMap::headerKindToRole(U.Kind)}};
         // FIXME: Deal with cases where there are multiple unresolved header
         // directives in different submodules for the same header.
         Generator.insert(Key, Data, GeneratorTrait);
         ++NumHeaderSearchEntries;
       }
-
-      Worklist.append(M->submodule_begin(), M->submodule_end());
+      auto SubmodulesRange = M->submodules();
+      Worklist.append(SubmodulesRange.begin(), SubmodulesRange.end());
     }
   }
 
@@ -2701,9 +2703,8 @@ unsigned ASTWriter::getSubmoduleID(Module *Mod) {
 /// given module).
 static unsigned getNumberOfModules(Module *Mod) {
   unsigned ChildModules = 0;
-  for (auto Sub = Mod->submodule_begin(), SubEnd = Mod->submodule_end();
-       Sub != SubEnd; ++Sub)
-    ChildModules += getNumberOfModules(*Sub);
+  for (auto *Submodule : Mod->submodules())
+    ChildModules += getNumberOfModules(Submodule);
 
   return ChildModules + 1;
 }
@@ -3557,12 +3558,8 @@ public:
       if (MacroOffset)
         DataLen += 4; // MacroDirectives offset.
 
-      if (NeedDecls) {
-        for (IdentifierResolver::iterator D = IdResolver.begin(II),
-                                       DEnd = IdResolver.end();
-             D != DEnd; ++D)
-          DataLen += 4;
-      }
+      if (NeedDecls)
+        DataLen += std::distance(IdResolver.begin(II), IdResolver.end()) * 4;
     }
     return emitULEBKeyDataLength(KeyLen, DataLen, Out);
   }
@@ -3607,8 +3604,7 @@ public:
       // "stat"), but the ASTReader adds declarations to the end of the list
       // (so we need to see the struct "stat" before the function "stat").
       // Only emit declarations that aren't from a chained PCH, though.
-      SmallVector<NamedDecl *, 16> Decls(IdResolver.begin(II),
-                                         IdResolver.end());
+      SmallVector<NamedDecl *, 16> Decls(IdResolver.decls(II));
       for (NamedDecl *D : llvm::reverse(Decls))
         LE.write<uint32_t>(
             Writer.getDeclID(getDeclForLocalLookup(PP.getLangOpts(), D)));
@@ -3645,13 +3641,13 @@ void ASTWriter::WriteIdentifierTable(Preprocessor &PP,
     // file.
     SmallVector<const IdentifierInfo *, 128> IIs;
     for (const auto &ID : PP.getIdentifierTable())
-      IIs.push_back(ID.second);
-    // Sort the identifiers lexicographically before getting them references so
+      if (Trait.isInterestingNonMacroIdentifier(ID.second))
+        IIs.push_back(ID.second);
+    // Sort the identifiers lexicographically before getting the references so
     // that their order is stable.
     llvm::sort(IIs, llvm::deref<std::less<>>());
     for (const IdentifierInfo *II : IIs)
-      if (Trait.isInterestingNonMacroIdentifier(II))
-        getIdentifierRef(II);
+      getIdentifierRef(II);
 
     // Create the on-disk hash table representation. We only store offsets
     // for identifiers that appear here for the first time.
@@ -3849,6 +3845,12 @@ public:
 
 } // namespace
 
+bool ASTWriter::isLookupResultExternal(StoredDeclsList &Result,
+                                       DeclContext *DC) {
+  return Result.hasExternalDecls() &&
+         DC->hasNeedToReconcileExternalVisibleStorage();
+}
+
 bool ASTWriter::isLookupResultEntirelyExternal(StoredDeclsList &Result,
                                                DeclContext *DC) {
   for (auto *D : Result.getLookupResult())
@@ -3879,17 +3881,20 @@ ASTWriter::GenerateNameLookupTable(const DeclContext *ConstDC,
   // order.
   SmallVector<DeclarationName, 16> Names;
 
-  // We also track whether we're writing out the DeclarationNameKey for
-  // constructors or conversion functions.
-  bool IncludeConstructorNames = false;
-  bool IncludeConversionNames = false;
+  // We also build up small sets of the constructor and conversion function
+  // names which are visible.
+  llvm::SmallPtrSet<DeclarationName, 8> ConstructorNameSet, ConversionNameSet;
 
-  for (auto &[Name, Result] : *DC->buildLookup()) {
+  for (auto &Lookup : *DC->buildLookup()) {
+    auto &Name = Lookup.first;
+    auto &Result = Lookup.second;
+
     // If there are no local declarations in our lookup result, we
     // don't need to write an entry for the name at all. If we can't
     // write out a lookup set without performing more deserialization,
     // just skip this entry.
-    if (isLookupResultEntirelyExternal(Result, DC))
+    if (isLookupResultExternal(Result, DC) &&
+        isLookupResultEntirelyExternal(Result, DC))
       continue;
 
     // We also skip empty results. If any of the results could be external and
@@ -3906,20 +3911,24 @@ ASTWriter::GenerateNameLookupTable(const DeclContext *ConstDC,
     // results for them. This in almost certainly a bug in Clang's name lookup,
     // but that is likely to be hard or impossible to fix and so we tolerate it
     // here by omitting lookups with empty results.
-    if (Result.getLookupResult().empty())
+    if (Lookup.second.getLookupResult().empty())
       continue;
 
-    switch (Name.getNameKind()) {
+    switch (Lookup.first.getNameKind()) {
     default:
-      Names.push_back(Name);
+      Names.push_back(Lookup.first);
       break;
 
     case DeclarationName::CXXConstructorName:
-      IncludeConstructorNames = true;
+      assert(isa<CXXRecordDecl>(DC) &&
+             "Cannot have a constructor name outside of a class!");
+      ConstructorNameSet.insert(Name);
       break;
 
     case DeclarationName::CXXConversionFunctionName:
-      IncludeConversionNames = true;
+      assert(isa<CXXRecordDecl>(DC) &&
+             "Cannot have a conversion function name outside of a class!");
+      ConversionNameSet.insert(Name);
       break;
     }
   }
@@ -3927,34 +3936,55 @@ ASTWriter::GenerateNameLookupTable(const DeclContext *ConstDC,
   // Sort the names into a stable order.
   llvm::sort(Names);
 
-  if (IncludeConstructorNames || IncludeConversionNames) {
+  if (auto *D = dyn_cast<CXXRecordDecl>(DC)) {
     // We need to establish an ordering of constructor and conversion function
-    // names, and they don't have an intrinsic ordering. We also need to write
-    // out all constructor and conversion function results if we write out any
-    // of them, because they're all tracked under the same lookup key.
-    llvm::SmallPtrSet<DeclarationName, 8> AddedNames;
-    for (Decl *ChildD : cast<CXXRecordDecl>(DC)->decls()) {
-      if (auto *ChildND = dyn_cast<NamedDecl>(ChildD)) {
-        auto Name = ChildND->getDeclName();
-        switch (Name.getNameKind()) {
-        default:
-          continue;
+    // names, and they don't have an intrinsic ordering.
 
-        case DeclarationName::CXXConstructorName:
-          if (!IncludeConstructorNames)
-            continue;
-          break;
+    // First we try the easy case by forming the current context's constructor
+    // name and adding that name first. This is a very useful optimization to
+    // avoid walking the lexical declarations in many cases, and it also
+    // handles the only case where a constructor name can come from some other
+    // lexical context -- when that name is an implicit constructor merged from
+    // another declaration in the redecl chain. Any non-implicit constructor or
+    // conversion function which doesn't occur in all the lexical contexts
+    // would be an ODR violation.
+    auto ImplicitCtorName = Context->DeclarationNames.getCXXConstructorName(
+        Context->getCanonicalType(Context->getRecordType(D)));
+    if (ConstructorNameSet.erase(ImplicitCtorName))
+      Names.push_back(ImplicitCtorName);
 
-        case DeclarationName::CXXConversionFunctionName:
-          if (!IncludeConversionNames)
+    // If we still have constructors or conversion functions, we walk all the
+    // names in the decl and add the constructors and conversion functions
+    // which are visible in the order they lexically occur within the context.
+    if (!ConstructorNameSet.empty() || !ConversionNameSet.empty())
+      for (Decl *ChildD : cast<CXXRecordDecl>(DC)->decls())
+        if (auto *ChildND = dyn_cast<NamedDecl>(ChildD)) {
+          auto Name = ChildND->getDeclName();
+          switch (Name.getNameKind()) {
+          default:
             continue;
-          break;
+
+          case DeclarationName::CXXConstructorName:
+            if (ConstructorNameSet.erase(Name))
+              Names.push_back(Name);
+            break;
+
+          case DeclarationName::CXXConversionFunctionName:
+            if (ConversionNameSet.erase(Name))
+              Names.push_back(Name);
+            break;
+          }
+
+          if (ConstructorNameSet.empty() && ConversionNameSet.empty())
+            break;
         }
-        // We should include lookup results for this name.
-        if (AddedNames.insert(Name).second)
-          Names.push_back(Name);
-      }
-    }
+
+    assert(ConstructorNameSet.empty() && "Failed to find all of the visible "
+                                         "constructors by walking all the "
+                                         "lexical members of the context.");
+    assert(ConversionNameSet.empty() && "Failed to find all of the visible "
+                                        "conversion functions by walking all "
+                                        "the lexical members of the context.");
   }
 
   // Next we need to do a lookup with each name into this decl context to fully
@@ -4410,6 +4440,11 @@ void ASTWriter::AddString(StringRef Str, RecordDataImpl &Record) {
 bool ASTWriter::PreparePathForOutput(SmallVectorImpl<char> &Path) {
   assert(Context && "should have context when outputting path");
 
+  // Leave special file names as they are.
+  StringRef PathStr(Path.data(), Path.size());
+  if (PathStr == "<built-in>" || PathStr == "<command line>")
+    return false;
+
   bool Changed =
       cleanPathForOutput(Context->getSourceManager().getFileManager(), Path);
 
@@ -4847,13 +4882,9 @@ ASTFileSignature ASTWriter::WriteASTCore(Sema &SemaRef, StringRef isysroot,
     }
     // Sort the identifiers to visit based on their name.
     llvm::sort(IIs, llvm::deref<std::less<>>());
-    for (const IdentifierInfo *II : IIs) {
-      for (IdentifierResolver::iterator D = SemaRef.IdResolver.begin(II),
-                                     DEnd = SemaRef.IdResolver.end();
-           D != DEnd; ++D) {
-        GetDeclRef(*D);
-      }
-    }
+    for (const IdentifierInfo *II : IIs)
+      for (const Decl *D : SemaRef.IdResolver.decls(II))
+        GetDeclRef(D);
   }
 
   // For method pool in the module, if it contains an entry for a selector,
@@ -5956,13 +5987,20 @@ void ASTRecordWriter::AddVarDeclInit(const VarDecl *VD) {
     return;
   }
 
-  unsigned Val = 1;
+  uint64_t Val = 1;
   if (EvaluatedStmt *ES = VD->getEvaluatedStmt()) {
     Val |= (ES->HasConstantInitialization ? 2 : 0);
     Val |= (ES->HasConstantDestruction ? 4 : 0);
-    // FIXME: Also emit the constant initializer value.
+    APValue *Evaluated = VD->getEvaluatedValue();
+    // If the evaluted result is constant, emit it.
+    if (Evaluated && (Evaluated->isInt() || Evaluated->isFloat()))
+      Val |= 8;
   }
   push_back(Val);
+  if (Val & 8) {
+    AddAPValue(*VD->getEvaluatedValue());
+  }
+
   writeStmtRef(Init);
 }
 

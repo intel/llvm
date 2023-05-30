@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // This test uses std::filesystem::path, which is not always available
 // XFAIL: availability-filesystem-missing
@@ -140,8 +139,8 @@ void test_P1361() {
   //assert_is_formattable<std::chrono::utc_time<std::chrono::microseconds>, CharT>();
   //assert_is_formattable<std::chrono::tai_time<std::chrono::microseconds>, CharT>();
   //assert_is_formattable<std::chrono::gps_time<std::chrono::microseconds>, CharT>();
-  assert_is_not_formattable<std::chrono::file_time<std::chrono::microseconds>, CharT>();
-  assert_is_not_formattable<std::chrono::local_time<std::chrono::microseconds>, CharT>();
+  assert_is_formattable<std::chrono::file_time<std::chrono::microseconds>, CharT>();
+  assert_is_formattable<std::chrono::local_time<std::chrono::microseconds>, CharT>();
 
   assert_is_formattable<std::chrono::day, CharT>();
   assert_is_formattable<std::chrono::month, CharT>();

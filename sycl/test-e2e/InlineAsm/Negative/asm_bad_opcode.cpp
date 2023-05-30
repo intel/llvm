@@ -1,8 +1,8 @@
-// UNSUPPORTED: cuda || hip_nvidia
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: ze_debug
 // REQUIRES: gpu,linux
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../include/asmhelper.h"
 #include <sycl/sycl.hpp>

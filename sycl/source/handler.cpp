@@ -30,6 +30,17 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
+namespace detail {
+
+bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
+  DeviceGlobalMapEntry *DGEntry =
+      detail::ProgramManager::getInstance().getDeviceGlobalEntry(
+          DeviceGlobalPtr);
+  return DGEntry && !DGEntry->MImageIdentifiers.empty();
+}
+
+} // namespace detail
+
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : handler(Queue, Queue, nullptr, IsHost) {}
 
@@ -109,7 +120,7 @@ event handler::finalize() {
 
       accessors.insert(arg.MPtr);
     }
-    if (accessors.size() > MRequirements.size())
+    if (accessors.size() > CGData.MRequirements.size())
       throw sycl::exception(make_error_code(errc::kernel_argument),
                             "placeholder accessor must be bound by calling "
                             "handler::require() before it can be used.");
@@ -168,8 +179,10 @@ event handler::finalize() {
       }
     }
 
-    if (!MQueue->is_in_fusion_mode() &&
-        MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+    if (!MQueue->is_in_fusion_mode() && CGData.MRequirements.size() +
+                                                CGData.MEvents.size() +
+                                                MStreamStorage.size() ==
+                                            0) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
       // this faster path is used to submit kernel bypassing scheduler and
@@ -189,9 +202,9 @@ event handler::finalize() {
                                           : nullptr);
           Result = PI_SUCCESS;
         } else {
-          if (MQueue->getPlugin().getBackend() ==
+          if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
-            MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
                 &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
@@ -250,9 +263,7 @@ event handler::finalize() {
     // assert feature to check if kernel uses assertions
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
-        std::move(MImpl->MKernelBundle), std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), std::move(MArgs),
+        std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName, MOSModuleHandle, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MCodeLoc));
@@ -260,111 +271,82 @@ event handler::finalize() {
   }
   case detail::CG::CodeplayInteropTask:
     CommandGroup.reset(new detail::CGInteropTask(
-        std::move(MInteropTask), std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+        std::move(MInteropTask), std::move(CGData), MCGType, MCodeLoc));
     break;
   case detail::CG::CopyAccToPtr:
   case detail::CG::CopyPtrToAcc:
   case detail::CG::CopyAccToAcc:
-    CommandGroup.reset(new detail::CGCopy(
-        MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    CommandGroup.reset(new detail::CGCopy(MCGType, MSrcPtr, MDstPtr,
+                                          std::move(CGData), MCodeLoc));
     break;
   case detail::CG::Fill:
-    CommandGroup.reset(new detail::CGFill(
-        std::move(MPattern), MDstPtr, std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    CommandGroup.reset(new detail::CGFill(std::move(MPattern), MDstPtr,
+                                          std::move(CGData), MCodeLoc));
     break;
   case detail::CG::UpdateHost:
-    CommandGroup.reset(new detail::CGUpdateHost(
-        MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGUpdateHost(MDstPtr, std::move(CGData), MCodeLoc));
     break;
   case detail::CG::CopyUSM:
-    CommandGroup.reset(new detail::CGCopyUSM(
-        MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    CommandGroup.reset(new detail::CGCopyUSM(MSrcPtr, MDstPtr, MLength,
+                                             std::move(CGData), MCodeLoc));
     break;
   case detail::CG::FillUSM:
     CommandGroup.reset(new detail::CGFillUSM(
-        std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+        std::move(MPattern), MDstPtr, MLength, std::move(CGData), MCodeLoc));
     break;
   case detail::CG::PrefetchUSM:
-    CommandGroup.reset(new detail::CGPrefetchUSM(
-        MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCodeLoc));
+    CommandGroup.reset(new detail::CGPrefetchUSM(MDstPtr, MLength,
+                                                 std::move(CGData), MCodeLoc));
     break;
   case detail::CG::AdviseUSM:
-    CommandGroup.reset(new detail::CGAdviseUSM(
-        MDstPtr, MLength, MImpl->MAdvice, std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    CommandGroup.reset(new detail::CGAdviseUSM(MDstPtr, MLength, MImpl->MAdvice,
+                                               std::move(CGData), MCGType,
+                                               MCodeLoc));
     break;
   case detail::CG::Copy2DUSM:
     CommandGroup.reset(new detail::CGCopy2DUSM(
         MSrcPtr, MDstPtr, MImpl->MSrcPitch, MImpl->MDstPitch, MImpl->MWidth,
-        MImpl->MHeight, std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCodeLoc));
+        MImpl->MHeight, std::move(CGData), MCodeLoc));
     break;
   case detail::CG::Fill2DUSM:
     CommandGroup.reset(new detail::CGFill2DUSM(
         std::move(MPattern), MDstPtr, MImpl->MDstPitch, MImpl->MWidth,
-        MImpl->MHeight, std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCodeLoc));
+        MImpl->MHeight, std::move(CGData), MCodeLoc));
     break;
   case detail::CG::Memset2DUSM:
     CommandGroup.reset(new detail::CGMemset2DUSM(
         MPattern[0], MDstPtr, MImpl->MDstPitch, MImpl->MWidth, MImpl->MHeight,
-        std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCodeLoc));
+        std::move(CGData), MCodeLoc));
     break;
   case detail::CG::CodeplayHostTask:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
-        std::move(MArgs), std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCGType, MCodeLoc));
+        std::move(MArgs), std::move(CGData), MCGType, MCodeLoc));
     break;
   case detail::CG::Barrier:
   case detail::CG::BarrierWaitlist:
-    CommandGroup.reset(new detail::CGBarrier(
-        std::move(MEventsWaitWithBarrier), std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    CommandGroup.reset(new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
+                                             std::move(CGData), MCGType,
+                                             MCodeLoc));
     break;
   case detail::CG::CopyToDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
-        std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+        std::move(CGData), MOSModuleHandle, MCodeLoc));
     break;
   }
   case detail::CG::CopyFromDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
-        std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+        std::move(CGData), MOSModuleHandle, MCodeLoc));
     break;
   }
   case detail::CG::ReadWriteHostPipe: {
     CommandGroup.reset(new detail::CGReadWriteHostPipe(
         MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
-        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead,
+        std::move(CGData), MCodeLoc));
     break;
   }
   case detail::CG::None:
@@ -397,9 +379,9 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
   detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
-  MRequirements.push_back(Req);
+  CGData.MRequirements.push_back(Req);
   // Store copy of the accessor.
-  MAccStorage.push_back(std::move(AccImpl));
+  CGData.MAccStorage.push_back(std::move(AccImpl));
   // Add an accessor to the handler list of associated accessors.
   // For associated accessors index does not means nothing.
   MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
@@ -501,7 +483,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   case kernel_param_kind_t::kind_accessor: {
     // For args kind of accessor Size is information about accessor.
     // The first 11 bits of Size encodes the accessor target.
-    const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
+    const access::target AccTarget =
+        static_cast<access::target>(Size & AccessTargetMask);
     switch (AccTarget) {
     case access::target::device:
     case access::target::constant_buffer: {
@@ -525,7 +508,10 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
-      if (!IsKernelCreatedFromSource) {
+      // TODO ESIMD currently does not suport MSize field passing yet
+      // accessor::init for ESIMD-mode accessor has a single field, translated
+      // to a single kernel argument set above.
+      if (!IsESIMD && !IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);
         MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, &Size,
@@ -626,7 +612,7 @@ void handler::extractArgsAndReqsFromLambda(
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
       const access::target AccTarget =
-          static_cast<access::target>(Size & 0x7ff);
+          static_cast<access::target>(Size & AccessTargetMask);
       if ((AccTarget == access::target::device ||
            AccTarget == access::target::constant_buffer) ||
           (AccTarget == access::target::image ||
@@ -797,7 +783,7 @@ void handler::depends_on(event Event) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
   }
-  MEvents.push_back(EventImpl);
+  CGData.MEvents.push_back(EventImpl);
 }
 
 void handler::depends_on(const std::vector<event> &Events) {
@@ -808,7 +794,7 @@ void handler::depends_on(const std::vector<event> &Events) {
           make_error_code(errc::invalid),
           "Queue operation cannot depend on discarded event.");
     }
-    MEvents.push_back(EventImpl);
+    CGData.MEvents.push_back(EventImpl);
   }
 }
 
@@ -817,9 +803,9 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      detail::RT::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
-  Plugin.call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
-                                                   InfoQuery, sizeof(pi_bool),
-                                                   &SupportsOp, nullptr);
+  Plugin->call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
+                                                    InfoQuery, sizeof(pi_bool),
+                                                    &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -905,6 +891,46 @@ void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
   MLength = NumBytes;
   MImpl->MOffset = Offset;
   setType(detail::CG::CopyFromDeviceGlobal);
+}
+
+void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
+                                           const void *Src,
+                                           size_t DeviceGlobalTSize,
+                                           bool IsDeviceImageScoped,
+                                           size_t NumBytes, size_t Offset) {
+  std::weak_ptr<detail::context_impl> WeakContextImpl =
+      MQueue->getContextImplPtr();
+  std::weak_ptr<detail::device_impl> WeakDeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Capture context and device as weak to avoid keeping them alive for too
+    // long. If they are dead by the time this executes, the operation would not
+    // have been visible anyway.
+    std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
+    std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
+    if (ContextImpl && DeviceImpl)
+      ContextImpl->memcpyToHostOnlyDeviceGlobal(
+          DeviceImpl, DeviceGlobalPtr, Src, DeviceGlobalTSize,
+          IsDeviceImageScoped, NumBytes, Offset);
+  });
+}
+
+void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
+                                             const void *DeviceGlobalPtr,
+                                             bool IsDeviceImageScoped,
+                                             size_t NumBytes, size_t Offset) {
+  const std::shared_ptr<detail::context_impl> &ContextImpl =
+      MQueue->getContextImplPtr();
+  const std::shared_ptr<detail::device_impl> &DeviceImpl =
+      MQueue->getDeviceImplPtr();
+  host_task([=] {
+    // Unlike memcpy to device_global, we need to keep the context and device
+    // alive in the capture of this operation as we must be able to correctly
+    // copy the value to the user-specified pointer.
+    ContextImpl->memcpyFromHostOnlyDeviceGlobal(
+        DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
+        Offset);
+  });
 }
 
 const std::shared_ptr<detail::context_impl> &

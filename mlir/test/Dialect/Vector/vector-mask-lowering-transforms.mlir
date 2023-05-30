@@ -92,10 +92,40 @@ func.func @genbool_var_3d(%arg0: index, %arg1: index, %arg2: index) -> vector<2x
 }
 
 transform.sequence failures(propagate) {
-^bb1(%module_op: !pdl.operation):
+^bb1(%module_op: !transform.any_op):
   %f = transform.structured.match ops{["func.func"]} in %module_op 
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
 
-  transform.vector.lower_mask %f
-      : (!pdl.operation) -> !pdl.operation
+  transform.vector.lower_masks %f
+      : (!transform.any_op) -> !transform.any_op
+}
+
+// -----
+
+// CHECK-LABEL: func @transfer_read_3d(
+func.func @transfer_read_3d(
+    %t: tensor<?x?x?xf32>, %arg0: index, %arg1: index, %arg2: index)
+  -> vector<2x1x7xf32> {
+  %c0 = arith.constant 0 : index
+  %f0 = arith.constant 0.0 : f32
+  //      CHECK: %[[mask:.*]] = vector.create_mask
+  //  CHECK-NOT: vector.mask
+  //      CHECK: vector.transfer_read {{.*}}, %[[mask]] {in_bounds = [true, true, true]}
+  // CHECK-SAME:   : tensor<?x?x?xf32>, vector<2x1x7xf32>
+  %0 = vector.create_mask %arg0, %arg1, %arg2 : vector<2x1x7xi1>
+  %1 = vector.mask %0 { 
+    vector.transfer_read %t[%c0, %c0, %c0], %f0 {in_bounds = [true, true, true]}
+      : tensor<?x?x?xf32>, vector<2x1x7xf32> 
+  } : vector<2x1x7xi1> -> vector<2x1x7xf32>
+
+  return %1: vector<2x1x7xf32>
+}
+
+transform.sequence failures(propagate) {
+^bb1(%module_op: !transform.any_op):
+  %f = transform.structured.match ops{["func.func"]} in %module_op 
+    : (!transform.any_op) -> !transform.any_op
+
+  transform.vector.lower_masked_transfers %f
+      : (!transform.any_op) -> !transform.any_op
 }

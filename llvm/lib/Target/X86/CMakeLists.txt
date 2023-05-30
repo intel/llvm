@@ -45,6 +45,7 @@ set(sources
   X86FixupBWInsts.cpp
   X86FixupLEAs.cpp
   X86FixupInstTuning.cpp
+  X86FixupVectorConstants.cpp
   X86AvoidStoreForwardingBlocks.cpp
   X86DynAllocaExpander.cpp
   X86FixupSetCC.cpp
@@ -63,7 +64,6 @@ set(sources
   X86InstrFoldTables.cpp
   X86InstrInfo.cpp
   X86EvexToVex.cpp
-  X86KCFI.cpp
   X86LegalizerInfo.cpp
   X86LoadValueInjectionLoadHardening.cpp
   X86LoadValueInjectionRetHardening.cpp
@@ -93,10 +93,14 @@ add_llvm_target(X86CodeGen ${sources}
   LINK_COMPONENTS
   Analysis
   AsmPrinter
+  CFGuard
   CodeGen
+  CodeGenTypes
   Core
+  GlobalISel
   Instrumentation
   MC
+  ProfileData
   SelectionDAG
   Support
   Target
@@ -104,13 +108,10 @@ add_llvm_target(X86CodeGen ${sources}
   TransformUtils
   X86Desc
   X86Info
-  GlobalISel
-  ProfileData
-  CFGuard
 
   ADD_TO_COMPONENT
   X86
-)
+  )
 
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)

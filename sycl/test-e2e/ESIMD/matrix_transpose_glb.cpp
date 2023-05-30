@@ -5,10 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -o %t.out
+// RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
 
@@ -20,7 +19,7 @@ using namespace sycl;
 using namespace std;
 using namespace sycl::ext::intel::esimd;
 
-const unsigned int ESIMD_EMULATOR_SIZE_LIMIT = 1U << 10;
+const unsigned int ESIMD_EMULATOR_SIZE_LIMIT = 1U << 9;
 
 void initMatrix(int *M, unsigned N) {
   assert(N >= 8 && (((N - 1) & N) == 0) &&
@@ -340,14 +339,14 @@ int main(int argc, char *argv[]) {
   bool success = true;
   success &= runTest(MZ, 16, num_iters, kernel_times, total_times);
   if (argc == 1) {
+    success &= runTest(1U << 9, 8, num_iters, kernel_times, total_times);
     success &= runTest(1U << 10, 8, num_iters, kernel_times, total_times);
     success &= runTest(1U << 11, 8, num_iters, kernel_times, total_times);
     success &= runTest(1U << 12, 8, num_iters, kernel_times, total_times);
-    // success &= runTest(1U << 13, 8, num_iters, kernel_times, total_times);
+    success &= runTest(1U << 9, 16, num_iters, kernel_times, total_times);
     success &= runTest(1U << 10, 16, num_iters, kernel_times, total_times);
     success &= runTest(1U << 11, 16, num_iters, kernel_times, total_times);
     success &= runTest(1U << 12, 16, num_iters, kernel_times, total_times);
-    // success &= runTest(1U << 13, 16, num_iters, kernel_times, total_times);
   }
 
   const bool profiling =

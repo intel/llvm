@@ -86,6 +86,16 @@ def HasStdExtZifencei : Predicate<"Subtarget->hasStdExtZifencei()">,
                                    AssemblerPredicate<(all_of FeatureStdExtZifencei),
                                    "'Zifencei' (fence.i)">;
 
+def FeatureStdExtZicntr
+    : SubtargetFeature<"zicntr", "HasStdExtZicntr", "true",
+                       "'zicntr' (Base Counters and Timers)",
+                       [FeatureStdExtZicsr]>;
+
+def FeatureStdExtZihpm
+    : SubtargetFeature<"zihpm", "HasStdExtZihpm", "true",
+                       "'zihpm' (Hardware Performance Counters)",
+                       [FeatureStdExtZicsr]>;
+
 def FeatureStdExtZfhmin
     : SubtargetFeature<"zfhmin", "HasStdExtZfhmin", "true",
                        "'Zfhmin' (Half-Precision Floating-Point Minimal)",
@@ -140,6 +150,7 @@ def FeatureStdExtZhinx
 def HasStdExtZhinx : Predicate<"Subtarget->hasStdExtZhinx()">,
                                AssemblerPredicate<(all_of FeatureStdExtZhinx),
                                "'Zhinx' (Half Float in Integer)">;
+def NoStdExtZhinx : Predicate<"!Subtarget->hasStdExtZhinx()">;
 
 def HasStdExtZhinxOrZhinxmin
     : Predicate<"Subtarget->hasStdExtZhinx() || Subtarget->hasStdExtZhinxmin()">,
@@ -351,6 +362,22 @@ def HasStdExtCOrZcf
                                    "'C' (Compressed Instructions) or "
                                    "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
 
+def FeatureStdExtZcmp
+    : SubtargetFeature<"experimental-zcmp", "HasStdExtZcmp", "true",
+                       "'Zcmp' (sequenced instuctions for code-size reduction)", 
+                       [FeatureStdExtZca]>;
+def HasStdExtZcmp : Predicate<"Subtarget->hasStdExtZcmp() && !Subtarget->hasStdExtC()">,
+                               AssemblerPredicate<(all_of FeatureStdExtZcmp, (not FeatureStdExtC)),
+                               "'Zcmp' (sequenced instuctions for code-size reduction)">;
+
+def FeatureStdExtZcmt
+    : SubtargetFeature<"experimental-zcmt", "HasStdExtZcmt", "true",
+                       "'Zcmt' (table jump instuctions for code-size reduction)", 
+                       [FeatureStdExtZca, FeatureStdExtZicsr]>; 
+def HasStdExtZcmt : Predicate<"Subtarget->hasStdExtZcmt()">,
+                           AssemblerPredicate<(all_of FeatureStdExtZcmt),
+                           "'Zcmt' (table jump instuctions for code-size reduction)">;
+
 def FeatureNoRVCHints
     : SubtargetFeature<"no-rvc-hints", "EnableRVCHintInstrs", "false",
                        "Disable RVC Hint Instructions.">;
@@ -379,7 +406,7 @@ def FeatureStdExtZve32f
     : SubtargetFeature<"zve32f", "HasStdExtZve32f", "true",
                        "'Zve32f' (Vector Extensions for Embedded Processors "
                        "with maximal 32 EEW and F extension)",
-                       [FeatureStdExtZve32x]>;
+                       [FeatureStdExtZve32x, FeatureStdExtF]>;
 
 def FeatureStdExtZve64x
     : SubtargetFeature<"zve64x", "HasStdExtZve64x", "true",
@@ -397,13 +424,12 @@ def FeatureStdExtZve64d
     : SubtargetFeature<"zve64d", "HasStdExtZve64d", "true",
                        "'Zve64d' (Vector Extensions for Embedded Processors "
                        "with maximal 64 EEW, F and D extension)",
-                       [FeatureStdExtZve64f]>;
+                       [FeatureStdExtZve64f, FeatureStdExtD]>;
 
 def FeatureStdExtV
     : SubtargetFeature<"v", "HasStdExtV", "true",
                        "'V' (Vector Extension for Application Processors)",
-                       [FeatureStdExtZvl128b, FeatureStdExtZve64d,
-                        FeatureStdExtF, FeatureStdExtD]>;
+                       [FeatureStdExtZvl128b, FeatureStdExtZve64d]>;
 
 def HasVInstructions    : Predicate<"Subtarget->hasVInstructions()">,
       AssemblerPredicate<
@@ -421,10 +447,32 @@ def HasVInstructionsAnyF : Predicate<"Subtarget->hasVInstructionsAnyF()">,
           "'V' (Vector Extension for Application Processors), 'Zve32f', "
           "'Zve64f' or 'Zve64d' (Vector Extensions for Embedded Processors)">;
 
+def HasVInstructionsF64 : Predicate<"Subtarget->hasVInstructionsF64()">;
+
+def HasVInstructionsFullMultiply : Predicate<"Subtarget->hasVInstructionsFullMultiply()">;
+
+def FeatureStdExtZvfbfmin
+    : SubtargetFeature<"experimental-zvfbfmin", "HasStdExtZvfbfmin", "true",
+                       "'Zvbfmin' (Vector BF16 Converts)",
+                       [FeatureStdExtZve32f]>;
+def HasStdExtZvfbfmin : Predicate<"Subtarget->hasStdExtZvfbfmin()">,
+                                  AssemblerPredicate<(all_of FeatureStdExtZvfbfmin),
+                                  "'Zvfbfmin' (Vector BF16 Converts)">;
+
+def FeatureStdExtZvfbfwma
+    : SubtargetFeature<"experimental-zvfbfwma", "HasStdExtZvfbfwma", "true",
+                       "'Zvfbfwma' (Vector BF16 widening mul-add)",
+                       [FeatureStdExtZve32f]>;
+def HasStdExtZvfbfwma : Predicate<"Subtarget->hasStdExtZvfbfwma()">,
+                                  AssemblerPredicate<(all_of FeatureStdExtZvfbfwma),
+                                  "'Zvfbfwma' (Vector BF16 widening mul-add)">;
+
 def FeatureStdExtZvfh
     : SubtargetFeature<"experimental-zvfh", "HasStdExtZvfh", "true",
                        "'Zvfh' (Vector Half-Precision Floating-Point)",
-                       [FeatureStdExtZve32f]>;
+                       [FeatureStdExtZve32f, FeatureStdExtZfhmin]>;
+
+def HasVInstructionsF16 : Predicate<"Subtarget->hasVInstructionsF16()">;
 
 def HasStdExtZfhOrZvfh
     : Predicate<"Subtarget->hasStdExtZfh() || Subtarget->hasStdExtZvfh()">,
@@ -481,36 +529,31 @@ def HasStdExtZawrs : Predicate<"Subtarget->hasStdExtZawrs()">,
                                AssemblerPredicate<(all_of FeatureStdExtZawrs),
                                "'Zawrs' (Wait on Reservation Set)">;
 
-def FeatureStdExtZvkb
-    : SubtargetFeature<"experimental-zvkb", "HasStdExtZvkb", "true",
-                       "'Zvkb' (Vector Bitmanip instructions for Cryptography.)">;
-def HasStdExtZvkb : Predicate<"Subtarget->hasStdExtZvkb()">,
-                              AssemblerPredicate<(all_of FeatureStdExtZvkb),
-                              "'Zvkb' (Vector Bitmanip instructions for Cryptography.)">;
+def FeatureStdExtZvbb
+    : SubtargetFeature<"experimental-zvbb", "HasStdExtZvbb", "true",
+                       "'Zvbb' (Vector Bit-manipulation used in Cryptography)">;
+def HasStdExtZvbb : Predicate<"Subtarget->hasStdExtZvbb()">,
+                              AssemblerPredicate<(all_of FeatureStdExtZvbb),
+                              "'Zvbb' (Vector Bit-manipulation used in Cryptography)">;
+
+def FeatureStdExtZvbc
+    : SubtargetFeature<"experimental-zvbc", "HasStdExtZvbc", "true",
+                       "'Zvbc' (Vector Carryless Multiplication)">;
+def HasStdExtZvbc : Predicate<"Subtarget->hasStdExtZvbc()">,
+                              AssemblerPredicate<(all_of FeatureStdExtZvbc),
+                              "'Zvbc' (Vector Carryless Multiplication)">;
 
 def FeatureStdExtZvkg
     : SubtargetFeature<"experimental-zvkg", "HasStdExtZvkg", "true",
-                       "'Zvkg' (Vector GCM instructions for Cryptography.)">;
+                       "'Zvkg' (Vector GCM instructions for Cryptography)">;
 def HasStdExtZvkg : Predicate<"Subtarget->hasStdExtZvkg()">,
                               AssemblerPredicate<(all_of FeatureStdExtZvkg),
-                              "'Zvkg' (Vector GCM instructions for Cryptography.)">;
+                              "'Zvkg' (Vector GCM instructions for Cryptography)">;
 
 def FeatureStdExtZvkn
     : SubtargetFeature<"experimental-zvkn", "HasStdExtZvkn", "true",
                        "This extension is shorthand for the following set of "
-                       "other extensions: Zvkned, Zvknhb and Zvkb.">;
-
-def FeatureStdExtZvknha
-    : SubtargetFeature<"experimental-zvknha", "HasStdExtZvknha", "true",
-                       "'Zvknha' (Vector SHA-2. (SHA-256 only))">;
-
-def FeatureStdExtZvknhb
-    : SubtargetFeature<"experimental-zvknhb", "HasStdExtZvknhb", "true",
-                       "'Zvknhb' (Vector SHA-2. (SHA-256 and SHA-512))",
-                       [FeatureStdExtZvknha]>;
-def HasStdExtZvknha : Predicate<"Subtarget->hasStdExtZvknha()">,
-                                AssemblerPredicate<(all_of FeatureStdExtZvknha),
-                                "'Zvknha' (Vector SHA-2. (SHA-256 only))">;
+                       "other extensions: Zvkned, Zvknhb, Zvbb, Zvbc, and Zvkt.">;
 
 def FeatureStdExtZvkned
     : SubtargetFeature<"experimental-zvkned", "HasStdExtZvkned", "true",
@@ -519,24 +562,50 @@ def HasStdExtZvkned : Predicate<"Subtarget->hasStdExtZvkned()">,
                                 AssemblerPredicate<(all_of FeatureStdExtZvkned),
                                 "'Zvkned' (Vector AES Encryption & Decryption (Single Round))">;
 
+def FeatureStdExtZvkng
+    : SubtargetFeature<"experimental-zvkng", "HasStdExtZvkng", "true",
+                       "This extension is shorthand for the following set of "
+                       "other extensions: Zvkn and Zvkg.">;
+
+def FeatureStdExtZvknha
+    : SubtargetFeature<"experimental-zvknha", "HasStdExtZvknha", "true",
+                       "'Zvknha' (Vector SHA-2 (SHA-256 only))">;
+
+def FeatureStdExtZvknhb
+    : SubtargetFeature<"experimental-zvknhb", "HasStdExtZvknhb", "true",
+                       "'Zvknhb' (Vector SHA-2 (SHA-256 and SHA-512))",
+                       [FeatureStdExtZvknha]>;
+def HasStdExtZvknha : Predicate<"Subtarget->hasStdExtZvknha()">,
+                                AssemblerPredicate<(all_of FeatureStdExtZvknha),
+                                "'Zvknha' (Vector SHA-2 (SHA-256 only))">;
+
 def FeatureStdExtZvks
     : SubtargetFeature<"experimental-zvks", "HasStdExtZvks", "true",
                        "This extension is shorthand for the following set of "
-                       "other extensions: Zvksed, Zvksh and Zvkb.">;
+                       "other extensions: Zvksed, Zvksh, Zvbb, Zvbc, and Zvkt.">;
 
 def FeatureStdExtZvksed
     : SubtargetFeature<"experimental-zvksed", "HasStdExtZvksed", "true",
-                       "'Zvksed' (SM4 Block Cipher Instructions.)">;
+                       "'Zvksed' (SM4 Block Cipher Instructions)">;
 def HasStdExtZvksed : Predicate<"Subtarget->hasStdExtZvksed()">,
                                 AssemblerPredicate<(all_of FeatureStdExtZvksed),
-                                "'Zvksed' (SM4 Block Cipher Instructions.)">;
+                                "'Zvksed' (SM4 Block Cipher Instructions)">;
+
+def FeatureStdExtZvksg
+    : SubtargetFeature<"experimental-zvksg", "HasStdExtZvksg", "true",
+                       "This extension is shorthand for the following set of "
+                       "other extensions: Zvks and Zvkg.">;
 
 def FeatureStdExtZvksh
     : SubtargetFeature<"experimental-zvksh", "HasStdExtZvksh", "true",
-                       "'Zvksh' (SM3 Hash Function Instructions.)">;
+                       "'Zvksh' (SM3 Hash Function Instructions)">;
 def HasStdExtZvksh : Predicate<"Subtarget->hasStdExtZvksh()">,
                                AssemblerPredicate<(all_of FeatureStdExtZvksh),
-                               "'Zvksh' (SM3 Hash Function Instructions.)">;
+                               "'Zvksh' (SM3 Hash Function Instructions)">;
+
+def FeatureStdExtZvkt
+    : SubtargetFeature<"experimental-zvkt", "HasStdExtZvkt", "true",
+                       "'Zvkt' (Vector Data-Independent Execution Latency)">;
 
 def FeatureStdExtZicond
     : SubtargetFeature<"experimental-zicond", "HasStdExtZicond", "true",
@@ -544,6 +613,36 @@ def FeatureStdExtZicond
 def HasStdExtZicond : Predicate<"Subtarget->hasStdExtZicond()">,
                                 AssemblerPredicate<(all_of FeatureStdExtZicond),
                                 "'Zicond' (Integer Conditional Operations)">;
+
+def FeatureStdExtSmaia
+    : SubtargetFeature<"experimental-smaia", "HasStdExtSmaia", "true",
+                       "'Smaia' (Smaia encompasses all added CSRs and all "
+                       "modifications to interrupt response behavior that the "
+                       "AIA specifies for a hart, over all privilege levels.)",
+                       []>;
+
+def FeatureStdExtSsaia
+    : SubtargetFeature<"experimental-ssaia", "HasStdExtSsaia", "true",
+                       "'Ssaia' (Ssaia is essentially the same as Smaia except "
+                       "excluding the machine-level CSRs and behavior not "
+                       "directly visible to supervisor level.)", []>;
+
+def FeatureStdExtZfbfmin
+    : SubtargetFeature<"experimental-zfbfmin", "HasStdExtZfbfmin", "true",
+                       "'Zfbfmin' (Scalar BF16 Converts)",
+                       [FeatureStdExtF]>;
+def HasStdExtZfbfmin : Predicate<"Subtarget->hasStdExtZfbfmin()">,
+                                 AssemblerPredicate<(all_of FeatureStdExtZfbfmin),
+                                 "'Zfbfmin' (Scalar BF16 Converts)">;
+
+def HasHalfFPLoadStoreMove
+    : Predicate<"Subtarget->hasHalfFPLoadStoreMove()">,
+                AssemblerPredicate<(any_of FeatureStdExtZfh, FeatureStdExtZfhmin,
+                                    FeatureStdExtZfbfmin, FeatureStdExtZvfbfwma),
+                                    "'Zfh' (Half-Precision Floating-Point) or "
+                                    "'Zfhmin' (Half-Precision Floating-Point Minimal) or "
+                                    "'Zfbfmin' (Scalar BF16 Converts) or "
+                                    "'Zvfbfwma' (Vector BF16 widening mul-add)">;
 
 //===----------------------------------------------------------------------===//
 // Vendor extensions
@@ -684,6 +783,11 @@ def FeatureSaveRestore : SubtargetFeature<"save-restore", "EnableSaveRestore",
 def FeatureUnalignedScalarMem
    : SubtargetFeature<"unaligned-scalar-mem", "EnableUnalignedScalarMem",
                       "true", "Has reasonably performant unaligned scalar "
+                      "loads and stores">;
+
+def FeatureUnalignedVectorMem
+   : SubtargetFeature<"unaligned-vector-mem", "EnableUnalignedVectorMem",
+                      "true", "Has reasonably performant unaligned vector "
                       "loads and stores">;
 
 def TuneNoOptimizedZeroStrideLoad

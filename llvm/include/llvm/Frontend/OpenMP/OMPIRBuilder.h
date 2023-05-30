@@ -170,8 +170,7 @@ struct TargetRegionEntryInfo {
   unsigned Line;
   unsigned Count;
 
-  TargetRegionEntryInfo()
-      : ParentName(""), DeviceID(0), FileID(0), Line(0), Count(0) {}
+  TargetRegionEntryInfo() : DeviceID(0), FileID(0), Line(0), Count(0) {}
   TargetRegionEntryInfo(StringRef ParentName, unsigned DeviceID,
                         unsigned FileID, unsigned Line, unsigned Count = 0)
       : ParentName(ParentName), DeviceID(DeviceID), FileID(FileID), Line(Line),
@@ -419,8 +418,14 @@ public:
 
   /// Initialize the internal state, this will put structures types and
   /// potentially other helpers into the underlying module. Must be called
-  /// before any other method and only once!
-  void initialize();
+  /// before any other method and only once! This internal state includes
+  /// Types used in the OpenMPIRBuilder generated from OMPKinds.def as well
+  /// as loading offload metadata for device from the OpenMP host IR file
+  /// passed in as the HostFilePath argument.
+  /// \param HostFilePath The path to the host IR file, used to load in
+  /// offload metadata for the device, allowing host and device to
+  /// maintain the same metadata mapping.
+  void initialize(StringRef HostFilePath = {});
 
   void setConfig(OpenMPIRBuilderConfig C) { Config = C; }
 
@@ -1446,6 +1451,49 @@ public:
     bool separateBeginEndCalls() { return SeparateBeginEndCalls; }
   };
 
+  using MapValuesArrayTy = SmallVector<Value *, 4>;
+  using MapFlagsArrayTy = SmallVector<omp::OpenMPOffloadMappingFlags, 4>;
+  using MapNamesArrayTy = SmallVector<Constant *, 4>;
+  using MapDimArrayTy = SmallVector<uint64_t, 4>;
+  using MapNonContiguousArrayTy = SmallVector<MapValuesArrayTy, 4>;
+
+  /// This structure contains combined information generated for mappable
+  /// clauses, including base pointers, pointers, sizes, map types, user-defined
+  /// mappers, and non-contiguous information.
+  struct MapInfosTy {
+    struct StructNonContiguousInfo {
+      bool IsNonContiguous = false;
+      MapDimArrayTy Dims;
+      MapNonContiguousArrayTy Offsets;
+      MapNonContiguousArrayTy Counts;
+      MapNonContiguousArrayTy Strides;
+    };
+    MapValuesArrayTy BasePointers;
+    MapValuesArrayTy Pointers;
+    MapValuesArrayTy Sizes;
+    MapFlagsArrayTy Types;
+    MapNamesArrayTy Names;
+    StructNonContiguousInfo NonContigInfo;
+
+    /// Append arrays in \a CurInfo.
+    void append(MapInfosTy &CurInfo) {
+      BasePointers.append(CurInfo.BasePointers.begin(),
+                          CurInfo.BasePointers.end());
+      Pointers.append(CurInfo.Pointers.begin(), CurInfo.Pointers.end());
+      Sizes.append(CurInfo.Sizes.begin(), CurInfo.Sizes.end());
+      Types.append(CurInfo.Types.begin(), CurInfo.Types.end());
+      Names.append(CurInfo.Names.begin(), CurInfo.Names.end());
+      NonContigInfo.Dims.append(CurInfo.NonContigInfo.Dims.begin(),
+                                CurInfo.NonContigInfo.Dims.end());
+      NonContigInfo.Offsets.append(CurInfo.NonContigInfo.Offsets.begin(),
+                                   CurInfo.NonContigInfo.Offsets.end());
+      NonContigInfo.Counts.append(CurInfo.NonContigInfo.Counts.begin(),
+                                  CurInfo.NonContigInfo.Counts.end());
+      NonContigInfo.Strides.append(CurInfo.NonContigInfo.Strides.begin(),
+                                   CurInfo.NonContigInfo.Strides.end());
+    }
+  };
+
   /// Emit the arguments to be passed to the runtime library based on the
   /// arrays of base pointers, pointers, sizes, map types, and mappers.  If
   /// ForEndCall, emit map types to be passed for the end of the region instead
@@ -1824,6 +1872,27 @@ public:
       struct MapperAllocas &MapperAllocas, bool IsBegin, int64_t DeviceID,
       Value *IfCond, BodyGenCallbackTy ProcessMapOpCB,
       BodyGenCallbackTy BodyGenCB = {});
+
+  using TargetBodyGenCallbackTy = function_ref<InsertPointTy(
+      InsertPointTy AllocaIP, InsertPointTy CodeGenIP)>;
+
+  /// Generator for '#omp target'
+  ///
+  /// \param Loc where the target data construct was encountered.
+  /// \param CodeGenIP The insertion point where the call to the outlined
+  /// function should be emitted.
+  /// \param EntryInfo The entry information about the function.
+  /// \param NumTeams Number of teams specified in the num_teams clause.
+  /// \param NumThreads Number of teams specified in the thread_limit clause.
+  /// \param Inputs The input values to the region that will be passed.
+  /// as arguments to the outlined function.
+  /// \param BodyGenCB Callback that will generate the region code.
+  InsertPointTy createTarget(const LocationDescription &Loc,
+                             OpenMPIRBuilder::InsertPointTy CodeGenIP,
+                             TargetRegionEntryInfo &EntryInfo, int32_t NumTeams,
+                             int32_t NumThreads,
+                             SmallVectorImpl<Value *> &Inputs,
+                             TargetBodyGenCallbackTy BodyGenCB);
 
   /// Declarations for LLVM-IR types (simple, array, function and structure) are
   /// generated below. Their names are defined and used in OpenMPKinds.def. Here

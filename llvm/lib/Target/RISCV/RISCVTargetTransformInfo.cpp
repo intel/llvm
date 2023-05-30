@@ -45,14 +45,11 @@ InstructionCost RISCVTTIImpl::getLMULCost(MVT VT) {
     bool Fractional;
     std::tie(LMul, Fractional) =
         RISCVVType::decodeVLMUL(RISCVTargetLowering::getLMUL(VT));
-    if (Fractional)
-      Cost = 1;
-    else
-      Cost = LMul;
+    Cost = Fractional ? 1 : LMul;
   } else {
-    Cost = VT.getSizeInBits() / ST->getRealMinVLen();
+    Cost = divideCeil(VT.getSizeInBits(), ST->getRealMinVLen());
   }
-  return std::max<unsigned>(Cost, 1);
+  return Cost;
 }
 
 InstructionCost RISCVTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
@@ -145,8 +142,8 @@ InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
     Takes12BitImm = true;
     break;
   case Instruction::Mul:
-    // Negated power of 2 is a shift and a negate.
-    if (Imm.isNegatedPowerOf2())
+    // Power of 2 is a shift. Negated power of 2 is a shift and a negate.
+    if (Imm.isPowerOf2() || Imm.isNegatedPowerOf2())
       return TTI::TCC_Free;
     // FIXME: There is no MULI instruction.
     Takes12BitImm = true;
@@ -252,12 +249,24 @@ RISCVTTIImpl::getConstantPoolLoadCost(Type *Ty,  TTI::TargetCostKind CostKind) {
                              /*AddressSpace=*/0, CostKind);
 }
 
+static VectorType *getVRGatherIndexType(MVT DataVT, const RISCVSubtarget &ST,
+                                        LLVMContext &C) {
+  assert((DataVT.getScalarSizeInBits() != 8 ||
+          DataVT.getVectorNumElements() <= 256) && "unhandled case in lowering");
+  MVT IndexVT = DataVT.changeTypeToInteger();
+  if (IndexVT.getScalarType().bitsGT(ST.getXLenVT()))
+    IndexVT = IndexVT.changeVectorElementType(MVT::i16);
+  return cast<VectorType>(EVT(IndexVT).getTypeForEVT(C));
+}
+
 
 InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
                                              VectorType *Tp, ArrayRef<int> Mask,
                                              TTI::TargetCostKind CostKind,
                                              int Index, VectorType *SubTp,
                                              ArrayRef<const Value *> Args) {
+  Kind = improveShuffleKindFromMask(Kind, Mask);
+
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
 
   // First, handle cases where having a fixed length vector enables us to
@@ -296,8 +305,7 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
         if (LT.first == 1 &&
             (LT.second.getScalarSizeInBits() != 8 ||
              LT.second.getVectorNumElements() <= 256)) {
-          VectorType *IdxTy = VectorType::get(IntegerType::getInt8Ty(Tp->getContext()),
-                                              Tp->getElementCount());
+          VectorType *IdxTy = getVRGatherIndexType(LT.second, *ST, Tp->getContext());
           InstructionCost IndexCost = getConstantPoolLoadCost(IdxTy, CostKind);
           return IndexCost + getLMULCost(LT.second);
         }
@@ -315,7 +323,7 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
              LT.second.getVectorNumElements() <= 256)) {
           auto &C = Tp->getContext();
           auto EC = Tp->getElementCount();
-          VectorType *IdxTy = VectorType::get(IntegerType::getInt8Ty(C), EC);
+          VectorType *IdxTy = getVRGatherIndexType(LT.second, *ST, C);
           VectorType *MaskTy = VectorType::get(IntegerType::getInt1Ty(C), EC);
           InstructionCost IndexCost = getConstantPoolLoadCost(IdxTy, CostKind);
           InstructionCost MaskCost = getConstantPoolLoadCost(MaskTy, CostKind);
@@ -624,6 +632,40 @@ static const CostTblEntry VectorIntrinsicCostTable[]{
     {Intrinsic::roundeven, MVT::nxv2f64, 9},
     {Intrinsic::roundeven, MVT::nxv4f64, 9},
     {Intrinsic::roundeven, MVT::nxv8f64, 9},
+    {Intrinsic::rint, MVT::v2f32, 7},
+    {Intrinsic::rint, MVT::v4f32, 7},
+    {Intrinsic::rint, MVT::v8f32, 7},
+    {Intrinsic::rint, MVT::v16f32, 7},
+    {Intrinsic::rint, MVT::nxv1f32, 7},
+    {Intrinsic::rint, MVT::nxv2f32, 7},
+    {Intrinsic::rint, MVT::nxv4f32, 7},
+    {Intrinsic::rint, MVT::nxv8f32, 7},
+    {Intrinsic::rint, MVT::nxv16f32, 7},
+    {Intrinsic::rint, MVT::v2f64, 7},
+    {Intrinsic::rint, MVT::v4f64, 7},
+    {Intrinsic::rint, MVT::v8f64, 7},
+    {Intrinsic::rint, MVT::v16f64, 7},
+    {Intrinsic::rint, MVT::nxv1f64, 7},
+    {Intrinsic::rint, MVT::nxv2f64, 7},
+    {Intrinsic::rint, MVT::nxv4f64, 7},
+    {Intrinsic::rint, MVT::nxv8f64, 7},
+    {Intrinsic::nearbyint, MVT::v2f32, 9},
+    {Intrinsic::nearbyint, MVT::v4f32, 9},
+    {Intrinsic::nearbyint, MVT::v8f32, 9},
+    {Intrinsic::nearbyint, MVT::v16f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv1f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv2f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv4f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv8f32, 9},
+    {Intrinsic::nearbyint, MVT::nxv16f32, 9},
+    {Intrinsic::nearbyint, MVT::v2f64, 9},
+    {Intrinsic::nearbyint, MVT::v4f64, 9},
+    {Intrinsic::nearbyint, MVT::v8f64, 9},
+    {Intrinsic::nearbyint, MVT::v16f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv1f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv2f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv4f64, 9},
+    {Intrinsic::nearbyint, MVT::nxv8f64, 9},
     {Intrinsic::bswap, MVT::v2i16, 3},
     {Intrinsic::bswap, MVT::v4i16, 3},
     {Intrinsic::bswap, MVT::v8i16, 3},
@@ -1165,14 +1207,14 @@ unsigned RISCVTTIImpl::getEstimatedVLFor(VectorType *Ty) {
 
 InstructionCost
 RISCVTTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                     bool IsUnsigned,
+                                     bool IsUnsigned, FastMathFlags FMF,
                                      TTI::TargetCostKind CostKind) {
   if (isa<FixedVectorType>(Ty) && !ST->useRVVForFixedLengthVectors())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
 
   // Skip if scalar size of Ty is bigger than ELEN.
   if (Ty->getScalarSizeInBits() > ST->getELEN())
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
 
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
   if (Ty->getElementType()->isIntegerTy(1))
@@ -1227,7 +1269,7 @@ RISCVTTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
 
 InstructionCost RISCVTTIImpl::getExtendedReductionCost(
     unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *ValTy,
-    std::optional<FastMathFlags> FMF, TTI::TargetCostKind CostKind) {
+    FastMathFlags FMF, TTI::TargetCostKind CostKind) {
   if (isa<FixedVectorType>(ValTy) && !ST->useRVVForFixedLengthVectors())
     return BaseT::getExtendedReductionCost(Opcode, IsUnsigned, ResTy, ValTy,
                                            FMF, CostKind);
@@ -1548,6 +1590,55 @@ InstructionCost RISCVTTIImpl::getArithmeticInstrCost(
            BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info, Op2Info,
                                          Args, CxtI);
   }
+}
+
+// TODO: Deduplicate from TargetTransformInfoImplCRTPBase.
+InstructionCost RISCVTTIImpl::getPointersChainCost(
+    ArrayRef<const Value *> Ptrs, const Value *Base,
+    const TTI::PointersChainInfo &Info, Type *AccessTy,
+    TTI::TargetCostKind CostKind) {
+  InstructionCost Cost = TTI::TCC_Free;
+  // In the basic model we take into account GEP instructions only
+  // (although here can come alloca instruction, a value, constants and/or
+  // constant expressions, PHIs, bitcasts ... whatever allowed to be used as a
+  // pointer). Typically, if Base is a not a GEP-instruction and all the
+  // pointers are relative to the same base address, all the rest are
+  // either GEP instructions, PHIs, bitcasts or constants. When we have same
+  // base, we just calculate cost of each non-Base GEP as an ADD operation if
+  // any their index is a non-const.
+  // If no known dependecies between the pointers cost is calculated as a sum
+  // of costs of GEP instructions.
+  for (auto [I, V] : enumerate(Ptrs)) {
+    const auto *GEP = dyn_cast<GetElementPtrInst>(V);
+    if (!GEP)
+      continue;
+    if (Info.isSameBase() && V != Base) {
+      if (GEP->hasAllConstantIndices())
+        continue;
+      // If the chain is unit-stride and BaseReg + stride*i is a legal
+      // addressing mode, then presume the base GEP is sitting around in a
+      // register somewhere and check if we can fold the offset relative to
+      // it.
+      unsigned Stride = DL.getTypeStoreSize(AccessTy);
+      if (Info.isUnitStride() &&
+          isLegalAddressingMode(AccessTy,
+                                /* BaseGV */ nullptr,
+                                /* BaseOffset */ Stride * I,
+                                /* HasBaseReg */ true,
+                                /* Scale */ 0,
+                                GEP->getType()->getPointerAddressSpace()))
+        continue;
+      Cost += getArithmeticInstrCost(Instruction::Add, GEP->getType(), CostKind,
+                                     {TTI::OK_AnyValue, TTI::OP_None},
+                                     {TTI::OK_AnyValue, TTI::OP_None},
+                                     std::nullopt);
+    } else {
+      SmallVector<const Value *> Indices(GEP->indices());
+      Cost += getGEPCost(GEP->getSourceElementType(), GEP->getPointerOperand(),
+                         Indices, CostKind);
+    }
+  }
+  return Cost;
 }
 
 void RISCVTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,

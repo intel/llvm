@@ -37,7 +37,8 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
-  size_t runOnFunction(Function &F, SmallPtrSet<Type *, 4> &);
+  bool prepareForAlwaysInliner(Module &M);
+  size_t runOnFunction(Function &F, SmallPtrSetImpl<Type *> &);
 };
 
 ModulePass *createSYCLLowerESIMDPass();
@@ -58,12 +59,8 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
-  DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
-
   Function *rewriteFunc(Function &F);
   Type *getSimdArgPtrTyOrNull(Value *arg);
-  void fixGlobals(Module &M);
-  void removeOldGlobals();
 };
 
 ModulePass *createESIMDLowerVecArgPass();

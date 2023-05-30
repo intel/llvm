@@ -10,19 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TreeTransform.h"
 #include "clang/Sema/SemaConcept.h"
-#include "clang/Sema/Sema.h"
-#include "clang/Sema/SemaInternal.h"
-#include "clang/Sema/SemaDiagnostic.h"
-#include "clang/Sema/TemplateDeduction.h"
-#include "clang/Sema/Template.h"
-#include "clang/Sema/Overload.h"
-#include "clang/Sema/Initialization.h"
+#include "TreeTransform.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/OperatorPrecedence.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
+#include "clang/Sema/Initialization.h"
+#include "clang/Sema/Overload.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaDiagnostic.h"
+#include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/Template.h"
+#include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringExtras.h"
@@ -721,7 +722,7 @@ CalculateTemplateDepthForConstraints(Sema &S, const NamedDecl *ND,
       ND, /*Final=*/false, /*Innermost=*/nullptr, /*RelativeToPrimary=*/true,
       /*Pattern=*/nullptr,
       /*ForConstraintInstantiation=*/true, SkipForSpecialization);
-  return MLTAL.getNumSubstitutedLevels();
+  return MLTAL.getNumLevels();
 }
 
 namespace {
@@ -752,27 +753,55 @@ namespace {
   };
 } // namespace
 
+static const Expr *SubstituteConstraintExpression(Sema &S, const NamedDecl *ND,
+                                                  const Expr *ConstrExpr) {
+  MultiLevelTemplateArgumentList MLTAL = S.getTemplateInstantiationArgs(
+      ND, /*Final=*/false, /*Innermost=*/nullptr,
+      /*RelativeToPrimary=*/true,
+      /*Pattern=*/nullptr, /*ForConstraintInstantiation=*/true,
+      /*SkipForSpecialization*/ false);
+  if (MLTAL.getNumSubstitutedLevels() == 0)
+    return ConstrExpr;
+
+  Sema::SFINAETrap SFINAE(S, /*AccessCheckingSFINAE=*/false);
+
+  Sema::InstantiatingTemplate Inst(
+      S, ND->getLocation(),
+      Sema::InstantiatingTemplate::ConstraintNormalization{},
+      const_cast<NamedDecl *>(ND), SourceRange{});
+
+  if (Inst.isInvalid())
+    return nullptr;
+
+  std::optional<Sema::CXXThisScopeRAII> ThisScope;
+  if (auto *RD = dyn_cast<CXXRecordDecl>(ND->getDeclContext()))
+    ThisScope.emplace(S, const_cast<CXXRecordDecl *>(RD), Qualifiers());
+  ExprResult SubstConstr =
+      S.SubstConstraintExpr(const_cast<clang::Expr *>(ConstrExpr), MLTAL);
+  if (SFINAE.hasErrorOccurred() || !SubstConstr.isUsable())
+    return nullptr;
+  return SubstConstr.get();
+}
+
 bool Sema::AreConstraintExpressionsEqual(const NamedDecl *Old,
                                          const Expr *OldConstr,
                                          const NamedDecl *New,
                                          const Expr *NewConstr) {
-  if (Old && New && Old != New) {
-    unsigned Depth1 = CalculateTemplateDepthForConstraints(
-        *this, Old);
-    unsigned Depth2 = CalculateTemplateDepthForConstraints(
-        *this, New);
-
-    // Adjust the 'shallowest' verison of this to increase the depth to match
-    // the 'other'.
-    if (Depth2 > Depth1) {
-      OldConstr = AdjustConstraintDepth(*this, Depth2 - Depth1)
-                      .TransformExpr(const_cast<Expr *>(OldConstr))
-                      .get();
-    } else if (Depth1 > Depth2) {
-      NewConstr = AdjustConstraintDepth(*this, Depth1 - Depth2)
-                      .TransformExpr(const_cast<Expr *>(NewConstr))
-                      .get();
-    }
+  if (OldConstr == NewConstr)
+    return true;
+  // C++ [temp.constr.decl]p4
+  if (Old && New && Old != New &&
+      Old->getLexicalDeclContext() != New->getLexicalDeclContext()) {
+    if (const Expr *SubstConstr =
+            SubstituteConstraintExpression(*this, Old, OldConstr))
+      OldConstr = SubstConstr;
+    else
+      return false;
+    if (const Expr *SubstConstr =
+            SubstituteConstraintExpression(*this, New, NewConstr))
+      NewConstr = SubstConstr;
+    else
+      return false;
   }
 
   llvm::FoldingSetNodeID ID1, ID2;

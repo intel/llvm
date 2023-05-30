@@ -760,7 +760,7 @@ class SingleDeviceFunctionTracker {
     // If this is a routine that is not defined and it does not have either
     // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
     // routines potentially reachable on device. This is to diagnose such
-    // cases later in finalizeSYCLDeviceAnalysis().
+    // cases later in finalizeSYCLDelayedAnalysis().
     if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
@@ -850,8 +850,7 @@ class SingleDeviceFunctionTracker {
         !KernelBody->hasAttr<AlwaysInlineAttr>() &&
         !KernelBody->hasAttr<SYCLSimdAttr>()) {
       KernelBody->addAttr(AlwaysInlineAttr::CreateImplicit(
-          KernelBody->getASTContext(), {}, AttributeCommonInfo::AS_Keyword,
-          AlwaysInlineAttr::Keyword_forceinline));
+          KernelBody->getASTContext(), {}, AlwaysInlineAttr::Keyword_forceinline));
     }
   }
 
@@ -2888,7 +2887,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   llvm::SmallVector<std::pair<InitializedEntity, uint64_t>, 8> ArrayInfos;
   VarDecl *KernelObjClone;
   InitializedEntity VarEntity;
-  const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   llvm::SmallVector<Expr *, 16> ArrayParamBases;
   FunctionDecl *KernelCallerFunc;
@@ -3420,7 +3418,7 @@ public:
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
-        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
+        KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()),
         IsESIMD(IsSIMDKernel), CallOperator(CallOperator) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
@@ -3625,7 +3623,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   int64_t CurOffset = 0;
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
-  bool IsESIMD = false;
 
   // A series of functions to calculate the change in offset based on the type.
   int64_t offsetOf(const FieldDecl *FD, QualType ArgTy) const {
@@ -3657,7 +3654,7 @@ public:
   SyclKernelIntHeaderCreator(bool IsESIMD, Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              FunctionDecl *KernelFunc)
-      : SyclKernelFieldHandler(S), Header(H), IsESIMD(IsESIMD) {
+      : SyclKernelFieldHandler(S), Header(H) {
 
     // The header needs to access the kernel object size.
     int64_t ObjSize = SemaRef.getASTContext()
@@ -4576,36 +4573,6 @@ Sema::SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, *this, Reason);
 }
 
-bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
-  assert(getLangOpts().SYCLIsDevice &&
-         "Should only be called during SYCL compilation");
-  assert(Callee && "Callee may not be null.");
-
-  // Errors in an unevaluated context don't need to be generated,
-  // so we can safely skip them.
-  if (isUnevaluatedContext() || isConstantEvaluated())
-    return true;
-
-  FunctionDecl *Caller = dyn_cast<FunctionDecl>(getCurLexicalContext());
-
-  if (!Caller)
-    return true;
-
-  SemaDiagnosticBuilder::Kind DiagKind = SemaDiagnosticBuilder::K_Nop;
-
-  // TODO Set DiagKind to K_Immediate/K_Deferred to emit diagnostics for Callee
-  SemaDiagnosticBuilder(DiagKind, Loc, diag::err_sycl_restrict, Caller, *this,
-                        DeviceDiagnosticReason::Sycl)
-      << Sema::KernelCallUndefinedFunction;
-  SemaDiagnosticBuilder(DiagKind, Callee->getLocation(),
-                        diag::note_previous_decl, Caller, *this,
-                        DeviceDiagnosticReason::Sycl)
-      << Callee;
-
-  return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
-         DiagKind != SemaDiagnosticBuilder::K_ImmediateWithCallStack;
-}
-
 void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
                                       llvm::DenseSet<QualType> Visited,
                                       ValueDecl *DeclToCheck) {
@@ -4886,12 +4853,14 @@ class SYCLFwdDeclEmitter
   }
 
 public:
-  SYCLFwdDeclEmitter(raw_ostream &OS, LangOptions LO) : OS(OS), Policy(LO) {
+  SYCLFwdDeclEmitter(raw_ostream &OS, const LangOptions &LO)
+      : OS(OS), Policy(LO) {
     Policy.adjustForCPlusPlusFwdDecl();
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
     Policy.PrintCanonicalTypes = true;
     Policy.SkipCanonicalizationOfTemplateTypeParms = true;
+    Policy.SuppressFinalSpecifier = true;
   }
 
   void Visit(QualType T) {

@@ -36,13 +36,16 @@
 #include <sstream>
 
 namespace mlir {
+namespace affine {
 #define GEN_PASS_DEF_AFFINELOOPFUSION
 #include "mlir/Dialect/Affine/Passes.h.inc"
+} // namespace affine
 } // namespace mlir
 
 #define DEBUG_TYPE "affine-loop-fusion"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 namespace {
 /// Loop fusion pass. This pass currently supports a greedy fusion policy,
@@ -54,7 +57,7 @@ namespace {
 // TODO: Extend this pass to check for fusion preventing dependences,
 // and add support for more general loop fusion algorithms.
 
-struct LoopFusion : public impl::AffineLoopFusionBase<LoopFusion> {
+struct LoopFusion : public affine::impl::AffineLoopFusionBase<LoopFusion> {
   LoopFusion() = default;
   LoopFusion(unsigned fastMemorySpace, uint64_t localBufSizeThresholdBytes,
              bool maximalFusion, enum FusionMode affineFusionMode) {
@@ -286,7 +289,7 @@ bool MemRefDependenceGraph::init() {
       // memref type. Call Op that returns one or more memref type results
       // is already taken care of, by the previous conditions.
       if (llvm::any_of(op.getOperandTypes(),
-                       [&](Type t) { return t.isa<MemRefType>(); })) {
+                       [&](Type t) { return isa<MemRefType>(t); })) {
         Node node(nextNodeId++, &op);
         nodes.insert({node.id, node});
       }
@@ -376,7 +379,7 @@ static Value createPrivateMemRef(AffineForOp forOp, Operation *srcStoreOpInst,
   OpBuilder top(forInst->getParentRegion());
   // Create new memref type based on slice bounds.
   auto oldMemRef = cast<AffineWriteOpInterface>(srcStoreOpInst).getMemRef();
-  auto oldMemRefType = oldMemRef.getType().cast<MemRefType>();
+  auto oldMemRefType = cast<MemRefType>(oldMemRef.getType());
   unsigned rank = oldMemRefType.getRank();
 
   // Compute MemRefRegion for 'srcStoreOpInst' at depth 'dstLoopDepth'.
@@ -513,7 +516,7 @@ static bool hasNonAffineUsersOnThePath(unsigned srcId, unsigned dstId,
       return WalkResult::advance();
     for (Value v : op->getOperands())
       // Collect memref values only.
-      if (v.getType().isa<MemRefType>())
+      if (isa<MemRefType>(v.getType()))
         memRefValues.insert(v);
     return WalkResult::advance();
   });
@@ -1039,7 +1042,7 @@ public:
         depthSliceUnions.resize(dstLoopDepthTest);
         FusionStrategy strategy(FusionStrategy::ProducerConsumer);
         for (unsigned i = 1; i <= dstLoopDepthTest; ++i) {
-          FusionResult result = mlir::canFuseLoops(
+          FusionResult result = affine::canFuseLoops(
               srcAffineForOp, dstAffineForOp,
               /*dstLoopDepth=*/i, &depthSliceUnions[i - 1], strategy);
 
@@ -1259,7 +1262,7 @@ public:
       unsigned maxLegalFusionDepth = 0;
       FusionStrategy strategy(memref);
       for (unsigned i = 1; i <= dstLoopDepthTest; ++i) {
-        FusionResult result = mlir::canFuseLoops(
+        FusionResult result = affine::canFuseLoops(
             sibAffineForOp, dstAffineForOp,
             /*dstLoopDepth=*/i, &depthSliceUnions[i - 1], strategy);
 
@@ -1291,9 +1294,9 @@ public:
       // further inside `fuseLoops`.
       bool isInnermostInsertion = (bestDstLoopDepth == dstLoopDepthTest);
       // Fuse computation slice of 'sibLoopNest' into 'dstLoopNest'.
-      mlir::fuseLoops(sibAffineForOp, dstAffineForOp,
-                      depthSliceUnions[bestDstLoopDepth - 1],
-                      isInnermostInsertion);
+      affine::fuseLoops(sibAffineForOp, dstAffineForOp,
+                        depthSliceUnions[bestDstLoopDepth - 1],
+                        isInnermostInsertion);
 
       auto dstForInst = cast<AffineForOp>(dstNode->op);
       // Update operation position of fused loop nest (if needed).
@@ -1501,10 +1504,9 @@ void LoopFusion::runOnOperation() {
       runOnBlock(&block);
 }
 
-std::unique_ptr<Pass>
-mlir::createLoopFusionPass(unsigned fastMemorySpace,
-                           uint64_t localBufSizeThreshold, bool maximalFusion,
-                           enum FusionMode affineFusionMode) {
+std::unique_ptr<Pass> mlir::affine::createLoopFusionPass(
+    unsigned fastMemorySpace, uint64_t localBufSizeThreshold,
+    bool maximalFusion, enum FusionMode affineFusionMode) {
   return std::make_unique<LoopFusion>(fastMemorySpace, localBufSizeThreshold,
                                       maximalFusion, affineFusionMode);
 }

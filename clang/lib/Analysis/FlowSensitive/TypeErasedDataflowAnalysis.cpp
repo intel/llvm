@@ -64,6 +64,8 @@ static bool isLoopHead(const CFGBlock &B) {
   return false;
 }
 
+namespace {
+
 // The return type of the visit functions in TerminatorVisitor. The first
 // element represents the terminator expression (that is the conditional
 // expression in case of a path split in the CFG). The second element
@@ -121,26 +123,17 @@ public:
 private:
   TerminatorVisitorRetTy extendFlowCondition(const Expr &Cond) {
     // The terminator sub-expression might not be evaluated.
-    if (Env.getStorageLocation(Cond, SkipPast::None) == nullptr)
+    if (Env.getValueStrict(Cond) == nullptr)
       transfer(StmtToEnv, Cond, Env);
 
-    // FIXME: The flow condition must be an r-value, so `SkipPast::None` should
-    // suffice.
-    auto *Val =
-        cast_or_null<BoolValue>(Env.getValue(Cond, SkipPast::Reference));
+    auto *Val = cast_or_null<BoolValue>(Env.getValueStrict(Cond));
     // Value merging depends on flow conditions from different environments
     // being mutually exclusive -- that is, they cannot both be true in their
     // entirety (even if they may share some clauses). So, we need *some* value
     // for the condition expression, even if just an atom.
     if (Val == nullptr) {
-      // FIXME: Consider introducing a helper for this get-or-create pattern.
-      auto *Loc = Env.getStorageLocation(Cond, SkipPast::None);
-      if (Loc == nullptr) {
-        Loc = &Env.createStorageLocation(Cond);
-        Env.setStorageLocation(Cond, *Loc);
-      }
       Val = &Env.makeAtomicBoolValue();
-      Env.setValue(*Loc, *Val);
+      Env.setValueStrict(Cond, *Val);
     }
 
     bool ConditionValue = true;
@@ -168,7 +161,8 @@ struct AnalysisContext {
                   llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>>
                       BlockStates)
       : CFCtx(CFCtx), Analysis(Analysis), InitEnv(InitEnv),
-        Log(InitEnv.logger()), BlockStates(BlockStates) {
+        Log(*InitEnv.getDataflowAnalysisContext().getOptions().Log),
+        BlockStates(BlockStates) {
     Log.beginAnalysis(CFCtx, Analysis);
   }
   ~AnalysisContext() { Log.endAnalysis(); }
@@ -184,6 +178,8 @@ struct AnalysisContext {
   /// The indices correspond to the block IDs.
   llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockStates;
 };
+
+} // namespace
 
 /// Computes the input state for a given basic block by joining the output
 /// states of its predecessors.
@@ -220,7 +216,8 @@ computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
     // operator includes a branch that contains a noreturn destructor call.
     //
     // See `NoreturnDestructorTest` for concrete examples.
-    if (Block.succ_begin()->getReachableBlock()->hasNoReturnElement()) {
+    if (Block.succ_begin()->getReachableBlock() != nullptr &&
+        Block.succ_begin()->getReachableBlock()->hasNoReturnElement()) {
       auto &StmtToBlock = AC.CFCtx.getStmtToBlock();
       auto StmtBlock = StmtToBlock.find(Block.getTerminatorStmt());
       assert(StmtBlock != StmtToBlock.end());
@@ -276,17 +273,19 @@ computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
 }
 
 /// Built-in transfer function for `CFGStmt`.
-void builtinTransferStatement(const CFGStmt &Elt,
-                              TypeErasedDataflowAnalysisState &InputState,
-                              AnalysisContext &AC) {
+static void
+builtinTransferStatement(const CFGStmt &Elt,
+                         TypeErasedDataflowAnalysisState &InputState,
+                         AnalysisContext &AC) {
   const Stmt *S = Elt.getStmt();
   assert(S != nullptr);
   transfer(StmtToEnvMap(AC.CFCtx, AC.BlockStates), *S, InputState.Env);
 }
 
 /// Built-in transfer function for `CFGInitializer`.
-void builtinTransferInitializer(const CFGInitializer &Elt,
-                                TypeErasedDataflowAnalysisState &InputState) {
+static void
+builtinTransferInitializer(const CFGInitializer &Elt,
+                           TypeErasedDataflowAnalysisState &InputState) {
   const CXXCtorInitializer *Init = Elt.getInitializer();
   assert(Init != nullptr);
 
@@ -302,26 +301,22 @@ void builtinTransferInitializer(const CFGInitializer &Elt,
   auto *InitStmt = Init->getInit();
   assert(InitStmt != nullptr);
 
-  auto *InitStmtLoc = Env.getStorageLocation(*InitStmt, SkipPast::Reference);
-  if (InitStmtLoc == nullptr)
-    return;
-
-  auto *InitStmtVal = Env.getValue(*InitStmtLoc);
-  if (InitStmtVal == nullptr)
-    return;
-
   if (Member->getType()->isReferenceType()) {
+    auto *InitStmtLoc = Env.getStorageLocationStrict(*InitStmt);
+    if (InitStmtLoc == nullptr)
+      return;
+
     auto &MemberLoc = ThisLoc.getChild(*Member);
     Env.setValue(MemberLoc, Env.create<ReferenceValue>(*InitStmtLoc));
-  } else {
+  } else if (auto *InitStmtVal = Env.getValueStrict(*InitStmt)) {
     auto &MemberLoc = ThisLoc.getChild(*Member);
     Env.setValue(MemberLoc, *InitStmtVal);
   }
 }
 
-void builtinTransfer(const CFGElement &Elt,
-                     TypeErasedDataflowAnalysisState &State,
-                     AnalysisContext &AC) {
+static void builtinTransfer(const CFGElement &Elt,
+                            TypeErasedDataflowAnalysisState &State,
+                            AnalysisContext &AC) {
   switch (Elt.getKind()) {
   case CFGElement::Statement:
     builtinTransferStatement(Elt.castAs<CFGStmt>(), State, AC);
@@ -330,7 +325,18 @@ void builtinTransfer(const CFGElement &Elt,
     builtinTransferInitializer(Elt.castAs<CFGInitializer>(), State);
     break;
   default:
-    // FIXME: Evaluate other kinds of `CFGElement`.
+    // FIXME: Evaluate other kinds of `CFGElement`, including:
+    // - When encountering `CFGLifetimeEnds`, remove the declaration from
+    //   `Environment::DeclToLoc`. This would serve two purposes:
+    //   a) Eliminate unnecessary clutter from `Environment::DeclToLoc`
+    //   b) Allow us to implement an assertion that, when joining two
+    //      `Environments`, the two `DeclToLoc` maps never contain entries that
+    //      map the same declaration to different storage locations.
+    //   Unfortunately, however, we can't currently process `CFGLifetimeEnds`
+    //   because the corresponding CFG option `AddLifetime` is incompatible with
+    //   the option 'AddImplicitDtors`, which we already use. We will first
+    //   need to modify the CFG implementation to make these two options
+    //   compatible before we can process `CFGLifetimeEnds`.
     break;
   }
 }
@@ -343,7 +349,7 @@ void builtinTransfer(const CFGElement &Elt,
 /// user-specified analysis.
 /// `PostVisitCFG` (if provided) will be applied to the element after evaluation
 /// by the user-specified analysis.
-TypeErasedDataflowAnalysisState
+static TypeErasedDataflowAnalysisState
 transferCFGBlock(const CFGBlock &Block, AnalysisContext &AC,
                  std::function<void(const CFGElement &,
                                     const TypeErasedDataflowAnalysisState &)>

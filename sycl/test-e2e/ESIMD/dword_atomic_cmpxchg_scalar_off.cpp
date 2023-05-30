@@ -7,18 +7,12 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// TODO: Re-enable this test on Windows after the following issue gets fixed:
-// https://github.com/intel/llvm/issues/8934
-// UNSUPPORTED: windows
-// TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
+// TODO: esimd_emulator fails due to random timeouts
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// This macro enables only cmpxch tests. They may require more time to execute,
+// This macro enables only cmpxchg tests. They may require more time to execute,
 // and have higher probablity to hit kernel execution time limit, so they are
 // separated.
 #define CMPXCHG_TEST

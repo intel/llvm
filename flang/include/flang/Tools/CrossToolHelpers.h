@@ -23,13 +23,15 @@ struct OffloadModuleOpts {
   OffloadModuleOpts() {}
   OffloadModuleOpts(uint32_t OpenMPTargetDebug, bool OpenMPTeamSubscription,
       bool OpenMPThreadSubscription, bool OpenMPNoThreadState,
-      bool OpenMPNoNestedParallelism, bool OpenMPIsDevice)
+      bool OpenMPNoNestedParallelism, bool OpenMPIsDevice,
+      uint32_t OpenMPVersion, std::string OMPHostIRFile = {})
       : OpenMPTargetDebug(OpenMPTargetDebug),
         OpenMPTeamSubscription(OpenMPTeamSubscription),
         OpenMPThreadSubscription(OpenMPThreadSubscription),
         OpenMPNoThreadState(OpenMPNoThreadState),
         OpenMPNoNestedParallelism(OpenMPNoNestedParallelism),
-        OpenMPIsDevice(OpenMPIsDevice) {}
+        OpenMPIsDevice(OpenMPIsDevice), OpenMPVersion(OpenMPVersion),
+        OMPHostIRFile(OMPHostIRFile) {}
 
   OffloadModuleOpts(Fortran::frontend::LangOptions &Opts)
       : OpenMPTargetDebug(Opts.OpenMPTargetDebug),
@@ -37,7 +39,8 @@ struct OffloadModuleOpts {
         OpenMPThreadSubscription(Opts.OpenMPThreadSubscription),
         OpenMPNoThreadState(Opts.OpenMPNoThreadState),
         OpenMPNoNestedParallelism(Opts.OpenMPNoNestedParallelism),
-        OpenMPIsDevice(Opts.OpenMPIsDevice) {}
+        OpenMPIsDevice(Opts.OpenMPIsDevice), OpenMPVersion(Opts.OpenMPVersion),
+        OMPHostIRFile(Opts.OMPHostIRFile) {}
 
   uint32_t OpenMPTargetDebug = 0;
   bool OpenMPTeamSubscription = false;
@@ -45,6 +48,8 @@ struct OffloadModuleOpts {
   bool OpenMPNoThreadState = false;
   bool OpenMPNoNestedParallelism = false;
   bool OpenMPIsDevice = false;
+  uint32_t OpenMPVersion = 11;
+  std::string OMPHostIRFile = {};
 };
 
 //  Shares assinging of the OpenMP OffloadModuleInterface and its assorted
@@ -58,7 +63,10 @@ void setOffloadModuleInterfaceAttributes(
     if (Opts.OpenMPIsDevice) {
       offloadMod.setFlags(Opts.OpenMPTargetDebug, Opts.OpenMPTeamSubscription,
           Opts.OpenMPThreadSubscription, Opts.OpenMPNoThreadState,
-          Opts.OpenMPNoNestedParallelism);
+          Opts.OpenMPNoNestedParallelism, Opts.OpenMPVersion);
+
+      if (!Opts.OMPHostIRFile.empty())
+        offloadMod.setHostIRFilePath(Opts.OMPHostIRFile);
     }
   }
 }
@@ -72,6 +80,12 @@ void setOffloadModuleInterfaceTargetAttribute(mlir::ModuleOp &module,
           module.getOperation())) {
     offloadMod.setTarget(targetCPU, targetFeatures);
   }
+}
+
+void setOpenMPVersionAttribute(mlir::ModuleOp &module, int64_t version) {
+  module.getOperation()->setAttr(
+      mlir::StringAttr::get(module.getContext(), llvm::Twine{"omp.version"}),
+      mlir::omp::VersionAttr::get(module.getContext(), version));
 }
 
 #endif // FORTRAN_TOOLS_CROSS_TOOL_HELPERS_H

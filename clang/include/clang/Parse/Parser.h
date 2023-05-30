@@ -18,6 +18,7 @@
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/CodeCompletionHandler.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
@@ -692,7 +693,8 @@ private:
   bool isEofOrEom() {
     tok::TokenKind Kind = Tok.getKind();
     return Kind == tok::eof || Kind == tok::annot_module_begin ||
-           Kind == tok::annot_module_end || Kind == tok::annot_module_include;
+           Kind == tok::annot_module_end || Kind == tok::annot_module_include ||
+           Kind == tok::annot_repl_input_end;
   }
 
   /// Checks if the \p Level is valid for use in a fold expression.
@@ -2522,9 +2524,9 @@ private:
   enum TentativeCXXTypeIdContext {
     TypeIdInParens,
     TypeIdUnambiguous,
-    TypeIdAsTemplateArgument
+    TypeIdAsTemplateArgument,
+    TypeIdInTrailingReturnType,
   };
-
 
   /// isTypeIdInParens - Assumes that a '(' was parsed and now we want to know
   /// whether the parens contain an expression or a type-id.
@@ -2653,14 +2655,16 @@ private:
   TPResult TryParseProtocolQualifiers();
   TPResult TryParsePtrOperatorSeq();
   TPResult TryParseOperatorId();
-  TPResult TryParseInitDeclaratorList();
+  TPResult TryParseInitDeclaratorList(bool MayHaveTrailingReturnType = false);
   TPResult TryParseDeclarator(bool mayBeAbstract, bool mayHaveIdentifier = true,
-                              bool mayHaveDirectInit = false);
+                              bool mayHaveDirectInit = false,
+                              bool mayHaveTrailingReturnType = false);
   TPResult TryParseParameterDeclarationClause(
       bool *InvalidAsDeclaration = nullptr, bool VersusTemplateArg = false,
       ImplicitTypenameContext AllowImplicitTypename =
           ImplicitTypenameContext::No);
-  TPResult TryParseFunctionDeclarator();
+  TPResult TryParseFunctionDeclarator(bool MayHaveTrailingReturnType = false);
+  bool NameAfterArrowIsNonType();
   TPResult TryParseBracketDeclarator();
   TPResult TryConsumeDeclarationSpecifier();
 
@@ -2763,7 +2767,7 @@ private:
   ParseAttributeArgsCommon(IdentifierInfo *AttrName, SourceLocation AttrNameLoc,
                            ParsedAttributes &Attrs, SourceLocation *EndLoc,
                            IdentifierInfo *ScopeName, SourceLocation ScopeLoc,
-                           ParsedAttr::Syntax Syntax);
+                           ParsedAttr::Form Form);
 
   enum ParseAttrKindMask {
     PAKM_GNU = 1 << 0,
@@ -2824,14 +2828,14 @@ private:
                              SourceLocation AttrNameLoc,
                              ParsedAttributes &Attrs, SourceLocation *EndLoc,
                              IdentifierInfo *ScopeName, SourceLocation ScopeLoc,
-                             ParsedAttr::Syntax Syntax, Declarator *D);
+                             ParsedAttr::Form Form, Declarator *D);
   IdentifierLoc *ParseIdentifierLoc();
 
   unsigned
   ParseClangAttributeArgs(IdentifierInfo *AttrName, SourceLocation AttrNameLoc,
                           ParsedAttributes &Attrs, SourceLocation *EndLoc,
                           IdentifierInfo *ScopeName, SourceLocation ScopeLoc,
-                          ParsedAttr::Syntax Syntax);
+                          ParsedAttr::Form Form);
 
   void ReplayOpenMPAttributeTokens(CachedTokens &OpenMPTokens) {
     // If parsing the attributes found an OpenMP directive, emit those tokens
@@ -2950,7 +2954,7 @@ private:
                                   SourceLocation *endLoc,
                                   IdentifierInfo *ScopeName,
                                   SourceLocation ScopeLoc,
-                                  ParsedAttr::Syntax Syntax);
+                                  ParsedAttr::Form Form);
 
   std::optional<AvailabilitySpec> ParseAvailabilitySpec();
   ExprResult ParseAvailabilityCheckExpr(SourceLocation StartLoc);
@@ -2961,7 +2965,7 @@ private:
                                           SourceLocation *EndLoc,
                                           IdentifierInfo *ScopeName,
                                           SourceLocation ScopeLoc,
-                                          ParsedAttr::Syntax Syntax);
+                                          ParsedAttr::Form Form);
 
   void ParseObjCBridgeRelatedAttribute(IdentifierInfo &ObjCBridgeRelated,
                                        SourceLocation ObjCBridgeRelatedLoc,
@@ -2969,7 +2973,7 @@ private:
                                        SourceLocation *EndLoc,
                                        IdentifierInfo *ScopeName,
                                        SourceLocation ScopeLoc,
-                                       ParsedAttr::Syntax Syntax);
+                                       ParsedAttr::Form Form);
 
   void ParseSwiftNewTypeAttribute(IdentifierInfo &AttrName,
                                   SourceLocation AttrNameLoc,
@@ -2977,7 +2981,7 @@ private:
                                   SourceLocation *EndLoc,
                                   IdentifierInfo *ScopeName,
                                   SourceLocation ScopeLoc,
-                                  ParsedAttr::Syntax Syntax);
+                                  ParsedAttr::Form Form);
 
   void ParseTypeTagForDatatypeAttribute(IdentifierInfo &AttrName,
                                         SourceLocation AttrNameLoc,
@@ -2985,14 +2989,14 @@ private:
                                         SourceLocation *EndLoc,
                                         IdentifierInfo *ScopeName,
                                         SourceLocation ScopeLoc,
-                                        ParsedAttr::Syntax Syntax);
+                                        ParsedAttr::Form Form);
 
   void ParseAttributeWithTypeArg(IdentifierInfo &AttrName,
                                  SourceLocation AttrNameLoc,
                                  ParsedAttributes &Attrs,
                                  IdentifierInfo *ScopeName,
                                  SourceLocation ScopeLoc,
-                                 ParsedAttr::Syntax Syntax);
+                                 ParsedAttr::Form Form);
 
   void ParseTypeofSpecifier(DeclSpec &DS);
   SourceLocation ParseDecltypeSpecifier(DeclSpec &DS);

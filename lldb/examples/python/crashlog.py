@@ -40,6 +40,7 @@ import shlex
 import string
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -80,6 +81,7 @@ class CrashLog(symbolication.Symbolicator):
         def __init__(self, index, app_specific_backtrace):
             self.index = index
             self.id = index
+            self.images = list()
             self.frames = list()
             self.idents = list()
             self.registers = dict()
@@ -431,6 +433,8 @@ class CrashLogParser:
         self.path = os.path.expanduser(path)
         self.verbose = verbose
         self.crashlog = CrashLog(debugger, self.path, self.verbose)
+        # List of DarwinImages sorted by their index.
+        self.images = list()
 
     @abc.abstractmethod
     def parse(self):
@@ -455,6 +459,9 @@ class JSONCrashLogParser(CrashLogParser):
             return parse_json(buffer)
         except:
             return None
+
+    def __init__(self, debugger, path, verbose):
+        super().__init__(debugger, path, verbose)
 
     def parse(self):
         try:
@@ -506,19 +513,19 @@ class JSONCrashLogParser(CrashLogParser):
                                   exception_extra)
 
     def parse_images(self, json_images):
-        idx = 0
         for json_image in json_images:
             img_uuid = uuid.UUID(json_image['uuid'])
             low = int(json_image['base'])
-            high = int(0)
+            high = low + int(
+                json_image['size']) if 'size' in json_image else low
             name = json_image['name'] if 'name' in json_image else ''
             path = json_image['path'] if 'path' in json_image else ''
             version = ''
             darwin_image = self.crashlog.DarwinImage(low, high, name, version,
                                                      img_uuid, path,
                                                      self.verbose)
+            self.images.append(darwin_image)
             self.crashlog.images.append(darwin_image)
-            idx += 1
 
     def parse_main_image(self, json_data):
         if 'procName' in json_data:
@@ -538,6 +545,17 @@ class JSONCrashLogParser(CrashLogParser):
             frame_offset = int(json_frame['imageOffset'])
             image_addr = self.get_used_image(image_id)['base']
             pc = image_addr + frame_offset
+
+            if 'symbol' in json_frame:
+                symbol = json_frame['symbol']
+                location = int(json_frame['symbolLocation'])
+                image = self.images[image_id]
+                image.symbols[symbol] = {
+                    "name": symbol,
+                    "type": "code",
+                    "address": frame_offset - location
+                }
+
             thread.frames.append(self.crashlog.Frame(idx, pc, frame_offset))
 
             # on arm64 systems, if it jump through a null function pointer,
@@ -586,14 +604,45 @@ class JSONCrashLogParser(CrashLogParser):
                 print("error: can't parse application specific backtrace.")
                 return False
 
-            (frame_id, frame_img_name, frame_addr,
-                frame_ofs) = frame_match.groups()
+            frame_id = frame_img_name = frame_addr = frame_symbol = frame_offset = frame_file = frame_line = frame_column = None
+
+            if len(frame_match.groups()) == 3:
+                # Get the image UUID from the frame image name.
+                (frame_id, frame_img_name, frame_addr) = frame_match.groups()
+            elif len(frame_match.groups()) == 5:
+                (frame_id, frame_img_name, frame_addr,
+                        frame_symbol, frame_offset) = frame_match.groups()
+            elif len(frame_match.groups()) == 7:
+                (frame_id, frame_img_name, frame_addr,
+                        frame_symbol, frame_offset,
+                        frame_file, frame_line) = frame_match.groups()
+            elif len(frame_match.groups()) == 8:
+                (frame_id, frame_img_name, frame_addr,
+                        frame_symbol, frame_offset,
+                        frame_file, frame_line, frame_column) = frame_match.groups()
 
             thread.add_ident(frame_img_name)
             if frame_img_name not in self.crashlog.idents:
                 self.crashlog.idents.append(frame_img_name)
-            thread.frames.append(self.crashlog.Frame(int(frame_id), int(
-                frame_addr, 0), frame_ofs))
+
+            description = ""
+            if frame_img_name and frame_addr and frame_symbol:
+                description = frame_symbol
+                frame_offset_value = 0
+                if frame_offset:
+                    description += " + " + frame_offset
+                    frame_offset_value = int(frame_offset, 0)
+                for image in self.images:
+                    if image.identifier == frame_img_name:
+                        image.symbols[frame_symbol] = {
+                            "name": frame_symbol,
+                            "type": "code",
+                            "address": int(frame_addr, 0) - frame_offset_value,
+                        }
+
+            thread.frames.append(
+                self.crashlog.Frame(int(frame_id), int(frame_addr, 0), description)
+            )
 
         return True
 
@@ -640,19 +689,48 @@ class TextCrashLogParser(CrashLogParser):
     thread_instrs_regex = re.compile(r'^Thread \d+ instruction stream')
     thread_regex = re.compile(r'^Thread (\d+).*:')
     app_backtrace_regex = re.compile(r'^Application Specific Backtrace (\d+).*:')
-    version = r'\(.+\)|(?:arm|x86_)[0-9a-z]+'
-    frame_regex = re.compile(r'^(\d+)\s+'              # id
-                             r'(.+?)\s+'               # img_name
-                             r'(?:' +version+ r'\s+)?' # img_version
-                             r'(0x[0-9a-fA-F]{4,})'    # addr (4 chars or more)
-                             r'(?: +(.*))?'            # offs
+
+    class VersionRegex:
+        version = r'\(.+\)|(?:arm|x86_)[0-9a-z]+'
+
+    class FrameRegex(VersionRegex):
+        @classmethod
+        def get(cls):
+            index    = r'^(\d+)\s+'
+            img_name = r'(.+?)\s+'
+            version  = r'(?:' + super().version + r'\s+)?'
+            address  = r'(0x[0-9a-fA-F]{4,})' # 4 digits or more
+
+            symbol   = """
+                        (?:
+                            [ ]+
+                            (?P<symbol>.+)
+                            (?:
+                                [ ]\+[ ]
+                                (?P<symbol_offset>\d+)
                             )
+                            (?:
+                                [ ]\(
+                                (?P<file_name>[^:]+):(?P<line_number>\d+)
+                                (?:
+                                    :(?P<column_num>\d+)
+                                )?
+                            )?
+                        )?
+                       """
+
+            return re.compile(index + img_name + version + address + symbol,
+                              flags=re.VERBOSE)
+
+    frame_regex = FrameRegex.get()
     null_frame_regex = re.compile(r'^\d+\s+\?\?\?\s+0{4,} +')
     image_regex_uuid = re.compile(r'(0x[0-9a-fA-F]+)'          # img_lo
                                   r'\s+-\s+'                   #   -
                                   r'(0x[0-9a-fA-F]+)\s+'       # img_hi
                                   r'[+]?(.+?)\s+'              # img_name
-                                  r'(?:(' +version+ r')\s+)?'  # img_version
+                                  r'(?:(' +
+                                  VersionRegex.version +         # img_version
+                                  r')\s+)?'
                                   r'(?:<([-0-9a-fA-F]+)>\s+)?' # img_uuid
                                   r'(\?+|/.*)'                 # img_path
                                  )
@@ -673,6 +751,7 @@ class TextCrashLogParser(CrashLogParser):
             CrashLogParseMode.SYSTEM : self.parse_system,
             CrashLogParseMode.INSTRS : self.parse_instructions,
         }
+        self.symbols = {}
 
     def parse(self):
         with open(self.path,'r', encoding='utf-8') as f:
@@ -827,29 +906,76 @@ class TextCrashLogParser(CrashLogParser):
             print('warning: thread parser ignored null-frame: "%s"' % line)
             return
         frame_match = self.frame_regex.search(line)
-        if frame_match:
-            (frame_id, frame_img_name, frame_addr,
-                frame_ofs) = frame_match.groups()
-            ident = frame_img_name
-            self.thread.add_ident(ident)
-            if ident not in self.crashlog.idents:
-                self.crashlog.idents.append(ident)
-            self.thread.frames.append(self.crashlog.Frame(int(frame_id), int(
-                frame_addr, 0), frame_ofs))
-        else:
+        if not frame_match:
             print('error: frame regex failed for line: "%s"' % line)
+            return
+
+        frame_id = frame_img_name = frame_addr = frame_symbol = frame_offset = frame_file = frame_line = frame_column = None
+
+        if len(frame_match.groups()) == 3:
+            # Get the image UUID from the frame image name.
+            (frame_id, frame_img_name, frame_addr) = frame_match.groups()
+        elif len(frame_match.groups()) == 5:
+            (frame_id, frame_img_name, frame_addr,
+                    frame_symbol, frame_offset) = frame_match.groups()
+        elif len(frame_match.groups()) == 7:
+            (frame_id, frame_img_name, frame_addr,
+                    frame_symbol, frame_offset,
+                    frame_file, frame_line) = frame_match.groups()
+        elif len(frame_match.groups()) == 8:
+            (frame_id, frame_img_name, frame_addr,
+                    frame_symbol, frame_offset,
+                    frame_file, frame_line, frame_column) = frame_match.groups()
+
+        self.thread.add_ident(frame_img_name)
+        if frame_img_name not in self.crashlog.idents:
+            self.crashlog.idents.append(frame_img_name)
+
+        description = ""
+        # Since images are parsed after threads, we need to build a
+        # map for every image with a list of all the symbols and addresses
+        if frame_img_name and frame_addr and frame_symbol:
+            description = frame_symbol
+            frame_offset_value = 0
+            if frame_offset:
+                description += " + " + frame_offset
+                frame_offset_value = int(frame_offset, 0)
+            if frame_img_name not in self.symbols:
+                self.symbols[frame_img_name] = list()
+            self.symbols[frame_img_name].append(
+                {
+                    "name": frame_symbol,
+                    "address": int(frame_addr, 0) - frame_offset_value,
+                }
+            )
+
+        self.thread.frames.append(
+            self.crashlog.Frame(int(frame_id), int(frame_addr, 0), description)
+        )
 
     def parse_images(self, line):
         image_match = self.image_regex_uuid.search(line)
         if image_match:
             (img_lo, img_hi, img_name, img_version,
                 img_uuid, img_path) = image_match.groups()
+
             image = self.crashlog.DarwinImage(int(img_lo, 0), int(img_hi, 0),
                                             img_name.strip(),
                                             img_version.strip()
                                             if img_version else "",
                                             uuid.UUID(img_uuid), img_path,
                                             self.verbose)
+            unqualified_img_name = os.path.basename(img_path)
+            if unqualified_img_name in self.symbols:
+                for symbol in self.symbols[unqualified_img_name]:
+                    image.symbols[symbol["name"]] = {
+                        "name": symbol["name"],
+                        "type": "code",
+                        # NOTE: "address" is actually the symbol image offset
+                        "address": symbol["address"] - int(img_lo, 0),
+                    }
+
+            self.images.append(image)
             self.crashlog.images.append(image)
         else:
             print("error: image regex failed for: %s" % line)
@@ -1014,48 +1140,38 @@ def SymbolicateCrashLog(crash_log, options):
     target = crash_log.create_target()
     if not target:
         return
-    exe_module = target.GetModuleAtIndex(0)
-    images_to_load = list()
-    loaded_images = list()
+
+
     if options.load_all_images:
-        # --load-all option was specified, load everything up
         for image in crash_log.images:
-            images_to_load.append(image)
-    else:
-        # Only load the images found in stack frames for the crashed threads
-        if options.crashed_only:
-            for thread in crash_log.threads:
-                if thread.did_crash():
-                    for ident in thread.idents:
-                        images = crash_log.find_images_with_identifier(ident)
-                        if images:
-                            for image in images:
-                                images_to_load.append(image)
-                        else:
-                            print('error: can\'t find image for identifier "%s"' % ident)
-        else:
-            for ident in crash_log.idents:
-                images = crash_log.find_images_with_identifier(ident)
-                if images:
-                    for image in images:
-                        images_to_load.append(image)
-                else:
-                    print('error: can\'t find image for identifier "%s"' % ident)
+            image.resolve = True
+    elif options.crashed_only:
+        for thread in crash_log.threads:
+            if thread.did_crash():
+                for ident in thread.idents:
+                    for image in self.crashlog.find_images_with_identifier(ident):
+                        image.resolve = True
 
     futures = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        def add_module(image, target):
-            return image, image.add_module(target)
+    loaded_images = []
+    with tempfile.TemporaryDirectory() as obj_dir:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
 
-        for image in images_to_load:
-            futures.append(executor.submit(add_module, image=image, target=target))
+            def add_module(image, target, obj_dir):
+                return image, image.add_module(target, obj_dir)
 
-        for future in concurrent.futures.as_completed(futures):
-            image, err = future.result()
-            if err:
-                print(err)
-            else:
-                loaded_images.append(image)
+            for image in crash_log.images:
+                futures.append(
+                    executor.submit(
+                        add_module, image=image, target=target, obj_dir=obj_dir
+                    )
+                )
+            for future in concurrent.futures.as_completed(futures):
+                image, err = future.result()
+                if err:
+                    print(err)
+                else:
+                    loaded_images.append(image)
 
     if crash_log.backtraces:
         for thread in crash_log.backtraces:
@@ -1110,11 +1226,16 @@ def load_crashlog_in_scripted_process(debugger, crash_log_file, options, result)
     launch_info.SetProcessPluginName("ScriptedProcess")
     launch_info.SetScriptedProcessClassName("crashlog_scripted_process.CrashLogScriptedProcess")
     launch_info.SetScriptedProcessDictionary(structured_data)
+    launch_info.SetLaunchFlags(lldb.eLaunchFlagStopAtEntry)
+
     error = lldb.SBError()
     process = target.Launch(launch_info, error)
 
     if not process or error.Fail():
         raise InteractiveCrashLogException("couldn't launch Scripted Process", error)
+
+    process.GetScriptedImplementation().set_crashlog(crashlog)
+    process.Continue()
 
     if not options.skip_status:
         @contextlib.contextmanager

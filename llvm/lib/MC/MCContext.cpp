@@ -846,9 +846,6 @@ MCSectionSPIRV *MCContext::getSPIRVSection() {
   Result->getFragmentList().insert(Result->begin(), F);
   F->setParent(Result);
 
-  if (Begin)
-    Begin->setFragment(F);
-
   return Result;
 }
 
@@ -881,11 +878,11 @@ MCSubtargetInfo &MCContext::getSubtargetCopy(const MCSubtargetInfo &STI) {
 
 void MCContext::addDebugPrefixMapEntry(const std::string &From,
                                        const std::string &To) {
-  DebugPrefixMap.insert(std::make_pair(From, To));
+  DebugPrefixMap.emplace_back(From, To);
 }
 
 void MCContext::remapDebugPath(SmallVectorImpl<char> &Path) {
-  for (const auto &[From, To] : DebugPrefixMap)
+  for (const auto &[From, To] : llvm::reverse(DebugPrefixMap))
     if (llvm::sys::path::replace_path_prefix(Path, From, To))
       break;
 }

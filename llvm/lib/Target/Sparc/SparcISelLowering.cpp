@@ -584,7 +584,7 @@ SDValue SparcTargetLowering::LowerFormalArguments_32(
     };
     unsigned NumAllocated = CCInfo.getFirstUnallocated(ArgRegs);
     const MCPhysReg *CurArgReg = ArgRegs+NumAllocated, *ArgRegEnd = ArgRegs+6;
-    unsigned ArgOffset = CCInfo.getNextStackOffset();
+    unsigned ArgOffset = CCInfo.getStackSize();
     if (NumAllocated == 6)
       ArgOffset += StackOffset;
     else {
@@ -703,7 +703,7 @@ SDValue SparcTargetLowering::LowerFormalArguments_64(
   //
   // The va_start intrinsic needs to know the offset to the first variable
   // argument.
-  unsigned ArgOffset = CCInfo.getNextStackOffset();
+  unsigned ArgOffset = CCInfo.getStackSize();
   SparcMachineFunctionInfo *FuncInfo = MF.getInfo<SparcMachineFunctionInfo>();
   // Skip the 128 bytes of register save area.
   FuncInfo->setVarArgsFrameOffset(ArgOffset + ArgArea +
@@ -773,8 +773,8 @@ bool SparcTargetLowering::IsEligibleForTailCallOptimization(
   // Do not tail call opt if the stack is used to pass parameters.
   // 64-bit targets have a slightly higher limit since the ABI requires
   // to allocate some space even when all the parameters fit inside registers.
-  unsigned StackOffsetLimit = Subtarget->is64Bit() ? 48 : 0;
-  if (CCInfo.getNextStackOffset() > StackOffsetLimit)
+  unsigned StackSizeLimit = Subtarget->is64Bit() ? 48 : 0;
+  if (CCInfo.getStackSize() > StackSizeLimit)
     return false;
 
   // Do not tail call opt if either the callee or caller returns
@@ -816,7 +816,7 @@ SparcTargetLowering::LowerCall_32(TargetLowering::CallLoweringInfo &CLI,
                                  CCInfo, CLI, DAG.getMachineFunction());
 
   // Get the size of the outgoing arguments stack space requirement.
-  unsigned ArgsSize = CCInfo.getNextStackOffset();
+  unsigned ArgsSize = CCInfo.getStackSize();
 
   // Keep stack frames 8-byte aligned.
   ArgsSize = (ArgsSize+7) & ~7;
@@ -1204,7 +1204,7 @@ SparcTargetLowering::LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
   // Called functions expect 6 argument words to exist in the stack frame, used
   // or not.
   unsigned StackReserved = 6 * 8u;
-  unsigned ArgsSize = std::max(StackReserved, CCInfo.getNextStackOffset());
+  unsigned ArgsSize = std::max<unsigned>(StackReserved, CCInfo.getStackSize());
 
   // Keep stack frames 16-byte aligned.
   ArgsSize = alignTo(ArgsSize, 16);
@@ -1977,6 +1977,8 @@ const char *SparcTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case SPISD::BRFCC:           return "SPISD::BRFCC";
   case SPISD::BRFCC_V9:
     return "SPISD::BRFCC_V9";
+  case SPISD::BR_REG:
+    return "SPISD::BR_REG";
   case SPISD::SELECT_ICC:      return "SPISD::SELECT_ICC";
   case SPISD::SELECT_XCC:      return "SPISD::SELECT_XCC";
   case SPISD::SELECT_FCC:      return "SPISD::SELECT_FCC";
@@ -2029,7 +2031,7 @@ void SparcTargetLowering::computeKnownBitsForTargetNode
     Known2 = DAG.computeKnownBits(Op.getOperand(0), Depth + 1);
 
     // Only known if known in both the LHS and RHS.
-    Known = KnownBits::commonBits(Known, Known2);
+    Known = Known.intersectWith(Known2);
     break;
   }
 }
@@ -2582,7 +2584,7 @@ static SDValue LowerUINT_TO_FP(SDValue Op, SelectionDAG &DAG,
 
 static SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG,
                           const SparcTargetLowering &TLI, bool hasHardQuad,
-                          bool isV9) {
+                          bool isV9, bool is64Bit) {
   SDValue Chain = Op.getOperand(0);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
   SDValue LHS = Op.getOperand(2);
@@ -2599,6 +2601,15 @@ static SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG,
   // Get the condition flag.
   SDValue CompareFlag;
   if (LHS.getValueType().isInteger()) {
+    // On V9 processors running in 64-bit mode, if CC compares two `i64`s
+    // and the RHS is zero we might be able to use a specialized branch.
+    const ConstantSDNode *RHSC = dyn_cast<ConstantSDNode>(RHS);
+    if (is64Bit && isV9 && LHS.getValueType() == MVT::i64 && RHSC &&
+        RHSC->isZero() && !ISD::isUnsignedIntSetCC(CC))
+      return DAG.getNode(SPISD::BR_REG, dl, MVT::Other, Chain, Dest,
+                         DAG.getConstant(intCondCCodeToRcond(CC), dl, MVT::i32),
+                         LHS);
+
     CompareFlag = DAG.getNode(SPISD::CMPICC, dl, MVT::Glue, LHS, RHS);
     if (SPCC == ~0U) SPCC = IntCondCCodeToICC(CC);
     if (isV9)
@@ -3213,7 +3224,7 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::UINT_TO_FP:         return LowerUINT_TO_FP(Op, DAG, *this,
                                                        hasHardQuad);
   case ISD::BR_CC:
-    return LowerBR_CC(Op, DAG, *this, hasHardQuad, isV9);
+    return LowerBR_CC(Op, DAG, *this, hasHardQuad, isV9, is64Bit);
   case ISD::SELECT_CC:
     return LowerSELECT_CC(Op, DAG, *this, hasHardQuad, isV9, is64Bit);
   case ISD::VASTART:            return LowerVASTART(Op, DAG, *this);

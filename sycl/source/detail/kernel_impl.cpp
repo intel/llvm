@@ -18,14 +18,15 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
-                         KernelBundleImplPtr KernelBundleImpl)
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true, KernelBundleImpl) {
+                  /*IsCreatedFromSource*/ true, KernelBundleImpl, ArgMask) {
   // Enable USM indirect access for interoperability kernels.
   // Some PI Plugins (like OpenCL) require this call to enable USM
   // For others, PI will turn this into a NOP.
-  getPlugin().call<PiApiKind::piKernelSetExecInfo>(
+  getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
       MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
   // This constructor is only called in the interoperability kernel constructor.
@@ -34,15 +35,17 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
                          ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
-                         KernelBundleImplPtr KernelBundleImpl)
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(ContextImpl),
       MProgramImpl(std::move(ProgramImpl)),
       MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask} {
 
   RT::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
-  getPlugin().call<PiApiKind::piKernelGetInfo>(
+  getPlugin()->call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
@@ -54,14 +57,16 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
-                         KernelBundleImplPtr KernelBundleImpl)
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
-      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask} {
 
   // kernel_impl shared ownership of kernel handle
   if (!is_host()) {
-    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+    getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
   }
 
   MIsInterop = MKernelBundleImpl->isInterop();
@@ -73,7 +78,7 @@ kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host()) {
-    getPlugin().call<PiApiKind::piKernelRelease>(MKernel);
+    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
   }
 }
 
@@ -91,6 +96,31 @@ bool kernel_impl::isCreatedFromSource() const {
   // clReleaseKernel(ClKernel);
   // FirstKernel.isCreatedFromSource() != FirstKernel.isCreatedFromSource();
   return MCreatedFromSource;
+}
+
+bool kernel_impl::isBuiltInKernel(const device &Device) const {
+  auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
+  if (BuiltInKernels.empty())
+    return false;
+  std::string KernelName = get_info<info::kernel::function_name>();
+  return (std::any_of(
+      BuiltInKernels.begin(), BuiltInKernels.end(),
+      [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));
+}
+
+void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
+  if (MKernelBundleImpl->isInterop())
+    return;
+  auto Devices = MKernelBundleImpl->get_devices();
+  if (std::any_of(Devices.begin(), Devices.end(),
+                  [this](device &Device) { return isBuiltInKernel(Device); }))
+    return;
+
+  throw sycl::exception(
+      sycl::make_error_code(errc::invalid),
+      "info::kernel::num_args descriptor may only be used to query a kernel "
+      "that resides in a kernel bundle constructed using a backend specific"
+      "interoperability function or to query a device built-in kernel");
 }
 
 } // namespace detail

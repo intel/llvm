@@ -106,22 +106,24 @@ add_sycl_plugin(level_zero
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_device.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_event.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_module.hpp"
+    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_kernel.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_platform.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_program.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_queue.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_sampler.hpp"
+    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_usm.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_common.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_context.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_device.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_event.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_module.cpp"
+    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_kernel.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_platform.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_program.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero_sampler.cpp"
+    "../unified_runtime/ur/adapters/level_zero/ur_level_zero_usm.cpp"
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
@@ -139,23 +141,6 @@ add_sycl_plugin(level_zero
     Threads::Threads
     ${XPTI_LIBS}
 )
-
-#FIXME: We should stop shipping level zero loader and headers as part of the
-#       toolchain installation. Instead these should be avaialble in the system.
-#       We keep shipping it until all environments are updated.
-if (TARGET ze_loader)
-  install(TARGETS ze_loader
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-  )
-  file(GLOB LEVEL_ZERO_API_HEADERS "${LEVEL_ZERO_INCLUDE_DIR}/*.h")
-  install(FILES ${LEVEL_ZERO_API_HEADERS}
-      DESTINATION ${CMAKE_INSTALL_PREFIX}/include/sycl/level_zero/
-      COMPONENT level-zero-sycl-dev
-  )
-endif()
-# end of FIXME
 
 add_dependencies(pi_level_zero ze-api)
 

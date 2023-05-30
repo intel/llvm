@@ -5,11 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -I%S/.. -o %t.out
+// RUN: %{run} %t.out
 
 // Regression test for checking USM-based gather/scatter with 32 elements.
 

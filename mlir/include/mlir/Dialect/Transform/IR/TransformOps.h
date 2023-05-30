@@ -9,7 +9,8 @@
 #ifndef MLIR_DIALECT_TRANSFORM_IR_TRANSFORMOPS_H
 #define MLIR_DIALECT_TRANSFORM_IR_TRANSFORMOPS_H
 
-#include "mlir/Dialect/PDL/IR/PDLTypes.h"
+#include "mlir/Dialect/Transform/IR/MatchInterfaces.h"
+#include "mlir/Dialect/Transform/IR/TransformAttrs.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/IR/FunctionInterfaces.h"
@@ -39,16 +40,24 @@ using SequenceBodyBuilderArgsFn =
 class TrackingListener : public RewriterBase::Listener,
                          public TransformState::Extension {
 public:
-  explicit TrackingListener(TransformState &state)
-      : TransformState::Extension(state) {}
+  /// Create a new TrackingListener for usage in the specified transform op.
+  explicit TrackingListener(TransformState &state, TransformOpInterface op)
+      : TransformState::Extension(state), transformOp(op) {}
 
 protected:
   /// Return a replacement payload op for the given op, which is going to be
   /// replaced with the given values. By default, if all values are defined by
-  /// the same newly-created op, which also has the same type as the given op,
-  /// that defining op is used as a replacement.
+  /// the same op, which also has the same type as the given op, that defining
+  /// op is used as a replacement.
   virtual Operation *findReplacementOp(Operation *op,
                                        ValueRange newValues) const;
+
+  /// Notify the listener that the pattern failed to match the given operation,
+  /// and provide a callback to populate a diagnostic with the reason why the
+  /// failure occurred.
+  LogicalResult
+  notifyMatchFailure(Location loc,
+                     function_ref<void(Diagnostic &)> reasonCallback) override;
 
   /// This function is called when a tracked payload op is dropped because no
   /// replacement op was found. Derived classes can implement this function for
@@ -56,21 +65,19 @@ protected:
   virtual void notifyPayloadReplacementNotFound(Operation *op,
                                                 ValueRange values) {}
 
-  /// Return "true" if the given op is a new op.
-  bool isNewOp(Operation *op) const;
-
   /// Return the single op that defines all given values (if any).
   static Operation *getCommonDefiningOp(ValueRange values);
 
-private:
-  void notifyOperationInserted(Operation *op) override;
+  /// Return the transform op in which this TrackingListener is used.
+  TransformOpInterface getTransformOp() const { return transformOp; }
 
+private:
   void notifyOperationRemoved(Operation *op) override;
 
   void notifyOperationReplaced(Operation *op, ValueRange newValues) override;
 
-  /// Ops that were newly created during the transform.
-  DenseMap<OperationName, DenseSet<Operation *>> newOps;
+  /// The transform op in which this TrackingListener is used.
+  TransformOpInterface transformOp;
 };
 
 } // namespace transform

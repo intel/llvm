@@ -23,6 +23,7 @@
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/Interfaces/ValueBoundsOpInterface.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "llvm/ADT/MapVector.h"
@@ -234,7 +235,9 @@ FailureOr<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
       Value materializedSize =
           getValueOrCreateConstantIndexOp(b, loc, rangeValue.size);
       FailureOr<int64_t> upperBound =
-          getConstantUpperBoundForIndex(materializedSize);
+          ValueBoundsConstraintSet::computeConstantBound(
+              presburger::BoundType::UB, materializedSize, /*dim=*/std::nullopt,
+              /*stopCondition=*/nullptr, /*closedUB=*/true);
       size = failed(upperBound)
                  ? materializedSize
                  : b.create<arith::ConstantIndexOp>(loc, *upperBound);
@@ -289,9 +292,9 @@ promoteSubViews(ImplicitLocOpBuilder &b,
             })
             .Case([&](ComplexType t) {
               Value tmp;
-              if (auto et = t.getElementType().dyn_cast<FloatType>())
+              if (auto et = dyn_cast<FloatType>(t.getElementType()))
                 tmp = b.create<arith::ConstantOp>(FloatAttr::get(et, 0.0));
-              else if (auto et = t.getElementType().cast<IntegerType>())
+              else if (auto et = cast<IntegerType>(t.getElementType()))
                 tmp = b.create<arith::ConstantOp>(IntegerAttr::get(et, 0));
               return b.create<complex::CreateOp>(t, tmp, tmp);
             })

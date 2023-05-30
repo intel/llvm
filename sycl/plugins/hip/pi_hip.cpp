@@ -548,9 +548,9 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
                      hipStream_t stream, pi_uint32 stream_token)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false},
-      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
+      isRecorded_{false}, isStarted_{false}, streamToken_{stream_token},
+      evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr}, queue_{queue},
+      stream_{stream}, context_{context} {
 
   assert(type != PI_COMMAND_TYPE_USER);
 
@@ -704,8 +704,8 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : module_{nullptr}, binary_{},
-      binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
+    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
+      context_{ctxt} {
   hip_piContextRetain(context_);
 }
 
@@ -955,6 +955,11 @@ pi_result hip_piPlatformGetInfo(pi_platform platform,
   }
   case PI_PLATFORM_INFO_EXTENSIONS: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
+  }
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    return getInfo<pi_platform_backend>(param_value_size, param_value,
+                                        param_value_size_ret,
+                                        PI_EXT_PLATFORM_BACKEND_HIP);
   }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
@@ -1701,6 +1706,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    // TODO: return some meaningful for backend_version below
+    return getInfo(param_value_size, param_value, param_value_size_ret, "");
+  }
   case PI_DEVICE_INFO_EXTENSIONS: {
     // TODO: Remove comment when HIP support native asserts.
     // DEVICELIB_ASSERT extension is set so fallback assert
@@ -1950,9 +1959,49 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 #endif
     return PI_ERROR_INVALID_VALUE;
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    // The mem-channel buffer property is not supported on HIP devices.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    // The sRGB images are not supported on HIP device.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
 
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    // Maximum number of 32-bit registers available to a thread block.
+    // Note: This number is shared by all thread blocks simultaneously resident
+    // on a multiprocessor.
+    int max_registers{-1};
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_registers,
+                              hipDeviceAttributeMaxRegistersPerBlock,
+                              device->get()) == hipSuccess);
+
+    sycl::detail::pi::assertion(max_registers >= 0);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(max_registers));
+  }
+
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    sycl::detail::pi::assertion(
+        hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
+        hipSuccess);
+    // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API is not
+    // guaranteed to use this format. In practice, it uses this format, at least
+    // in 5.3-5.5. To be on the safe side, we make sure the terminating \0 is set.
+    AddressBuffer[AddressBufferSize - 1] = '\0';
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
+                        param_value_size, param_value, param_value_size_ret,
+                        AddressBuffer);
+  }
   // TODO: Investigate if this information is available on HIP.
-  case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
@@ -1961,6 +2010,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
+  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER:
     setErrorMessage("HIP backend does not support this query",
                     PI_ERROR_INVALID_ARG_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
@@ -2470,6 +2520,35 @@ pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   return {};
 }
 
+/// Created a PI image mem object from a HIP image mem handle.
+/// TODO: Implement this.
+/// NOTE: The created PI object takes ownership of the native handle.
+///
+/// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param[in] ImageFormat The format of the image.
+/// \param[in] ImageDesc The description information for the image.
+/// \param[out] mem Set to the PI mem object created from native handle.
+///
+/// \return TBD
+pi_result hip_piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *mem) {
+  (void)nativeHandle;
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  (void)mem;
+
+  sycl::detail::pi::die(
+      "Creation of PI mem from native image handle not implemented");
+  return {};
+}
+
 /// Creates a `pi_queue` object on the HIP backend.
 /// Valid properties
 /// * __SYCL_PI_HIP_USE_DEFAULT_STREAM -> hipStreamDefault
@@ -2643,18 +2722,13 @@ pi_result hip_piQueueFlush(pi_queue command_queue) {
 ///
 /// \return PI_SUCCESS
 pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
-                                        pi_native_handle *nativeHandle) {
+                                        pi_native_handle *nativeHandle,
+                                        int32_t *NativeHandleDesc) {
+  *NativeHandleDesc = 0;
   ScopedContext active(queue->get_context());
   *nativeHandle =
       reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
-}
-
-pi_result hip_piextQueueGetNativeHandle2(pi_queue queue,
-                                         pi_native_handle *nativeHandle,
-                                         int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
-  return hip_piextQueueGetNativeHandle(queue, nativeHandle);
 }
 
 /// Created a PI queue object from a HIP queue handle.
@@ -2669,29 +2743,20 @@ pi_result hip_piextQueueGetNativeHandle2(pi_queue queue,
 ///
 ///
 /// \return TBD
-pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                               pi_context context,
-                                               pi_device device,
-                                               bool ownNativeHandle,
-                                               pi_queue *queue) {
-  (void)nativeHandle;
-  (void)context;
-  (void)device;
-  (void)queue;
-  (void)ownNativeHandle;
-  sycl::detail::pi::die(
-      "Creation of PI queue from native handle not implemented");
-  return {};
-}
-
-pi_result hip_piextQueueCreateWithNativeHandle2(
+pi_result hip_piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
     pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
     pi_queue *queue) {
+  (void)nativeHandle;
   (void)NativeHandleDesc;
+  (void)context;
+  (void)device;
+  (void)ownNativeHandle;
   (void)Properties;
-  return hip_piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                              ownNativeHandle, queue);
+  (void)queue;
+  sycl::detail::pi::die(
+      "Creation of PI queue from native handle not implemented");
+  return {};
 }
 
 pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -5584,17 +5649,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piextQueueCreate, hip_piextQueueCreate)
-  _PI_CL(piextQueueCreate2, hip_piextQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
   _PI_CL(piQueueFlush, hip_piQueueFlush)
   _PI_CL(piQueueRetain, hip_piQueueRetain)
   _PI_CL(piQueueRelease, hip_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, hip_piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, hip_piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2,
-         hip_piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, hip_piMemBufferCreate)
   _PI_CL(piMemImageCreate, hip_piMemImageCreate)

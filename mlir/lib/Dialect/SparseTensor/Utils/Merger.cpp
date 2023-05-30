@@ -213,10 +213,11 @@ Merger::Merger(unsigned numInputOutputTensors, unsigned numNativeLoops,
                 std::vector<std::optional<Level>>(numLoops, std::nullopt)),
       lvlToLoop(numTensors,
                 std::vector<std::optional<LoopId>>(maxLvlRank, std::nullopt)),
-      loopToDependencies(numLoops, std::vector<std::optional<Level>>(
-                                       numTensors, std::nullopt)),
-      levelToDependentIdx(numTensors, std::vector<std::vector<LoopId>>(
-                                          maxLvlRank, std::vector<LoopId>())),
+      loopToDependencies(
+          numLoops, std::vector<std::optional<std::pair<Level, DimLevelType>>>(
+                        numTensors, std::nullopt)),
+      levelToDependentLoop(numTensors, std::vector<std::vector<LoopId>>(
+                                           maxLvlRank, std::vector<LoopId>())),
       loopBounds(numLoops, std::make_pair(numTensors, numLoops)) {}
 
 //===----------------------------------------------------------------------===//
@@ -396,20 +397,15 @@ BitVector Merger::simplifyCond(LatSetId s0, LatPointId p0) {
     }
   }
 
-  BitVector simple(lat(p0).bits);
-  bool reset =
-      isSingleton && (hasAnySparse(simple) || hasSparseIdxReduction(simple));
-  // `be`, `b`, and `offset` are `TensorLoopId` in spirit; but we avoid
-  // using that class in this function because we need to do a bunch of
-  // arithmetic on them, so using the newtype would introduce too much
-  // boilerplate.
-  const unsigned be = simple.size();
-  unsigned offset = 0; // relative to the end
+  BitVector simple(latPoints[p0].bits);
+  bool reset = isSingleton && hasAnySparse(simple);
+  const TensorLoopId be = simple.size();
+  TensorLoopId offset = 0; // relative to the end
   if (!reset)
     // Starts resetting from a dense level, so that the first bit (if kept)
     // is not undefined level-type.
     for (unsigned b = 0; b < be; b++) {
-      if (simple[b] && isDenseDLT(getDimLevelType(TensorLoopId{b}))) {
+      if (simple[b] && isDenseDLT(getLvlType(TensorLoopId{b}))) {
         offset = be - b - 1; // relative to the end
         break;
       }
@@ -419,11 +415,10 @@ BitVector Merger::simplifyCond(LatSetId s0, LatPointId p0) {
   // keep the rightmost bit (which could possibly be a synthetic tensor).
   for (unsigned b = be - 1 - offset, i = 0; i < be;
        b = b == 0 ? be - 1 : b - 1, i++) {
-    // FIXME: better name? also slice on dense level has locate property as
-    // well. Handle it correctly!
-    if (simple[b] && !isLvlWithNonTrivialIdxExp(TensorLoopId{b})) {
-      const auto dlt = getDimLevelType(TensorLoopId{b});
-      if (!isCompressedDLT(dlt) && !isSingletonDLT(dlt)) {
+    // Slice on dense level has `locate` property as well, and can be optimized.
+    if (simple[b] && !isSparseLvlWithNonTrivialIdxExp(b)) {
+      const auto dlt = getLvlType(b);
+      if (!isCompressedDLT(dlt) && !isSingletonDLT(dlt) && !isCompressedWithHiDLT(dlt)) {
         if (reset)
           simple.reset(b);
         reset = true;
@@ -447,9 +442,9 @@ bool Merger::latGT(LatPointId i, LatPointId j) const {
 }
 
 bool Merger::onlyDenseDiff(LatPointId i, LatPointId j) const {
-  BitVector tmp(lat(j).bits);
-  tmp ^= lat(i).bits;
-  return !hasAnySparse(tmp) && !hasSparseIdxReduction(tmp);
+  BitVector tmp(latPoints[j].bits);
+  tmp ^= latPoints[i].bits;
+  return !hasAnySparse(tmp);
 }
 
 bool Merger::expContainsTensor(ExprId e, TensorId t) const {
@@ -588,19 +583,17 @@ bool Merger::isSingleCondition(TensorId t, ExprId e) const {
 }
 
 bool Merger::hasAnySparse(const BitVector &bits) const {
-  for (TensorLoopId b = 0, be = bits.size(); b < be; b++)
-    if (bits[b]) {
-      const auto dlt = getDimLevelType(b);
-      if (isCompressedDLT(dlt) || isSingletonDLT(dlt))
-        return true;
-    }
-  return false;
+  for (TensorLoopId b : bits.set_bits()) {
+    const auto dlt = getLvlType(b);
+    if (isCompressedDLT(dlt) || isSingletonDLT(dlt) || isCompressedWithHiDLT(dlt))
+      return true;
+  }
+  return hasSparseIdxReduction(bits);
 }
 
 bool Merger::hasSparseIdxReduction(const BitVector &bits) const {
-  // TODO: return false on dense levels.
-  for (unsigned b = 0, be = bits.size(); b < be; b++)
-    if (bits[b] && isLvlWithNonTrivialIdxExp(b))
+  for (TensorLoopId b : bits.set_bits())
+    if (isSparseLvlWithNonTrivialIdxExp(b))
       return true;
   return false;
 }
@@ -1068,8 +1061,8 @@ bool Merger::maybeZero(ExprId e) const {
   if (expr.kind == TensorExp::Kind::kInvariant) {
     if (auto c = expr.val.getDefiningOp<complex::ConstantOp>()) {
       ArrayAttr arrayAttr = c.getValue();
-      return arrayAttr[0].cast<FloatAttr>().getValue().isZero() &&
-             arrayAttr[1].cast<FloatAttr>().getValue().isZero();
+      return cast<FloatAttr>(arrayAttr[0]).getValue().isZero() &&
+             cast<FloatAttr>(arrayAttr[1]).getValue().isZero();
     }
     if (auto c = expr.val.getDefiningOp<arith::ConstantIntOp>())
       return c.value() == 0;
@@ -1084,7 +1077,7 @@ Type Merger::inferType(ExprId e, Value src) const {
   Type dtp = exp(e).val.getType();
   // Inspect source type. For vector types, apply the same
   // vectorization to the destination type.
-  if (auto vtp = src.getType().dyn_cast<VectorType>())
+  if (auto vtp = dyn_cast<VectorType>(src.getType()))
     return VectorType::get(vtp.getNumElements(), dtp, vtp.getNumScalableDims());
   return dtp;
 }
@@ -1092,7 +1085,7 @@ Type Merger::inferType(ExprId e, Value src) const {
 /// Ensures that sparse compiler can generate code for expression.
 static bool isAdmissibleBranchExp(Operation *op, Block *block, Value v) {
   // Arguments are always admissible.
-  if (v.isa<BlockArgument>())
+  if (isa<BlockArgument>(v))
     return true;
   // Accept index anywhere.
   Operation *def = v.getDefiningOp();
@@ -1120,7 +1113,7 @@ static bool isAdmissibleBranch(Operation *op, Region &region) {
 }
 
 std::optional<ExprId> Merger::buildTensorExp(linalg::GenericOp op, Value v) {
-  if (auto arg = v.dyn_cast<BlockArgument>()) {
+  if (auto arg = dyn_cast<BlockArgument>(v)) {
     const TensorId tid = makeTensorId(arg.getArgNumber());
     // Any argument of the generic op that is not marked as a scalar
     // argument is considered a tensor, indexed by the implicit loop
@@ -1353,8 +1346,8 @@ Value Merger::buildExp(RewriterBase &rewriter, Location loc, ExprId e, Value v0,
   case TensorExp::Kind::kAbsF:
     return rewriter.create<math::AbsFOp>(loc, v0);
   case TensorExp::Kind::kAbsC: {
-    auto type = v0.getType().cast<ComplexType>();
-    auto eltType = type.getElementType().cast<FloatType>();
+    auto type = cast<ComplexType>(v0.getType());
+    auto eltType = cast<FloatType>(type.getElementType());
     return rewriter.create<complex::AbsOp>(loc, eltType, v0);
   }
   case TensorExp::Kind::kAbsI:
@@ -1414,13 +1407,13 @@ Value Merger::buildExp(RewriterBase &rewriter, Location loc, ExprId e, Value v0,
   case TensorExp::Kind::kTruncI:
     return rewriter.create<arith::TruncIOp>(loc, inferType(e, v0), v0);
   case TensorExp::Kind::kCIm: {
-    auto type = v0.getType().cast<ComplexType>();
-    auto eltType = type.getElementType().cast<FloatType>();
+    auto type = cast<ComplexType>(v0.getType());
+    auto eltType = cast<FloatType>(type.getElementType());
     return rewriter.create<complex::ImOp>(loc, eltType, v0);
   }
   case TensorExp::Kind::kCRe: {
-    auto type = v0.getType().cast<ComplexType>();
-    auto eltType = type.getElementType().cast<FloatType>();
+    auto type = cast<ComplexType>(v0.getType());
+    auto eltType = cast<FloatType>(type.getElementType());
     return rewriter.create<complex::ReOp>(loc, eltType, v0);
   }
   case TensorExp::Kind::kBitCast:

@@ -147,7 +147,7 @@ struct alignas(8) GlobalValueSummaryInfo {
     StringRef Name;
   } U;
 
-  GlobalValueSummaryInfo(bool HaveGVs) : U(HaveGVs) {}
+  inline GlobalValueSummaryInfo(bool HaveGVs);
 
   /// List of global value summary structures for a particular value held
   /// in the GlobalValueMap. Requires a vector in the case of multiple
@@ -337,11 +337,17 @@ inline raw_ostream &operator<<(raw_ostream &OS, const CallsiteInfo &SNI) {
 }
 
 // Allocation type assigned to an allocation reached by a given context.
-// More can be added but initially this is just noncold and cold.
+// More can be added, now this is cold, notcold and hot.
 // Values should be powers of two so that they can be ORed, in particular to
 // track allocations that have different behavior with different calling
 // contexts.
-enum class AllocationType : uint8_t { None = 0, NotCold = 1, Cold = 2 };
+enum class AllocationType : uint8_t {
+  None = 0,
+  NotCold = 1,
+  Cold = 2,
+  Hot = 4,
+  All = 7 // This should always be set to the OR of all values.
+};
 
 /// Summary of a single MIB in a memprof metadata on allocations.
 struct MIBInfo {
@@ -568,6 +574,8 @@ public:
 
   friend class ModuleSummaryIndex;
 };
+
+GlobalValueSummaryInfo::GlobalValueSummaryInfo(bool HaveGVs) : U(HaveGVs) {}
 
 /// Alias summary information.
 class AliasSummary : public GlobalValueSummary {
@@ -1300,6 +1308,9 @@ private:
   /// Indicates that summary-based synthetic entry count propagation has run
   bool HasSyntheticEntryCounts = false;
 
+  /// Indicates that we linked with allocator supporting hot/cold new operators.
+  bool WithSupportsHotColdNew = false;
+
   /// Indicates that distributed backend should skip compilation of the
   /// module. Flag is suppose to be set by distributed ThinLTO indexing
   /// when it detected that the module is not needed during the final
@@ -1333,6 +1344,11 @@ private:
 
   // The total number of basic blocks in the module in the per-module summary or
   // the total number of basic blocks in the LTO unit in the combined index.
+  // FIXME: Putting this in the distributed ThinLTO index files breaks LTO
+  // backend caching on any BB change to any linked file. It is currently not
+  // used except in the case of a SamplePGO partial profile, and should be
+  // reevaluated/redesigned to allow more effective incremental builds in that
+  // case.
   uint64_t BlockCount;
 
   // List of unique stack ids (hashes). We use a 4B index of the id in the
@@ -1502,6 +1518,9 @@ public:
 
   bool hasSyntheticEntryCounts() const { return HasSyntheticEntryCounts; }
   void setHasSyntheticEntryCounts() { HasSyntheticEntryCounts = true; }
+
+  bool withSupportsHotColdNew() const { return WithSupportsHotColdNew; }
+  void setWithSupportsHotColdNew() { WithSupportsHotColdNew = true; }
 
   bool skipModuleByDistributedBackend() const {
     return SkipModuleByDistributedBackend;
@@ -1709,6 +1728,13 @@ public:
     return &*It;
   }
 
+  /// Return module entry for module with the given \p ModPath.
+  const ModuleInfo *getModule(StringRef ModPath) const {
+    auto It = ModulePathStringTable.find(ModPath);
+    assert(It != ModulePathStringTable.end() && "Module not registered");
+    return &*It;
+  }
+
   /// Check if the given Module has any functions available for exporting
   /// in the index. We consider any module present in the ModulePathStringTable
   /// to have exported functions.
@@ -1805,7 +1831,7 @@ public:
   void propagateAttributes(const DenseSet<GlobalValue::GUID> &PreservedSymbols);
 
   /// Checks if we can import global variable from another module.
-  bool canImportGlobalVar(GlobalValueSummary *S, bool AnalyzeRefs) const;
+  bool canImportGlobalVar(const GlobalValueSummary *S, bool AnalyzeRefs) const;
 };
 
 /// GraphTraits definition to build SCC for the index

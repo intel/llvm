@@ -15,6 +15,7 @@
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/image.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/platform.hpp>
@@ -76,6 +77,15 @@ template <typename DataT, int Dimensions, typename AllocatorT>
 struct owner_less<buffer<DataT, Dimensions, AllocatorT>>
     : public detail::owner_less_base<buffer<DataT, Dimensions, AllocatorT>> {};
 
+template <int Dimensions, typename AllocatorT>
+struct owner_less<unsampled_image<Dimensions, AllocatorT>>
+    : public detail::owner_less_base<unsampled_image<Dimensions, AllocatorT>> {
+};
+
+template <int Dimensions, typename AllocatorT>
+struct owner_less<sampled_image<Dimensions, AllocatorT>>
+    : public detail::owner_less_base<sampled_image<Dimensions, AllocatorT>> {};
+
 template <typename DataT, int Dimensions, access_mode AccessMode,
           target AccessTarget, access::placeholder isPlaceholder>
 struct owner_less<
@@ -91,6 +101,16 @@ struct owner_less<host_accessor<DataT, Dimensions, AccessMode>>
 template <typename DataT, int Dimensions>
 struct owner_less<local_accessor<DataT, Dimensions>>
     : public detail::owner_less_base<local_accessor<DataT, Dimensions>> {};
+
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct owner_less<host_unsampled_image_accessor<DataT, Dimensions, AccessMode>>
+    : public detail::owner_less_base<
+          host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {};
+
+template <typename DataT, int Dimensions>
+struct owner_less<host_sampled_image_accessor<DataT, Dimensions>>
+    : public detail::owner_less_base<
+          host_sampled_image_accessor<DataT, Dimensions>> {};
 
 } // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

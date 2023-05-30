@@ -17,6 +17,7 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
@@ -44,20 +45,27 @@ static bool hasAutoInitMetadata(const Instruction &I) {
                 });
 }
 
-/// Finds a BasicBlock in the CFG where instruction `I` can be moved to while
-/// not changing the Memory SSA ordering and being guarded by at least one
-/// condition.
-static BasicBlock *usersDominator(Instruction *I, DominatorTree &DT,
-                                  MemorySSA &MSSA) {
-  BasicBlock *CurrentDominator = nullptr;
+static std::optional<MemoryLocation> writeToAlloca(const Instruction &I) {
   MemoryLocation ML;
-  if (auto *MI = dyn_cast<MemIntrinsic>(I))
+  if (auto *MI = dyn_cast<MemIntrinsic>(&I))
     ML = MemoryLocation::getForDest(MI);
-  else if (auto *SI = dyn_cast<StoreInst>(I))
+  else if (auto *SI = dyn_cast<StoreInst>(&I))
     ML = MemoryLocation::get(SI);
   else
     assert(false && "memory location set");
 
+  if (isa<AllocaInst>(getUnderlyingObject(ML.Ptr)))
+    return ML;
+  else
+    return {};
+}
+
+/// Finds a BasicBlock in the CFG where instruction `I` can be moved to while
+/// not changing the Memory SSA ordering and being guarded by at least one
+/// condition.
+static BasicBlock *usersDominator(const MemoryLocation &ML, Instruction *I,
+                                  DominatorTree &DT, MemorySSA &MSSA) {
+  BasicBlock *CurrentDominator = nullptr;
   MemoryUseOrDef &IMA = *MSSA.getMemoryAccess(I);
   BatchAAResults AA(MSSA.getAA());
 
@@ -109,10 +117,14 @@ static bool runMoveAutoInit(Function &F, DominatorTree &DT, MemorySSA &MSSA) {
     if (!hasAutoInitMetadata(I))
       continue;
 
+    std::optional<MemoryLocation> ML = writeToAlloca(I);
+    if (!ML)
+      continue;
+
     if (I.isVolatile())
       continue;
 
-    BasicBlock *UsersDominator = usersDominator(&I, DT, MSSA);
+    BasicBlock *UsersDominator = usersDominator(ML.value(), &I, DT, MSSA);
     if (!UsersDominator)
       continue;
 

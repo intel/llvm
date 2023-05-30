@@ -1659,6 +1659,13 @@ void ASTDeclReader::ReadVarDeclInit(VarDecl *VD) {
     EvaluatedStmt *Eval = VD->ensureEvaluatedStmt();
     Eval->HasConstantInitialization = (Val & 2) != 0;
     Eval->HasConstantDestruction = (Val & 4) != 0;
+    Eval->WasEvaluated = (Val & 8) != 0;
+    if (Eval->WasEvaluated) {
+      Eval->Evaluated = Record.readAPValue();
+      if (Eval->Evaluated.needsCleanup())
+        Reader.getContext().addDestruction(&Eval->Evaluated);
+    }
+
     // Store the offset of the initializer. Don't deserialize it yet: it might
     // not be needed, and might refer back to the variable, for example if it
     // contains a lambda.
@@ -3091,10 +3098,14 @@ Attr *ASTRecordReader::readAttr() {
   unsigned ParsedKind = Record.readInt();
   unsigned Syntax = Record.readInt();
   unsigned SpellingIndex = Record.readInt();
+  bool IsAlignas = (ParsedKind == AttributeCommonInfo::AT_Aligned &&
+                    Syntax == AttributeCommonInfo::AS_Keyword &&
+                    SpellingIndex == AlignedAttr::Keyword_alignas);
 
-  AttributeCommonInfo Info(AttrName, ScopeName, AttrRange, ScopeLoc,
-                           AttributeCommonInfo::Kind(ParsedKind),
-                           AttributeCommonInfo::Syntax(Syntax), SpellingIndex);
+  AttributeCommonInfo Info(
+      AttrName, ScopeName, AttrRange, ScopeLoc,
+      AttributeCommonInfo::Kind(ParsedKind),
+      {AttributeCommonInfo::Syntax(Syntax), SpellingIndex, IsAlignas});
 
 #include "clang/Serialization/AttrPCHRead.inc"
 
@@ -4617,9 +4628,8 @@ void ASTDeclReader::UpdateDecl(Decl *D,
       break;
 
     case UPD_DECL_MARKED_OPENMP_THREADPRIVATE:
-      D->addAttr(OMPThreadPrivateDeclAttr::CreateImplicit(
-          Reader.getContext(), readSourceRange(),
-          AttributeCommonInfo::AS_Pragma));
+      D->addAttr(OMPThreadPrivateDeclAttr::CreateImplicit(Reader.getContext(),
+                                                          readSourceRange()));
       break;
 
     case UPD_DECL_MARKED_OPENMP_ALLOCATE: {
@@ -4629,8 +4639,7 @@ void ASTDeclReader::UpdateDecl(Decl *D,
       Expr *Alignment = Record.readExpr();
       SourceRange SR = readSourceRange();
       D->addAttr(OMPAllocateDeclAttr::CreateImplicit(
-          Reader.getContext(), AllocatorKind, Allocator, Alignment, SR,
-          AttributeCommonInfo::AS_Pragma));
+          Reader.getContext(), AllocatorKind, Allocator, Alignment, SR));
       break;
     }
 
@@ -4651,7 +4660,7 @@ void ASTDeclReader::UpdateDecl(Decl *D,
       unsigned Level = Record.readInt();
       D->addAttr(OMPDeclareTargetDeclAttr::CreateImplicit(
           Reader.getContext(), MapType, DevType, IndirectE, Indirect, Level,
-          readSourceRange(), AttributeCommonInfo::AS_Pragma));
+          readSourceRange()));
       break;
     }
 

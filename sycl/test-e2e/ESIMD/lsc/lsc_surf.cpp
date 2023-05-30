@@ -6,10 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
 // TODO : esimd_emulator does not support lsc-atomic yet
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // The test checks functionality of the lsc_block_load, lsc_prefetch,
 // lsc_gather, lsc_scatter, lsc_atomic_update accessor-based ESIMD intrinsics.

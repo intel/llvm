@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Sema/TemplateDeduction.h"
 #include "TreeTransform.h"
 #include "TypeLocBuilder.h"
 #include "clang/AST/ASTContext.h"
@@ -37,9 +36,11 @@
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Template.h"
+#include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -2881,7 +2882,7 @@ CheckDeducedArgumentConstraints(Sema &S, TemplateDeclT *Template,
   // not class-scope explicit specialization, so replace with Deduced Args
   // instead of adding to inner-most.
   if (NeedsReplacement)
-    MLTAL.replaceInnermostTemplateArguments(CanonicalDeducedArgs);
+    MLTAL.replaceInnermostTemplateArguments(Template, CanonicalDeducedArgs);
 
   if (S.CheckConstraintSatisfaction(Template, AssociatedConstraints, MLTAL,
                                     Info.getLocation(),
@@ -3591,11 +3592,28 @@ Sema::TemplateDeductionResult Sema::FinishTemplateArgumentDeduction(
   DeclContext *Owner = FunctionTemplate->getDeclContext();
   if (FunctionTemplate->getFriendObjectKind())
     Owner = FunctionTemplate->getLexicalDeclContext();
+  FunctionDecl *FD = FunctionTemplate->getTemplatedDecl();
+  // additional check for inline friend, 
+  // ```
+  //   template <class F1> int foo(F1 X);
+  //   template <int A1> struct A {
+  //     template <class F1> friend int foo(F1 X) { return A1; }
+  //   };
+  //   template struct A<1>;
+  //   int a = foo(1.0);
+  // ```
+  const FunctionDecl *FDFriend;
+  if (FD->getFriendObjectKind() == Decl::FriendObjectKind::FOK_None &&
+      FD->isDefined(FDFriend, /*CheckForPendingFriendDefinition*/ true) &&
+      FDFriend->getFriendObjectKind() != Decl::FriendObjectKind::FOK_None) {
+    FD = const_cast<FunctionDecl *>(FDFriend);
+    Owner = FD->getLexicalDeclContext();
+  }
   MultiLevelTemplateArgumentList SubstArgs(
       FunctionTemplate, CanonicalDeducedArgumentList->asArray(),
       /*Final=*/false);
   Specialization = cast_or_null<FunctionDecl>(
-      SubstDecl(FunctionTemplate->getTemplatedDecl(), Owner, SubstArgs));
+      SubstDecl(FD, Owner, SubstArgs));
   if (!Specialization || Specialization->isInvalidDecl())
     return TDK_SubstitutionFailure;
 

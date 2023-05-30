@@ -40,6 +40,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/TargetParser/RISCVTargetParser.h"
 #include <bitset>
 #include <optional>
 
@@ -3660,7 +3661,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::FunctionalCast:
       if (isa<DeducedTemplateSpecializationType>(Deduced))
         break;
-      if (SemaRef.getLangOpts().CPlusPlus2b && IsCXXAutoType &&
+      if (SemaRef.getLangOpts().CPlusPlus23 && IsCXXAutoType &&
           !Auto->isDecltypeAuto())
         break; // auto(x)
       [[fallthrough]];
@@ -4569,7 +4570,7 @@ static bool hasOuterPointerLikeChunk(const Declarator &D, unsigned endIndex) {
   return false;
 }
 
-static bool IsNoDerefableChunk(DeclaratorChunk Chunk) {
+static bool IsNoDerefableChunk(const DeclaratorChunk &Chunk) {
   return (Chunk.Kind == DeclaratorChunk::Pointer ||
           Chunk.Kind == DeclaratorChunk::Array);
 }
@@ -4909,12 +4910,12 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
 
     // If we're supposed to infer nullability, do so now.
     if (inferNullability && !inferNullabilityInnerOnlyComplete) {
-      ParsedAttr::Syntax syntax = inferNullabilityCS
-                                      ? ParsedAttr::AS_ContextSensitiveKeyword
-                                      : ParsedAttr::AS_Keyword;
+      ParsedAttr::Form form =
+          inferNullabilityCS ? ParsedAttr::Form::ContextSensitiveKeyword()
+                             : ParsedAttr::Form::Keyword(false /*IsAlignAs*/);
       ParsedAttr *nullabilityAttr = Pool.create(
           S.getNullabilityKeyword(*inferNullability), SourceRange(pointerLoc),
-          nullptr, SourceLocation(), nullptr, 0, syntax);
+          nullptr, SourceLocation(), nullptr, 0, form);
 
       attrs.addAtEnd(nullabilityAttr);
 
@@ -5145,17 +5146,6 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ATI.TypeQuals = 0;
           D.setInvalidType(true);
         }
-      }
-      const AutoType *AT = T->getContainedAutoType();
-      // Allow arrays of auto if we are a generic lambda parameter.
-      // i.e. [](auto (&array)[5]) { return array[0]; }; OK
-      if (AT && D.getContext() != DeclaratorContext::LambdaExprParameter) {
-        // We've already diagnosed this for decltype(auto).
-        if (!AT->isDecltypeAuto())
-          S.Diag(DeclType.Loc, diag::err_illegal_decl_array_of_auto)
-              << getPrintableNameForEntity(Name) << T;
-        T = QualType();
-        break;
       }
 
       // Array parameters can be marked nullable as well, although it's not
@@ -6052,7 +6042,7 @@ static void transferARCOwnershipToDeclaratorChunk(TypeProcessingState &state,
   ParsedAttr *attr = D.getAttributePool().create(
       &S.Context.Idents.get("objc_ownership"), SourceLocation(),
       /*scope*/ nullptr, SourceLocation(),
-      /*args*/ &Args, 1, ParsedAttr::AS_GNU);
+      /*args*/ &Args, 1, ParsedAttr::Form::GNU());
   chunk.getAttrs().addAtEnd(attr);
   // TODO: mark whether we did this inference?
 }
@@ -8384,6 +8374,68 @@ static void HandleArmMveStrictPolymorphismAttr(TypeProcessingState &State,
                               CurType, CurType);
 }
 
+/// HandleRISCVRVVVectorBitsTypeAttr - The "riscv_rvv_vector_bits" attribute is
+/// used to create fixed-length versions of sizeless RVV types such as
+/// vint8m1_t_t.
+static void HandleRISCVRVVVectorBitsTypeAttr(QualType &CurType,
+                                             ParsedAttr &Attr, Sema &S) {
+  // Target must have vector extension.
+  if (!S.Context.getTargetInfo().hasFeature("zve32x")) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_unsupported)
+        << Attr << "'zve32x'";
+    Attr.setInvalid();
+    return;
+  }
+
+  auto VScale = S.Context.getTargetInfo().getVScaleRange(S.getLangOpts());
+  if (!VScale || !VScale->first || VScale->first != VScale->second) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_riscv_rvv_bits_unsupported)
+        << Attr;
+    Attr.setInvalid();
+    return;
+  }
+
+  // Check the attribute arguments.
+  if (Attr.getNumArgs() != 1) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_wrong_number_arguments)
+        << Attr << 1;
+    Attr.setInvalid();
+    return;
+  }
+
+  // The vector size must be an integer constant expression.
+  llvm::APSInt RVVVectorSizeInBits(32);
+  if (!verifyValidIntegerConstantExpr(S, Attr, RVVVectorSizeInBits))
+    return;
+
+  // Attribute can only be attached to a single RVV vector type.
+  if (!CurType->isRVVVLSBuiltinType()) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_invalid_rvv_type)
+        << Attr << CurType;
+    Attr.setInvalid();
+    return;
+  }
+
+  unsigned VecSize = static_cast<unsigned>(RVVVectorSizeInBits.getZExtValue());
+
+  ASTContext::BuiltinVectorTypeInfo Info =
+      S.Context.getBuiltinVectorTypeInfo(CurType->getAs<BuiltinType>());
+  unsigned EltSize = S.Context.getTypeSize(Info.ElementType);
+  unsigned MinElts = Info.EC.getKnownMinValue();
+
+  // The attribute vector size must match -mrvv-vector-bits.
+  if (VecSize != VScale->first * MinElts * EltSize) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_bad_rvv_vector_size)
+        << VecSize << VScale->first * llvm::RISCV::RVVBitsPerBlock;
+    Attr.setInvalid();
+    return;
+  }
+
+  VectorType::VectorKind VecKind = VectorType::RVVFixedLengthDataVector;
+  VecSize /= EltSize;
+  CurType = S.Context.getVectorType(Info.ElementType, VecSize, VecKind);
+}
+
 /// Handle OpenCL Access Qualifier Attribute.
 static void HandleOpenCLAccessAttr(QualType &CurType, const ParsedAttr &Attr,
                                    Sema &S) {
@@ -8632,6 +8684,10 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       attr.setUsedAsTypeAttr();
       break;
     }
+    case ParsedAttr::AT_RISCVRVVVectorBits:
+      HandleRISCVRVVVectorBitsTypeAttr(type, attr, state.getSema());
+      attr.setUsedAsTypeAttr();
+      break;
     case ParsedAttr::AT_OpenCLAccess:
       HandleOpenCLAccessAttr(type, attr, state.getSema());
       attr.setUsedAsTypeAttr();
@@ -9075,8 +9131,7 @@ static void assignInheritanceModel(Sema &S, CXXRecordDecl *RD) {
                           ? S.ImplicitMSInheritanceAttrLoc
                           : RD->getSourceRange();
     RD->addAttr(MSInheritanceAttr::CreateImplicit(
-        S.getASTContext(), BestCase, Loc, AttributeCommonInfo::AS_Microsoft,
-        MSInheritanceAttr::Spelling(IM)));
+        S.getASTContext(), BestCase, Loc, MSInheritanceAttr::Spelling(IM)));
     S.Consumer.AssignInheritanceModel(RD);
   }
 }

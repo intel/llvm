@@ -523,7 +523,7 @@ static bool threadSafetyCheckIsSmartPointer(Sema &S, const RecordType* RT) {
   if (!CXXRecord)
     return false;
 
-  for (auto BaseSpecifier : CXXRecord->bases()) {
+  for (const auto &BaseSpecifier : CXXRecord->bases()) {
     if (!foundStarOperator)
       foundStarOperator = IsOverloadedOperatorPresent(
           BaseSpecifier.getType()->getAsRecordDecl(), OO_Star);
@@ -11274,14 +11274,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
 
   // Ignore C++11 attributes on declarator chunks: they appertain to the type
   // instead.
-  // FIXME: We currently check the attribute syntax directly instead of using
-  // isCXX11Attribute(), which currently erroneously classifies the C11
-  // `_Alignas` attribute as a C++11 attribute. `_Alignas` can appear on the
-  // `DeclSpec`, so we need to let it through here to make sure it is processed
-  // appropriately. Once the behavior of isCXX11Attribute() is fixed, we can
-  // go back to using that here.
-  if (AL.getSyntax() == ParsedAttr::AS_CXX11 &&
-      !Options.IncludeCXX11Attributes &&
+  if (AL.isCXX11Attribute() && !Options.IncludeCXX11Attributes &&
       (!IsDeclLambdaCallOperator(D) || !AL.supportsNonconformingLambdaSyntax()))
     return;
 
@@ -12369,8 +12362,7 @@ void Sema::DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, const WeakInfo &W) {
     NamedDecl *NewD = DeclClonePragmaWeak(ND, W.getAlias(), W.getLocation());
     NewD->addAttr(
         AliasAttr::CreateImplicit(Context, NDId->getName(), W.getLocation()));
-    NewD->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation(),
-                                           AttributeCommonInfo::AS_Pragma));
+    NewD->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation()));
     WeakTopLevelDecl.push_back(NewD);
     // FIXME: "hideous" code from Sema::LazilyCreateBuiltin
     // to insert Decl at TU scope, sorry.
@@ -12381,8 +12373,7 @@ void Sema::DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, const WeakInfo &W) {
     PushOnScopeChains(NewD, S);
     CurContext = SavedContext;
   } else { // just add weak to existing
-    ND->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation(),
-                                         AttributeCommonInfo::AS_Pragma));
+    ND->addAttr(WeakAttr::CreateImplicit(Context, W.getLocation()));
   }
 }
 

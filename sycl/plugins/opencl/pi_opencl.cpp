@@ -27,6 +27,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -61,7 +62,7 @@ CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+CONSTFIX char clEnqueueMemFillName[] = "clEnqueueMemFillINTEL";
 CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
@@ -186,16 +187,72 @@ static cl_int checkDeviceExtensions(cl_device_id dev,
   return ret_err;
 }
 
+using clGetDeviceFunctionPointer_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
+                      const char *FuncName, cl_ulong *ret_ptr);
+
+using clEnqueueWriteGlobalVariable_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
+                      size_t, size_t, const void *, cl_uint, const cl_event *,
+                      cl_event *);
+
+using clEnqueueReadGlobalVariable_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
+                      size_t, size_t, void *, cl_uint, const cl_event *,
+                      cl_event *);
+
+using clSetProgramSpecializationConstant_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_program program, cl_uint spec_id, size_t spec_size,
+                      const void *spec_value);
+
+template <typename T> struct FuncPtrCache {
+  std::map<cl_context, T> Map;
+  std::mutex Mutex;
+};
+
+// FIXME: There's currently no mechanism for cleaning up this cache, meaning
+// that it is invalidated whenever a context is destroyed. This could lead to
+// reusing an invalid function pointer if another context happends to have the
+// same native handle.
+struct ExtFuncPtrCacheT {
+  FuncPtrCache<clHostMemAllocINTEL_fn> clHostMemAllocINTELCache;
+  FuncPtrCache<clDeviceMemAllocINTEL_fn> clDeviceMemAllocINTELCache;
+  FuncPtrCache<clSharedMemAllocINTEL_fn> clSharedMemAllocINTELCache;
+  FuncPtrCache<clGetDeviceFunctionPointer_fn> clGetDeviceFunctionPointerCache;
+  FuncPtrCache<clCreateBufferWithPropertiesINTEL_fn>
+      clCreateBufferWithPropertiesINTELCache;
+  FuncPtrCache<clMemBlockingFreeINTEL_fn> clMemBlockingFreeINTELCache;
+  FuncPtrCache<clSetKernelArgMemPointerINTEL_fn>
+      clSetKernelArgMemPointerINTELCache;
+  FuncPtrCache<clEnqueueMemFillINTEL_fn> clEnqueueMemFillINTELCache;
+  FuncPtrCache<clEnqueueMemcpyINTEL_fn> clEnqueueMemcpyINTELCache;
+  FuncPtrCache<clGetMemAllocInfoINTEL_fn> clGetMemAllocInfoINTELCache;
+  FuncPtrCache<clEnqueueWriteGlobalVariable_fn>
+      clEnqueueWriteGlobalVariableCache;
+  FuncPtrCache<clEnqueueReadGlobalVariable_fn> clEnqueueReadGlobalVariableCache;
+  FuncPtrCache<clEnqueueReadHostPipeINTEL_fn> clEnqueueReadHostPipeINTELCache;
+  FuncPtrCache<clEnqueueWriteHostPipeINTEL_fn> clEnqueueWriteHostPipeINTELCache;
+  FuncPtrCache<clSetProgramSpecializationConstant_fn>
+      clSetProgramSpecializationConstantCache;
+};
+// A raw pointer is used here since the lifetime of this map has to be tied to
+// piTeardown to avoid issues with static destruction order (a user application
+// might have static objects that indirectly access this cache in their
+// destructor).
+static ExtFuncPtrCacheT *ExtFuncPtrCache = new ExtFuncPtrCacheT();
+
 // USM helper function to get an extension function pointer
-template <const char *FuncName, typename T>
-static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
+template <typename T>
+static pi_result getExtFuncFromContext(cl_context context,
+                                       FuncPtrCache<T> &FPtrCache,
+                                       const char *FuncName, T *fptr) {
   // TODO
   // Potentially redo caching as PI interface changes.
-  thread_local static std::map<pi_context, T> FuncPtrs;
-
   // if cached, return cached FuncPtr
-  auto It = FuncPtrs.find(context);
-  if (It != FuncPtrs.end()) {
+  std::lock_guard<std::mutex> CacheLock{FPtrCache.Mutex};
+  std::map<cl_context, T> &FPtrMap = FPtrCache.Map;
+  auto It = FPtrMap.find(context);
+  if (It != FPtrMap.end()) {
     auto F = It->second;
     // if cached that extension is not available return nullptr and
     // PI_ERROR_INVALID_VALUE
@@ -204,16 +261,15 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   }
 
   cl_uint deviceCount;
-  cl_int ret_err =
-      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
-                       sizeof(cl_uint), &deviceCount, nullptr);
+  cl_int ret_err = clGetContextInfo(context, CL_CONTEXT_NUM_DEVICES,
+                                    sizeof(cl_uint), &deviceCount, nullptr);
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
     return PI_ERROR_INVALID_CONTEXT;
   }
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
-  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
+  ret_err = clGetContextInfo(context, CL_CONTEXT_DEVICES,
                              deviceCount * sizeof(cl_device_id),
                              devicesInCtx.data(), nullptr);
 
@@ -234,12 +290,12 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
 
   if (!FuncPtr) {
     // Cache that the extension is not available
-    FuncPtrs[context] = nullptr;
+    FPtrMap[context] = nullptr;
     return PI_ERROR_INVALID_VALUE;
   }
 
   *fptr = FuncPtr;
-  FuncPtrs[context] = FuncPtr;
+  FPtrMap[context] = FuncPtr;
 
   return cast<pi_result>(ret_err);
 }
@@ -262,24 +318,27 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
     return cast<pi_result>(CLErr);
   }
 
-  getExtFuncFromContext<clHostMemAllocName, clHostMemAllocINTEL_fn>(
-      cast<pi_context>(CLContext), &HFunc);
+  getExtFuncFromContext<clHostMemAllocINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clHostMemAllocINTELCache, clHostMemAllocName,
+      &HFunc);
   if (HFunc) {
     clSetKernelExecInfo(cast<cl_kernel>(kernel),
                         CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
                         sizeof(cl_bool), &TrueVal);
   }
 
-  getExtFuncFromContext<clDeviceMemAllocName, clDeviceMemAllocINTEL_fn>(
-      cast<pi_context>(CLContext), &DFunc);
+  getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clDeviceMemAllocINTELCache,
+      clDeviceMemAllocName, &DFunc);
   if (DFunc) {
     clSetKernelExecInfo(cast<cl_kernel>(kernel),
                         CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
                         sizeof(cl_bool), &TrueVal);
   }
 
-  getExtFuncFromContext<clSharedMemAllocName, clSharedMemAllocINTEL_fn>(
-      cast<pi_context>(CLContext), &SFunc);
+  getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clSharedMemAllocINTELCache,
+      clSharedMemAllocName, &SFunc);
   if (SFunc) {
     clSetKernelExecInfo(cast<cl_kernel>(kernel),
                         CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
@@ -312,7 +371,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_UUID:
     return PI_ERROR_INVALID_VALUE;
   case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    // This query is missing beore OpenCL 3.0
+    // This query is missing before OpenCL 3.0
     // Check version and handle appropriately
     OCLV::OpenCLVersion devVer;
     cl_device_id deviceID = cast<cl_device_id>(device);
@@ -546,7 +605,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
-    cl_bool result = CL_FALSE;
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
     bool supported = false;
 
     ret_err = checkDeviceExtensions(
@@ -557,18 +618,22 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
-    cl_bool result = false;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
-    cl_bool result = true;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = true;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
@@ -578,8 +643,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     // FIXME: here we assume that program built for a root GPU device can be
     // used on its sub-devices without re-building
-    cl_bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
@@ -644,6 +711,33 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     return static_cast<pi_result>(CL_SUCCESS);
   }
+  case PI_DEVICE_INFO_BACKEND_VERSION: {
+    // TODO: return some meaningful for backend_version below
+    const char *value = "";
+    size_t valueSize = (strlen(value) + 1) * sizeof(char);
+    if (paramValue)
+      std::memcpy(paramValue, value, valueSize);
+    if (paramValueSizeRet != nullptr)
+      *paramValueSizeRet = valueSize;
+    return PI_SUCCESS;
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    cl_int ret_err = CL_SUCCESS;
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    bool supported = false;
+
+    ret_err =
+        checkDeviceExtensions(cast<cl_device_id>(device),
+                              {"cl_intel_mem_channel_property"}, supported);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    result = supported;
+    std::memcpy(paramValue, &result, sizeof(result));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -665,6 +759,32 @@ pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     result = PI_SUCCESS;
   }
   return static_cast<pi_result>(result);
+}
+
+pi_result piPlatformGetInfo(pi_platform platform, pi_platform_info paramName,
+                            size_t paramValueSize, void *paramValue,
+                            size_t *paramValueSizeRet) {
+
+  switch (paramName) {
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    pi_platform_backend result = PI_EXT_PLATFORM_BACKEND_OPENCL;
+    if (paramValue) {
+      if (paramValueSize < sizeof(result))
+        return PI_ERROR_INVALID_VALUE;
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  default: {
+    cl_int result = clGetPlatformInfo(
+        cast<cl_platform_id>(platform), cast<cl_platform_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -852,24 +972,17 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_device,
-                                           bool ownNativeHandle,
+                                           int32_t NativeHandleDesc, pi_context,
+                                           pi_device, bool ownNativeHandle,
+                                           pi_queue_properties *Properties,
                                            pi_queue *piQueue) {
+  (void)NativeHandleDesc;
   (void)ownNativeHandle;
+  (void)Properties;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   clRetainCommandQueue(cast<cl_command_queue>(nativeHandle));
   return PI_SUCCESS;
-}
-
-pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
-    pi_queue *piQueue) {
-  (void)NativeHandleDesc;
-  (void)Properties;
-  return piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                          ownNativeHandle, piQueue);
 }
 
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
@@ -1049,9 +1162,6 @@ static bool is_in_separated_string(const std::string &str, char delimiter,
   return false;
 }
 
-typedef CL_API_ENTRY cl_int(CL_API_CALL *clGetDeviceFunctionPointer_fn)(
-    cl_device_id device, cl_program program, const char *FuncName,
-    cl_ulong *ret_ptr);
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
@@ -1065,9 +1175,9 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
     return cast<pi_result>(ret_err);
 
   clGetDeviceFunctionPointer_fn FuncT = nullptr;
-  ret_err = getExtFuncFromContext<clGetDeviceFunctionPointerName,
-                                  clGetDeviceFunctionPointer_fn>(
-      cast<pi_context>(CLContext), &FuncT);
+  ret_err = getExtFuncFromContext<clGetDeviceFunctionPointer_fn>(
+      CLContext, ExtFuncPtrCache->clGetDeviceFunctionPointerCache,
+      clGetDeviceFunctionPointerName, &FuncT);
 
   pi_result pi_ret_err = PI_SUCCESS;
 
@@ -1183,14 +1293,15 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
     // TODO: need to check if all properties are supported by OpenCL RT and
     // ignore unsupported
     clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
+    cl_context CLContext = cast<cl_context>(context);
     // First we need to look up the function pointer
-    ret_err = getExtFuncFromContext<clCreateBufferWithPropertiesName,
-                                    clCreateBufferWithPropertiesINTEL_fn>(
-        context, &FuncPtr);
+    ret_err = getExtFuncFromContext<clCreateBufferWithPropertiesINTEL_fn>(
+        CLContext, ExtFuncPtrCache->clCreateBufferWithPropertiesINTELCache,
+        clCreateBufferWithPropertiesName, &FuncPtr);
     if (FuncPtr) {
-      *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
-                                      cast<cl_mem_flags>(flags), size, host_ptr,
-                                      cast<cl_int *>(&ret_err)));
+      *ret_mem =
+          cast<pi_mem>(FuncPtr(CLContext, properties, cast<cl_mem_flags>(flags),
+                               size, host_ptr, cast<cl_int *>(&ret_err)));
       return ret_err;
     }
   }
@@ -1234,6 +1345,19 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
+  return PI_SUCCESS;
+}
+
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *Img) {
+  (void)context;
+  (void)ownNativeHandle;
+  (void)ImageFormat;
+  (void)ImageDesc;
+  assert(Img != nullptr);
+  *Img = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
 }
 
@@ -1362,14 +1486,25 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
       ret_val = 0; // Not specified by kernel
       ret_err = CL_SUCCESS;
     } else if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
-      // Return the maximum work group size for the kernel
-      size_t kernel_work_group_size = 0;
-      pi_result pi_ret_err = piKernelGetGroupInfo(
-          kernel, device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
-          &kernel_work_group_size, nullptr);
-      if (pi_ret_err != PI_SUCCESS)
+      // Return the maximum sub group size for the device
+      size_t result_size = 0;
+      // Two calls to piDeviceGetInfo are needed: the first determines the size
+      // required to store the result, and the second returns the actual size
+      // values.
+      pi_result pi_ret_err =
+          piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0,
+                          nullptr, &result_size);
+      if (pi_ret_err != PI_SUCCESS) {
         return pi_ret_err;
-      ret_val = kernel_work_group_size;
+      }
+      assert(result_size % sizeof(size_t) == 0);
+      std::vector<size_t> result(result_size / sizeof(size_t));
+      pi_ret_err = piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
+                                   result_size, result.data(), nullptr);
+      if (pi_ret_err != PI_SUCCESS) {
+        return pi_ret_err;
+      }
+      ret_val = *std::max_element(result.begin(), result.end());
       ret_err = CL_SUCCESS;
     } else if (param_name == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
       ret_val = 0; // Not specified by kernel
@@ -1452,13 +1587,14 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 
   // First we need to look up the function pointer
   clHostMemAllocINTEL_fn FuncPtr = nullptr;
-  RetVal = getExtFuncFromContext<clHostMemAllocName, clHostMemAllocINTEL_fn>(
-      context, &FuncPtr);
+  cl_context CLContext = cast<cl_context>(context);
+  RetVal = getExtFuncFromContext<clHostMemAllocINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clHostMemAllocINTELCache, clHostMemAllocName,
+      &FuncPtr);
 
   if (FuncPtr) {
-    Ptr = FuncPtr(cast<cl_context>(context),
-                  cast<cl_mem_properties_intel *>(properties), size, alignment,
-                  cast<cl_int *>(&RetVal));
+    Ptr = FuncPtr(CLContext, cast<cl_mem_properties_intel *>(properties), size,
+                  alignment, cast<cl_int *>(&RetVal));
   }
 
   *result_ptr = Ptr;
@@ -1489,12 +1625,13 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
   // First we need to look up the function pointer
   clDeviceMemAllocINTEL_fn FuncPtr = nullptr;
-  RetVal =
-      getExtFuncFromContext<clDeviceMemAllocName, clDeviceMemAllocINTEL_fn>(
-          context, &FuncPtr);
+  cl_context CLContext = cast<cl_context>(context);
+  RetVal = getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clDeviceMemAllocINTELCache,
+      clDeviceMemAllocName, &FuncPtr);
 
   if (FuncPtr) {
-    Ptr = FuncPtr(cast<cl_context>(context), cast<cl_device_id>(device),
+    Ptr = FuncPtr(CLContext, cast<cl_device_id>(device),
                   cast<cl_mem_properties_intel *>(properties), size, alignment,
                   cast<cl_int *>(&RetVal));
   }
@@ -1527,9 +1664,10 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
 
   // First we need to look up the function pointer
   clSharedMemAllocINTEL_fn FuncPtr = nullptr;
-  RetVal =
-      getExtFuncFromContext<clSharedMemAllocName, clSharedMemAllocINTEL_fn>(
-          context, &FuncPtr);
+  cl_context CLContext = cast<cl_context>(context);
+  RetVal = getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clSharedMemAllocINTELCache,
+      clSharedMemAllocName, &FuncPtr);
 
   if (FuncPtr) {
     Ptr = FuncPtr(cast<cl_context>(context), cast<cl_device_id>(device),
@@ -1554,13 +1692,14 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
   // might be still running.
   clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
 
+  cl_context CLContext = cast<cl_context>(context);
   pi_result RetVal = PI_ERROR_INVALID_OPERATION;
-  RetVal =
-      getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
-          context, &FuncPtr);
+  RetVal = getExtFuncFromContext<clMemBlockingFreeINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clMemBlockingFreeINTELCache,
+      clMemBlockingFreeName, &FuncPtr);
 
   if (FuncPtr) {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
+    RetVal = cast<pi_result>(FuncPtr(CLContext, ptr));
   }
 
   return RetVal;
@@ -1588,9 +1727,9 @@ pi_result piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
   }
 
   clSetKernelArgMemPointerINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal = getExtFuncFromContext<clSetKernelArgMemPointerName,
-                                           clSetKernelArgMemPointerINTEL_fn>(
-      cast<pi_context>(CLContext), &FuncPtr);
+  pi_result RetVal = getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clSetKernelArgMemPointerINTELCache,
+      clSetKernelArgMemPointerName, &FuncPtr);
 
   if (FuncPtr) {
     // OpenCL passes pointers by value not by reference
@@ -1628,14 +1767,14 @@ pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     return cast<pi_result>(CLErr);
   }
 
-  clEnqueueMemsetINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal =
-      getExtFuncFromContext<clEnqueueMemsetName, clEnqueueMemsetINTEL_fn>(
-          cast<pi_context>(CLContext), &FuncPtr);
+  clEnqueueMemFillINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clEnqueueMemFillINTELCache,
+      clEnqueueMemFillName, &FuncPtr);
 
   if (FuncPtr) {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, value,
-                                     count, num_events_in_waitlist,
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, &value,
+                                     1, count, num_events_in_waitlist,
                                      cast<const cl_event *>(events_waitlist),
                                      cast<cl_event *>(event)));
   }
@@ -1669,9 +1808,9 @@ pi_result piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking, void *dst_ptr,
   }
 
   clEnqueueMemcpyINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal =
-      getExtFuncFromContext<clEnqueueMemcpyName, clEnqueueMemcpyINTEL_fn>(
-          cast<pi_context>(CLContext), &FuncPtr);
+  pi_result RetVal = getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clEnqueueMemcpyINTELCache,
+      clEnqueueMemcpyName, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(
@@ -1895,9 +2034,10 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                                   size_t *param_value_size_ret) {
 
   clGetMemAllocInfoINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal =
-      getExtFuncFromContext<clGetMemAllocInfoName, clGetMemAllocInfoINTEL_fn>(
-          context, &FuncPtr);
+  cl_context CLContext = cast<cl_context>(context);
+  pi_result RetVal = getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clGetMemAllocInfoINTELCache,
+      clGetMemAllocInfoName, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr, param_name,
@@ -1907,14 +2047,6 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 
   return RetVal;
 }
-
-typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueWriteGlobalVariable_fn)(
-    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t,
-    const void *, cl_uint, const cl_event *, cl_event *);
-
-typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueReadGlobalVariable_fn)(
-    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t, void *,
-    cl_uint, const cl_event *, cl_event *);
 
 /// API for writing data from host to a device global variable.
 ///
@@ -1943,8 +2075,9 @@ pi_result piextEnqueueDeviceGlobalVariableWrite(
     return cast<pi_result>(Res);
 
   clEnqueueWriteGlobalVariable_fn F = nullptr;
-  Res = getExtFuncFromContext<clEnqueueWriteGlobalVariableName, decltype(F)>(
-      cast<pi_context>(Ctx), &F);
+  Res = getExtFuncFromContext<decltype(F)>(
+      Ctx, ExtFuncPtrCache->clEnqueueWriteGlobalVariableCache,
+      clEnqueueWriteGlobalVariableName, &F);
 
   if (!F || Res != CL_SUCCESS)
     return PI_ERROR_INVALID_OPERATION;
@@ -1980,8 +2113,9 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
     return cast<pi_result>(Res);
 
   clEnqueueReadGlobalVariable_fn F = nullptr;
-  Res = getExtFuncFromContext<clEnqueueReadGlobalVariableName, decltype(F)>(
-      cast<pi_context>(Ctx), &F);
+  Res = getExtFuncFromContext<decltype(F)>(
+      Ctx, ExtFuncPtrCache->clEnqueueReadGlobalVariableCache,
+      clEnqueueReadGlobalVariableName, &F);
 
   if (!F || Res != CL_SUCCESS)
     return PI_ERROR_INVALID_OPERATION;
@@ -2006,9 +2140,9 @@ pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
   }
 
   clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal = getExtFuncFromContext<clEnqueueReadHostPipeName,
-                                           clEnqueueReadHostPipeINTEL_fn>(
-      cast<pi_context>(CLContext), &FuncPtr);
+  pi_result RetVal = getExtFuncFromContext<clEnqueueReadHostPipeINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clEnqueueReadHostPipeINTELCache,
+      clEnqueueReadHostPipeName, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(
@@ -2035,9 +2169,9 @@ pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
   }
 
   clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal = getExtFuncFromContext<clEnqueueWriteHostPipeName,
-                                           clEnqueueWriteHostPipeINTEL_fn>(
-      cast<pi_context>(CLContext), &FuncPtr);
+  pi_result RetVal = getExtFuncFromContext<clEnqueueWriteHostPipeINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clEnqueueWriteHostPipeINTELCache,
+      clEnqueueWriteHostPipeName, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(
@@ -2072,10 +2206,6 @@ pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info param_name,
   }
 }
 
-typedef CL_API_ENTRY cl_int(CL_API_CALL *clSetProgramSpecializationConstant_fn)(
-    cl_program program, cl_uint spec_id, size_t spec_size,
-    const void *spec_value);
-
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
                                                 pi_uint32 spec_id,
                                                 size_t spec_size,
@@ -2090,8 +2220,9 @@ pi_result piextProgramSetSpecializationConstant(pi_program prog,
     return cast<pi_result>(Res);
 
   clSetProgramSpecializationConstant_fn F = nullptr;
-  Res = getExtFuncFromContext<clSetProgramSpecializationConstantName,
-                              decltype(F)>(cast<pi_context>(Ctx), &F);
+  Res = getExtFuncFromContext<decltype(F)>(
+      Ctx, ExtFuncPtrCache->clSetProgramSpecializationConstantCache,
+      clSetProgramSpecializationConstantName, &F);
 
   if (!F || Res != CL_SUCCESS)
     return PI_ERROR_INVALID_OPERATION;
@@ -2128,14 +2259,9 @@ pi_result piextContextGetNativeHandle(pi_context context,
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue queue,
-                                    pi_native_handle *nativeHandle) {
-  return piextGetNativeHandle(queue, nativeHandle);
-}
-
-pi_result piextQueueGetNativeHandle2(pi_queue queue,
-                                     pi_native_handle *nativeHandle,
-                                     int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
+                                    pi_native_handle *nativeHandle,
+                                    int32_t *nativeHandleDesc) {
+  *nativeHandleDesc = 0;
   return piextGetNativeHandle(queue, nativeHandle);
 }
 
@@ -2157,11 +2283,13 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
-// pi_level_zero.cpp for reference) Currently this is just a NOOP.
+// pi_level_zero.cpp for reference).
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
+  delete ExtFuncPtrCache;
+  ExtFuncPtrCache = nullptr;
   return PI_SUCCESS;
 }
 
@@ -2222,7 +2350,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Platform
   _PI_CL(piPlatformsGet, piPlatformsGet)
-  _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
+  _PI_CL(piPlatformGetInfo, piPlatformGetInfo)
   _PI_CL(piextPlatformGetNativeHandle, piextPlatformGetNativeHandle)
   _PI_CL(piextPlatformCreateWithNativeHandle,
          piextPlatformCreateWithNativeHandle)
@@ -2246,16 +2374,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
   _PI_CL(piextQueueCreate, piextQueueCreate)
-  _PI_CL(piextQueueCreate2, piextQueueCreate)
   _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
   _PI_CL(piextQueueGetNativeHandle, piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2, piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, piMemBufferCreate)
   _PI_CL(piMemImageCreate, piMemImageCreate)

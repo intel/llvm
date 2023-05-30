@@ -186,7 +186,7 @@ inline void addExternalNameConversionPass(
 /// \param pm - MLIR pass manager that will hold the pipeline definition
 inline void createDefaultFIROptimizerPassPipeline(mlir::PassManager &pm,
     llvm::OptimizationLevel optLevel = defaultOptLevel,
-    bool stackArrays = false) {
+    bool stackArrays = false, bool loopVersioning = false) {
   // simplify the IR
   mlir::GreedyRewriteConfig config;
   config.enableRegionSimplification = false;
@@ -200,6 +200,10 @@ inline void createDefaultFIROptimizerPassPipeline(mlir::PassManager &pm,
     pm.addPass(fir::createSimplifyIntrinsicsPass());
     pm.addPass(fir::createAlgebraicSimplificationPass(config));
   }
+
+  if (loopVersioning)
+    pm.addPass(fir::createLoopVersioningPass());
+
   pm.addPass(mlir::createCSEPass());
 
   if (stackArrays)
@@ -234,8 +238,12 @@ inline void createDefaultFIROptimizerPassPipeline(mlir::PassManager &pm,
 ///   passes pipeline
 inline void createHLFIRToFIRPassPipeline(
     mlir::PassManager &pm, llvm::OptimizationLevel optLevel = defaultOptLevel) {
-  if (optLevel.isOptimizingForSpeed())
+  if (optLevel.isOptimizingForSpeed()) {
     addCanonicalizerPassWithoutRegionSimplification(pm);
+    pm.addPass(hlfir::createSimplifyHLFIRIntrinsicsPass());
+  }
+  pm.addPass(hlfir::createInlineElementalsPass());
+  pm.addPass(hlfir::createLowerHLFIROrderedAssignmentsPass());
   pm.addPass(hlfir::createLowerHLFIRIntrinsicsPass());
   pm.addPass(hlfir::createBufferizeHLFIRPass());
   pm.addPass(hlfir::createConvertHLFIRtoFIRPass());
@@ -283,11 +291,13 @@ inline void createDefaultFIRCodeGenPassPipeline(mlir::PassManager &pm,
 inline void createMLIRToLLVMPassPipeline(mlir::PassManager &pm,
     llvm::OptimizationLevel optLevel = defaultOptLevel,
     bool stackArrays = false, bool underscoring = true,
+    bool loopVersioning = false,
     llvm::codegenoptions::DebugInfoKind debugInfo = NoDebugInfo) {
   fir::createHLFIRToFIRPassPipeline(pm, optLevel);
 
   // Add default optimizer pass pipeline.
-  fir::createDefaultFIROptimizerPassPipeline(pm, optLevel, stackArrays);
+  fir::createDefaultFIROptimizerPassPipeline(
+      pm, optLevel, stackArrays, loopVersioning);
 
   // Add codegen pass pipeline.
   fir::createDefaultFIRCodeGenPassPipeline(

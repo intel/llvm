@@ -352,7 +352,7 @@ void *user_pvalloc(ThreadState *thr, uptr pc, uptr sz) {
   return SetErrnoOnNull(user_alloc_internal(thr, pc, sz, PageSize));
 }
 
-const void *user_alloc_begin(const void *p) {
+static const void *user_alloc_begin(const void *p) {
   if (p == nullptr || !IsAppMem((uptr)p))
     return nullptr;
   void *beg = allocator()->GetBlockBegin(p);
@@ -450,6 +450,10 @@ const void *__sanitizer_get_allocated_begin(const void *p) {
 
 uptr __sanitizer_get_allocated_size(const void *p) {
   return user_alloc_usable_size(p);
+}
+
+void __sanitizer_purge_allocator() {
+  allocator()->ForceReleaseToOS();
 }
 
 void __tsan_on_thread_idle() {

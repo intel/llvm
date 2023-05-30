@@ -11,37 +11,39 @@
 #include <optional>
 
 namespace pi {
-inline std::optional<sycl::detail::plugin>
+inline std::optional<sycl::detail::PluginPtr>
 initializeAndGet(sycl::backend backend) {
-  auto plugins = sycl::detail::pi::initialize();
+  const auto &plugins = sycl::detail::pi::initialize();
   auto it = std::find_if(plugins.begin(), plugins.end(),
-                         [=](sycl::detail::plugin p) -> bool {
-                           return p.getBackend() == backend;
+                         [=](sycl::detail::PluginPtr p) -> bool {
+                           return p->hasBackend(backend);
                          });
   if (it == plugins.end()) {
-    std::string msg = GetBackendString(backend);
+    std::stringstream strstr;
+    strstr << backend;
+    std::string msg = strstr.str();
     msg += " PI plugin not found!";
     std::cerr << "Warning: " << msg << " Tests using it will be skipped.\n";
     return std::nullopt;
   }
-  return std::optional<sycl::detail::plugin>(*it);
+  return std::optional<sycl::detail::PluginPtr>(*it);
 }
 
-inline std::vector<sycl::detail::plugin> initializeAndRemoveInvalid() {
-  auto plugins = sycl::detail::pi::initialize();
+inline std::vector<sycl::detail::PluginPtr> initializeAndRemoveInvalid() {
+  auto &plugins = sycl::detail::pi::initialize();
 
   auto end = std::remove_if(
       plugins.begin(), plugins.end(),
-      [](const sycl::detail::plugin &plugin) -> bool {
+      [](const sycl::detail::PluginPtr &plugin) -> bool {
         pi_uint32 num = 0;
-        plugin.call_nocheck<sycl::detail::PiApiKind::piPlatformsGet>(0, nullptr,
-                                                                     &num);
+        plugin->call_nocheck<sycl::detail::PiApiKind::piPlatformsGet>(
+            0, nullptr, &num);
 
         bool removePlugin = num <= 0;
 
         if (removePlugin) {
           std::cerr
-              << "Warning: " << GetBackendString(plugin.getBackend())
+              << "Warning: "
               << " PI API plugin returned no platforms via piPlatformsGet. "
                  "This plugin will be removed from testing.\n";
         }

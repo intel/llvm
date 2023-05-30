@@ -6,7 +6,7 @@
 // This test checks adding of the attribute 'sycl-optlevel'
 // by the clang front-end
 
-#include <sycl/sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 int main() {
   sycl::queue q;

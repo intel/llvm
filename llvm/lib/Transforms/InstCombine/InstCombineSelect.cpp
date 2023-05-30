@@ -1238,8 +1238,8 @@ static Instruction *canonicalizeSPF(SelectInst &Sel, ICmpInst &Cmp,
   return nullptr;
 }
 
-static bool replaceInInstruction(Value *V, Value *Old, Value *New,
-                                 InstCombiner &IC, unsigned Depth = 0) {
+bool InstCombinerImpl::replaceInInstruction(Value *V, Value *Old, Value *New,
+                                            unsigned Depth) {
   // Conservatively limit replacement to two instructions upwards.
   if (Depth == 2)
     return false;
@@ -1251,10 +1251,11 @@ static bool replaceInInstruction(Value *V, Value *Old, Value *New,
   bool Changed = false;
   for (Use &U : I->operands()) {
     if (U == Old) {
-      IC.replaceUse(U, New);
+      replaceUse(U, New);
+      Worklist.add(I);
       Changed = true;
     } else {
-      Changed |= replaceInInstruction(U, Old, New, IC, Depth + 1);
+      Changed |= replaceInInstruction(U, Old, New, Depth + 1);
     }
   }
   return Changed;
@@ -1310,7 +1311,7 @@ Instruction *InstCombinerImpl::foldSelectValueEquivalence(SelectInst &Sel,
     // FIXME: Support vectors.
     if (match(CmpRHS, m_ImmConstant()) && !match(CmpLHS, m_ImmConstant()) &&
         !Cmp.getType()->isVectorTy())
-      if (replaceInInstruction(TrueVal, CmpLHS, CmpRHS, *this))
+      if (replaceInInstruction(TrueVal, CmpLHS, CmpRHS))
         return &Sel;
   }
   if (TrueVal != CmpRHS &&
@@ -2496,7 +2497,7 @@ Instruction *InstCombinerImpl::foldVectorSelect(SelectInst &Sel) {
   // in the case of a shuffle with no undefined mask elements.
   ArrayRef<int> Mask;
   if (match(TVal, m_OneUse(m_Shuffle(m_Value(X), m_Value(Y), m_Mask(Mask)))) &&
-      !is_contained(Mask, UndefMaskElem) &&
+      !is_contained(Mask, PoisonMaskElem) &&
       cast<ShuffleVectorInst>(TVal)->isSelect()) {
     if (X == FVal) {
       // select Cond, (shuf_sel X, Y), X --> shuf_sel X, (select Cond, Y, X)
@@ -2510,7 +2511,7 @@ Instruction *InstCombinerImpl::foldVectorSelect(SelectInst &Sel) {
     }
   }
   if (match(FVal, m_OneUse(m_Shuffle(m_Value(X), m_Value(Y), m_Mask(Mask)))) &&
-      !is_contained(Mask, UndefMaskElem) &&
+      !is_contained(Mask, PoisonMaskElem) &&
       cast<ShuffleVectorInst>(FVal)->isSelect()) {
     if (X == TVal) {
       // select Cond, X, (shuf_sel X, Y) --> shuf_sel X, (select Cond, X, Y)
@@ -2923,20 +2924,31 @@ Instruction *InstCombinerImpl::foldSelectOfBools(SelectInst &SI) {
   auto *Zero = ConstantInt::getFalse(SelType);
   Value *A, *B, *C, *D;
 
+  auto dropPoisonGeneratingFlagsAndMetadata =
+      [](ArrayRef<Instruction *> Insts) {
+        for (auto *I : Insts)
+          I->dropPoisonGeneratingFlagsAndMetadata();
+      };
   // Folding select to and/or i1 isn't poison safe in general. impliesPoison
   // checks whether folding it does not convert a well-defined value into
   // poison.
   if (match(TrueVal, m_One())) {
-    if (impliesPoison(FalseVal, CondVal)) {
-      // Change: A = select B, true, C --> A = or B, C
-      return BinaryOperator::CreateOr(CondVal, FalseVal);
-    }
-
     if (auto *LHS = dyn_cast<FCmpInst>(CondVal))
       if (auto *RHS = dyn_cast<FCmpInst>(FalseVal))
         if (Value *V = foldLogicOfFCmps(LHS, RHS, /*IsAnd*/ false,
                                         /*IsSelectLogical*/ true))
           return replaceInstUsesWith(SI, V);
+
+    // Some patterns can be matched by both of the above and following
+    // combinations. Because we need to drop poison generating
+    // flags and metadatas for the following combination, it has less priority
+    // than the above combination.
+    SmallVector<Instruction *> IgnoredInsts;
+    if (impliesPoisonIgnoreFlagsOrMetadata(FalseVal, CondVal, IgnoredInsts)) {
+      dropPoisonGeneratingFlagsAndMetadata(IgnoredInsts);
+      // Change: A = select B, true, C --> A = or B, C
+      return BinaryOperator::CreateOr(CondVal, FalseVal);
+    }
 
     // (A && B) || (C && B) --> (A || C) && B
     if (match(CondVal, m_LogicalAnd(m_Value(A), m_Value(B))) &&
@@ -2968,16 +2980,22 @@ Instruction *InstCombinerImpl::foldSelectOfBools(SelectInst &SI) {
   }
 
   if (match(FalseVal, m_Zero())) {
-    if (impliesPoison(TrueVal, CondVal)) {
-      // Change: A = select B, C, false --> A = and B, C
-      return BinaryOperator::CreateAnd(CondVal, TrueVal);
-    }
-
     if (auto *LHS = dyn_cast<FCmpInst>(CondVal))
       if (auto *RHS = dyn_cast<FCmpInst>(TrueVal))
         if (Value *V = foldLogicOfFCmps(LHS, RHS, /*IsAnd*/ true,
                                         /*IsSelectLogical*/ true))
           return replaceInstUsesWith(SI, V);
+
+    // Some patterns can be matched by both of the above and following
+    // combinations. Because we need to drop poison generating
+    // flags and metadatas for the following combination, it has less priority
+    // than the above combination.
+    SmallVector<Instruction *> IgnoredInsts;
+    if (impliesPoisonIgnoreFlagsOrMetadata(TrueVal, CondVal, IgnoredInsts)) {
+      dropPoisonGeneratingFlagsAndMetadata(IgnoredInsts);
+      // Change: A = select B, C, false --> A = and B, C
+      return BinaryOperator::CreateAnd(CondVal, TrueVal);
+    }
 
     // (A || B) && (C || B) --> (A && C) || B
     if (match(CondVal, m_LogicalOr(m_Value(A), m_Value(B))) &&

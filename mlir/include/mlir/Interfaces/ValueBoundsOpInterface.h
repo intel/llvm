@@ -77,7 +77,7 @@ protected:
 
     ValueBoundsConstraintSet &cstr;
     Value value;
-    std::optional<int64_t> dim = std::nullopt;
+    std::optional<int64_t> dim;
   };
 
 public:
@@ -101,20 +101,38 @@ public:
   /// chain) of the given value is visited in a worklist-driven manner and the
   /// constraint set is populated according to `ValueBoundsOpInterface` for each
   /// visited value.
+  ///
+  /// By default, lower/equal bounds are closed and upper bounds are open. If
+  /// `closedUB` is set to "true", upper bounds are also closed.
   static LogicalResult computeBound(AffineMap &resultMap,
                                     ValueDimList &mapOperands,
                                     presburger::BoundType type, Value value,
                                     std::optional<int64_t> dim,
-                                    StopConditionFn stopCondition);
+                                    StopConditionFn stopCondition,
+                                    bool closedUB = false);
 
   /// Compute a bound in terms of the values/dimensions in `dependencies`. The
   /// computed bound consists of only constant terms and dependent values (or
   /// dimension sizes thereof).
-  static LogicalResult computeBound(AffineMap &resultMap,
-                                    ValueDimList &mapOperands,
-                                    presburger::BoundType type, Value value,
-                                    std::optional<int64_t> dim,
-                                    ValueDimList dependencies);
+  static LogicalResult
+  computeDependentBound(AffineMap &resultMap, ValueDimList &mapOperands,
+                        presburger::BoundType type, Value value,
+                        std::optional<int64_t> dim, ValueDimList dependencies,
+                        bool closedUB = false);
+
+  /// Compute a bound in that is independent of all values in `independencies`.
+  ///
+  /// Independencies are the opposite of dependencies. The computed bound does
+  /// not contain any SSA values that are part of `independencies`. E.g., this
+  /// function can be used to make ops hoistable from loops. To that end, ops
+  /// must be made independent of loop induction variables (in the case of "for"
+  /// loops). Loop induction variables are the independencies; they may not
+  /// appear in the computed bound.
+  static LogicalResult
+  computeIndependentBound(AffineMap &resultMap, ValueDimList &mapOperands,
+                          presburger::BoundType type, Value value,
+                          std::optional<int64_t> dim, ValueRange independencies,
+                          bool closedUB = false);
 
   /// Compute a constant bound for the given index-typed value or shape
   /// dimension size.
@@ -129,10 +147,14 @@ public:
   /// The stop condition is optional: If none is specified, the backward slice
   /// is traversed in a breadth-first manner until a constant bound could be
   /// computed.
+  ///
+  /// By default, lower/equal bounds are closed and upper bounds are open. If
+  /// `closedUB` is set to "true", upper bounds are also closed.
   static FailureOr<int64_t>
   computeConstantBound(presburger::BoundType type, Value value,
                        std::optional<int64_t> dim = std::nullopt,
-                       StopConditionFn stopCondition = nullptr);
+                       StopConditionFn stopCondition = nullptr,
+                       bool closedUB = false);
 
   /// Add a bound for the given index-typed value or shaped value. This function
   /// returns a builder that adds the bound.
@@ -222,7 +244,7 @@ struct DstValueBoundsOpInterfaceExternalModel
     auto dstOp = cast<DestinationStyleOpInterface>(op);
     assert(value.getDefiningOp() == dstOp);
 
-    Value tiedOperand = dstOp.getTiedOpOperand(value.cast<OpResult>())->get();
+    Value tiedOperand = dstOp.getTiedOpOperand(cast<OpResult>(value))->get();
     cstr.bound(value)[dim] == cstr.getExpr(tiedOperand, dim);
   }
 };

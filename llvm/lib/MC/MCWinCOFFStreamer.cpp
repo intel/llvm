@@ -115,11 +115,7 @@ bool MCWinCOFFStreamer::emitSymbolAttribute(MCSymbol *S,
   default: return false;
   case MCSA_WeakReference:
   case MCSA_Weak:
-    Symbol->setIsWeakExternal(COFF::IMAGE_WEAK_EXTERN_SEARCH_ALIAS);
-    Symbol->setExternal(true);
-    break;
-  case MCSA_WeakAntiDep:
-    Symbol->setIsWeakExternal(COFF::IMAGE_WEAK_EXTERN_ANTI_DEPENDENCY);
+    Symbol->setIsWeakExternal();
     Symbol->setExternal(true);
     break;
   case MCSA_Global:
@@ -348,9 +344,7 @@ void MCWinCOFFStreamer::emitCGProfileEntry(const MCSymbolRefExpr *From,
 
 void MCWinCOFFStreamer::finalizeCGProfileEntry(const MCSymbolRefExpr *&SRE) {
   const MCSymbol *S = &SRE->getSymbol();
-  bool Created;
-  getAssembler().registerSymbol(*S, &Created);
-  if (Created)
+  if (getAssembler().registerSymbol(*S))
     cast<MCSymbolCOFF>(S)->setExternal(true);
 }
 

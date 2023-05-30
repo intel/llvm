@@ -300,9 +300,14 @@ void ValueObjectPrinter::PrintDecl() {
     ConstString type_name_cstr(typeName.GetString());
     ConstString var_name_cstr(varName.GetString());
 
+    DumpValueObjectOptions decl_print_options = m_options;
+    // Pass printing helpers an option object that indicates whether the name
+    // should be shown or hidden.
+    decl_print_options.SetHideName(!ShouldShowName());
+
     StreamString dest_stream;
     if (m_options.m_decl_printing_helper(type_name_cstr, var_name_cstr,
-                                         m_options, dest_stream)) {
+                                         decl_print_options, dest_stream)) {
       decl_printed = true;
       m_stream->PutCString(dest_stream.GetString());
     }
@@ -696,6 +701,9 @@ void ValueObjectPrinter::PrintChildren(
 
     for (size_t idx = 0; idx < num_children; ++idx) {
       if (ValueObjectSP child_sp = GenerateChild(synth_m_valobj, idx)) {
+        if (m_options.m_child_printing_decider &&
+            !m_options.m_child_printing_decider(child_sp->GetName()))
+          continue;
         if (!any_children_printed) {
           PrintChildrenPreamble(value_printed, summary_printed);
           any_children_printed = true;
@@ -744,14 +752,19 @@ bool ValueObjectPrinter::PrintChildrenOneLiner(bool hide_names) {
   if (num_children) {
     m_stream->PutChar('(');
 
+    bool did_print_children = false;
     for (uint32_t idx = 0; idx < num_children; ++idx) {
       lldb::ValueObjectSP child_sp(synth_m_valobj->GetChildAtIndex(idx, true));
       if (child_sp)
         child_sp = child_sp->GetQualifiedRepresentationIfAvailable(
             m_options.m_use_dynamic, m_options.m_use_synthetic);
       if (child_sp) {
-        if (idx)
+        if (m_options.m_child_printing_decider &&
+            !m_options.m_child_printing_decider(child_sp->GetName()))
+          continue;
+        if (idx && did_print_children)
           m_stream->PutCString(", ");
+        did_print_children = true;
         if (!hide_names) {
           const char *name = child_sp.get()->GetName().AsCString();
           if (name && *name) {

@@ -371,8 +371,6 @@ public:
     return LAI->getDepChecker().getMaxSafeVectorWidthInBits();
   }
 
-  bool hasStride(Value *V) { return LAI->hasStride(V); }
-
   /// Returns true if vector representation of the instruction \p I
   /// requires mask.
   bool isMaskRequired(const Instruction *I) const {
@@ -515,10 +513,6 @@ private:
 
   /// Holds the phi nodes that are fixed-order recurrences.
   RecurrenceSet FixedOrderRecurrences;
-
-  /// Holds instructions that need to sink past other instructions to handle
-  /// fixed-order recurrences.
-  MapVector<Instruction *, Instruction *> SinkAfter;
 
   /// Holds the widest induction type encountered.
   Type *WidestIndTy = nullptr;

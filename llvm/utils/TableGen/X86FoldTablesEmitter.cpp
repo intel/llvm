@@ -107,6 +107,21 @@ class X86FoldTablesEmitter {
       OS << SimplifiedAttrs << "},\n";
     }
 
+#ifndef NDEBUG
+    // Check that Uses and Defs are same after memory fold.
+    void checkCorrectness() const {
+      auto &RegInstRec = *RegInst->TheDef;
+      auto &MemInstRec = *MemInst->TheDef;
+      auto ListOfUsesReg = RegInstRec.getValueAsListOfDefs("Uses");
+      auto ListOfUsesMem = MemInstRec.getValueAsListOfDefs("Uses");
+      auto ListOfDefsReg = RegInstRec.getValueAsListOfDefs("Defs");
+      auto ListOfDefsMem = MemInstRec.getValueAsListOfDefs("Defs");
+      if (ListOfUsesReg != ListOfUsesMem || ListOfDefsReg != ListOfDefsMem)
+        report_fatal_error("Uses/Defs couldn't be changed after folding " +
+                           RegInstRec.getName() + " to " +
+                           MemInstRec.getName());
+    }
+#endif
   };
 
   // NOTE: We check the fold tables are sorted in X86InstrFoldTables.cpp by the enum of the
@@ -305,7 +320,7 @@ public:
     if (std::make_tuple(RegRI.Encoding, RegRI.Opcode, RegRI.OpPrefix,
                         RegRI.OpMap, RegRI.OpSize, RegRI.AdSize, RegRI.HasREX_W,
                         RegRI.HasVEX_4V, RegRI.HasVEX_L, RegRI.IgnoresVEX_L,
-                        RegRI.IgnoresVEX_W, RegRI.HasEVEX_K, RegRI.HasEVEX_KZ,
+                        RegRI.IgnoresW, RegRI.HasEVEX_K, RegRI.HasEVEX_KZ,
                         RegRI.HasEVEX_L2, RegRec->getValueAsBit("hasEVEX_RC"),
                         RegRec->getValueAsBit("hasLockPrefix"),
                         RegRec->getValueAsBit("hasNoTrackPrefix"),
@@ -313,7 +328,7 @@ public:
         std::make_tuple(MemRI.Encoding, MemRI.Opcode, MemRI.OpPrefix,
                         MemRI.OpMap, MemRI.OpSize, MemRI.AdSize, MemRI.HasREX_W,
                         MemRI.HasVEX_4V, MemRI.HasVEX_L, MemRI.IgnoresVEX_L,
-                        MemRI.IgnoresVEX_W, MemRI.HasEVEX_K, MemRI.HasEVEX_KZ,
+                        MemRI.IgnoresW, MemRI.HasEVEX_K, MemRI.HasEVEX_KZ,
                         MemRI.HasEVEX_L2, MemRec->getValueAsBit("hasEVEX_RC"),
                         MemRec->getValueAsBit("hasLockPrefix"),
                         MemRec->getValueAsBit("hasNoTrackPrefix"),
@@ -600,6 +615,20 @@ void X86FoldTablesEmitter::run(raw_ostream &o) {
                  &(Target.getInstruction(MemInstIter)), Entry.Strategy, true);
   }
 
+#ifndef NDEBUG
+  auto CheckMemFoldTable = [](const FoldTable &Table) -> void {
+    for (const auto &Record : Table) {
+      auto &FoldEntry = Record.second;
+      FoldEntry.checkCorrectness();
+    }
+  };
+  CheckMemFoldTable(Table2Addr);
+  CheckMemFoldTable(Table0);
+  CheckMemFoldTable(Table1);
+  CheckMemFoldTable(Table2);
+  CheckMemFoldTable(Table3);
+  CheckMemFoldTable(Table4);
+#endif
   // Print all tables.
   printTable(Table2Addr, "Table2Addr", OS);
   printTable(Table0, "Table0", OS);
