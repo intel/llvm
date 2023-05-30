@@ -43,8 +43,7 @@ using namespace llvm;
 
 namespace {
 
-
-void fixCallingConv(Function* F) {
+void fixCallingConv(Function *F) {
   F->setCallingConv(llvm::CallingConv::C);
   // The frame-pointer=all and the "byval" attributes lead to code generation
   // that conflicts with the Kernel declaration that we emit in the Native CPU
@@ -63,8 +62,8 @@ void fixCallingConv(Function* F) {
     F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
 }
 
-// Clone the function and returns a new function with a new argument on type T added as 
-// last argument
+// Clone the function and returns a new function with a new argument on type T
+// added as last argument
 Function *cloneFunctionAndAddParam(Function *oldF, Type *T) {
   auto oldT = oldF->getFunctionType();
   auto retT = oldT->getReturnType();
@@ -153,7 +152,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Materialize builtins
   // First we add a pointer to the Native CPU state as arg to all the
   // kernels.
-  Type *StateType = StructType::getTypeByName(M.getContext(), "struct.nativecpu_state");
+  Type *StateType =
+      StructType::getTypeByName(M.getContext(), "struct.nativecpu_state");
   if (!StateType)
     report_fatal_error("Couldn't find the Native CPU state in the "
                        "module, make sure that -D __SYCL_NATIVE_CPU__ is set",
@@ -253,7 +253,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       for (auto &OpUse : OldOp->uses()) {
         User *Usr = OpUse.getUser();
         Instruction *I = dyn_cast<Instruction>(Usr);
-        if(!I) {
+        if (!I) {
           continue;
         }
         auto NewCall = BuiltinCallMap[I->getFunction()];

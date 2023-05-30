@@ -2,8 +2,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
 // Todo: this test currently fails because we use the typename of scalar kernel
-// arguments in the kernel declaration emitted in the Native CPU integration header
-// so currently compilation fails if the type name is not publicly visible.
+// arguments in the kernel declaration emitted in the Native CPU integration
+// header so currently compilation fails if the type name is not publicly
+// visible.
 // XFAIL: *
 #include <CL/sycl.hpp>
 #include <functional>
@@ -11,21 +12,20 @@
 #include <array>
 #include <iostream>
 
-// Checks that the integration header can be compiled during host compilation 
+// Checks that the integration header can be compiled during host compilation
 // even when it contains user-defined types with private access
 struct myfun {
 private:
   using myint = int;
+
 public:
-  int* ptr1;
-  int* ptr2;
+  int *ptr1;
+  int *ptr2;
   myint param;
 
-  myfun(int* ptr1, int* ptr2, int param):
-    ptr1(ptr1), ptr2(ptr2), param(param) {}
-  void operator()(cl::sycl::id<1> id) const {
-    ptr1[id] = ptr2[id] + param;
-  }
+  myfun(int *ptr1, int *ptr2, int param)
+      : ptr1(ptr1), ptr2(ptr2), param(param) {}
+  void operator()(cl::sycl::id<1> id) const { ptr1[id] = ptr2[id] + param; }
 };
 
 int main() {
@@ -41,9 +41,8 @@ int main() {
   myfun TheFun(a_ptr, b_ptr, param);
 
   deviceQueue
-      .submit([&](cl::sycl::handler &cgh) {
-        cgh.parallel_for(numOfItems, TheFun);
-      })
+      .submit(
+          [&](cl::sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
       .wait();
   deviceQueue.memcpy(A.data(), a_ptr, N * sizeof(int)).wait();
 

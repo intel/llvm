@@ -7,19 +7,17 @@
 #include <array>
 #include <iostream>
 
-// Checks that the integration header can be compiled during host compilation 
+// Checks that the integration header can be compiled during host compilation
 // even when it contains user-defined types
 using myint = int;
 struct myfun {
-  int* ptr1;
-  int* ptr2;
+  int *ptr1;
+  int *ptr2;
   myint param;
 
-  myfun(int* ptr1, int* ptr2, int param):
-    ptr1(ptr1), ptr2(ptr2), param(param) {}
-  void operator()(cl::sycl::id<1> id) const {
-    ptr1[id] = ptr2[id] + param;
-  }
+  myfun(int *ptr1, int *ptr2, int param)
+      : ptr1(ptr1), ptr2(ptr2), param(param) {}
+  void operator()(cl::sycl::id<1> id) const { ptr1[id] = ptr2[id] + param; }
 };
 
 int main() {
@@ -35,9 +33,8 @@ int main() {
   myfun TheFun(a_ptr, b_ptr, param);
 
   deviceQueue
-      .submit([&](cl::sycl::handler &cgh) {
-        cgh.parallel_for(numOfItems, TheFun);
-      })
+      .submit(
+          [&](cl::sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
       .wait();
   deviceQueue.memcpy(A.data(), a_ptr, N * sizeof(int)).wait();
 

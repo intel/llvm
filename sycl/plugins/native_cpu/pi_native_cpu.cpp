@@ -55,7 +55,8 @@ struct _pi_program : _pi_object {
   const unsigned char *_ptr;
 };
 
-using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc*, nativecpu_state*);
+using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
+                                nativecpu_state *);
 using nativecpu_ptr_t = nativecpu_kernel_t *;
 using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 struct _pi_kernel : _pi_object {
@@ -460,7 +461,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{0});
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     return ReturnValue(pi_bool{0});
-  case  PI_DEVICE_INFO_ATOMIC_64:
+  case PI_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(pi_bool{0});
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
     return ReturnValue(pi_bool{0});
@@ -975,15 +976,17 @@ pi_result piEnqueueMemBufferCopyRect(pi_queue, pi_mem, pi_mem,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferFill(pi_queue, pi_mem buffer, const void *pattern, size_t pattern_size, size_t offset,
+pi_result piEnqueueMemBufferFill(pi_queue, pi_mem buffer, const void *pattern,
+                                 size_t pattern_size, size_t offset,
                                  size_t size, pi_uint32, const pi_event *,
                                  pi_event *) {
   // Todo: error checking
   // Todo: handle async
   void *startingPtr = buffer->_mem + offset;
   unsigned steps = size / pattern_size;
-  for(unsigned i = 0; i < steps; i++) {
-    memcpy(static_cast<int8_t*>(startingPtr) + i*pattern_size, pattern, pattern_size);
+  for (unsigned i = 0; i < steps; i++) {
+    memcpy(static_cast<int8_t *>(startingPtr) + i * pattern_size, pattern,
+           pattern_size);
   }
   return PI_SUCCESS;
 }

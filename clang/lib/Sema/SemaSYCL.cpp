@@ -20,8 +20,8 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/Version.h"
 #include "clang/Basic/SYCLNativeCPUHelpers.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -1043,7 +1043,7 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
 static void changeManglingForNativeCPU(std::string &Name) {
   const std::string Target("_ZTS");
   const size_t Pos = Name.find(Target);
-  if(Pos == std::string::npos)
+  if (Pos == std::string::npos)
     return;
   Name.replace(Pos, Target.size(), "_Z");
 }
@@ -5276,7 +5276,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n";
   }
   O << "};\n\n";
-
 
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";

@@ -33,7 +33,6 @@
 
 using namespace llvm;
 
-
 namespace {
 SmallVector<bool> getArgMask(const Function *F) {
   SmallVector<bool> res;
@@ -49,15 +48,17 @@ SmallVector<bool> getArgMask(const Function *F) {
   auto NumOperands = UsedNode->getNumOperands();
   for (unsigned I = 0; I < NumOperands; I++) {
     auto &Op = UsedNode->getOperand(I);
-    if(auto CAM = dyn_cast<ConstantAsMetadata>(Op.get())) {
-      if(auto Const = dyn_cast<ConstantInt>(CAM->getValue())) {
+    if (auto CAM = dyn_cast<ConstantAsMetadata>(Op.get())) {
+      if (auto Const = dyn_cast<ConstantInt>(CAM->getValue())) {
         auto Val = Const->getValue();
         res.push_back(!Val.getBoolValue());
       } else {
-        report_fatal_error("Unable to retrieve constant int from sycl_kernel_omit_args metadata node");
+        report_fatal_error("Unable to retrieve constant int from "
+                           "sycl_kernel_omit_args metadata node");
       }
     } else {
-      report_fatal_error("Error while processing sycl_kernel_omit_args metadata node");
+      report_fatal_error(
+          "Error while processing sycl_kernel_omit_args metadata node");
     }
   }
   return res;
@@ -72,7 +73,7 @@ SmallVector<StringRef> getArgTypeNames(const Function *F) {
   for (unsigned I = 0; I < NumOperands; I++) {
     auto &Op = TNNode->getOperand(I);
     auto *MDS = dyn_cast<MDString>(Op.get());
-    if(!MDS)
+    if (!MDS)
       report_fatal_error("error while processing kernel_arg_types metadata");
     Res.push_back(MDS->getString());
   }
@@ -110,7 +111,7 @@ void emitKernelDecl(const Function *F, const SmallVector<bool> &argMask,
     return;
   }
   // find the index of the last used arg
-  while(!argMask[I] && I + 1 < argMask.size())
+  while (!argMask[I] && I + 1 < argMask.size())
     I++;
   O << EmitArgDecl(F->getArg(UsedI), I) << ", nativecpu_state *);\n";
 }
@@ -182,11 +183,11 @@ void emitSYCLRegisterLib(const Function *F, raw_ostream &O) {
   std::string OffloadEntry = (OffloadEntryT + KernelName).str();
   // Fill in the offload entry struct for this kernel
   O << "static " << OffloadEntryT << " " << OffloadEntry << "{"
-    << "(void*)&" << SubHandlerName << ", " // addr
-    << "const_cast<char*>(\"" << KernelName << "\"), "   // name
-    << "1, "                                             // size
-    << "0, "                                             // flags
-    << "0 "                                              // reserved
+    << "(void*)&" << SubHandlerName << ", "            // addr
+    << "const_cast<char*>(\"" << KernelName << "\"), " // name
+    << "1, "                                           // size
+    << "0, "                                           // flags
+    << "0 "                                            // reserved
     << "};\n";
   // Fill in the binary struct
   O << "static " << BinaryT << " " << Binary << "{"

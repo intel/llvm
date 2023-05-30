@@ -9,30 +9,27 @@ using namespace cl::sycl;
 
 const size_t N = 10;
 
-template <typename T>
-class init_a;
+template <typename T> class init_a;
 
-template <typename T>
-bool test(queue myQueue) {
+template <typename T> bool test(queue myQueue) {
   {
     buffer<float, 1> a(range<1>{N});
     const T test = 42;
 
-    myQueue.submit([&](handler& cgh) {
+    myQueue.submit([&](handler &cgh) {
       auto A = a.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<init_a<T>>(range<1>{N}, [=](id<1> index) {
-        A[index] = test;
-      });
+      cgh.parallel_for<init_a<T>>(range<1>{N},
+                                  [=](id<1> index) { A[index] = test; });
     });
 
     auto A = a.get_access<access::mode::read>();
     std::cout << "Result:" << std::endl;
     for (size_t i = 0; i < N; i++) {
-        if (A[i] != test) {
-          std::cout << "ERROR at pos " << i << " expected " << test << ", got "
-                    << A[i] << "\n";
-          return false;
-        }
+      if (A[i] != test) {
+        std::cout << "ERROR at pos " << i << " expected " << test << ", got "
+                  << A[i] << "\n";
+        return false;
+      }
     }
   }
 
@@ -46,7 +43,7 @@ int main() {
   int res2 = test<unsigned>(q);
   int res3 = test<float>(q);
   int res4 = test<double>(q);
-  if(!(res1 && res2 && res3 && res4)) {
+  if (!(res1 && res2 && res3 && res4)) {
     return 1;
   }
   return 0;

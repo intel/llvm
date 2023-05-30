@@ -9,15 +9,16 @@
 // Check that we correctly emit the kernel declaration in the native CPU
 // helper header when not all kernel args are unused
 struct myfun {
-  int* ptr1;
-  int* ptr2;
+  int *ptr1;
+  int *ptr2;
   int used1;
   int used2;
-  char* notused;
+  char *notused;
   int used3;
 
-  myfun(int* ptr1, int* ptr2, int used1, int used2, char* notused, int used3):
-    ptr1(ptr1), ptr2(ptr2), used1(used1), used2(used2), notused(notused), used3(used3) {}
+  myfun(int *ptr1, int *ptr2, int used1, int used2, char *notused, int used3)
+      : ptr1(ptr1), ptr2(ptr2), used1(used1), used2(used2), notused(notused),
+        used3(used3) {}
   void operator()(cl::sycl::id<1> id) const {
     ptr1[id] = ptr2[id] + used1 + used2 + used3;
   }
@@ -39,9 +40,8 @@ int main() {
   myfun TheFun(a_ptr, b_ptr, used1, used2, unused, used3);
 
   deviceQueue
-      .submit([&](cl::sycl::handler &cgh) {
-        cgh.parallel_for(numOfItems, TheFun);
-      })
+      .submit(
+          [&](cl::sycl::handler &cgh) { cgh.parallel_for(numOfItems, TheFun); })
       .wait();
   deviceQueue.memcpy(A.data(), a_ptr, N * sizeof(int)).wait();
 

@@ -58,7 +58,6 @@ getDeviceInfoByName(const std::string &name,
   return it->first;
 }
 
-
 void PrintSystemConfiguration() {
   const auto &Platforms = platform::get_platforms();
 
