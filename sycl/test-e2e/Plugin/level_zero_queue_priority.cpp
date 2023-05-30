@@ -1,12 +1,14 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
-// RUN: env ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
+// RUN: env ZE_DEBUG=1 SYCL_ENABLE_DEFAULT_CONTEXTS=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
+// RUN: env ZE_DEBUG=1 SYCL_ENABLE_DEFAULT_CONTEXTS=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
 //
 // Check that queue priority is passed to Level Zero runtime
 // This is the last value in the ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC
 //
-// With immediate command lists the command lists are recycled between queues.
+// With immediate command lists the command lists are recycled between queues in
+// a context. We make sure all queues in this test use the same context by
+// explicitly specifying SYCL_ENABLE_DEFAULT_CONTEXTS=1
 #include <sycl/sycl.hpp>
 
 void test(sycl::property_list Props) {
