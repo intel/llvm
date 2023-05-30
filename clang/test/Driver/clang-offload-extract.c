@@ -6,22 +6,15 @@
 // RUN: clang-offload-extract --help | FileCheck %s --check-prefix CHECK-HELP
 
 // CHECK-HELP: OVERVIEW:
-// CHECK-HELP: 
 // CHECK-HELP: A utility to extract all the target images from a
 // CHECK-HELP: linked fat binary, and store them in separate files.
-// CHECK-HELP: 
 // CHECK-HELP: USAGE: clang-offload-extract [options] <input file>
-// CHECK-HELP: 
 // CHECK-HELP: OPTIONS:
-// CHECK-HELP: 
 // CHECK-HELP: Generic Options:
-// CHECK-HELP: 
 // CHECK-HELP:   --help          - Display available options (--help-hidden for more)
 // CHECK-HELP:   --help-list     - Display list of available options (--help-list-hidden for more)
 // CHECK-HELP:   --version       - Display the version of this program
-// CHECK-HELP: 
 // CHECK-HELP: Utility-specific options:
-// CHECK-HELP: 
 // CHECK-HELP:   --stem=<string> - Specifies the stem for the output file(s).
 // CHECK-HELP:                     The default stem when not specified is "target.bin".
 // CHECK-HELP:                     The Output file name is composed from this stem and
