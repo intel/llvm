@@ -118,7 +118,8 @@ struct joint_matrix {
 The constructors for the `joint_matrix` type and the assignment
 operator are group functions as defined in section 4.17.3 of the core
 SYCL specification. They must be encountered in converged control flow
-by all work-items in the `Group`.
+by all work-items in the `Group`. Note that the assignment operator
+and the copy constructor do not copy the entire matrix content.
 
 ==== Group Memory Scope
 Most operations on the joint_matrix are group functions, meaning that
@@ -206,21 +207,23 @@ that performs the group operation.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-template <typename Group, typename T,
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
           size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res,
-    multi_ptr<const T, Space, IsDecorated> src, size_t stride, layout Layout);
+    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+    multi_ptr<T2, Space, IsDecorated> src, size_t stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
-template <typename Group, typename T,
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
           size_t Rows, size_t Cols,
           use Use, layout Layout,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
-    joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
-    multi_ptr<const T, Space, IsDecorated> src, size_t stride);
+    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+    multi_ptr<T2, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -307,6 +310,23 @@ void joint_matrix_fill(Group g, joint_matrix<Group, T, Use,
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
+==== Copy
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          use Use1, use Use2, layout Layout>
+void joint_matrix_assign(Group g, joint_matrix<Group, T, Use1,
+                         Rows, Cols, Layout> &dest, joint_matrix<Group, T, Use2,
+                         Rows, Cols, Layout> &src);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+This function copies `RowsxCols` elements of type `T` from joint
+matrix `src` to joint matrix `dest`. The two matrcies must have the
+same scope, type, shape, and layout. Use can be different so this
+function converts between different `use` of matrices.
+
 ==== Element-Wise Operations
 Besides matrix multiply and add, this extension aims to make it
 possible to perform element-wise operations on matrices in a SPMD
@@ -390,7 +410,7 @@ template <typename Group, size_t Rows, size_t Cols,
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
-    multi_ptr<const float, Space, IsDecorated> src, size_t stride, layout Layout);
+    multi_ptr<float, Space, IsDecorated> src, size_t stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, size_t Rows, size_t Cols,
@@ -398,7 +418,7 @@ template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
-    multi_ptr<const float, Space, IsDecorated> src, size_t stride);
+    multi_ptr<float, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -569,15 +589,15 @@ using joint_matrix_d;`| type alias for `joint_matrix` for the output matrix accu
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-template<architecture Arch, typename Ta=void, typename Tb=void,
-typename Tc=void, typename Td=Tc, int sM=0, int sN=0, int sK=0> 
+template<architecture Arch, typename Ta, typename Tb, typename Tc,
+typename Td=Tc, size_t sM=0, size_t sN=0, size_t sK=0>
 struct matrix_params;
 
 // This is the validation form, when all template parameters are
 // specified.
 template<architecture Arch, typename Ta, typename Tb, typename Tc,
 typename Td, size_t sM, size_t sN, size_t sK>
-struct matrix_params {
+struct matrix_params<Arch, Ta, Tb, Tc, Td, sM, sN, sK> {
   // An implementation typically uses static_assert here to trigger a
   // compilation error when the matrix types or shapes are not
   // supported by the device identified by the architecture "Arch".
