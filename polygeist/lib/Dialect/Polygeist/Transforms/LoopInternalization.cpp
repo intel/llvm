@@ -54,6 +54,7 @@ bool isCandidate(FunctionOpInterface func) {
   if (!polygeist::isPotentialKernelBodyFunc(func))
     return false;
 
+  // TODO: construct nd_item when not passed in.
   if (func.getNumArguments() == 0 ||
       !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
     return false;
