@@ -160,6 +160,7 @@ llvm.func @nearbyint_test(%arg0 : f32, %arg1 : f64, %arg2 : vector<8xf32>, %arg3
   llvm.return
 }
 
+// CHECK-LABEL: @lround_test
 llvm.func @lround_test(%arg0 : f32, %arg1 : f64) {
   // CHECK: call i32 @llvm.lround.i32.f32
   "llvm.intr.lround"(%arg0) : (f32) -> i32
@@ -172,6 +173,7 @@ llvm.func @lround_test(%arg0 : f32, %arg1 : f64) {
   llvm.return
 }
 
+// CHECK-LABEL: @llround_test
 llvm.func @llround_test(%arg0 : f32, %arg1 : f64) {
   // CHECK: call i64 @llvm.llround.i64.f32
   "llvm.intr.llround"(%arg0) : (f32) -> i64
@@ -180,6 +182,7 @@ llvm.func @llround_test(%arg0 : f32, %arg1 : f64) {
   llvm.return
 }
 
+// CHECK-LABEL: @lrint_test
 llvm.func @lrint_test(%arg0 : f32, %arg1 : f64) {
   // CHECK: call i32 @llvm.lrint.i32.f32
   "llvm.intr.lrint"(%arg0) : (f32) -> i32
@@ -192,6 +195,7 @@ llvm.func @lrint_test(%arg0 : f32, %arg1 : f64) {
   llvm.return
 }
 
+// CHECK-LABEL: @llrint_test
 llvm.func @llrint_test(%arg0 : f32, %arg1 : f64) {
   // CHECK: call i64 @llvm.llrint.i64.f32
   "llvm.intr.llrint"(%arg0) : (f32) -> i64

@@ -129,6 +129,7 @@ define void @rint_test(float %0, double %1, <8 x float> %2, <8 x double> %3) {
   %8 = call <8 x double> @llvm.rint.v8f64(<8 x double> %3)
   ret void
 }
+; CHECK-LABEL: llvm.func @nearbyint_test
 define void @nearbyint_test(float %0, double %1, <8 x float> %2, <8 x double> %3) {
   ; CHECK: llvm.intr.nearbyint(%{{.*}}) : (f32) -> f32
   %5 = call float @llvm.nearbyint.f32(float %0)
@@ -457,13 +458,6 @@ define void @memset_test(i32 %0, ptr %1, i8 %2) {
   ret void
 }
 
-; CHECK-LABEL: llvm.func @threadlocal_test
-define void @threadlocal_test(ptr %0) {
-  ; CHECK: "llvm.intr.threadlocal.address"(%{{.*}}) : (!llvm.ptr) -> !llvm.ptr
-  %local = call ptr @llvm.threadlocal.address.p0(ptr %0)
-  ret void
-}
-
 ; CHECK-LABEL:  llvm.func @sadd_with_overflow_test
 define void @sadd_with_overflow_test(i32 %0, i32 %1, <8 x i32> %2, <8 x i32> %3) {
   ; CHECK: "llvm.intr.sadd.with.overflow"(%{{.*}}, %{{.*}}) : (i32, i32) -> !llvm.struct<(i32, i1)>
@@ -614,6 +608,13 @@ define void @expect_with_probability(i16 %0) {
   ; CHECK:  %[[EXP:.+]] = llvm.mlir.constant(42 : i16) : i16
   ; CHECK:  llvm.intr.expect.with.probability %[[VAL]], %[[EXP]], 5.000000e-01 : i16
   %2 = call i16 @llvm.expect.with.probability.i16(i16 %0, i16 42, double 0.5)
+  ret void
+}
+
+; CHECK-LABEL: llvm.func @threadlocal_test
+define void @threadlocal_test(ptr %0) {
+  ; CHECK: "llvm.intr.threadlocal.address"(%{{.*}}) : (!llvm.ptr) -> !llvm.ptr
+  %local = call ptr @llvm.threadlocal.address.p0(ptr %0)
   ret void
 }
 
@@ -932,7 +933,6 @@ declare void @llvm.memcpy.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias
 declare void @llvm.memcpy.inline.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64 immarg, i1 immarg)
 declare void @llvm.memmove.p0.p0.i32(ptr nocapture writeonly, ptr nocapture readonly, i32, i1 immarg)
 declare void @llvm.memset.p0.i32(ptr nocapture writeonly, i8, i32, i1 immarg)
-declare nonnull ptr @llvm.threadlocal.address.p0(ptr nonnull)
 declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)
 declare { <8 x i32>, <8 x i1> } @llvm.sadd.with.overflow.v8i32(<8 x i32>, <8 x i32>)
 declare { i32, i1 } @llvm.uadd.with.overflow.i32(i32, i32)
@@ -960,6 +960,7 @@ declare <8 x i32> @llvm.ushl.sat.v8i32(<8 x i32>, <8 x i32>)
 declare i1 @llvm.is.constant.i32(i32)
 declare i32 @llvm.expect.i32(i32, i32)
 declare i16 @llvm.expect.with.probability.i16(i16, i16, double immarg)
+declare nonnull ptr @llvm.threadlocal.address.p0(ptr nonnull)
 declare token @llvm.coro.id(i32, ptr readnone, ptr nocapture readonly, ptr)
 declare ptr @llvm.coro.begin(token, ptr writeonly)
 declare i64 @llvm.coro.size.i64()
