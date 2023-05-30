@@ -31,9 +31,22 @@
 // RUN: %clang -fdeclspec %s %t.wrapped.bc -o %t.fat.bin
 
 //
-// Extract target images.
+// Extract target images (deprecated use model)
 //
-// RUN: clang-offload-extract --output=%t.extracted %t.fat.bin | FileCheck %s --check-prefix CHECK-EXTRACT
+// RUN: clang-offload-extract --output=%t.deprecated %t.fat.bin | FileCheck %s --check-prefix CHECK-EXTRACT
+// CHECK-EXTRACT: Saving target image to
+// CHECK-EXTRACT: Saving target image to
+
+//
+// Check that extracted contents match the original images.
+//
+// RUN: diff %t.deprecated.0 %t.bin0
+// RUN: diff %t.deprecated.1 %t.bin1
+
+//
+// Extract target images (new use model)
+//
+// RUN: clang-offload-extract --stem=%t.extracted %t.fat.bin | FileCheck %s --check-prefix CHECK-EXTRACT
 // CHECK-EXTRACT: Saving target image to
 // CHECK-EXTRACT: Saving target image to
 
@@ -42,7 +55,6 @@
 //
 // RUN: diff %t.extracted.0 %t.bin0
 // RUN: diff %t.extracted.1 %t.bin1
-
 //
 // Some code so that we can build an offload executable from this file.
 //
