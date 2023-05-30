@@ -85,9 +85,9 @@ TEST_P(urEventGetInfoNegativeTest, InvalidEnumeration) {
         UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
-TEST_P(urEventGetInfoNegativeTest, InvalidValue) {
+TEST_P(urEventGetInfoNegativeTest, InvalidSizePropSize) {
     ur_event_info_t info_type = UR_EVENT_INFO_COMMAND_QUEUE;
-    size_t size;
+    size_t size = 0;
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
     ASSERT_NE(size, 0);
     std::vector<uint8_t> data(size);
@@ -95,7 +95,27 @@ TEST_P(urEventGetInfoNegativeTest, InvalidValue) {
     /* Invalid propSize */
     ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0,
                                     data.data(), nullptr),
-                     UR_RESULT_ERROR_INVALID_VALUE);
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urEventGetInfoNegativeTest, InvalidSizePropSizeSmall) {
+    ur_queue_handle_t q;
+    ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE,
+                                    sizeof(q) - 1, &q, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urEventGetInfoNegativeTest, InvalidNullPointerPropValue) {
+    ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE,
+                                    sizeof(ur_queue_handle_t), nullptr,
+                                    nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urEventGetInfoNegativeTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(
+        urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetInfoNegativeTest);

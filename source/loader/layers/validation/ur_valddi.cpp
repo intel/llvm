@@ -3064,12 +3064,20 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_EVENT_INFO_REFERENCE_COUNT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (pPropValue && propSize == 0) {
-            return UR_RESULT_ERROR_INVALID_VALUE;
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
