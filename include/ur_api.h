@@ -937,8 +937,17 @@ typedef enum ur_device_info_t {
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice, ///< [in] handle of the device instance
@@ -948,7 +957,7 @@ urDeviceGetInfo(
                                 ///< the info.
                                 ///< If propSize is not equal to or greater than the real number of bytes
                                 ///< needed to return the info
-                                ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
+                                ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                 ///< pPropValue is not used.
     size_t *pPropSizeRet        ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 );
@@ -1522,6 +1531,17 @@ urContextRelease(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(
     ur_context_handle_t hContext, ///< [in] handle of the context

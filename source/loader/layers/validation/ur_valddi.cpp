@@ -331,7 +331,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
                     ///< the info.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info
-    ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
@@ -347,8 +347,20 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -709,8 +721,20 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
