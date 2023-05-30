@@ -109,6 +109,9 @@ void emitKernelDecl(const Function *F, const SmallVector<bool> &argMask,
     O << ");\n";
     return;
   }
+  // find the index of the last used arg
+  while(!argMask[I] && I + 1 < argMask.size())
+    I++;
   O << EmitArgDecl(F->getArg(UsedI), I) << ", nativecpu_state *);\n";
 }
 

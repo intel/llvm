@@ -5392,16 +5392,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // __SYCL_INLINE_VER_NAMESPACE(_V1)\n";
   O << "} // namespace sycl\n";
   O << "\n";
-  if (llvm::SYCLNativeCPU) {
-    // This is a temporary workaround for the integration header file
-    // being emitted too early.
-    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
-
-    O << "\n// including the kernel handlers calling the kernels\n";
-    O << "\n#include \"";
-    O << HCName;
-    O << "\"\n\n";
-  }
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
@@ -5734,6 +5724,16 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
   }
 
+  if (llvm::SYCLNativeCPU) {
+    // This is a temporary workaround for the integration header file
+    // being emitted too early.
+    std::string HCName = getNativeCPUHeaderName(S.getLangOpts());
+
+    OS << "\n// including the kernel handlers calling the kernels\n";
+    OS << "\n#include \"";
+    OS << HCName;
+    OS << "\"\n\n";
+  }
   if (EmittedFirstSpecConstant)
     OS << "#include <sycl/detail/spec_const_integration.hpp>\n";
 

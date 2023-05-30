@@ -1070,6 +1070,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       }
     }
   }
+  // Todo: we should avoid calling clear here by avoiding using push_back
+  // in setKernelArgs.
+  Kernel->_args.clear();
   return PI_SUCCESS;
 }
 

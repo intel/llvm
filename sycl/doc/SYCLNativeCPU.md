@@ -126,7 +126,7 @@ This pass will also set the correct calling convention for the target, and handl
 
 ## EmitSYCLNativeCPUHeader pass
 
-This pass emits an additional integration header, that will be compiled by the host compiler during the host compilation step. This header is included by the main integration header and does not need to be managed manually. Its main purpose is to enable the SYCL runtime to register kernels and to call kernels that had unused parameters removed by the optimizer. The header contains, for each kernel:
+This pass emits an additional integration header, that will be compiled by the host compiler during the host compilation step. This header is included by the main integration footer and does not need to be managed manually. Its main purpose is to enable the SYCL runtime to register kernels and to call kernels that had unused parameters removed by the optimizer. The header contains, for each kernel:
 * The kernel declaration as a C++ function, all pointer arguments are emitted as `void *`, the scalar arguments maintain their type.
 * A `subhandler` definition, which unpacks the vector of kernel arguments coming from the SYCL runtime, and forwards only the used arguments to the kernel.
 * The definition of `_pi_offload_entry_struct`, `pi_device_binary_struct` and `pi_device_binaries_struct` variables, and a call to `__sycl_register_lib`, which allows to register the kernel to the sycl runtime (the call to `__sycl_register_lib` is performed at program startup via the constructor of a global). The Native CPU integration header is always named `<main-sycl-int-header>.hc`.
