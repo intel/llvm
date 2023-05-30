@@ -3,7 +3,7 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
 // Todo: this test currently fails because we use the typename of scalar kernel
 // arguments in the kernel declaration emitted in the Native CPU integration header
-// so currentl compilation fails if the type name is not publicaly visible.
+// so currently compilation fails if the type name is not publicly visible.
 // XFAIL: *
 #include <CL/sycl.hpp>
 #include <functional>
@@ -12,7 +12,7 @@
 #include <iostream>
 
 // Checks that the integration header can be compiled during host compilation 
-// even when it contains user defined types with private access
+// even when it contains user-defined types with private access
 struct myfun {
 private:
   using myint = int;

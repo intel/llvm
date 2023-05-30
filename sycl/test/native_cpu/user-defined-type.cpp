@@ -8,7 +8,7 @@
 #include <iostream>
 
 // Checks that the integration header can be compiled during host compilation 
-// even when it contains user defined types
+// even when it contains user-defined types
 using myint = int;
 struct myfun {
   int* ptr1;
