@@ -69,6 +69,13 @@ void implicit_conversion(
   res_acc[0] = v;
 }
 
+void implicit_conversion(
+    const sycl::accessor<int, 1, sycl::access::mode::read> &acc,
+    const sycl::accessor<int, 1, sycl::access::mode::read_write> &res_acc) {
+  auto v = acc[0];
+  res_acc[0] = v;
+}
+
 template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
   auto test = [=](auto &Res, const auto &Acc) {
     Res[0] = Acc.byte_size();
@@ -1327,6 +1334,31 @@ int main() {
             ResAccT res_acc = res_buf.get_access(cgh);
             AccT acc(data_buf, cgh);
             cgh.single_task([=]() { implicit_conversion(acc, res_acc); });
+          })
+          .wait_and_throw();
+    }
+    assert(result == 123 && "Expected value not seen.");
+  }
+
+  {
+    using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+    using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
+    using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
+    const int data = 123;
+    int result = 0;
+
+    {
+      sycl::buffer<const int, 1> data_buf(&data, 1);
+      sycl::buffer<int, 1> res_buf(&result, 1);
+
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            ResAccT res_acc = res_buf.get_access(cgh);
+            AccCT acc(data_buf, cgh);
+            cgh.parallel_for_work_group(sycl::range(1), [=](sycl::group<1>) {
+              implicit_conversion(acc, res_acc);
+            });
           })
           .wait_and_throw();
     }
