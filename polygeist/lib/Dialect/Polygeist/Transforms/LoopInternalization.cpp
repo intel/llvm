@@ -22,6 +22,7 @@
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -55,6 +56,19 @@ namespace {
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
+// Only visit kernel body function with nd_item argument.
+bool isCandidate(FunctionOpInterface func) {
+  if (!polygeist::isPotentialKernelBodyFunc(func))
+    return false;
+
+  // TODO: construct nd_item when not passed in.
+  if (func.getNumArguments() == 0 ||
+      !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
+    return false;
+
+  return true;
+}
+
 /// A loop is a candidate when it is the outermost affine or scf for loop in a
 /// perfect loop nest.
 bool isCandidate(LoopLikeOpInterface loop) {
@@ -81,8 +95,8 @@ bool isCandidate(LoopLikeOpInterface loop) {
 template <typename T,
           typename = std::enable_if_t<llvm::is_one_of<
               T, affine::AffineForOp, scf::ForOp, LoopLikeOpInterface>::value>>
-LogicalResult getTileSizes(const SmallVector<T> &nestedLoops,
-                           SmallVectorImpl<Value> &tileSizes) {
+void getTileSizes(const SmallVector<T> &nestedLoops,
+                  SmallVectorImpl<Value> &tileSizes) {
   // TODO: calculate proper tile sizes.
   OpBuilder builder(nestedLoops.front());
   for (auto tileSize : LoopInternalizationTileSizes)
@@ -93,7 +107,6 @@ LogicalResult getTileSizes(const SmallVector<T> &nestedLoops,
         builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), 1);
     tileSizes.resize(nestedLoops.size(), one);
   }
-  return success();
 }
 
 LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
@@ -369,8 +382,12 @@ struct LoopInternalization
       if (failed(solver.initializeAndRun(func)))
         return WalkResult::interrupt();
 
-      LLVM_DEBUG(llvm::dbgs() << "LoopInternalization: Visiting Function "
-                              << func.getName() << "\n");
+      if (!isCandidate(func))
+        return WalkResult::advance();
+
+      LLVM_DEBUG(llvm::dbgs()
+                 << "LoopInternalization: Visiting candidate function "
+                 << func.getName() << "\n");
       func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
         LLVM_DEBUG(llvm::dbgs() << "LoopInternalization: Visiting Loop:\n"
                                 << loop << "\n");
@@ -431,8 +448,7 @@ private:
     LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
 
     SmallVector<Value> tileSizes;
-    if (getTileSizes(nestedLoops, tileSizes).failed())
-      return;
+    getTileSizes(nestedLoops, tileSizes);
 
     SmallVector<T> tiledNest;
     LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
@@ -444,10 +460,11 @@ private:
     });
 
     // TODO: promote loop accesses to local memory.
+    loop = tiledNest.front();
     OpBuilder builder(loop);
-    builder.setInsertionPointToStart(tiledNest.front()->getBlock());
+    builder.setInsertionPointToStart(loop->getBlock());
     createLocalBarrier(builder);
-    builder.setInsertionPointAfter(tiledNest.front());
+    builder.setInsertionPointAfter(loop);
     createLocalBarrier(builder);
   }
 };
@@ -456,4 +473,8 @@ private:
 
 std::unique_ptr<Pass> polygeist::createLoopInternalizationPass() {
   return std::make_unique<LoopInternalization>();
+}
+std::unique_ptr<Pass> polygeist::createLoopInternalizationPass(
+    const LoopInternalizationOptions &options) {
+  return std::make_unique<LoopInternalization>(options);
 }
