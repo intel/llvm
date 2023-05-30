@@ -103,7 +103,16 @@ Example usage of the external `clang-linker-wrapper` call:
 
 During the compilation step, the device binaries are embedded in a section of
 the host binary. When performing the link, this section is extracted from the
-object and mapped according to the device kind.
+object and mapped according to the device kind.  The `clang-linker-wrapper`
+is responsible for examining all of the input binaries, grabbing the embedded
+device binaries and determining any additional device linking paths that need
+to be taken.
+
+For example, when an embedded device binary is of the `OFK_SYCL` kind and of
+the `spir64_gen` architecture triple, the resulting extracted binary is linked,
+post-link processed and converted to SPIR-V before being passed to `ocloc` to
+generate the final device binary.  Options passed via `--gen-tool-arg=` will
+be applied to the `ocloc` step as well.
 
 Depending on the type of binary, the device is embedded as follows:
 
