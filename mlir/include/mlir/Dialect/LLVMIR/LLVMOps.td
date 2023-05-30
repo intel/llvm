@@ -172,8 +172,9 @@ def LLVM_FNegOp : LLVM_UnaryFloatArithmeticOp<
   LLVM_ScalarOrVectorOf<LLVM_AnyFloat>, "fneg", "FNeg">;
 
 // Memory-related operations.
-def LLVM_AllocaOp : LLVM_Op<"alloca",
-    [DeclareOpInterfaceMethods<PromotableAllocationOpInterface>]>,
+def LLVM_AllocaOp : LLVM_Op<"alloca", 
+    [DeclareOpInterfaceMethods<PromotableAllocationOpInterface>,
+     DeclareOpInterfaceMethods<DestructurableAllocationOpInterface>]>,
   LLVM_MemOpPatterns {
   let arguments = (ins AnyInteger:$arraySize,
                    OptionalAttr<I64Attr>:$alignment,
@@ -232,7 +233,9 @@ def LLVM_AllocaOp : LLVM_Op<"alloca",
 }
 
 def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
-    DeclareOpInterfaceMethods<PromotableOpInterface>]> {
+    DeclareOpInterfaceMethods<PromotableOpInterface>,
+    DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>,
+    DeclareOpInterfaceMethods<DestructurableAccessorOpInterface>]> {
   let arguments = (ins LLVM_ScalarOrVectorOf<LLVM_AnyPointer>:$base,
                    Variadic<LLVM_ScalarOrVectorOf<AnyInteger>>:$dynamicIndices,
                    DenseI32ArrayAttr:$rawConstantIndices,
@@ -316,7 +319,8 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
 }
 
 def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
-    [DeclareOpInterfaceMethods<PromotableMemOpInterface>]> {
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+     DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
   dag args = (ins Arg<LLVM_PointerTo<LLVM_LoadableType>, "", [MemRead]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$volatile_,
@@ -388,7 +392,8 @@ def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
 }
 
 def LLVM_StoreOp : LLVM_MemAccessOpBase<"store",
-    [DeclareOpInterfaceMethods<PromotableMemOpInterface>]> {
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+     DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
   dag args = (ins LLVM_LoadableType:$value,
               Arg<LLVM_PointerTo<LLVM_LoadableType>,"",[MemWrite]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
@@ -797,7 +802,7 @@ def LLVM_SelectOp
     $res = op;
   }];
 }
-def LLVM_FreezeOp : LLVM_Op<"freeze", [SameOperandsAndResultType]> {
+def LLVM_FreezeOp : LLVM_Op<"freeze", [Pure, SameOperandsAndResultType]> {
   let arguments = (ins LLVM_Type:$val);
   let results = (outs LLVM_Type:$res);
   let builders = [LLVM_OneResultOpBuilder];
@@ -1562,7 +1567,9 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     OptionalAttr<DictArrayAttr>:$res_attrs,
     OptionalAttr<I64Attr>:$function_entry_count,
     OptionalAttr<LLVM_MemoryEffectsAttr>:$memory,
-    DefaultValuedAttr<Visibility, "mlir::LLVM::Visibility::Default">:$visibility_
+    DefaultValuedAttr<Visibility, "mlir::LLVM::Visibility::Default">:$visibility_,
+    OptionalAttr<UnitAttr>:$arm_streaming,
+    OptionalAttr<UnitAttr>:$arm_locally_streaming
   );
 
   let regions = (region AnyRegion:$body);

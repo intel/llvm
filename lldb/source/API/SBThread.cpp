@@ -394,35 +394,33 @@ uint32_t SBThread::GetIndexID() const {
 const char *SBThread::GetName() const {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *name = nullptr;
   std::unique_lock<std::recursive_mutex> lock;
   ExecutionContext exe_ctx(m_opaque_sp.get(), lock);
 
-  if (exe_ctx.HasThreadScope()) {
-    Process::StopLocker stop_locker;
-    if (stop_locker.TryLock(&exe_ctx.GetProcessPtr()->GetRunLock())) {
-      name = exe_ctx.GetThreadPtr()->GetName();
-    }
-  }
+  if (!exe_ctx.HasThreadScope())
+    return nullptr;
 
-  return name;
+  Process::StopLocker stop_locker;
+  if (stop_locker.TryLock(&exe_ctx.GetProcessPtr()->GetRunLock()))
+    return ConstString(exe_ctx.GetThreadPtr()->GetName()).GetCString();
+
+  return nullptr;
 }
 
 const char *SBThread::GetQueueName() const {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *name = nullptr;
   std::unique_lock<std::recursive_mutex> lock;
   ExecutionContext exe_ctx(m_opaque_sp.get(), lock);
 
-  if (exe_ctx.HasThreadScope()) {
-    Process::StopLocker stop_locker;
-    if (stop_locker.TryLock(&exe_ctx.GetProcessPtr()->GetRunLock())) {
-      name = exe_ctx.GetThreadPtr()->GetQueueName();
-    }
-  }
+  if (!exe_ctx.HasThreadScope())
+    return nullptr;
 
-  return name;
+  Process::StopLocker stop_locker;
+  if (stop_locker.TryLock(&exe_ctx.GetProcessPtr()->GetRunLock()))
+    return ConstString(exe_ctx.GetThreadPtr()->GetQueueName()).GetCString();
+
+  return nullptr;
 }
 
 lldb::queue_id_t SBThread::GetQueueID() const {
@@ -463,7 +461,7 @@ bool SBThread::GetInfoItemByPathAsString(const char *path, SBStream &strm) {
             success = true;
           }
           if (node->GetType() == eStructuredDataTypeInteger) {
-            strm.Printf("0x%" PRIx64, node->GetAsInteger()->GetValue());
+            strm.Printf("0x%" PRIx64, node->GetUnsignedIntegerValue());
             success = true;
           }
           if (node->GetType() == eStructuredDataTypeFloat) {
