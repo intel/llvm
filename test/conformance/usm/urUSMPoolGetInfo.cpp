@@ -52,17 +52,30 @@ TEST_P(urUSMPoolGetInfoTest, InvalidEnumerationProperty) {
                                       nullptr));
 }
 
-TEST_P(urUSMPoolGetInfoTest, InvalidValueSizeTooSmall) {
+TEST_P(urUSMPoolGetInfoTest, InvalidSizeZero) {
     ur_context_handle_t context = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_SIZE,
+        urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_CONTEXT, 0, &context, nullptr));
+}
+
+TEST_P(urUSMPoolGetInfoTest, InvalidSizeTooSmall) {
+    ur_context_handle_t context = nullptr;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_CONTEXT,
                                       sizeof(ur_context_handle_t) - 1, &context,
                                       nullptr));
 }
 
-TEST_P(urUSMPoolGetInfoTest, InvalidValueNullPropValue) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+TEST_P(urUSMPoolGetInfoTest, InvalidNullPointerPropValue) {
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_CONTEXT,
                                       sizeof(ur_context_handle_t), nullptr,
                                       nullptr));
+}
+
+TEST_P(urUSMPoolGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
+        urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_CONTEXT, 0, nullptr, nullptr));
 }
