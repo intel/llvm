@@ -2153,8 +2153,9 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     sycl::detail::pi::assertion(
         cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
         CUDA_SUCCESS);
-    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
-    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize) + 1,
+    // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
                         param_value_size, param_value, param_value_size_ret,
                         AddressBuffer);
   }

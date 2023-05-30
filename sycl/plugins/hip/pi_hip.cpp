@@ -1992,8 +1992,12 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     sycl::detail::pi::assertion(
         hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
         hipSuccess);
+    // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API is not
+    // guaranteed to use this format. In practice, it uses this format, at least
+    // in 5.3-5.5. To be on the safe side, we make sure the terminating \0 is set.
+    AddressBuffer[AddressBufferSize - 1] = '\0';
     sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
-    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize) + 1,
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
                         param_value_size, param_value, param_value_size_ret,
                         AddressBuffer);
   }
