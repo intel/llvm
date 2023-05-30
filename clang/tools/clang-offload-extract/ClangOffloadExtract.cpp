@@ -21,6 +21,8 @@
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/FormatAdapters.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
@@ -62,9 +64,18 @@ static cl::alias FileNameStemAlias(
 // Path to the current binary
 static std::string ToolPath;
 
-// Report all accumulated yet unhandled errors
-static void reportError(Error E) {
-  logAllUnhandledErrors(std::move(E), WithColor::error(errs(), ToolPath));
+// Report error (and handle any deferred errors)
+static void reportError(Error E, Twine message = "") {
+  std::string S;
+  raw_string_ostream OSS(S);
+  logAllUnhandledErrors(std::move(E), OSS);
+
+  errs() << raw_ostream::RED                         //
+         << formatv("{0,-10}", "error")              //
+         << raw_ostream::RESET                       //
+         << S                                        //
+         << formatv("{0}", fmt_pad(message, 10, 0)); //
+  exit(3);
 }
 
 int main(int argc, const char **argv) {
