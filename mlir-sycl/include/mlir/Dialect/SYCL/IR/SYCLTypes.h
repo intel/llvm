@@ -49,11 +49,8 @@ llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID typeID);
 namespace mlir {
 namespace sycl {
 
-/// Return true if type is 'memref<?x!sycl.accessor>'.
-bool isAccessorPtrType(Type type);
-
-/// Return true if type is 'memref<?x!sycl.id>'.
-bool isIDPtrType(Type type);
+/// Return true if type is 'memref<?xT>'.
+template <typename T> bool isPtrType(Type type);
 
 /// Represent Value of type 'memref<?x!sycl.accessor>'.
 class AccessorPtrValue : public Value {
