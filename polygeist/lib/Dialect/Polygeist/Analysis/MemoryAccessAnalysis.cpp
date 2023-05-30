@@ -1427,7 +1427,7 @@ MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
       })
       .Case([&](sycl::SYCLConstructorOp constructorOp) {
         assert(
-            sycl::isPtrType<sycl::IDType>(
+            sycl::isPtrOf<sycl::IDType>(
                 constructorOp.getOperand(constructorOp.getOutputOperandIndex())
                     .getType()) &&
             "add support for other types of sycl constructors");

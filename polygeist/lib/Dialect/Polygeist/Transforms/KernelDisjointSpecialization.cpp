@@ -45,7 +45,7 @@ static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
 /// Returns true if \p arg is a candidate argument. Currently, all arguments
 /// with type 'memref<?x!sycl.accessor>' is a candidate argument.
 static bool isCandidateArg(Value arg) {
-  return sycl::isPtrType<sycl::AccessorType>(arg.getType());
+  return sycl::isPtrOf<sycl::AccessorType>(arg.getType());
 }
 
 /// Populates \p candArgs with candidate arguments from \p call.

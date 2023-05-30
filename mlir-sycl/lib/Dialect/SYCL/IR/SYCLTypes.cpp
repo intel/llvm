@@ -69,19 +69,19 @@ unsigned getDimensions(Type type) {
             RangeType>([](auto type) { return type.getDimension(); });
 }
 
-template <typename T> bool isPtrType(Type type) {
+template <typename T> bool isPtrOf(Type type) {
   auto mt = dyn_cast<MemRefType>(type);
   if (!isMemRefWithExpectedShape(mt))
     return false;
 
   return isa<T>(mt.getElementType());
 }
-template bool isPtrType<AccessorType>(Type);
-template bool isPtrType<IDType>(Type);
-template bool isPtrType<NdItemType>(Type);
+template bool isPtrOf<AccessorType>(Type);
+template bool isPtrOf<IDType>(Type);
+template bool isPtrOf<NdItemType>(Type);
 
 bool AccessorPtrValue::classof(Value v) {
-  return isPtrType<sycl::AccessorType>(v.getType());
+  return isPtrOf<sycl::AccessorType>(v.getType());
 }
 
 } // namespace sycl

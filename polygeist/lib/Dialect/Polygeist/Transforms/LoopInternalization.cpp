@@ -55,7 +55,7 @@ bool isCandidate(FunctionOpInterface func) {
     return false;
 
   if (func.getNumArguments() == 0 ||
-      !sycl::isPtrType<sycl::NdItemType>(func.getArgumentTypes().back()))
+      !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
     return false;
 
   return true;

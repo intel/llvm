@@ -50,7 +50,7 @@ namespace mlir {
 namespace sycl {
 
 /// Return true if type is 'memref<?xT>'.
-template <typename T> bool isPtrType(Type type);
+template <typename T> bool isPtrOf(Type type);
 
 /// Represent Value of type 'memref<?x!sycl.accessor>'.
 class AccessorPtrValue : public Value {
