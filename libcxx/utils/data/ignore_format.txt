@@ -343,7 +343,6 @@ libcxx/include/__filesystem/perms.h
 libcxx/include/__filesystem/recursive_directory_iterator.h
 libcxx/include/__filesystem/u8path.h
 libcxx/include/float.h
-libcxx/include/format
 libcxx/include/__format/buffer.h
 libcxx/include/__format/concepts.h
 libcxx/include/__format/escaped_output_table.h
@@ -488,7 +487,6 @@ libcxx/include/mutex
 libcxx/include/new
 libcxx/include/__node_handle
 libcxx/include/numbers
-libcxx/include/numeric
 libcxx/include/__numeric/accumulate.h
 libcxx/include/__numeric/adjacent_difference.h
 libcxx/include/__numeric/exclusive_scan.h
@@ -659,6 +657,7 @@ libcxx/include/__type_traits/extent.h
 libcxx/include/__type_traits/has_unique_object_representation.h
 libcxx/include/__type_traits/has_virtual_destructor.h
 libcxx/include/__type_traits/integral_constant.h
+libcxx/include/__type_traits/invoke.h
 libcxx/include/__type_traits/is_abstract.h
 libcxx/include/__type_traits/is_aggregate.h
 libcxx/include/__type_traits/is_allocator.h

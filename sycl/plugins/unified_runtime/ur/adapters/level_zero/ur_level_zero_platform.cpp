@@ -23,6 +23,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urInit(
 UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
     void *Params ///< [in] pointer to tear down parameters
 ) {
+  std::ignore = Params;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (ur_platform_handle_t Platform : *PiPlatformsCache) {
     delete Platform;
@@ -290,6 +291,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_platform_handle_t Driver, ///< [in] handle of the platform
     ur_api_version_t *Version    ///< [out] api version
 ) {
+  std::ignore = Driver;
   *Version = UR_API_VERSION_0_6;
   return UR_RESULT_SUCCESS;
 }
@@ -550,6 +552,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
         *PlatformOption ///< [out] returns the correct platform specific
                         ///< compiler option based on the frontend option.
 ) {
+  std::ignore = Platform;
   using namespace std::literals;
   if (FrontendOption == nullptr) {
     return UR_RESULT_SUCCESS;
