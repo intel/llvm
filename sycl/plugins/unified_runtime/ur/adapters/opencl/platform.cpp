@@ -113,6 +113,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
+  cl_ext::ExtFuncPtrCache = new cl_ext::ExtFuncPtrCacheT();
   return UR_RESULT_SUCCESS;
 }
 

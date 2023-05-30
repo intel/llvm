@@ -53,9 +53,9 @@ ur_result_t map_cl_error_to_ur(cl_int result) {
 ///
 /// PI_SUCCESS
 ur_result_t urGetNativeHandle(void *urObj, ur_native_handle_t *nativeHandle) {
-  UR_ASSERT(!nativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER)
+  UR_ASSERT(nativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER)
   *nativeHandle = reinterpret_cast<ur_native_handle_t>(urObj);
   return UR_RESULT_SUCCESS;
 }
 
-cl_ext::ExtFuncPtrCacheT *ExtFuncPtrCache = new cl_ext::ExtFuncPtrCacheT();
+cl_ext::ExtFuncPtrCacheT *ExtFuncPtrCache;
