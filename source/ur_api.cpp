@@ -113,6 +113,17 @@ ur_result_t UR_APICALL urPlatformGet(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PLATFORM_INFO_BACKEND < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_PLATFORM
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform
     ur_platform_info_t propName,    ///< [in] type of the info to retrieve
@@ -124,7 +135,7 @@ ur_result_t UR_APICALL urPlatformGetInfo(
     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
     ///< returned and pPlatformInfo is not used.
     size_t *
-        pSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;

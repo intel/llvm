@@ -10760,9 +10760,9 @@ operator<<(std::ostream &os,
                                *(params->ppropSize));
 
     os << ", ";
-    os << ".pSizeRet = ";
+    os << ".pPropSizeRet = ";
 
-    ur_params::serializePtr(os, *(params->ppSizeRet));
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
 
     return os;
 }
