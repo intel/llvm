@@ -2037,6 +2037,15 @@ void emitKernelInstrumentationData(
         static_cast<const void *>(
             commandToNodeType(Command::CommandType::RUN_CG).c_str()));
   }
+#else
+  std::ignore = SyclKernel;
+  std::ignore = CodeLoc;
+  std::ignore = SyclKernelName;
+  std::ignore = Queue;
+  std::ignore = NDRDesc;
+  std::ignore = KernelBundleImplPtr;
+  std::ignore = OSModHandle;
+  std::ignore = CGArgs;
 #endif
 }
 
