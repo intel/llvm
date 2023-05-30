@@ -33,7 +33,7 @@ jobs:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_configure_extra_args: --shared-libs --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
+      build_configure_extra_args: --shared-libs --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON" --no-assertions
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers"
       cc: clang
