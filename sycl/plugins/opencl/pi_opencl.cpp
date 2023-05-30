@@ -1497,6 +1497,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
       if (pi_ret_err != PI_SUCCESS) {
         return pi_ret_err;
       }
+      assert(result_size % sizeof(size_t) == 0);
       std::vector<size_t> result(result_size / sizeof(size_t));
       pi_ret_err = piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
                                    result_size, result.data(), nullptr);
