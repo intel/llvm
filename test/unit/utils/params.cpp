@@ -243,14 +243,14 @@ struct UrDeviceGetInfoParamsPartitionArray : UrDeviceGetInfoParams {
                                       UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
                                       UR_DEVICE_PARTITION_BY_CSLICE};
     UrDeviceGetInfoParamsPartitionArray() : UrDeviceGetInfoParams() {
-        propName = UR_DEVICE_INFO_PARTITION_PROPERTIES;
+        propName = UR_DEVICE_INFO_SUPPORTED_PARTITIONS;
         pPropValue = &props;
         propSize = sizeof(props);
         propSizeRet = sizeof(props);
     }
     const char *get_expected() {
         return ".hDevice = nullptr, .propName = "
-               "UR_DEVICE_INFO_PARTITION_PROPERTIES, .propSize "
+               "UR_DEVICE_INFO_SUPPORTED_PARTITIONS, .propSize "
                "= 12, .pPropValue = \\{UR_DEVICE_PARTITION_BY_COUNTS, "
                "UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, "
                "UR_DEVICE_PARTITION_BY_CSLICE\\}, .pPropSizeRet = .+ "

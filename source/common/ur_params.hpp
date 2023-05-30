@@ -1583,8 +1583,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         os << "UR_DEVICE_INFO_PARENT_DEVICE";
         break;
 
-    case UR_DEVICE_INFO_PARTITION_PROPERTIES:
-        os << "UR_DEVICE_INFO_PARTITION_PROPERTIES";
+    case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
+        os << "UR_DEVICE_INFO_SUPPORTED_PARTITIONS";
         break;
 
     case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
@@ -2750,7 +2750,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
         os << ")";
     } break;
 
-    case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
+    case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
 
         const ur_device_partition_t *tptr = (const ur_device_partition_t *)ptr;
         os << "{";

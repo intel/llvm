@@ -198,7 +198,7 @@ INSTANTIATE_TEST_SUITE_P(
         UR_DEVICE_INFO_PRINTF_BUFFER_SIZE,                     //
         UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC,            //
         UR_DEVICE_INFO_PARENT_DEVICE,                          //
-        UR_DEVICE_INFO_PARTITION_PROPERTIES,                   //
+        UR_DEVICE_INFO_SUPPORTED_PARTITIONS,                   //
         UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES,              //
         UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN,              //
         UR_DEVICE_INFO_PARTITION_TYPE,                         //
