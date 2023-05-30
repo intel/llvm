@@ -614,6 +614,25 @@ public:
 // Type conversion
 //===----------------------------------------------------------------------===//
 
+/// Create a LLVM struct type with name \p name and the \p body.
+/// In case of collision, generate a new name.
+static Optional<Type> buildStructType(StringRef Name,
+                                      llvm::ArrayRef<mlir::Type> Body,
+                                      LLVMTypeConverter &Converter) {
+  auto ConvertedTy =
+      LLVM::LLVMStructType::getIdentified(&Converter.getContext(), Name);
+  if (!ConvertedTy.isInitialized()) {
+    if (failed(ConvertedTy.setBody(Body, /*isPacked=*/false)))
+      return std::nullopt;
+  } else if (Body != ConvertedTy.getBody()) {
+    // If the name is already in use, create a new type.
+    ConvertedTy = LLVM::LLVMStructType::getNewIdentified(
+        &Converter.getContext(), Name, Body, /*isPacked=*/false);
+  }
+
+  return ConvertedTy;
+}
+
 /// Create a LLVM struct type with name \p name, and the converted \p body as
 /// the body.
 static Optional<Type> convertBodyType(StringRef name,
@@ -623,18 +642,7 @@ static Optional<Type> convertBodyType(StringRef name,
   convertedElemTypes.reserve(body.size());
   if (failed(converter.convertTypes(body, convertedElemTypes)))
     return std::nullopt;
-  auto convertedTy =
-      LLVM::LLVMStructType::getIdentified(&converter.getContext(), name);
-  if (!convertedTy.isInitialized()) {
-    if (failed(convertedTy.setBody(convertedElemTypes, /*isPacked=*/false)))
-      return std::nullopt;
-  } else if (convertedElemTypes != convertedTy.getBody()) {
-    // If the name is already in use, create a new type.
-    convertedTy = LLVM::LLVMStructType::getNewIdentified(
-        &converter.getContext(), name, convertedElemTypes, /*isPacked=*/false);
-  }
-
-  return convertedTy;
+  return buildStructType(name, convertedElemTypes, converter);
 }
 
 /// Converts SYCL accessor common type to LLVM type.
@@ -680,16 +688,11 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
   assert(cast<MemRefType>(type.getBody()[0]).getElementType() ==
              converter.getIndexType() &&
          "Expecting SYCL array body entry element type to be the index type");
-  auto structTy = LLVM::LLVMStructType::getIdentified(
-      &converter.getContext(),
-      "class.sycl::_V1::detail::array." + std::to_string(type.getDimension()));
-  if (!structTy.isInitialized()) {
-    auto arrayTy =
-        LLVM::LLVMArrayType::get(converter.getIndexType(), type.getDimension());
-    if (failed(structTy.setBody(arrayTy, /*isPacked=*/false)))
-      return std::nullopt;
-  }
-  return structTy;
+  auto arrayTy =
+      LLVM::LLVMArrayType::get(converter.getIndexType(), type.getDimension());
+  return buildStructType("class.sycl::_V1::detail::array." +
+                             std::to_string(type.getDimension()),
+                         {arrayTy}, converter);
 }
 
 /// Converts SYCL atomic type to LLVM type.
