@@ -523,8 +523,8 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
 }
 
 static Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
-                       unsigned FPIntrinsicID, unsigned IntrinsicID,
-                       bool HasAccuracyRequirement) {
+                              unsigned FPIntrinsicID, unsigned IntrinsicID,
+                              bool HasAccuracyRequirement) {
   return HasAccuracyRequirement
              ? CGF.CGM.getIntrinsic(FPIntrinsicID, Src0->getType())
              : CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
