@@ -8,7 +8,7 @@ add_mlir_conversion_library(MLIRSYCLToGPU
   MLIRSYCLConversionPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRIR
   MLIRSYCLDialect
   MLIRTransforms

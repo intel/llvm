@@ -8,7 +8,7 @@ add_mlir_dialect_library(MLIRPolygeistUtils
   LINK_LIBS PUBLIC
   MLIRAnalysis
   MLIRDialect  
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRIR  
   MLIRPolygeistDialect
   MLIRSYCLDialect

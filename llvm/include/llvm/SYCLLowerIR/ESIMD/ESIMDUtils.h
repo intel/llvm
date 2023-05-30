@@ -26,6 +26,12 @@ constexpr char GENX_KERNEL_METADATA[] = "genx.kernels";
 // overloads instantiations:
 constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
 
+bool isSlmAllocatorConstructor(const Function &F);
+bool isSlmAllocatorDestructor(const Function &F);
+bool isSlmInit(const Function &F);
+bool isSlmAlloc(const Function &F);
+bool isSlmFree(const Function &F);
+
 // Tells whether given function is a ESIMD kernel.
 bool isESIMDKernel(const Function &F);
 // Tells whether given function is a ESIMD function.
@@ -111,6 +117,12 @@ struct UpdateUint64MetaDataToMaxValue {
 
   void operator()(Function *F) const;
 };
+
+// Checks if there are any functions that must be inlined early to simplify
+// the ESIMD lowering algorithms. If finds such then it may mark them with
+// alwaysinline attribute. The function returns true if at least one of
+// functions has changed its attribute to alwaysinline.
+bool prepareForAlwaysInliner(Module &M);
 
 } // namespace esimd
 } // namespace llvm

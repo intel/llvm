@@ -91,6 +91,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   Analysis
   Core
   Support
+  ipo
   )
 
 target_include_directories(LLVMSYCLLowerIR

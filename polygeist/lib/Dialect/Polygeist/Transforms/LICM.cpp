@@ -57,7 +57,7 @@ static llvm::cl::opt<unsigned> LICMVersionLimit(
 
 namespace {
 
-struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
+struct LICM : public polygeist::impl::LICMBase<LICM> {
   using LICMBase<LICM>::LICMBase;
 
   void runOnOperation() override;
@@ -382,9 +382,9 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
     }
 
     Optional<sycl::AccessorPtrValue> opAccessor =
-        polygeist::getAccessorUsedByOperation(op);
+        getAccessorUsedByOperation(op);
     Optional<sycl::AccessorPtrValue> otherAccessor =
-        polygeist::getAccessorUsedByOperation(other);
+        getAccessorUsedByOperation(other);
     if (opAccessor.has_value() && otherAccessor.has_value())
       if (*opAccessor != *otherAccessor &&
           loop.isDefinedOutsideOfLoop(*opAccessor) &&
@@ -681,11 +681,10 @@ void LICM::runOnOperation() {
   });
 }
 
-std::unique_ptr<Pass> mlir::polygeist::createLICMPass() {
+std::unique_ptr<Pass> polygeist::createLICMPass() {
   return std::make_unique<LICM>();
 }
 
-std::unique_ptr<Pass>
-mlir::polygeist::createLICMPass(const LICMOptions &options) {
+std::unique_ptr<Pass> polygeist::createLICMPass(const LICMOptions &options) {
   return std::make_unique<LICM>(options);
 }

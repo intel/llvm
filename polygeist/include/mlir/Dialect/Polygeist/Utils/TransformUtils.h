@@ -22,6 +22,7 @@
 
 namespace mlir {
 class CallOpInterface;
+class DataFlowSolver;
 class DominanceInfo;
 class FunctionOpInterface;
 class LoopLikeOpInterface;
@@ -85,6 +86,9 @@ bool isPotentialKernelBodyFunc(FunctionOpInterface);
 
 /// Return the accessor used by \p op if found, and std::nullopt otherwise.
 Optional<Value> getAccessorUsedByOperation(const Operation &op);
+
+/// Determine whether a value is a known integer value.
+std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver);
 
 //===----------------------------------------------------------------------===//
 // Versioning Utilities
@@ -274,29 +278,24 @@ public:
   static void versionLoop(LoopLikeOpInterface loop,
                           const VersionCondition &versionCond);
 
+  /// Return true is \p loop is the outermost loop in a loop nest and false
+  /// otherwise.
+  static bool isOutermostLoop(LoopLikeOpInterface loop);
+
   /// Collect perfectly nested loops starting from \p root. Loops are perfectly
   /// nested if each loop is the first and only non-terminator operation in the
   /// parent loop.
   template <typename T, typename = std::enable_if_t<llvm::is_one_of<
                             T, affine::AffineForOp, scf::ForOp>::value>>
   static void getPerfectlyNestedLoops(SmallVector<T> &nestedLoops, T root) {
-    for (unsigned i = 0; i < std::numeric_limits<unsigned>::max(); ++i) {
-      nestedLoops.push_back(root);
-      assert(root.getLoopBody().hasOneBlock() && "Expecting single block");
-      Block &body = root.getLoopBody().front();
-      if (body.begin() != std::prev(body.end(), 2))
-        return;
-
-      root = dyn_cast<T>(&body.front());
-      if (!root)
-        return;
-    }
-  }
-
-  /// Return true is \p loop is the outermost loop in a loop nest and false
-  /// otherwise.
-  static bool isOutermostLoop(LoopLikeOpInterface loop) {
-    return !loop->getParentOfType<LoopLikeOpInterface>();
+    LoopLikeOpInterface previousLoop = root;
+    root->template walk<WalkOrder::PreOrder>([&](T loop) {
+      if (!arePerfectlyNested(previousLoop, loop))
+        return WalkResult::interrupt();
+      nestedLoops.push_back(loop);
+      previousLoop = loop;
+      return WalkResult::advance();
+    });
   }
 
   /// Return true if the loop nest rooted at \p root is perfectly nested.

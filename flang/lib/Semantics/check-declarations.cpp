@@ -58,6 +58,7 @@ private:
   }
   void CheckValue(const Symbol &, const DerivedTypeSpec *);
   void CheckVolatile(const Symbol &, const DerivedTypeSpec *);
+  void CheckContiguous(const Symbol &);
   void CheckPointer(const Symbol &);
   void CheckPassArg(
       const Symbol &proc, const Symbol *interface, const WithPassArg &);
@@ -260,19 +261,8 @@ void CheckHelper::Check(const Symbol &symbol) {
       !symbol.implicitAttrs().test(Attr::SAVE)) {
     CheckExplicitSave(symbol);
   }
-  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
   if (symbol.attrs().test(Attr::CONTIGUOUS)) {
-    if ((!object && !symbol.has<UseDetails>()) ||
-        !((IsPointer(symbol) && symbol.Rank() > 0) || IsAssumedShape(symbol) ||
-            evaluate::IsAssumedRank(symbol))) {
-      if (symbol.owner().IsDerivedType()) { // C752
-        messages_.Say(
-            "A CONTIGUOUS component must be an array with the POINTER attribute"_err_en_US);
-      } else { // C830
-        messages_.Say(
-            "CONTIGUOUS entity must be an array pointer, assumed-shape, or assumed-rank"_err_en_US);
-      }
-    }
+    CheckContiguous(symbol);
   }
   CheckGlobalName(symbol);
   if (isDone) {
@@ -323,6 +313,7 @@ void CheckHelper::Check(const Symbol &symbol) {
           "A dummy procedure of a pure subprogram must be pure"_err_en_US);
     }
   }
+  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
   if (type) { // Section 7.2, paragraph 7; C795
     bool isChar{type->category() == DeclTypeSpec::Character};
     bool canHaveAssumedParameter{(isChar && IsNamedConstant(symbol)) ||
@@ -859,7 +850,7 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
           auto restorer{messages_.SetLocation(symbol.name())};
           context_.set_location(symbol.name());
           CheckInitialTarget(
-              foldingContext_, *designator, *object->init(), DEREF(scope_));
+              context_, *designator, *object->init(), DEREF(scope_));
         }
       }
     } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
@@ -1857,6 +1848,21 @@ void CheckHelper::CheckVolatile(const Symbol &symbol,
             "VOLATILE attribute may not apply to a type with a coarray ultimate component accessed by USE or host association"_err_en_US);
       }
     }
+  }
+}
+
+void CheckHelper::CheckContiguous(const Symbol &symbol) {
+  if (evaluate::IsVariable(symbol) &&
+      ((IsPointer(symbol) && symbol.Rank() > 0) || IsAssumedShape(symbol) ||
+          evaluate::IsAssumedRank(symbol))) {
+  } else if (symbol.owner().IsDerivedType()) { // C752
+    messages_.Say(
+        "CONTIGUOUS component '%s' must be an array with the POINTER attribute"_err_en_US,
+        symbol.name());
+  } else {
+    messages_.Say(
+        "CONTIGUOUS entity '%s' must be an array pointer, assumed-shape, or assumed-rank"_err_en_US,
+        symbol.name());
   }
 }
 

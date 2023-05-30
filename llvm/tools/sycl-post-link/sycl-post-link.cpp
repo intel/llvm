@@ -37,6 +37,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
@@ -585,8 +586,6 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
   MPM.addPass(SYCLLowerESIMDPass{});
 
   if (!OptLevelO0) {
-    // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
-    MPM.addPass(AlwaysInlinerPass{});
     FunctionPassManager FPM;
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));

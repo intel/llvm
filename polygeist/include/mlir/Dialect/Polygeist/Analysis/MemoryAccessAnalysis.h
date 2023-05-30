@@ -32,6 +32,7 @@ class SYCLAccessorSubscriptOp;
 } // namespace sycl
 
 class DataFlowSolver;
+class FunctionOpInterface;
 
 namespace polygeist {
 
@@ -402,8 +403,20 @@ public:
 
   const OffsetVector &getOffsetVector() const { return offsets; }
 
+  /// Construct a new matrix containing columns [0...numThreads-1].
+  MemoryAccessMatrix getInterThreadAccessMatrix(unsigned numThreads) const;
+
+  /// Construct a new matrix containing columns [numThreads ... numColumns].
+  MemoryAccessMatrix getIntraThreadAccessMatrix(unsigned numThreads) const;
+
   /// Analyze the memory access and classify its access pattern.
   MemoryAccessPattern classify(DataFlowSolver &solver) const;
+
+  /// Analyze the given access matrix and offset vector and classify the access
+  /// pattern.
+  static MemoryAccessPattern classify(const MemoryAccessMatrix &matrix,
+                                      const OffsetVector &offsets,
+                                      DataFlowSolver &solver);
 
 private:
   MemoryAccessMatrix matrix; /// The memory access matrix.
@@ -435,6 +448,10 @@ public:
   /// Return the memory access for the given memref \p access.
   std::optional<MemoryAccess>
   getMemoryAccess(const affine::MemRefAccess &access) const;
+
+  /// Return a vector containing the threads used in \p funcOp.
+  SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
+                                         DataFlowSolver &solver) const;
 
 private:
   /// Construct the access matrix and offset vector for the memory accesses

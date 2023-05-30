@@ -127,6 +127,7 @@ template<class Container>
 #include <array>       // for array
 #include <cassert>     // for assert
 #include <cstddef>     // for byte
+#include <cstdint>     // for SIZE_MAX
 #include <iterator>    // for iterators
 #include <type_traits> // for remove_cv, etc
 

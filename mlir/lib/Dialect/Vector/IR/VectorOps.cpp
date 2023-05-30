@@ -1174,8 +1174,8 @@ ExtractOp::inferReturnTypes(MLIRContext *, std::optional<Location>,
                             ValueRange operands, DictionaryAttr attributes,
                             OpaqueProperties properties, RegionRange,
                             SmallVectorImpl<Type> &inferredReturnTypes) {
-  ExtractOp::Adaptor op(operands, attributes);
-  auto vectorType = llvm::cast<VectorType>(op.getVector().getType());
+  ExtractOp::Adaptor op(operands, attributes, properties);
+  auto vectorType = op.getVector().getType().cast<VectorType>();
   if (static_cast<int64_t>(op.getPosition().size()) == vectorType.getRank()) {
     inferredReturnTypes.push_back(vectorType.getElementType());
   } else {
@@ -2110,8 +2110,8 @@ ShuffleOp::inferReturnTypes(MLIRContext *, std::optional<Location>,
                             ValueRange operands, DictionaryAttr attributes,
                             OpaqueProperties properties, RegionRange,
                             SmallVectorImpl<Type> &inferredReturnTypes) {
-  ShuffleOp::Adaptor op(operands, attributes);
-  auto v1Type = llvm::cast<VectorType>(op.getV1().getType());
+  ShuffleOp::Adaptor op(operands, attributes, properties);
+  auto v1Type = op.getV1().getType().cast<VectorType>();
   auto v1Rank = v1Type.getRank();
   // Construct resulting type: leading dimension matches mask
   // length, all trailing dimensions match the operands.
@@ -3713,108 +3713,7 @@ void TransferReadOp::getEffects(
                          SideEffects::DefaultResource::get());
 }
 
-/// Returns true if all rank reduced in the given `extractOp` happen in leading
-/// dimensions earlier than last `trailingRank` dimensions.
-static bool areAllRankReducedLeadingDim(tensor::ExtractSliceOp extractOp,
-                                        unsigned trailingRank) {
-  // If no ranks are reduced at all, it's a degenerated case; always true.
-  if (extractOp.getSourceType().getRank() == extractOp.getType().getRank())
-    return true;
-
-  RankedTensorType inferredType = extractOp.inferResultType(
-      extractOp.getSourceType(), extractOp.getMixedOffsets(),
-      extractOp.getMixedSizes(), extractOp.getMixedStrides());
-  return extractOp.getType().getShape().take_back(trailingRank) ==
-         inferredType.getShape().take_back(trailingRank);
-}
-
 namespace {
-/// Fold transfer_reads of a tensor.extract_slice op. E.g.:
-///
-/// ```
-/// %0 = tensor.extract_slice %t[%a, %b] [%c, %d] [1, 1]
-///     : tensor<?x?xf32> to tensor<?x?xf32>
-/// %1 = vector.transfer_read %0[%e, %f], %cst {in_bounds = [true, true]}
-///     : tensor<?x?xf32>, vector<4x5xf32>
-/// ```
-/// is rewritten to:
-/// ```
-/// %p0 = arith.addi %a, %e : index
-/// %p1 = arith.addi %b, %f : index
-/// %1 = vector.transfer_read %t[%p0, %p1], %cst {in_bounds = [true, true]}
-///     : tensor<?x?xf32>, vector<4x5xf32>
-/// ```
-// TODO: this is brittle and should be deprecated in favor of a more general
-// pattern that applies on-demand.
-struct FoldExtractSliceIntoTransferRead
-    : public OpRewritePattern<TransferReadOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(TransferReadOp xferOp,
-                                PatternRewriter &rewriter) const override {
-    // TODO: support 0-d corner case.
-    if (xferOp.getTransferRank() == 0)
-      return failure();
-    if (xferOp.hasOutOfBoundsDim())
-      return failure();
-    if (!xferOp.getPermutationMap().isMinorIdentity())
-      return failure();
-    if (xferOp.getMask())
-      return failure();
-    auto extractOp = xferOp.getSource().getDefiningOp<tensor::ExtractSliceOp>();
-    if (!extractOp)
-      return failure();
-    if (!extractOp.hasUnitStride())
-      return failure();
-
-    // Bail on illegal rank-reduction: we need to check that the rank-reduced
-    // dims are exactly the leading dims. I.e. the following is illegal:
-    // ```
-    //    %0 = tensor.extract_slice %t[0,0,0][2,1,4][1,1,1] :
-    //      tensor<2x1x4xf32> to tensor<2x4xf32>
-    //    %1 = vector.transfer_read %0[0,0], %cst :
-    //      tensor<2x4xf32>, vector<2x4xf32>
-    // ```
-    //
-    // Cannot fold into:
-    // ```
-    //    %0 = vector.transfer_read %t[0,0,0], %cst :
-    //      tensor<2x1x4xf32>, vector<2x4xf32>
-    // ```
-    // For this, check the trailing `vectorRank` dims of the extract_slice
-    // result tensor match the trailing dims of the inferred result tensor.
-    if (!areAllRankReducedLeadingDim(extractOp, extractOp.getType().getRank()))
-      return failure();
-
-    int64_t rankReduced =
-        extractOp.getSourceType().getRank() - extractOp.getType().getRank();
-
-    SmallVector<Value> newIndices;
-    // In case this is a rank-reducing ExtractSliceOp, copy rank-reduced
-    // indices first.
-    for (int64_t i = 0; i < rankReduced; ++i) {
-      OpFoldResult offset = extractOp.getMixedOffsets()[i];
-      newIndices.push_back(getValueOrCreateConstantIndexOp(
-          rewriter, extractOp.getLoc(), offset));
-    }
-    for (const auto &it : llvm::enumerate(xferOp.getIndices())) {
-      OpFoldResult offset =
-          extractOp.getMixedOffsets()[it.index() + rankReduced];
-      newIndices.push_back(rewriter.create<arith::AddIOp>(
-          xferOp->getLoc(), it.value(),
-          getValueOrCreateConstantIndexOp(rewriter, extractOp.getLoc(),
-                                          offset)));
-    }
-    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
-    rewriter.replaceOpWithNewOp<TransferReadOp>(
-        xferOp, xferOp.getVectorType(), extractOp.getSource(), newIndices,
-        xferOp.getPadding(), ArrayRef<bool>{inBounds});
-
-    return success();
-  }
-};
-
 /// Store to load forwarding for transfer operations with permuation maps.
 /// Even if the permutation maps are different we can still propagate the store
 /// into the load if the size of the dimensions read and written match. Then we
@@ -3896,13 +3795,7 @@ struct TransferReadAfterWriteToBroadcast
 
 void TransferReadOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
-  // clang-format off
-  results.add <
-               // TODO: this is brittle and should be deprecated in favor of a
-               // more general pattern that applies on-demand.
-               FoldExtractSliceIntoTransferRead,
-               TransferReadAfterWriteToBroadcast>(context);
-  // clang-format on
+  results.add<TransferReadAfterWriteToBroadcast>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -4238,93 +4131,6 @@ public:
   }
 };
 
-/// Fold tensor.insert_slice into vector.transfer_write if the transfer_write
-/// could directly write to the insert_slice's destination. E.g.:
-///
-/// ```
-/// %0 = vector.transfer_write %v, %t1[%c0, %c0] {in_bounds = [true, true]}
-///     : vector<4x5xf32>, tensor<4x5xf32>
-/// %1 = tensor.insert_slice %0 into %t2[%a, %b] [4, 5] [1, 1]
-///     : tensor<4x5xf32> into tensor<?x?xf32>
-/// ```
-/// is rewritten to:
-/// ```
-/// %1 = vector.transfer_write %v, %t2[%a, %b] {in_bounds = [true, true]}
-///     : vector<4x5xf32>, tensor<?x?xf32>
-/// ```
-// TODO: this is brittle and should be deprecated in favor of a more general
-// pattern that applies on-demand.
-struct FoldInsertSliceIntoTransferWrite
-    : public OpRewritePattern<tensor::InsertSliceOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::InsertSliceOp insertOp,
-                                PatternRewriter &rewriter) const override {
-    if (!insertOp.hasUnitStride())
-      return failure();
-
-    auto xferOp = insertOp.getSource().getDefiningOp<TransferWriteOp>();
-    if (!xferOp)
-      return failure();
-    // TODO: support 0-d corner case.
-    if (xferOp.getTransferRank() == 0)
-      return failure();
-
-    if (xferOp.hasOutOfBoundsDim())
-      return failure();
-    if (xferOp.getVectorType().getRank() != xferOp.getShapedType().getRank())
-      return failure();
-    if (xferOp.getMask())
-      return failure();
-    // Fold only if the TransferWriteOp completely overwrites the `source` with
-    // a vector. I.e., the result of the TransferWriteOp is a new tensor whose
-    // content is the data of the vector.
-    if (!llvm::equal(xferOp.getVectorType().getShape(),
-                     xferOp.getShapedType().getShape()))
-      return failure();
-    if (!xferOp.getPermutationMap().isIdentity())
-      return failure();
-
-    // Bail on illegal rank-reduction: we need to check that the rank-reduced
-    // dims are exactly the leading dims. I.e. the following is illegal:
-    // ```
-    //    %0 = vector.transfer_write %v, %t[0,0], %cst :
-    //      vector<2x4xf32>, tensor<2x4xf32>
-    //    %1 = tensor.insert_slice %0 into %tt[0,0,0][2,1,4][1,1,1] :
-    //      tensor<2x4xf32> into tensor<2x1x4xf32>
-    // ```
-    //
-    // Cannot fold into:
-    // ```
-    //    %0 = vector.transfer_write %v, %t[0,0,0], %cst :
-    //      vector<2x4xf32>, tensor<2x1x4xf32>
-    // ```
-    // For this, check the trailing `vectorRank` dims of the insert_slice result
-    // tensor match the trailing dims of the inferred result tensor.
-    int64_t rankReduced =
-        insertOp.getType().getRank() - insertOp.getSourceType().getRank();
-    int64_t vectorRank = xferOp.getVectorType().getRank();
-    RankedTensorType inferredSourceTensorType =
-        tensor::ExtractSliceOp::inferResultType(
-            insertOp.getType(), insertOp.getMixedOffsets(),
-            insertOp.getMixedSizes(), insertOp.getMixedStrides());
-    auto actualSourceTensorShape = insertOp.getSourceType().getShape();
-    if (rankReduced > 0 &&
-        actualSourceTensorShape.take_back(vectorRank) !=
-            inferredSourceTensorType.getShape().take_back(vectorRank))
-      return failure();
-
-    SmallVector<Value> indices = getValueOrCreateConstantIndexOp(
-        rewriter, insertOp.getLoc(), insertOp.getMixedOffsets());
-    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
-    rewriter.replaceOpWithNewOp<TransferWriteOp>(insertOp, xferOp.getVector(),
-                                                 insertOp.getDest(), indices,
-                                                 ArrayRef<bool>{inBounds});
-    return success();
-  }
-};
-
 /// Rewrite tensor::ExtractSliceOp(vector::TransferWriteOp) to
 /// vector::TransferWriteOp(tensor::ExtractSliceOp) if the full slice is
 /// overwritten and inserted into another tensor. After this rewrite, the
@@ -4436,13 +4242,7 @@ public:
 
 void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
-  // clang-format off
-  results.add<FoldWaw,
-              // TODO: this is brittle and should be deprecated in favor of a
-              // more general pattern that applies on-demand.
-              FoldInsertSliceIntoTransferWrite,
-              SwapExtractSliceOfTransferWrite>(context);
-  // clang-format on
+  results.add<FoldWaw, SwapExtractSliceOfTransferWrite>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -4836,6 +4636,13 @@ static bool isValidShapeCast(ArrayRef<int64_t> a, ArrayRef<int64_t> b) {
   unsigned rankB = b.size();
   assert(rankA < rankB);
 
+  auto isOne = [](int64_t v) { return v == 1; };
+
+  // Special-case for n-D to 0-d shape cast. 'b' must be all ones to be shape
+  // casted to a 0-d vector.
+  if (rankA == 0 && llvm::all_of(b, isOne))
+    return true;
+
   unsigned i = 0;
   unsigned j = 0;
   while (i < rankA && j < rankB) {
@@ -4849,7 +4656,6 @@ static bool isValidShapeCast(ArrayRef<int64_t> a, ArrayRef<int64_t> b) {
 
     // Handle the case when trailing dimensions are of size 1.
     // Include them into the contiguous sequence.
-    auto isOne = [](int64_t v) { return v == 1; };
     if (i < rankA && llvm::all_of(a.slice(i), isOne))
       i = rankA;
     if (j < rankB && llvm::all_of(b.slice(j), isOne))
@@ -5669,6 +5475,25 @@ LogicalResult MaskOp::verify() {
   return success();
 }
 
+/// Folds vector.mask ops with an all-true mask.
+LogicalResult MaskOp::fold(FoldAdaptor adaptor,
+                           SmallVectorImpl<OpFoldResult> &results) {
+  MaskFormat maskFormat = getMaskFormat(getMask());
+  if (isEmpty())
+    return failure();
+
+  if (maskFormat != MaskFormat::AllTrue)
+    return failure();
+
+  // Move maskable operation outside of the `vector.mask` region.
+  Operation *maskableOp = getMaskableOp();
+  maskableOp->dropAllUses();
+  maskableOp->moveBefore(getOperation());
+
+  results.push_back(maskableOp->getResult(0));
+  return success();
+}
+
 // Elides empty vector.mask operations with or without return values. Propagates
 // the yielded values by the vector.yield terminator, if any, or erases the op,
 // otherwise.
@@ -5681,10 +5506,10 @@ class ElideEmptyMaskOp : public OpRewritePattern<MaskOp> {
     if (maskingOp.getMaskableOp())
       return failure();
 
-    Block *block = maskOp.getMaskBlock();
-    if (block->getOperations().size() > 1)
+    if (!maskOp.isEmpty())
       return failure();
 
+    Block *block = maskOp.getMaskBlock();
     auto terminator = cast<vector::YieldOp>(block->front());
     if (terminator.getNumOperands() == 0)
       rewriter.eraseOp(maskOp);

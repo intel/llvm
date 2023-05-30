@@ -13,9 +13,11 @@
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include <numeric>
 
 #define DEBUG_TYPE "memory-access-analysis"
 
@@ -27,28 +29,15 @@ using namespace mlir::polygeist;
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Determine whether a value is an known integer value.
-static std::optional<APInt> getConstIntegerValue(Value val,
-                                                 DataFlowSolver &solver) {
-  if (!val.getType().isIntOrIndex())
-    return std::nullopt;
-
-  auto *inferredRange =
-      solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
-  if (!inferredRange || inferredRange->getValue().isUninitialized()) {
-    LLVM_DEBUG(llvm::dbgs() << "Solver not initialized correctly\n");
-    return std::nullopt;
-  }
-
-  const ConstantIntRanges &range = inferredRange->getValue().getValue();
-  return range.getConstantValue();
-}
-
 /// Determine whether a value is equal to a given integer constant.
 static bool isEqualTo(Value val, int64_t constant, DataFlowSolver &solver) {
   std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
-  if (!optConstVal.has_value())
+  if (!optConstVal.has_value()) {
+    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp());
+        constVal.value() == constant)
+      return true;
     return false;
+  }
 
   APInt constVal = *optConstVal;
   APInt c(constVal.getBitWidth(), constant, true /*signed*/);
@@ -193,17 +182,11 @@ public:
     return std::get<U>(data);
   }
 
-  /// Determine whether this class holds the value \p k.
+  /// Determine whether this class holds the value \p constant.
   bool isEqualTo(int64_t constant, DataFlowSolver &solver) const {
     Value val = is<T>() ? get<T>() : get<Value>();
     if (!val)
       return false;
-
-    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp())) {
-      if (constVal.value() == constant)
-        return true;
-    }
-
     return ::isEqualTo(val, constant, solver);
   }
 
@@ -512,8 +495,10 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
         return visitBinaryOp(mulOp, loopAndThreadVars, solver, getOffset,
                              computeResult);
       })
-      .Case<CastOpInterface>([&](auto) {
-        return getOffset(op->getOperand(0), loopAndThreadVars, solver);
+      .Case<CastOpInterface>([&](auto castOp) {
+        assert(castOp->getOperands().size() == 1 &&
+               "Expecting a single operand");
+        return getOffset(castOp->getOperand(0), loopAndThreadVars, solver);
       })
       .Default([&](auto) { return expr; });
 }
@@ -867,7 +852,8 @@ bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
         if (!isLastDiagonalElem && !isOne(val, solver))
           return false;
-        if (isLastDiagonalElem && !isGreaterThanOne(val, solver))
+        if (isLastDiagonalElem && !isGreaterThanOne(val, solver) &&
+            !::isZero(val, solver))
           return false;
       }
     }
@@ -923,7 +909,8 @@ bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
         if (!isLastDiagonalElem && !isOne(val, solver))
           return false;
-        if (isLastDiagonalElem && !isStrictlyPositive(val, solver))
+        if (isLastDiagonalElem && !isStrictlyPositive(val, solver) &&
+            !::isZero(val, solver))
           return false;
       }
     }
@@ -1073,7 +1060,37 @@ OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
 // MemoryAccess
 //===----------------------------------------------------------------------===//
 
+MemoryAccessMatrix
+MemoryAccess::getIntraThreadAccessMatrix(unsigned numThreads) const {
+  assert(numThreads < matrix.getNumColumns() &&
+         "Expecting 'numThreadsColumns' to be smaller than the number of "
+         "columns in the memory access matrix");
+  std::vector<size_t> v(numThreads);
+  std::iota(v.begin(), v.end(), 0);
+  std::set<size_t> columns(v.begin(), v.end());
+  return matrix.getColumns(columns);
+}
+
+MemoryAccessMatrix
+MemoryAccess::getInterThreadAccessMatrix(unsigned numThreads) const {
+  assert(numThreads < matrix.getNumColumns() &&
+         "Expecting 'numThreadsColumns' to be smaller than the number of "
+         "columns in the memory access matrix");
+  std::vector<size_t> v(matrix.getNumColumns() - numThreads);
+  std::iota(v.begin(), v.end(), numThreads);
+  std::set<size_t> columns(v.begin(), v.end());
+  return matrix.getColumns(columns);
+}
+
 MemoryAccessPattern MemoryAccess::classify(DataFlowSolver &solver) const {
+  return MemoryAccess::classify(matrix, offsets, solver);
+}
+
+MemoryAccessPattern MemoryAccess::classify(const MemoryAccessMatrix &matrix,
+                                           const OffsetVector &offsets,
+                                           DataFlowSolver &solver) {
+  LLVM_DEBUG(llvm::dbgs() << "inter-thread matrix:\n" << matrix << "\n");
+
   bool isZeroVector = offsets.isZero(solver);
 
   if (isZeroVector) {
@@ -1153,6 +1170,44 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
   return it->second;
 }
 
+SmallVector<Value>
+MemoryAccessAnalysis::computeThreadVector(FunctionOpInterface funcOp,
+                                          DataFlowSolver &solver) const {
+  assert(funcOp && "Expecting valid pointer");
+
+  // Collect the "get_global_ids" operations (yielding the global thread ids).
+  std::vector<sycl::SYCLNDItemGetGlobalIDOp> getGlobalIdOps =
+      getOperationsOfType<sycl::SYCLNDItemGetGlobalIDOp>(funcOp).takeVector();
+
+  // Return the index value of a "get_global_ids" operation.
+  auto getIndexValue =
+      [&](sycl::SYCLNDItemGetGlobalIDOp &op) -> std::optional<APInt> {
+    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
+    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
+  };
+
+  // Ensure that all "get_global_ids" have index values known at compile time.
+  if (llvm::any_of(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op) {
+        return !getIndexValue(op).has_value();
+      })) {
+    LLVM_DEBUG(llvm::dbgs() << "Cannot order 'get_global_ids' operations in "
+                               "increasing index value.\n");
+    return {};
+  }
+
+  // Order the "get_global_ids" operations in increasing index value.
+  llvm::sort(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op1,
+                                 sycl::SYCLNDItemGetGlobalIDOp &op2) {
+    return getIndexValue(op1)->slt(*getIndexValue(op2));
+  });
+
+  SmallVector<Value, 4> threadVars;
+  for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
+    threadVars.emplace_back(getGlobalIdOp.getResult());
+
+  return threadVars;
+}
+
 void MemoryAccessAnalysis::build() {
   AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
@@ -1228,42 +1283,16 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
     llvm::dbgs() << "\n";
   });
 
-  // Collect the "get_global_ids" operations (yielding the global thread ids).
-  std::vector<sycl::SYCLNDItemGetGlobalIDOp> getGlobalIdOps =
-      getOperationsOfType<sycl::SYCLNDItemGetGlobalIDOp>(
-          memoryOp->template getParentOfType<FunctionOpInterface>())
-          .takeVector();
-
-  // Return the index value of a "get_global_ids" operation.
-  auto getIndexValue =
-      [&](sycl::SYCLNDItemGetGlobalIDOp &op) -> std::optional<APInt> {
-    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
-    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
-  };
-
-  // Ensure that all "get_global_ids" have index values known at compile time.
-  if (llvm::any_of(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op) {
-        return !getIndexValue(op).has_value();
-      })) {
-    LLVM_DEBUG(llvm::dbgs() << "Cannot order 'get_global_ids' operations in "
-                               "increasing index value.\n");
-    return;
-  }
-
-  // Order the "get_global_ids" operations in increasing index value.
-  llvm::sort(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op1,
-                                 sycl::SYCLNDItemGetGlobalIDOp &op2) {
-    return getIndexValue(op1)->slt(*getIndexValue(op2));
-  });
+  // Collect the global thread ids used in the function.
+  auto funcOp = memoryOp->template getParentOfType<FunctionOpInterface>();
+  SmallVector<Value> threadVars = computeThreadVector(funcOp, solver);
 
   // Collect the loops enclosing the memory access operation.
   SetVector<AffineForOp> enclosingLoops =
       getParentsOfType<AffineForOp>(memoryOp->getBlock());
 
   // Create a vector containing the thread ids and loop induction variables.
-  SmallVector<Value, 4> loopAndThreadVars;
-  for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
-    loopAndThreadVars.emplace_back(getGlobalIdOp.getResult());
+  SmallVector<Value> loopAndThreadVars(threadVars);
   for (AffineForOp loop : llvm::reverse(enclosingLoops))
     loopAndThreadVars.emplace_back(loop.getInductionVar());
 

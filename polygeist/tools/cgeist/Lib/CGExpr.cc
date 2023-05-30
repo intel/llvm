@@ -136,12 +136,11 @@ MLIRScanner::VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *Expr) {
 
 ValueCategory MLIRScanner::VisitStringLiteral(clang::StringLiteral *Expr) {
   auto Loc = getMLIRLocation(Expr->getExprLoc());
-  return ValueCategory(
-      Glob.getOrCreateGlobalLLVMString(Loc, Builder, Expr->getString(),
-                                       mlirclang::getFuncContext(Function)),
-      /*isReference*/ true,
-      LLVM::LLVMArrayType::get(Builder.getI8Type(),
-                               Expr->getString().size() + 1));
+  return ValueCategory(Glob.getOrCreateGlobalLLVMString(
+                           Loc, Builder, Expr->getString(), FuncContext),
+                       /*isReference*/ true,
+                       LLVM::LLVMArrayType::get(Builder.getI8Type(),
+                                                Expr->getString().size() + 1));
 }
 
 ValueCategory MLIRScanner::VisitParenExpr(clang::ParenExpr *Expr) {
@@ -976,7 +975,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
       assert(Obj.isReference);
     }
 
-    FunctionToEmit F(*CtorDecl, mlirclang::getInputContext(Builder));
+    FunctionToEmit F(*CtorDecl, FuncContext);
     auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
 
     SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{Obj, nullptr}};
@@ -1360,7 +1359,6 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     llvm::dbgs() << "\n";
   });
 
-  FunctionContext FuncContext = mlirclang::getFuncContext(Function);
   if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl())) {
     auto Func = Glob.getOrCreateLLVMFunction(Tocall, FuncContext);
     return ValueCategory(
@@ -1411,7 +1409,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
             Glob.getCGM().getContext().getPointerType(E->getType()))) ||
         Name == "stderr" || Name == "stdout" || Name == "stdin" ||
         (E->hasQualifier())) {
-      auto LLVMGlobal = Glob.getOrCreateLLVMGlobal(VD);
+      auto LLVMGlobal = Glob.getOrCreateLLVMGlobal(VD, "", FuncContext);
       return ValueCategory(
           Builder.create<mlir::LLVM::AddressOfOp>(
               Loc,
