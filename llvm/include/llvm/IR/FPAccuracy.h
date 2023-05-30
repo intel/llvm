@@ -1,4 +1,4 @@
-//===- llvm/IR/FPAccuracy.h -------------------------------------*- C++ -*-===/
+//===- llvm/IR/FPAccuracy.h -------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,6 @@
 ///
 /// \file
 /// Interfaces related to floating-point accuracy control.
-/// mode controls.
 ///
 //===----------------------------------------------------------------------===/
 
@@ -39,12 +38,12 @@ namespace fp {
 ///
 enum class FPAccuracy { High, Medium, Low, SYCL, CUDA };
 
-// Returns the required accuracy, in terms of ulp, for an fpbuiltin intrinsic
-// given the intrinsic ID, the base type for the operation, and the required
-// accuracy level (as an enumerated identifier).
-//
-// If the supplied intrinsic ID and type do not identify an operation for
-// which required accuracy is available, this function will not return a value.
+/// Returns the required accuracy, in terms of ULP, for an fpbuiltin intrinsic
+/// given the intrinsic ID, the base type for the operation, and the required
+/// accuracy level (as an enumerated identifier).
+///
+/// If the supplied intrinsic ID and type do not identify an operation for
+/// which required accuracy is available, this function will not return a value.
 StringRef getAccuracyForFPBuiltin(Intrinsic::ID, const Type *, FPAccuracy);
 
 } // namespace fp

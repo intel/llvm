@@ -20,8 +20,10 @@
 // All accuracies are returned as single-precision floating-point values.
 //
 // Note: for single-precision fdiv and sqrt, the value returned here assumes
-// that the "-cl-fp32-correctly-rounded-divide-sqrt" option is not used.
-// If the option is used, these operations require special handling elsewhere
+// that options to require correctly rounded results
+// (-cl-fp32-correctly-rounded-divide-sqrt for SYCL, -prec-div=true or
+// -prec-sqrt=true for CUDA) are not used. If such option are used, these
+// operations require special handling elsewhere.
 //
 // FP_ACCURACY(<IID>, <SYCL_FLOAT>, <SYCL_DOUBLE>, <CUDA_FLOAT>, <CUDA_DOUBLE>)
 //

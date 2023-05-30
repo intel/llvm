@@ -6,14 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-/// @file
+/// \file
 /// This file contains the implementations of functions that map standard
-/// accuracy levels to required accuracy expressed in terms of ulps.
+/// accuracy levels to required accuracy expressed in terms of ULPs.
 //
 //===----------------------------------------------------------------------===//
-
-// This customization is only in xmain for review purposes.
-// When approved, it will go into the intel/llvm repository.
 
 #include "llvm/IR/FPAccuracy.h"
 #include "llvm/IR/Instruction.h"
