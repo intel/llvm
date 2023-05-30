@@ -147,20 +147,10 @@ define <4 x i32> @combine_vec_sdiv_dupe(<4 x i32> %x) {
 ; SSE-NEXT:    movaps {{.*#+}} xmm0 = [1,1,1,1]
 ; SSE-NEXT:    retq
 ;
-; AVX1-LABEL: combine_vec_sdiv_dupe:
-; AVX1:       # %bb.0:
-; AVX1-NEXT:    vmovaps {{.*#+}} xmm0 = [1,1,1,1]
-; AVX1-NEXT:    retq
-;
-; AVX2ORLATER-LABEL: combine_vec_sdiv_dupe:
-; AVX2ORLATER:       # %bb.0:
-; AVX2ORLATER-NEXT:    vbroadcastss {{.*#+}} xmm0 = [1,1,1,1]
-; AVX2ORLATER-NEXT:    retq
-;
-; XOP-LABEL: combine_vec_sdiv_dupe:
-; XOP:       # %bb.0:
-; XOP-NEXT:    vmovaps {{.*#+}} xmm0 = [1,1,1,1]
-; XOP-NEXT:    retq
+; AVX-LABEL: combine_vec_sdiv_dupe:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vbroadcastss {{.*#+}} xmm0 = [1,1,1,1]
+; AVX-NEXT:    retq
   %1 = sdiv <4 x i32> %x, %x
   ret <4 x i32> %1
 }
@@ -431,7 +421,7 @@ define <16 x i8> @combine_vec_sdiv_by_pow2b_v16i8(<16 x i8> %x) {
 ; AVX2-NEXT:    vpsrlw $8, %ymm1, %ymm1
 ; AVX2-NEXT:    vextracti128 $1, %ymm1, %xmm2
 ; AVX2-NEXT:    vpackuswb %xmm2, %xmm1, %xmm1
-; AVX2-NEXT:    vmovdqa {{.*#+}} xmm2 = [0,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
+; AVX2-NEXT:    vpbroadcastq {{.*#+}} xmm2 = [0,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
 ; AVX2-NEXT:    vpblendvb %xmm2, %xmm1, %xmm0, %xmm0
 ; AVX2-NEXT:    vzeroupper
 ; AVX2-NEXT:    retq
@@ -447,7 +437,7 @@ define <16 x i8> @combine_vec_sdiv_by_pow2b_v16i8(<16 x i8> %x) {
 ; AVX512F-NEXT:    vpmovsxbd %xmm1, %zmm1
 ; AVX512F-NEXT:    vpsravd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm1, %zmm1
 ; AVX512F-NEXT:    vpmovdb %zmm1, %xmm1
-; AVX512F-NEXT:    vmovdqa {{.*#+}} xmm2 = [0,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
+; AVX512F-NEXT:    vpbroadcastq {{.*#+}} xmm2 = [0,255,255,255,255,255,255,255,0,255,255,255,255,255,255,255]
 ; AVX512F-NEXT:    vpblendvb %xmm2, %xmm1, %xmm0, %xmm0
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq

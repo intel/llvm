@@ -101,6 +101,31 @@ def AlternativesOp : TransformDialectOp<"alternatives",
   let hasVerifier = 1;
 }
 
+def AnnotateOp : TransformDialectOp<"annotate",
+    [DeclareOpInterfaceMethods<TransformOpInterface>,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Annotates the target operation with an attribute by name";
+  let description = [{
+    Adds an attribute with the given `name` to the `target` operation. An
+    optional `param` handle can be provided to give the attribute a specific
+    value, else a UnitAttr is added. A single attribute will be broadcasted to
+    all target operations, otherwise the attributes will be mapped 1:1 based on
+    the order within the handles.
+
+    Fails silently if the length of the parameter payload does not match the length of
+    the target payload. Does not consume the provided handles.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target,
+                       StrAttr:$name,
+                       Optional<TransformParamTypeInterface>:$param);
+  let results = (outs);
+
+  let assemblyFormat =
+    "$target $name attr-dict (`=` $param^)?"
+    "`:` type($target) (`,` type($param)^)?";
+}
+
 def CastOp : TransformDialectOp<"cast",
     [TransformOpInterface, TransformEachOpTrait,
      DeclareOpInterfaceMethods<CastOpInterface>,
@@ -150,7 +175,12 @@ def ForeachMatchOp : TransformDialectOp<"foreach_match", [
     satisfies the constraints of actual types on both sides). The action symbol
     may not have results. The actions are expected to only modify payload
     operations nested in the `root` payload operations associated with the
-    operand of this transform operation.
+    operand of this transform operation. Furhermore, the actions may not modify
+    operations outside of the currently matched payload operation, e.g., they
+    may not modify sibling or parent operations. If such behavior is desired,
+    the parent must be matched first and the nested operations obtained by
+    traversing the IR from the parent. This is due to the matching being
+    performed as a post-order IR walk.
 
     This operation consumes the operand and produces a new handle associated
     with the same payload. This is necessary to trigger invalidation of handles
