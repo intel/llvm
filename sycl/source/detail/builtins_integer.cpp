@@ -24,20 +24,17 @@ namespace {
 template <typename T> inline std::make_unsigned_t<T> __abs_diff(T x, T y) {
   static_assert(std::is_integral<T>::value,
                 "Only integral types are supported");
-  if constexpr (std::is_unsigned_v<T>) {
-    return (x > y) ? (x - y) : (y - x);
-  } else {
-    // We need to be careful too avoid undefined behavior from signed integer
-    // overflow.
-    using UT = std::make_unsigned_t<T>;
-    UT ax = std::abs(x);
-    UT ay = std::abs(y);
-    // If only one of them was negative, the distance is the sum.
+  using UT = std::make_unsigned_t<T>;
+
+  // We need to be careful too avoid undefined behavior from signed integer
+  // overflow. That is, if only one of the operands are negative we can overflow
+  // the distance when using signed values. Instead, compute the distance as the
+  // sum of absolule values.
+  if constexpr (std::is_signed_v<T>)
     if ((x < 0) != (y < 0))
-      return ax + ay;
-    // Otherwise it is simply the distance between the absolute values.
-    return (ax > ay) ? (ax - ay) : (ay - ax);
-  }
+      return static_cast<UT>(std::abs(x)) + static_cast<UT>(std::abs(y));
+
+  return (x > y) ? (x - y) : (y - x);
 }
 
 template <typename T> inline T __u_add_sat(T x, T y) {
