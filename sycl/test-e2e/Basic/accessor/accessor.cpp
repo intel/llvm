@@ -62,16 +62,16 @@ template <typename Acc> struct Wrapper3 {
   Wrapper2<Acc> w2;
 };
 
-void implicit_conversion(
-    const sycl::accessor<const int, 1, sycl::access::mode::read> &acc,
-    const sycl::accessor<int, 1, sycl::access::mode::read_write> &res_acc) {
+using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
+using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
+
+void implicit_conversion(const AccCT &acc, const ResAccT &res_acc) {
   auto v = acc[0];
   res_acc[0] = v;
 }
 
-void implicit_conversion(
-    const sycl::accessor<int, 1, sycl::access::mode::read> &acc,
-    const sycl::accessor<int, 1, sycl::access::mode::read_write> &res_acc) {
+void implicit_conversion(const AccT &acc, const ResAccT &res_acc) {
   auto v = acc[0];
   res_acc[0] = v;
 }
@@ -776,7 +776,6 @@ int main() {
   {
     sycl::queue q;
     try {
-      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
       AccT acc;
 
       q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
@@ -1320,9 +1319,6 @@ int main() {
 
   // accessor<T> to accessor<const T> implicit conversion.
   {
-    using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
-    using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
-
     int data = 123;
     int result = 0;
     {
@@ -1341,9 +1337,6 @@ int main() {
   }
 
   {
-    using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
-    using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
-    using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
     const int data = 123;
     int result = 0;
 
@@ -1367,9 +1360,6 @@ int main() {
 
   // accessor swap
   {
-    using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
-    using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
-
     int data[2] = {2, 100};
     int data2[2] = {23, 4};
     int results[2] = {0, 0};
