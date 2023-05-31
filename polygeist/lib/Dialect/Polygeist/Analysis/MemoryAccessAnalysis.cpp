@@ -1201,7 +1201,7 @@ MemoryAccessAnalysis::computeThreadVector(FunctionOpInterface funcOp,
     return getIndexValue(op1)->slt(*getIndexValue(op2));
   });
 
-  SmallVector<Value, 4> threadVars;
+  SmallVector<Value> threadVars;
   for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
     threadVars.emplace_back(getGlobalIdOp.getResult());
 
