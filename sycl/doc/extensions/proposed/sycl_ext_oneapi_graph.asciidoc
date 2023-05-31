@@ -886,8 +886,9 @@ Exceptions:
   which is not a kernel command or host-task, e.g.
   {handler-copy-functions}[memory operations].
 
-* Throws synchronously with error code `invalid` if the context associated with
-  `graph` does not match that of the `command_graph` being updated.
+* Throws synchronously with error code `invalid` if the context or device
+  associated with `graph` does not match that of the `command_graph` being
+  updated.
 |===
 
 ==== Graph Properties
