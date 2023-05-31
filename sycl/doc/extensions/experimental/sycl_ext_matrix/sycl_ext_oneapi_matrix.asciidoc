@@ -304,8 +304,8 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           use Use, layout Layout, typename Tv>
-void joint_matrix_fill(Group g, joint_matrix<Group, T, Use,
-                         Rows, Cols, Layout> &m, Tv v);
+void joint_matrix_fill(Group g, joint_matrix<Group, T, Use, Rows,
+          Cols, Layout> &m, Tv v);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -316,13 +316,13 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           use Use1, use Use2, layout Layout>
-void joint_matrix_assign(Group g, joint_matrix<Group, T, Use1,
+void joint_matrix_copy(Group g, joint_matrix<Group, T, Use1,
                          Rows, Cols, Layout> &dest, joint_matrix<Group, T, Use2,
                          Rows, Cols, Layout> &src);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
-This function copies `RowsxCols` elements of type `T` from joint
+This function copies `Rows x Cols` elements of type `T` from joint
 matrix `src` to joint matrix `dest`. The two matrcies must have the
 same scope, type, shape, and layout. Use can be different so this
 function converts between different `use` of matrices.
