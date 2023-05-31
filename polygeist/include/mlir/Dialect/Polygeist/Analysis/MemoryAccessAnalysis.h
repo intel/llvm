@@ -15,6 +15,8 @@
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Support/LLVM.h"
@@ -396,7 +398,7 @@ public:
   MemoryAccess(MemoryAccessMatrix &&matrix, OffsetVector &&offsets)
       : matrix(std::move(matrix)), offsets(std::move(offsets)) {
     assert(matrix.getNumRows() == offsets.getNumRows() &&
-           "Matrix and offset vector must have thes same number of rows");
+           "Matrix and offset vector must have the same number of rows");
   }
 
   const MemoryAccessMatrix &getAccessMatrix() const { return matrix; }
@@ -443,9 +445,9 @@ public:
   std::optional<MemoryAccess>
   getMemoryAccess(const affine::MemRefAccess &access) const;
 
-  /// Return a vector containing the threads used in \p funcOp.
-  SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
-                                         DataFlowSolver &solver) const;
+  /// Return a vector containing the thread values used in \p funcOp.
+  SmallVector<Value> getThreadVector(FunctionOpInterface funcOp,
+                                     DataFlowSolver &solver) const;
 
 private:
   /// Construct the access matrix and offset vector for the memory accesses
@@ -484,7 +486,7 @@ private:
   /// For example given:
   ///
   ///   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
-  ///   %subscr = sycl.accessor.subscript %acc[%id] ...
+  ///   %0 = sycl.accessor.subscript %acc[%id] ...
   ///
   /// The underlying values for '%id' are {%i, %j}.
   SmallVector<Value> getUnderlyingValues(unsigned opIndex, Operation *op,

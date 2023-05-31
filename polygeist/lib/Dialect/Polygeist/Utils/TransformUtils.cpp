@@ -18,6 +18,40 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include <optional>
 
+using namespace mlir;
+
+static Block &getThenBlock(RegionBranchOpInterface ifOp) {
+  return ifOp->getRegion(0).front();
+}
+
+static Block &getElseBlock(RegionBranchOpInterface ifOp) {
+  return ifOp->getRegion(1).front();
+}
+
+// Replace uses of the operation \p op return value(s) with the value(s) yielded
+// by the \p ifOp operation.
+static void replaceUsesOfReturnValues(Operation *op,
+                                      RegionBranchOpInterface ifOp) {
+  assert(ifOp && "Expected valid ifOp");
+  for (auto [opVal, ifVal] : llvm::zip(op->getResults(), ifOp->getResults()))
+    opVal.replaceUsesWithIf(ifVal, [&](OpOperand &operand) {
+      Block *useBlock = operand.getOwner()->getBlock();
+      return useBlock != &getThenBlock(ifOp);
+    });
+}
+
+static void createThenBody(Operation *op, scf::IfOp ifOp) {
+  op->moveBefore(&getThenBlock(ifOp).front());
+}
+
+static void createThenBody(Operation *op, affine::AffineIfOp ifOp) {
+  OpBuilder thenBodyBuilder = ifOp.getThenBodyBuilder();
+  if (!op->getResults().empty())
+    thenBodyBuilder.create<affine::AffineYieldOp>(op->getLoc(),
+                                                  op->getResults());
+  op->moveBefore(&getThenBlock(ifOp).front());
+}
+
 namespace mlir {
 namespace polygeist {
 
@@ -137,7 +171,6 @@ Optional<Value> getAccessorUsedByOperation(const Operation &op) {
   return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
 }
 
-/// Determine whether a value is an known integer value.
 std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
   if (!val.getType().isIntOrIndex())
     return std::nullopt;
@@ -151,36 +184,27 @@ std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
   return range.getConstantValue();
 }
 
-static Block &getThenBlock(RegionBranchOpInterface ifOp) {
-  return ifOp->getRegion(0).front();
+/// Walk up the parents and records the ones with the specified type.
+template <typename T> SetVector<T> getParentsOfType(Block &block) {
+  SetVector<T> res;
+  constexpr auto getInitialParent = [](Block &b) -> T {
+    Operation *op = b.getParentOp();
+    auto typedOp = dyn_cast<T>(op);
+    return typedOp ? typedOp : op->getParentOfType<T>();
+  };
+
+  for (T parent = getInitialParent(block); parent;
+       parent = parent->template getParentOfType<T>())
+    res.insert(parent);
+
+  return res;
 }
 
-static Block &getElseBlock(RegionBranchOpInterface ifOp) {
-  return ifOp->getRegion(1).front();
-}
-
-// Replace uses of the operation \p op return value(s) with the value(s) yielded
-// by the \p ifOp operation.
-static void replaceUsesOfReturnValues(Operation *op,
-                                      RegionBranchOpInterface ifOp) {
-  assert(ifOp && "Expected valid ifOp");
-  for (auto [opVal, ifVal] : llvm::zip(op->getResults(), ifOp->getResults()))
-    opVal.replaceUsesWithIf(ifVal, [&](OpOperand &operand) {
-      Block *useBlock = operand.getOwner()->getBlock();
-      return useBlock != &getThenBlock(ifOp);
-    });
-}
-
-static void createThenBody(Operation *op, scf::IfOp ifOp) {
-  op->moveBefore(&getThenBlock(ifOp).front());
-}
-
-static void createThenBody(Operation *op, affine::AffineIfOp ifOp) {
-  OpBuilder thenBodyBuilder = ifOp.getThenBodyBuilder();
-  if (!op->getResults().empty())
-    thenBodyBuilder.create<affine::AffineYieldOp>(op->getLoc(),
-                                                  op->getResults());
-  op->moveBefore(&getThenBlock(ifOp).front());
+template <typename T>
+SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
+  SetVector<T> res;
+  funcOp->walk([&](T op) { res.insert(op); });
+  return res;
 }
 
 namespace {
@@ -306,7 +330,7 @@ Value SCFLoopGuardBuilder::createCondition() const {
 }
 
 void SCFLoopGuardBuilder::createThenBody(RegionBranchOpInterface ifOp) const {
-  polygeist::createThenBody(loop, cast<scf::IfOp>(ifOp));
+  ::createThenBody(loop, cast<scf::IfOp>(ifOp));
 }
 
 void SCFLoopGuardBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
@@ -335,7 +359,7 @@ void AffineLoopGuardBuilder::guardLoop() const {
 
 void AffineLoopGuardBuilder::createThenBody(
     RegionBranchOpInterface ifOp) const {
-  polygeist::createThenBody(loop, cast<affine::AffineIfOp>(ifOp));
+  ::createThenBody(loop, cast<affine::AffineIfOp>(ifOp));
 }
 
 void AffineLoopGuardBuilder::createElseBody(
@@ -729,6 +753,16 @@ VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
   }
   return condition;
 }
+
+// Explicit template instantiations.
+
+template SetVector<FunctionOpInterface> getParentsOfType(Block &);
+template SetVector<LoopLikeOpInterface> getParentsOfType(Block &);
+
+template SetVector<sycl::SYCLNDItemGetGlobalIDOp>
+    getOperationsOfType(FunctionOpInterface);
+template SetVector<sycl::SYCLItemGetIDOp>
+    getOperationsOfType(FunctionOpInterface);
 
 } // namespace polygeist
 } // namespace mlir

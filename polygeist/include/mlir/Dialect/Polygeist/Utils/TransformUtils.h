@@ -90,6 +90,13 @@ Optional<Value> getAccessorUsedByOperation(const Operation &op);
 /// Determine whether a value is a known integer value.
 std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver);
 
+/// Record the \p block parent operations with the specified type \tparam T.
+template <typename T> SetVector<T> getParentsOfType(Block &block);
+
+/// Retrieve operations with type \tparam T in \p funcOp.
+template <typename T>
+SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
+
 //===----------------------------------------------------------------------===//
 // Versioning Utilities
 //===----------------------------------------------------------------------===//

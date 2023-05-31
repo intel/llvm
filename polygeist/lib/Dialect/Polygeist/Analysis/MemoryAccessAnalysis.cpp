@@ -13,9 +13,7 @@
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
-#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <numeric>
 
@@ -71,28 +69,39 @@ static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
   return (optConstVal.has_value() && optConstVal->slt(-1));
 }
 
-/// Walk up the parents and records the ones with the specified type.
-template <typename T> static SetVector<T> getParentsOfType(Block *block) {
-  SetVector<T> res;
-  constexpr auto getInitialParent = [](Block *b) -> T {
-    Operation *op = b->getParentOp();
-    auto typedOp = dyn_cast<T>(op);
-    return typedOp ? typedOp : op->getParentOfType<T>();
+/// Return a vector containing the thread values used in \p funcOp.
+template <typename T,
+          typename = std::enable_if_t<llvm::is_one_of<
+              T, sycl::SYCLNDItemGetGlobalIDOp, sycl::SYCLItemGetIDOp>::value>>
+static SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
+                                              DataFlowSolver &solver) {
+  assert(funcOp && "Expecting valid pointer");
+
+  // Collect the operations yielding the global thread ids.
+  std::vector<T> getGlobalIdOps = getOperationsOfType<T>(funcOp).takeVector();
+
+  // Return the index value of an operation.
+  auto getIndexValue = [&](T &op) -> std::optional<APInt> {
+    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
+    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
   };
 
-  for (T parent = getInitialParent(block); parent;
-       parent = parent->template getParentOfType<T>())
-    res.insert(parent);
+  // Ensure that all operations collected have known index values.
+  if (llvm::any_of(getGlobalIdOps,
+                   [&](T &op) { return !getIndexValue(op).has_value(); }))
+    return {};
 
-  return res;
-}
+  // Order the operations in increasing index value.
+  llvm::sort(getGlobalIdOps, [&](T &op1, T &op2) {
+    return getIndexValue(op1)->slt(*getIndexValue(op2));
+  });
 
-/// Retrieve the operations with the specified type in the given function.
-template <typename T>
-static SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
-  SetVector<T> res;
-  funcOp->walk([&](T op) { res.insert(op); });
-  return res;
+  // Collect the thread values.
+  SmallVector<Value> threadVars;
+  for (T getGlobalIdOp : getGlobalIdOps)
+    threadVars.emplace_back(getGlobalIdOp.getResult());
+
+  return threadVars;
 }
 
 /// Determine whether \p op uses \p val (directly or indirectly).
@@ -1180,41 +1189,21 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
 }
 
 SmallVector<Value>
-MemoryAccessAnalysis::computeThreadVector(FunctionOpInterface funcOp,
-                                          DataFlowSolver &solver) const {
-  assert(funcOp && "Expecting valid pointer");
+MemoryAccessAnalysis::getThreadVector(FunctionOpInterface funcOp,
+                                      DataFlowSolver &solver) const {
+  // Collect global thread ids.
+  SmallVector<Value> ndItemThreadVars =
+      ::computeThreadVector<sycl::SYCLNDItemGetGlobalIDOp>(funcOp, solver);
+  SmallVector<Value> itemThreadVars =
+      ::computeThreadVector<sycl::SYCLItemGetIDOp>(funcOp, solver);
 
-  // Collect the "get_global_ids" operations (yielding the global thread ids).
-  std::vector<sycl::SYCLNDItemGetGlobalIDOp> getGlobalIdOps =
-      getOperationsOfType<sycl::SYCLNDItemGetGlobalIDOp>(funcOp).takeVector();
+  if (!ndItemThreadVars.empty() && itemThreadVars.empty())
+    return ndItemThreadVars;
+  if (!itemThreadVars.empty() && ndItemThreadVars.empty())
+    return itemThreadVars;
 
-  // Return the index value of a "get_global_ids" operation.
-  auto getIndexValue =
-      [&](sycl::SYCLNDItemGetGlobalIDOp &op) -> std::optional<APInt> {
-    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
-    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
-  };
-
-  // Ensure that all "get_global_ids" have index values known at compile time.
-  if (llvm::any_of(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op) {
-        return !getIndexValue(op).has_value();
-      })) {
-    LLVM_DEBUG(llvm::dbgs() << "Cannot order 'get_global_ids' operations in "
-                               "increasing index value.\n");
-    return {};
-  }
-
-  // Order the "get_global_ids" operations in increasing index value.
-  llvm::sort(getGlobalIdOps, [&](sycl::SYCLNDItemGetGlobalIDOp &op1,
-                                 sycl::SYCLNDItemGetGlobalIDOp &op2) {
-    return getIndexValue(op1)->slt(*getIndexValue(op2));
-  });
-
-  SmallVector<Value> threadVars;
-  for (sycl::SYCLNDItemGetGlobalIDOp getGlobalIdOp : getGlobalIdOps)
-    threadVars.emplace_back(getGlobalIdOp.getResult());
-
-  return threadVars;
+  // Give up if we find both nditem and item thread values or none of them.
+  return {};
 }
 
 void MemoryAccessAnalysis::build() {
@@ -1294,26 +1283,36 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 
   // Collect the global thread ids used in the function.
   auto funcOp = memoryOp->template getParentOfType<FunctionOpInterface>();
-  SmallVector<Value> threadVars = computeThreadVector(funcOp, solver);
+  SmallVector<Value> threadVars = getThreadVector(funcOp, solver);
 
   // Collect the loops enclosing the memory access operation.
-  SetVector<AffineForOp> enclosingLoops =
-      getParentsOfType<AffineForOp>(memoryOp->getBlock());
+  SetVector<LoopLikeOpInterface> enclosingLoops =
+      getParentsOfType<LoopLikeOpInterface>(*memoryOp->getBlock());
 
   // Create a vector containing the thread ids and loop induction variables.
   SmallVector<Value> loopAndThreadVars(threadVars);
-  for (AffineForOp loop : llvm::reverse(enclosingLoops))
-    loopAndThreadVars.emplace_back(loop.getInductionVar());
+  for (LoopLikeOpInterface loop : llvm::reverse(enclosingLoops)) {
+    std::optional<Value> iv = loop.getSingleInductionVar();
+    if (!iv.has_value()) {
+      LLVM_DEBUG(llvm::dbgs() << "Loop does not have a single IV\n");
+      return;
+    }
+    loopAndThreadVars.emplace_back(*iv);
+  }
 
   std::optional<MemoryAccessMatrix> matrix = buildAccessMatrix(
       accessorSubscriptOp, loopAndThreadVars, underlyingVals, solver);
-  if (!matrix.has_value())
+  if (!matrix.has_value()) {
+    LLVM_DEBUG(llvm::dbgs() << "Unable to build the memory access matrix\n");
     return;
+  }
 
   std::optional<OffsetVector> offsets =
       buildOffsetVector(*matrix, loopAndThreadVars, underlyingVals, solver);
-  if (!offsets.has_value())
+  if (!offsets.has_value()) {
+    LLVM_DEBUG(llvm::dbgs() << "Unable to build the offset vector\n");
     return;
+  }
 
   accessMap[memoryOp] = {std::move(*matrix), std::move(*offsets)};
 }
