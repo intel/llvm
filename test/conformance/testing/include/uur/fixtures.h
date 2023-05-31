@@ -43,10 +43,9 @@ GetDevices(ur_platform_handle_t platform) {
     return {true, devices};
 }
 
-inline bool
-hasDevicePartitionSupport(ur_device_handle_t device,
-                          const ur_device_partition_property_t property) {
-    std::vector<ur_device_partition_property_t> properties;
+inline bool hasDevicePartitionSupport(ur_device_handle_t device,
+                                      const ur_device_partition_t property) {
+    std::vector<ur_device_partition_t> properties;
     uur::GetDevicePartitionProperties(device, properties);
     return std::find(properties.begin(), properties.end(), property) !=
            properties.end();

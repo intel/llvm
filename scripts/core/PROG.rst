@@ -117,29 +117,36 @@ fixed part of the parent device, which can explicitly be programmed individually
 .. parsed-literal::
 
     ${x}_device_handle_t hDevice;
-    ${x}_device_partition_property_t properties[] = { 
-               ${X}_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-               ${X}_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
-               0};
+    ${x}_device_partition_property_t prop;
+    prop.value.affinity_domain = ${X}_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE;
+
+    ur_device_partition_properties_t properties{
+        ${X}_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+        nullptr,
+        &prop,
+        1,
+    };
 
     uint32_t count = 0;
     std::vector<${x}_device_handle_t> subDevices;
-    ${x}DevicePartition(hDevice, &properties, &count, nullptr, nullptr);
+    ${x}DevicePartition(hDevice, &properties, 0, nullptr, &count);
 
     if (count > 0) {
         subDevices.resize(count);
-        ${x}DevicePartition(Device, &properties, &count, &subDevices.data(), nullptr);
+        ${x}DevicePartition(Device, &properties, count, &subDevices.data(), nullptr);
     }
 
 The returned sub-devices may be requested for further partitioning into sub-sub-devices, and so on.
-An implementation would return "0" in the count if no further partitioning is supported.
+An implementation will return "0" in the count if no further partitioning is supported.
 
 .. parsed-literal::
 
-    uint32_t count = 1;
-    ${x}_device_handle_t hSubSubDevice;
-    ${x}DevicePartition(subDevices[0], properties, &count, &hSubSubDevice, nullptr);
-
+    uint32_t count;
+    ${x}DevicePartition(subDevices[0], &properties, 0, nullptr, &count);
+    if(count == 0){
+        // no further partitioning allowed
+    }
+    
 Contexts
 ========
 

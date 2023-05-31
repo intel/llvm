@@ -249,6 +249,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
     UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
     UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -851,8 +852,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 74,            ///< [::ur_bool_t] prefer user synchronization when sharing object with
                                                                 ///< other API
     UR_DEVICE_INFO_PARENT_DEVICE = 75,                          ///< [::ur_device_handle_t] return parent device handle
-    UR_DEVICE_INFO_PARTITION_PROPERTIES = 76,                   ///< [::ur_device_partition_property_t[]] Returns an array of partition
-                                                                ///< types supported by the device
+    UR_DEVICE_INFO_SUPPORTED_PARTITIONS = 76,                   ///< [::ur_device_partition_t[]] Returns an array of partition types
+                                                                ///< supported by the device
     UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 77,              ///< [uint32_t] maximum number of sub-devices when the device is
                                                                 ///< partitioned
     UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,              ///< [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
@@ -1010,15 +1011,42 @@ urDeviceRelease(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Device partition property type
-typedef intptr_t ur_device_partition_property_t;
+/// @brief Device affinity domain
+typedef uint32_t ur_device_affinity_domain_flags_t;
+typedef enum ur_device_affinity_domain_flag_t {
+    UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA = UR_BIT(0),               ///< Split the device into sub devices comprised of compute units that
+                                                                   ///< share a NUMA node.
+    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE = UR_BIT(1),           ///< Split the device into sub devices comprised of compute units that
+                                                                   ///< share a level 4 data cache.
+    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE = UR_BIT(2),           ///< Split the device into sub devices comprised of compute units that
+                                                                   ///< share a level 3 data cache.
+    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE = UR_BIT(3),           ///< Split the device into sub devices comprised of compute units that
+                                                                   ///< share a level 2 data cache.
+    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE = UR_BIT(4),           ///< Split the device into sub devices comprised of compute units that
+                                                                   ///< share a level 1 data cache.
+    UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE = UR_BIT(5), ///< Split the device along the next partitionable affinity domain.
+                                                                   ///< The implementation shall find the first level along which the device
+                                                                   ///< or sub device may be further subdivided in the order:
+                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
+                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
+                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
+                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
+                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
+                                                                   ///< and partition the device into sub devices comprised of compute units
+                                                                   ///< that share memory subsystems at this level.
+    /// @cond
+    UR_DEVICE_AFFINITY_DOMAIN_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_device_affinity_domain_flag_t;
+/// @brief Bit Mask for validating ur_device_affinity_domain_flags_t
+#define UR_DEVICE_AFFINITY_DOMAIN_FLAGS_MASK 0xffffffc0
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Partition Properties
 typedef enum ur_device_partition_t {
     UR_DEVICE_PARTITION_EQUALLY = 0x1086,            ///< Partition Equally
     UR_DEVICE_PARTITION_BY_COUNTS = 0x1087,          ///< Partition by counts
-    UR_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0,    ///< End of by counts list
     UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088, ///< Partition by affinity domain
     UR_DEVICE_PARTITION_BY_CSLICE = 0x1089,          ///< Partition by c-slice
     /// @cond
@@ -1026,6 +1054,37 @@ typedef enum ur_device_partition_t {
     /// @endcond
 
 } ur_device_partition_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Device partition value.
+typedef union ur_device_partition_value_t {
+    uint32_t equally;                                  ///< [in] Number of compute units per sub-device when partitioning with
+                                                       ///< ::UR_DEVICE_PARTITION_EQUALLY.
+    uint32_t count;                                    ///< [in] Number of compute units in a sub-device when partitioning with
+                                                       ///< ::UR_DEVICE_PARTITION_BY_COUNTS.
+    ur_device_affinity_domain_flags_t affinity_domain; ///< [in] The affinity domain to partition for when partitioning with
+                                                       ///< $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
+
+} ur_device_partition_value_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Device partition property
+typedef struct ur_device_partition_property_t {
+    ur_device_partition_t type;        ///< [in] The partitioning type to be used.
+    ur_device_partition_value_t value; ///< [in] The paritioning value.
+
+} ur_device_partition_property_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Device Partition Properties
+typedef struct ur_device_partition_properties_t {
+    ur_structure_type_t stype;                         ///< [in] type of this structure, must be
+                                                       ///< ::UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES
+    void *pNext;                                       ///< [in,out][optional] pointer to extension-specific structure
+    const ur_device_partition_property_t *pProperties; ///< [in] Pointer to the beginning of the properties array.
+    size_t PropCount;                                  ///< [in] The length of properties pointed to by `pProperties`.
+
+} ur_device_partition_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Partition the device into sub-devices
@@ -1055,14 +1114,14 @@ typedef enum ur_device_partition_t {
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT
 UR_APIEXPORT ur_result_t UR_APICALL
 urDevicePartition(
-    ur_device_handle_t hDevice,                        ///< [in] handle of the device to partition.
-    const ur_device_partition_property_t *pProperties, ///< [in] null-terminated array of <$_device_partition_t enum, value> pairs.
-    uint32_t NumDevices,                               ///< [in] the number of sub-devices.
-    ur_device_handle_t *phSubDevices,                  ///< [out][optional][range(0, NumDevices)] array of handle of devices.
-                                                       ///< If NumDevices is less than the number of sub-devices available, then
-                                                       ///< the function shall only retrieve that number of sub-devices.
-    uint32_t *pNumDevicesRet                           ///< [out][optional] pointer to the number of sub-devices the device can be
-                                                       ///< partitioned into according to the partitioning property.
+    ur_device_handle_t hDevice,                          ///< [in] handle of the device to partition.
+    const ur_device_partition_properties_t *pProperties, ///< [in] Device partition properties.
+    uint32_t NumDevices,                                 ///< [in] the number of sub-devices.
+    ur_device_handle_t *phSubDevices,                    ///< [out][optional][range(0, NumDevices)] array of handle of devices.
+                                                         ///< If NumDevices is less than the number of sub-devices available, then
+                                                         ///< the function shall only retrieve that number of sub-devices.
+    uint32_t *pNumDevicesRet                             ///< [out][optional] pointer to the number of sub-devices the device can be
+                                                         ///< partitioned into according to the partitioning property.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1158,38 +1217,6 @@ typedef enum ur_device_exec_capability_flag_t {
 } ur_device_exec_capability_flag_t;
 /// @brief Bit Mask for validating ur_device_exec_capability_flags_t
 #define UR_DEVICE_EXEC_CAPABILITY_FLAGS_MASK 0xfffffffc
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Device affinity domain
-typedef uint32_t ur_device_affinity_domain_flags_t;
-typedef enum ur_device_affinity_domain_flag_t {
-    UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA = UR_BIT(0),               ///< Split the device into sub devices comprised of compute units that
-                                                                   ///< share a NUMA node.
-    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE = UR_BIT(1),           ///< Split the device into sub devices comprised of compute units that
-                                                                   ///< share a level 4 data cache.
-    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE = UR_BIT(2),           ///< Split the device into sub devices comprised of compute units that
-                                                                   ///< share a level 3 data cache.
-    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE = UR_BIT(3),           ///< Split the device into sub devices comprised of compute units that
-                                                                   ///< share a level 2 data cache.
-    UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE = UR_BIT(4),           ///< Split the device into sub devices comprised of compute units that
-                                                                   ///< share a level 1 data cache.
-    UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE = UR_BIT(5), ///< Split the device along the next partitionable affinity domain.
-                                                                   ///< The implementation shall find the first level along which the device
-                                                                   ///< or sub device may be further subdivided in the order:
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
-                                                                   ///< and partition the device into sub devices comprised of compute units
-                                                                   ///< that share memory subsystems at this level.
-    /// @cond
-    UR_DEVICE_AFFINITY_DOMAIN_FLAG_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_device_affinity_domain_flag_t;
-/// @brief Bit Mask for validating ur_device_affinity_domain_flags_t
-#define UR_DEVICE_AFFINITY_DOMAIN_FLAGS_MASK 0xffffffc0
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Return platform native device handle.
@@ -7171,7 +7198,7 @@ typedef struct ur_device_release_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_device_partition_params_t {
     ur_device_handle_t *phDevice;
-    const ur_device_partition_property_t **ppProperties;
+    const ur_device_partition_properties_t **ppProperties;
     uint32_t *pNumDevices;
     ur_device_handle_t **pphSubDevices;
     uint32_t **ppNumDevicesRet;
