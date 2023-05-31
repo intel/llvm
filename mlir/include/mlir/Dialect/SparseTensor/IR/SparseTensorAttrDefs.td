@@ -76,32 +76,14 @@ def SparseTensorDimSliceAttr : SparseTensor_Attr<"SparseTensorDimSlice", []> {
   let extraClassDeclaration = [{
     /// Special value for dynamic offset/size/stride.
     static constexpr int64_t kDynamic = -1;
+    static constexpr bool isDynamic(int64_t v) { return v == kDynamic; }
+    static std::optional<uint64_t> getStatic(int64_t v);
+    static std::string getStaticString(int64_t v);
 
-    static bool isDynamic(int64_t v) {
-      return v == kDynamic;
-    }
-
-    std::optional<uint64_t> getStaticOffset() const {
-      if (isDynamic(getOffset()))
-        return std::nullopt;
-      return static_cast<uint64_t>(getOffset());
-    };
-
-    std::optional<uint64_t> getStaticStride() const {
-      if (isDynamic(getStride()))
-        return std::nullopt;
-      return static_cast<uint64_t>(getStride());
-    }
-
-    std::optional<uint64_t> getStaticSize() const {
-      if (isDynamic(getSize()))
-        return std::nullopt;
-      return static_cast<uint64_t>(getSize());
-    }
-
-    bool isCompletelyDynamic() const {
-      return isDynamic(getOffset()) && isDynamic(getStride()) && isDynamic(getSize());
-    };
+    std::optional<uint64_t> getStaticOffset() const;
+    std::optional<uint64_t> getStaticStride() const;
+    std::optional<uint64_t> getStaticSize() const;
+    bool isCompletelyDynamic() const;
   }];
 
   let genVerifyDecl = 1;
@@ -244,7 +226,7 @@ def SparseTensorEncodingAttr : SparseTensor_Attr<"SparseTensorEncoding",
     // offset = 0, size = 8, and a dynamic stride on the second dimension).
     #CSR_SLICE = #sparse_tensor.encoding<{
       lvlTypes = [ "dense", "compressed" ],
-      slice = [ (0, 4, 1), (0, 8, ?) ]
+      dimSlices = [ (0, 4, 1), (0, 8, ?) ]
     }>
     ... tensor<?x?xf64, #CSC_SLICE> ...
 
@@ -266,9 +248,6 @@ def SparseTensorEncodingAttr : SparseTensor_Attr<"SparseTensorEncoding",
     // The required bitwidth for coordinate storage.
     "unsigned":$crdWidth,
     // A slice attribute for each dimension of the tensor type.
-    // FIXME: The name used here is `dimSlices`, however the
-    // parser/printer uses the name `slice` instead.  Therefore
-    // the parser/printer need to be updated to match.
     ArrayRefParameter<
       "::mlir::sparse_tensor::SparseTensorDimSliceAttr",
       "per dimension slice metadata"
@@ -306,6 +285,14 @@ def SparseTensorEncodingAttr : SparseTensor_Attr<"SparseTensorEncoding",
     /// Constructs a new encoding with the pointer and index bitwidths
     /// reset to the default, and all other fields inherited from `this`.
     SparseTensorEncodingAttr withoutBitWidths() const;
+
+    /// Constructs a new encoding with the given dimSlices, and all
+    /// other fields inherited from `this`.
+    SparseTensorEncodingAttr withDimSlices(ArrayRef<::mlir::sparse_tensor::SparseTensorDimSliceAttr> dimSlices) const;
+
+    /// Constructs a new encoding with the dimSlices reset to the default,
+    /// and all other fields inherited from `this`.
+    SparseTensorEncodingAttr withoutDimSlices() const;
 
     //
     // Rank methods.

@@ -35,11 +35,17 @@ using namespace mlir::sparse_tensor;
 // Additional convenience methods.
 //===----------------------------------------------------------------------===//
 
-/// Gets the dimension-rank of the type of some `T`.  (In particular
-/// this is only used for `Value` and `TypedValue<RankedTensorType>`.)
-template <typename T>
-static inline Dimension getDimRank(T t) {
-  return getRankedTensorType(t).getRank();
+static constexpr bool acceptBitWidth(unsigned bitWidth) {
+  switch (bitWidth) {
+  case 0:
+  case 8:
+  case 16:
+  case 32:
+  case 64:
+    return true;
+  default:
+    return false;
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -177,26 +183,39 @@ StorageLayout::getFieldIndexAndStride(SparseTensorFieldKind kind,
 // TensorDialect Attribute Methods.
 //===----------------------------------------------------------------------===//
 
-static bool acceptBitWidth(unsigned bitWidth) {
-  switch (bitWidth) {
-  case 0:
-  case 8:
-  case 16:
-  case 32:
-  case 64:
-    return true;
-  default:
-    return false;
-  }
+std::optional<uint64_t> SparseTensorDimSliceAttr::getStatic(int64_t v) {
+  return isDynamic(v) ? std::nullopt
+                      : std::make_optional(static_cast<uint64_t>(v));
+}
+
+std::optional<uint64_t> SparseTensorDimSliceAttr::getStaticOffset() const {
+  return getStatic(getOffset());
+}
+
+std::optional<uint64_t> SparseTensorDimSliceAttr::getStaticStride() const {
+  return getStatic(getStride());
+}
+
+std::optional<uint64_t> SparseTensorDimSliceAttr::getStaticSize() const {
+  return getStatic(getSize());
+}
+
+bool SparseTensorDimSliceAttr::isCompletelyDynamic() const {
+  return isDynamic(getOffset()) && isDynamic(getStride()) &&
+         isDynamic(getSize());
+}
+
+std::string SparseTensorDimSliceAttr::getStaticString(int64_t v) {
+  return isDynamic(v) ? "?" : std::to_string(v);
 }
 
 void SparseTensorDimSliceAttr::print(AsmPrinter &printer) const {
   printer << "(";
-  printer << (getStaticOffset() ? std::to_string(*getStaticOffset()) : "?");
+  printer << getStaticString(getOffset());
   printer << ", ";
-  printer << (getStaticSize() ? std::to_string(*getStaticSize()) : "?");
+  printer << getStaticString(getSize());
   printer << ", ";
-  printer << (getStaticStride() ? std::to_string(*getStaticStride()) : "?");
+  printer << getStaticString(getStride());
   printer << ")";
 }
 
@@ -219,7 +238,7 @@ static ParseResult parseOptionalStaticSlice(int64_t &result,
 }
 
 Attribute SparseTensorDimSliceAttr::parse(AsmParser &parser, Type type) {
-  int64_t offset = -1, size = -1, stride = -1;
+  int64_t offset = kDynamic, size = kDynamic, stride = kDynamic;
 
   if (failed(parser.parseLParen()) ||
       failed(parseOptionalStaticSlice(offset, parser)) ||
@@ -237,13 +256,13 @@ Attribute SparseTensorDimSliceAttr::parse(AsmParser &parser, Type type) {
 LogicalResult
 SparseTensorDimSliceAttr::verify(function_ref<InFlightDiagnostic()> emitError,
                                  int64_t offset, int64_t size, int64_t stride) {
-  if ((offset == SparseTensorDimSliceAttr::kDynamic || offset >= 0) &&
-      (size == SparseTensorDimSliceAttr::kDynamic || size > 0) &&
-      (stride == SparseTensorDimSliceAttr::kDynamic || stride > 0)) {
-    return success();
-  }
-  return emitError()
-         << "expect positive value or ? for slice offset/size/stride";
+  if (!isDynamic(offset) && offset < 0)
+    return emitError() << "expect non-negative value or ? for slice offset";
+  if (!isDynamic(size) && size <= 0)
+    return emitError() << "expect positive value or ? for slice size";
+  if (!isDynamic(stride) && stride <= 0)
+    return emitError() << "expect positive value or ? for slice stride";
+  return success();
 }
 
 Type mlir::sparse_tensor::detail::getIntegerOrIndexType(MLIRContext *ctx,
@@ -289,6 +308,17 @@ SparseTensorEncodingAttr::withBitWidths(unsigned posWidth,
 
 SparseTensorEncodingAttr SparseTensorEncodingAttr::withoutBitWidths() const {
   return withBitWidths(0, 0);
+}
+
+SparseTensorEncodingAttr SparseTensorEncodingAttr::withDimSlices(
+    ArrayRef<SparseTensorDimSliceAttr> dimSlices) const {
+  return SparseTensorEncodingAttr::get(getContext(), getLvlTypes(),
+                                       getDimToLvl(), getPosWidth(),
+                                       getCrdWidth(), dimSlices);
+}
+
+SparseTensorEncodingAttr SparseTensorEncodingAttr::withoutDimSlices() const {
+  return withDimSlices(ArrayRef<SparseTensorDimSliceAttr>{});
 }
 
 bool SparseTensorEncodingAttr::isAllDense() const {
@@ -408,7 +438,7 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
 
   // Process the data from the parsed dictionary value into struct-like data.
   SmallVector<DimLevelType> lvlTypes;
-  SmallVector<SparseTensorDimSliceAttr> slices;
+  SmallVector<SparseTensorDimSliceAttr> dimSlices;
   AffineMap dimToLvl = {};
   unsigned posWidth = 0;
   unsigned crdWidth = 0;
@@ -416,7 +446,7 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
   StringRef attrName;
   // Exactly 6 keys.
   SmallVector<StringRef, 6> keys = {"lvlTypes", "dimToLvl", "posWidth",
-                                    "crdWidth", "slice"};
+                                    "crdWidth", "dimSlices"};
   while (succeeded(parser.parseOptionalKeyword(&attrName))) {
     if (!llvm::is_contained(keys, attrName)) {
       parser.emitError(parser.getNameLoc(), "unexpected key: ") << attrName;
@@ -464,13 +494,13 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
       auto intAttr = llvm::dyn_cast<IntegerAttr>(attr);
       ERROR_IF(!intAttr, "expected an integral index bitwidth")
       crdWidth = intAttr.getInt();
-    } else if (attrName == "slice") {
+    } else if (attrName == "dimSlices") {
       RETURN_ON_FAIL(parser.parseLSquare())
       // Dispatches to DimSliceAttr to skip mnemonic
       bool finished = false;
       while (auto attr = SparseTensorDimSliceAttr::parse(parser, nullptr)) {
         auto sliceAttr = llvm::cast<SparseTensorDimSliceAttr>(attr);
-        slices.push_back(sliceAttr);
+        dimSlices.push_back(sliceAttr);
         if (parser.parseOptionalComma().failed()) {
           finished = true;
           break;
@@ -494,7 +524,7 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
 
   // Construct struct-like storage for attribute.
   return parser.getChecked<SparseTensorEncodingAttr>(
-      parser.getContext(), lvlTypes, dimToLvl, posWidth, crdWidth, slices);
+      parser.getContext(), lvlTypes, dimToLvl, posWidth, crdWidth, dimSlices);
 }
 
 void SparseTensorEncodingAttr::print(AsmPrinter &printer) const {
@@ -512,7 +542,7 @@ void SparseTensorEncodingAttr::print(AsmPrinter &printer) const {
   if (getCrdWidth())
     printer << ", crdWidth = " << getCrdWidth();
   if (!getDimSlices().empty()) {
-    printer << ", slice = [ ";
+    printer << ", dimSlices = [ ";
     llvm::interleaveComma(getDimSlices(), printer,
                           [&](SparseTensorDimSliceAttr attr) {
                             // Calls SparseTensorDimSliceAttr::print directly to

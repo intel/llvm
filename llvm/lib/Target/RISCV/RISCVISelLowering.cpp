@@ -2477,6 +2477,9 @@ lowerVectorFTRUNC_FCEIL_FFLOOR_FROUND(SDValue Op, SelectionDAG &DAG,
   SDValue Mask, VL;
   if (Op->isVPOpcode()) {
     Mask = Op.getOperand(1);
+    if (VT.isFixedLengthVector())
+      Mask = convertToScalableVector(getMaskTypeFor(ContainerVT), Mask, DAG,
+                                     Subtarget);
     VL = Op.getOperand(2);
   } else {
     std::tie(Mask, VL) = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget);
@@ -5508,6 +5511,20 @@ SDValue RISCVTargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
 
   if (SDValue V = combineSelectToBinOp(Op.getNode(), DAG, Subtarget))
     return V;
+
+  // (select cc, 1.0, 0.0) -> (sint_to_fp (zext cc))
+  // (select cc, 0.0, 1.0) -> (sint_to_fp (zext (xor cc, 1)))
+  const ConstantFPSDNode *FPTV = dyn_cast<ConstantFPSDNode>(TrueV);
+  const ConstantFPSDNode *FPFV = dyn_cast<ConstantFPSDNode>(FalseV);
+  if (FPTV && FPFV) {
+    if (FPTV->isExactlyValue(1.0) && FPFV->isExactlyValue(0.0))
+      return DAG.getNode(ISD::SINT_TO_FP, DL, VT, CondV);
+    if (FPTV->isExactlyValue(0.0) && FPFV->isExactlyValue(1.0)) {
+      SDValue XOR = DAG.getNode(ISD::XOR, DL, XLenVT, CondV,
+                                DAG.getConstant(1, DL, XLenVT));
+      return DAG.getNode(ISD::SINT_TO_FP, DL, VT, XOR);
+    }
+  }
 
   // If the condition is not an integer SETCC which operates on XLenVT, we need
   // to emit a RISCVISD::SELECT_CC comparing the condition to zero. i.e.:

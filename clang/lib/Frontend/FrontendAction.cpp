@@ -364,18 +364,19 @@ static std::error_code collectModuleHeaderIncludes(
   }
   // Note that Module->PrivateHeaders will not be a TopHeader.
 
-  if (Module::Header UmbrellaHeader = Module->getUmbrellaHeaderAsWritten()) {
-    Module->addTopHeader(UmbrellaHeader.Entry);
+  if (std::optional<Module::Header> UmbrellaHeader =
+          Module->getUmbrellaHeaderAsWritten()) {
+    Module->addTopHeader(UmbrellaHeader->Entry);
     if (Module->Parent)
       // Include the umbrella header for submodules.
-      addHeaderInclude(UmbrellaHeader.PathRelativeToRootModuleDirectory,
+      addHeaderInclude(UmbrellaHeader->PathRelativeToRootModuleDirectory,
                        Includes, LangOpts, Module->IsExternC);
-  } else if (Module::DirectoryName UmbrellaDir =
+  } else if (std::optional<Module::DirectoryName> UmbrellaDir =
                  Module->getUmbrellaDirAsWritten()) {
     // Add all of the headers we find in this subdirectory.
     std::error_code EC;
     SmallString<128> DirNative;
-    llvm::sys::path::native(UmbrellaDir.Entry->getName(), DirNative);
+    llvm::sys::path::native(UmbrellaDir->Entry.getName(), DirNative);
 
     llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
     SmallVector<
@@ -407,7 +408,7 @@ static std::error_code collectModuleHeaderIncludes(
       for (int I = 0; I != Dir.level() + 1; ++I, ++PathIt)
         Components.push_back(*PathIt);
       SmallString<128> RelativeHeader(
-          UmbrellaDir.PathRelativeToRootModuleDirectory);
+          UmbrellaDir->PathRelativeToRootModuleDirectory);
       for (auto It = Components.rbegin(), End = Components.rend(); It != End;
            ++It)
         llvm::sys::path::append(RelativeHeader, *It);
@@ -553,8 +554,9 @@ getInputBufferForModule(CompilerInstance &CI, Module *M) {
   // Collect the set of #includes we need to build the module.
   SmallString<256> HeaderContents;
   std::error_code Err = std::error_code();
-  if (Module::Header UmbrellaHeader = M->getUmbrellaHeaderAsWritten())
-    addHeaderInclude(UmbrellaHeader.PathRelativeToRootModuleDirectory,
+  if (std::optional<Module::Header> UmbrellaHeader =
+          M->getUmbrellaHeaderAsWritten())
+    addHeaderInclude(UmbrellaHeader->PathRelativeToRootModuleDirectory,
                      HeaderContents, CI.getLangOpts(), M->IsExternC);
   Err = collectModuleHeaderIncludes(
       CI.getLangOpts(), FileMgr, CI.getDiagnostics(),
@@ -823,11 +825,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
              "trying to build a header unit without a Pre-processor?");
       HeaderSearch &HS = CI.getPreprocessor().getHeaderSearchInfo();
       // Relative searches begin from CWD.
-      const DirectoryEntry *Dir = nullptr;
-      if (auto DirOrErr = CI.getFileManager().getDirectory("."))
-        Dir = *DirOrErr;
-      SmallVector<std::pair<const FileEntry *, const DirectoryEntry *>, 1> CWD;
-      CWD.push_back({nullptr, Dir});
+      auto Dir = CI.getFileManager().getOptionalDirectoryRef(".");
+      SmallVector<std::pair<const FileEntry *, DirectoryEntryRef>, 1> CWD;
+      CWD.push_back({nullptr, *Dir});
       OptionalFileEntryRef FE =
           HS.LookupFile(FileName, SourceLocation(),
                         /*Angled*/ Input.getKind().getHeaderUnitKind() ==
