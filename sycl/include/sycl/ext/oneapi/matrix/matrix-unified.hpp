@@ -228,7 +228,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case sycl::ext::intel::experimental::matrix::layout::packed:
+  case sycl::ext::intel::experimental::matrix::layout::ext_intel_packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
         DecorT, S, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
@@ -327,7 +327,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case sycl::ext::intel::experimental::matrix::layout::packed:
+  case sycl::ext::intel::experimental::matrix::layout::ext_intel_packed:
     __spirv_JointMatrixStoreINTEL<
         DecorT, T, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,

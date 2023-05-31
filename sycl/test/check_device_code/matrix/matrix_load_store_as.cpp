@@ -27,7 +27,7 @@ int main(void) {
                        layout::row_major>
               tA;
           joint_matrix<sub_group, unsigned short, use::b, 16, 16,
-                       ext::intel::experimental::matrix::layout::packed>
+                       ext::intel::experimental::matrix::layout::ext_intel_packed>
               tB;
           joint_matrix<sub_group, float, use::accumulator, 8, 16> tC;
 

@@ -46,7 +46,7 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            ext::oneapi::sub_group sg = spmd_item.get_sub_group();
 
            joint_matrix<sub_group, T, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        ext::intel::experimental::matrix::layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_load(

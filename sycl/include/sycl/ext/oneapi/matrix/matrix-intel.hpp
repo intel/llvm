@@ -18,7 +18,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel::experimental::matrix::layout {
-constexpr sycl::ext::oneapi::experimental::matrix::layout packed =
+constexpr sycl::ext::oneapi::experimental::matrix::layout ext_intel_packed =
     static_cast<sycl::ext::oneapi::experimental::matrix::layout>(2);
 }
 namespace oneapi {
@@ -36,8 +36,9 @@ template <layout Layout> struct spv_matrix_layout_traits {
 
 SPV_MATRIX_LAYOUT_TRAITS(layout::row_major, __spv::MatrixLayout::RowMajor)
 SPV_MATRIX_LAYOUT_TRAITS(layout::col_major, __spv::MatrixLayout::ColumnMajor)
-SPV_MATRIX_LAYOUT_TRAITS(sycl::ext::intel::experimental::matrix::layout::packed,
-                         __spv::MatrixLayout::Packed)
+SPV_MATRIX_LAYOUT_TRAITS(
+    sycl::ext::intel::experimental::matrix::layout::ext_intel_packed,
+    __spv::MatrixLayout::Packed)
 SPV_MATRIX_LAYOUT_TRAITS(layout::dynamic, __spv::MatrixLayout::Dynamic)
 
 template <use Use> struct spv_matrix_use_traits {
