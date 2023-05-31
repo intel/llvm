@@ -53,8 +53,7 @@ inline constexpr bool is_user_constructed_group_v =
 template <class T> struct is_fixed_size_group : std::false_type {};
 
 template <class T>
-inline constexpr bool is_fixed_size_group_v =
-    is_fixed_size_group<T>::value;
+inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
 
 namespace detail {
 template <typename T> struct is_group_helper : std::false_type {};
