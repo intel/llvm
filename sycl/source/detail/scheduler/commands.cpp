@@ -1994,8 +1994,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
     if (HasSourceInfo) {
       xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
       xpti::addMetadata(CmdTraceEvent, "sym_source_file_name", FileName);
-      xpti::addMetadata(CmdTraceEvent, "sym_line_no", Line);
-      xpti::addMetadata(CmdTraceEvent, "sym_column_no", Column);
+      xpti::addMetadata(CmdTraceEvent, "sym_line_no", static_cast<int>(Line));
+      xpti::addMetadata(CmdTraceEvent, "sym_column_no",
+                        static_cast<int>(Column));
     }
   }
 }
