@@ -362,109 +362,166 @@ struct LoopInternalization
     : public polygeist::impl::LoopInternalizationBase<LoopInternalization> {
   using LoopInternalizationBase<LoopInternalization>::LoopInternalizationBase;
 
-  void runOnOperation() final {
-    assert(CollectReadOnlyAccesses &&
-           "Limitation: only able to handle read only accesses currently");
-
-    Operation *module = getOperation();
-    ModuleAnalysisManager mam(module, /*passInstrumentor=*/nullptr);
-    AnalysisManager am = mam;
-    auto &memAccessAnalysis =
-        am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
-
-    auto walkResult = module->walk([&](FunctionOpInterface func) {
-      DataFlowSolver solver;
-      solver.load<dataflow::DeadCodeAnalysis>();
-      solver.load<dataflow::IntegerRangeAnalysis>();
-      if (failed(solver.initializeAndRun(func)))
-        return WalkResult::interrupt();
-
-      if (!isCandidate(func))
-        return WalkResult::advance();
-
-      LLVM_DEBUG(llvm::dbgs()
-                 << "LoopInternalization: Visiting candidate function "
-                 << func.getName() << "\n");
-      func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
-        LLVM_DEBUG(llvm::dbgs() << "LoopInternalization: Visiting Loop:\n"
-                                << loop << "\n");
-
-        if (!isCandidate(loop))
-          return;
-
-        transform(loop, memAccessAnalysis, solver);
-      });
-
-      return WalkResult::advance();
-    });
-
-    if (walkResult.wasInterrupted())
-      signalPassFailure();
-  }
+  void runOnOperation() final;
 
 private:
-  void transform(LoopLikeOpInterface loop,
-                 const MemoryAccessAnalysis &memAccessAnalysis,
-                 DataFlowSolver &solver) const {
-    TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
-        [&](auto loop) { transform(loop, memAccessAnalysis, solver); });
-  }
+  /// Construct a map from memref accesses in \p loop to their ideal memory
+  /// space.
+  void selectMemorySpace(LoopLikeOpInterface loop,
+                         const MemoryAccessAnalysis &memAccessAnalysis,
+                         DataFlowSolver &solver);
 
-  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
-                            T, affine::AffineForOp, scf::ForOp>::value>>
+  /// Transform a candidate loop.
+  template <typename T>
   void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis,
-                 DataFlowSolver &solver) const {
-    std::optional<LoopLikeOpInterface> innermostLoop =
-        LoopTools::getInnermostLoop(loop);
-    assert(innermostLoop.has_value() && "Failed to get the innermost loop");
+                 DataFlowSolver &solver) const;
 
-    // Analyze affine memory accesses in the innermost loop.
-    MemorySelector memorySelector(memAccessAnalysis, solver);
-    memorySelector.analyze(*innermostLoop);
+private:
+  /// A map from a candidate loop to memref values used in the loop.
+  DenseMap<LoopLikeOpInterface, SmallVector<Value>> loopToMemref;
 
-    // Determine which memory space should be used for each affine operation.
-    DenseMap<Value, MemorySelector::MemorySpace> valueToMemorySpace;
-    innermostLoop->walk<WalkOrder::PreOrder>([&](Operation *op) {
-      if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
-        return;
-
-      affine::MemRefAccess access(op);
-      auto it = valueToMemorySpace.find(access.memref);
-      if (it != valueToMemorySpace.end())
-        return;
-
-      std::optional<MemorySelector::MemorySpace> memSpace =
-          memorySelector.selectMemorySpace(access.memref);
-      if (memSpace)
-        valueToMemorySpace[access.memref] = *memSpace;
-    });
-
-    // TODO: prioritize the array accesses that should use shared memory.
-
-    SmallVector<T> nestedLoops;
-    LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
-
-    SmallVector<Value> tileSizes;
-    getTileSizes(nestedLoops, tileSizes);
-
-    SmallVector<T> tiledNest;
-    LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
-    LLVM_DEBUG({
-      if (res.succeeded())
-        llvm::dbgs() << "Tiled loop:\n" << tiledNest.front() << "\n";
-      else
-        llvm::dbgs() << "Tile NOT performed\n";
-    });
-
-    // TODO: promote loop accesses to local memory.
-    loop = tiledNest.front();
-    OpBuilder builder(loop);
-    builder.setInsertionPointToStart(loop->getBlock());
-    createLocalBarrier(builder);
-    builder.setInsertionPointAfter(loop);
-    createLocalBarrier(builder);
-  }
+  /// Map from a candidate a memref value to its ideal memory space.
+  DenseMap<Value, MemorySelector::MemorySpace> memrefToMemorySpace;
 };
+
+void LoopInternalization::runOnOperation() {
+  assert(CollectReadOnlyAccesses &&
+         "Limitation: only able to handle read only accesses currently");
+
+  Operation *module = getOperation();
+  ModuleAnalysisManager mam(module, /*passInstrumentor=*/nullptr);
+  AnalysisManager am = mam;
+  auto &memAccessAnalysis =
+      am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
+
+  // Walk each function in the module.
+  module->walk([&](FunctionOpInterface func) {
+    if (!isCandidate(func))
+      return;
+
+    LLVM_DEBUG(llvm::dbgs()
+               << "LoopInternalization: Visiting candidate function "
+               << func.getName() << "\n");
+
+    DataFlowSolver solver;
+    solver.load<dataflow::DeadCodeAnalysis>();
+    solver.load<dataflow::IntegerRangeAnalysis>();
+    if (failed(solver.initializeAndRun(func))) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "LoopInternalization: Unable to run required dataflow "
+                    "analysis on "
+                 << func.getName() << "\n");
+      return;
+    }
+
+    // Select the ideal memory space for memref accesses in candidate loops
+    // contained by this function.
+    func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+      if (!isCandidate(loop))
+        return;
+
+      LLVM_DEBUG(llvm::dbgs()
+                 << "LoopInternalization: Visiting candidate loop:\n"
+                 << loop << "\n");
+
+      // Construct a map from memref accesses to their ideal memory space.
+      selectMemorySpace(loop, memAccessAnalysis, solver);
+
+      // TODO: prioritize the array accesses that should use shared memory.
+      // prioritize(memAccessAnalysis, solver);
+    });
+
+    // Now that we have the ideal memory space for all analyzable memref
+    // accesses in each loop, transform the loops.
+    for (auto &entry : loopToMemref) {
+      if (isa<affine::AffineForOp>(entry.first))
+        transform(cast<affine::AffineForOp>(entry.first), memAccessAnalysis,
+                  solver);
+      else if (isa<scf::ForOp>(entry.first))
+        transform(cast<scf::ForOp>(entry.first), memAccessAnalysis, solver);
+      else
+        llvm_unreachable("Unexpected loop kind");
+    }
+  });
+}
+
+void LoopInternalization::selectMemorySpace(
+    LoopLikeOpInterface loop, const MemoryAccessAnalysis &memAccessAnalysis,
+    DataFlowSolver &solver) {
+  assert(loopToMemref.find(loop) == loopToMemref.end() &&
+         "Loop should not be already present in the map");
+
+  std::optional<LoopLikeOpInterface> innermostLoop =
+      LoopTools::getInnermostLoop(loop);
+  assert(innermostLoop.has_value() && "Failed to get the innermost loop");
+
+  // Use the memory selector to determine the ideal memory space for memref
+  // accesses in the innermost loop.
+  MemorySelector memorySelector(memAccessAnalysis, solver);
+  memorySelector.analyze(*innermostLoop);
+
+  loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
+    if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+      return;
+
+    affine::MemRefAccess memRefAccess(op);
+
+    // Skip if the memref is already in the map.
+    if (memrefToMemorySpace.find(memRefAccess.memref) !=
+        memrefToMemorySpace.end())
+      return;
+
+    // Compute the ideal memory space if possible.
+    std::optional<MemorySelector::MemorySpace> memSpace =
+        memorySelector.selectMemorySpace(memRefAccess.memref);
+    if (!memSpace)
+      return;
+
+    // Record we have processes the memref in this loop...
+    auto it = loopToMemref.find(loop);
+    if (it == loopToMemref.end())
+      loopToMemref[loop] = {memRefAccess.memref};
+    else {
+      SmallVector<Value> &memRefs = loopToMemref[loop];
+      memRefs.push_back(memRefAccess.memref);
+    }
+
+    // ... and record the memref memory space.
+    memrefToMemorySpace[memRefAccess.memref] = *memSpace;
+  });
+}
+
+template <typename T>
+void LoopInternalization::transform(
+    T loop, const MemoryAccessAnalysis &memAccessAnalysis,
+    DataFlowSolver &solver) const {
+  static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
+  assert(loopToMemref.find(loop) != loopToMemref.end() &&
+         "Loop should be in the map");
+
+  SmallVector<T> nestedLoops;
+  LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
+
+  SmallVector<Value> tileSizes;
+  getTileSizes(nestedLoops, tileSizes);
+
+  SmallVector<T> tiledNest;
+  LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
+  LLVM_DEBUG({
+    if (res.succeeded())
+      llvm::dbgs() << "Tiled loop:\n" << tiledNest.front() << "\n";
+    else
+      llvm::dbgs() << "Tile NOT performed\n";
+  });
+
+  // TODO: promote loop accesses to local memory.
+  loop = tiledNest.front();
+  OpBuilder builder(loop);
+  builder.setInsertionPointToStart(loop->getBlock());
+  createLocalBarrier(builder);
+  builder.setInsertionPointAfter(loop);
+  createLocalBarrier(builder);
+}
 
 } // namespace
 
