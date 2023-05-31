@@ -47,6 +47,10 @@ private:
     return result;
   }
 
+  hlfir::EntityWithAttributes
+  genDesignatorExpr(const Fortran::lower::SomeExpr &designatorExpr,
+                    bool vectorSubscriptDesignatorToValue = true);
+
 public:
   HlfirDesignatorBuilder(mlir::Location loc,
                          Fortran::lower::AbstractConverter &converter,
@@ -111,6 +115,11 @@ public:
     return genLeafPartRef(namedEntity.GetComponent(),
                           vectorSubscriptDesignatorToValue);
   }
+
+  /// Public entry point to lower a vector subscripted designator to
+  /// an hlfir::ElementalAddrOp.
+  hlfir::ElementalAddrOp convertVectorSubscriptedExprToElementalAddr(
+      const Fortran::lower::SomeExpr &designatorExpr);
 
 private:
   /// Struct that is filled while visiting a part-ref (in the "visit" member
@@ -585,8 +594,17 @@ private:
     llvm::SmallVector<mlir::Value> extents;
     auto seqTy = hlfir::getFortranElementOrSequenceType(fieldType)
                      .cast<fir::SequenceType>();
-    for (auto extent : seqTy.getShape())
+    for (auto extent : seqTy.getShape()) {
+      if (extent == fir::SequenceType::getUnknownExtent()) {
+        // We have already generated invalid hlfir.declare
+        // without the type parameters and probably invalid storage
+        // for the variable (e.g. fir.alloca without type parameters).
+        // So this TODO here is a little bit late, but it matches
+        // the non-HLFIR path.
+        TODO(loc, "array component shape depending on length parameters");
+      }
       extents.push_back(builder.createIntegerConstant(loc, idxTy, extent));
+    }
     if (!hasNonDefaultLowerBounds(componentSym))
       return builder.create<fir::ShapeOp>(loc, extents);
 
@@ -632,6 +650,31 @@ private:
              "Fortran designators can only have one ranked part");
       return changeElementType(baseType, componentBaseType);
     }
+
+    if (partInfo.complexPart && partInfo.componentShape) {
+      // Treat ...array_comp%im/re as ...array_comp(:,:,...)%im/re
+      // so that the codegen has the full slice triples for the component
+      // readily available.
+      fir::FirOpBuilder &builder = getBuilder();
+      mlir::Type idxTy = builder.getIndexType();
+      mlir::Value one = builder.createIntegerConstant(loc, idxTy, 1);
+
+      llvm::SmallVector<mlir::Value> resultExtents;
+      // Collect <lb, ub> pairs from the component shape.
+      auto bounds = hlfir::genBounds(loc, builder, partInfo.componentShape);
+      for (auto &boundPair : bounds) {
+        // The default subscripts are <lb, ub, 1>:
+        partInfo.subscripts.emplace_back(hlfir::DesignateOp::Triplet{
+            boundPair.first, boundPair.second, one});
+        auto extentValue = builder.genExtentFromTriplet(
+            loc, boundPair.first, boundPair.second, one, idxTy);
+        resultExtents.push_back(extentValue);
+      }
+      // The result shape is: <max((ub - lb + 1) / 1, 0), ...>.
+      partInfo.resultShape = builder.genShape(loc, resultExtents);
+      return componentBaseType;
+    }
+
     // scalar%array_comp or scalar%scalar. In any case the shape of this
     // part-ref is coming from the component.
     partInfo.resultShape = partInfo.componentShape;
@@ -844,6 +887,67 @@ private:
   mlir::Location loc;
 };
 
+hlfir::EntityWithAttributes HlfirDesignatorBuilder::genDesignatorExpr(
+    const Fortran::lower::SomeExpr &designatorExpr,
+    bool vectorSubscriptDesignatorToValue) {
+  // Expr<SomeType> plumbing to unwrap Designator<T> and call
+  // gen(Designator<T>.u).
+  return std::visit(
+      [&](const auto &x) -> hlfir::EntityWithAttributes {
+        using T = std::decay_t<decltype(x)>;
+        if constexpr (Fortran::common::HasMember<
+                          T, Fortran::lower::CategoryExpression>) {
+          if constexpr (T::Result::category ==
+                        Fortran::common::TypeCategory::Derived) {
+            return gen(std::get<Fortran::evaluate::Designator<
+                           Fortran::evaluate::SomeDerived>>(x.u)
+                           .u,
+                       vectorSubscriptDesignatorToValue);
+          } else {
+            return std::visit(
+                [&](const auto &preciseKind) {
+                  using TK =
+                      typename std::decay_t<decltype(preciseKind)>::Result;
+                  return gen(
+                      std::get<Fortran::evaluate::Designator<TK>>(preciseKind.u)
+                          .u,
+                      vectorSubscriptDesignatorToValue);
+                },
+                x.u);
+          }
+        } else {
+          fir::emitFatalError(loc, "unexpected typeless Designator");
+        }
+      },
+      designatorExpr.u);
+}
+
+hlfir::ElementalAddrOp
+HlfirDesignatorBuilder::convertVectorSubscriptedExprToElementalAddr(
+    const Fortran::lower::SomeExpr &designatorExpr) {
+
+  hlfir::EntityWithAttributes elementAddrEntity = genDesignatorExpr(
+      designatorExpr, /*vectorSubscriptDesignatorToValue=*/false);
+  assert(getVectorSubscriptElementAddrOp().has_value() &&
+         "expected vector subscripts");
+  hlfir::ElementalAddrOp elementalAddrOp = *getVectorSubscriptElementAddrOp();
+  // Now that the type parameters have been computed, add then to the
+  // hlfir.elemental_addr.
+  fir::FirOpBuilder &builder = getBuilder();
+  llvm::SmallVector<mlir::Value, 1> lengths;
+  hlfir::genLengthParameters(loc, builder, elementAddrEntity, lengths);
+  if (!lengths.empty())
+    elementalAddrOp.getTypeparamsMutable().assign(lengths);
+  // Create the hlfir.yield terminator inside the hlfir.elemental_body.
+  builder.setInsertionPointToEnd(&elementalAddrOp.getBody().front());
+  builder.create<hlfir::YieldOp>(loc, elementAddrEntity);
+  builder.setInsertionPointAfter(elementalAddrOp);
+  // Reset the HlfirDesignatorBuilder state, in case it is used on a new
+  // designator.
+  setVectorSubscriptElementAddrOp(std::nullopt);
+  return elementalAddrOp;
+}
+
 //===--------------------------------------------------------------------===//
 // Binary Operation implementation
 //===--------------------------------------------------------------------===//
@@ -878,7 +982,22 @@ GENBIN(Multiply, Real, mlir::arith::MulFOp)
 GENBIN(Multiply, Complex, fir::MulcOp)
 GENBIN(Divide, Integer, mlir::arith::DivSIOp)
 GENBIN(Divide, Real, mlir::arith::DivFOp)
-GENBIN(Divide, Complex, fir::DivcOp)
+
+template <int KIND>
+struct BinaryOp<Fortran::evaluate::Divide<
+    Fortran::evaluate::Type<Fortran::common::TypeCategory::Complex, KIND>>> {
+  using Op = Fortran::evaluate::Divide<
+      Fortran::evaluate::Type<Fortran::common::TypeCategory::Complex, KIND>>;
+  static hlfir::EntityWithAttributes gen(mlir::Location loc,
+                                         fir::FirOpBuilder &builder, const Op &,
+                                         hlfir::Entity lhs, hlfir::Entity rhs) {
+    mlir::Type ty = Fortran::lower::getFIRType(
+        builder.getContext(), Fortran::common::TypeCategory::Complex, KIND,
+        /*params=*/std::nullopt);
+    return hlfir::EntityWithAttributes{
+        fir::genDivC(builder, loc, ty, lhs, rhs)};
+  }
+};
 
 template <Fortran::common::TypeCategory TC, int KIND>
 struct BinaryOp<Fortran::evaluate::Power<Fortran::evaluate::Type<TC, KIND>>> {
@@ -1289,7 +1408,7 @@ public:
 private:
   hlfir::EntityWithAttributes
   gen(const Fortran::evaluate::BOZLiteralConstant &expr) {
-    fir::emitFatalError(loc, "BOZ literal must be replaced by semantics");
+    TODO(getLoc(), "BOZ");
   }
 
   hlfir::EntityWithAttributes gen(const Fortran::evaluate::NullPointer &expr) {
@@ -1488,7 +1607,13 @@ private:
   hlfir::EntityWithAttributes
   gen(const Fortran::evaluate::ImpliedDoIndex &var) {
     mlir::Value value = symMap.lookupImpliedDo(toStringRef(var.name));
-    assert(value && "impled do was not mapped");
+    if (!value)
+      fir::emitFatalError(getLoc(), "ac-do-variable has no binding");
+    // The index value generated by the implied-do has Index type,
+    // while computations based on it inside the loop body are using
+    // the original data type. So we need to cast it appropriately.
+    mlir::Type varTy = getConverter().genType(toEvExpr(var));
+    value = getBuilder().createConvert(getLoc(), varTy, value);
     return hlfir::EntityWithAttributes{value};
   }
 
@@ -1612,4 +1737,13 @@ fir::MutableBoxValue Fortran::lower::convertExprToMutableBox(
   auto *mutableBox = exv.getBoxOf<fir::MutableBoxValue>();
   assert(mutableBox && "expression could not be lowered to mutable box");
   return *mutableBox;
+}
+
+hlfir::ElementalAddrOp
+Fortran::lower::convertVectorSubscriptedExprToElementalAddr(
+    mlir::Location loc, Fortran::lower::AbstractConverter &converter,
+    const Fortran::lower::SomeExpr &designatorExpr,
+    Fortran::lower::SymMap &symMap, Fortran::lower::StatementContext &stmtCtx) {
+  return HlfirDesignatorBuilder(loc, converter, symMap, stmtCtx)
+      .convertVectorSubscriptedExprToElementalAddr(designatorExpr);
 }

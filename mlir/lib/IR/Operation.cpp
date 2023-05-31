@@ -91,7 +91,7 @@ Operation *Operation::create(Location location, OperationName name,
   unsigned numSuccessors = successors.size();
   unsigned numOperands = operands.size();
   unsigned numResults = resultTypes.size();
-  int opPropertiesAllocSize = name.getOpPropertyByteSize();
+  int opPropertiesAllocSize = llvm::alignTo<8>(name.getOpPropertyByteSize());
 
   // If the operation is known to have no operands, don't allocate an operand
   // storage.
@@ -303,18 +303,36 @@ DictionaryAttr Operation::getAttrDictionary() {
 void Operation::setAttrs(DictionaryAttr newAttrs) {
   assert(newAttrs && "expected valid attribute dictionary");
   if (getPropertiesStorageSize()) {
-    attrs = DictionaryAttr::get(getContext(), {});
-    for (const NamedAttribute &attr : newAttrs)
-      setAttr(attr.getName(), attr.getValue());
-    return;
+    // We're spliting the providing DictionaryAttr by removing the inherentAttr
+    // which will be stored in the properties.
+    SmallVector<NamedAttribute> discardableAttrs;
+    discardableAttrs.reserve(newAttrs.size());
+    for (NamedAttribute attr : newAttrs) {
+      if (std::optional<Attribute> inherentAttr =
+              getInherentAttr(attr.getName()))
+        setInherentAttr(attr.getName(), attr.getValue());
+      else
+        discardableAttrs.push_back(attr);
+    }
+    if (discardableAttrs.size() != newAttrs.size())
+      newAttrs = DictionaryAttr::get(getContext(), discardableAttrs);
   }
   attrs = newAttrs;
 }
 void Operation::setAttrs(ArrayRef<NamedAttribute> newAttrs) {
   if (getPropertiesStorageSize()) {
-    setAttrs(DictionaryAttr::get(getContext(), {}));
-    for (const NamedAttribute &attr : newAttrs)
-      setAttr(attr.getName(), attr.getValue());
+    // We're spliting the providing array of attributes by removing the inherentAttr
+    // which will be stored in the properties.
+    SmallVector<NamedAttribute> discardableAttrs;
+    discardableAttrs.reserve(newAttrs.size());
+    for (NamedAttribute attr : newAttrs) {
+      if (std::optional<Attribute> inherentAttr =
+              getInherentAttr(attr.getName()))
+        setInherentAttr(attr.getName(), attr.getValue());
+      else
+        discardableAttrs.push_back(attr);
+    }
+    attrs = DictionaryAttr::get(getContext(), discardableAttrs);
     return;
   }
   attrs = DictionaryAttr::get(getContext(), newAttrs);
@@ -829,11 +847,11 @@ LogicalResult OpTrait::impl::verifyAtLeastNOperands(Operation *op,
 /// If this is a vector type, or a tensor type, return the scalar element type
 /// that it is built around, otherwise return the type unmodified.
 static Type getTensorOrVectorElementType(Type type) {
-  if (auto vec = type.dyn_cast<VectorType>())
+  if (auto vec = llvm::dyn_cast<VectorType>(type))
     return vec.getElementType();
 
   // Look through tensor<vector<...>> to find the underlying element type.
-  if (auto tensor = type.dyn_cast<TensorType>())
+  if (auto tensor = llvm::dyn_cast<TensorType>(type))
     return getTensorOrVectorElementType(tensor.getElementType());
   return type;
 }
@@ -867,7 +885,7 @@ OpTrait::impl::verifyOperandsAreSignlessIntegerLike(Operation *op) {
 LogicalResult OpTrait::impl::verifyOperandsAreFloatLike(Operation *op) {
   for (auto opType : op->getOperandTypes()) {
     auto type = getTensorOrVectorElementType(opType);
-    if (!type.isa<FloatType>())
+    if (!llvm::isa<FloatType>(type))
       return op->emitOpError("requires a float type");
   }
   return success();
@@ -1102,7 +1120,7 @@ LogicalResult OpTrait::impl::verifyResultsAreBoolLike(Operation *op) {
 
 LogicalResult OpTrait::impl::verifyResultsAreFloatLike(Operation *op) {
   for (auto resultType : op->getResultTypes())
-    if (!getTensorOrVectorElementType(resultType).isa<FloatType>())
+    if (!llvm::isa<FloatType>(getTensorOrVectorElementType(resultType)))
       return op->emitOpError() << "requires a floating point type";
 
   return success();
@@ -1169,7 +1187,7 @@ LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
 
 LogicalResult OpTrait::impl::verifyElementwise(Operation *op) {
   auto isMappableType = [](Type type) {
-    return type.isa<VectorType, TensorType>();
+    return llvm::isa<VectorType, TensorType>(type);
   };
   auto resultMappableTypes = llvm::to_vector<1>(
       llvm::make_filter_range(op->getResultTypes(), isMappableType));

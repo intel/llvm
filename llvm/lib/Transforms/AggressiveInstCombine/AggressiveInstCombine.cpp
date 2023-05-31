@@ -423,7 +423,8 @@ static bool foldSqrt(Instruction &I, TargetTransformInfo &TTI,
   Type *Ty = Call->getType();
   Value *Arg = Call->getArgOperand(0);
   if (TTI.haveFastSqrt(Ty) &&
-      (Call->hasNoNaNs() || CannotBeOrderedLessThanZero(Arg, &TLI))) {
+      (Call->hasNoNaNs() ||
+       CannotBeOrderedLessThanZero(Arg, M->getDataLayout(), &TLI))) {
     IRBuilder<> Builder(&I);
     IRBuilderBase::FastMathFlagGuard Guard(Builder);
     Builder.setFastMathFlags(Call->getFastMathFlags());
@@ -765,7 +766,8 @@ static bool foldLoadsRecursive(Value *V, LoadOps &LOps, const DataLayout &DL,
 // pattern which suggests that the loads can be combined. The one and only use
 // of the loads is to form a wider load.
 static bool foldConsecutiveLoads(Instruction &I, const DataLayout &DL,
-                                 TargetTransformInfo &TTI, AliasAnalysis &AA) {
+                                 TargetTransformInfo &TTI, AliasAnalysis &AA,
+                                 const DominatorTree &DT) {
   // Only consider load chains of scalar values.
   if (isa<VectorType>(I.getType()))
     return false;
@@ -790,15 +792,17 @@ static bool foldConsecutiveLoads(Instruction &I, const DataLayout &DL,
   if (!Allowed || !Fast)
     return false;
 
-  // Make sure the Load pointer of type GEP/non-GEP is above insert point
-  Instruction *Inst = dyn_cast<Instruction>(LI1->getPointerOperand());
-  if (Inst && Inst->getParent() == LI1->getParent() &&
-      !Inst->comesBefore(LOps.RootInsert))
-    Inst->moveBefore(LOps.RootInsert);
-
-  // New load can be generated
+  // Get the Index and Ptr for the new GEP.
   Value *Load1Ptr = LI1->getPointerOperand();
   Builder.SetInsertPoint(LOps.RootInsert);
+  if (!DT.dominates(Load1Ptr, LOps.RootInsert)) {
+    APInt Offset1(DL.getIndexTypeSizeInBits(Load1Ptr->getType()), 0);
+    Load1Ptr = Load1Ptr->stripAndAccumulateConstantOffsets(
+        DL, Offset1, /* AllowNonInbounds */ true);
+    Load1Ptr = Builder.CreateGEP(Builder.getInt8Ty(), Load1Ptr,
+                                 Builder.getInt32(Offset1.getZExtValue()));
+  }
+  // Generate wider load.
   Value *NewPtr = Builder.CreateBitCast(Load1Ptr, WiderType->getPointerTo(AS));
   NewLoad = Builder.CreateAlignedLoad(WiderType, NewPtr, LI1->getAlign(),
                                       LI1->isVolatile(), "");
@@ -821,6 +825,48 @@ static bool foldConsecutiveLoads(Instruction &I, const DataLayout &DL,
   return true;
 }
 
+// Calculate GEP Stride and accumulated const ModOffset. Return Stride and
+// ModOffset
+static std::pair<APInt, APInt>
+getStrideAndModOffsetOfGEP(Value *PtrOp, const DataLayout &DL) {
+  unsigned BW = DL.getIndexTypeSizeInBits(PtrOp->getType());
+  std::optional<APInt> Stride;
+  APInt ModOffset(BW, 0);
+  // Return a minimum gep stride, greatest common divisor of consective gep
+  // index scales(c.f. Bézout's identity).
+  while (auto *GEP = dyn_cast<GEPOperator>(PtrOp)) {
+    MapVector<Value *, APInt> VarOffsets;
+    if (!GEP->collectOffset(DL, BW, VarOffsets, ModOffset))
+      break;
+
+    for (auto [V, Scale] : VarOffsets) {
+      // Only keep a power of two factor for non-inbounds
+      if (!GEP->isInBounds())
+        Scale = APInt::getOneBitSet(Scale.getBitWidth(), Scale.countr_zero());
+
+      if (!Stride)
+        Stride = Scale;
+      else
+        Stride = APIntOps::GreatestCommonDivisor(*Stride, Scale);
+    }
+
+    PtrOp = GEP->getPointerOperand();
+  }
+
+  // Check whether pointer arrives back at Global Variable via at least one GEP.
+  // Even if it doesn't, we can check by alignment.
+  if (!isa<GlobalVariable>(PtrOp) || !Stride)
+    return {APInt(BW, 1), APInt(BW, 0)};
+
+  // In consideration of signed GEP indices, non-negligible offset become
+  // remainder of division by minimum GEP stride.
+  ModOffset = ModOffset.srem(*Stride);
+  if (ModOffset.isNegative())
+    ModOffset += *Stride;
+
+  return {*Stride, ModOffset};
+}
+
 /// If C is a constant patterned array and all valid loaded results for given
 /// alignment are same to a constant, return that constant.
 static bool foldPatternedLoads(Instruction &I, const DataLayout &DL) {
@@ -835,29 +881,24 @@ static bool foldPatternedLoads(Instruction &I, const DataLayout &DL) {
   if (!GV || !GV->isConstant() || !GV->hasDefinitiveInitializer())
     return false;
 
-  Type *LoadTy = LI->getType();
-  Constant *C = GV->getInitializer();
-
   // Bail for large initializers in excess of 4K to avoid too many scans.
+  Constant *C = GV->getInitializer();
   uint64_t GVSize = DL.getTypeAllocSize(C->getType());
   if (!GVSize || 4096 < GVSize)
     return false;
 
-  // Check whether pointer arrives back at Global Variable.
-  // If PtrOp is neither GlobalVariable nor GEP, it might not arrive back at
-  // GlobalVariable.
-  // TODO: implement GEP handling
+  Type *LoadTy = LI->getType();
   unsigned BW = DL.getIndexTypeSizeInBits(PtrOp->getType());
-  // TODO: Determine stride based on GEPs.
-  APInt Stride(BW, 1);
-  APInt ConstOffset(BW, 0);
+  auto [Stride, ConstOffset] = getStrideAndModOffsetOfGEP(PtrOp, DL);
 
   // Any possible offset could be multiple of GEP stride. And any valid
   // offset is multiple of load alignment, so checking only multiples of bigger
   // one is sufficient to say results' equality.
   if (auto LA = LI->getAlign();
-      LA <= GV->getAlign().valueOrOne() && Stride.getZExtValue() < LA.value())
+      LA <= GV->getAlign().valueOrOne() && Stride.getZExtValue() < LA.value()) {
+    ConstOffset = APInt(BW, 0);
     Stride = APInt(BW, LA.value());
+  }
 
   Constant *Ca = ConstantFoldLoadFromConst(C, LoadTy, ConstOffset, DL);
   if (!Ca)
@@ -898,7 +939,7 @@ static bool foldUnusualPatterns(Function &F, DominatorTree &DT,
       MadeChange |= tryToRecognizePopCount(I);
       MadeChange |= tryToFPToSat(I, TTI);
       MadeChange |= tryToRecognizeTableBasedCttz(I);
-      MadeChange |= foldConsecutiveLoads(I, DL, TTI, AA);
+      MadeChange |= foldConsecutiveLoads(I, DL, TTI, AA, DT);
       MadeChange |= foldPatternedLoads(I, DL);
       // NOTE: This function introduces erasing of the instruction `I`, so it
       // needs to be called at the end of this sequence, otherwise we may make

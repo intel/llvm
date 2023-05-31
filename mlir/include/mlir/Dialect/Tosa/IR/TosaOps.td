@@ -54,6 +54,12 @@ def Tosa_ArgMaxOp : Tosa_Op<"argmax", [
 }
 
 //===----------------------------------------------------------------------===//
+// Accumulator types.
+//===----------------------------------------------------------------------===//
+
+def Tosa_AccType : AnyTypeOf<[I<32>, SI<32>, F16, F32]>;
+
+//===----------------------------------------------------------------------===//
 // Operator: avg_pool2d
 //===----------------------------------------------------------------------===//
 def Tosa_AvgPool2dOp : Tosa_Op<"avg_pool2d", [
@@ -74,6 +80,7 @@ def Tosa_AvgPool2dOp : Tosa_Op<"avg_pool2d", [
     Tosa_IntArrayAttr2:$kernel,
     Tosa_IntArrayAttr2:$stride,
     Tosa_IntArrayAttr4:$pad,
+    TypeAttrOf<Tosa_AccType>:$acc_type,
     OptionalAttr<Tosa_UnaryOpQuantizationAttr>:$quantization_info
   );
 
@@ -437,6 +444,32 @@ def Tosa_TanhOp : Tosa_Op<"tanh", [
     For quantized integer data types, the TABLE operator should be used instead
     with the following definition.  The tanh_table has 513 entries each of
     16-bit precision and covering the input range -8.0 to +8.0 in steps of 1/32.
+  }];
+
+  let arguments = (ins
+    Tosa_Tensor:$input
+  );
+
+  let results = (outs
+    Tosa_Tensor:$output
+  );
+}
+
+
+//===----------------------------------------------------------------------===//
+// Operator: erf
+//===----------------------------------------------------------------------===//
+def Tosa_ErfOp : Tosa_Op<"erf", [
+    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+                              ["inferReturnTypeComponents"]>,
+    Pure]> {
+  let summary = "Computes gauss error function of input";
+
+  let description = [{
+    Gauss error function: $ erf(x) = \frac{2}{\sqrt(\pi)} \int_{0}^{x} e^{-t^2} \,dt $
+    For quantized integer data types, the TABLE operator should be used instead
+    with the following definition.  The erf_table has 513 entries each of
+    16-bit/8-bit precision and covering the input range -4.0 to +4.0 in steps of 1/64.
   }];
 
   let arguments = (ins
@@ -911,6 +944,8 @@ def Tosa_AbsOp : Tosa_Op<"abs", [
   let results = (outs
     Tosa_Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -999,6 +1034,8 @@ def Tosa_ExpOp : Tosa_Op<"exp", [
   let results = (outs
     Tosa_Tensor:$output
   );
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1092,6 +1129,8 @@ def Tosa_NegateOp : Tosa_Op<"negate", [
   );
 
   let builders = [Tosa_UnaryOpQuantInfoBuilder];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1461,6 +1500,7 @@ def Tosa_ConcatOp : Tosa_Op<"concat", [
   );
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 
   let extraClassDeclaration = [{
     /// Returns true when two result types are compatible for this op;
@@ -1479,7 +1519,23 @@ def Tosa_PadOp : Tosa_Op<"pad", [
   let summary = "Pads a tensor with value specified.";
 
   let description = [{
-    Pads a tensor along borders of each dimension with pad_value.
+    The `tosa.pad` operation pads a tensor along borders of each dimension with
+    `pad_const` (defaults to zero), given a padding configuration `padding`
+    specifying low and high values along the dimensions.
+
+    Example:
+
+    ```mlir
+    %0 = arith.constant dense<[[1, 2], [3, 4]]> : tensor<2x2xi32>
+    "tosa.pad"(%arg0, %0)  : (tensor<1x2xf32>, tensor<2x2xi32>)  -> (tensor<4x9xf32>)
+    ```
+
+    Example 2:
+
+    ```mlir
+    %0 = arith.constant dense<[[-1, 2], [3, 4]]> : tensor<2x2xi32>
+    "tosa.pad"(%arg0, %0)  : (tensor<1x2xf32>, tensor<2x2xi32>)  -> (tensor<?x9xf32>)
+    ```
   }];
 
   let arguments = (ins
@@ -1835,6 +1891,7 @@ def Tosa_RescaleOp: Tosa_Op<"rescale", [Pure,
 // Operator: const
 //===----------------------------------------------------------------------===//
 def Tosa_ConstOp : Tosa_Op<"const", [ConstantLike, Pure,
+                                     AllShapesMatch<["value", "output"]>,
                                      FirstAttrDerivedResultType]> {
   let summary = "Constant op.";
 

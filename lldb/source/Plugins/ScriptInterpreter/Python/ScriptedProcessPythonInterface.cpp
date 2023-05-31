@@ -48,7 +48,7 @@ StructuredData::GenericSP ScriptedProcessPythonInterface::CreatePluginObject(
   lldb::ExecutionContextRefSP exe_ctx_ref_sp =
       std::make_shared<ExecutionContextRef>(exe_ctx);
 
-  PythonObject ret_val = LLDBSwigPythonCreateScriptedObject(
+  PythonObject ret_val = SWIGBridge::LLDBSwigPythonCreateScriptedObject(
       class_name.str().c_str(), m_interpreter.GetDictionaryName(),
       exe_ctx_ref_sp, args_impl, error_string);
 
@@ -152,7 +152,7 @@ lldb::offset_t ScriptedProcessPythonInterface::WriteMemoryAtAddress(
   if (py_error.Fail())
     error = py_error;
 
-  return obj->GetIntegerValue(LLDB_INVALID_OFFSET);
+  return obj->GetUnsignedIntegerValue(LLDB_INVALID_OFFSET);
 }
 
 StructuredData::ArraySP ScriptedProcessPythonInterface::GetLoadedImages() {
@@ -173,7 +173,7 @@ lldb::pid_t ScriptedProcessPythonInterface::GetProcessID() {
   if (!CheckStructuredDataObject(LLVM_PRETTY_FUNCTION, obj, error))
     return LLDB_INVALID_PROCESS_ID;
 
-  return obj->GetIntegerValue(LLDB_INVALID_PROCESS_ID);
+  return obj->GetUnsignedIntegerValue(LLDB_INVALID_PROCESS_ID);
 }
 
 bool ScriptedProcessPythonInterface::IsAlive() {

@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <vector>
 
@@ -18,10 +17,10 @@
 //   formatter<T, charT>, that specialization is enabled and meets the
 //   Formatter requirements except as noted otherwise.
 //
-// Tests parts of the BasicFormatter requirements. Like the formattable concept
-// it uses the semiregular concept. It test does not use the formattable
-// concept since it is the intention the formatter is available without
-// including the format header.
+// Test parts of the BasicFormatter requirements. Like the formattable concept
+// it uses the semiregular concept. This test does not use the formattable
+// concept since the intent is for the formatter to be available without
+// including the <format> header.
 
 // TODO FMT Evaluate what to do with [format.formatter.spec]/2
 // [format.formatter.spec]/2

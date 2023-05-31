@@ -824,6 +824,20 @@ loadModule(StringRef Path, orc::ThreadSafeContext TSCtx) {
   return orc::ThreadSafeModule(std::move(M), std::move(TSCtx));
 }
 
+int mingw_noop_main(void) {
+  // Cygwin and MinGW insert calls from the main function to the runtime
+  // function __main. The __main function is responsible for setting up main's
+  // environment (e.g. running static constructors), however this is not needed
+  // when running under lli: the executor process will have run non-JIT ctors,
+  // and ORC will take care of running JIT'd ctors. To avoid a missing symbol
+  // error we just implement __main as a no-op.
+  //
+  // FIXME: Move this to ORC-RT (and the ORC-RT substitution library once it
+  //        exists). That will allow it to work out-of-process, and for all
+  //        ORC tools (the problem isn't lli specific).
+  return 0;
+}
+
 int runOrcJIT(const char *ProgName) {
   // Start setting up the JIT environment.
 
@@ -988,6 +1002,14 @@ int runOrcJIT(const char *ProgName) {
         std::make_unique<LLIBuiltinFunctionGenerator>(GenerateBuiltinFunctions,
                                                       Mangle));
   }
+
+  // If this is a Mingw or Cygwin executor then we need to alias __main to
+  // orc_rt_int_void_return_0.
+  if (J->getTargetTriple().isOSCygMing())
+    ExitOnErr(J->getProcessSymbolsJITDylib()->define(
+        orc::absoluteSymbols({{J->mangleAndIntern("__main"),
+                               {orc::ExecutorAddr::fromPtr(mingw_noop_main),
+                                JITSymbolFlags::Exported}}})));
 
   // Regular modules are greedy: They materialize as a whole and trigger
   // materialization for all required symbols recursively. Lazy modules go
@@ -1156,3 +1178,41 @@ Expected<std::unique_ptr<orc::ExecutorProcessControl>> launchRemote() {
       llvm::orc::SimpleRemoteEPC::Setup(), PipeFD[1][0], PipeFD[0][1]);
 #endif
 }
+
+// For MinGW environments, manually export the __chkstk function from the lli
+// executable.
+//
+// Normally, this function is provided by compiler-rt builtins or libgcc.
+// It is named "_alloca" on i386, "___chkstk_ms" on x86_64, and "__chkstk" on
+// arm/aarch64. In MSVC configurations, it's named "__chkstk" in all
+// configurations.
+//
+// When Orc tries to resolve symbols at runtime, this succeeds in MSVC
+// configurations, somewhat by accident/luck; kernelbase.dll does export a
+// symbol named "__chkstk" which gets found by Orc, even if regular applications
+// never link against that function from that DLL (it's linked in statically
+// from a compiler support library).
+//
+// The MinGW specific symbol names aren't available in that DLL though.
+// Therefore, manually export the relevant symbol from lli, to let it be
+// found at runtime during tests.
+//
+// For real JIT uses, the real compiler support libraries should be linked
+// in, somehow; this is a workaround to let tests pass.
+//
+// TODO: Move this into libORC at some point, see
+// https://github.com/llvm/llvm-project/issues/56603.
+#ifdef __MINGW32__
+// This is a MinGW version of #pragma comment(linker, "...") that doesn't
+// require compiling with -fms-extensions.
+#if defined(__i386__)
+static __attribute__((section(".drectve"), used)) const char export_chkstk[] =
+    "-export:_alloca";
+#elif defined(__x86_64__)
+static __attribute__((section(".drectve"), used)) const char export_chkstk[] =
+    "-export:___chkstk_ms";
+#else
+static __attribute__((section(".drectve"), used)) const char export_chkstk[] =
+    "-export:__chkstk";
+#endif
+#endif

@@ -91,15 +91,11 @@ private:
   ///       every time we run into a memory barrier.
   void collectSeedInstructions(BasicBlock *BB);
 
-  /// Try to vectorize a chain that starts at two arithmetic instrs.
-  bool tryToVectorizePair(Value *A, Value *B, slpvectorizer::BoUpSLP &R);
-
   /// Try to vectorize a list of operands.
-  /// \param LimitForRegisterSize Vectorize only using maximal allowed register
-  /// size.
+  /// \param MaxVFOnly Vectorize only using maximal allowed register size.
   /// \returns true if a value was vectorized.
   bool tryToVectorizeList(ArrayRef<Value *> VL, slpvectorizer::BoUpSLP &R,
-                          bool LimitForRegisterSize = false);
+                          bool MaxVFOnly = false);
 
   /// Try to vectorize a chain that may start at the operands of \p I.
   bool tryToVectorize(Instruction *I, slpvectorizer::BoUpSLP &R);
@@ -145,14 +141,14 @@ private:
                                   slpvectorizer::BoUpSLP &R);
 
   /// Tries to vectorize \p CmpInts. \Returns true on success.
-  bool vectorizeCmpInsts(ArrayRef<CmpInst *> CmpInsts, BasicBlock *BB,
+  template <typename ItT>
+  bool vectorizeCmpInsts(iterator_range<ItT> CmpInsts, BasicBlock *BB,
                          slpvectorizer::BoUpSLP &R);
 
-  /// Tries to vectorize constructs started from CmpInst, InsertValueInst or
+  /// Tries to vectorize constructs started from InsertValueInst or
   /// InsertElementInst instructions.
-  bool vectorizeSimpleInstructions(InstSetVector &Instructions, BasicBlock *BB,
-                                   slpvectorizer::BoUpSLP &R,
-                                   bool AtTerminator);
+  bool vectorizeInserts(InstSetVector &Instructions, BasicBlock *BB,
+                        slpvectorizer::BoUpSLP &R);
 
   /// Scan the basic block and look for patterns that are likely to start
   /// a vectorization chain.

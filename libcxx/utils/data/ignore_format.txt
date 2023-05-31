@@ -343,7 +343,6 @@ libcxx/include/__filesystem/perms.h
 libcxx/include/__filesystem/recursive_directory_iterator.h
 libcxx/include/__filesystem/u8path.h
 libcxx/include/float.h
-libcxx/include/format
 libcxx/include/__format/buffer.h
 libcxx/include/__format/concepts.h
 libcxx/include/__format/escaped_output_table.h
@@ -356,7 +355,6 @@ libcxx/include/__format/format_error.h
 libcxx/include/__format/format_functions.h
 libcxx/include/__format/format_parse_context.h
 libcxx/include/__format/format_string.h
-libcxx/include/__format/formatter_bool.h
 libcxx/include/__format/formatter_char.h
 libcxx/include/__format/formatter_floating_point.h
 libcxx/include/__format/formatter.h
@@ -395,7 +393,6 @@ libcxx/include/__functional/ranges_operations.h
 libcxx/include/__functional/reference_wrapper.h
 libcxx/include/__functional/unary_function.h
 libcxx/include/__functional/unary_negate.h
-libcxx/include/__functional/unwrap_ref.h
 libcxx/include/__functional/weak_result_type.h
 libcxx/include/future
 libcxx/include/__fwd/get.h
@@ -490,7 +487,6 @@ libcxx/include/mutex
 libcxx/include/new
 libcxx/include/__node_handle
 libcxx/include/numbers
-libcxx/include/numeric
 libcxx/include/__numeric/accumulate.h
 libcxx/include/__numeric/adjacent_difference.h
 libcxx/include/__numeric/exclusive_scan.h
@@ -522,8 +518,6 @@ libcxx/include/__pstl/internal/parallel_backend.h
 libcxx/include/__pstl/internal/parallel_backend_serial.h
 libcxx/include/__pstl/internal/parallel_backend_tbb.h
 libcxx/include/__pstl/internal/parallel_backend_utils.h
-libcxx/include/__pstl/internal/parallel_impl.h
-libcxx/include/__pstl/internal/pstl_config.h
 libcxx/include/__pstl/internal/unseq_backend_simd.h
 libcxx/include/__pstl/internal/utils.h
 libcxx/include/queue
@@ -663,6 +657,7 @@ libcxx/include/__type_traits/extent.h
 libcxx/include/__type_traits/has_unique_object_representation.h
 libcxx/include/__type_traits/has_virtual_destructor.h
 libcxx/include/__type_traits/integral_constant.h
+libcxx/include/__type_traits/invoke.h
 libcxx/include/__type_traits/is_abstract.h
 libcxx/include/__type_traits/is_aggregate.h
 libcxx/include/__type_traits/is_allocator.h
@@ -760,6 +755,7 @@ libcxx/include/__type_traits/strip_signature.h
 libcxx/include/__type_traits/type_identity.h
 libcxx/include/__type_traits/type_list.h
 libcxx/include/__type_traits/underlying_type.h
+libcxx/include/__type_traits/unwrap_ref.h
 libcxx/include/__type_traits/void_t.h
 libcxx/include/uchar.h
 libcxx/include/unordered_map

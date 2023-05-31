@@ -11,6 +11,7 @@
 #define _PSTL_ALGORITHM_IMPL_H
 
 #include <__assert>
+#include <__config>
 #include <algorithm>
 #include <functional>
 #include <iterator>
@@ -22,7 +23,6 @@
 #include "parallel_backend.h"
 #include "parallel_backend_utils.h"
 #include "parallel_impl.h"
-#include "pstl_config.h"
 #include "unseq_backend_simd.h"
 
 namespace __pstl {
@@ -4162,7 +4162,7 @@ bool __brick_lexicographical_compare(
     _RandomAccessIterator2 __last2,
     _Compare __comp,
     /* __is_vector = */ std::true_type) noexcept {
-  if (__first2 == __last2) {        // if second sequence is empty
+  if (__first2 == __last2) { // if second sequence is empty
     return false;
   } else if (__first1 == __last1) { // if first sequence is empty
     return true;
@@ -4213,7 +4213,7 @@ bool __pattern_lexicographical_compare(
     _Compare __comp) noexcept {
   using __backend_tag = typename decltype(__tag)::__backend_tag;
 
-  if (__first2 == __last2) {        // if second sequence is empty
+  if (__first2 == __last2) { // if second sequence is empty
     return false;
   } else if (__first1 == __last1) { // if first sequence is empty
     return true;

@@ -59,7 +59,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMDSlmReservation.cpp
   HostPipes.cpp
   LowerInvokeSimd.cpp
-  LowerKernelProps.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
   MutatePrintfAddrspace.cpp
@@ -92,6 +91,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   Analysis
   Core
   Support
+  ipo
   )
 
 target_include_directories(LLVMSYCLLowerIR

@@ -241,8 +241,7 @@ checkDataflow(AnalysisInputs<AnalysisT> AI,
           llvm::errc::invalid_argument, "Could not find the target function.");
 
     // Build the control flow graph for the target function.
-    auto MaybeCFCtx =
-        ControlFlowContext::build(Target, *Target->getBody(), Context);
+    auto MaybeCFCtx = ControlFlowContext::build(*Target, Context);
     if (!MaybeCFCtx) return MaybeCFCtx.takeError();
     auto &CFCtx = *MaybeCFCtx;
 
@@ -400,7 +399,7 @@ ValueT &getValueForDecl(ASTContext &ASTCtx, const Environment &Env,
                         llvm::StringRef Name) {
   const ValueDecl *VD = findValueDecl(ASTCtx, Name);
   assert(VD != nullptr);
-  return *cast<ValueT>(Env.getValue(*VD, SkipPast::None));
+  return *cast<ValueT>(Env.getValue(*VD));
 }
 
 /// Creates and owns constraints which are boolean values.

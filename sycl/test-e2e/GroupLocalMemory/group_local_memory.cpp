@@ -65,12 +65,12 @@ int main() {
           });
     });
 
-    auto Acc = Buf.get_access<access::mode::read>();
+    host_accessor Acc(Buf, read_only);
     for (size_t I = 0; I < Size; ++I)
       assert(Acc[I] == I % WgSize);
 
     // Check that the constructor has been called once per work-group
-    auto CounterAcc = CounterBuf.get_access<access::mode::read>();
+    host_accessor CounterAcc(CounterBuf, read_only);
     for (size_t I = 0; I < WgCount; ++I)
       assert(CounterAcc[I] == 1);
   }
@@ -97,7 +97,7 @@ int main() {
           });
     });
 
-    auto Acc = Buf.get_access<access::mode::read>();
+    host_accessor Acc(Buf, read_only);
     for (size_t I = 0; I < Size; ++I)
       assert(Acc[I] == I % WgSize);
   }
@@ -119,7 +119,7 @@ int main() {
           });
     });
 
-    auto Acc = Buf.get_access<access::mode::read>();
+    host_accessor Acc(Buf, read_only);
     Bar RefBar;
     for (size_t I = 0; I < Size; ++I)
       assert(Acc[I] == RefBar.Value);

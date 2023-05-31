@@ -88,9 +88,9 @@ public:
   // Overrides method from AffineExprVisitor.
   void visitDimExpr(AffineDimExpr expr) {
     if (pickedDim == nullptr ||
-        pickIterType == iterTypes[expr.getPosition()]
-                            .cast<linalg::IteratorTypeAttr>()
-                            .getValue()) {
+        pickIterType ==
+            cast<linalg::IteratorTypeAttr>(iterTypes[expr.getPosition()])
+                .getValue()) {
       pickedDim = expr;
     }
   }
@@ -232,7 +232,7 @@ static bool findAffine(Merger &merger, TensorId tid, Level lvl, AffineExpr a,
   switch (a.getKind()) {
   case AffineExprKind::DimId: {
     const LoopId idx = merger.makeLoopId(a.cast<AffineDimExpr>().getPosition());
-    if (!isUndefDLT(merger.getDimLevelType(tid, idx)))
+    if (!isUndefDLT(merger.getLvlType(tid, idx)))
       return false; // used more than once
 
     if (setLvlFormat)
@@ -243,7 +243,7 @@ static bool findAffine(Merger &merger, TensorId tid, Level lvl, AffineExpr a,
   case AffineExprKind::Mul:
   case AffineExprKind::Constant: {
     if (!isDenseDLT(dlt) && setLvlFormat) {
-      assert(isUndefDLT(merger.getDimLevelType(tid, filterLdx)));
+      assert(isUndefDLT(merger.getLvlType(tid, filterLdx)));
       // Use a filter loop for sparse affine expression.
       merger.setLevelAndType(tid, filterLdx, lvl, dlt);
       ++filterLdx;
@@ -287,7 +287,7 @@ static bool findDepIdxSet(Merger &merger, TensorId tensor, Level lvl,
   switch (a.getKind()) {
   case AffineExprKind::DimId: {
     const LoopId ldx = merger.makeLoopId(a.cast<AffineDimExpr>().getPosition());
-    if (!isUndefDLT(merger.getDimLevelType(tensor, ldx)))
+    if (!isUndefDLT(merger.getLvlType(tensor, ldx)))
       return false; // used more than once, e.g., A[i][i]
 
     // TODO: Generalizes the following two cases. A[i] (with trivial index
@@ -344,7 +344,7 @@ static unsigned getNumNonTrivialIdxExpOnSparseLvls(AffineMap map,
   // we can't use `getRankedTensorType`/`getSparseTensorType` here.
   // However, we don't need to handle `StorageSpecifierType`, so we
   // can use `SparseTensorType` once we guard against non-tensors.
-  const auto rtp = tensor.getType().dyn_cast<RankedTensorType>();
+  const auto rtp = dyn_cast<RankedTensorType>(tensor.getType());
   if (!rtp)
     return 0;
   const SparseTensorType stt(rtp);
@@ -624,8 +624,7 @@ static void addFilterLoopBasedConstraints(CodegenEnv &env, OpOperand &t,
     // Filter loops should be constructed after all the dependent loops,
     // i.e., d0 + d1 < filter_loop(d0 + d1)
     if (tldx && env.merger().isFilterLoop(*tldx)) {
-      assert(!ta.isa<AffineDimExpr>() &&
-             !isDenseDLT(enc.getDimLevelType()[lvl]));
+      assert(!ta.isa<AffineDimExpr>() && !isDenseDLT(enc.getLvlTypes()[lvl]));
       addAffineOrderings(adjM, inDegree, ta, AffineExpr(), std::nullopt, tldx);
       // Now that the ordering of affine expression is captured by filter
       // loop idx, we only need to ensure the affine ordering against filter
@@ -1243,7 +1242,7 @@ static void genExpand(CodegenEnv &env, OpBuilder &builder, LoopOrd at,
   Location loc = op.getLoc();
   if (atStart) {
     auto dynShape = {ShapedType::kDynamic};
-    Type etp = tensor.getType().cast<ShapedType>().getElementType();
+    Type etp = cast<ShapedType>(tensor.getType()).getElementType();
     Type t1 = MemRefType::get(dynShape, etp);
     Type t2 = MemRefType::get(dynShape, builder.getI1Type());
     Type t3 = MemRefType::get(dynShape, builder.getIndexType());
@@ -1833,7 +1832,7 @@ public:
     // required for sparse tensor slice rank reducing too.
     Level maxLvlRank = 0;
     for (auto operand : op.getOperands()) {
-      if (auto rtp = operand.getType().dyn_cast<RankedTensorType>()) {
+      if (auto rtp = dyn_cast<RankedTensorType>(operand.getType())) {
         maxLvlRank = std::max(maxLvlRank, SparseTensorType(rtp).getLvlRank());
       }
     }
@@ -1922,7 +1921,7 @@ private:
       //
       auto srcTp = getRankedTensorType(tval);
       auto dstEnc = SparseTensorEncodingAttr::get(
-          getContext(), srcEnc.getDimLevelType(),
+          getContext(), srcEnc.getLvlTypes(),
           permute(env, env.op().getMatchingIndexingMap(t)), // new order
           srcEnc.getHigherOrdering(), srcEnc.getPosWidth(),
           srcEnc.getCrdWidth());
