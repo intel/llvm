@@ -164,7 +164,9 @@ The information produced by the device compiler is then employed to correctly lo
 * Complete support for remaining SYCL features, including but not limited to
   * kernels with barriers
   * math and other builtins
+  * work group local memory
 * Vectorization (e.g. Whole Function Vectorization)
 * Subgroup support
 * Performance optimizations
+* Support for multiple SYCL targets alongside native_cpu
 
