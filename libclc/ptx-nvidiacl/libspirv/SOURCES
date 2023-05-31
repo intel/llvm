@@ -93,7 +93,7 @@ images/image_helpers.ll
 images/image.cl
 group/collectives_helpers.ll
 group/collectives.cl
-group/group_ballot.cl
+group/group_non_uniform.cl
 atomic/atomic_add.cl
 atomic/atomic_and.cl
 atomic/atomic_cmpxchg.cl
