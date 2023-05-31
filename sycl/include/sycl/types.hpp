@@ -947,7 +947,8 @@ public:
                   "The new SYCL vec type must have the same storage size in "
                   "bytes as this SYCL vec");
     static_assert(
-        detail::is_contained<asT, detail::gtl::vector_basic_list>::value,
+        detail::is_contained<asT, detail::gtl::vector_basic_list>::value ||
+            detail::is_contained<asT, detail::gtl::vector_bool_list>::value,
         "asT must be SYCL vec of a different element type and "
         "number of elements specified by asT");
     asT Result;
@@ -1959,7 +1960,8 @@ public:
                   "The new SYCL vec type must have the same storage size in "
                   "bytes as this SYCL swizzled vec");
     static_assert(
-        detail::is_contained<asT, detail::gtl::vector_basic_list>::value,
+        detail::is_contained<asT, detail::gtl::vector_basic_list>::value ||
+            detail::is_contained<asT, detail::gtl::vector_bool_list>::value,
         "asT must be SYCL vec of a different element type and "
         "number of elements specified by asT");
     return Tmp.template as<asT>();

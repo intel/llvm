@@ -100,6 +100,82 @@ const property_list &LocalAccessorBaseHost::getPropList() const {
 int LocalAccessorBaseHost::getNumOfDims() { return impl->MDims; }
 int LocalAccessorBaseHost::getElementSize() { return impl->MElemSize; }
 
+UnsampledImageAccessorBaseHost::UnsampledImageAccessorBaseHost(
+    sycl::range<3> Size, access_mode AccessMode, void *SYCLMemObject, int Dims,
+    int ElemSize, id<3> Pitch, image_channel_type ChannelType,
+    image_channel_order ChannelOrder, const property_list &PropertyList) {
+  impl = std::make_shared<UnsampledImageAccessorImplHost>(
+      Size, AccessMode, (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
+      Pitch, ChannelType, ChannelOrder, PropertyList);
+}
+const sycl::range<3> &UnsampledImageAccessorBaseHost::getSize() const {
+  return impl->MAccessRange;
+}
+const property_list &UnsampledImageAccessorBaseHost::getPropList() const {
+  return impl->MPropertyList;
+}
+void *UnsampledImageAccessorBaseHost::getMemoryObject() const {
+  return impl->MSYCLMemObj;
+}
+detail::AccHostDataT &UnsampledImageAccessorBaseHost::getAccData() {
+  return impl->MAccData;
+}
+void *UnsampledImageAccessorBaseHost::getPtr() { return impl->MData; }
+void *UnsampledImageAccessorBaseHost::getPtr() const {
+  return const_cast<void *>(impl->MData);
+}
+int UnsampledImageAccessorBaseHost::getNumOfDims() const { return impl->MDims; }
+int UnsampledImageAccessorBaseHost::getElementSize() const {
+  return impl->MElemSize;
+}
+id<3> UnsampledImageAccessorBaseHost::getPitch() const { return impl->MPitch; }
+image_channel_type UnsampledImageAccessorBaseHost::getChannelType() const {
+  return impl->MChannelType;
+}
+image_channel_order UnsampledImageAccessorBaseHost::getChannelOrder() const {
+  return impl->MChannelOrder;
+}
+
+SampledImageAccessorBaseHost::SampledImageAccessorBaseHost(
+    sycl::range<3> Size, void *SYCLMemObject, int Dims, int ElemSize,
+    id<3> Pitch, image_channel_type ChannelType,
+    image_channel_order ChannelOrder, image_sampler Sampler,
+    const property_list &PropertyList) {
+  impl = std::make_shared<SampledImageAccessorImplHost>(
+      Size, (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize, Pitch,
+      ChannelType, ChannelOrder, Sampler, PropertyList);
+}
+const sycl::range<3> &SampledImageAccessorBaseHost::getSize() const {
+  return impl->MAccessRange;
+}
+const property_list &SampledImageAccessorBaseHost::getPropList() const {
+  return impl->MPropertyList;
+}
+void *SampledImageAccessorBaseHost::getMemoryObject() const {
+  return impl->MSYCLMemObj;
+}
+detail::AccHostDataT &SampledImageAccessorBaseHost::getAccData() {
+  return impl->MAccData;
+}
+void *SampledImageAccessorBaseHost::getPtr() { return impl->MData; }
+void *SampledImageAccessorBaseHost::getPtr() const {
+  return const_cast<void *>(impl->MData);
+}
+int SampledImageAccessorBaseHost::getNumOfDims() const { return impl->MDims; }
+int SampledImageAccessorBaseHost::getElementSize() const {
+  return impl->MElemSize;
+}
+id<3> SampledImageAccessorBaseHost::getPitch() const { return impl->MPitch; }
+image_channel_type SampledImageAccessorBaseHost::getChannelType() const {
+  return impl->MChannelType;
+}
+image_channel_order SampledImageAccessorBaseHost::getChannelOrder() const {
+  return impl->MChannelOrder;
+}
+image_sampler SampledImageAccessorBaseHost::getSampler() const {
+  return impl->MSampler;
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

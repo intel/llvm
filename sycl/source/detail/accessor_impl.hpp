@@ -147,6 +147,43 @@ public:
 
 using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 
+class UnsampledImageAccessorImplHost : public AccessorImplHost {
+public:
+  UnsampledImageAccessorImplHost(range<3> Size, access_mode AccessMode,
+                                 void *SYCLMemObject, int Dims, int ElemSize,
+                                 id<3> Pitch, image_channel_type ChannelType,
+                                 image_channel_order ChannelOrder,
+                                 const property_list &PropertyList)
+      : AccessorImplHost(id<3>{0, 0, 0}, Size, Size, AccessMode, SYCLMemObject,
+                         Dims, ElemSize, 0, false, PropertyList),
+        MPitch{Pitch}, MChannelType{ChannelType}, MChannelOrder{ChannelOrder} {}
+
+  id<3> MPitch;
+  image_channel_type MChannelType;
+  image_channel_order MChannelOrder;
+};
+
+class SampledImageAccessorImplHost : public UnsampledImageAccessorImplHost {
+public:
+  SampledImageAccessorImplHost(range<3> Size, void *SYCLMemObject, int Dims,
+                               int ElemSize, id<3> Pitch,
+                               image_channel_type ChannelType,
+                               image_channel_order ChannelOrder,
+                               image_sampler Sampler,
+                               const property_list &PropertyList)
+      : UnsampledImageAccessorImplHost(Size, access_mode::read, SYCLMemObject,
+                                       Dims, ElemSize, Pitch, ChannelType,
+                                       ChannelOrder, PropertyList),
+        MSampler{Sampler} {}
+
+  image_sampler MSampler;
+};
+
+using UnsampledImageAccessorImplPtr =
+    std::shared_ptr<UnsampledImageAccessorImplHost>;
+using SampledImageAccessorImplPtr =
+    std::shared_ptr<SampledImageAccessorImplHost>;
+
 using Requirement = AccessorImplHost;
 
 } // namespace detail
