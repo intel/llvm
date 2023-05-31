@@ -25,8 +25,7 @@ using IsRedux =
                        sycl::detail::IsMinimum<T, BinaryOperation>::value ||
                        sycl::detail::IsMaximum<T, BinaryOperation>::value>;
 
-#ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 //// Masked reductions using redux.sync, requires integer types
 
@@ -111,12 +110,12 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 
 // Cluster group reduction using shfls, T = double
 template <typename Group, typename T, class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
-        std::is_same_v<T, double>,
-    T>
-masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                            const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
+                         std::is_same_v<T, double>,
+                     T>
+    masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                                const uint32_t MemberMask) {
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
     int x_a, x_b;
     asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
@@ -135,12 +134,12 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 
 // Cluster group reduction using shfls, T = float
 template <typename Group, typename T, class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
-        std::is_same_v<T, float>,
-    T>
-masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                            const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
+                         std::is_same_v<T, float>,
+                     T>
+    masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                                const uint32_t MemberMask) {
 
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
     auto tmp =
@@ -152,13 +151,12 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 
 // Cluster group reduction using shfls, std::is_integral_v<T>
 template <typename Group, typename T, class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
-        std::is_integral_v<T>,
-    T>
-masked_reduction_cuda_shfls(
-    Group g, T x, BinaryOperation binary_op,
-    const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
+                         std::is_integral_v<T>,
+                     T>
+    masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                                const uint32_t MemberMask) {
 
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
     auto tmp = __nvvm_shfl_sync_bfly_i32(MemberMask, x, -1, i);
@@ -235,8 +233,8 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 
     // __nvvm_fns automatically wraps around to the correct bit position.
     // There is no performance impact on src_set_bit position wrt localSetBit
-    auto tmp = non_uniform_shfl(
-        g, MemberMask, x, __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit));
+    auto tmp = non_uniform_shfl(g, MemberMask, x,
+                                __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit));
 
     if (!(localSetBit == 1 && remainder != 0)) {
       x = binary_op(x, tmp);
@@ -263,7 +261,9 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
   return masked_reduction_cuda_shfls(g, x, binary_op, MemberMask);
 }
 
-// get_identity is only currently used in this cuda specific header. If in the future it has more general use is should be moved to a more appropriate header.
+// get_identity is only currently used in this cuda specific header. If in the
+// future it has more general use it should be moved to a more appropriate
+// header.
 template <typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<sycl::detail::IsPlus<T, BinaryOperation>::value ||
@@ -327,13 +327,12 @@ GET_ID(IsMaximum, min)
 // Cluster group scan using shfls
 template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    ext::oneapi::experimental::is_fixed_size_group_v<Group>, T>
-masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                       const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group>, T>
+    masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                           const uint32_t MemberMask) {
   for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
-    auto tmp =
-        non_uniform_shfl(g, MemberMask, x, i);
+    auto tmp = non_uniform_shfl(g, MemberMask, x, i);
     if (g.get_local_id()[0] >= i)
       x = binary_op(x, tmp);
   }
@@ -361,8 +360,8 @@ masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
     int unfoldedSrcSetBit = localSetBit - i;
 
-    auto tmp = non_uniform_shfl(
-        g, MemberMask, x, __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit));
+    auto tmp = non_uniform_shfl(g, MemberMask, x,
+                                __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit));
     if (localIdVal >= i)
       x = binary_op(x, tmp);
   }
@@ -376,8 +375,7 @@ masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   return x;
 }
 
-#endif
-#endif
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
