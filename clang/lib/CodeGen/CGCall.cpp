@@ -1850,13 +1850,13 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
     const llvm::Type *FuncType) {
   // Priority is given to to the accuracy specific to the function.
-  // So, for example if the command line is something like this:
+  // So, if the command line is something like this:
   // 'clang -fp-accuracy = high -fp-accuracy = low:[sin]'.
   // This means, all library functions will have the accuracy 'high'
-  // except 'sin', which should have an accuracy value of 'low'. To
-  // ensure that, first check that a specific accuracy hasn't been
-  // requested for this function, by visiting the 'FPAccuracyFuncMap', then
-  // set the accuracy for all other functions than 'sin'.
+  // except 'sin', which should have an accuracy value of 'low'.
+  // To ensure that, first check if Name has a required accuracy by visiting
+  // the 'FPAccuracyFuncMap'; if no accuracy is mapped to Name (FuncAttrs
+  // is empty), then set its accuracy from the TU's accuracy value.
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
@@ -1866,18 +1866,13 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
     }
   }
-  if (!getLangOpts().FPAccuracyVal.empty()) {
-    StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
-        ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
-    assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
-    if (FuncAttrs.attrs().size() == 0)
-      // No specific accuracy has been requested for this function.
-      // Add the general accuracy value to the attribute list.
+  if (FuncAttrs.attrs().size() == 0)
+    if (!getLangOpts().FPAccuracyVal.empty()) {
+      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+          ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
+      assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
-    else
-      assert(FuncAttrs.attrs().size() == 1 &&
-             "Expected an attribute has already been mapped to the function");
-  }
+    }
 }
 
 /// Add denormal-fp-math and denormal-fp-math-f32 as appropriate for the

@@ -12,6 +12,11 @@
 // RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F2 %s
 
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown		     \
+// RUN: "-ffp-builtin-accuracy=high low:[tan] medium:[sincos,log10]" \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefix=CHECK-F3 %s
+
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -ffp-builtin-accuracy=sycl \
 // RUN: -D SPIR -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-SPIR %s
@@ -147,6 +152,46 @@ double rsqrt(double);
 // CHECK-F2: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F2_HIGH:[0-9]+]]
 // CHECK-F2: call double @llvm.fpbuiltin.tanh.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
+//
+// CHECK-F3-LABEL: define dso_local void @f1
+// CHECK-F3: call double @llvm.fpbuiltin.acos.f64(double %conv) #[[ATTR_F3_HIGH:[0-9]+]]
+// CHECK-F3: call double @llvm.fpbuiltin.acosh.f64(double %conv2) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.asin.f64(double %conv4) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.asinh.f64(double %conv6) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.atan.f64(double %conv8) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.atan2.f64(double %conv10, double %conv11) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.atanh.f64(double %conv13) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.cos.f64(double %conv15) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.cosh.f64(double %conv17) #[[ATTR_F3_HIGH]]
+// CHECk-F3: call double @llvm.fpbuiltin.erf.f64(double %conv19) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.erfc.f64(double %conv21) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.exp.f64(double %conv23) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.exp10.f64(double %conv25) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.exp2.f64(double %conv27) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.expm1.f64(double %conv29) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.fadd.f64(double %conv31, double %conv32) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.fdiv.f64(double %conv34, double %conv35) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.fmul.f64(double %conv37, double %conv38) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.frem.f64(double %conv40, double %conv41) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.fsub.f64(double %conv43, double %conv44) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.hypot.f64(double %conv46, double %conv47) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.ldexp.f64(double %conv49, i32 %conv50) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.log.f64(double %conv52) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.log10.f64(double %conv54) #[[ATTR_F3_MEDIUM:[0-9]+]]
+// CHECK-F3: call double @llvm.fpbuiltin.log1p.f64(double %conv56) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.log2.f64(double %conv58) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.pow.f64(double %conv60, double %conv61) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.rsqrt.f64(double %conv63) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.sin.f64(double %conv65) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call void @llvm.fpbuiltin.sincos.f64(double %conv67, ptr %p1, ptr %p2) #[[ATTR_F3_MEDIUM]]
+// CHECK-F3: call double @llvm.fpbuiltin.sinh.f64(double %conv68) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.sqrt.f64(double %conv70) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.tan.f64(double %conv72) #[[ATTR_F3_LOW:[0-9]+]]
+// CHECK-F3: call double @llvm.fpbuiltin.tanh.f64(double %conv74) #[[ATTR_F3_HIGH]]
+
+// CHECK-F3: attributes #[[ATTR_F3_HIGH]] = {{.*}}"fpbuiltin-max-error="="1.0f"
+// CHECK-F3: attributes #[[ATTR_F3_MEDIUM]] = {{.*}}"fpbuiltin-max-error="="4.0f"
+// CHECK-F3: attributes #[[ATTR_F3_LOW]] = {{.*}}"fpbuiltin-max-error="="67108864.0f"
 //
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f1
 // CHECK-SPIR: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR_SYCL1:[0-9]+]]
