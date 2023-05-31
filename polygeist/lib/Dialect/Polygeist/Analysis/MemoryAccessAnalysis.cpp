@@ -1060,6 +1060,15 @@ OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
 // MemoryAccess
 //===----------------------------------------------------------------------===//
 
+[[maybe_unused]] raw_ostream &
+mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccess &access) {
+  os << "--- MemoryAccess ---\n\n";
+  os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
+  os << "OffsetVector:\n" << access.getOffsetVector() << "\n";
+  os << "\n------------------\n";
+  return os;
+}
+
 MemoryAccessMatrix
 MemoryAccess::getIntraThreadAccessMatrix(unsigned numThreads) const {
   assert(numThreads < matrix.getNumColumns() &&

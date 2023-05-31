@@ -423,15 +423,9 @@ private:
   OffsetVector offsets;      /// The offset vector.
 };
 
-inline raw_ostream &operator<<(raw_ostream &os, const MemoryAccess &access) {
-  os << "--- MemoryAccess ---\n\n";
-  os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
-  os << "OffsetVector:\n" << access.getOffsetVector() << "\n";
-  os << "\n------------------\n";
-  return os;
-}
-
 class MemoryAccessAnalysis {
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
+
 public:
   MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
 
