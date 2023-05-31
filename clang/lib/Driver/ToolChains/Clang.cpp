@@ -5250,6 +5250,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
 
+      // Debug assignment tracking creates 'llvm.dbg.assign' intrinsics, which
+      // are currently not understood by mlir-translate. Therefore deactive the
+      // debug assignment tracking when we want to raise this host module later
+      // on to MLIR.
+      if (Args.hasArg(options::OPT_fsycl_raise_host))
+        CmdArgs.push_back("-fexperimental-assignment-tracking=disabled");
+
       if (!D.IsCLMode()) {
         // SYCL library is guaranteed to work correctly only with dynamic
         // MSVC runtime.
