@@ -624,13 +624,15 @@ Exceptions:
 template<typename T>
 node add(T cgf, const property_list& propList = {});
 ----
-|This function adds a command group function object to a graph. The function
-object statically contains a group of commands, of which a single command is
-executed at runtime. A command group function object may submit any command
-as defined by the core SYCL specification, and any SYCL extensions unless explicitly
-stated otherwise in <<extension-interaction, Interaction With Other Extensions>>.
-The requisites of `cgf` will be used to identify any dependent nodes in the graph
-to form edges with.
+|The `cgf` command group function behaves in much the same way as the command
+group function passed to `queue::submit` unless explicitly stated otherwise in
+<<extension-interaction, Interaction With Other Extensions>>. Code in the
+function is executed synchronously, before the function returns back to
+`command_graph::add`, with the exception of any SYCL commands (e.g. kernels,
+host tasks, or explicit memory copy operations). These commands are captured
+into the graph and executed asynchronously when the graph is submitted to a
+queue. The requisites of `cgf` will be used to identify any dependent nodes in
+the graph to form edges with.
 
 Preconditions:
 
@@ -934,21 +936,6 @@ graph LR
     Recording -->|End Recording| Executing
 ....
 
-Events returned from queue submissions when a queue is in the recording state
-may only be used as parameters to `handler::depends_on()` or as dependent
-events for queue shortcuts like `queue::parallel_for()` for submissions which
-are being recorded to the same modifiable `command_graph`.
-
-Calling `event::get_info<info::event::command_execution_status>()` or
-`event::get_profiling_info()` on an event returned from a queue submission
-recorded to a graph will throw synchronously with error code `invalid`.
-
-Waiting on an event returned from a queue submission recorded to a graph
-will throw synchronously with error code `invalid`.
-
-Waiting on a queue in the recording state is an error and will throw
-synchronously with error code `invalid`.
-
 ==== Queue Properties
 
 :queue-properties: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:queue-properties
@@ -1110,21 +1097,6 @@ As a result, users don't need to manually wrap queue recording code in a
 back to the executing state. Instead, an uncaught exception destroying the
 modifiable graph will perform this action, useful in RAII pattern usage.
 
-=== Error Handling
-
-When a queue is in recording mode asynchronous exceptions will not be
-generated, as no device execution is occurring. Synchronous errors specified as
-being thrown in the default queue executing state, will still be thrown when a
-queue is in the recording state. Queue query methods operate as usual in
-recording mode, as opposed to throwing.
-
-The `command_graph::begin_recording` and `command_graph::end_recording`
-entry-points return a `bool` value informing the user whether a related queue
-state change occurred. False is returned rather than throwing an exception when
-no queue state is changed. This design is because the queues are already in
-the state the user desires, so if the function threw an exception in this case,
-the application would likely swallow it and then proceed.
-
 === Storage Lifetimes [[storage-lifetimes]]
 
 The lifetime of any buffer recorded as part of a submission
@@ -1149,25 +1121,6 @@ The copy will not occur if the buffer is accessed inside the submitted command
 group function with an accessor with `access_mode::write` or the `no_init`
 property.
 
-=== Buffer Limitations for Record & Replay API
-
-Because of the delayed execution of a recorded graph, it is not possible to support
-captured code which relies on the copy-back on destruction behavior of buffers.
-Typically, applications would rely on this behavior to do work on the host which
-cannot inherently be captured inside a command graph. Thus, when recording to a graph
-it is an error to submit a command which has an accessor on a buffer which would
-cause a write-back to happen. Using an incompatible buffer in this case will result
-in a synchronous error being thrown with error code `invalid`.
-
-The copy-back mechanism can be disabled explicitly for buffers with attached host
-storage using either `buffer::set_final_data(nullptr)` or
-`buffer::set_write_back(false)`.
-
-It is also an error to create a host accessor to a buffer which is used in
-commands which are currently being recorded to a command graph. Attempting to
-construct a host accessor to an incompatible buffer will result in a
-synchronous error being thrown with error code `invalid`.
-
 === Host Tasks
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
@@ -1181,16 +1134,6 @@ device at once.
 Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
 by replacing the whole node with the new callable.
 
-=== Command Group Function Evaluation
-
-Host code within a command group function object is evaluated when the command
-group is added to a graph. This is either before the return of the call to
-`command_graph::add()` when using the explicit API or before the return of the call to
-`queue::submit()` when submitting a command group to a queue that is recording to a graph.
-
-This does not apply to code within a {host-task}[host task] which is
-evaluated as normal during command graph execution.
-
 [source,c++]
 ----
 auto node = graph.add([&](sycl::handler& cgh){
@@ -1201,62 +1144,68 @@ auto node = graph.add([&](sycl::handler& cgh){
 });
 ----
 
-=== Memory Allocation Nodes
+=== Queue Behavior In Recording Mode
 
-There is no provided interface for users to define a USM allocation/free
-operation belonging to the scope of the graph. It would be error prone and
-non-performant to allocate or free memory as a node executed during graph
-submission. Instead, such a memory allocation API needs to provide a way to
-return a pointer which won't be valid until the allocation is made on graph
-finalization, as allocating at finalization is the only way to benefit from
-the known graph scope for optimal memory allocation, and even optimize to
-eliminate some allocations entirely.
+When a queue is placed in recording mode via a call to `command_graph::begin_recording`,
+some features of the queue are no longer available because the commands are not
+executed during this mode. The general philosophy is to throw an exception at
+runtime when a feature is not available, so that there is an obvious indication
+of failure. The following list describes the behavior that changes during
+recording mode. Features not listed below behave the same in recording mode as
+they do in non-recording mode.
 
-Such a deferred allocation strategy presents challenges however, and as a result
-we recommend instead that prior to graph construction users perform core SYCL
-USM allocations to be used in the graph submission. Before to coming to this
-recommendation we considered the following explicit graph building interfaces
-for adding a memory allocation owned by the graph:
+==== Event Limitations
 
-1. Allocation function returning a reference to the raw pointer, i.e. `void*&`,
-   which will be instantiated on graph finalization with the location of the
-   allocated USM memory.
+Events returned from queue submissions when a queue is in the recording state
+may only be used as parameters to `handler::depends_on()` or as dependent
+events for queue shortcuts like `queue::parallel_for()` for submissions which
+are being recorded to the same modifiable `command_graph`.
 
-2. Allocation function returning a handle to the allocation. Applications use
-   the handle in node command-group functions to access memory when allocated.
+- Calling `event::get_info<info::event::command_execution_status>()` or
+`event::get_profiling_info()` on an event returned from a queue submission
+recorded to a graph will throw synchronously with error code `invalid`.
 
-3. Allocation function returning a pointer to a virtual allocation, only backed
-   with an actual allocation when graph is finalized or submitted.
+- Waiting on an event returned from a queue submission recorded to a graph
+will throw synchronously with error code `invalid`.
 
-Design 1) has the drawback of forcing users to keep the user pointer variable
-alive so that the reference is valid, which is unintuitive and is likely to
-result in bugs.
+- Waiting on a queue in the recording state is an error and will throw
+synchronously with error code `invalid`.
 
-Design 2) introduces a handle object which has the advantages of being a less
-error prone way to provide the pointer to the deferred allocation. However, it
-requires kernel changes and introduces an overhead above the raw pointers that
-are the advantage of USM.
+==== Buffer Limitations
 
-Design 3) needs specific backend support for deferred allocation.
+Because of the delayed execution of a recorded graph, it is not possible to support
+captured code which relies on the copy-back on destruction behavior of buffers.
+Typically, applications would rely on this behavior to do work on the host which
+cannot inherently be captured inside a command graph.
 
-=== Device Specific Graph
+- Thus, when recording to a graph it is an error to submit a command which has
+an accessor on a buffer which would cause a write-back to happen. Using an
+incompatible buffer in this case will result in a synchronous error being
+thrown with error code `invalid`.
 
-A modifiable state `command_graph` contains nodes targeting specific devices,
-rather than being a device agnostic representation only tied to devices on
-finalization. This allows the implementation to process nodes which require
-device information when the command group function is evaluated. For example,
-a SYCL reduction implementation may desire the work-group/sub-group size, which
-is normally gathered by the runtime from the device associated with the queue.
+- The copy-back mechanism can be disabled explicitly for buffers with attached host
+storage using either `buffer::set_final_data(nullptr)` or
+`buffer::set_write_back(false)`.
 
-This design also enables the future capability for a user to compose a graph
-with nodes targeting different devices, allowing the benefits of defining an
-execution graph ahead of submission to be extended to multi-device platforms.
-Without this capability a user currently has to submit individual single-device
-graphs and use events for dependencies, which is a usage model this extension is
-aiming to optimize. Automatic load balancing of commands across devices is not a
-problem this extension currently aims to solve, it is the responsibility of the
-user to decide the device each command will be processed for, not the SYCL
-runtime.
+- It is also an error to create a host accessor to a buffer which is used in
+commands which are currently being recorded to a command graph. Attempting to
+construct a host accessor to an incompatible buffer will result in a
+synchronous error being thrown with error code `invalid`.
+
+==== Error Handling
+
+When a queue is in recording mode asynchronous exceptions will not be
+generated, as no device execution is occurring. Synchronous errors specified as
+being thrown in the default queue executing state, will still be thrown when a
+queue is in the recording state. Queue query methods operate as usual in
+recording mode, as opposed to throwing.
+
+The `command_graph::begin_recording` and `command_graph::end_recording`
+entry-points return a `bool` value informing the user whether a related queue
+state change occurred. False is returned rather than throwing an exception when
+no queue state is changed. This design is because the queues are already in
+the state the user desires, so if the function threw an exception in this case,
+the application would likely swallow it and then proceed.
 
 === Interaction With Other Extensions [[extension-interaction]]
 
@@ -1540,6 +1489,65 @@ submitted in its entirety for execution via
   });
 
 ----
+
+== Future Direction
+
+=== Memory Allocation Nodes
+
+There is no provided interface for users to define a USM allocation/free
+operation belonging to the scope of the graph. It would be error prone and
+non-performant to allocate or free memory as a node executed during graph
+submission. Instead, such a memory allocation API needs to provide a way to
+return a pointer which won't be valid until the allocation is made on graph
+finalization, as allocating at finalization is the only way to benefit from
+the known graph scope for optimal memory allocation, and even optimize to
+eliminate some allocations entirely.
+
+Such a deferred allocation strategy presents challenges however, and as a result
+we recommend instead that prior to graph construction users perform core SYCL
+USM allocations to be used in the graph submission. Before to coming to this
+recommendation we considered the following explicit graph building interfaces
+for adding a memory allocation owned by the graph:
+
+1. Allocation function returning a reference to the raw pointer, i.e. `void*&`,
+   which will be instantiated on graph finalization with the location of the
+   allocated USM memory.
+
+2. Allocation function returning a handle to the allocation. Applications use
+   the handle in node command-group functions to access memory when allocated.
+
+3. Allocation function returning a pointer to a virtual allocation, only backed
+   with an actual allocation when graph is finalized or submitted.
+
+Design 1) has the drawback of forcing users to keep the user pointer variable
+alive so that the reference is valid, which is unintuitive and is likely to
+result in bugs.
+
+Design 2) introduces a handle object which has the advantages of being a less
+error prone way to provide the pointer to the deferred allocation. However, it
+requires kernel changes and introduces an overhead above the raw pointers that
+are the advantage of USM.
+
+Design 3) needs specific backend support for deferred allocation.
+
+=== Device Specific Graph
+
+A modifiable state `command_graph` contains nodes targeting specific devices,
+rather than being a device agnostic representation only tied to devices on
+finalization. This allows the implementation to process nodes which require
+device information when the command group function is evaluated. For example,
+a SYCL reduction implementation may desire the work-group/sub-group size, which
+is normally gathered by the runtime from the device associated with the queue.
+
+This design also enables the future capability for a user to compose a graph
+with nodes targeting different devices, allowing the benefits of defining an
+execution graph ahead of submission to be extended to multi-device platforms.
+Without this capability a user currently has to submit individual single-device
+graphs and use events for dependencies, which is a usage model this extension is
+aiming to optimize. Automatic load balancing of commands across devices is not a
+problem this extension currently aims to solve, it is the responsibility of the
+user to decide the device each command will be processed for, not the SYCL
+runtime.
 
 == Issues
 
