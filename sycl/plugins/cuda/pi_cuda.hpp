@@ -27,13 +27,13 @@
 
 #include <ur/adapters/cuda/context.hpp>
 #include <ur/adapters/cuda/device.hpp>
+#include <ur/adapters/cuda/event.hpp>
 #include <ur/adapters/cuda/kernel.hpp>
+#include <ur/adapters/cuda/memory.hpp>
 #include <ur/adapters/cuda/platform.hpp>
 #include <ur/adapters/cuda/program.hpp>
-#include <ur/adapters/cuda/event.hpp>
 #include <ur/adapters/cuda/queue.hpp>
 #include <ur/adapters/cuda/sampler.hpp>
-#include <ur/adapters/cuda/memory.hpp>
 
 // Share code between the PI Plugin and UR Adapter
 #include <pi2ur.hpp>
@@ -52,7 +52,7 @@ struct _pi_context : ur_context_handle_t_ {
   using ur_context_handle_t_::ur_context_handle_t_;
 };
 
-struct _pi_mem  : ur_mem_handle_t_ {
+struct _pi_mem : ur_mem_handle_t_ {
   using ur_mem_handle_t_::ur_mem_handle_t_;
 };
 

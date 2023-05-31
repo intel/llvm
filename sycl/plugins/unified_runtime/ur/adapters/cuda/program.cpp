@@ -377,7 +377,7 @@ urProgramRelease(ur_program_handle_t program) {
       // status.
       if (program->buildStatus_ == UR_PROGRAM_BUILD_STATUS_SUCCESS) {
         result = UR_CHECK_ERROR(cuModuleUnload(cuModule));
-      } else if(program->buildStatus_ == UR_PROGRAM_BUILD_STATUS_NONE) {
+      } else if (program->buildStatus_ == UR_PROGRAM_BUILD_STATUS_NONE) {
         // Nothing to free.
         result = UR_RESULT_SUCCESS;
       }

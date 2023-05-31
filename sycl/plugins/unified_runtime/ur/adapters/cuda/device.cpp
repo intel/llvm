@@ -988,7 +988,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
         cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
         CUDA_SUCCESS);
     // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
-    sycl::detail::ur::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
+    sycl::detail::ur::assertion(strnlen(AddressBuffer, AddressBufferSize) ==
+                                12);
     return ReturnValue(AddressBuffer,
                        strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
   }

@@ -69,8 +69,8 @@ struct ur_queue_handle_t_ {
         device_{device}, refCount_{1}, eventCount_{0}, compute_stream_idx_{0},
         transfer_stream_idx_{0}, num_compute_streams_{0},
         num_transfer_streams_{0}, last_sync_compute_streams_{0},
-        last_sync_transfer_streams_{0}, flags_(flags),
-        ur_flags_(ur_flags), has_ownership_{backend_owns} {
+        last_sync_transfer_streams_{0}, flags_(flags), ur_flags_(ur_flags),
+        has_ownership_{backend_owns} {
     urContextRetain(context_);
     urDeviceRetain(device_);
   }

@@ -57,9 +57,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 /// However because multiple devices in a context is not currently supported,
 /// place each device in a separate platform.
 ///
-UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGet(uint32_t NumEntries,
-                          ur_platform_handle_t *phPlatforms,
-                          uint32_t *pNumPlatforms) {
+UR_DLLEXPORT ur_result_t UR_APICALL
+urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
+              uint32_t *pNumPlatforms) {
 
   try {
     static std::once_flag initFlag;
