@@ -178,7 +178,7 @@ template <typename Group> bool GroupAny(Group, bool pred) {
 template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
               bool pred) {
-#if defined (__NVPTX__)
+#if defined(__NVPTX__)
   return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
 #else
   // ballot_group partitions its parent into two groups (0 and 1)
@@ -195,7 +195,7 @@ template <size_t PartitionSize, typename ParentGroup>
 bool GroupAny(
     ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
     bool pred) {
-#if defined (__NVPTX__)
+#if defined(__NVPTX__)
   return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
 #else
   // GroupNonUniformAny doesn't support cluster size, so use a reduction
@@ -211,7 +211,7 @@ bool GroupAny(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
 }
 bool GroupAny(const ext::oneapi::experimental::opportunistic_group &g,
               bool pred) {
-#if defined (__NVPTX__)
+#if defined(__NVPTX__)
   return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0], pred);
 #else
   return __spirv_GroupNonUniformAny(
@@ -295,7 +295,8 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
   // Remap local_id to its original numbering in ParentGroup.
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 #if defined(__NVPTX__)
-  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x, LocalId, 31);
+  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x,
+                                  LocalId, 31);
 #else
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
@@ -325,7 +326,8 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
   // Remap local_id to its original numbering in ParentGroup
   auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
 #if defined(__NVPTX__)
-  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x, LocalId, 31);
+  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x,
+                                  LocalId, 31);
 #else
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
@@ -370,7 +372,8 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
   // Remap local_id to its original numbering in sub-group
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 #if defined(__NVPTX__)
-  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x, LocalId, 31);
+  return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0], x,
+                                  LocalId, 31);
 #else
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<sycl::ext::oneapi::sub_group>::type;
