@@ -190,7 +190,7 @@ bool FunctionKernelInfo::isPotentialKernelBodyFunc(
 Optional<unsigned> FunctionKernelInfo::getMaxDepthFromAnyGPUKernel(
     FunctionOpInterface func) const {
   Optional<unsigned> maxDepth = std::nullopt;
-  for (const KernelInfo &kernelInfo : funcKernelCallerMap.at(func)) {
+  for (const KernelInfo &kernelInfo : funcKernelInfosMap.at(func)) {
     if (!maxDepth.has_value())
       maxDepth = kernelInfo.depth;
     else if (kernelInfo.depth > maxDepth.value())
@@ -202,8 +202,9 @@ Optional<unsigned> FunctionKernelInfo::getMaxDepthFromAnyGPUKernel(
 Optional<unsigned>
 FunctionKernelInfo::getMaxDepthFromGPUKernel(FunctionOpInterface func,
                                              gpu::GPUFuncOp kernel) const {
+  assert(kernel.isKernel() && "Expecting kernel");
   Optional<unsigned> maxDepth = std::nullopt;
-  for (const KernelInfo &kernelInfo : funcKernelCallerMap.at(func)) {
+  for (const KernelInfo &kernelInfo : funcKernelInfosMap.at(func)) {
     if (kernelInfo.kernel != kernel)
       continue;
     if (!maxDepth.has_value())
@@ -216,8 +217,17 @@ FunctionKernelInfo::getMaxDepthFromGPUKernel(FunctionOpInterface func,
 
 void FunctionKernelInfo::getKernelCallers(
     FunctionOpInterface func, SmallVectorImpl<gpu::GPUFuncOp> &kernels) const {
-  for (const KernelInfo &kernelInfo : funcKernelCallerMap.at(func))
+  for (const KernelInfo &kernelInfo : funcKernelInfosMap.at(func))
     kernels.push_back(kernelInfo.kernel);
+}
+
+FunctionOpInterface
+FunctionKernelInfo::getKernelBodyFunc(gpu::GPUFuncOp kernel) const {
+  assert(kernel.isKernel() && "Expecting kernel");
+  for (FunctionOpInterface func : kernelFuncsMap.at(kernel))
+    if (isPotentialKernelBodyFunc(func))
+      return func;
+  llvm_unreachable("cannot find kernel body function");
 }
 
 void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
@@ -225,12 +235,12 @@ void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
          "Expecting func in gpu module");
 
   // Initialize with empty list.
-  funcKernelCallerMap[func] = {};
+  funcKernelInfosMap[func] = {};
 
   Operation *op = func;
   if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
     if (gpuFunc.isKernel()) {
-      funcKernelCallerMap[func].push_back({gpuFunc, 0});
+      funcKernelInfosMap[func].push_back({gpuFunc, 0});
       return;
     }
 
@@ -239,17 +249,13 @@ void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
   SymbolUserMap userMap(symTable, module);
   for (Operation *call : userMap.getUsers(func)) {
     auto caller = call->getParentOfType<FunctionOpInterface>();
-    if (!funcKernelCallerMap.contains(caller))
+    if (!funcKernelInfosMap.contains(caller))
       populateGPUKernelInfo(caller);
-    ArrayRef<KernelInfo> kernelInfos = funcKernelCallerMap[caller];
-
-    // Caller not called from a GPU kernel.
-    if (kernelInfos.empty())
-      continue;
-
-    for (const KernelInfo &kernelInfo : kernelInfos)
-      funcKernelCallerMap[func].push_back(
+    for (const KernelInfo &kernelInfo : funcKernelInfosMap[caller]) {
+      funcKernelInfosMap[func].push_back(
           {kernelInfo.kernel, kernelInfo.depth + 1});
+      kernelFuncsMap[kernelInfo.kernel].insert(func);
+    }
   }
 }
 

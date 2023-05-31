@@ -136,12 +136,16 @@ public:
   void getKernelCallers(FunctionOpInterface func,
                         SmallVectorImpl<gpu::GPUFuncOp> &kernels) const;
 
+  /// Returns the kernel body function of \p kernel.
+  FunctionOpInterface getKernelBodyFunc(gpu::GPUFuncOp kernel) const;
+
 private:
-  /// Populate funcKernelCallerMap with the list of GPU kernels that can reach
+  /// Populate funcKernelInfosMap with the list of GPU kernels that can reach
   /// \p func and their associated depth.
   void populateGPUKernelInfo(FunctionOpInterface func);
 
-  DenseMap<FunctionOpInterface, SmallVector<KernelInfo>> funcKernelCallerMap;
+  DenseMap<FunctionOpInterface, SmallVector<KernelInfo>> funcKernelInfosMap;
+  DenseMap<gpu::GPUFuncOp, std::set<FunctionOpInterface>> kernelFuncsMap;
 };
 
 //===----------------------------------------------------------------------===//

@@ -73,24 +73,12 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   });
 }
 
-/// A function is a candidate iff is a kernel body function with an nd_item
-/// argument, and only called from candidate kernel(s).
-bool isCandidateFunction(FunctionOpInterface func,
-                         const FunctionKernelInfo &funcKernelInfo) {
-  if (!funcKernelInfo.isPotentialKernelBodyFunc(func))
-    return false;
-
+/// A function is a candidate iff it has an nd_item argument.
+bool isCandidateFunction(FunctionOpInterface func) {
   // TODO: construct nd_item when not passed in.
   if (func.getNumArguments() == 0 ||
       !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
     return false;
-
-  SmallVector<gpu::GPUFuncOp> kernels;
-  funcKernelInfo.getKernelCallers(func, kernels);
-  if (!all_of(kernels,
-              [](gpu::GPUFuncOp kernel) { return isCandidateKernel(kernel); }))
-    return false;
-
   return true;
 }
 
@@ -112,6 +100,97 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
   // TODO: check uniformity.
 
   return true;
+}
+
+/// Get the size of unused shared local memory arena in bytes.
+unsigned getLocalMemoryRemain(gpu::GPUModuleOp &module,
+                              unsigned localMemorySize) {
+  assert(module.hasTrait<OpTrait::SymbolTable>() &&
+         "Expecting module with SymbolTable trait");
+  unsigned localMemoryRemain = localMemorySize;
+  module.walk([&localMemoryRemain](memref::GlobalOp global) {
+    MemRefType memRefTy = global.getType();
+    if (!isLocalAccessAddrSpace(memRefTy))
+      return WalkResult::advance();
+    unsigned globalSize =
+        memRefTy.getElementTypeBitWidth() * memRefTy.getNumElements() / 8;
+    if (globalSize >= localMemoryRemain) {
+      localMemoryRemain = 0;
+      return WalkResult::interrupt();
+    }
+    localMemoryRemain -= globalSize;
+    return WalkResult::advance();
+  });
+  return localMemoryRemain;
+}
+
+/// Get the require local memory for \p accTy.
+unsigned getReqdLocalMemory(sycl::AccessorType accTy,
+                            sycl::ReqdWorkGroupSize reqdWGSize) {
+  assert(!reqdWGSize.empty() && "Expecting non-empty reqdWGSize");
+  unsigned elemSize = accTy.getType().getIntOrFloatBitWidth();
+  unsigned memrefReqdLocalMemory = elemSize;
+  for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
+    memrefReqdLocalMemory *= reqdWGSize[dim];
+  }
+  return memrefReqdLocalMemory;
+}
+
+/// Get the require local memory for memrefs in \p loopToSharedMemref.
+Optional<unsigned> getReqdLocalMemory(
+    DenseMap<LoopLikeOpInterface, std::set<Operation *>> &loopToSharedMemref,
+    sycl::ReqdWorkGroupSize reqdWGSize) {
+  if (reqdWGSize.empty())
+    return std::nullopt;
+
+  unsigned reqdLocalMemory = 0;
+  for (auto &entry : loopToSharedMemref) {
+    unsigned loopReqdLocalMemory = 0;
+    for (Operation *memref : entry.second) {
+      sycl::AccessorType accTy =
+          getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
+      loopReqdLocalMemory += getReqdLocalMemory(accTy, reqdWGSize);
+    }
+    // Memref in one loop can reuse local memory allocated for another loop.
+    reqdLocalMemory = std::max(reqdLocalMemory, loopReqdLocalMemory);
+  }
+  return reqdLocalMemory;
+}
+
+/// Create a GlobalOp for workgroup local memory.
+memref::GlobalOp getWGLocalMem(Operation *module, unsigned size) {
+  assert(size != 0 && "Expecting local memory");
+  std::string name = "WGLocalMem";
+  polygeist::getUniqueSymbolName(name, module);
+  OpBuilder globalBuilder(module->getRegion(0));
+  auto memRefTy = MemRefType::get(
+      size, globalBuilder.getI8Type(), MemRefLayoutAttrInterface(),
+      sycl::AccessAddrSpaceAttr::get(globalBuilder.getContext(),
+                                     sycl::AccessAddrSpace::LocalAccess));
+  return globalBuilder.create<memref::GlobalOp>(
+      module->getLoc(), name,
+      /*sym_visibility=*/globalBuilder.getStringAttr("private"), memRefTy,
+      /*initial_value=*/Attribute(), /*constant=*/false,
+      /*alignment=*/IntegerAttr());
+}
+
+/// Create ViewOp from source \p source, with offset \p offset, for AccessorType
+/// \p accTy.
+memref::ViewOp createViewOp(sycl::AccessorType accTy, unsigned offset,
+                            memref::GetGlobalOp source,
+                            const sycl::ReqdWorkGroupSize &reqdWGSize,
+                            OpBuilder builder, Location loc) {
+  assert(!reqdWGSize.empty() && "Expecting non-empty reqdWGSize");
+  SmallVector<int64_t> shape;
+  for (int dim = accTy.getDimension() - 1; dim >= 0; --dim)
+    shape.push_back(reqdWGSize[dim]);
+  auto resTy = MemRefType::get(
+      shape, accTy.getType(), MemRefLayoutAttrInterface(),
+      sycl::AccessAddrSpaceAttr::get(builder.getContext(),
+                                     sycl::AccessAddrSpace::LocalAccess));
+  auto offsetVal = builder.create<arith::ConstantIndexOp>(loc, offset);
+  return builder.create<memref::ViewOp>(loc, resTy, source, offsetVal,
+                                        ValueRange());
 }
 
 /// Tile an affine for \p loop given the tile size \p tileSize.
@@ -389,15 +468,12 @@ private:
 
   /// Transform a candidate loop.
   template <typename T>
-  void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis,
-                 DataFlowSolver &solver);
+  void transform(T loop, memref::GlobalOp WGLocalMem,
+                 const sycl::ReqdWorkGroupSize &reqdWGSize);
 
 private:
-  /// A map from a candidate loop to memref values used in the loop.
-  DenseMap<LoopLikeOpInterface, SmallVector<Value>> loopToMemref;
-
-  /// Map from a candidate memref value to its ideal memory space.
-  DenseMap<Value, MemorySelector::MemorySpace> memrefToMemorySpace;
+  /// A map from a candidate loop to shared memref values used in the loop.
+  DenseMap<LoopLikeOpInterface, std::set<Operation *>> loopToSharedMemref;
 };
 
 void LoopInternalization::runOnOperation() {
@@ -414,9 +490,21 @@ void LoopInternalization::runOnOperation() {
     return;
   FunctionKernelInfo funcKernelInfo(gpuModule);
 
-  // Walk each function in the module.
-  gpuModule->walk([&](FunctionOpInterface func) {
-    if (!isCandidateFunction(func, funcKernelInfo))
+  // Collect kernel body functions called from candidate kernels.
+  std::set<FunctionOpInterface> kernelBodyFuncs;
+  gpuModule->walk([&](gpu::GPUFuncOp kernel) {
+    if (!kernel.isKernel())
+      return;
+    FunctionOpInterface func = funcKernelInfo.getKernelBodyFunc(kernel);
+    if (isCandidateKernel(kernel))
+      kernelBodyFuncs.insert(func);
+    else
+      kernelBodyFuncs.erase(func);
+  });
+
+  // Walk each kernel body functions.
+  for (FunctionOpInterface func : kernelBodyFuncs) {
+    if (!isCandidateFunction(func))
       return;
 
     LLVM_DEBUG(llvm::dbgs()
@@ -433,6 +521,12 @@ void LoopInternalization::runOnOperation() {
                  << func.getName() << "\n");
       return;
     }
+
+    // Ensure there is local memory to be used.
+    unsigned localMemoryRemain =
+        getLocalMemoryRemain(gpuModule, localMemorySize);
+    if (localMemoryRemain == 0)
+      return;
 
     // Select the ideal memory space for memref accesses in candidate loops
     // contained by this function.
@@ -458,35 +552,35 @@ void LoopInternalization::runOnOperation() {
       // prioritize(memAccessAnalysis, solver);
     });
 
-    DenseMap<LoopLikeOpInterface, SmallVector<Value>> loopToSharedMemref;
-    for (auto &entry : loopToMemref) {
-      copy_if(entry.second, std::back_inserter(loopToSharedMemref[entry.first]),
-              [&](Value memref) {
-                return (memrefToMemorySpace.at(memref) ==
-                        MemorySelector::MemorySpace::Shared);
-              });
-
-      // No need to transform if no accesses need to be promoted to shared local
-      // memory.
-      if (loopToSharedMemref.at(entry.first).empty())
-        loopToSharedMemref.erase(entry.first);
+    SmallVector<gpu::GPUFuncOp> kernels;
+    funcKernelInfo.getKernelCallers(func, kernels);
+    sycl::ReqdWorkGroupSize reqdWGSize(kernels);
+    Optional<unsigned> reqdLocalMemory =
+        getReqdLocalMemory(loopToSharedMemref, reqdWGSize);
+    if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemain) {
+      LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
+      return;
     }
+    memref::GlobalOp WGLocalMem = getWGLocalMem(
+        gpuModule,
+        reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemain);
 
-    // Now that we have the ideal memory space for all analyzable memref
-    // accesses in each loop nest's innermost loop, perform the transformation.
+    // Now that we have a list of memref to promote to shared memory in each
+    // loop nest's innermost loop, perform the transformation.
     for (auto &entry : loopToSharedMemref) {
       TypeSwitch<Operation *>(entry.first)
           .Case<affine::AffineForOp, scf::ForOp>(
-              [&](auto loop) { transform(loop, memAccessAnalysis, solver); });
+              [&](auto loop) { transform(loop, WGLocalMem, reqdWGSize); });
     }
-  });
+    loopToSharedMemref.clear();
+  }
 }
 
 void LoopInternalization::selectMemorySpace(
     LoopLikeOpInterface loop, MemoryAccessAnalysis &memAccessAnalysis,
     AliasAnalysis &aliasAnalysis, DataFlowSolver &solver) {
   assert(LoopTools::getInnermostLoop(loop) && "Expecting an innermost loop");
-  assert(loopToMemref.find(loop) == loopToMemref.end() &&
+  assert(loopToSharedMemref.find(loop) == loopToSharedMemref.end() &&
          "The loop should not be already present in the map");
 
   // Use the memory selector to determine the ideal memory space for memref
@@ -501,9 +595,14 @@ void LoopInternalization::selectMemorySpace(
 
     affine::MemRefAccess memRefAccess(op);
 
-    // Skip if the memref is already in the map.
-    if (memrefToMemorySpace.find(memRefAccess.memref) !=
-        memrefToMemorySpace.end())
+    // Limitation: cannot calculate element size for non int or float type.
+    Type elemTy =
+        sycl::AccessorPtrValue(cast<sycl::SYCLAccessorSubscriptOp>(
+                                   memRefAccess.memref.getDefiningOp())
+                                   .getAcc())
+            .getAccessorType()
+            .getType();
+    if (!elemTy.isIntOrFloat())
       return;
 
     // Compute the ideal memory space if possible.
@@ -512,17 +611,8 @@ void LoopInternalization::selectMemorySpace(
     if (!memSpace)
       return;
 
-    // Record we have processed the memref in this loop...
-    auto it = loopToMemref.find(loop);
-    if (it == loopToMemref.end())
-      loopToMemref[loop] = {memRefAccess.memref};
-    else {
-      SmallVector<Value> &memRefs = loopToMemref[loop];
-      memRefs.push_back(memRefAccess.memref);
-    }
-
-    // ... and record the memref memory space.
-    memrefToMemorySpace[memRefAccess.memref] = *memSpace;
+    if (*memSpace == MemorySelector::MemorySpace::Shared)
+      loopToSharedMemref[loop].insert(memRefAccess.memref.getDefiningOp());
   });
 }
 
@@ -534,13 +624,17 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
 }
 
 template <typename T>
-void LoopInternalization::transform(
-    T loop, const MemoryAccessAnalysis &memAccessAnalysis,
-    DataFlowSolver &solver) {
+void LoopInternalization::transform(T loop, memref::GlobalOp WGLocalMem,
+                                    const sycl::ReqdWorkGroupSize &reqdWGSize) {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
   assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
-  assert(loopToMemref.find(loop) != loopToMemref.end() &&
+  assert(loopToSharedMemref.find(loop) != loopToSharedMemref.end() &&
          "Loop should be in the map");
+
+  OpBuilder builder(loop);
+  auto getGlobalOp = builder.create<memref::GetGlobalOp>(
+      loop.getLoc(), WGLocalMem.getType(), WGLocalMem.getName());
+  const std::set<Operation *> &memrefs = loopToSharedMemref.at(loop);
 
   SmallVector<T> tiledNest;
   LogicalResult res = tile(loop, getTileSize(loop), tiledNest);
@@ -548,10 +642,23 @@ void LoopInternalization::transform(
   ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 
-  // TODO: promote loop accesses to local memory.
   loop = tiledNest.front();
-  OpBuilder builder(loop);
   builder.setInsertionPointToStart(loop->getBlock());
+
+  // Get pointer to the local memory portion for each memref.
+  if (!reqdWGSize.empty()) {
+    unsigned offset = 0;
+    for (Operation *memref : memrefs) {
+      sycl::AccessorType accTy =
+          getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
+      createViewOp(accTy, offset, getGlobalOp, reqdWGSize, builder,
+                   memref->getLoc());
+      offset += getReqdLocalMemory(accTy, reqdWGSize);
+    }
+  } else
+    llvm::errs() << "TODO\n";
+
+  // TODO: promote loop accesses to local memory.
   createLocalBarrier(builder);
   builder.setInsertionPointAfter(loop);
   createLocalBarrier(builder);
