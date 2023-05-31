@@ -36,7 +36,9 @@ template <typename T> inline T __atan2pi(T x, T y) {
   return std::atan2(x, y) / M_PI;
 }
 
-template <typename T> inline T __cospi(T x) { return std::cos(M_PI * x); }
+template <typename T> inline T __cospi(T x) {
+  return std::sin(M_PI * (0.5 - x));
+}
 
 template <typename T> T inline __fract(T x, T *iptr) {
   T f = std::floor(x);
