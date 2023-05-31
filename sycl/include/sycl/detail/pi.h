@@ -1027,8 +1027,11 @@ using pi_image_desc = _pi_image_desc;
 typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
 
 typedef enum {
-  PI_PEER_ACCESS_SUPPORTED = 0x0,
-  PI_PEER_ATOMICS_SUPPORTED = 0x1
+  PI_PEER_ACCESS_SUPPORTED = 0x0, ///< returns 1 if P2P Access is supported
+                                  ///< otherwise P2P Access is not supported.
+  PI_PEER_ATOMICS_SUPPORTED =
+      0x1 ///< returns 1 if Atomic operations are supported over the P2P link,
+          ///< otherwise such operations are not supported.
 } _pi_peer_attr;
 
 using pi_mem_info = _pi_mem_info;

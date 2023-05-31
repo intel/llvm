@@ -1116,6 +1116,10 @@ pi_result piextEnablePeerAccess(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
+  setErrorMessage("piextEnablePeerAccess not "
+                  "implemented in L0",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
@@ -1124,6 +1128,10 @@ pi_result piextDisablePeerAccess(pi_device command_device,
 
   std::ignore = command_device;
   std::ignore = peer_device;
+
+  setErrorMessage("piextDisablePeerAccess not "
+                  "implemented in L0",
+                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
 
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
@@ -1138,7 +1146,7 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // Zero return value indicates that all of the queries currently return false.
-  return ReturnValue(0);
+  return ReturnValue(pi_int32{0});
 }
 
 #ifdef _WIN32

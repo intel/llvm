@@ -2194,7 +2194,7 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // Zero return value indicates that all of the queries currently return false.
-  return ReturnValue(0);
+  return ReturnValue(pi_int32{0});
 }
 
 #ifdef _WIN32
