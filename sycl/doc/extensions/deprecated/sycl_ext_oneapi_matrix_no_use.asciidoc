@@ -342,9 +342,9 @@ The table below provides a description for each of the member variables and type
 [frame="none",options="header"]
 |======================
 | Member/type alias in `tpu_params` | Forms they are defined in |Description
-|`type_a`| validation, default values|type alias for the type of matrix A
-|`type_b`|  validation, default values|type alias for the type of matrix B
-|`type_c`|  validation, default values|type alias for the type of matrix C
+|`Ta`| validation, default values|type alias for the type of matrix A
+|`Tb`|  validation, default values|type alias for the type of matrix B
+|`Tc`|  validation, default values|type alias for the type of matrix C
 |`defaultM`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value M that the user provides if M is supported by the implementation
 |`defaultN`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value N that the user provides if N is supported by the implementation
 |`defaultK`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value K that the user provides if K is supported by the implementation
@@ -389,11 +389,6 @@ struct tpu_params<
       "Invalid parameters for Intel AMX, query valid types and maximum sizes "
       "using: "
       "tpu_params<tpu::amx> myparams; and then check out myparams.combinations array");
-
-
-  using type_a = Ta; // this type alias is not available in the current implementation 
-  using type_b = Tb; // this type alias is not available in the current implementation
-  using type_c = Tc; // this type alias is not available in the current implementation
 
   // if combination is valid, construct the matrices
 
@@ -442,10 +437,6 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
                 "Invalid types for Intel AMX, supported types are int8_t, uint8_t, "
                 "and bf16 (Note that unsigned short should be used in the"
                 "DPC++ code to implement bf16) ");
-  
-  using type_a = Ta; // this type alias is not available in the current implementation 
-  using type_b = Tb; // this type alias is not available in the current implementation
-  using type_c = Tc; // this type alias is not available in the current implementation
  
   // construct the matrices using the default sizes
   static constexpr std::size_t defaultM = 16;
