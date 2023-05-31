@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPOORTED: gpu-intel-pvc
-// RUN: %{build} -o %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
 
 // Regression test for gather/scatter API.

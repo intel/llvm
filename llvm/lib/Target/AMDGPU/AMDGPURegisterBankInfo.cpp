@@ -215,6 +215,10 @@ static bool isVectorRegisterBank(const RegisterBank &Bank) {
   return BankID == AMDGPU::VGPRRegBankID || BankID == AMDGPU::AGPRRegBankID;
 }
 
+bool AMDGPURegisterBankInfo::isDivergentRegBank(const RegisterBank *RB) const {
+  return RB != &AMDGPU::SGPRRegBank;
+}
+
 unsigned AMDGPURegisterBankInfo::copyCost(const RegisterBank &Dst,
                                           const RegisterBank &Src,
                                           unsigned Size) const {
@@ -3758,6 +3762,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case AMDGPU::G_AMDGPU_CVT_F32_UBYTE3:
   case AMDGPU::G_AMDGPU_CVT_PK_I16_I32:
   case AMDGPU::G_AMDGPU_SMED3:
+  case AMDGPU::G_AMDGPU_FMED3:
     return getDefaultMappingVOP(MI);
   case AMDGPU::G_UMULH:
   case AMDGPU::G_SMULH: {

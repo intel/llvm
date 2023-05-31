@@ -213,8 +213,7 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            }
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_b,
-               accA.template get_multi_ptr<access::decorated::no>()
-                       multi_ptr<access::decorated::no>() +
+               accA.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * N * 4 + sg_starty / SG_SZ * TN * 4,
                N * 4);
          }); // parallel for

@@ -521,6 +521,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 ///   \c float.
 /// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
 /// @tparam AccessorTy The accessor type.
+/// @tparam Toffset The offset type.
 /// @param acc The accessor to gather from.
 /// @param offsets Per-element offsets in bytes.
 /// @param glob_offset Offset in bytes added to each individual element's offset
@@ -529,12 +530,17 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 ///   predicate are not accessed, their values in the resulting vector are
 ///   undefined.
 ///
-template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
-                                 (N == 1 || N == 8 || N == 16 || N == 32) &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<T, N>>
-gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset>,
+    simd<T, N>>
+gather(AccessorTy acc, simd<Toffset, N> offsets,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+       uint64_t glob_offset = 0,
+#else
+       uint32_t glob_offset = 0,
+#endif
        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
@@ -554,6 +560,7 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 ///   \c float.
 /// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
 /// @tparam AccessorTy The accessor type.
+/// @tparam Toffset The offset type.
 /// @param acc The accessor to scatter to.
 /// @param offsets Per-element offsets in bytes.
 /// @param vals Values to write.
@@ -563,12 +570,17 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 ///   predicate are not accessed.
 ///
 ///
-template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
-                             (N == 1 || N == 8 || N == 16 || N == 32) &&
-                             !std::is_pointer<AccessorTy>::value>
-scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset>>
+scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+        uint64_t glob_offset = 0,
+#else
+        uint32_t glob_offset = 0,
+#endif
+        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
                 vals, mask);
@@ -1633,6 +1645,16 @@ __ESIMD_API void barrier() {
 /// @{
 
 /// Declare per-work-group slm size.
+/// GPU RT/driver requires this function to be called in the beginning
+/// of the kernel using SLM. There must be only 1 call site of slm_init()
+/// per kernel.
+/// If slm_init is called from some function F called from the kernel,
+/// then inlining of F into the kernel must be managed/guaranteed.
+/// slm_init<SLMSize> can also be used together with slm_allocator() class.
+/// In such cases slm_allocator<AdditionalMem> allocates extra chunk of SLM
+/// memory and the final amount of allocated SLM may be bigger
+/// than what is requested by slm_init. See more details on
+/// slm_allocator class usage at it's declaration and ESIMD extension SPEC.
 /// @tparam SLMSize  Shared Local Memory (SLM) size
 template <uint32_t SLMSize> __ESIMD_API void slm_init() {
   __esimd_slm_init(SLMSize);
@@ -1640,7 +1662,12 @@ template <uint32_t SLMSize> __ESIMD_API void slm_init() {
 
 /// Declare per-work-group slm size. Non-constant argument version to be used
 /// with specialization constants only.
-/// @param size  Shared Local Memory (SLM) size
+/// Same restrictions are applied to this function as to it's template variant
+/// slm_init<SLMSize>().
+/// This version has an additional restriction - it cannot be used together
+//  with esimd::slm_allocator() class.
+/// @param size  Shared Local Memory (SLM) size to be allocated for each
+/// work-group of ESIMD kernel.
 __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
