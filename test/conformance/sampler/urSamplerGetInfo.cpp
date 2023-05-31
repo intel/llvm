@@ -84,9 +84,16 @@ TEST_P(urSamplerGetInfoTest, InvalidNullPointerPropValue) {
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-TEST_P(urSamplerGetInfoTest, InvalidSizePropSize) {
+TEST_P(urSamplerGetInfoTest, InvalidSizePropSizeZero) {
     ur_sampler_addressing_mode_t mode;
     ASSERT_EQ_RESULT(urSamplerGetInfo(sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
                                       0, &mode, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urSamplerGetInfoTest, InvalidSizePropSizeSmall) {
+    ur_sampler_addressing_mode_t mode;
+    ASSERT_EQ_RESULT(urSamplerGetInfo(sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
+                                      sizeof(mode) - 1, &mode, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }

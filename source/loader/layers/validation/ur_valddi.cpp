@@ -104,7 +104,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
     ///< returned and pPlatformInfo is not used.
     size_t *
-        pSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
 ) {
     auto pfnGetInfo = context.urDdiTable.Platform.pfnGetInfo;
 
@@ -117,13 +117,25 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_PLATFORM_INFO_BACKEND < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
     ur_result_t result =
-        pfnGetInfo(hPlatform, propName, propSize, pPropValue, pSizeRet);
+        pfnGetInfo(hPlatform, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -331,7 +343,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
                     ///< the info.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info
-    ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
     ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
@@ -347,8 +359,20 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -709,8 +733,20 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -1178,8 +1214,20 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_MEM_INFO_CONTEXT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -1774,8 +1822,20 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_USM_POOL_INFO_CONTEXT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -2118,8 +2178,20 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_PROGRAM_INFO_KERNEL_NAMES < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -2399,8 +2471,20 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_KERNEL_INFO_NUM_REGS < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -2796,8 +2880,20 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_QUEUE_INFO_EMPTY < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -3040,12 +3136,20 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_EVENT_INFO_REFERENCE_COUNT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
-        if (pPropValue && propSize == 0) {
-            return UR_RESULT_ERROR_INVALID_VALUE;
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
