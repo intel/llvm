@@ -57,7 +57,6 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/StreamFile.h"
-#include "lldb/Core/ThreadSafeDenseMap.h"
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolFile.h"
@@ -72,6 +71,7 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Scalar.h"
+#include "lldb/Utility/ThreadSafeDenseMap.h"
 
 #include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserClang.h"
@@ -5130,6 +5130,7 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
     case clang::BuiltinType::RvvBool16:
     case clang::BuiltinType::RvvBool32:
     case clang::BuiltinType::RvvBool64:
+    case clang::BuiltinType::RvvInt32m1x2:
       break;
 
     // WebAssembly builtin types.

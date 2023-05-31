@@ -62,7 +62,7 @@ CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
-CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+CONSTFIX char clEnqueueMemFillName[] = "clEnqueueMemFillINTEL";
 CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
@@ -224,7 +224,7 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clMemBlockingFreeINTEL_fn> clMemBlockingFreeINTELCache;
   FuncPtrCache<clSetKernelArgMemPointerINTEL_fn>
       clSetKernelArgMemPointerINTELCache;
-  FuncPtrCache<clEnqueueMemsetINTEL_fn> clEnqueueMemsetINTELCache;
+  FuncPtrCache<clEnqueueMemFillINTEL_fn> clEnqueueMemFillINTELCache;
   FuncPtrCache<clEnqueueMemcpyINTEL_fn> clEnqueueMemcpyINTELCache;
   FuncPtrCache<clGetMemAllocInfoINTEL_fn> clGetMemAllocInfoINTELCache;
   FuncPtrCache<clEnqueueWriteGlobalVariable_fn>
@@ -1486,14 +1486,25 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
       ret_val = 0; // Not specified by kernel
       ret_err = CL_SUCCESS;
     } else if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
-      // Return the maximum work group size for the kernel
-      size_t kernel_work_group_size = 0;
-      pi_result pi_ret_err = piKernelGetGroupInfo(
-          kernel, device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
-          &kernel_work_group_size, nullptr);
-      if (pi_ret_err != PI_SUCCESS)
+      // Return the maximum sub group size for the device
+      size_t result_size = 0;
+      // Two calls to piDeviceGetInfo are needed: the first determines the size
+      // required to store the result, and the second returns the actual size
+      // values.
+      pi_result pi_ret_err =
+          piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0,
+                          nullptr, &result_size);
+      if (pi_ret_err != PI_SUCCESS) {
         return pi_ret_err;
-      ret_val = kernel_work_group_size;
+      }
+      assert(result_size % sizeof(size_t) == 0);
+      std::vector<size_t> result(result_size / sizeof(size_t));
+      pi_ret_err = piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
+                                   result_size, result.data(), nullptr);
+      if (pi_ret_err != PI_SUCCESS) {
+        return pi_ret_err;
+      }
+      ret_val = *std::max_element(result.begin(), result.end());
       ret_err = CL_SUCCESS;
     } else if (param_name == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
       ret_val = 0; // Not specified by kernel
@@ -1756,14 +1767,14 @@ pi_result piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     return cast<pi_result>(CLErr);
   }
 
-  clEnqueueMemsetINTEL_fn FuncPtr = nullptr;
-  pi_result RetVal = getExtFuncFromContext<clEnqueueMemsetINTEL_fn>(
-      CLContext, ExtFuncPtrCache->clEnqueueMemsetINTELCache,
-      clEnqueueMemsetName, &FuncPtr);
+  clEnqueueMemFillINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
+      CLContext, ExtFuncPtrCache->clEnqueueMemFillINTELCache,
+      clEnqueueMemFillName, &FuncPtr);
 
   if (FuncPtr) {
-    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, value,
-                                     count, num_events_in_waitlist,
+    RetVal = cast<pi_result>(FuncPtr(cast<cl_command_queue>(queue), ptr, &value,
+                                     1, count, num_events_in_waitlist,
                                      cast<const cl_event *>(events_waitlist),
                                      cast<cl_event *>(event)));
   }

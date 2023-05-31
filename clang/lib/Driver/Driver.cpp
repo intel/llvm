@@ -725,9 +725,9 @@ static llvm::Triple computeTargetTriple(const Driver &D,
     if (Args.hasArg(options::OPT_march_EQ) ||
         Args.hasArg(options::OPT_mcpu_EQ)) {
       StringRef ArchName = tools::riscv::getRISCVArch(Args, Target);
-      if (ArchName.startswith_insensitive("rv32"))
+      if (ArchName.starts_with_insensitive("rv32"))
         Target.setArch(llvm::Triple::riscv32);
-      else if (ArchName.startswith_insensitive("rv64"))
+      else if (ArchName.starts_with_insensitive("rv64"))
         Target.setArch(llvm::Triple::riscv64);
     }
   }
@@ -6747,11 +6747,6 @@ public:
         // not needed for emulation, as these are treated as regular archives.
         if (!C.getDriver().isFPGAEmulationMode())
           unbundleStaticLib(types::TY_FPGA_AOCO, LA);
-        // Do not unbundle any AOCO archive as a regular archive when we are
-        // in FPGA Hardware/Simulation mode.
-        if (!C.getDriver().isFPGAEmulationMode() &&
-            hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
-          continue;
         unbundleStaticLib(types::TY_Archive, LA);
       }
     }
@@ -9524,7 +9519,7 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       case llvm::Triple::MSVC:
       case llvm::Triple::UnknownEnvironment:
         if (Args.getLastArgValue(options::OPT_fuse_ld_EQ)
-                .startswith_insensitive("bfd"))
+                .starts_with_insensitive("bfd"))
           TC = std::make_unique<toolchains::CrossWindowsToolChain>(
               *this, Target, Args);
         else

@@ -629,10 +629,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<::jit_compiler::SYCLKernelInfo> InputKernelInfo;
   std::vector<std::string> InputKernelNames;
   // Collect argument information from all input kernels.
-  std::vector<std::vector<char>> ArgsStorage;
-  std::vector<detail::AccessorImplPtr> AccStorage;
-  std::vector<Requirement *> Requirements;
-  std::vector<detail::EventImplPtr> Events;
+
+  detail::CG::StorageInitHelper CGData;
+  std::vector<std::vector<char>> &ArgsStorage = CGData.MArgsStorage;
+  std::vector<detail::AccessorImplPtr> &AccStorage = CGData.MAccStorage;
+  std::vector<Requirement *> &Requirements = CGData.MRequirements;
+  std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
   RT::PiKernelCacheConfig KernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
@@ -765,10 +767,10 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     // TODO(Lukas, ONNX-399): Does the MSharedPtrStorage contain any
     // information about actual shared pointers beside the kernel bundle and
     // handler impl? If yes, we might need to copy it here.
-    Requirements.insert(Requirements.end(), KernelCG->MRequirements.begin(),
-                        KernelCG->MRequirements.end());
-    Events.insert(Events.end(), KernelCG->MEvents.begin(),
-                  KernelCG->MEvents.end());
+    Requirements.insert(Requirements.end(), KernelCG->getRequirements().begin(),
+                        KernelCG->getRequirements().end());
+    Events.insert(Events.end(), KernelCG->getEvents().begin(),
+                  KernelCG->getEvents().end());
 
     // If all kernels have the same cache config then use it for the merged
     // kernel, otherwise use default configuration.
@@ -871,7 +873,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   // Kernel bundles are stored in the CG as one of the "extended" members.
   auto FusedKernelId = detail::ProgramManager::getInstance().getSYCLKernelID(
       FusedKernelInfo.Name);
-  std::vector<std::shared_ptr<const void>> RawExtendedMembers;
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
@@ -882,10 +883,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(ArgsStorage), std::move(AccStorage),
-      std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
-      std::move(FusedArgs), FusedKernelInfo.Name, Handle, {}, {},
-      CG::CGTYPE::Kernel, KernelCacheConfig));
+      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, Handle, {},
+      {}, CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 
