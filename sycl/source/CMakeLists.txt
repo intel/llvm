@@ -72,7 +72,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
 
   # pi_win_proxy_loader
-  if (WIN32)
+  if (WIN32 AND SYCL_ENABLE_WIN_PROXY_LOADER)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/pi_win_proxy_loader)
     if(WIN_DUPE)
       target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loaderd)

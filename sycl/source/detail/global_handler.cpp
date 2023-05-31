@@ -356,7 +356,16 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                    // TODO: figure out what XPTI is doing that prevents release.
 #endif
 
+#ifdef WIN_PROXY_LOADER
     shutdown();
+#else
+    // When handling DLL_PROCESS_DETACH, a DLL should free resources such as
+    // heap memory only if the DLL is being unloaded dynamically
+    // (the lpvReserved parameter is NULL)
+    // https://learn.microsoft.com/en-us/windows/win32/dlls/dllmain
+    if (!lpReserved)
+      shutdown();
+#endif
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)

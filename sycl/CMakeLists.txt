@@ -152,6 +152,11 @@ if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
       BOOL "Kernel fusion not yet supported on Windows" FORCE)
 endif()
 
+option(SYCL_ENABLE_WIN_PROXY_LOADER "Enable Windows DLLs proxy loader" ON)
+if (WIN32 AND SYCL_ENABLE_WIN_PROXY_LOADER)
+  add_definitions(-DWIN_PROXY_LOADER=1)
+endif()
+
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_CUDA ON)
@@ -361,7 +366,7 @@ add_custom_target( sycl-toolchain
   COMMENT "Building SYCL compiler toolchain..."
 )
 
-if (WIN32)
+if (WIN32 AND SYCL_ENABLE_WIN_PROXY_LOADER)
   add_dependencies(sycl-toolchain pi_win_proxy_loader)
 endif()
 
@@ -397,7 +402,7 @@ add_subdirectory( plugins )
 
 add_subdirectory(tools)
 
-if (WIN32)
+if (WIN32 AND SYCL_ENABLE_WIN_PROXY_LOADER)
   add_subdirectory(pi_win_proxy_loader)
 endif()
 
@@ -446,7 +451,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      ${SYCL_TOOLCHAIN_DEPS}
 )
 
-if (WIN32)
+if (WIN32 AND SYCL_ENABLE_WIN_PROXY_LOADER)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_win_proxy_loader)
 endif()
 

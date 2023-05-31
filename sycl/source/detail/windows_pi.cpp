@@ -15,7 +15,9 @@
 #include <winreg.h>
 
 #include "detail/windows_os_utils.hpp"
+#ifdef WIN_PROXY_LOADER
 #include "pi_win_proxy_loader.hpp"
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -44,9 +46,30 @@ void *loadOsLibrary(const std::string &LibraryPath) {
 }
 
 void *loadOsPluginLibrary(const std::string &PluginPath) {
+#ifdef WIN_PROXY_LOADER
   // We fetch the preloaded plugin from the pi_win_proxy_loader.
   // The proxy_loader handles any required error suppression.
   auto Result = getPreloadedPlugin(PluginPath);
+#else
+  // Suppress system errors.
+  // Tells the system to not display the critical-error-handler message box.
+  // Instead, the system sends the error to the calling process.
+  // This is crucial for graceful handling of plugins that couldn't be
+  // loaded, e.g. due to missing native run-times.
+  // TODO: add reporting in case of an error.
+  // NOTE: we restore the old mode to not affect user app behavior.
+  //
+  UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+  // Exclude current directory from DLL search path
+  if (!SetDllDirectoryA("")) {
+    assert(false && "Failed to update DLL search path");
+  }
+  auto Result = (void *)LoadLibraryA(PluginPath.c_str());
+  (void)SetErrorMode(SavedMode);
+  if (!SetDllDirectoryA(nullptr)) {
+    assert(false && "Failed to restore DLL search path");
+  }
+#endif
 
   return Result;
 }
