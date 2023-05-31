@@ -10,6 +10,7 @@
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/group.hpp>
+#include <sycl/known_identity.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -17,57 +18,49 @@ namespace detail {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 template <typename T, class BinaryOperation>
-using IsRedux =
-    std::bool_constant<std::is_integral<T>::value &&
-                           sycl::detail::IsBitAND<T, BinaryOperation>::value ||
-                       sycl::detail::IsBitOR<T, BinaryOperation>::value ||
-                       sycl::detail::IsBitXOR<T, BinaryOperation>::value ||
-                       sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                       sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                       sycl::detail::IsMaximum<T, BinaryOperation>::value>;
+using IsRedux = std::bool_constant<
+    std::is_integral<T>::value && IsBitAND<T, BinaryOperation>::value ||
+    IsBitOR<T, BinaryOperation>::value || IsBitXOR<T, BinaryOperation>::value ||
+    IsPlus<T, BinaryOperation>::value || IsMinimum<T, BinaryOperation>::value ||
+    IsMaximum<T, BinaryOperation>::value>;
 
 //// Masked reductions using redux.sync, requires integer types
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<sycl::detail::is_sugeninteger<T>::value &&
-                     sycl::detail::IsMinimum<T, BinaryOperation>::value,
-                 T>
+std::enable_if_t<
+    is_sugeninteger<T>::value && IsMinimum<T, BinaryOperation>::value, T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_umin(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<sycl::detail::is_sigeninteger<T>::value &&
-                     sycl::detail::IsMinimum<T, BinaryOperation>::value,
-                 T>
+std::enable_if_t<
+    is_sigeninteger<T>::value && IsMinimum<T, BinaryOperation>::value, T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_min(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<sycl::detail::is_sugeninteger<T>::value &&
-                     sycl::detail::IsMaximum<T, BinaryOperation>::value,
-                 T>
+std::enable_if_t<
+    is_sugeninteger<T>::value && IsMaximum<T, BinaryOperation>::value, T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_umax(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<sycl::detail::is_sigeninteger<T>::value &&
-                     sycl::detail::IsMaximum<T, BinaryOperation>::value,
-                 T>
+std::enable_if_t<
+    is_sigeninteger<T>::value && IsMaximum<T, BinaryOperation>::value, T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_max(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(sycl::detail::is_sugeninteger<T>::value ||
-                  sycl::detail::is_sigeninteger<T>::value) &&
-                     sycl::detail::IsPlus<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
+                     IsPlus<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -75,9 +68,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(sycl::detail::is_sugeninteger<T>::value ||
-                  sycl::detail::is_sigeninteger<T>::value) &&
-                     sycl::detail::IsBitAND<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
+                     IsBitAND<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -85,9 +77,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(sycl::detail::is_sugeninteger<T>::value ||
-                  sycl::detail::is_sigeninteger<T>::value) &&
-                     sycl::detail::IsBitOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
+                     IsBitOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -95,9 +86,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(sycl::detail::is_sugeninteger<T>::value ||
-                  sycl::detail::is_sigeninteger<T>::value) &&
-                     sycl::detail::IsBitXOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
+                     IsBitXOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -265,9 +255,9 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 // header.
 template <typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                         sycl::detail::IsBitOR<T, BinaryOperation>::value ||
-                         sycl::detail::IsBitXOR<T, BinaryOperation>::value,
+    std::enable_if_t<IsPlus<T, BinaryOperation>::value ||
+                         IsBitOR<T, BinaryOperation>::value ||
+                         IsBitXOR<T, BinaryOperation>::value,
                      T>
     get_identity() {
   return 0;
@@ -275,14 +265,14 @@ inline __SYCL_ALWAYS_INLINE
 
 template <typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<sycl::detail::IsMultiplies<T, BinaryOperation>::value, T>
+    std::enable_if_t<IsMultiplies<T, BinaryOperation>::value, T>
     get_identity() {
   return 1;
 }
 
 template <typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<sycl::detail::IsBitAND<T, BinaryOperation>::value, T>
+    std::enable_if_t<IsBitAND<T, BinaryOperation>::value, T>
     get_identity() {
   return ~0;
 }
@@ -290,7 +280,7 @@ inline __SYCL_ALWAYS_INLINE
 #define GET_ID(OP_CHECK, OP)                                                   \
   template <typename T, class BinaryOperation>                                 \
   inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<sycl::detail::OP_CHECK<T, BinaryOperation>::value, T>   \
+      std::enable_if_t<OP_CHECK<T, BinaryOperation>::value, T>                 \
       get_identity() {                                                         \
     if constexpr (std::is_same_v<T, char>) {                                   \
       return std::numeric_limits<char>::OP();                                  \
