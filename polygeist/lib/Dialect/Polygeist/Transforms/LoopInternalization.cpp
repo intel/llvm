@@ -27,7 +27,6 @@
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
-#include <numeric>
 
 #define DEBUG_TYPE "loop-internalization"
 

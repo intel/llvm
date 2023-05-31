@@ -8,7 +8,6 @@
 
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
-#include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -96,7 +95,7 @@ static void getMaxDepthFromAnyGPUKernel(
 
 Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
   DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
-  mlir::polygeist::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
+  getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
   return funcMaxDepthMap[func];
 }
 
@@ -307,7 +306,7 @@ Value SCFLoopGuardBuilder::createCondition() const {
 }
 
 void SCFLoopGuardBuilder::createThenBody(RegionBranchOpInterface ifOp) const {
-  mlir::polygeist::createThenBody(loop, cast<scf::IfOp>(ifOp));
+  polygeist::createThenBody(loop, cast<scf::IfOp>(ifOp));
 }
 
 void SCFLoopGuardBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
@@ -336,7 +335,7 @@ void AffineLoopGuardBuilder::guardLoop() const {
 
 void AffineLoopGuardBuilder::createThenBody(
     RegionBranchOpInterface ifOp) const {
-  mlir::polygeist::createThenBody(loop, cast<affine::AffineIfOp>(ifOp));
+  polygeist::createThenBody(loop, cast<affine::AffineIfOp>(ifOp));
 }
 
 void AffineLoopGuardBuilder::createElseBody(
