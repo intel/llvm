@@ -14,6 +14,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 template <typename T, class BinaryOperation>
 using IsRedux =
@@ -24,8 +25,6 @@ using IsRedux =
                        sycl::detail::IsPlus<T, BinaryOperation>::value ||
                        sycl::detail::IsMinimum<T, BinaryOperation>::value ||
                        sycl::detail::IsMaximum<T, BinaryOperation>::value>;
-
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 //// Masked reductions using redux.sync, requires integer types
 
