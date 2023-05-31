@@ -61,6 +61,7 @@ void testRootGroup() {
   for (int i = 0; i < workItemCount; i++) {
     assert(data[i] == (workItemCount - 1));
   }
+  sycl::free(data, q);
 }
 
 void testRootGroupFunctions() {
@@ -112,6 +113,7 @@ void testRootGroupFunctions() {
   for (int i = 0; i < testCount; i++) {
     assert(testResults[i]);
   }
+  sycl::free(testResults, q);
 }
 
 int main() {

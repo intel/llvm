@@ -21,6 +21,7 @@ add_llvm_component_library(LLVMCore
   DiagnosticPrinter.cpp
   Dominators.cpp
   EHPersonalities.cpp
+  FPAccuracy.cpp
   FPEnv.cpp
   Function.cpp
   GCStrategy.cpp
