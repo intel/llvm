@@ -1,5 +1,7 @@
 # Copyright (C) 2023 Intel Corporation
-# SPDX-License-Identifier: MIT
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 function(add_adapter_reg_search_test name)
     cmake_parse_arguments(TEST "" "" "SEARCH_PATH;ENVS;SOURCES" ${ARGN})
