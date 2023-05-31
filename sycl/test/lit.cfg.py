@@ -92,6 +92,8 @@ config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_incl
 config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
 config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
 config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
+config.substitutions.append( ('%vulkan_include_dir', config.vulkan_include_dir ) )
+config.substitutions.append( ('%vulkan_lib', config.vulkan_lib ) )
 
 llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, 'llvm-symbolizer')
 llvm_config.with_environment('LLVM_SYMBOLIZER_PATH', llvm_symbolizer)
@@ -103,6 +105,9 @@ for include_dir in [config.sycl_include, config.level_zero_include_dir, config.o
 config.substitutions.append( ('%fsycl-host-only', sycl_host_only_options) )
 
 config.substitutions.append( ('%sycl_lib', ' -lsycl7' if platform.system() == "Windows" else '-lsycl') )
+
+vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+config.substitutions.append( ('%link-vulkan', '-L %s -lvulkan -I %s' % (vulkan_lib_path, config.vulkan_include_dir ) ) )
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 

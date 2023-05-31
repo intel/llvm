@@ -1223,6 +1223,29 @@ void MemoryManager::copy_from_device_global(
                               DepEvents, OutEvent);
 }
 
+void MemoryManager::copy_image_bindless(
+    void *Src, QueueImplPtr Queue, void *Dst, const RT::PiMemImageDesc &Desc,
+    const RT::PiMemImageFormat &Format, const RT::PiImageCopyFlags Flags,
+    const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
+
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in copy_image_bindless.");
+  assert((Flags == (RT::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::HtoD ||
+          Flags == (RT::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::DtoH) &&
+         "Invalid flags passed to copy_image_bindless.");
+  if (!Dst || !Src)
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in bindless image copy operation.");
+
+  const detail::PluginPtr &Plugin = Queue->getPlugin();
+  Plugin->call<PiApiKind::piextMemImageCopy>(
+      Queue->getHandleRef(), Dst, Src, &Format, &Desc, Flags, DepEvents.size(),
+      DepEvents.data(), OutEvent);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

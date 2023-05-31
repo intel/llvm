@@ -11,6 +11,7 @@
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
+#include <detail/image_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -26,6 +27,7 @@
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
+#include <sycl/usm.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -349,6 +351,19 @@ event handler::finalize() {
         std::move(CGData), MCodeLoc));
     break;
   }
+  case detail::CG::CopyImage:
+    CommandGroup.reset(new detail::CGCopyImage(
+        MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
+        MImpl->MImageCopyFlags, std::move(CGData), MCodeLoc));
+    break;
+  case detail::CG::SemaphoreWait:
+    CommandGroup.reset(new detail::CGSemaphoreWait(
+        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+    break;
+  case detail::CG::SemaphoreSignal:
+    CommandGroup.reset(new detail::CGSemaphoreSignal(
+        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+    break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -751,6 +766,197 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
   MImpl->MWidth = Width;
   MImpl->MHeight = Height;
   setType(detail::CG::Memset2DUSM);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  MSrcPtr = Src;
+  MDstPtr = Dest.raw_handle;
+
+  RT::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  RT::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags = RT::PiImageCopyFlags::PI_IMAGE_COPY_HTOD;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, ext::oneapi::experimental::image_mem &Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  this->ext_oneapi_copy(Src, Dest.get_handle(), Desc);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, ext::oneapi::experimental::image_mem &Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc,
+    unsigned int Level) {
+
+  this->ext_oneapi_copy(Src, Dest.get_handle(), Desc, Level);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc,
+    unsigned int Level) {
+
+  // Replace Dest with mip level
+  ext::oneapi::experimental::image_mem_handle mip_level;
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(MQueue->get_context());
+  pi_context C = CtxImpl->getHandleRef();
+  MQueue->getPlugin()->call<detail::PiApiKind::piextMemMipmapGetLevel>(
+      C, Dest.raw_handle, Level, &mip_level.raw_handle);
+
+  // Get mip level descriptor
+  ext::oneapi::experimental::image_descriptor levelDesc =
+      Desc.get_mip_level_desc(Level);
+
+  this->ext_oneapi_copy(Src, mip_level, levelDesc);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem &Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc,
+    unsigned int Level) {
+  this->ext_oneapi_copy(Src.get_handle(), Dest, Desc, Level);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc,
+    unsigned int Level) {
+
+  // Replace Src with mip level
+  ext::oneapi::experimental::image_mem_handle mip_level;
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(MQueue->get_context());
+  pi_context C = CtxImpl->getHandleRef();
+  MQueue->getPlugin()->call<detail::PiApiKind::piextMemMipmapGetLevel>(
+      C, Src.raw_handle, Level, &mip_level.raw_handle);
+
+  // Get mip level descriptor
+  ext::oneapi::experimental::image_descriptor levelDesc =
+      Desc.get_mip_level_desc(Level);
+
+  this->ext_oneapi_copy(mip_level, Dest, levelDesc);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest;
+
+  RT::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  RT::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags = RT::PiImageCopyFlags::PI_IMAGE_COPY_DTOH;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem &Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  this->ext_oneapi_copy(Src.get_handle(), Dest, Desc);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+  MSrcPtr = Src;
+  MDstPtr = Dest;
+
+  RT::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  RT::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  // Flags
+  RT::PiImageCopyFlags PiCopyFlags;
+  sycl::usm::alloc DstPtrType =
+      get_pointer_type(Dest, MQueue->get_context());
+  sycl::usm::alloc SrcPtrType =
+      get_pointer_type(Src, MQueue->get_context());
+  if (DstPtrType == sycl::usm::alloc::device) {
+    // Dest is on device
+    if (SrcPtrType == sycl::usm::alloc::device) {
+      PiCopyFlags = RT::PiImageCopyFlags::PI_IMAGE_COPY_DTOD;
+    } else if (SrcPtrType == sycl::usm::alloc::host ||
+               SrcPtrType == sycl::usm::alloc::unknown) {
+      PiCopyFlags = RT::PiImageCopyFlags::PI_IMAGE_COPY_HTOD;
+    } else {
+      assert(false && "Unknown copy source location");
+    }
+  } else if (DstPtrType == sycl::usm::alloc::host ||
+             DstPtrType == sycl::usm::alloc::unknown) {
+    // Dest is on host
+    if (SrcPtrType == sycl::usm::alloc::device) {
+      PiCopyFlags = RT::PiImageCopyFlags::PI_IMAGE_COPY_DTOH;
+    } else if (SrcPtrType == sycl::usm::alloc::host ||
+               SrcPtrType == sycl::usm::alloc::unknown) {
+      assert(false && "Cannot copy image from host to host");
+    } else {
+      assert(false && "Unknown copy source location");
+    }
+  } else {
+    assert(false && "Unknown copy destination location");
+  }
+
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageDesc.image_row_pitch = Pitch;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags = PiCopyFlags;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  MImpl->MInteropSemaphoreHandle =
+      (RT::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  setType(detail::CG::SemaphoreWait);
+}
+
+void handler::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  MImpl->MInteropSemaphoreHandle =
+      (RT::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  setType(detail::CG::SemaphoreSignal);
 }
 
 void handler::use_kernel_bundle(

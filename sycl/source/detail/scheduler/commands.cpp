@@ -2810,6 +2810,44 @@ pi_int32 ExecCGCommand::enqueueImp() {
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, Event, read);
   }
+  case CG::CGTYPE::CopyImage: {
+    CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
+
+    RT::PiMemImageDesc Desc = Copy->getDesc();
+
+    MemoryManager::copy_image_bindless(
+        Copy->getSrc(), MQueue, Copy->getDst(), Desc, Copy->getFormat(),
+        Copy->getCopyFlags(), std::move(RawEvents), Event);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::SemaphoreWait: {
+    CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
+    if (MQueue->getDeviceImplPtr()->is_host()) {
+      // NOP for host device.
+      return PI_SUCCESS;
+    }
+
+    const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
+        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(), 0,
+        nullptr, nullptr);
+
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::SemaphoreSignal: {
+    CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
+    if (MQueue->getDeviceImplPtr()->is_host()) {
+      // NOP for host device.
+      return PI_SUCCESS;
+    }
+
+    const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    Plugin->call<PiApiKind::piextSignalExternalSemaphore>(
+        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(), 0,
+        nullptr, nullptr);
+
+    return PI_SUCCESS;
+  }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
   }

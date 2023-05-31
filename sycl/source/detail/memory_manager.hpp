@@ -11,6 +11,7 @@
 #include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
@@ -173,6 +174,13 @@ public:
       const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
       size_t NumBytes, size_t Offset, void *DstMem, OSModuleHandle M,
       const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent);
+
+  static void copy_image_bindless(void *Src, QueueImplPtr Queue, void *Dst,
+                                  const RT::PiMemImageDesc &Desc,
+                                  const RT::PiMemImageFormat &Format,
+                                  const RT::PiImageCopyFlags Flags,
+                                  const std::vector<RT::PiEvent> &DepEvents,
+                                  RT::PiEvent *OutEvent);
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

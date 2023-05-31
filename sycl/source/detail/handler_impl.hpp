@@ -100,6 +100,14 @@ public:
 
   RT::PiKernelCacheConfig MKernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+
+  // Extra information for bindless image copy
+  RT::PiMemImageDesc MImageDesc;
+  RT::PiMemImageFormat MImageFormat;
+  RT::PiImageCopyFlags MImageCopyFlags;
+
+  // Extra information for semaphore interoperability
+  RT::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
 };
 
 } // namespace detail

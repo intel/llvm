@@ -13,6 +13,8 @@ set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INS
 find_package(Threads REQUIRED)
 set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 
+find_package(Vulkan)
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py

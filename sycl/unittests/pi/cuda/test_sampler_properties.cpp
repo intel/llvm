@@ -78,7 +78,7 @@ protected:
         0};
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piSamplerCreate>(
-                  context_, sampler_properties, &sampler_)),
+                  context_, sampler_properties, 0.0f, 0.0f, 0.0f, &sampler_)),
               PI_SUCCESS);
   }
 

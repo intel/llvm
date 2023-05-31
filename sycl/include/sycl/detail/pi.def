@@ -126,6 +126,7 @@ _PI_API(piEnqueueMemUnmap)
 _PI_API(piextUSMHostAlloc)
 _PI_API(piextUSMDeviceAlloc)
 _PI_API(piextUSMSharedAlloc)
+_PI_API(piextUSMPitchedAlloc)
 _PI_API(piextUSMFree)
 _PI_API(piextUSMEnqueueMemset)
 _PI_API(piextUSMEnqueueMemcpy)
@@ -140,6 +141,27 @@ _PI_API(piextKernelSetArgMemObj)
 _PI_API(piextKernelSetArgSampler)
 
 _PI_API(piextPluginGetOpaqueData)
+
+// Bindless Images
+_PI_API(piextMemUnsampledImageHandleDestroy)
+_PI_API(piextMemSampledImageHandleDestroy)
+_PI_API(piextMemImageAllocate)
+_PI_API(piextMemImageFree)
+_PI_API(piextMemUnsampledImageCreate)
+_PI_API(piextMemSampledImageCreate)
+_PI_API(piextMemImageCopy)
+_PI_API(piextMemImageGetInfo)
+_PI_API(piextMemMipmapGetLevel)
+_PI_API(piextMemMipmapFree)
+
+// Interop
+_PI_API(piextMemImportOpaqueFD)
+_PI_API(piextMemReleaseInterop)
+_PI_API(piextMemMapExternalArray)
+_PI_API(piextImportExternalSemaphoreOpaqueFD)
+_PI_API(piextDestroyExternalSemaphore)
+_PI_API(piextWaitExternalSemaphore)
+_PI_API(piextSignalExternalSemaphore)
 
 _PI_API(piPluginGetLastError)
 

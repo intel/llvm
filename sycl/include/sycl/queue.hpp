@@ -26,6 +26,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+
 // Explicitly request format macros
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS 1
@@ -1347,6 +1349,678 @@ public:
        size_t StartIndex = 0) {
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
+  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
+  /// behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc
+                            _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
+  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
+  /// behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
+  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
+  /// behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc
+                            _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvents is a vector of events that specifies the kernel.
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle wrapper, and \p Level
+  /// is the specified mipmap level. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle wrapper, and \p Level
+  /// is the specified mipmap level. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle wrapper, and \p Level
+  /// is the specified mipmap level. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvents is a vector of events that specifies the kernel.
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  unsigned int Level,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is nullptr
+  /// or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is nullptr
+  /// or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is nullptr
+  /// or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvents is a vector of events that specifies the kernel.
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  unsigned int Level,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle wrapper, \p Dest is a USM pointer, and \p Level is
+  /// the specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle wrapper, \p Dest is a USM pointer, and \p Level is
+  /// the specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle wrapper, \p Dest is a USM pointer, and \p Level is
+  /// the specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvents is a vector of events that specifies the kernel.
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  unsigned int Level,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle, \p Dest is a USM pointer, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle, \p Dest is a USM pointer, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle, \p Dest is a USM pointer, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  /// \param DepEvents is a vector of events that specifies the kernel.
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  unsigned int Level,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Level);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle wrapper and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc
+                            _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle wrapper and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle wrapper and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc
+                            _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Pitch is the pitch of the rows in Dest.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        size_t Pitch _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Pitch);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Pitch is the pitch of the rows in Dest.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(void *Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        size_t Pitch, event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Pitch);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Pitch is the pitch of the rows in Dest.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event
+  ext_oneapi_copy(void *Src, void *Dest,
+                  const ext::oneapi::experimental::image_descriptor &Desc,
+                  size_t Pitch,
+                  const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy(Src, Dest, Desc, Pitch);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle
+          _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle
+          _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+    } _CODELOCFW(CodeLoc));
   }
 
   /// single_task version with a kernel represented as a lambda.

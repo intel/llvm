@@ -37,6 +37,9 @@
 #include <sycl/stl.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+
 #include <functional>
 #include <limits>
 #include <memory>
@@ -2845,6 +2848,148 @@ public:
     this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                  StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  void ext_oneapi_copy(void *Src,
+                       ext::oneapi::experimental::image_mem_handle Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
+  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
+  /// behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  void ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                       void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle wrapper and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Pitch is the pitch of the rows in Dest.
+  void ext_oneapi_copy(void *Src, void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       size_t Pitch);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is nullptr
+  /// or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  void ext_oneapi_copy(void *Src,
+                       ext::oneapi::experimental::image_mem_handle Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer, \p Dest is an opaque mipmap memory handle wrapper, and \p Level
+  /// is the specified mipmap level. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is incomplete. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  void ext_oneapi_copy(void *Src, ext::oneapi::experimental::image_mem &Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle, \p Dest is a USM pointer, and \p Level is the
+  /// specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                       void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// mipmap memory handle wrapper, \p Dest is a USM pointer, and \p Level is
+  /// the specified mipmap level. An exception is thrown if either \p Src is
+  /// incomplete or \p Dest is nullptr. The behavior is undefined if \p Desc is
+  /// inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a wrapper for an opaque image memory handle to the source
+  /// memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param Desc is the image descriptor (format, order, dimensions).
+  /// \param Level is the specified mipmap level.
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;

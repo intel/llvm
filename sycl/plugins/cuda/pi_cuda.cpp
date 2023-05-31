@@ -446,6 +446,154 @@ bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
   return blockSize * regsPerThread > size_t(maxRegsPerBlock);
 };
 
+pi_result piCalculateNumChannels(pi_image_channel_order order,
+                                 unsigned int *num_channels) {
+  pi_result err = PI_SUCCESS;
+  switch (order) {
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_A:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_R:
+    *num_channels = 1;
+    break;
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RG:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RA:
+    *num_channels = 2;
+    break;
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGB:
+    /// TODO: can we support 3 channel images?
+    err = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_ARGB:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_BGRA:
+    *num_channels = 4;
+    break;
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_Rx:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGx:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBx:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_INTENSITY:
+  case pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_LUMINANCE:
+  default:
+    err = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  }
+  return err;
+}
+
+/// Convert a PI image format to a CUDA image format and
+/// get the pixel size in bytes.
+/// /param image_channel_type is the pi_image_channel_type.
+/// /param return_cuda_format will be set to the equivalent cuda
+/// format if not nullptr.
+/// /param return_pixel_types_size_bytes will be set to the pixel
+/// byte size if not nullptr.
+pi_result piToCudaImageChannelFormat(pi_image_channel_type image_channel_type,
+                                     CUarray_format *return_cuda_format,
+                                     size_t *return_pixel_types_size_bytes) {
+
+  CUarray_format cuda_format;
+  size_t pixel_type_size_bytes;
+  pi_result err = PI_SUCCESS;
+
+  switch (image_channel_type) {
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+    cuda_format = CU_AD_FORMAT_UNORM_INT8X1;
+    pixel_type_size_bytes = 1;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+    cuda_format = CU_AD_FORMAT_UNSIGNED_INT8;
+    pixel_type_size_bytes = 1;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+    cuda_format = CU_AD_FORMAT_SIGNED_INT8;
+    pixel_type_size_bytes = 1;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+    cuda_format = CU_AD_FORMAT_UNORM_INT16X1;
+    pixel_type_size_bytes = 2;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+    cuda_format = CU_AD_FORMAT_UNSIGNED_INT16;
+    pixel_type_size_bytes = 2;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+    cuda_format = CU_AD_FORMAT_SIGNED_INT16;
+    pixel_type_size_bytes = 2;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+    cuda_format = CU_AD_FORMAT_HALF;
+    pixel_type_size_bytes = 2;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+    cuda_format = CU_AD_FORMAT_UNSIGNED_INT32;
+    pixel_type_size_bytes = 4;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+    cuda_format = CU_AD_FORMAT_SIGNED_INT32;
+    pixel_type_size_bytes = 4;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_FLOAT:
+    cuda_format = CU_AD_FORMAT_FLOAT;
+    pixel_type_size_bytes = 4;
+    break;
+  default:
+    err = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  }
+
+  if (return_cuda_format) {
+    *return_cuda_format = cuda_format;
+  }
+  if (return_pixel_types_size_bytes) {
+    *return_pixel_types_size_bytes = pixel_type_size_bytes;
+  }
+  return err;
+}
+
+pi_result
+cudaToPiImageChannelFormat(CUarray_format cuda_format,
+                           pi_image_channel_type *return_image_channel_type) {
+  assert(return_image_channel_type);
+  pi_result err = PI_SUCCESS;
+
+  switch (cuda_format) {
+  case CU_AD_FORMAT_UNSIGNED_INT8:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
+    break;
+  case CU_AD_FORMAT_UNSIGNED_INT16:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
+    break;
+  case CU_AD_FORMAT_UNSIGNED_INT32:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
+    break;
+  case CU_AD_FORMAT_SIGNED_INT8:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
+    break;
+  case CU_AD_FORMAT_SIGNED_INT16:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
+    break;
+  case CU_AD_FORMAT_SIGNED_INT32:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
+    break;
+  case CU_AD_FORMAT_HALF:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
+    break;
+  case CU_AD_FORMAT_FLOAT:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_FLOAT;
+    break;
+  case CU_AD_FORMAT_UNORM_INT8X1:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT8;
+    break;
+  case CU_AD_FORMAT_UNORM_INT16X1:
+    *return_image_channel_type = PI_IMAGE_CHANNEL_TYPE_UNORM_INT16;
+    break;
+  default:
+    err = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
+  }
+
+  return err;
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -2050,6 +2198,106 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_int32{1});
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT: {
+    // On CUDA bindless images are supported
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(true));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT: {
+    // On CUDA 1D bindless image USM is not supported
+    // More specifically, linear filtering is not supported
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(false));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT: {
+    // On CUDA 2D bindless image USM is supported
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(true));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT: {
+    // On CUDA 3D bindlesss image USM is not supported
+    // More specifically, 3D textures may not be created on USM memory
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(false));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_PITCH_ALIGN: {
+    int32_t tex_pitch_align = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_pitch_align,
+                             CU_DEVICE_ATTRIBUTE_TEXTURE_PITCH_ALIGNMENT,
+                             device->get()) == CUDA_SUCCESS);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   pi_uint32(tex_pitch_align));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH: {
+    int32_t tex_max_linear_width = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_max_linear_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   size_t(tex_max_linear_width));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT: {
+    int32_t tex_max_linear_height = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(
+            &tex_max_linear_height,
+            CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_HEIGHT,
+            device->get()) == CUDA_SUCCESS);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   size_t(tex_max_linear_height));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH: {
+    int32_t tex_max_linear_pitch = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_max_linear_pitch,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_PITCH,
+                             device->get()) == CUDA_SUCCESS);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   size_t(tex_max_linear_pitch));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT: {
+    // CUDA supports mipmaps
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(true));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT: {
+    // CUDA supports anisotropic filtering
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(true));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY: {
+    // CUDA has no query for this, but documentation states max value is 16
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   (float)16.f);
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT: {
+    // CUDA supports creation of images from individual mipmap levels
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(true));
+  }
+
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT: {
+    // CUDA supports importing external memory
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(true));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT: {
+    // CUDA does not support exporting it's own device memory
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(false));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT: {
+    // CUDA supports importing external semaphores
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(true));
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT: {
+    // CUDA does not support exporting semaphores or events
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<pi_bool>(false));
+  }
 
   case PI_DEVICE_INFO_DEVICE_ID: {
     int value = 0;
@@ -3084,6 +3332,819 @@ pi_result cuda_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
   return retErr;
 }
 
+pi_result piTextureCreate(pi_context context, pi_sampler sampler,
+                          pi_image_desc *desc, CUDA_RESOURCE_DESC resource_desc,
+                          pi_image_handle *ret_img_handle) {
+  assert(context);
+  assert(desc);
+  assert(ret_img_handle);
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    /// pi_sampler_properties
+    /// | 31 30 ... 6   |        5        |      4 3 2      |     1      |         0        |
+    /// |      N/A      | mip filter mode | addressing mode | fiter mode | normalize coords |
+    CUDA_TEXTURE_DESC image_tex_desc = {};
+    CUaddress_mode addrMode;
+    uint32_t addrModeProp = ((sampler->props_ >> 2) & 7);
+    if (addrModeProp == (PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
+                         PI_SAMPLER_ADDRESSING_MODE_NONE)) {
+      addrMode = CU_TR_ADDRESS_MODE_CLAMP;
+    } else if (addrModeProp == (PI_SAMPLER_ADDRESSING_MODE_CLAMP -
+                                PI_SAMPLER_ADDRESSING_MODE_NONE)) {
+      addrMode = CU_TR_ADDRESS_MODE_BORDER;
+    } else if (addrModeProp == (PI_SAMPLER_ADDRESSING_MODE_REPEAT -
+                                PI_SAMPLER_ADDRESSING_MODE_NONE)) {
+      addrMode = CU_TR_ADDRESS_MODE_WRAP;
+    } else if (addrModeProp == (PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT -
+                                PI_SAMPLER_ADDRESSING_MODE_NONE)) {
+      addrMode = CU_TR_ADDRESS_MODE_MIRROR;
+    }
+    CUfilter_mode filterMode;
+    uint32_t filterModeProp = ((sampler->props_ >> 1) & 1);
+    filterMode =
+        filterModeProp ? CU_TR_FILTER_MODE_LINEAR : CU_TR_FILTER_MODE_POINT;
+    image_tex_desc.filterMode = filterMode;
+
+    // Mipmap attributes
+    CUfilter_mode mipFilterMode;
+    uint32_t mipFilterModeProp = ((sampler->props_ >> 5) & 1);
+    mipFilterMode =
+        mipFilterModeProp ? CU_TR_FILTER_MODE_LINEAR : CU_TR_FILTER_MODE_POINT;
+    image_tex_desc.mipmapFilterMode = mipFilterMode;
+    image_tex_desc.maxMipmapLevelClamp = sampler->maxMipmapLevelClamp_;
+    image_tex_desc.minMipmapLevelClamp = sampler->minMipmapLevelClamp_;
+    image_tex_desc.maxAnisotropy = sampler->maxAnisotropy_;
+
+    // The address modes can interfere with other dimensionsenqueueEventsWait
+    // e.g. 1D texture sampling can be interfered with when setting other
+    // dimension address modes despite their nonexistence
+    image_tex_desc.addressMode[0] = addrMode; // 1D
+    image_tex_desc.addressMode[1] =
+        desc->image_height > 0 ? addrMode : image_tex_desc.addressMode[1]; // 2D
+    image_tex_desc.addressMode[2] =
+        desc->image_depth > 0 ? addrMode : image_tex_desc.addressMode[2]; // 3D
+
+    // flags takes the normalized coordinates setting -- unnormalized is default
+    image_tex_desc.flags = (sampler->props_ & 1)
+                               ? CU_TRSF_NORMALIZED_COORDINATES
+                               : image_tex_desc.flags;
+
+    // CUDA default promotes 8-bit and 16-bit integers to float between [0,1]
+    // This flag prevents this behaviour
+    image_tex_desc.flags |= CU_TRSF_READ_AS_INTEGER;
+
+    CUtexObject texture;
+    retErr = PI_CHECK_ERROR(
+        cuTexObjectCreate(&texture, &resource_desc, &image_tex_desc, nullptr));
+    *ret_img_handle = (pi_image_handle)texture;
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextMemImageAllocate(pi_context context,
+                                     pi_image_format *image_format,
+                                     pi_image_desc *image_desc,
+                                     pi_image_mem_handle *ret_mem) {
+  assert(context);
+  assert(image_format);
+  assert(image_desc);
+  assert(ret_mem);
+  pi_result retErr = PI_SUCCESS;
+
+  // Populate descriptor
+  CUDA_ARRAY3D_DESCRIPTOR array_desc = {};
+
+  retErr = piCalculateNumChannels(image_format->image_channel_order,
+                                  &array_desc.NumChannels);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die(
+        "cuda_piextMemImageAllocate given unsupported image_channel_order");
+  }
+
+  retErr = piToCudaImageChannelFormat(image_format->image_channel_data_type,
+                                      &array_desc.Format, nullptr);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die(
+        "cuda_piextMemImageAllocate given unsupported image_channel_data_type");
+  }
+
+  array_desc.Flags = 0; // No flags required
+  array_desc.Width = image_desc->image_width;
+  if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
+    array_desc.Height = 0;
+    array_desc.Depth = 0;
+  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
+    array_desc.Height = image_desc->image_height;
+    array_desc.Depth = 0;
+  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
+    array_desc.Height = image_desc->image_height;
+    array_desc.Depth = image_desc->image_depth;
+  }
+
+  ScopedContext active(context);
+
+  // Allocate a cuArray
+  if (image_desc->num_mip_levels == 1) {
+    CUarray image_array;
+
+    try {
+      retErr = PI_CHECK_ERROR(cuArray3DCreate(&image_array, &array_desc));
+      *ret_mem = (pi_image_mem_handle)image_array;
+    } catch (pi_result err) {
+      cuArrayDestroy(image_array);
+      return err;
+    } catch (...) {
+      cuArrayDestroy(image_array);
+      return PI_ERROR_UNKNOWN;
+    }
+  } else // Allocate a cuMipmappedArray
+  {
+    CUmipmappedArray mip_array;
+    array_desc.Flags = CUDA_ARRAY3D_SURFACE_LDST;
+
+    try {
+      retErr = PI_CHECK_ERROR(cuMipmappedArrayCreate(
+          &mip_array, &array_desc, image_desc->num_mip_levels));
+      *ret_mem = (pi_image_mem_handle)mip_array;
+    } catch (pi_result err) {
+      cuMipmappedArrayDestroy(mip_array);
+      return err;
+    } catch (...) {
+      cuMipmappedArrayDestroy(mip_array);
+      return PI_ERROR_UNKNOWN;
+    }
+  }
+
+  return retErr;
+}
+
+pi_result cuda_piextMemMipmapGetLevel(pi_context context,
+                                      pi_image_mem_handle mip_mem,
+                                      unsigned int level,
+                                      pi_image_mem_handle *ret_mem) {
+  assert(context);
+  assert(mip_mem);
+  assert(ret_mem);
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    ScopedContext active(context);
+    CUarray image_array;
+    retErr = PI_CHECK_ERROR(cuMipmappedArrayGetLevel(
+        &image_array, (CUmipmappedArray)mip_mem, level));
+    *ret_mem = (pi_image_mem_handle)image_array;
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+pi_result cuda_piextMemImageFree(pi_context context,
+                                 pi_image_mem_handle memory_handle) {
+  assert(context);
+  assert(memory_handle);
+
+  pi_result retErr = PI_SUCCESS;
+
+  ScopedContext active(context);
+  try {
+    retErr = PI_CHECK_ERROR(cuArrayDestroy((CUarray)memory_handle));
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextMemMipmapFree(pi_context context,
+                                  pi_image_mem_handle memory_handle) {
+  assert(memory_handle);
+  assert(context);
+
+  pi_result retErr = PI_SUCCESS;
+
+  ScopedContext active(context);
+  try {
+    retErr = PI_CHECK_ERROR(
+        cuMipmappedArrayDestroy((CUmipmappedArray)memory_handle));
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextMemUnsampledImageCreate(pi_context context,
+                                            pi_image_mem_handle img_mem,
+                                            pi_image_format *image_format,
+                                            pi_image_desc *image_desc,
+                                            pi_mem *ret_mem,
+                                            pi_image_handle *ret_handle) {
+  assert(context);
+  assert(img_mem);
+  assert(image_format);
+  assert(image_desc);
+  assert(ret_mem);
+  assert(ret_handle);
+  pi_result retErr = PI_SUCCESS;
+
+  unsigned int num_channels = 0;
+  retErr =
+      piCalculateNumChannels(image_format->image_channel_order, &num_channels);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die(
+        "cuda_piextMemImageAllocate given unsupported image_channel_order");
+  }
+
+  CUarray_format format;
+  size_t pixel_type_size_bytes;
+  retErr = piToCudaImageChannelFormat(image_format->image_channel_data_type,
+                                      &format, &pixel_type_size_bytes);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die(
+        "cuda_piextMemImageAllocate given unsupported image_channel_data_type");
+  }
+
+  try {
+
+    ScopedContext active(context);
+
+    CUDA_RESOURCE_DESC image_res_desc = {};
+
+    // We have a CUarray
+    image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
+    image_res_desc.res.array.hArray = (CUarray)img_mem;
+
+    // We create surfaces in the unsampled images case as it conforms to how
+    // CUDA deals with unsampled images
+    CUsurfObject surface;
+    retErr = PI_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
+    *ret_handle = (pi_image_handle)surface;
+
+    auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
+        context, (CUarray)img_mem, surface, image_desc->image_type});
+
+    if (piMemObj == nullptr) {
+      return PI_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    *ret_mem = piMemObj.release();
+
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+pi_result cuda_piextMemImportOpaqueFD(pi_context context, size_t size,
+                                      int file_descriptor,
+                                      pi_interop_mem_handle *ret_handle) {
+  assert(context);
+  assert(ret_handle);
+  assert(file_descriptor);
+  assert(size);
+
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    ScopedContext active(context);
+
+    CUDA_EXTERNAL_MEMORY_HANDLE_DESC extMemDesc = {};
+    extMemDesc.handle.fd = file_descriptor;
+    extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
+    extMemDesc.size = size;
+
+    CUexternalMemory extMem;
+    PI_CHECK_ERROR(cuImportExternalMemory(&extMem, &extMemDesc));
+    *ret_handle = (pi_interop_mem_handle)extMem;
+
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+pi_result cuda_piextMemMapExternalArray(pi_context context,
+                                        pi_image_format *image_format,
+                                        pi_image_desc *image_desc,
+                                        pi_interop_mem_handle mem_handle,
+                                        pi_image_mem_handle *ret_mem) {
+  assert(context);
+  assert(image_format);
+  assert(image_desc);
+  assert(mem_handle);
+  assert(ret_mem);
+  pi_result retErr = PI_SUCCESS;
+
+  unsigned int num_channels = 0;
+  retErr =
+      piCalculateNumChannels(image_format->image_channel_order, &num_channels);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die("cuda_piextMemMapExternalArray given "
+                          "unsupported image_channel_order\n");
+  }
+
+  CUarray_format format;
+  retErr = piToCudaImageChannelFormat(image_format->image_channel_data_type,
+                                      &format, nullptr);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die("cuda_piextMemMapExternalArray given "
+                          "unsupported image_channel_data_type\n");
+  }
+
+  try {
+    ScopedContext active(context);
+
+    CUDA_ARRAY3D_DESCRIPTOR arrayDesc = {};
+    arrayDesc.Width = image_desc->image_width;
+    arrayDesc.Height = image_desc->image_height;
+    arrayDesc.Depth = image_desc->image_depth;
+    arrayDesc.NumChannels = num_channels;
+    arrayDesc.Format = format;
+
+    CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC mipmapDesc = {};
+    mipmapDesc.numLevels = 1;
+    mipmapDesc.arrayDesc = arrayDesc;
+
+    CUmipmappedArray memMipMap;
+    retErr = PI_CHECK_ERROR(cuExternalMemoryGetMappedMipmappedArray(
+        &memMipMap, (CUexternalMemory)mem_handle, &mipmapDesc));
+
+    CUarray memArray;
+    retErr = PI_CHECK_ERROR(cuMipmappedArrayGetLevel(&memArray, memMipMap, 0));
+
+    *ret_mem = (pi_image_mem_handle)memArray;
+
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextMemReleaseInterop(pi_context context,
+                                      pi_interop_mem_handle ext_mem) {
+  assert(context);
+  assert(ext_mem);
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    ScopedContext active(context);
+    retErr = PI_CHECK_ERROR(cuDestroyExternalMemory((CUexternalMemory)ext_mem));
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextImportExternalSemaphoreOpaqueFD(
+    pi_context context, int file_descriptor,
+    pi_interop_semaphore_handle *ret_handle) {
+  assert(context);
+  assert(ret_handle);
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    ScopedContext active(context);
+
+    CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC ext_sem_desc = {};
+    ext_sem_desc.handle.fd = file_descriptor;
+    ext_sem_desc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+
+    CUexternalSemaphore semaphore;
+    retErr =
+        PI_CHECK_ERROR(cuImportExternalSemaphore(&semaphore, &ext_sem_desc));
+
+    *ret_handle = (pi_uint64)semaphore;
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result
+cuda_piextDestroyExternalSemaphore(pi_context context,
+                                   pi_interop_semaphore_handle sem_handle) {
+  assert(context);
+  assert(sem_handle);
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    ScopedContext active(context);
+    retErr = PI_CHECK_ERROR(
+        cuDestroyExternalSemaphore((CUexternalSemaphore)sem_handle));
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextWaitExternalSemaphore(
+    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  assert(command_queue);
+  assert(sem_handle);
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    ScopedContext active(command_queue->get_context());
+    CUstream stream = command_queue->get_next_transfer_stream();
+
+    retErr = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+                               event_wait_list);
+
+    CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS sem_wait_params = {};
+
+    // Wait for one external semaphore
+    retErr = PI_CHECK_ERROR(cuWaitExternalSemaphoresAsync(
+        (CUexternalSemaphore *)&sem_handle, &sem_wait_params,
+        1 /* numExtSems */, stream));
+
+    if (event) {
+      auto new_event = _pi_event::make_native(
+          PI_COMMAND_TYPE_INTEROP_SEMAPHORE_WAIT, command_queue, stream);
+      new_event->record();
+      *event = new_event;
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextSignalExternalSemaphore(
+    pi_queue command_queue, pi_interop_semaphore_handle sem_handle,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  assert(command_queue);
+  assert(sem_handle);
+  pi_result retErr = PI_SUCCESS;
+
+  try {
+    ScopedContext active(command_queue->get_context());
+    CUstream stream = command_queue->get_next_transfer_stream();
+
+    retErr = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+                               event_wait_list);
+
+    CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS sem_signal_params = {};
+
+    // Signal one external semaphore
+    retErr = PI_CHECK_ERROR(cuSignalExternalSemaphoresAsync(
+        (CUexternalSemaphore *)&sem_handle, &sem_signal_params,
+        1 /* numExtSems */, stream));
+
+    if (event) {
+      auto new_event = _pi_event::make_native(
+          PI_COMMAND_TYPE_INTEROP_SEMAPHORE_SIGNAL, command_queue, stream);
+      new_event->record();
+      *event = new_event;
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextMemSampledImageCreate(pi_context context,
+                                          pi_image_mem_handle img_mem,
+                                          pi_image_format *image_format,
+                                          pi_image_desc *image_desc,
+                                          pi_sampler sampler, pi_mem *ret_mem,
+                                          pi_image_handle *ret_handle) {
+  assert(context);
+  assert(img_mem);
+  assert(image_format);
+  assert(image_desc);
+  assert(ret_mem);
+  assert(ret_handle);
+  pi_result retErr = PI_SUCCESS;
+  ScopedContext active(context);
+
+  unsigned int num_channels = 0;
+  retErr =
+      piCalculateNumChannels(image_format->image_channel_order, &num_channels);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die("cuda_piextMemSampledImageCreate given "
+                          "unsupported image_channel_order");
+  }
+
+  CUarray_format format;
+  size_t pixel_type_size_bytes;
+  retErr = piToCudaImageChannelFormat(image_format->image_channel_data_type,
+                                      &format, &pixel_type_size_bytes);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die("cuda_piextMemSampledImageCreate given "
+                          "unsupported image_channel_data_type");
+  }
+
+  try {
+    CUDA_RESOURCE_DESC image_res_desc = {};
+
+    unsigned int mem_type;
+    // If this function doesn't return successfully, we assume that img_mem is a
+    // CUarray or CUmipmappedArray
+    // If this function returns successfully, we check whether img_mem is
+    // device memory (even managed memory isn't considered shared)
+    CUresult err = cuPointerGetAttribute(
+        &mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)img_mem);
+    if (err != CUDA_SUCCESS) {
+      // We have a CUarray
+      if (image_desc->num_mip_levels == 1) {
+        image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
+        image_res_desc.res.array.hArray = (CUarray)img_mem;
+      }
+      // We have a CUmipmappedArray
+      else {
+        image_res_desc.resType = CU_RESOURCE_TYPE_MIPMAPPED_ARRAY;
+        image_res_desc.res.mipmap.hMipmappedArray = (CUmipmappedArray)img_mem;
+      }
+    } else if (mem_type == CU_MEMORYTYPE_DEVICE) {
+      // We have a USM pointer
+      if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
+        image_res_desc.resType = CU_RESOURCE_TYPE_LINEAR;
+        image_res_desc.res.linear.devPtr = (CUdeviceptr)img_mem;
+        image_res_desc.res.linear.format = format;
+        image_res_desc.res.linear.numChannels = num_channels;
+        image_res_desc.res.linear.sizeInBytes =
+            image_desc->image_width * pixel_type_size_bytes * num_channels;
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
+        image_res_desc.resType = CU_RESOURCE_TYPE_PITCH2D;
+        image_res_desc.res.pitch2D.devPtr = (CUdeviceptr)img_mem;
+        image_res_desc.res.pitch2D.format = format;
+        image_res_desc.res.pitch2D.numChannels = num_channels;
+        image_res_desc.res.pitch2D.width = image_desc->image_width;
+        image_res_desc.res.pitch2D.height = image_desc->image_height;
+        image_res_desc.res.pitch2D.pitchInBytes = image_desc->image_row_pitch;
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
+        sycl::detail::pi::die("cuda_piextMemSampledImageCreate cannot "
+                              "create 3D image from USM");
+      }
+    } else {
+      sycl::detail::pi::die(
+          "cuda_piextMemSampledImageCreate unknown image memory type");
+    }
+
+    retErr = piTextureCreate(context, sampler, image_desc, image_res_desc,
+                             ret_handle);
+
+    auto piMemObj = std::unique_ptr<_pi_mem>(
+        new _pi_mem{context, (CUarray)img_mem, (CUtexObject)*ret_handle,
+                    sampler, image_desc->image_type});
+
+    if (piMemObj == nullptr) {
+      return PI_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    *ret_mem = piMemObj.release();
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+pi_result cuda_piextMemImageCopy(
+    pi_queue command_queue, void *dst_ptr, void *src_ptr,
+    const pi_image_format *image_format, const pi_image_desc *image_desc,
+    const pi_image_copy_flags flags, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  assert(dst_ptr != nullptr);
+  assert(src_ptr != nullptr);
+  assert(image_format != nullptr);
+  assert(image_desc != nullptr);
+  pi_result retErr = PI_SUCCESS;
+
+  unsigned int num_channels = 0;
+  size_t pixel_type_size_bytes = 0;
+
+  retErr =
+      piCalculateNumChannels(image_format->image_channel_order, &num_channels);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die(
+        "cuda_piextMemImageCopy given unsupported image_channel_order");
+  }
+
+  // We need to get this now in bytes for calculating the total image size later
+  retErr = piToCudaImageChannelFormat(image_format->image_channel_data_type,
+                                      nullptr, &pixel_type_size_bytes);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
+    sycl::detail::pi::die(
+        "cuda_piextMemImageCopy given unsupported image_channel_data_type");
+  }
+
+  size_t pixel_size_bytes = pixel_type_size_bytes * num_channels;
+
+  try {
+    ScopedContext active(command_queue->get_context());
+    CUstream cuStream = command_queue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(command_queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
+    // We have to use a different copy function for each image dimensionality
+    if (flags == PI_IMAGE_COPY_HTOD) {
+      if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
+        size_t image_size_bytes_1d = pixel_size_bytes * image_desc->image_width;
+        retErr = PI_CHECK_ERROR(cuMemcpyHtoAAsync(
+            (CUarray)dst_ptr, 0, src_ptr, image_size_bytes_1d, cuStream));
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
+        CUDA_MEMCPY2D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = src_ptr;
+        if (image_desc->image_row_pitch == 0) {
+          cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+          cpy_desc.dstArray = (CUarray)dst_ptr;
+        } else {
+          // Pitched memory
+          cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_DEVICE;
+          cpy_desc.dstDevice = (CUdeviceptr)dst_ptr;
+          cpy_desc.dstPitch = image_desc->image_row_pitch;
+        }
+        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
+        cpy_desc.Height = image_desc->image_height;
+        retErr = PI_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, cuStream));
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
+        CUDA_MEMCPY3D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = src_ptr;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = (CUarray)dst_ptr;
+        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
+        cpy_desc.Height = image_desc->image_height;
+        cpy_desc.Depth = image_desc->image_depth;
+        retErr = PI_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, cuStream));
+      }
+    } else if (flags == PI_IMAGE_COPY_DTOH) {
+      if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
+        size_t image_size_bytes_1d = pixel_size_bytes * image_desc->image_width;
+        retErr = PI_CHECK_ERROR(cuMemcpyAtoHAsync(
+            dst_ptr, (CUarray)src_ptr, 0, image_size_bytes_1d, cuStream));
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
+        CUDA_MEMCPY2D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.dstHost = dst_ptr;
+        if (image_desc->image_row_pitch == 0) {
+          cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+          cpy_desc.srcArray = (CUarray)src_ptr;
+        } else {
+          // Pitched memory
+          cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_DEVICE;
+          cpy_desc.srcPitch = image_desc->image_row_pitch;
+          cpy_desc.srcDevice = (CUdeviceptr)src_ptr;
+        }
+        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
+        cpy_desc.Height = image_desc->image_height;
+        retErr = PI_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, cuStream));
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
+        CUDA_MEMCPY3D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.srcArray = (CUarray)src_ptr;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.dstHost = dst_ptr;
+        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
+        cpy_desc.Height = image_desc->image_height;
+        cpy_desc.Depth = image_desc->image_depth;
+        retErr = PI_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, cuStream));
+      }
+    } else if (flags == PI_IMAGE_COPY_DTOD) {
+      /// TODO: implemet device to device copy
+    } else {
+      sycl::detail::pi::die(
+          "cuda_piextMemImageCopy given unsupported image copy flags");
+    }
+
+    if (event) {
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY,
+                                              command_queue, cuStream);
+      new_event->record();
+      *event = new_event;
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+pi_result cuda_piextMemUnsampledImageHandleDestroy(pi_context context,
+                                                   pi_image_handle handle) {
+  assert(context != nullptr);
+  assert(handle != 0);
+
+  pi_result retErr = PI_SUCCESS;
+  retErr = PI_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)handle));
+  return retErr;
+}
+
+pi_result cuda_piextMemSampledImageHandleDestroy(pi_context context,
+                                                 pi_image_handle handle) {
+  assert(context != nullptr);
+  assert(handle != 0);
+
+  pi_result retErr = PI_SUCCESS;
+  retErr = PI_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)handle));
+  return retErr;
+}
+
+pi_result cuda_piextMemImageGetInfo(pi_image_mem_handle mem_handle,
+                                    pi_image_info param_name, void *param_value,
+                                    size_t *param_value_size_ret) {
+  assert(mem_handle);
+
+  CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
+  pi_result retErr =
+      PI_CHECK_ERROR(cuArray3DGetDescriptor(&arrayDesc, (CUarray)mem_handle));
+  switch (param_name) {
+  case PI_IMAGE_INFO_WIDTH:
+    if (param_value)
+      *(size_t *)param_value = arrayDesc.Width;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(size_t);
+    break;
+  case PI_IMAGE_INFO_HEIGHT:
+    if (param_value)
+      *(size_t *)param_value = arrayDesc.Height;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(size_t);
+    break;
+  case PI_IMAGE_INFO_DEPTH:
+    if (param_value)
+      *(size_t *)param_value = arrayDesc.Depth;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(size_t);
+    break;
+  case PI_IMAGE_INFO_FLAGS:
+    if (param_value)
+      *(unsigned int *)param_value = arrayDesc.Flags;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(unsigned int);
+    break;
+  case PI_IMAGE_INFO_FORMAT:
+    pi_image_channel_type channel_type;
+    pi_image_channel_order channel_order;
+    retErr = cudaToPiImageChannelFormat(arrayDesc.Format, &channel_type);
+    // CUDA does not have a notion of channel "order" in the same way that
+    // SYCL 1.2.1 does.
+    switch (arrayDesc.NumChannels) {
+    case 1:
+      channel_order = PI_IMAGE_CHANNEL_ORDER_R;
+      break;
+    case 2:
+      channel_order = PI_IMAGE_CHANNEL_ORDER_RG;
+      break;
+    case 4:
+      channel_order = PI_IMAGE_CHANNEL_ORDER_RGBA;
+      break;
+    }
+    if (param_value) {
+      ((pi_image_format *)param_value)->image_channel_data_type = channel_type;
+      ((pi_image_format *)param_value)->image_channel_order = channel_order;
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_image_format);
+    break;
+  default:
+    retErr = PI_ERROR_INVALID_VALUE;
+  }
+
+  return retErr;
+}
+
 pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                     pi_kernel_group_info param_name,
                                     size_t param_value_size, void *param_value,
@@ -3415,42 +4476,10 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
   // We need to get this now in bytes for calculating the total image size later
   size_t pixel_type_size_bytes;
 
-  switch (image_format->image_channel_data_type) {
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
-    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
-    pixel_type_size_bytes = 1;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
-    array_desc.Format = CU_AD_FORMAT_SIGNED_INT8;
-    pixel_type_size_bytes = 1;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16:
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
-    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
-    array_desc.Format = CU_AD_FORMAT_SIGNED_INT16;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
-    array_desc.Format = CU_AD_FORMAT_HALF;
-    pixel_type_size_bytes = 2;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
-    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT32;
-    pixel_type_size_bytes = 4;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
-    array_desc.Format = CU_AD_FORMAT_SIGNED_INT32;
-    pixel_type_size_bytes = 4;
-    break;
-  case PI_IMAGE_CHANNEL_TYPE_FLOAT:
-    array_desc.Format = CU_AD_FORMAT_FLOAT;
-    pixel_type_size_bytes = 4;
-    break;
-  default:
+  retErr =
+      piToCudaImageChannelFormat(image_format->image_channel_data_type,
+                                 &array_desc.Format, &pixel_type_size_bytes);
+  if (retErr == PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED) {
     sycl::detail::pi::die(
         "cuda_piMemImageCreate given unsupported image_channel_data_type");
   }
@@ -4258,6 +5287,9 @@ pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 ///
 /// \param[in] context The context the sampler is created for.
 /// \param[in] sampler_properties The properties for the sampler.
+/// \param[in] minMipmapLevelClamp The minimum mipmap level.
+/// \param[in] maxMipmapLevelClamp The maximum mipmap level.
+/// \param[in] maxAnisotropy The maximum anisotropic ratio to filter with.
 /// \param[out] result_sampler Set to the resulting sampler object.
 ///
 /// \return PI_SUCCESS on success. PI_ERROR_INVALID_VALUE if given an invalid
@@ -4265,10 +5297,13 @@ pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 ///         or if there is multiple of properties from the same category.
 pi_result cuda_piSamplerCreate(pi_context context,
                                const pi_sampler_properties *sampler_properties,
+                               const float minMipmapLevelClamp,
+                               const float maxMipmapLevelClamp,
+                               const float maxAnisotropy,
                                pi_sampler *result_sampler) {
   std::unique_ptr<_pi_sampler> retImplSampl{new _pi_sampler(context)};
 
-  bool propSeen[3] = {false, false, false};
+  bool propSeen[4] = {false, false, false, false};
   for (size_t i = 0; sampler_properties[i] != 0; i += 2) {
     switch (sampler_properties[i]) {
     case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS:
@@ -4294,6 +5329,14 @@ pi_result cuda_piSamplerCreate(pi_context context,
       retImplSampl->props_ |=
           (sampler_properties[i + 1] - PI_SAMPLER_ADDRESSING_MODE_NONE) << 2;
       break;
+    case PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE:
+      if (propSeen[3]) {
+        return PI_ERROR_INVALID_VALUE;
+      }
+      propSeen[3] = true;
+      retImplSampl->props_ |=
+          (sampler_properties[i + 1] - PI_SAMPLER_MIP_FILTER_MODE_NEAREST) << 5;
+      break;
     default:
       return PI_ERROR_INVALID_VALUE;
     }
@@ -4308,6 +5351,10 @@ pi_result cuda_piSamplerCreate(pi_context context,
         (PI_SAMPLER_ADDRESSING_MODE_CLAMP % PI_SAMPLER_ADDRESSING_MODE_NONE)
         << 2;
   }
+
+  retImplSampl->minMipmapLevelClamp_ = minMipmapLevelClamp;
+  retImplSampl->maxMipmapLevelClamp_ = maxMipmapLevelClamp;
+  retImplSampl->maxAnisotropy_ = maxAnisotropy;
 
   *result_sampler = retImplSampl.release();
   return PI_SUCCESS;
@@ -5208,6 +6255,39 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   return result;
 }
 
+pi_result cuda_piextUSMPitchedAlloc(void **result_ptr, size_t *result_pitch,
+                                    pi_context context, pi_device device,
+                                    pi_usm_mem_properties *properties,
+                                    size_t width_in_bytes, size_t height,
+                                    unsigned int element_size_bytes) {
+  assert(result_ptr);
+  assert(result_pitch);
+  assert(context);
+  assert(device);
+  assert(properties == nullptr || *properties == 0);
+  assert(width_in_bytes > 0);
+  assert(height > 0);
+  assert(element_size_bytes > 0);
+  // element_size_bytes can only take on values of 4, 8, or 16
+  // small data types need to be minimised to 4
+  if (element_size_bytes < 4) {
+    element_size_bytes = 4;
+  }
+  assert(element_size_bytes == 4 || element_size_bytes == 8 ||
+         element_size_bytes == 16);
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)result_ptr,
+                                            result_pitch, width_in_bytes,
+                                            height, element_size_bytes));
+  } catch (pi_result error) {
+    result = error;
+  }
+
+  return result;
+}
+
 /// USM: Implements USM Shared allocations using CUDA Managed Memory
 ///
 pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
@@ -5425,7 +6505,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     // check that the device also has the
     // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
   }
-
+  
   unsigned int is_managed;
   PI_CHECK_ERROR(cuPointerGetAttribute(
       &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
@@ -5978,6 +7058,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMHostAlloc, cuda_piextUSMHostAlloc)
   _PI_CL(piextUSMDeviceAlloc, cuda_piextUSMDeviceAlloc)
   _PI_CL(piextUSMSharedAlloc, cuda_piextUSMSharedAlloc)
+  _PI_CL(piextUSMPitchedAlloc, cuda_piextUSMPitchedAlloc)
   _PI_CL(piextUSMFree, cuda_piextUSMFree)
   _PI_CL(piextUSMEnqueueMemset, cuda_piextUSMEnqueueMemset)
   _PI_CL(piextUSMEnqueueMemcpy, cuda_piextUSMEnqueueMemcpy)
@@ -5999,6 +7080,31 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
+
+  // Bindless Images
+  _PI_CL(piextMemUnsampledImageHandleDestroy,
+         cuda_piextMemUnsampledImageHandleDestroy)
+  _PI_CL(piextMemSampledImageHandleDestroy,
+         cuda_piextMemSampledImageHandleDestroy)
+  _PI_CL(piextMemImageAllocate, cuda_piextMemImageAllocate)
+  _PI_CL(piextMemImageFree, cuda_piextMemImageFree)
+  _PI_CL(piextMemUnsampledImageCreate, cuda_piextMemUnsampledImageCreate)
+  _PI_CL(piextMemSampledImageCreate, cuda_piextMemSampledImageCreate)
+  _PI_CL(piextMemImageCopy, cuda_piextMemImageCopy)
+  _PI_CL(piextMemImageGetInfo, cuda_piextMemImageGetInfo)
+
+  _PI_CL(piextMemMipmapGetLevel, cuda_piextMemMipmapGetLevel)
+  _PI_CL(piextMemMipmapFree, cuda_piextMemMipmapFree)
+
+  _PI_CL(piextMemImportOpaqueFD, cuda_piextMemImportOpaqueFD)
+  _PI_CL(piextMemReleaseInterop, cuda_piextMemReleaseInterop)
+  _PI_CL(piextMemMapExternalArray, cuda_piextMemMapExternalArray)
+  _PI_CL(piextImportExternalSemaphoreOpaqueFD,
+         cuda_piextImportExternalSemaphoreOpaqueFD)
+  _PI_CL(piextDestroyExternalSemaphore, cuda_piextDestroyExternalSemaphore)
+  _PI_CL(piextWaitExternalSemaphore, cuda_piextWaitExternalSemaphore)
+  _PI_CL(piextSignalExternalSemaphore, cuda_piextSignalExternalSemaphore)
+
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)

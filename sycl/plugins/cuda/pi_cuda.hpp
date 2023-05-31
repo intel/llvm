@@ -231,7 +231,11 @@ struct _pi_mem {
 
   /// Reference counting of the handler
   std::atomic_uint32_t refCount_;
-  enum class mem_type { buffer, surface } mem_type_;
+  enum class mem_type {
+    buffer,
+    surface,
+    texture
+  } mem_type_;
 
   /// A PI Memory object represents either plain memory allocations ("Buffers"
   /// in OpenCL) or typed allocations ("Images" in OpenCL).
@@ -328,6 +332,18 @@ struct _pi_mem {
 
       pi_mem_type get_image_type() const noexcept { return imageType_; }
     } surface_mem_;
+
+    struct image_mem_ {
+      CUarray array_;
+      void *handle_;
+      pi_mem_type imageType_;
+      pi_sampler sampler_;
+
+      CUarray get_array() const noexcept { return array_; }
+      void *get_handle() const noexcept { return handle_; }
+      pi_mem_type get_image_type() const noexcept { return imageType_; }
+      pi_sampler get_sampler() const noexcept { return sampler_; }
+    } image_mem_;
   } mem_;
 
   /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
@@ -359,6 +375,30 @@ struct _pi_mem {
     mem_.surface_mem_.array_ = array;
     mem_.surface_mem_.surfObj_ = surf;
     mem_.surface_mem_.imageType_ = image_type;
+    cuda_piContextRetain(context_);
+  }
+
+  /// Constructs the PI allocation for an unsampled image object
+  _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
+          pi_mem_type image_type)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+
+    mem_.image_mem_.array_ = array;
+    mem_.image_mem_.handle_ = (void *)surf;
+    mem_.image_mem_.imageType_ = image_type;
+    mem_.image_mem_.sampler_ = nullptr;
+    cuda_piContextRetain(context_);
+  }
+
+  /// Constructs the PI allocation for an sampled image object
+  _pi_mem(pi_context ctxt, CUarray array, CUtexObject tex, pi_sampler sampler,
+          pi_mem_type image_type)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::texture} {
+
+    mem_.image_mem_.array_ = array;
+    mem_.image_mem_.handle_ = (void *)tex;
+    mem_.image_mem_.imageType_ = image_type;
+    mem_.image_mem_.sampler_ = sampler;
     cuda_piContextRetain(context_);
   }
 
@@ -982,15 +1022,19 @@ struct _pi_kernel {
 /// Implementation of samplers for CUDA
 ///
 /// Sampler property layout:
-/// | 31 30 ... 6 5 |      4 3 2      |     1      |         0        |
-/// |      N/A      | addressing mode | fiter mode | normalize coords |
+/// | 31 30 ... 6   |        5        |      4 3 2      |     1      |         0        |
+/// |      N/A      | mip filter mode | addressing mode | fiter mode | normalize coords |
 struct _pi_sampler {
   std::atomic_uint32_t refCount_;
   pi_uint32 props_;
+  float minMipmapLevelClamp_;
+  float maxMipmapLevelClamp_;
+  float maxAnisotropy_;
   pi_context context_;
 
   _pi_sampler(pi_context context)
-      : refCount_(1), props_(0), context_(context) {}
+      : refCount_(1), props_(0), minMipmapLevelClamp_(0.0f),
+        maxMipmapLevelClamp_(0.0f), maxAnisotropy_(0.0f), context_(context) {}
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 

@@ -17,7 +17,17 @@ sampler::sampler(coordinate_normalization_mode normalizationMode,
                  addressing_mode addressingMode, filtering_mode filteringMode,
                  const property_list &propList)
     : impl(std::make_shared<detail::sampler_impl>(
-          normalizationMode, addressingMode, filteringMode, propList)) {}
+          normalizationMode, addressingMode, filteringMode,
+          mipmap_filtering_mode::nearest, 0.0f, 0.0f, 0.0f, propList)) {}
+
+sampler::sampler(coordinate_normalization_mode normalizationMode,
+                 addressing_mode addressingMode, filtering_mode filteringMode,
+                 mipmap_filtering_mode mipmapFilteringMode,
+                 float minMipmapLevelClamp, float maxMipmapLevelClamp,
+                 float maxAnisotropy, const property_list &propList)
+    : impl(std::make_shared<detail::sampler_impl>(
+          normalizationMode, addressingMode, filteringMode, mipmapFilteringMode,
+          minMipmapLevelClamp, maxMipmapLevelClamp, maxAnisotropy, propList)) {}
 
 sampler::sampler(cl_sampler clSampler, const context &syclContext)
     : impl(std::make_shared<detail::sampler_impl>(clSampler, syclContext)) {}
@@ -30,10 +40,24 @@ filtering_mode sampler::get_filtering_mode() const {
   return impl->get_filtering_mode();
 }
 
+mipmap_filtering_mode sampler::get_mipmap_filtering_mode() const {
+  return impl->get_mipmap_filtering_mode();
+}
+
 coordinate_normalization_mode
 sampler::get_coordinate_normalization_mode() const {
   return impl->get_coordinate_normalization_mode();
 }
+
+float sampler::get_min_mipmap_level_clamp() const {
+  return impl->get_min_mipmap_level_clamp();
+}
+
+float sampler::get_max_mipmap_level_clamp() const {
+  return impl->get_max_mipmap_level_clamp();
+}
+
+float sampler::get_max_anisotropy() const { return impl->get_max_anisotropy(); }
 
 bool sampler::operator==(const sampler &rhs) const {
   return (impl == rhs.impl);

@@ -19,6 +19,8 @@ config.sycl_tools_src_dir = "@SYCL_TOOLS_SRC_DIR@"
 config.llvm_build_lib_dir = "@LLVM_BUILD_LIBRARY_DIRS@"
 config.llvm_build_bin_dir = "@LLVM_BUILD_BINARY_DIRS@"
 config.sycl_clang_extra_flags = "@SYCL_CLANG_EXTRA_FLAGS@"
+config.vulkan_include_dir = "@Vulkan_INCLUDE_DIRS@"
+config.vulkan_lib = "@Vulkan_LIBRARY@"
 
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 

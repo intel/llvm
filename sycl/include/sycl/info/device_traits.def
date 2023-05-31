@@ -205,6 +205,55 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
                          PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
 
+// Bindless images support
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bindless_images_support, bool,
+                         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_bindless_images_1d_usm_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_bindless_images_2d_usm_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_bindless_images_3d_usm_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT)
+
+// Bindless images pitched allocation
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_image_pitch_align, uint32_t,
+                         PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_PITCH_ALIGN)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_image_linear_width, size_t,
+                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_image_linear_height, size_t,
+                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_image_linear_pitch, size_t,
+                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH)
+
+// Bindless images interop
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_interop_memory_import_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_interop_memory_export_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_interop_semaphore_import_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_interop_semaphore_export_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT)
+
+// Bindles images mipmaps
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_mipmap_support, bool,
+                         PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_mipmap_anisotropy_support,
+                         bool,
+                         PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_mipmap_max_anisotropy,
+                         float, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY)
+__SYCL_PARAM_TRAITS_SPEC(
+    device, ext_oneapi_mipmap_level_reference_support, bool,
+    PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT)
+
 //Deprecated oneapi/intel extension
 //TODO:Remove when possible
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_pci_address, std::string,

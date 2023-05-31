@@ -75,6 +75,9 @@ public:
     CopyToDeviceGlobal = 19,
     CopyFromDeviceGlobal = 20,
     ReadWriteHostPipe = 21,
+    CopyImage = 22,
+    SemaphoreWait = 23,
+    SemaphoreSignal = 24,
   };
 
   struct StorageInitHelper {
@@ -492,6 +495,60 @@ public:
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
   detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
+};
+/// "Copy Image" command group class.
+class CGCopyImage : public CG {
+  void *MSrc;
+  void *MDst;
+  RT::PiMemImageDesc MImageDesc;
+  RT::PiMemImageFormat MImageFormat;
+  RT::PiImageCopyFlags MImageCopyFlags;
+
+public:
+  CGCopyImage(void *Src, void *Dst, RT::PiMemImageDesc ImageDesc,
+              RT::PiMemImageFormat ImageFormat,
+              RT::PiImageCopyFlags ImageCopyFlags, CG::StorageInitHelper CGData,
+              detail::code_location loc = {})
+      : CG(CopyImage, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+        MImageDesc(ImageDesc), MImageFormat(ImageFormat),
+        MImageCopyFlags(ImageCopyFlags) {}
+
+  void *getSrc() const { return MSrc; }
+  void *getDst() const { return MDst; }
+  RT::PiMemImageDesc getDesc() const { return MImageDesc; }
+  RT::PiMemImageFormat getFormat() const { return MImageFormat; }
+  RT::PiImageCopyFlags getCopyFlags() const { return MImageCopyFlags; }
+};
+
+/// "Semaphore Wait" command group class.
+class CGSemaphoreWait : public CG {
+  RT::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+public:
+  CGSemaphoreWait(RT::PiInteropSemaphoreHandle InteropSemaphoreHandle,
+                  CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
+        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+
+  RT::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+    return MInteropSemaphoreHandle;
+  }
+};
+
+/// "Semaphore Signal" command group class.
+class CGSemaphoreSignal : public CG {
+  RT::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+public:
+  CGSemaphoreSignal(RT::PiInteropSemaphoreHandle InteropSemaphoreHandle,
+                    CG::StorageInitHelper CGData,
+                    detail::code_location loc = {})
+      : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
+        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+
+  RT::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+    return MInteropSemaphoreHandle;
+  }
 };
 
 } // namespace detail

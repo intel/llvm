@@ -389,6 +389,232 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
                                 ParamValueSizeRet);
 }
 
+pi_result piextMemUnsampledImageHandleDestroy(pi_context context,
+                                              pi_image_handle handle) {
+
+  assert(context != nullptr);
+  assert(handle != 0);
+
+  die("piextMemUnsampledImageHandleDestroy not implemented on level zero "
+      "backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+
+  return retErr;
+}
+
+pi_result piextMemSampledImageHandleDestroy(pi_context context,
+                                            pi_image_handle handle) {
+
+  assert(context != nullptr);
+  assert(handle != 0);
+
+  die("piextMemSampledImageHandleDestroy not implemented on level zero "
+      "backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+
+  return retErr;
+}
+
+pi_result piextMemImageAllocate(pi_context context,
+                                pi_image_format *image_format,
+                                pi_image_desc *image_desc,
+                                pi_image_mem_handle *ret_mem) {
+
+  assert(context != nullptr);
+  assert(image_desc != nullptr);
+  assert(image_format != nullptr);
+  assert(ret_mem != nullptr);
+
+  die("piExtMemImageAllocate not implemented on level zero backend.\n");
+  // No image formats are supported!
+  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  return retErr;
+}
+
+pi_result piextMemMipmapGetLevel(pi_context context,
+                                 pi_image_mem_handle mip_mem,
+                                 unsigned int level,
+                                 pi_image_mem_handle *ret_mem) {
+
+  assert(context != nullptr);
+  assert(mip_mem != nullptr);
+  assert(ret_mem != nullptr);
+
+  die("piextMemMipmapGetLevel not implemented on level zero backend.\n");
+  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  return retErr;
+}
+
+pi_result piextMemImageFree(pi_context context,
+                            pi_image_mem_handle memory_handle) {
+
+  assert(context != nullptr);
+  assert(memory_handle != nullptr);
+
+  pi_result retErr = PI_SUCCESS;
+  die("piExtMemImageFree not implemented on level zero backend.\n");
+
+  return retErr;
+}
+
+pi_result piextMemMipmapFree(pi_context context,
+                             pi_image_mem_handle memory_handle) {
+
+  assert(context != nullptr);
+  assert(memory_handle != nullptr);
+
+  die("piextMemMipmapFree not implemented on level zero backend.\n");
+  // No image formats are supported!
+  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  return retErr;
+}
+
+pi_result piextMemUnsampledImageCreate(pi_context context,
+                                       pi_image_mem_handle img_mem,
+                                       pi_image_format *image_format,
+                                       pi_image_desc *desc, pi_mem *ret_mem,
+                                       pi_image_handle *ret_handle) {
+
+  assert(context != nullptr);
+  assert(img_mem != nullptr);
+  assert(ret_mem != nullptr);
+  assert(ret_handle != nullptr);
+
+  die("piextMemUnsampledImageCreate not implemented on level zero backend.\n");
+  // No image formats are supported!
+  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  return retErr;
+}
+
+pi_result piextMemImportOpaqueFD(pi_context context, size_t size,
+                                 int file_descriptor,
+                                 pi_interop_mem_handle *ret_handle) {
+  assert(context);
+  assert(file_descriptor);
+  assert(ret_handle);
+
+  die("piextMemImportOpaqueFD not implemented on level zero backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+  return retErr;
+}
+
+pi_result
+piextImportExternalSemaphoreOpaqueFD(pi_context context, int file_descriptor,
+                                     pi_interop_semaphore_handle *ret_handle) {
+  assert(context);
+  assert(ret_handle);
+  die("piextImportExternalSemaphoreOpaqueFD not implemented on level zero "
+      "backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+  return retErr;
+}
+
+pi_result
+piextDestroyExternalSemaphore(pi_context context,
+                              pi_interop_semaphore_handle sem_handle) {
+  assert(context);
+  assert(sem_handle);
+  die("piextDestroyExternalSemaphore not implemented on level zero "
+      "backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+  return retErr;
+}
+
+pi_result piextWaitExternalSemaphore(pi_queue command_queue,
+                                     pi_interop_semaphore_handle sem_handle,
+                                     pi_uint32 num_events_in_wait_list,
+                                     const pi_event *event_wait_list,
+                                     pi_event *event) {
+  assert(command_queue);
+  assert(sem_handle);
+  die("piextWaitExternalSemaphore not implemented on level zero "
+      "backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+  return retErr;
+}
+
+pi_result piextSignalExternalSemaphore(pi_queue command_queue,
+                                       pi_interop_semaphore_handle sem_handle,
+                                       pi_uint32 num_events_in_wait_list,
+                                       const pi_event *event_wait_list,
+                                       pi_event *event) {
+  assert(command_queue);
+  assert(sem_handle);
+  die("piextSignalExternalSemaphore not implemented on level zero "
+      "backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+  return retErr;
+}
+
+pi_result piextMemMapExternalArray(pi_context context,
+                                   pi_image_format *image_format,
+                                   pi_image_desc *image_desc,
+                                   pi_interop_mem_handle mem_handle,
+                                   pi_image_mem_handle *ret_mem) {
+  assert(context);
+  assert(image_format);
+  assert(image_desc);
+  assert(mem_handle);
+  assert(ret_mem);
+
+  die("piextMemMapExternalArray given unsupported image_channel_order.\n");
+
+  pi_result retErr = PI_ERROR_UNKNOWN;
+  return retErr;
+}
+
+pi_result piextMemReleaseInterop(pi_context context,
+                                 pi_interop_mem_handle ext_mem) {
+  assert(context);
+  assert(ext_mem);
+
+  die("piextMemReleaseInterop not implemented on level zero backend.\n");
+  pi_result retErr = PI_ERROR_UNKNOWN;
+  return retErr;
+}
+
+pi_result piextMemSampledImageCreate(pi_context context,
+                                     pi_image_mem_handle img_mem,
+                                     pi_image_format *format,
+                                     pi_image_desc *desc, pi_sampler sampler,
+                                     pi_mem *ret_mem,
+                                     pi_image_handle *ret_handle) {
+  assert(context != nullptr);
+  assert(img_mem != nullptr);
+  assert(ret_mem != nullptr);
+  assert(ret_handle != nullptr);
+
+  die("piExtMemSampledImageCreate not implemented on level zero backend.\n");
+  // No image formats are supported!
+  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  return retErr;
+}
+
+pi_result piextMemImageCopy(pi_queue command_queue, void *dst_ptr,
+                            void *src_ptr, const pi_image_format *image_format,
+                            const pi_image_desc *image_desc,
+                            const pi_image_copy_flags flags,
+                            pi_uint32 num_events_in_wait_list,
+                            const pi_event *event_wait_list, pi_event *event) {
+  assert(command_queue != nullptr);
+  assert(dst_ptr != nullptr);
+  assert(src_ptr != nullptr);
+
+  die("piExtMemImageCopy not implemented on level zero backend.\n");
+  // No image formats are supported!
+  pi_result retErr = PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+  return retErr;
+}
+
+pi_result piextMemImageGetInfo(const pi_image_mem_handle mem_handle,
+                               pi_image_info param_name, void *param_value,
+                               size_t *param_value_size_ret) {
+  assert(mem_handle);
+
+  die("piextMemImageGetInfo not implemented on level zero backend.\n");
+  return PI_SUCCESS;
+}
+
 pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
                                pi_kernel_group_info ParamName,
                                size_t ParamValueSize, void *ParamValue,
@@ -511,7 +737,9 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
 //
 pi_result piSamplerCreate(pi_context Context,
                           const pi_sampler_properties *SamplerProperties,
-                          pi_sampler *RetSampler) {
+                          const float minMipmapLevelClamp,
+                          const float maxMipmapLevelClamp,
+                          const float maxAnisotropy, pi_sampler *RetSampler) {
   return pi2ur::piSamplerCreate(Context, SamplerProperties, RetSampler);
 }
 
@@ -758,6 +986,20 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
 
   return pi2ur::piextUSMSharedAlloc(ResultPtr, Context, Device, Properties,
                                     Size, Alignment);
+}
+
+pi_result piextUSMPitchedAlloc(void **result_ptr, size_t *result_pitch,
+                               pi_context context, pi_device device,
+                               pi_usm_mem_properties *properties,
+                               size_t width_in_bytes, size_t height,
+                               unsigned int element_size_bytes) {
+  die("piextUSMPitchedAlloc: not implemented");
+
+  assert(result_ptr != nullptr);
+  assert(context != nullptr);
+  assert(device != nullptr);
+  assert(properties == nullptr || *properties == 0);
+  return {};
 }
 
 pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
