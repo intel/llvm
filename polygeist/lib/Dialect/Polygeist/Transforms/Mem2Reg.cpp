@@ -29,6 +29,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include <algorithm>
 #include <deque>
 #include <iostream>
@@ -1827,36 +1828,93 @@ bool Mem2Reg::forwardStoreToLoad(
   return changed;
 }
 
+Type getElementType(mlir::Operation *AllocOp) {
+  return llvm::TypeSwitch<Operation *, Type>(AllocOp)
+      .Case<memref::AllocaOp, memref::AllocOp>([](auto AllocOp) {
+        return AllocOp.getMemref().getType().getElementType();
+      })
+      .Case<LLVM::AllocaOp>([](auto AllocOp) {
+        if (std::optional<Type> optElemTy = AllocOp.getElemType())
+          // Opaque pointer case.
+          return *optElemTy;
+
+        // Typed pointer case.
+        assert(!AllocOp.getType().isOpaque());
+        return AllocOp.getType().getElementType();
+      })
+      .Case<memref::GetGlobalOp>([](auto GlobalOp) {
+        return GlobalOp.getResult().getType().getElementType();
+      })
+      .Case<memref::CastOp>([](auto CastOp) {
+        return CastOp.getDest().getType().getElementType();
+      });
+}
+
 bool isPromotable(mlir::Value AI) {
   std::deque<mlir::Value> list = {AI};
 
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
-
+    assert(AI.getDefiningOp());
+    auto elemType = getElementType(AI.getDefiningOp());
     for (auto *U : val.getUsers()) {
       if (auto LO = dyn_cast<memref::LoadOp>(U)) {
         continue;
-      } else if (auto LO = dyn_cast<LLVM::LoadOp>(U)) {
+      }
+      if (auto LO = dyn_cast<LLVM::LoadOp>(U)) {
+        if (LO.getVolatile_()) {
+          LLVM_DEBUG(llvm::dbgs() << "cannot promote " << AI
+                                  << " because of volatile load " << LO);
+          return false;
+        }
+        if (LO.getRes().getType() != elemType) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "cannot promote " << AI
+                     << " because of type mismatch with load " << LO);
+          return false;
+        }
         continue;
-      } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
+      }
+      if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
+        if (SO.getVolatile_()) {
+          LLVM_DEBUG(llvm::dbgs() << "cannot promote " << AI
+                                  << " because of volatile load " << SO);
+          return false;
+        }
+        if (AI == SO.getValue()) {
+          LLVM_DEBUG(llvm::dbgs() << "cannot promote " << AI
+                                  << " because it is captured in " << SO);
+        }
+        if (SO.getValue().getType() != elemType) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "cannot promote " << AI
+                     << " because of type mismatch with store " << SO);
+          return false;
+        }
         continue;
-      } else if (auto LO = dyn_cast<affine::AffineLoadOp>(U)) {
+      }
+      if (auto LO = dyn_cast<affine::AffineLoadOp>(U)) {
         continue;
-      } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
+      }
+      if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         continue;
-      } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
+      }
+      if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
         continue;
-      } else if (isa<memref::DeallocOp>(U)) {
+      }
+      if (isa<memref::DeallocOp>(U)) {
         continue;
-      } else if (isa<func::CallOp>(U) &&
-                 cast<func::CallOp>(U).getCallee() == "free") {
+      }
+      if (isa<func::CallOp>(U) && cast<func::CallOp>(U).getCallee() == "free") {
         continue;
-      } else if (isa<func::CallOp>(U)) {
+      }
+      if (isa<func::CallOp>(U)) {
         // TODO check "no capture", currently assume as a fallback always
         // nocapture
         continue;
-      } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
+      }
+      if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
       } else {
         LLVM_DEBUG(llvm::dbgs()
@@ -1948,32 +2006,25 @@ void Mem2Reg::runOnOperation() {
     f->walk([&](mlir::memref::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
-        typesToPromote.push_back(AI.getMemref().getType().getElementType());
+        typesToPromote.push_back(getElementType(AI));
       }
     });
     f->walk([&](mlir::memref::AllocOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
-        typesToPromote.push_back(AI.getMemref().getType().getElementType());
+        typesToPromote.push_back(getElementType(AI));
       }
     });
     f->walk([&](LLVM::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
-        if (std::optional<Type> optElemTy = AI.getElemType()) {
-          // Opaque pointer case.
-          typesToPromote.push_back(*optElemTy);
-        } else {
-          // Typed pointer case.
-          assert(!AI.getType().isOpaque());
-          typesToPromote.push_back(AI.getType().getElementType());
-        }
+        typesToPromote.push_back(getElementType(AI));
       }
     });
     f->walk([&](memref::GetGlobalOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
-        typesToPromote.push_back(AI.getResult().getType().getElementType());
+        typesToPromote.push_back(getElementType(AI));
       }
     });
     DenseMap<Operation *, SmallVector<Operation *>> capturedAliasing;
