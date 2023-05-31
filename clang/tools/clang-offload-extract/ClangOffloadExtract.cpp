@@ -65,7 +65,7 @@ static cl::alias FileNameStemAlias(
 static std::string ToolPath;
 
 // Report error (and handle any deferred errors)
-static void reportError(Error E, Twine message = "") {
+static void reportError(Error E, Twine message = "\n") {
   std::string S;
   raw_string_ostream OSS(S);
   logAllUnhandledErrors(std::move(E), OSS);
@@ -75,7 +75,7 @@ static void reportError(Error E, Twine message = "") {
          << raw_ostream::RESET                       //
          << S                                        //
          << formatv("{0}", fmt_pad(message, 10, 0)); //
-  exit(3);
+  exit(1);
 }
 
 int main(int argc, const char **argv) {
@@ -102,9 +102,8 @@ linked fat binary, and store them in separate files.
   // Read input file. It should have one of the supported object file formats.
   Expected<OwningBinary<ObjectFile>> ObjectOrErr =
       ObjectFile::createObjectFile(Input);
-  if (!ObjectOrErr) {
-    reportError(ObjectOrErr.takeError());
-    return 1;
+  if (auto E = ObjectOrErr.takeError()) {
+    reportError(std::move(E), "Input File: '" + Input + "'\n");
   }
 
   ObjectFile *Binary = ObjectOrErr->getBinary();
@@ -114,8 +113,8 @@ linked fat binary, and store them in separate files.
       Binary->getBytesInAddress() != sizeof(void *)) {
     reportError(
         createStringError(errc::invalid_argument,
-                          "only 64-bit ELF or COFF inputs are supported"));
-    return 1;
+                          "only 64-bit ELF or COFF inputs are supported"),
+        "Input File: '" + Input + "'");
   }
 
   unsigned FileNum = 0;
@@ -123,18 +122,16 @@ linked fat binary, and store them in separate files.
   for (SectionRef Section : Binary->sections()) {
     // Look for the .tgtimg section in the binary.
     Expected<StringRef> NameOrErr = Section.getName();
-    if (!NameOrErr) {
-      reportError(NameOrErr.takeError());
-      return 1;
+    if (auto E = NameOrErr.takeError()) {
+      reportError(std::move(E), "Input File: '" + Input + "'\n");
     }
     if (*NameOrErr != IMAGE_INFO_SECTION_NAME)
       continue;
 
     // This is the section we are looking for.
     Expected<StringRef> DataOrErr = Section.getContents();
-    if (!DataOrErr) {
-      reportError(DataOrErr.takeError());
-      return 1;
+    if (auto E = DataOrErr.takeError()) {
+      reportError(std::move(E), "Input File: '" + Input + "'\n");
     }
 
     // This section contains concatenated <address, size> pairs describing
@@ -167,17 +164,17 @@ linked fat binary, and store them in separate files.
         return true;
       });
       if (ImgSec == Binary->section_end()) {
-        reportError(createStringError(
-            inconvertibleErrorCode(),
-            "cannot find section containing <0x%lx, 0x%lx> target image",
-            Img.Addr, Img.Size));
-        return 1;
+        reportError(
+            createStringError(
+                inconvertibleErrorCode(),
+                "cannot find section containing <0x%lx, 0x%lx> target image",
+                Img.Addr, Img.Size),
+            "Input File: '" + Input + "'\n");
       }
 
       Expected<StringRef> SecDataOrErr = ImgSec->getContents();
-      if (!SecDataOrErr) {
-        reportError(SecDataOrErr.takeError());
-        return 1;
+      if (auto E = SecDataOrErr.takeError()) {
+        reportError(std::move(E), "Input File: '" + Input + "'\n");
       }
 
       // Output file name is composed from the name prefix provided by the
@@ -191,14 +188,14 @@ linked fat binary, and store them in separate files.
       std::error_code EC;
       raw_fd_ostream OS(FileName, EC);
       if (EC) {
-        reportError(createFileError(FileName, EC));
-        return 1;
+        reportError(createFileError(FileName, EC),
+                    "Specify a different Output File ('--stem' option)\n");
       }
 
       OS << SecDataOrErr->substr(Img.Addr - ImgSec->getAddress(), Img.Size);
       if (OS.has_error()) {
-        reportError(createFileError(FileName, OS.error()));
-        return 1;
+        reportError(createFileError(FileName, OS.error()),
+                    "Try a different Output File ('--stem' option)");
       }
     }
 
