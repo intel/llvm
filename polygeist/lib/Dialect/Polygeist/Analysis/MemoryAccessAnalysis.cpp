@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// Based on Research article:
+// B.Jang, D.Schaa, P.Mistry, et al. 2011. Exploiting memory access patterns to
+// improve memory performance in data-parallel architectures.
+// IEEE Transactions on Parallel and Distributed Systems 22, 1(2011), 105–118
+//===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
