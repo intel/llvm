@@ -1,6 +1,6 @@
-// RUN: %{build} -o %t.out
+// TODO: remove fno-fast-math option once a compiler issue is resolved
+// RUN: %{build} -fno-fast-math -o %t.out
 // RUN: %{run} %t.out
-
 //==- math_const_fix_test.cpp - Test to verify math functions correctness-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

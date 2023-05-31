@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// TODO: remove fno-fast-math option once a compiler issue is resolved
+// RUN: %{build} -fno-fast-math -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // Test for simd fill constructor for extra fp types.
