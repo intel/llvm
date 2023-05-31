@@ -37,12 +37,16 @@ identical for Docker and Podman. Choose whatever is available on your system.
 The following containers are publicly available for DPC++ compiler development:
 
 - `ghcr.io/intel/llvm/ubuntu2204_base`: contains basic environment setup for
-   building DPC++ compiler from source.
+   building SYCL compiler from source.
 - `ghcr.io/intel/llvm/ubuntu2204_intel_drivers`: contains everything from the
    base container + pre-installed Intel drivers.
+- `ghcr.io/intel/llvm/ubuntu2204_build`: has development kits installed for
+   Intel/NVidia/AMD and can be used for building SYCL compiler from source with
+   all backends enabled.
 - `ghcr.io/intel/llvm/sycl_ubuntu2204_nightly`: contains the latest successfully
-   built nightly build of DPC++ compiler. The image comes in two flavors:
-   with pre-installed Intel drivers (`latest`) and without them (`no-drivers`).
+   built nightly build of DPC++ compiler. The image comes in three flavors:
+   with pre-installed Intel drivers (`latest`), without them (`no-drivers`) and
+   with development kits installed (`build`).
 
 ## Running Docker container interactively
 
