@@ -146,4 +146,3 @@ int main(int, char **) {
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;
 }
-
