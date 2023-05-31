@@ -552,8 +552,8 @@ ur_result_t UR_APICALL urDeviceRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT
 ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t hDevice, ///< [in] handle of the device to partition.
-    const ur_device_partition_property_t *
-        pProperties, ///< [in] null-terminated array of <$_device_partition_t enum, value> pairs.
+    const ur_device_partition_properties_t
+        *pProperties,    ///< [in] Device partition properties.
     uint32_t NumDevices, ///< [in] the number of sub-devices.
     ur_device_handle_t *
         phSubDevices, ///< [out][optional][range(0, NumDevices)] array of handle of devices.

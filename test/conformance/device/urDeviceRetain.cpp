@@ -26,12 +26,17 @@ TEST_F(urDeviceRetainTest, Success) {
 TEST_F(urDeviceRetainTest, SuccessSubdevices) {
     for (auto device : devices) {
 
-        ur_device_partition_property_t properties[] = {
-            UR_DEVICE_PARTITION_BY_COUNTS, 1, 0};
+        ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);
+        ur_device_partition_properties_t properties{
+            UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+            nullptr,
+            &prop,
+            1,
+        };
 
         ur_device_handle_t sub_device;
         ASSERT_SUCCESS(
-            urDevicePartition(device, properties, 1, &sub_device, nullptr));
+            urDevicePartition(device, &properties, 1, &sub_device, nullptr));
 
         uint32_t prevRefCount = 0;
         ASSERT_SUCCESS(uur::GetObjectReferenceCount(sub_device, prevRefCount));

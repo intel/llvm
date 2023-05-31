@@ -479,11 +479,11 @@ ur_result_t GetDeviceParentDevice(ur_device_handle_t device,
         device, UR_DEVICE_INFO_PARENT_DEVICE, parent);
 }
 
-ur_result_t GetDevicePartitionProperties(
-    ur_device_handle_t device,
-    std::vector<ur_device_partition_property_t> &properties) {
-    return GetDeviceVectorInfo<ur_device_partition_property_t>(
-        device, UR_DEVICE_INFO_PARTITION_PROPERTIES, properties);
+ur_result_t
+GetDevicePartitionProperties(ur_device_handle_t device,
+                             std::vector<ur_device_partition_t> &properties) {
+    return GetDeviceVectorInfo<ur_device_partition_t>(
+        device, UR_DEVICE_INFO_SUPPORTED_PARTITIONS, properties);
 }
 
 ur_result_t GetDevicePartitionMaxSubDevices(ur_device_handle_t device,
@@ -631,6 +631,29 @@ ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support) {
     return GetDeviceInfo<bool>(
         device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, support);
+}
+
+ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count) {
+    ur_device_partition_property_t desc;
+    desc.type = UR_DEVICE_PARTITION_BY_COUNTS;
+    desc.value.count = count;
+    return desc;
+}
+
+ur_device_partition_property_t
+makePartitionEquallyDesc(uint32_t cu_per_device) {
+    ur_device_partition_property_t desc;
+    desc.type = UR_DEVICE_PARTITION_EQUALLY;
+    desc.value.equally = cu_per_device;
+    return desc;
+}
+
+ur_device_partition_property_t
+makePartitionByAffinityDomain(ur_device_affinity_domain_flags_t aff_domain) {
+    ur_device_partition_property_t desc;
+    desc.type = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
+    desc.value.affinity_domain = aff_domain;
+    return desc;
 }
 
 } // namespace uur
