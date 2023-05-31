@@ -158,10 +158,6 @@ private:
   /// Add the given \p access to the 'accesses' map.
   void addMemRefAccess(affine::MemRefAccess access);
 
-  /// Retrieve all the memref accesses for \p access.
-  //  const ArrayRef<affine::MemRefAccess *>
-  //  getMemRefAccesses(affine::MemRefAccess *access) const;
-
   /// Return true iff no memref accesses in \p accesses are stores.
   bool areReadOnly(ArrayRef<affine::MemRefAccess> accesses) const;
 
@@ -172,10 +168,9 @@ private:
   /// stores.
   bool areReadWrite(ArrayRef<affine::MemRefAccess> accesses) const;
 
-  /// Determine whether the memref accesses in \p accesses exhibits temporal
-  /// reuse.
-  bool haveTemporalReuse(ArrayRef<affine::MemRefAccess> accesses,
-                         const SmallVectorImpl<Value> &threadVars) const;
+  /// Determine whether the memref \access exhibits temporal reuse.
+  bool hasTemporalReuse(const affine::MemRefAccess &access,
+                        const SmallVectorImpl<Value> &threadVars) const;
 
 private:
   const MemoryAccessAnalysis &memAccessAnalysis;
@@ -241,8 +236,6 @@ void MemorySelector::analyze(LoopLikeOpInterface loop) {
     if (CollectReadOnlyAccesses && !areReadOnly(accesses))
       continue;
 
-    bool temporalReuse = haveTemporalReuse(accesses, threadVars);
-
     for (const affine::MemRefAccess &access : accesses) {
       LLVM_DEBUG(llvm::dbgs() << "Classify: " << *access.opInst << "\n");
 
@@ -263,7 +256,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop) {
       case Linear:
       case Reverse:
       case ReverseLinear:
-        // These patterns lead to fully coalesced memory accesses.
+        // These patterns imply fully coalesced memory accesses.
         accessToMemSpace[&access] = MemorySpace::Global;
         break;
       case Shifted:
@@ -271,7 +264,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop) {
       case ReverseLinearShifted:
       case LinearOverlapped:
       case ReverseLinearOverlapped:
-        // These patterns lead to partially coalesced memory accesses.
+        // These patterns imply partially coalesced memory accesses.
         accessToMemSpace[&access] = MemorySpace::Global;
         break;
       case Strided:
@@ -285,17 +278,26 @@ void MemorySelector::analyze(LoopLikeOpInterface loop) {
             interThreadMatrix(interThreadMatrix.getNumRows() - 1,
                               interThreadMatrix.getNumColumns() - 1);
 
-        // Use shared memory only if the stride is known and it's greater than a
-        // sufficiently large value (small stride values yield partially
-        // coalesed memory accesses).
+        // Use shared memory iff:
+        //   - the memory access exhibits temporal reuse, and
+        //   - the stride is greater than a sufficiently large value (small
+        //     stride values yield partially coalesed memory accesses).
+        // Note that a zero stride is indicative of non-coalesed accesses.
+        // Example (assume tx,ty are global thread ids):
+        //     for(k)
+        //       ... = A[{tx, k}] // increasing tx's values read across rows.
+        // The inter-thread access matrix for A's load is:
+        //   1 0
+        //   0 C <- where C == 0 (C is the stride).
+        bool useSharedMemory = false;
         if (auto stride = getConstIntegerValue(strideVal, solver)) {
           bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
-          bool useSharedMemory =
-              temporalReuse && (stride->isZero() || strideIsLargeEnough);
-          accessToMemSpace[&access] =
-              useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
-        } else
-          accessToMemSpace[&access] = MemorySpace::Global;
+          useSharedMemory = hasTemporalReuse(access, threadVars) &&
+                            (stride->isZero() || strideIsLargeEnough);
+        }
+
+        accessToMemSpace[&access] =
+            useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
       } break;
       default:
         accessToMemSpace[&access] = MemorySpace::Global;
@@ -339,21 +341,17 @@ bool MemorySelector::areReadWrite(
   return hasLoads && hasStores;
 }
 
-bool MemorySelector::haveTemporalReuse(
-    ArrayRef<affine::MemRefAccess> accesses,
+bool MemorySelector::hasTemporalReuse(
+    const affine::MemRefAccess &memRefAccess,
     const SmallVectorImpl<Value> &threadVars) const {
-  return llvm::any_of(accesses, [&](const affine::MemRefAccess &access) {
-    std::optional<MemoryAccess> memAccess =
-        memAccessAnalysis.getMemoryAccess(access);
-    if (!memAccess)
-      return false;
+  std::optional<MemoryAccess> access =
+      memAccessAnalysis.getMemoryAccess(memRefAccess);
+  if (!access)
+    return false;
 
-    // A non-zero intra-thread access matrix implies multiple threads access
-    // the same array element (in a loop).
-    MemoryAccessMatrix intraThreadMatrix =
-        memAccess->getIntraThreadAccessMatrix(threadVars.size());
-    return !intraThreadMatrix.isZero(solver);
-  });
+  // A non-zero intra-thread access matrix implies that multiple threads access
+  // the same array element (in a loop).
+  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero(solver);
 }
 
 //===----------------------------------------------------------------------===//

@@ -1098,7 +1098,7 @@ MemoryAccessPattern MemoryAccess::classify(DataFlowSolver &solver) const {
 MemoryAccessPattern MemoryAccess::classify(const MemoryAccessMatrix &matrix,
                                            const OffsetVector &offsets,
                                            DataFlowSolver &solver) {
-  LLVM_DEBUG(llvm::dbgs() << "inter-thread matrix:\n" << matrix << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "matrix:\n" << matrix << "\n");
 
   bool isZeroVector = offsets.isZero(solver);
 

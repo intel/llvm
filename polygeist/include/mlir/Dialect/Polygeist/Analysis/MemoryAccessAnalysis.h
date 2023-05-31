@@ -406,7 +406,7 @@ public:
   /// Construct a new matrix containing columns [0...numThreads-1].
   MemoryAccessMatrix getInterThreadAccessMatrix(unsigned numThreads) const;
 
-  /// Construct a new matrix containing columns [numThreads ... numColumns].
+  /// Construct a new matrix containing columns [numThreads ... numColumns-1].
   MemoryAccessMatrix getIntraThreadAccessMatrix(unsigned numThreads) const;
 
   /// Analyze the memory access and classify its access pattern.
