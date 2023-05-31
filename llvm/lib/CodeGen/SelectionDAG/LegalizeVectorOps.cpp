@@ -302,8 +302,7 @@ SDValue VectorLegalizer::LegalizeOp(SDValue Op) {
       ISD::CondCode CCCode = cast<CondCodeSDNode>(Node->getOperand(3))->get();
       Action = TLI.getCondCodeAction(CCCode, OpVT);
       if (Action == TargetLowering::Legal)
-        Action =
-            TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
+        Action = TLI.getOperationAction(Node->getOpcode(), OpVT);
     } else {
       Action = TLI.getOperationAction(Node->getOpcode(), ValVT);
     }
@@ -464,7 +463,7 @@ SDValue VectorLegalizer::LegalizeOp(SDValue Op) {
     ISD::CondCode CCCode = cast<CondCodeSDNode>(Node->getOperand(2))->get();
     Action = TLI.getCondCodeAction(CCCode, OpVT);
     if (Action == TargetLowering::Legal)
-      Action = TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
+      Action = TLI.getOperationAction(Node->getOpcode(), OpVT);
     break;
   }
 
@@ -791,6 +790,13 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
     return;
   case ISD::ABS:
     if (SDValue Expanded = TLI.expandABS(Node, DAG)) {
+      Results.push_back(Expanded);
+      return;
+    }
+    break;
+  case ISD::ABDS:
+  case ISD::ABDU:
+    if (SDValue Expanded = TLI.expandABD(Node, DAG)) {
       Results.push_back(Expanded);
       return;
     }

@@ -113,6 +113,7 @@ __SYCL_MATH_FUNCTION_OVERLOAD(logb)
 __SYCL_MATH_FUNCTION_OVERLOAD(rint)
 __SYCL_MATH_FUNCTION_OVERLOAD(round)
 __SYCL_MATH_FUNCTION_OVERLOAD(trunc)
+__SYCL_MATH_FUNCTION_OVERLOAD(fabs)
 
 #undef __SYCL_MATH_FUNCTION_OVERLOAD
 
@@ -137,7 +138,6 @@ __SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(fabs)
 
 #undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
 #undef __SYCL_MATH_FUNCTION_OVERLOAD_IMPL
@@ -2001,18 +2001,9 @@ __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isordered)
 __SYCL_MARRAY_RELATIONAL_FUNCTION_BINOP_OVERLOAD(isunordered)
 __SYCL_MARRAY_RELATIONAL_FUNCTION_UNOP_OVERLOAD(signbit)
 
-namespace detail {
-#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
-using anyall_ret_t = bool;
-#else
-using anyall_ret_t = int;
-#endif
-} // namespace detail
-
-// int any (sigeninteger x)
+// bool any (sigeninteger x)
 template <typename T>
-std::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
-any(T x) __NOEXC {
+std::enable_if_t<detail::is_sigeninteger<T>::value, bool> any(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
@@ -2024,10 +2015,9 @@ std::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
           detail::rel_sign_bit_test_arg_t<T>(x)));
 }
 
-// int all (sigeninteger x)
+// bool all (sigeninteger x)
 template <typename T>
-std::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
-all(T x) __NOEXC {
+std::enable_if_t<detail::is_sigeninteger<T>::value, bool> all(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 

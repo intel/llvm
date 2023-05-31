@@ -26,6 +26,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
@@ -266,7 +267,7 @@ void DwarfCompileUnit::addLocationAttribute(
       // 16-bit platforms like MSP430 and AVR take this path, so sink this
       // assert to platforms that use it.
       auto GetPointerSizedFormAndOp = [this]() {
-        unsigned PointerSize = Asm->getDataLayout().getPointerSize();
+        unsigned PointerSize = Asm->MAI->getCodePointerSize();
         assert((PointerSize == 4 || PointerSize == 8) &&
                "Add support for other sizes if necessary");
         struct FormAndOp {
@@ -530,6 +531,11 @@ DIE &DwarfCompileUnit::updateSubprogramScopeDIEImpl(const DISubprogram *SP,
     case TargetFrameLowering::DwarfFrameBase::CFA: {
       DIELoc *Loc = new (DIEValueAllocator) DIELoc;
       addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_call_frame_cfa);
+      if (FrameBase.Location.Offset != 0) {
+        addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_consts);
+        addSInt(*Loc, dwarf::DW_FORM_sdata, FrameBase.Location.Offset);
+        addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_plus);
+      }
       addBlock(*SPDie, dwarf::DW_AT_frame_base, Loc);
       break;
     }

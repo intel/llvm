@@ -145,18 +145,24 @@ void test(queue &q) {
                          M, N>
                 sub_c;
 
-            joint_matrix_load(sg, sub_c,
-                              accC.get_pointer() + (m * M) * Big_N + n * N,
-                              Big_N, layout::row_major);
+            joint_matrix_load(
+                sg, sub_c,
+                accC.template get_multi_ptr<access::decorated::no>() +
+                    (m * M) * Big_N + n * N,
+                Big_N, layout::row_major);
             // k = row/col id of current submatrix of BIG A/B matrices
             for (int k = 0; k < Sub_Tiles_K; k++) {
-              joint_matrix_load(sg, sub_a,
-                                accA.get_pointer() + (k * K) + (m * M * Big_K),
-                                Big_K);
+              joint_matrix_load(
+                  sg, sub_a,
+                  accA.template get_multi_ptr<access::decorated::no>() +
+                      (k * K) + (m * M * Big_K),
+                  Big_K);
 
-              joint_matrix_load(sg, sub_b,
-                                accB.get_pointer() + (k * K * Big_N) + (n * N),
-                                Big_N);
+              joint_matrix_load(
+                  sg, sub_b,
+                  accB.template get_multi_ptr<access::decorated::no>() +
+                      (k * K * Big_N) + (n * N),
+                  Big_N);
 
               // round values to correct precision if using tf32
               if constexpr (std::is_same<T3, precision::tf32>::value) {
@@ -172,9 +178,11 @@ void test(queue &q) {
 
               sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
             }
-            joint_matrix_store(sg, sub_c,
-                               accD.get_pointer() + (m * M) * Big_N + n * N,
-                               Big_N, layout::row_major);
+            joint_matrix_store(
+                sg, sub_c,
+                accD.template get_multi_ptr<access::decorated::no>() +
+                    (m * M) * Big_N + n * N,
+                Big_N, layout::row_major);
           });
     });
     q.wait();

@@ -29,6 +29,7 @@ namespace llvm {
 class GISelChangeObserver;
 class APFloat;
 class APInt;
+class ConstantFP;
 class GPtrAdd;
 class GStore;
 class GZExtLoad;
@@ -302,6 +303,8 @@ public:
   void applyShiftOfShiftedLogic(MachineInstr &MI,
                                 ShiftOfShiftedLogic &MatchInfo);
 
+  bool matchCommuteShift(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   /// Transform a multiply by a power-of-2 value to a left shift.
   bool matchCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
   void applyCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
@@ -350,10 +353,7 @@ public:
   void applyCombineUnmergeZExtToZExt(MachineInstr &MI);
 
   /// Transform fp_instr(cst) to constant result of the fp operation.
-  bool matchCombineConstantFoldFpUnary(MachineInstr &MI,
-                                       std::optional<APFloat> &Cst);
-  void applyCombineConstantFoldFpUnary(MachineInstr &MI,
-                                       std::optional<APFloat> &Cst);
+  void applyCombineConstantFoldFpUnary(MachineInstr &MI, const ConstantFP *Cst);
 
   /// Transform IntToPtr(PtrToInt(x)) to x if cast is in the same address space.
   bool matchCombineI2PToP2I(MachineInstr &MI, Register &Reg);

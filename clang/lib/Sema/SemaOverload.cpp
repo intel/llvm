@@ -26,6 +26,7 @@
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -6559,23 +6560,20 @@ void Sema::AddOverloadCandidate(
   }
 
   // Functions with internal linkage are only viable in the same module unit.
-  if (auto *MF = Function->getOwningModule()) {
-    if (getLangOpts().CPlusPlusModules && !MF->isModuleMapModule() &&
-        !isModuleUnitOfCurrentTU(MF)) {
-      /// FIXME: Currently, the semantics of linkage in clang is slightly
-      /// different from the semantics in C++ spec. In C++ spec, only names
-      /// have linkage. So that all entities of the same should share one
-      /// linkage. But in clang, different entities of the same could have
-      /// different linkage.
-      NamedDecl *ND = Function;
-      if (auto *SpecInfo = Function->getTemplateSpecializationInfo())
-        ND = SpecInfo->getTemplate();
-      
-      if (ND->getFormalLinkage() == Linkage::InternalLinkage) {
-        Candidate.Viable = false;
-        Candidate.FailureKind = ovl_fail_module_mismatched;
-        return;
-      }
+  if (getLangOpts().CPlusPlusModules && Function->isInAnotherModuleUnit()) {
+    /// FIXME: Currently, the semantics of linkage in clang is slightly
+    /// different from the semantics in C++ spec. In C++ spec, only names
+    /// have linkage. So that all entities of the same should share one
+    /// linkage. But in clang, different entities of the same could have
+    /// different linkage.
+    NamedDecl *ND = Function;
+    if (auto *SpecInfo = Function->getTemplateSpecializationInfo())
+      ND = SpecInfo->getTemplate();
+
+    if (ND->getFormalLinkage() == Linkage::InternalLinkage) {
+      Candidate.Viable = false;
+      Candidate.FailureKind = ovl_fail_module_mismatched;
+      return;
     }
   }
 
@@ -9945,7 +9943,7 @@ bool clang::isBetterOverloadCandidate(
     }
   }
 
-  // C++ [over.match.best]p1: (Changed in C++2b)
+  // C++ [over.match.best]p1: (Changed in C++23)
   //
   //   -- if F is a static member function, ICS1(F) is defined such
   //      that ICS1(F) is neither better nor worse than ICS1(G) for
@@ -15124,7 +15122,7 @@ Sema::BuildCallToObjectOfClassType(Scope *S, Expr *Obj,
   bool IsError = false;
 
   // Initialize the implicit object parameter if needed.
-  // Since C++2b, this could also be a call to a static call operator
+  // Since C++23, this could also be a call to a static call operator
   // which we emit as a regular CallExpr.
   if (Method->isInstance()) {
     ExprResult ObjRes = PerformObjectArgumentInitialization(

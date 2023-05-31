@@ -1,6 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
-// UNSUPPORTED: hip
 
 // Test fusion cancellation on host accessor creation happening before
 // complete_fusion.
@@ -55,7 +54,7 @@ int main() {
     // the kernels in the fusion list. This causes a blocking wait for one of
     // the kernels in the fusion list. This should lead to cancellation of the
     // fusion.
-    auto hostAcc = bIn3.get_access<access::mode::read>();
+    host_accessor hostAcc(bIn3, read_only);
 
     assert(!fw.is_in_fusion_mode() &&
            "Queue should not be in fusion mode anymore");

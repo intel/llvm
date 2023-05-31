@@ -701,11 +701,18 @@ public:
   AttributePool(AttributeFactory &factory) : Factory(factory) {}
 
   AttributePool(const AttributePool &) = delete;
+  // The copy assignment operator is defined as deleted pending further
+  // motivation.
+  AttributePool &operator=(const AttributePool &) = delete;
 
   ~AttributePool() { Factory.reclaimPool(*this); }
 
   /// Move the given pool's allocations to this pool.
   AttributePool(AttributePool &&pool) = default;
+
+  // The move assignment operator is defined as deleted pending further
+  // motivation.
+  AttributePool &operator=(AttributePool &&pool) = delete;
 
   AttributeFactory &getFactory() const { return Factory; }
 
@@ -917,6 +924,7 @@ class ParsedAttributes : public ParsedAttributesView {
 public:
   ParsedAttributes(AttributeFactory &factory) : pool(factory) {}
   ParsedAttributes(const ParsedAttributes &) = delete;
+  ParsedAttributes &operator=(const ParsedAttributes &) = delete;
 
   AttributePool &getPool() const { return pool; }
 

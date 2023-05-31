@@ -5,10 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // Smoke test for 2D region select API which can be used to represent 2D tiles.
