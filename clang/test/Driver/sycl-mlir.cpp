@@ -275,4 +275,4 @@
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-RAISE-HOST-CCMP %s
 
-// CHK-RAISE-HOST-CCMP: error: The combination of '-fsycl-raise-host' and '-fsycl-host-compiler=' is incompatible
+// CHK-RAISE-HOST-CCMP: error: the combination of '-fsycl-raise-host' and '-fsycl-host-compiler=' is incompatible
