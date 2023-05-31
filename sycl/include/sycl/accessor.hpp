@@ -1159,10 +1159,7 @@ protected:
       !IsConst || IsAccessReadOnly,
       "A const qualified DataT is only allowed for a read-only accessor");
 
-  using ConcreteASPtrType = typename detail::DecoratedType<
-      typename std::conditional_t<IsAccessReadOnly && !IsConstantBuf,
-                                  const DataT, DataT>,
-      AS>::type *;
+  using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
