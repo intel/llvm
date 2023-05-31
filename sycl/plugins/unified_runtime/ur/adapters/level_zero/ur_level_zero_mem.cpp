@@ -1681,6 +1681,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
       return Res;
     }
     Image->ZeImageDesc = ZeImageDesc;
+#else
+    std::ignore = ImageFormat;
+    std::ignore = ImageDesc;
 #endif // !NDEBUG
 
   } catch (const std::bad_alloc &) {
