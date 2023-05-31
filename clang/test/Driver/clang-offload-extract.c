@@ -33,9 +33,9 @@
 //
 // Extract target images (deprecated use model)
 //
-// RUN: clang-offload-extract --output=%t.deprecated %t.fat.bin | FileCheck %s --check-prefix CHECK-EXTRACT
-// CHECK-EXTRACT: Saving target image to
-// CHECK-EXTRACT: Saving target image to
+// RUN: clang-offload-extract --output=%t.deprecated %t.fat.bin | FileCheck %s --check-prefix CHECK-DEPRECATE
+// CHECK-DEPRECATE: Saving target image to
+// CHECK-DEPRECATE: Saving target image to
 
 //
 // Check that extracted contents match the original images.
