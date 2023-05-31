@@ -104,16 +104,6 @@ std::shared_ptr<node_impl> graph_impl::add_subgraph_nodes(
   return this->add(Outputs);
 }
 
-sycl::event
-exec_graph_impl::exec(const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
-  sycl::event RetEvent = enqueue(Queue);
-  // TODO: Remove this queue wait. Currently waiting on the event returned from
-  // graph execution does not work.
-  Queue->wait();
-
-  return RetEvent;
-}
-
 void graph_impl::add_root(const std::shared_ptr<node_impl> &Root) {
   MRoots.insert(Root);
 }

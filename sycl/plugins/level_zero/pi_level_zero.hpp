@@ -1385,8 +1385,12 @@ struct _pi_ext_command_buffer : _ur_object {
   // Command list map so we can use queue::executeCommandList, TODO: Remove in
   // future if possible
   pi_command_list_map_t CommandListMap;
-  // Event which will signal the execution of the command-buffer has finished
-  pi_event ExecutionEvent;
+  // Event which will signals the most recent execution of the command-buffer
+  // has finished
+  pi_event SignalEvent = nullptr;
+  // Event which a command-buffer waits on until the wait-list dependencies
+  // passed to a command-buffer enqueue have been satisfied.
+  pi_event WaitEvent = nullptr;
 };
 
 #endif // PI_LEVEL_ZERO_HPP

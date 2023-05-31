@@ -326,16 +326,11 @@ public:
   /// Add nodes to MSchedule.
   void schedule();
 
-  /// Enqueues the backend objects for the graph to the parametrized queue.
-  /// @param Queue Command-queue to submit backend objects to.
-  /// @return Event associated with enqueued object.
-  sycl::event enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
-
   /// Called by handler::ext_oneapi_command_graph() to schedule graph for
   /// execution.
   /// @param Queue Command-queue to schedule execution on.
-  /// @return Event associated with the execution of the graph
-  sycl::event exec(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
+  /// @return Event associated with the execution of the graph.
+  sycl::event enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
 
   /// Turns our internal graph representation into PI command-buffers for a
   /// device.

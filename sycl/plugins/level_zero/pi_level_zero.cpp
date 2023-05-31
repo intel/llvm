@@ -8900,7 +8900,64 @@ pi_result _pi_buffer::free() {
   return PI_SUCCESS;
 }
 
-/// command-buffer Extension
+/* Command-buffer Extension
+
+   The PI interface for submitting a PI command-buffer takes a list
+   of events to wait on, and an event representing the completion of
+   that particular submission of the command-buffer.
+
+   However, in `zeCommandQueueExecuteCommandLists` there are no parameters to
+   take a waitlist and also the only sync primitive returned is to block on
+   host.
+
+   In order to get the PI command-buffer enqueue semantics we want with L0
+   this adapter adds extra commands to the L0 command-list representing a
+   PI command-buffer.
+
+   Prefix - Commands added to the start of the L0 command-list by L0 adapter.
+   Suffix - Commands added to the end of the L0 command-list by L0 adapter.
+
+   These extra commands operate on L0 event synchronisation primitives used by
+   the command-list to interact with the external PI wait-list and PI return
+   event required for the enqueue interface.
+
+   The `pi_ext_command_buffer` class for this adapter contains a SignalEvent
+   which signals the completion of the command-list in the suffix, and
+   is reset in the prefix. This signal is detected by a new PI return
+   event created on PI command-buffer enqueue.
+
+   There is also a WaitEvent used by the `pi_ext_command_buffer` class
+   in the prefix to wait on any dependencies passed in the enqueue wait-list.
+
+  ┌──────────┬────────────────────────────────────────────────┬─────────┐
+  │  Prefix  │ Commands added to PI command-buffer by PI user │ Suffix  │
+  └──────────┴────────────────────────────────────────────────┴─────────┘
+
+            ┌───────────────────┬──────────────────────────────┐
+  Prefix    │Reset signal event │ Barrier waiting on wait event│
+            └───────────────────┴──────────────────────────────┘
+
+            ┌─────────────────────────────────────────┐
+  Suffix    │Signal the PI command-buffer signal event│
+            └─────────────────────────────────────────┘
+
+
+  For a call to `piextEnqueueCommandBuffer` with an event_list `EL`,
+  command-buffer `CB`, and return event `RE` our implementation has to create
+  and submit two new command-lists for the above approach to work. One before
+  the command-list with extra commands associated with `CB`, and the other
+  after `CB`.
+
+  Command-list created on `piextEnqueueCommandBuffer` to execution before `CB`:
+  ┌───────────────────────────────────────────────────────────┐
+  │Barrier on `EL` than signals `CB` WaitEvent when completed │
+  └───────────────────────────────────────────────────────────┘
+
+  Command-list created on `piextEnqueueCommandBuffer` to execution after `CB`:
+  ┌─────────────────────────────────────────────────────────────┐
+  │Barrier on `CB` SignalEvent that signals `RE` when completed │
+  └─────────────────────────────────────────────────────────────┘
+*/
 
 /// Helper function to take a list of pi_ext_sync_points and fill the provided
 /// vector with the associated ZeEvents
@@ -8943,6 +9000,19 @@ pi_result piextCommandBufferCreate(pi_context Context, pi_device Device,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  // Create signal & wait events to be used in the command-list for sync
+  // on command-buffer enqueue.
+  auto CommandBuffer = *RetCommandBuffer;
+  PI_CALL(EventCreate(Context, nullptr, true, &CommandBuffer->SignalEvent));
+  PI_CALL(EventCreate(Context, nullptr, false, &CommandBuffer->WaitEvent));
+
+  // Add prefix commands
+  ZE_CALL(zeCommandListAppendEventReset,
+          (ZeCommandList, CommandBuffer->SignalEvent->ZeEvent));
+  ZE_CALL(zeCommandListAppendBarrier,
+          (ZeCommandList, nullptr, 1, &CommandBuffer->WaitEvent->ZeEvent));
+
   return PI_SUCCESS;
 }
 
@@ -8962,13 +9032,10 @@ pi_result piextCommandBufferRelease(pi_ext_command_buffer CommandBuffer) {
 }
 
 pi_result piextCommandBufferFinalize(pi_ext_command_buffer CommandBuffer) {
-  // We need to append some signal that will indicate that command-buffer has
+  // We need to append signal that will indicate that command-buffer has
   // finished executing.
-  EventCreate(CommandBuffer->Context, nullptr, true,
-              &CommandBuffer->ExecutionEvent);
-  ZE_CALL(
-      zeCommandListAppendSignalEvent,
-      (CommandBuffer->ZeCommandList, CommandBuffer->ExecutionEvent->ZeEvent));
+  ZE_CALL(zeCommandListAppendSignalEvent,
+          (CommandBuffer->ZeCommandList, CommandBuffer->SignalEvent->ZeEvent));
   // Close the command list and have it ready for dispatch.
   ZE_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
   return PI_SUCCESS;
@@ -9098,17 +9165,11 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                     pi_uint32 NumEventsInWaitList,
                                     const pi_event *EventWaitList,
                                     pi_event *Event) {
-
-  // Execute command list asynchronously, as the event will be used
-  // to track down its completion.
-
-  uint32_t QueueGroupOrdinal;
-  // TODO: Revisit forcing compute engine
-  auto UseCopyEngine = false;
+  // Use compute engine rather than copy engine
+  const auto UseCopyEngine = false;
   auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
-  auto &ZeCommandQueue =
-      // ForcedCmdQueue ? *ForcedCmdQueue :
-      QGroup.getZeQueue(&QueueGroupOrdinal);
+  uint32_t QueueGroupOrdinal;
+  auto &ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
 
   ze_fence_handle_t ZeFence;
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
@@ -9124,24 +9185,68 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
           CommandBuffer->ZeCommandList,
           {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
 
-  Queue->insertActiveBarriers(CommandListPtr, UseCopyEngine);
-
+  // Previous execution will have closed the command list, we need to reopen
+  // it otherwise calling `executeCommandList` will return early.
+  CommandListPtr->second.IsClosed = false;
   CommandListPtr->second.ZeFenceInUse = true;
 
-  // Return the command-buffer's execution event as the user visible pi_event
-  *Event = CommandBuffer->ExecutionEvent;
-  (*Event)->Queue = Queue;
-  (*Event)->RefCount.increment();
-  Queue->RefCount.increment();
+  // Create command-list to execute before `CommandListPtr` and will signal
+  // when `EventWaitList` dependencies are complete.
+  pi_command_list_ptr_t WaitCommandList{};
+  if (NumEventsInWaitList) {
+    _pi_ze_event_list_t TmpWaitList;
+    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
+      return Res;
 
-  PI_CALL(piEventRetain(*Event));
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, WaitCommandList, false, false))
+      return Res;
 
-  // Previous execution will have closed the command list so we need to reopen
-  // it.
-  CommandListPtr->second.IsClosed = false;
+    ZE_CALL(zeCommandListAppendBarrier,
+            (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
+             NumEventsInWaitList, TmpWaitList.ZeEventList));
+  } else {
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, WaitCommandList, false, false))
+      return Res;
+
+    ZE_CALL(zeCommandListAppendSignalEvent,
+            (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
+  }
+
+  // Execution event for this enqueue of the PI command-buffer
+  pi_event RetEvent{};
+  // Create a command-list to signal RetEvent on completion
+  pi_command_list_ptr_t SignalCommandList{};
+  if (Event) {
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, SignalCommandList, false, false))
+      return Res;
+
+    if (auto Res = createEventAndAssociateQueue(
+            Queue, &RetEvent, PI_COMMAND_TYPE_EXT_COMMAND_BUFFER,
+            SignalCommandList, false))
+      return Res;
+
+    ZE_CALL(zeCommandListAppendBarrier,
+            (SignalCommandList->first, RetEvent->ZeEvent, 1,
+             &(CommandBuffer->SignalEvent->ZeEvent)));
+  }
+
+  // Execution our command-lists asynchronously
+  if (auto Res = Queue->executeCommandList(WaitCommandList, false, false))
+    return Res;
 
   if (auto Res = Queue->executeCommandList(CommandListPtr, false, false))
     return Res;
+
+  if (auto Res = Queue->executeCommandList(SignalCommandList, false, false))
+    return Res;
+
+  if (Event) {
+    *Event = RetEvent;
+  }
 
   return PI_SUCCESS;
 }
@@ -9162,8 +9267,11 @@ _pi_ext_command_buffer::~_pi_ext_command_buffer() {
   if (ZeCommandList) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
   }
-  if (ExecutionEvent) {
-    ExecutionEvent->RefCount.decrementAndTest();
+  if (SignalEvent) {
+    SignalEvent->RefCount.decrementAndTest();
+  }
+  if (WaitEvent) {
+    WaitEvent->RefCount.decrementAndTest();
   }
   Context->RefCount.decrementAndTest();
 }
