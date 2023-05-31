@@ -59,17 +59,30 @@ TEST_P(urQueueGetInfoTest, InvalidEnumerationProperty) {
                                     nullptr));
 }
 
-TEST_P(urQueueGetInfoTest, InvalidValueSizeTooSmall) {
+TEST_P(urQueueGetInfoTest, InvalidSizeZero) {
     ur_context_handle_t context = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_SIZE,
+        urQueueGetInfo(queue, UR_QUEUE_INFO_CONTEXT, 0, &context, nullptr));
+}
+
+TEST_P(urQueueGetInfoTest, InvalidSizeSmall) {
+    ur_context_handle_t context = nullptr;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urQueueGetInfo(queue, UR_QUEUE_INFO_CONTEXT,
                                     sizeof(ur_context_handle_t) - 1, &context,
                                     nullptr));
 }
 
-TEST_P(urQueueGetInfoTest, InvalidValueNullPropValue) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+TEST_P(urQueueGetInfoTest, InvalidNullPointerPropValue) {
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urQueueGetInfo(queue, UR_QUEUE_INFO_CONTEXT,
                                     sizeof(ur_context_handle_t), nullptr,
                                     nullptr));
+}
+
+TEST_P(urQueueGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
+        urQueueGetInfo(queue, UR_QUEUE_INFO_CONTEXT, 0, nullptr, nullptr));
 }

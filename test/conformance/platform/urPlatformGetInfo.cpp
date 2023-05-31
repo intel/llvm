@@ -47,3 +47,30 @@ TEST_F(urPlatformGetInfoTest, InvalidEnumerationPlatformInfoType) {
                      urPlatformGetInfo(platform, UR_PLATFORM_INFO_FORCE_UINT32,
                                        0, nullptr, &size));
 }
+
+TEST_F(urPlatformGetInfoTest, InvalidSizeZero) {
+    ur_platform_backend_t backend;
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
+                                       &backend, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_F(urPlatformGetInfoTest, InvalidSizeSmall) {
+    ur_platform_backend_t backend;
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                       sizeof(backend) - 1, &backend, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_F(urPlatformGetInfoTest, InvalidNullPointerPropValue) {
+    ur_platform_backend_t backend;
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                       sizeof(backend), nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_F(urPlatformGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
+                                       nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}

@@ -42,3 +42,30 @@ TEST_P(urMemGetInfoTest, InvalidEnumerationMemInfoType) {
                      urMemGetInfo(buffer, UR_MEM_INFO_FORCE_UINT32,
                                   sizeof(size_t), &mem_size, nullptr));
 }
+
+TEST_P(urMemGetInfoTest, InvalidSizeZero) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(
+        urMemGetInfo(buffer, UR_MEM_INFO_SIZE, 0, &mem_size, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urMemGetInfoTest, InvalidSizeSmall) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE,
+                                  sizeof(mem_size) - 1, &mem_size, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urMemGetInfoTest, InvalidNullPointerParamValue) {
+    size_t mem_size = 0;
+    ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE, sizeof(mem_size),
+                                  nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+TEST_P(urMemGetInfoTest, InvalidNullPointerPropSizeRet) {
+    ASSERT_EQ_RESULT(
+        urMemGetInfo(buffer, UR_MEM_INFO_SIZE, 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+}

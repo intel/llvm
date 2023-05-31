@@ -279,11 +279,39 @@ TEST_P(urDeviceGetInfoTest, InvalidEnumerationInfoType) {
     }
 }
 
-TEST_P(urDeviceGetInfoTest, InvalidValuePropSize) {
+TEST_P(urDeviceGetInfoTest, InvalidSizePropSize) {
     for (auto device : devices) {
         ur_device_type_t device_type;
-        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                          urDeviceGetInfo(device, UR_DEVICE_INFO_TYPE, 0,
                                          &device_type, nullptr));
+    }
+}
+
+TEST_P(urDeviceGetInfoTest, InvalidSizePropSizeSmall) {
+    for (auto device : devices) {
+        ur_device_type_t device_type;
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                         urDeviceGetInfo(device, UR_DEVICE_INFO_TYPE,
+                                         sizeof(device_type) - 1, &device_type,
+                                         nullptr));
+    }
+}
+
+TEST_P(urDeviceGetInfoTest, InvalidNullPointerPropValue) {
+    for (auto device : devices) {
+        ur_device_type_t device_type;
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                         urDeviceGetInfo(device, UR_DEVICE_INFO_TYPE,
+                                         sizeof(device_type), nullptr,
+                                         nullptr));
+    }
+}
+
+TEST_P(urDeviceGetInfoTest, InvalidNullPointerPropSizeRet) {
+    for (auto device : devices) {
+        ASSERT_EQ_RESULT(
+            UR_RESULT_ERROR_INVALID_NULL_POINTER,
+            urDeviceGetInfo(device, UR_DEVICE_INFO_TYPE, 0, nullptr, nullptr));
     }
 }
