@@ -217,7 +217,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop) {
   // Collect the global thread ids used in the function the loop is in.
   auto funcOp = loop->template getParentOfType<FunctionOpInterface>();
   SmallVector<Value> threadVars =
-      memAccessAnalysis.computeThreadVector(funcOp, solver);
+      memAccessAnalysis.getThreadVector(funcOp, solver);
 
   // Collect candidate memref accesses in the loop.
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
