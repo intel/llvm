@@ -38,6 +38,21 @@ int main(void) {
        auto PA = bufa.get_access<access::mode::read_write>(cgh);
        cgh.single_task<class Test>([=]() SYCL_ESIMD_KERNEL {
          uint64_t offset = (Size - VL) * sizeof(uint64_t);
+#ifdef TEST_FLAG
+         simd<uint64_t, VL> va = lsc_block_load<uint64_t, VL>(
+             PA, 0, sycl::ext::intel::esimd::detail::dqword_element_aligned);
+         simd<uint64_t, VL> vb = lsc_block_load<uint64_t, VL>(
+             PA, offset,
+             sycl::ext::intel::esimd::detail::dqword_element_aligned);
+         va *= 2;
+         vb *= 5;
+         lsc_block_store(
+             PA, 0, va,
+             sycl::ext::intel::esimd::detail::dqword_element_aligned);
+         lsc_block_store(
+             PA, offset, vb,
+             sycl::ext::intel::esimd::detail::dqword_element_aligned);
+#else
          simd<uint64_t, VL> va = lsc_block_load<uint64_t, VL>(PA, 0);
          simd_mask<1> pred = 1;
          simd<uint64_t, VL> old_values = 0;
@@ -49,6 +64,7 @@ int main(void) {
          vb *= 5;
          lsc_block_store(PA, 0, va);
          lsc_block_store(PA, offset, vb);
+#endif
        });
      }).wait();
   } catch (sycl::exception const &e) {

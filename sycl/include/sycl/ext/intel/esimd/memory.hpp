@@ -549,6 +549,20 @@ gather(AccessorTy acc,
 #endif
 }
 
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+        !std::is_same_v<Toffset, uint64_t>,
+    simd<T, N>>
+gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
+       simd_mask<N> mask = 1) {
+  return gather<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), glob_offset,
+                                  mask);
+}
+#endif
+
 /// @anchor accessor_scatter
 /// Accessor-based scatter.
 ///
@@ -592,6 +606,19 @@ scatter(AccessorTy acc,
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 #endif
 }
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+    !std::is_same_v<Toffset, uint64_t>>
+scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
+        uint64_t glob_offset = 0, simd_mask<N> mask = 1) {
+  scatter<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), vals, glob_offset,
+                            mask);
+}
+#endif
 
 /// Load a scalar value from an accessor.
 /// @tparam T Type of the value.
@@ -844,7 +871,6 @@ __ESIMD_API std::
 /// elements must be 4 bytes in size.
 /// @tparam N Number of pixels to access (matches the size of the \c offsets
 ///   vector). Must be 8, 16 or 32.
-/// @tparam Toffset The offset type.
 /// @param acc The accessor representing memory address of the access.
 /// @param offsets Byte offsets of the pixels relative to the base pointer.
 /// @param global_offset Byte offset of the pixels relative to the base pointer.
@@ -855,16 +881,15 @@ __ESIMD_API std::
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
-          typename T = typename AccessorT::value_type, typename Toffset>
+          typename T = typename AccessorT::value_type>
 __ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
-                              sizeof(T) == 4 && !std::is_pointer_v<AccessorT> &&
-                              std::is_integral_v<Toffset>),
+                              sizeof(T) == 4 && !std::is_pointer_v<AccessorT>),
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(AccessorT acc, simd<Toffset, N> offsets,
+gather_rgba(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-            uint64_t global_offset = 0,
+            simd<uint64_t, N> offsets, uint64_t global_offset = 0,
 #else
-            uint32_t global_offset = 0,
+            simd<uint32_t, N> offsets, uint32_t global_offset = 0,
 #endif
             simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -881,6 +906,22 @@ gather_rgba(AccessorT acc, simd<Toffset, N> offsets,
 #endif
 }
 
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT, int N,
+          typename T = typename AccessorT::value_type, typename Toffset>
+__ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
+                              sizeof(T) == 4 && !std::is_pointer_v<AccessorT> &&
+                              std::is_integral_v<Toffset> &&
+                              !std::is_same_v<Toffset, uint64_t>),
+                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
+gather_rgba(AccessorT acc, simd<Toffset, N> offsets, uint64_t global_offset = 0,
+            simd_mask<N> mask = 1) {
+  return gather_rgba<RGBAMask, AccessorT, N, T>(acc, convert<uint64_t>(offsets),
+                                                global_offset, mask);
+}
+#endif
+
 /// Gather data from the memory addressed by accessor \c acc, offset common
 /// for all loaded elements \c global_offset and per-element offsets \c offsets,
 /// and return it as simd vector. See @ref usm_gather_rgba for information about
@@ -890,7 +931,6 @@ gather_rgba(AccessorT acc, simd<Toffset, N> offsets,
 /// The returned vector elements mast match the accessor data type. The loaded
 /// elements must be 4 bytes in size.
 /// @tparam N The number of elements to access.
-/// @tparam Toffset The offset type.
 /// @param offsets Byte offsets of each element.
 /// @param vals values to be written.
 /// @param global_offset Byte offset of the pixels relative to the base pointer.
@@ -898,11 +938,15 @@ gather_rgba(AccessorT acc, simd<Toffset, N> offsets,
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
-          typename T = typename AccessorT::value_type, typename Toffset>
+          typename T = typename AccessorT::value_type>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                             !std::is_pointer_v<AccessorT> &&
-                             std::is_integral_v<Toffset>>
-scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
+                             !std::is_pointer_v<AccessorT>>
+scatter_rgba(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+             simd<uint64_t, N> offsets,
+#else
+             simd<uint32_t, N> offsets,
+#endif
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
              uint64_t global_offset = 0,
@@ -924,6 +968,21 @@ scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
 #endif
 }
 
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT, int N,
+          typename T = typename AccessorT::value_type, typename Toffset>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+                             !std::is_pointer_v<AccessorT> &&
+                             std::is_integral_v<Toffset> &&
+                             !std::is_same_v<Toffset, uint64_t>>
+scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
+             simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+             uint64_t global_offset = 0, simd_mask<N> mask = 1) {
+  scatter_rgba<RGBAMask, AccessorT, N, T>(acc, convert<uint64_t>(offsets), vals,
+                                          global_offset, mask);
+}
+#endif
 /// @} sycl_esimd_memory
 
 namespace detail {

@@ -763,7 +763,6 @@ lsc_gather(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred,
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @tparam Toffset The offset type.
 /// @param acc is the SYCL accessor.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
@@ -772,11 +771,15 @@ lsc_gather(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred,
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N, typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
-                                 std::is_integral_v<Toffset>,
+          int N, typename AccessorTy>
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy>,
                              __ESIMD_NS::simd<T, N * NElts>>
-lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+lsc_gather(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+           __ESIMD_NS::simd<uint64_t, N> offsets,
+#else
+           __ESIMD_NS::simd<uint32_t, N> offsets,
+#endif
            __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred);
@@ -794,15 +797,28 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
   auto loc_offsets = convert<uint32_t>(offsets);
-#ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-#endif
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
       __esimd_lsc_load_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), loc_offsets.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
 #endif
 }
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
+                                 std::is_integral_v<Toffset> &&
+                                 !std::is_same_v<Toffset, uint64_t>,
+                             __ESIMD_NS::simd<T, N * NElts>>
+lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+           __ESIMD_NS::simd_mask<N> pred = 1) {
+  return lsc_gather<T, NElts, DS, L1H, L3H, N, AccessorTy>(
+      acc, convert<uint64_t>(offsets), pred);
+}
+#endif
 
 /// Accessor-based gather.
 /// Supported platforms: DG2, PVC
@@ -818,7 +834,6 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @tparam Toffset The offset type.
 /// @param acc is the SYCL accessor.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
@@ -829,11 +844,15 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N, typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
-                                 std::is_integral_v<Toffset>,
+          int N, typename AccessorTy>
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy>,
                              __ESIMD_NS::simd<T, N * NElts>>
-lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+lsc_gather(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+           __ESIMD_NS::simd<uint64_t, N> offsets,
+#else
+           __ESIMD_NS::simd<uint32_t, N> offsets,
+#endif
            __ESIMD_NS::simd_mask<N> pred,
            __ESIMD_NS::simd<T, N * NElts> old_values) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -852,9 +871,6 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto SI = __ESIMD_NS::get_surface_index(acc);
   auto loc_offsets = convert<uint32_t>(offsets);
-#ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-#endif
   __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
       detail::lsc_format_input<MsgT>(old_values);
   __ESIMD_NS::simd<MsgT, N * NElts> Result =
@@ -864,6 +880,23 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
   return detail::lsc_format_ret<T>(Result);
 #endif
 }
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
+                                 std::is_integral_v<Toffset> &&
+                                 !std::is_same_v<Toffset, uint64_t>,
+                             __ESIMD_NS::simd<T, N * NElts>>
+lsc_gather(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+           __ESIMD_NS::simd_mask<N> pred,
+           __ESIMD_NS::simd<T, N * NElts> old_values) {
+  return lsc_gather<T, NElts, DS, L1H, L3H, N, AccessorTy>(
+      acc, convert<uint64_t>(offsets), pred, old_values);
+}
+#endif
 
 /// USM pointer transposed gather with 1 channel.
 /// Supported platforms: DG2, PVC
@@ -1506,7 +1539,6 @@ __ESIMD_API void lsc_prefetch(const T *p) {
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @tparam Toffset is the offset type.
 /// @param acc is the SYCL accessor.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
@@ -1514,10 +1546,14 @@ __ESIMD_API void lsc_prefetch(const T *p) {
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N, typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
-                             std::is_integral_v<Toffset>>
-lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+          int N, typename AccessorTy>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
+lsc_prefetch(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+             __ESIMD_NS::simd<uint64_t, N> offsets,
+#else
+             __ESIMD_NS::simd<uint32_t, N> offsets,
+#endif
              __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_prefetch<T, NElts, DS, L1H, L3H>(
@@ -1536,13 +1572,25 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
   auto loc_offsets = convert<uint32_t>(offsets);
-#ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-#endif
   __esimd_lsc_prefetch_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), loc_offsets.data(), si);
 #endif
 }
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+                             std::is_integral_v<Toffset> &&
+                             !std::is_same_v<Toffset, uint64_t>>
+lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+             __ESIMD_NS::simd_mask<N> pred = 1) {
+  lsc_prefetch<T, NElts, DS, L1H, L3H, N, AccessorTy>(
+      acc, convert<uint64_t>(offsets), pred);
+}
+#endif
 
 /// Accessor-based transposed prefetch gather with 1 channel.
 /// Supported platforms: DG2, PVC
@@ -1745,7 +1793,6 @@ lsc_scatter(T *p, Toffset offset, __ESIMD_NS::simd<T, N * NElts> vals,
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
-/// @tparam Toffset The offset type.
 /// @param acc is the SYCL accessor.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param vals is values to store.
@@ -1754,10 +1801,14 @@ lsc_scatter(T *p, Toffset offset, __ESIMD_NS::simd<T, N * NElts> vals,
 template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N, typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
-                             std::is_integral_v<Toffset>>
-lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+          int N, typename AccessorTy>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
+lsc_scatter(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+            __ESIMD_NS::simd<uint64_t, N> offsets,
+#else
+            __ESIMD_NS::simd<uint32_t, N> offsets,
+#endif
             __ESIMD_NS::simd<T, N * NElts> vals,
             __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1779,15 +1830,27 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
   auto si = __ESIMD_NS::get_surface_index(acc);
   auto loc_offsets = convert<uint32_t>(offsets);
-#ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sizeof(Toffset) <= 4, "Unsupported offset type");
-#endif
   __esimd_lsc_store_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                         _Transposed, N>(pred.data(), loc_offsets.data(),
                                         Tmp.data(), si);
 #endif
 }
 
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+                             std::is_integral_v<Toffset> &&
+                             !std::is_same_v<Toffset, uint64_t>>
+lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+            __ESIMD_NS::simd<T, N * NElts> vals,
+            __ESIMD_NS::simd_mask<N> pred = 1) {
+  lsc_scatter<T, NElts, DS, L1H, L3H, N, AccessorTy>(
+      acc, convert<uint64_t>(offsets), vals, pred);
+}
+#endif
 /// USM pointer transposed scatter with 1 channel.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
