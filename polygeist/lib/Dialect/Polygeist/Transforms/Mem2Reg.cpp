@@ -1857,7 +1857,7 @@ bool isPromotable(mlir::Value AI) {
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
-    assert(AI.getDefiningOp());
+    assert(AI.getDefiningOp() && "allocation unknown");
     auto elemType = getElementType(AI.getDefiningOp());
     for (auto *U : val.getUsers()) {
       if (auto LO = dyn_cast<memref::LoadOp>(U)) {
