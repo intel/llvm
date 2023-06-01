@@ -6,5 +6,5 @@
 // Check if the deafult PCH file generated is a .pchi file.
 // RUN: %clang -c -fsycl -x c++-header %t.h -###  %s 2> %t1.txt
 // RUN: FileCheck %s -input-file=%t1.txt
-// CHECK: Pre-compiled header generation is not be used in conjunction with '-fsycl'
+// CHECK: Pre-compiled header generation should not be used in conjunction with '-fsycl'
 
