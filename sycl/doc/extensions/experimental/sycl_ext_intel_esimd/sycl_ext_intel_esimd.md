@@ -329,12 +329,12 @@ memory access interface. It supports main SYCL's device memory representations:
 
 Only small subset of `sycl::accessor` APIs is supported in ESIMD context:
 - accessor::accessor();
-- accessor::get_pointer(); // Supported only with `-fsycl-esimd-force-stateless-mem` switch.
-- accessor::operator[]; // Supported only with `-fsycl-esimd-force-stateless-mem` switch.
+- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
+- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
 
 ESIMD provides special APIs to access memory through accessors. Those APIs
-accept accessor object as a base reference to the addressed memory and
-additional offsets operand(s) to work with accessed buffer or image.
+accept an accessor object as a base reference to the addressed memory and
+additional offset operand(s) to work with accessed buffer or image.
 
 C/C++ dereference of an USM pointer is guaranteed to work for primitive types
 only, but not for `simd` types. The following code below will compile and might
@@ -482,14 +482,14 @@ The actual amount of SLM memory allocated for the kernel above would be:
 
 
 ##### Local accessors
-Regular SYCL local accessors can be passed from HOST to ESIMD kernel, be used
+Regular SYCL local accessors can be passed from HOST to an ESIMD kernel, be used
 in ESIMD kernel and functions called from kernel. It can also be passed from
-SYCL context to ESIMD using `invoke_simd()` API. Similarly to regular SYCL
-kernels, more than 1 local accessor can be passed to ESIMD kernel.
+SYCL context to ESIMD using `invoke_simd()` API. Similar to regular SYCL
+kernels, more than 1 local accessor can be passed to an ESIMD kernel.
 
-Please notice that currently the local accessor can be passed through
-`invoke_simd()` only as a uniform pointer. Passing local accessor by-value is
-not yet supported in GPU driver.
+Please note that currently the local accessor can be passed through
+`invoke_simd()` only as a uniform pointer. Passing the local accessor by-value
+is not yet supported in the GPU driver.
 
 Restrictions:
 * `local_accessor` must NOT be used together with `slm_init` or `slm_allocator`.
