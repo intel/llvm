@@ -97,7 +97,7 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 
 //// Shuffle based masked reduction impls
 
-// Cluster group reduction using shfls, T = double
+// fixed_size_group group reduction using shfls, T = double
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
@@ -121,7 +121,7 @@ inline __SYCL_ALWAYS_INLINE
   return x;
 }
 
-// Cluster group reduction using shfls, T = float
+// fixed_size_group group reduction using shfls, T = float
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
@@ -138,7 +138,7 @@ inline __SYCL_ALWAYS_INLINE
   return x;
 }
 
-// Cluster group reduction using shfls, std::is_integral_v<T>
+// fixed_size_group group reduction using shfls, std::is_integral_v<T>
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group> &&
@@ -157,31 +157,31 @@ inline __SYCL_ALWAYS_INLINE
 template <typename Group, typename T>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>, T>
-non_uniform_shfl_T(const uint32_t MemberMask, T x, int delta) {
+non_uniform_shfl_T(const uint32_t MemberMask, T x, int shfl_param) {
   if constexpr (ext::oneapi::experimental::is_fixed_size_group_v<Group>) {
-    return __nvvm_shfl_sync_up_i32(MemberMask, x, delta, 0);
+    return __nvvm_shfl_sync_up_i32(MemberMask, x, shfl_param, 0);
   } else {
-    return __nvvm_shfl_sync_idx_i32(MemberMask, x, delta, 31);
+    return __nvvm_shfl_sync_idx_i32(MemberMask, x, shfl_param, 31);
   }
 }
 
 template <typename Group, typename T>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>, T>
-non_uniform_shfl(Group g, const uint32_t MemberMask, T x, int delta) {
+non_uniform_shfl(Group g, const uint32_t MemberMask, T x, int shfl_param) {
   T res;
   if constexpr (std::is_same_v<T, double>) {
     int x_a, x_b;
     asm volatile("mov.b64 {%0,%1},%2; \n\t" : "=r"(x_a), "=r"(x_b) : "l"(x));
 
-    auto tmp_a = non_uniform_shfl_T<Group>(MemberMask, x_a, delta);
-    auto tmp_b = non_uniform_shfl_T<Group>(MemberMask, x_b, delta);
+    auto tmp_a = non_uniform_shfl_T<Group>(MemberMask, x_a, shfl_param);
+    auto tmp_b = non_uniform_shfl_T<Group>(MemberMask, x_b, shfl_param);
     asm volatile("mov.b64 %0,{%1,%2}; \n\t"
                  : "=l"(res)
                  : "r"(tmp_a), "r"(tmp_b));
   } else {
     auto input = std::is_same_v<T, float> ? __nvvm_bitcast_f2i(x) : x;
-    auto tmp_b32 = non_uniform_shfl_T<Group>(MemberMask, input, delta);
+    auto tmp_b32 = non_uniform_shfl_T<Group>(MemberMask, input, shfl_param);
     res = std::is_same_v<T, float> ? __nvvm_bitcast_i2f(tmp_b32) : tmp_b32;
   }
   return res;
@@ -313,7 +313,7 @@ GET_ID(IsMaximum, min)
 
 //// Shuffle based masked reduction impls
 
-// Cluster group scan using shfls
+// fixed_size_group group scan using shfls
 template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE
