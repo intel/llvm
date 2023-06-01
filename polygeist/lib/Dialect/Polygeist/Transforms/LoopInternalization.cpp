@@ -45,9 +45,9 @@ static llvm::cl::opt<bool>
                             llvm::cl::init(true),
                             llvm::cl::desc("Promote only read-only accesses"));
 
-static llvm::cl::list<unsigned> LoopInternalizationTileSizes(
-    DEBUG_TYPE "-tile-sizes", llvm::cl::CommaSeparated,
-    llvm::cl::desc("Tile sizes used in LoopInternalization"));
+static llvm::cl::opt<unsigned> LoopInternalizationTileSize(
+    DEBUG_TYPE "-tile-size", llvm::cl::init(1),
+    llvm::cl::desc("Tile size used in LoopInternalization"));
 
 namespace {
 
@@ -55,8 +55,9 @@ namespace {
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
-// Only visit kernel body function with nd_item argument.
-bool isCandidate(FunctionOpInterface func) {
+/// A function is a candidate iff is a kernel body functions with an nd_item
+/// argument.
+bool isCandidateFunction(FunctionOpInterface func) {
   if (!polygeist::isPotentialKernelBodyFunc(func))
     return false;
 
@@ -68,14 +69,9 @@ bool isCandidate(FunctionOpInterface func) {
   return true;
 }
 
-/// A loop is a candidate when it is the outermost affine or scf for loop in a
-/// perfect loop nest.
-bool isCandidate(LoopLikeOpInterface loop) {
-  if (!isa<affine::AffineForOp, scf::ForOp>(loop)) {
-    LLVM_DEBUG(llvm::dbgs() << "not candidate: not affine or scf for loop\n");
-    return false;
-  }
-
+/// A loop nest is a candidate iff is perfect and contains only affine or scf
+/// for loops.
+bool isCandidateLoopNest(LoopLikeOpInterface loop) {
   if (!LoopTools::isOutermostLoop(loop)) {
     LLVM_DEBUG(llvm::dbgs() << "not candidate: not outermost loop\n");
     return false;
@@ -86,46 +82,49 @@ bool isCandidate(LoopLikeOpInterface loop) {
     return false;
   }
 
+  WalkResult walkResult =
+      loop->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        if (!isa<affine::AffineForOp, scf::ForOp>(loop)) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "not candidate: not affine or scf for loop\n");
+          return WalkResult::interrupt();
+        }
+        return WalkResult::advance();
+      });
+
   // TODO: check uniformity.
 
-  return true;
+  return !walkResult.wasInterrupted();
 }
 
-template <typename T,
-          typename = std::enable_if_t<llvm::is_one_of<
-              T, affine::AffineForOp, scf::ForOp, LoopLikeOpInterface>::value>>
-void getTileSizes(const SmallVector<T> &nestedLoops,
-                  SmallVectorImpl<Value> &tileSizes) {
+/// Determine the tile size for \p loop.
+Value getTileSize(LoopLikeOpInterface loop) {
   // TODO: calculate proper tile sizes.
-  OpBuilder builder(nestedLoops.front());
-  for (auto tileSize : LoopInternalizationTileSizes)
-    tileSizes.push_back(builder.create<arith::ConstantIndexOp>(
-        builder.getUnknownLoc(), tileSize));
-  if (nestedLoops.size() != tileSizes.size()) {
-    Value one =
-        builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), 1);
-    tileSizes.resize(nestedLoops.size(), one);
-  }
+  OpBuilder builder(loop);
+  return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(),
+                                                LoopInternalizationTileSize);
 }
 
-LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
-                   ArrayRef<Value> tileSizes,
+/// Tile an affine for \p loop given the tile size \p tileSize.
+LogicalResult tile(affine::AffineForOp loop, Value tileSize,
                    SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
-  unsigned numLoops = nestedLoops.size();
   LogicalResult res =
-      tilePerfectlyNestedParametric(nestedLoops, tileSizes, &newNestedLoops);
-  tiledNest = SmallVector<affine::AffineForOp>(
-      newNestedLoops.begin() + numLoops, newNestedLoops.end());
+      tilePerfectlyNestedParametric({loop}, tileSize, &newNestedLoops);
+  tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
+                                               newNestedLoops.end());
   return res;
 }
-LogicalResult tile(ArrayRef<scf::ForOp> nestedLoops, ArrayRef<Value> tileSizes,
+
+/// Tile an SCF for \p loop given the tile size \p tileSize.
+LogicalResult tile(scf::ForOp loop, Value tileSize,
                    SmallVectorImpl<scf::ForOp> &tiledNest) {
-  tiledNest = tile(nestedLoops, tileSizes, nestedLoops.back());
+  tiledNest = tile({loop}, tileSize, loop);
   return success();
 }
 
-void createLocalBarrier(OpBuilder builder) {
+/// Create a group barrier.
+void createLocalBarrier(OpBuilder &builder) {
   // TODO: Use gpu.barrier, require GPUToSPIRV conversion in the pipeline.
   builder.create<spirv::ControlBarrierOp>(
       builder.getUnknownLoc(), spirv::Scope::Workgroup, spirv::Scope::Workgroup,
@@ -396,7 +395,7 @@ void LoopInternalization::runOnOperation() {
 
   // Walk each function in the module.
   module->walk([&](FunctionOpInterface func) {
-    if (!isCandidate(func))
+    if (!isCandidateFunction(func))
       return;
 
     LLVM_DEBUG(llvm::dbgs()
@@ -417,22 +416,28 @@ void LoopInternalization::runOnOperation() {
     // Select the ideal memory space for memref accesses in candidate loops
     // contained by this function.
     func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
-      if (!isCandidate(loop))
+      if (!isCandidateLoopNest(loop))
         return;
 
-      LLVM_DEBUG(llvm::dbgs()
-                 << "LoopInternalization: Visiting candidate loop:\n"
-                 << loop << "\n");
+      LLVM_DEBUG(
+          llvm::dbgs()
+          << "LoopInternalization: Visiting candidate loop nest rooted by:\n"
+          << loop << "\n");
 
-      // Construct a map from memref accesses to their ideal memory space.
-      selectMemorySpace(loop, memAccessAnalysis, solver);
+      std::optional<LoopLikeOpInterface> innermostLoop =
+          LoopTools::getInnermostLoop(loop);
+      assert(innermostLoop.has_value() && "Failed to get the innermost loop");
+
+      // Determine the ideal memory space for memref accesses contained in the
+      // innermost loop.
+      selectMemorySpace(*innermostLoop, memAccessAnalysis, solver);
 
       // TODO: prioritize the array accesses that should use shared memory.
       // prioritize(memAccessAnalysis, solver);
     });
 
     // Now that we have the ideal memory space for all analyzable memref
-    // accesses in each loop, transform the loops.
+    // accesses in each loop nest's innermost loop, perform the transformation.
     for (auto &entry : loopToMemref)
       TypeSwitch<Operation *>(entry.first)
           .Case<affine::AffineForOp, scf::ForOp>(
@@ -444,17 +449,14 @@ void LoopInternalization::runOnOperation() {
 void LoopInternalization::selectMemorySpace(
     LoopLikeOpInterface loop, const MemoryAccessAnalysis &memAccessAnalysis,
     DataFlowSolver &solver) {
+  assert(LoopTools::getInnermostLoop(loop) && "Expecting an innermost loop");
   assert(loopToMemref.find(loop) == loopToMemref.end() &&
-         "Loop should not be already present in the map");
-
-  std::optional<LoopLikeOpInterface> innermostLoop =
-      LoopTools::getInnermostLoop(loop);
-  assert(innermostLoop.has_value() && "Failed to get the innermost loop");
+         "The loop should not be already present in the map");
 
   // Use the memory selector to determine the ideal memory space for memref
   // accesses in the innermost loop.
   MemorySelector memorySelector(memAccessAnalysis, solver);
-  memorySelector.analyze(*innermostLoop);
+  memorySelector.analyze(loop);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
     if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
@@ -492,23 +494,15 @@ void LoopInternalization::transform(
     T loop, const MemoryAccessAnalysis &memAccessAnalysis,
     DataFlowSolver &solver) const {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
+  assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
   assert(loopToMemref.find(loop) != loopToMemref.end() &&
          "Loop should be in the map");
 
-  SmallVector<T> nestedLoops;
-  LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
-
-  SmallVector<Value> tileSizes;
-  getTileSizes(nestedLoops, tileSizes);
-
   SmallVector<T> tiledNest;
-  LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
-  LLVM_DEBUG({
-    if (res.succeeded())
-      llvm::dbgs() << "Tiled loop:\n" << tiledNest.front() << "\n";
-    else
-      llvm::dbgs() << "Tile NOT performed\n";
-  });
+  LogicalResult res = tile(loop, getTileSize(loop), tiledNest);
+  assert(res.succeeded() && "Expecting innermost loop to be tiled");
+
+  LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 
   // TODO: promote loop accesses to local memory.
   loop = tiledNest.front();

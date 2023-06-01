@@ -289,6 +289,10 @@ public:
   /// otherwise.
   static bool isOutermostLoop(LoopLikeOpInterface loop);
 
+  /// Return true is \p loop is an innermost loop in a loop nest and false
+  /// otherwise.
+  static bool isInnermostLoop(LoopLikeOpInterface loop);
+
   /// Collect perfectly nested loops starting from \p root. Loops are perfectly
   /// nested if each loop is the first and only non-terminator operation in the
   /// parent loop.

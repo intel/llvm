@@ -560,7 +560,21 @@ void LoopTools::versionLoop(LoopLikeOpInterface loop,
 }
 
 bool LoopTools::isOutermostLoop(LoopLikeOpInterface loop) {
+  assert(loop && "Expecting a valid pointer");
   return !loop->getParentOfType<LoopLikeOpInterface>();
+}
+
+bool LoopTools::isInnermostLoop(LoopLikeOpInterface loop) {
+  assert(loop && "Expecting a valid pointer");
+  LoopLikeOpInterface root = loop;
+  WalkResult walkResult =
+      root->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        if (loop == root)
+          return WalkResult::advance();
+        return WalkResult::interrupt();
+      });
+
+  return !walkResult.wasInterrupted();
 }
 
 bool LoopTools::isPerfectLoopNest(LoopLikeOpInterface root) {
