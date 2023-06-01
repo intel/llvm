@@ -3206,6 +3206,11 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
                      InputType == types::TY_CHeader))
         Diag(clang::diag::err_drv_fsycl_with_c_type) << A->getAsString(Args);
 
+      // Emit an error if PCH(Pre-Compiled Header) file generation is forced in
+      // -fsycl mode.
+      if (IsSYCL && InputType == types::TY_CXXHeader)
+        Diag(clang::diag::err_drv_fsycl_with_pch);
+
       // If the user has put -fmodule-header{,=} then we treat C++ headers as
       // header unit inputs.  So we 'promote' -xc++-header appropriately.
       if (InputType == types::TY_CXXHeader && hasHeaderMode())
