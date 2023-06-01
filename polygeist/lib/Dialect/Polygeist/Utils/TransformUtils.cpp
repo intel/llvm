@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
+#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -17,29 +18,29 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include <optional>
 
-using namespace mlir;
-using namespace mlir::polygeist;
+namespace mlir {
+namespace polygeist {
 
 //===----------------------------------------------------------------------===//
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
-bool polygeist::isLinkonceODR(FunctionOpInterface func) {
+bool isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-void polygeist::privatize(FunctionOpInterface func) {
+void privatize(FunctionOpInterface func) {
   func->setAttr(
       linkageAttrName,
       LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
   func.setPrivate();
 }
 
-bool polygeist::isTailCall(CallOpInterface call) {
+bool isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
   Operation *nextOp = call->getNextNode();
@@ -92,14 +93,13 @@ static void getMaxDepthFromAnyGPUKernel(
   funcMaxDepthMap[func] = maxDepth;
 }
 
-Optional<unsigned>
-polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
+Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
   DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
-  ::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
+  getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
   return funcMaxDepthMap[func];
 }
 
-bool polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
+bool isPotentialKernelBodyFunc(FunctionOpInterface func) {
   // The function must be defined, and private or with linkonce_odr linkage.
   if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
     return false;
@@ -124,7 +124,7 @@ bool polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   return (maxDepth.value() == 1 || maxDepth.value() == 2);
 }
 
-Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
+Optional<Value> getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
         .Case<affine::AffineLoadOp, affine::AffineStoreOp>(
@@ -135,6 +135,20 @@ Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
   auto accSub =
       dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
   return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
+}
+
+/// Determine whether a value is an known integer value.
+std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
+  if (!val.getType().isIntOrIndex())
+    return std::nullopt;
+
+  auto *inferredRange =
+      solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
+  if (!inferredRange || inferredRange->getValue().isUninitialized())
+    return std::nullopt;
+
+  const ConstantIntRanges &range = inferredRange->getValue().getValue();
+  return range.getConstantValue();
 }
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
@@ -292,7 +306,7 @@ Value SCFLoopGuardBuilder::createCondition() const {
 }
 
 void SCFLoopGuardBuilder::createThenBody(RegionBranchOpInterface ifOp) const {
-  ::createThenBody(loop, cast<scf::IfOp>(ifOp));
+  polygeist::createThenBody(loop, cast<scf::IfOp>(ifOp));
 }
 
 void SCFLoopGuardBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
@@ -321,7 +335,7 @@ void AffineLoopGuardBuilder::guardLoop() const {
 
 void AffineLoopGuardBuilder::createThenBody(
     RegionBranchOpInterface ifOp) const {
-  ::createThenBody(loop, cast<affine::AffineIfOp>(ifOp));
+  polygeist::createThenBody(loop, cast<affine::AffineIfOp>(ifOp));
 }
 
 void AffineLoopGuardBuilder::createElseBody(
@@ -715,3 +729,6 @@ VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
   }
   return condition;
 }
+
+} // namespace polygeist
+} // namespace mlir

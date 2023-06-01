@@ -22,6 +22,7 @@
 
 namespace mlir {
 class CallOpInterface;
+class DataFlowSolver;
 class DominanceInfo;
 class FunctionOpInterface;
 class LoopLikeOpInterface;
@@ -85,6 +86,9 @@ bool isPotentialKernelBodyFunc(FunctionOpInterface);
 
 /// Return the accessor used by \p op if found, and std::nullopt otherwise.
 Optional<Value> getAccessorUsedByOperation(const Operation &op);
+
+/// Determine whether a value is a known integer value.
+std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver);
 
 //===----------------------------------------------------------------------===//
 // Versioning Utilities

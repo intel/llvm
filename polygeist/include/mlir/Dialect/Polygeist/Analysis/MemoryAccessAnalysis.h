@@ -32,6 +32,7 @@ class SYCLAccessorSubscriptOp;
 } // namespace sycl
 
 class DataFlowSolver;
+class FunctionOpInterface;
 
 namespace polygeist {
 
@@ -402,23 +403,32 @@ public:
 
   const OffsetVector &getOffsetVector() const { return offsets; }
 
+  /// Construct a new matrix containing [0...numGridDimensions-1] columns.
+  MemoryAccessMatrix
+  getInterThreadAccessMatrix(unsigned numGridDimensions) const;
+
+  /// Construct a new matrix containing [numGridDimensions ... numColumns-1]
+  /// columns.
+  MemoryAccessMatrix
+  getIntraThreadAccessMatrix(unsigned numGridDimensions) const;
+
   /// Analyze the memory access and classify its access pattern.
   MemoryAccessPattern classify(DataFlowSolver &solver) const;
+
+  /// Analyze the given access matrix and offset vector and classify the access
+  /// pattern.
+  static MemoryAccessPattern classify(const MemoryAccessMatrix &matrix,
+                                      const OffsetVector &offsets,
+                                      DataFlowSolver &solver);
 
 private:
   MemoryAccessMatrix matrix; /// The memory access matrix.
   OffsetVector offsets;      /// The offset vector.
 };
 
-inline raw_ostream &operator<<(raw_ostream &os, const MemoryAccess &access) {
-  os << "--- MemoryAccess ---\n\n";
-  os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
-  os << "OffsetVector:\n" << access.getOffsetVector() << "\n";
-  os << "\n------------------\n";
-  return os;
-}
-
 class MemoryAccessAnalysis {
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
+
 public:
   MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
 
@@ -435,6 +445,10 @@ public:
   /// Return the memory access for the given memref \p access.
   std::optional<MemoryAccess>
   getMemoryAccess(const affine::MemRefAccess &access) const;
+
+  /// Return a vector containing the threads used in \p funcOp.
+  SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
+                                         DataFlowSolver &solver) const;
 
 private:
   /// Construct the access matrix and offset vector for the memory accesses
