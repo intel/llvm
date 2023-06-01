@@ -405,11 +405,14 @@ public:
 
   const OffsetVector &getOffsetVector() const { return offsets; }
 
-  /// Construct a new matrix containing columns [0...numThreads-1].
-  MemoryAccessMatrix getInterThreadAccessMatrix(unsigned numThreads) const;
+  /// Construct a new matrix containing [0...numGridDimensions-1] columns.
+  MemoryAccessMatrix
+  getInterThreadAccessMatrix(unsigned numGridDimensions) const;
 
-  /// Construct a new matrix containing columns [numThreads ... numColumns-1].
-  MemoryAccessMatrix getIntraThreadAccessMatrix(unsigned numThreads) const;
+  /// Construct a new matrix containing [numGridDimensions...numColumns-1]
+  /// columns.
+  MemoryAccessMatrix
+  getIntraThreadAccessMatrix(unsigned numGridDimensions) const;
 
   /// Analyze the memory access and classify its access pattern.
   MemoryAccessPattern classify(DataFlowSolver &solver) const;

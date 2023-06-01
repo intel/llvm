@@ -1486,14 +1486,25 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
       ret_val = 0; // Not specified by kernel
       ret_err = CL_SUCCESS;
     } else if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
-      // Return the maximum work group size for the kernel
-      size_t kernel_work_group_size = 0;
-      pi_result pi_ret_err = piKernelGetGroupInfo(
-          kernel, device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
-          &kernel_work_group_size, nullptr);
-      if (pi_ret_err != PI_SUCCESS)
+      // Return the maximum sub group size for the device
+      size_t result_size = 0;
+      // Two calls to piDeviceGetInfo are needed: the first determines the size
+      // required to store the result, and the second returns the actual size
+      // values.
+      pi_result pi_ret_err =
+          piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0,
+                          nullptr, &result_size);
+      if (pi_ret_err != PI_SUCCESS) {
         return pi_ret_err;
-      ret_val = kernel_work_group_size;
+      }
+      assert(result_size % sizeof(size_t) == 0);
+      std::vector<size_t> result(result_size / sizeof(size_t));
+      pi_ret_err = piDeviceGetInfo(device, PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
+                                   result_size, result.data(), nullptr);
+      if (pi_ret_err != PI_SUCCESS) {
+        return pi_ret_err;
+      }
+      ret_val = *std::max_element(result.begin(), result.end());
       ret_err = CL_SUCCESS;
     } else if (param_name == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
       ret_val = 0; // Not specified by kernel
