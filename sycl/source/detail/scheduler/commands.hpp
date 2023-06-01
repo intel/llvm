@@ -655,6 +655,16 @@ private:
   friend class Command;
 };
 
+// For XPTI instrumentation only.
+// Method used to emit data in cases when we do not create node in graph.
+// Very close to ExecCGCommand::emitInstrumentationData content.
+void emitKernelInstrumentationData(
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs);
+
 class UpdateHostRequirementCommand : public Command {
 public:
   UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,

@@ -11,34 +11,53 @@
 #include <deque>
 #include <iostream>
 #include <mutex>
+#include <set>
 #include <string>
 #include <string_view>
 #include <thread>
 
 std::deque<std::pair<uint16_t, std::string>> GReceivedNotifications;
+std::set<uint16_t> GAnalyzedTraceTypes;
+
+XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t TraceType) {
+  GAnalyzedTraceTypes.insert(TraceType);
+}
+
 XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t * /*Parent*/,
                                     xpti::trace_event_data_t *Event,
                                     uint64_t /*Instance*/,
                                     const void *UserData) {
-  if (TraceType != xpti::trace_diagnostics)
+  if (GAnalyzedTraceTypes.find(TraceType) == GAnalyzedTraceTypes.end())
     return;
 
-  std::string AggregatedData;
-  if (Event && Event->reserved.payload && Event->reserved.payload->name &&
-      Event->reserved.payload->source_file) {
-    auto Payload = Event->reserved.payload;
-    const char Delimiter[] = ";";
-    AggregatedData.append(Payload->name);
-    AggregatedData.append(Delimiter);
-    AggregatedData.append(Payload->source_file);
-    AggregatedData.append(Delimiter);
-    AggregatedData.append(std::to_string(Payload->line_no) + Delimiter +
-                          std::to_string(Payload->column_no) + Delimiter);
-  } else
-    AggregatedData.append("code location unknown;");
-  AggregatedData.append(static_cast<const char *>(UserData));
-  GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
+  if (TraceType == xpti::trace_diagnostics) {
+    std::string AggregatedData;
+    if (Event && Event->reserved.payload && Event->reserved.payload->name &&
+        Event->reserved.payload->source_file) {
+      auto Payload = Event->reserved.payload;
+      const char Delimiter[] = ";";
+      AggregatedData.append(Payload->name);
+      AggregatedData.append(Delimiter);
+      AggregatedData.append(Payload->source_file);
+      AggregatedData.append(Delimiter);
+      AggregatedData.append(std::to_string(Payload->line_no) + Delimiter +
+                            std::to_string(Payload->column_no) + Delimiter);
+    } else
+      AggregatedData.append("code location unknown;");
+    AggregatedData.append(static_cast<const char *>(UserData));
+    GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
+  } else if (TraceType == xpti::trace_node_create) {
+    auto Payload = xptiQueryPayload(Event);
+    xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+    for (const auto &Item : *Metadata) {
+      std::string_view Key{xptiLookupString(Item.first)};
+      if (Key == "kernel_name") {
+        GReceivedNotifications.push_back(
+            std::make_pair(TraceType, Payload->name));
+      }
+    }
+  }
 }
 
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
@@ -47,6 +66,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      const char * /*StreamName*/) {
   uint8_t StreamID = xptiRegisterStream("sycl");
   xptiRegisterCallback(StreamID, xpti::trace_diagnostics, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_node_create, testCallback);
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char * /*StreamName*/) {}

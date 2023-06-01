@@ -220,6 +220,10 @@ event handler::finalize() {
         return Result;
       };
 
+      emitKernelInstrumentationData(MKernel, MCodeLoc, MKernelName, MQueue,
+                                    MNDRDesc, KernelBundleImpPtr,
+                                    MOSModuleHandle, MArgs);
+
       bool DiscardEvent = false;
       if (MQueue->has_discard_events_support()) {
         // Kernel only uses assert if it's non interop one

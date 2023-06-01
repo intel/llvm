@@ -22,6 +22,7 @@ using namespace sycl;
 XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
                                                   std::string &Message);
 XPTI_CALLBACK_API void resetReceivedNotifications();
+XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t);
 
 inline pi_result redefinedPluginGetLastError(char **message) {
   return PI_ERROR_INVALID_VALUE;
@@ -40,6 +41,7 @@ protected:
   void SetUp() {
     xptiForceSetTraceEnabled(true);
     xptiTraceTryToEnable();
+    addAnalyzedTraceType(xpti::trace_diagnostics);
   }
 
   void TearDown() {
@@ -500,7 +502,7 @@ TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
   EXPECT_FALSE(ExceptionCaught);
   TestLock.unlock();
 
-  // Need to wait till host task enqueue kernek to check code location report.
+  // Need to wait till host task enqueue kernel to check code location report.
   using namespace std::chrono_literals;
   std::this_thread::sleep_for(10ms);
   try {
