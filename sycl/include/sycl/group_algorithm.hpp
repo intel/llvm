@@ -387,6 +387,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 any_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAny(g, pred);
 #else
   (void)g;
@@ -427,6 +433,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 all_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, pred);
 #else
   (void)g;
@@ -467,6 +479,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 none_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                !pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, !pred);
 #else
   (void)g;
@@ -585,6 +603,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                  T>
 group_broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    auto LocalId = detail::IdToMaskPosition(g, local_id);
+    return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0],
+                                    x, LocalId, 31);
+  }
+#endif
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
   (void)g;
