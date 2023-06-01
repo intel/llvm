@@ -48,24 +48,24 @@ void connect_to_exit_nodes(
   }
 }
 
-/// Recursive check if a graph node or its successors contains a given kernel
-/// argument.
-/// @param[in] Arg The kernel argument to check for.
+/// Recursive check if a graph node or its successors contains a given
+/// requirement.
+/// @param[in] Req The requirement to check for.
 /// @param[in] CurrentNode The current graph node being checked.
 /// @param[in,out] Deps The unique list of dependencies which have been
-/// identified for this arg.
+/// identified for this requirement.
 /// @return True if a dependency was added in this node or any of its
 /// successors.
-bool check_for_arg(const sycl::detail::ArgDesc &Arg,
-                   const std::shared_ptr<node_impl> &CurrentNode,
-                   std::set<std::shared_ptr<node_impl>> &Deps) {
+bool check_for_requirement(sycl::detail::AccessorImplHost *Req,
+                           const std::shared_ptr<node_impl> &CurrentNode,
+                           std::set<std::shared_ptr<node_impl>> &Deps) {
   bool SuccessorAddedDep = false;
   for (auto &Successor : CurrentNode->MSuccessors) {
-    SuccessorAddedDep |= check_for_arg(Arg, Successor, Deps);
+    SuccessorAddedDep |= check_for_requirement(Req, Successor, Deps);
   }
 
   if (!CurrentNode->is_empty() && Deps.find(CurrentNode) == Deps.end() &&
-      CurrentNode->has_arg(Arg) && !SuccessorAddedDep) {
+      CurrentNode->has_requirement(Req) && !SuccessorAddedDep) {
     Deps.insert(CurrentNode);
     return true;
   }
@@ -154,36 +154,32 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
   // Copy deps so we can modify them
   auto Deps = Dep;
-  if (CGType == sycl::detail::CG::Kernel) {
-    // A unique set of dependencies obtained by checking kernel arguments
-    // for accessors
-    std::set<std::shared_ptr<node_impl>> UniqueDeps;
-    const auto &Args =
-        static_cast<sycl::detail::CGExecKernel *>(CommandGroup.get())->MArgs;
-    for (auto &Arg : Args) {
-      if (Arg.MType != sycl::detail::kernel_param_kind_t::kind_accessor) {
-        continue;
-      }
-      // Look through the graph for nodes which share this argument
-      for (auto NodePtr : MRoots) {
-        check_for_arg(Arg, NodePtr, UniqueDeps);
-      }
-    }
 
-    // Add any deps determined from accessor arguments into the dependency list
-    Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
+  // A unique set of dependencies obtained by checking requirements and events
+  std::set<std::shared_ptr<node_impl>> UniqueDeps;
+  const auto &Requirements = CommandGroup->MRequirements;
+  for (auto &Req : Requirements) {
+    // Look through the graph for nodes which share this requirement
+    for (auto NodePtr : MRoots) {
+      check_for_requirement(Req, NodePtr, UniqueDeps);
+    }
   }
 
   // Add any nodes specified by event dependencies into the dependency list
   for (auto Dep : CommandGroup->MEvents) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
-      Deps.push_back(NodeImpl->second);
+      if (UniqueDeps.find(NodeImpl->second) == UniqueDeps.end()) {
+        UniqueDeps.insert(NodeImpl->second);
+      }
     } else {
       throw sycl::exception(errc::invalid,
                             "Event dependency from handler::depends_on does "
                             "not correspond to a node within the graph");
     }
   }
+  // Add any deps determined from requirements and events into the dependency
+  // list
+  Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(CGType, std::move(CommandGroup));

@@ -85,6 +85,8 @@ piTearDown
 piclProgramCreateWithSource
 piextCommandBufferCreate
 piextCommandBufferFinalize
+piextCommandBufferMemBufferCopy
+piextCommandBufferMemBufferCopyRect
 piextCommandBufferMemcpyUSM
 piextCommandBufferNDRangeKernel
 piextCommandBufferRelease
