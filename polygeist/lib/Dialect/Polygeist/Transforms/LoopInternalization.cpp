@@ -45,9 +45,9 @@ static llvm::cl::opt<bool>
                             llvm::cl::init(true),
                             llvm::cl::desc("Promote only read-only accesses"));
 
-static llvm::cl::list<unsigned> LoopInternalizationTileSizes(
-    DEBUG_TYPE "-tile-sizes", llvm::cl::CommaSeparated,
-    llvm::cl::desc("Tile sizes used in LoopInternalization"));
+static llvm::cl::opt<unsigned> LoopInternalizationTileSize(
+    DEBUG_TYPE "-tile-size", llvm::cl::init(1),
+    llvm::cl::desc("Tile size used in LoopInternalization"));
 
 namespace {
 
@@ -86,50 +86,29 @@ bool isCandidate(LoopLikeOpInterface loop) {
     return false;
   }
 
-  // TODO: Legality checks to ensure tiling is safe for multi levels loop nest.
-  if (LoopTools::getInnermostLoop(loop) != loop) {
-    LLVM_DEBUG(
-        llvm::dbgs()
-        << "Limitation: only support single level loop nest currently\n");
-    return false;
-  }
-
   // TODO: check uniformity.
 
   return true;
 }
 
-template <typename T,
-          typename = std::enable_if_t<llvm::is_one_of<
-              T, affine::AffineForOp, scf::ForOp, LoopLikeOpInterface>::value>>
-void getTileSizes(const SmallVector<T> &nestedLoops,
-                  SmallVectorImpl<Value> &tileSizes) {
+Value getTileSize(OpBuilder builder) {
   // TODO: calculate proper tile sizes.
-  OpBuilder builder(nestedLoops.front());
-  for (auto tileSize : LoopInternalizationTileSizes)
-    tileSizes.push_back(builder.create<arith::ConstantIndexOp>(
-        builder.getUnknownLoc(), tileSize));
-  if (nestedLoops.size() != tileSizes.size()) {
-    Value one =
-        builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), 1);
-    tileSizes.resize(nestedLoops.size(), one);
-  }
+  return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(),
+                                                LoopInternalizationTileSize);
 }
 
-LogicalResult tile(MutableArrayRef<affine::AffineForOp> nestedLoops,
-                   ArrayRef<Value> tileSizes,
+LogicalResult tile(affine::AffineForOp nestedLoops, Value tileSizes,
                    SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
-  unsigned numLoops = nestedLoops.size();
   LogicalResult res =
-      tilePerfectlyNestedParametric(nestedLoops, tileSizes, &newNestedLoops);
-  tiledNest = SmallVector<affine::AffineForOp>(
-      newNestedLoops.begin() + numLoops, newNestedLoops.end());
+      tilePerfectlyNestedParametric({nestedLoops}, tileSizes, &newNestedLoops);
+  tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
+                                               newNestedLoops.end());
   return res;
 }
-LogicalResult tile(ArrayRef<scf::ForOp> nestedLoops, ArrayRef<Value> tileSizes,
+LogicalResult tile(scf::ForOp nestedLoops, Value tileSizes,
                    SmallVectorImpl<scf::ForOp> &tiledNest) {
-  tiledNest = tile(nestedLoops, tileSizes, nestedLoops.back());
+  tiledNest = tile({nestedLoops}, tileSizes, nestedLoops);
   return success();
 }
 
@@ -449,24 +428,14 @@ private:
 
     // TODO: prioritize the array accesses that should use shared memory.
 
-    SmallVector<T> nestedLoops;
-    LoopTools::getPerfectlyNestedLoops(nestedLoops, loop);
-
-    SmallVector<Value> tileSizes;
-    getTileSizes(nestedLoops, tileSizes);
-
+    OpBuilder builder(loop);
     SmallVector<T> tiledNest;
-    LogicalResult res = tile(nestedLoops, tileSizes, tiledNest);
-    LLVM_DEBUG({
-      if (res.succeeded())
-        llvm::dbgs() << "Tiled loop:\n" << tiledNest.front() << "\n";
-      else
-        llvm::dbgs() << "Tile NOT performed\n";
-    });
-
+    LogicalResult res =
+        tile(cast<T>(*innermostLoop), getTileSize(builder), tiledNest);
+    assert(res.succeeded() && "Expecting innermost loop to be tiled");
+    LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
     // TODO: promote loop accesses to local memory.
     loop = tiledNest.front();
-    OpBuilder builder(loop);
     builder.setInsertionPointToStart(loop->getBlock());
     createLocalBarrier(builder);
     builder.setInsertionPointAfter(loop);
