@@ -13,7 +13,7 @@
 #include <windows.h>
 #include <winreg.h>
 
-#include "win_proxy_loader.hpp"
+#include "pi_win_proxy_loader.hpp"
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
