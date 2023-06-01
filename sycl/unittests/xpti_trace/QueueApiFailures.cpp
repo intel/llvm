@@ -472,7 +472,7 @@ pi_result redefinedEnqueueKernelLaunchWithStatus(
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
   {
-    std::lock_guard lk(m);
+    std::lock_guard<std::mutex> lk(m);
     EnqueueKernelLaunchCalled = true;
   }
   cv.notify_one();
@@ -524,7 +524,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
 
   // Need to wait till host task enqueue kernel to check code location report.
   {
-    std::unique_lock lk(m);
+    std::unique_lock<std::mutex> lk(m);
     cv.wait(lk, [] { return EnqueueKernelLaunchCalled; });
   }
 
