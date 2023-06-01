@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <numeric>
@@ -1084,23 +1085,29 @@ mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccess &access) {
 }
 
 MemoryAccessMatrix
-MemoryAccess::getIntraThreadAccessMatrix(unsigned numThreads) const {
-  assert(numThreads < matrix.getNumColumns() &&
-         "Expecting 'numThreadsColumns' to be smaller than the number of "
+MemoryAccess::getIntraThreadAccessMatrix(unsigned numGridDimensions) const {
+  assert(numGridDimensions <= matrix.getNumColumns() &&
+         "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
-  std::vector<size_t> v(numThreads);
+  if (numGridDimensions == 0)
+    return matrix;
+
+  std::vector<size_t> v(numGridDimensions);
   std::iota(v.begin(), v.end(), 0);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }
 
 MemoryAccessMatrix
-MemoryAccess::getInterThreadAccessMatrix(unsigned numThreads) const {
-  assert(numThreads < matrix.getNumColumns() &&
-         "Expecting 'numThreadsColumns' to be smaller than the number of "
+MemoryAccess::getInterThreadAccessMatrix(unsigned numGridDimensions) const {
+  assert(numGridDimensions <= matrix.getNumColumns() &&
+         "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
-  std::vector<size_t> v(matrix.getNumColumns() - numThreads);
-  std::iota(v.begin(), v.end(), numThreads);
+  if (numGridDimensions == 0)
+    return {};
+
+  std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
+  std::iota(v.begin(), v.end(), numGridDimensions);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }
