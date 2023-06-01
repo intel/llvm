@@ -62,6 +62,20 @@ template <typename Acc> struct Wrapper3 {
   Wrapper2<Acc> w2;
 };
 
+using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
+using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
+
+void implicit_conversion(const AccCT &acc, const ResAccT &res_acc) {
+  auto v = acc[0];
+  res_acc[0] = v;
+}
+
+void implicit_conversion(const AccT &acc, const ResAccT &res_acc) {
+  auto v = acc[0];
+  res_acc[0] = v;
+}
+
 template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
   auto test = [=](auto &Res, const auto &Acc) {
     Res[0] = Acc.byte_size();
@@ -762,7 +776,6 @@ int main() {
   {
     sycl::queue q;
     try {
-      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
       AccT acc;
 
       q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
@@ -1302,6 +1315,80 @@ int main() {
       assert(local_acc1_hash != local_acc3_hash &&
              "Identical hash was not expected.");
     });
+  }
+
+  // accessor<T> to accessor<const T> implicit conversion.
+  {
+    int data = 123;
+    int result = 0;
+    {
+      sycl::buffer<int, 1> data_buf(&data, 1);
+      sycl::buffer<int, 1> res_buf(&result, 1);
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            ResAccT res_acc = res_buf.get_access(cgh);
+            AccT acc(data_buf, cgh);
+            cgh.single_task([=]() { implicit_conversion(acc, res_acc); });
+          })
+          .wait_and_throw();
+    }
+    assert(result == 123 && "Expected value not seen.");
+  }
+
+  {
+    const int data = 123;
+    int result = 0;
+
+    // accessor<const T, read_only> to accessor<T, read_only> implicit conversion.
+    {
+      sycl::buffer<const int, 1> data_buf(&data, 1);
+      sycl::buffer<int, 1> res_buf(&result, 1);
+
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            ResAccT res_acc = res_buf.get_access(cgh);
+            AccCT acc(data_buf, cgh);
+            cgh.parallel_for_work_group(sycl::range(1), [=](sycl::group<1>) {
+              implicit_conversion(acc, res_acc);
+            });
+          })
+          .wait_and_throw();
+    }
+    assert(result == 123 && "Expected value not seen.");
+  }
+
+  // accessor swap
+  {
+    int data[2] = {2, 100};
+    int data2[2] = {23, 4};
+    int results[2] = {0, 0};
+    {
+      sycl::buffer<int, 1> data_buf(data, 2);
+      sycl::buffer<int, 1> data_buf2(data2, 2);
+      sycl::buffer<int, 1> res_buf(results, 2);
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            ResAccT res_acc = res_buf.get_access(cgh);
+            AccT acc1(data_buf, cgh);
+            AccT acc2(data_buf2, cgh);
+            std::swap(acc1, acc2);
+            cgh.single_task([=]() {
+              res_acc[0] = acc1[0]; // data2[0] == 23
+              res_acc[1] = acc2[0]; // data1[0] == 2
+              AccT acc1_copy(acc1);
+              AccT acc2_copy(acc2);
+              std::swap(acc1_copy, acc2_copy);
+              res_acc[0] += acc1_copy[1]; // data1[1] == 100
+              res_acc[1] += acc2_copy[1]; // data2[0] == 4
+            });
+          })
+          .wait_and_throw();
+    }
+    assert(results[0] == 123 && "Unexpected value!");
+    assert(results[1] == 6 && "Unexpected value!");
   }
 
   std::cout << "Test passed" << std::endl;

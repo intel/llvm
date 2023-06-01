@@ -101,6 +101,12 @@ int main(int argc, const char **argv) {
                 cl::desc("[<offload kind>-<target triple>,...]"),
                 cl::cat(ClangOffloadBundlerCategory));
 
+  cl::list<std::string> ExcludedTargetNames(
+      "excluded-targets", cl::CommaSeparated,
+      cl::desc("[<target name>,...]. List of targets that are excluded from "
+               "unbundling."),
+      cl::cat(ClangOffloadBundlerCategory));
+
   cl::opt<std::string> FilesType(
       "type", cl::Required,
       cl::desc("Type of the files to be bundled/unbundled/checked.\n"
@@ -202,6 +208,7 @@ int main(int argc, const char **argv) {
   BundlerConfig.ObjcopyPath = "";
 
   BundlerConfig.TargetNames = TargetNames;
+  BundlerConfig.ExcludedTargetNames = ExcludedTargetNames;
   BundlerConfig.InputFileNames = InputFileNames;
   BundlerConfig.OutputFileNames = OutputFileNames;
 
@@ -368,6 +375,12 @@ int main(int argc, const char **argv) {
           "number of input files and targets should match in bundling mode"));
     }
   }
+
+  // check -excluded-targets without unbundle
+  if (!ExcludedTargetNames.empty() && !Unbundle)
+    reportError(createStringError(errc::invalid_argument,
+                                  "-excluded-targets option should be used "
+                                  "only in conjunction with -unbundle"));
 
   // Verify that the offload kinds and triples are known. We also check that we
   // have exactly one host target.

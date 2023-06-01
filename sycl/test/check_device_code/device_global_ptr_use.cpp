@@ -13,7 +13,7 @@ const device_global<int> DeviceGlobalVar;
 int main() {
   queue Q;
   Q.single_task([]() {
-    // CHECK: load i32 {{.*}}({{.*}}* @_ZL15DeviceGlobalVar, i64 0, i32 0)
+    // CHECK: load {{.*}} @_ZL15DeviceGlobalVar
     volatile int ReadVal = DeviceGlobalVar;
   });
   return 0;

@@ -64,11 +64,8 @@ runAnalysis(llvm::StringRef Code, AnalysisT (*MakeAnalysis)(ASTContext &)) {
                     AST->getASTContext()));
   assert(Func != nullptr);
 
-  Stmt *Body = Func->getBody();
-  assert(Body != nullptr);
-
-  auto CFCtx = llvm::cantFail(
-      ControlFlowContext::build(*Func, *Body, AST->getASTContext()));
+  auto CFCtx =
+      llvm::cantFail(ControlFlowContext::build(*Func, AST->getASTContext()));
 
   AnalysisT Analysis = MakeAnalysis(AST->getASTContext());
   DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>());
@@ -296,12 +293,44 @@ TEST_F(NoreturnDestructorTest, ConditionalOperatorLeftBranchReturns) {
                                  UnorderedElementsAre("foo"))))));
 }
 
+TEST_F(NoreturnDestructorTest,
+       ConditionalOperatorConstantCondition_LeftBranchReturns) {
+  std::string Code = R"(
+    #include "noreturn_destructor_test_defs.h"
+
+    void target() {
+      int value = true ? foo() : Fatal().bar();
+      (void)0;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code, UnorderedElementsAre(IsStringMapEntry(
+                        "p", HoldsFunctionCallLattice(HasCalledFunctions(
+                                 UnorderedElementsAre("foo"))))));
+}
+
 TEST_F(NoreturnDestructorTest, ConditionalOperatorRightBranchReturns) {
   std::string Code = R"(
     #include "noreturn_destructor_test_defs.h"
 
     void target(bool b) {
       int value = b ? Fatal().bar() : foo();
+      (void)0;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code, UnorderedElementsAre(IsStringMapEntry(
+                        "p", HoldsFunctionCallLattice(HasCalledFunctions(
+                                 UnorderedElementsAre("foo"))))));
+}
+
+TEST_F(NoreturnDestructorTest,
+       ConditionalOperatorConstantCondition_RightBranchReturns) {
+  std::string Code = R"(
+    #include "noreturn_destructor_test_defs.h"
+
+    void target() {
+      int value = false ? Fatal().bar() : foo();
       (void)0;
       // [[p]]
     }

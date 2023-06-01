@@ -686,6 +686,11 @@ public:
   }
 
   PHINode *getPhi() const { return Phi; }
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the VPLiveOut to \p O.
+  void print(raw_ostream &O, VPSlotTracker &SlotTracker) const;
+#endif
 };
 
 /// VPRecipeBase is a base class modeling a sequence of one or more output IR
@@ -1073,6 +1078,22 @@ public:
            "recipe doesn't have inbounds flag");
     return GEPFlags.IsInBounds;
   }
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  FastMathFlags getFastMathFlags() const {
+    FastMathFlags Res;
+    Res.setAllowReassoc(FMFs.AllowReassoc);
+    Res.setNoNaNs(FMFs.NoNaNs);
+    Res.setNoInfs(FMFs.NoInfs);
+    Res.setNoSignedZeros(FMFs.NoSignedZeros);
+    Res.setAllowReciprocal(FMFs.AllowReciprocal);
+    Res.setAllowContract(FMFs.AllowContract);
+    Res.setApproxFunc(FMFs.ApproxFunc);
+    return Res;
+  }
+
+  void printFlags(raw_ostream &O) const;
+#endif
 };
 
 /// VPWidenRecipe is a recipe for producing a copy of vector type its
