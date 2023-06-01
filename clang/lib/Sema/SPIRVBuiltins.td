@@ -953,6 +953,7 @@ foreach name = ["GroupSMin", "GroupSMax"] in {
   def : SPVBuiltin<name, [ASIGenTypeN, UInt, UInt, ASIGenTypeN], Attr.Convergent>;
 }
 
+// TODO: These builtins need to support vectors of bool.
 foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
   def : SPVBuiltin<name, [Bool, UInt, UInt, Bool], Attr.Convergent>;
 }
