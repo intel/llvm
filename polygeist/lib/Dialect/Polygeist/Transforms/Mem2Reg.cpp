@@ -1828,7 +1828,7 @@ bool Mem2Reg::forwardStoreToLoad(
   return changed;
 }
 
-Type getElementType(mlir::Operation *AllocOp) {
+static Type getElementType(mlir::Operation *AllocOp) {
   return llvm::TypeSwitch<Operation *, Type>(AllocOp)
       .Case<memref::AllocaOp, memref::AllocOp>([](auto AllocOp) {
         return AllocOp.getMemref().getType().getElementType();
@@ -1839,7 +1839,8 @@ Type getElementType(mlir::Operation *AllocOp) {
           return *optElemTy;
 
         // Typed pointer case.
-        assert(!AllocOp.getType().isOpaque());
+        assert(!AllocOp.getType().isOpaque() &&
+               "Opaque alloca did not specify an element type");
         return AllocOp.getType().getElementType();
       })
       .Case<memref::GetGlobalOp>([](auto GlobalOp) {
@@ -1879,7 +1880,7 @@ bool isPromotable(mlir::Value AI) {
       if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
         if (SO.getVolatile_()) {
           LLVM_DEBUG(llvm::dbgs() << "cannot promote " << AI
-                                  << " because of volatile load " << SO);
+                                  << " because of volatile store " << SO);
           return false;
         }
         if (AI == SO.getValue()) {
