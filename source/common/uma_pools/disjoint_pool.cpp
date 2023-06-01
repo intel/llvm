@@ -67,13 +67,6 @@ static void *AlignPtrUp(void *Ptr, const size_t Alignment) {
     return static_cast<char *>(AlignedPtr) + Alignment;
 }
 
-// Aligns the value up to the specified alignment
-// (e.g. returns 16 for Size = 13, Alignment = 8)
-static size_t AlignUp(size_t Val, size_t Alignment) {
-    assert(Alignment > 0);
-    return (Val + Alignment - 1) & (~(Alignment - 1));
-}
-
 DisjointPoolConfig::DisjointPoolConfig()
     : limits(std::make_shared<DisjointPoolConfig::SharedLimits>()) {}
 
@@ -745,7 +738,9 @@ void *DisjointPool::AllocImpl::allocate(size_t Size, size_t Alignment,
         return allocate(Size, FromPool);
     }
 
-    size_t AlignedSize = (Size > 1) ? AlignUp(Size, Alignment) : Alignment;
+    // TODO: we potentially waste some space here, calulate it based on minBucketSize and Slab alignemnt
+    // (using umaMemoryProviderGetMinPageSize)?
+    size_t AlignedSize = (Size > 1) ? (Size + Alignment - 1) : Alignment;
 
     // Check if requested allocation size is within pooling limit.
     // If not, just request aligned pointer from the system.
