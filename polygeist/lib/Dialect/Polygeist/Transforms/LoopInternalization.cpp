@@ -86,6 +86,14 @@ bool isCandidate(LoopLikeOpInterface loop) {
     return false;
   }
 
+  // TODO: Legality checks to ensure tiling is safe for multi levels loop nest.
+  if (LoopTools::getInnermostLoop(loop) != loop) {
+    LLVM_DEBUG(
+        llvm::dbgs()
+        << "Limitation: only support single level loop nest currently\n");
+    return false;
+  }
+
   // TODO: check uniformity.
 
   return true;
