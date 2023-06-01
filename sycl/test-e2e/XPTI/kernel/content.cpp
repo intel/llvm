@@ -28,9 +28,10 @@ int main() {
     auto inputValues = valuesBuf.get_access<access_mode::read>(cgh);
 
     auto sumR = reduction(sumBuf, cgh, plus<>());
-    // Reduction kernel is used
-    // CHECK-OPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 5 ]]:3|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 15
-    // CHECK-NOOPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, 26
+    // Reduction kernel is used, strategy and hence number of kernel arguments
+    // is hw-dependent.
+    // CHECK-OPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, {{1.*}}
+    // CHECK-NOOPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 7 ]]:3|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, {{2.*}}
     cgh.parallel_for<class test1>(
         range<1>{1024}, sumR,
         [=](id<1> idx, auto &sum) { sum += inputValues[idx]; });

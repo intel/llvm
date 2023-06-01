@@ -43,6 +43,9 @@ public:
   std::vector<std::string> TargetNames;
   std::vector<std::string> InputFileNames;
   std::vector<std::string> OutputFileNames;
+
+  // List of excluded target names from unbundling.
+  std::vector<std::string> ExcludedTargetNames;
 };
 
 class OffloadBundler {
