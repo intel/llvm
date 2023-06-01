@@ -531,8 +531,8 @@ static ur_result_t USMAllocationMakeResident(
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc) {
 
-  zeroInit = static_cast<ur_bool_t>(PoolDesc->flags &
-                                    UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK);
+  zeroInit = static_cast<uint32_t>(PoolDesc->flags &
+                                   UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK);
 
   void *pNext = const_cast<void *>(PoolDesc->pNext);
   while (pNext != nullptr) {
