@@ -257,8 +257,8 @@ The auto-detection mechanism is a best effort to relieve users from specifying
 it has its own limitations and potential issues:
 - Rules for target names: **TODO: Define rules for names so that they can be
 auto-detected.**
-- A target name that can be auto-detected specifies `aot-toolchain` and
-`ocloc-device`: user-specified information has precedence over auto-detected
+- User specifies `aot-toolchain` and `aot-toolchain-%option_name` for a target name 
+that can be auto-detected: user-specified information has precedence over auto-detected
 information.
 
 ## Testing
