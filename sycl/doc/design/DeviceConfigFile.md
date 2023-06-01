@@ -71,75 +71,72 @@ use _Search Indexes_ backend as inspiration for ours.
 Our backend should generate a map where the key is the target name and the value
 is an object of a custom class/struct including all the information required. 
 
+TODO: Explain how to define new DynamicTable class so that it can be used.
+
 The original `.td` file should look like the one below: 
 ``` 
 include "llvm/TableGen/SearchableTable.td"
-// AspectEnum, AspectEntry, and all the aspects definitions could be outlined
+
+// Aspect and all the aspects definitions could be outlined
 // to another .td file that could be included into this file
-def AspectEnum : GenericEnum {
-  let FilterClass = "AspectEntry";
-  let NameField = "Name";
-  let ValueField = "Encoding";
+
+class Aspect<string name> {
+  string Name = name;
 }
 
-class AspectEntry<bits<16> enc> {
-  string Name = NAME;
-  bits<16> Encoding = enc;
-}
-
-def AspectCpu : AspectEntry<1>;
-def AspectGpu : AspectEntry<2>;
-def AspectAccelerator : AspectEntry<3>;
-def AspectCustom : AspectEntry<4>;
-def AspectFp16 : AspectEntry<5>;
-def AspectFp64 : AspectEntry<6>;
-def AspectImage : AspectEntry<9>;
-def AspectOnline_compiler : AspectEntry<10>;
-def AspectOnline_linker : AspectEntry<11>;
-def AspectQueue_profiling : AspectEntry<12>;
-def AspectUsm_device_allocations : AspectEntry<13>;
-def AspectUsm_host_allocations : AspectEntry<14>;
-def AspectUsm_shared_allocations : AspectEntry<15>;
-def AspectUsm_system_allocations : AspectEntry<17>;
-def AspectExt_intel_pci_address : AspectEntry<18>;
-def AspectExt_intel_gpu_eu_count : AspectEntry<19>;
-def AspectExt_intel_gpu_eu_simd_width : AspectEntry<20>;
-def AspectExt_intel_gpu_slices : AspectEntry<21>;
-def AspectExt_intel_gpu_subslices_per_slice : AspectEntry<22>;
-def AspectExt_intel_gpu_eu_count_per_subslice : AspectEntry<23>;
-def AspectExt_intel_max_mem_bandwidth : AspectEntry<24>;
-def AspectExt_intel_mem_channel : AspectEntry<25>;
-def AspectUsm_atomic_host_allocations : AspectEntry<26>;
-def AspectUsm_atomic_shared_allocations : AspectEntry<27>;
-def AspectAtomic64 : AspectEntry<28>;
-def AspectExt_intel_device_info_uuid : AspectEntry<29>;
-def AspectExt_oneapi_srgb : AspectEntry<30>;
-def AspectExt_oneapi_native_assert : AspectEntry<31>;
-def AspectHost_debuggable : AspectEntry<32>;
-def AspectExt_intel_gpu_hw_threads_per_eu : AspectEntry<33>;
-def AspectExt_oneapi_cuda_async_barrier : AspectEntry<34>;
-def AspectExt_oneapi_bfloat16_math_functions : AspectEntry<35>;
-def AspectExt_intel_free_memory : AspectEntry<36>;
-def AspectExt_intel_device_id : AspectEntry<37>;
-def AspectExt_intel_memory_clock_rate : AspectEntry<38>;
-def AspectExt_intel_memory_bus_width : AspectEntry<39>;
-def AspectEmulated : AspectEntry<40>;
+def AspectCpu : Aspect<"cpu">;
+def AspectGpu : Aspect<"gpu">;
+def AspectAccelerator : Aspect<"accelerator">;
+def AspectCustom : Aspect<"custom">;
+def AspectFp16 : Aspect<"fp16">;
+def AspectFp64 : Aspect<"fp64">;
+def AspectImage : Aspect<"image">;
+def AspectOnline_compiler : Aspect<"online_compiler">;
+def AspectOnline_linker : Aspect<"online_linker">;
+def AspectQueue_profiling : Aspect<"queue_profiling">;
+def AspectUsm_device_allocations : Aspect<"usm_device_allocations">;
+def AspectUsm_host_allocations : Aspect<"usm_host_allocations">;
+def AspectUsm_shared_allocations : Aspect<"usm_shared_allocations">;
+def AspectUsm_system_allocations : Aspect<"usm_system_allocations">;
+def AspectExt_intel_pci_address : Aspect<"ext_intel_pci_address">;
+def AspectExt_intel_gpu_eu_count : Aspect<"ext_intel_gpu_eu_count">;
+def AspectExt_intel_gpu_eu_simd_width : Aspect<"ext_intel_gpu_eu_simd_width">;
+def AspectExt_intel_gpu_slices : Aspect<"ext_intel_gpu_slices">;
+def AspectExt_intel_gpu_subslices_per_slice : Aspect<"ext_intel_gpu_subslices_per_slice">;
+def AspectExt_intel_gpu_eu_count_per_subslice : Aspect<"ext_intel_gpu_eu_count_per_subslice">;
+def AspectExt_intel_max_mem_bandwidth : Aspect<"ext_intel_max_mem_bandwidth">;
+def AspectExt_intel_mem_channel : Aspect<"ext_intel_mem_channel">;
+def AspectUsm_atomic_host_allocations : Aspect<"usm_atomic_host_allocations">;
+def AspectUsm_atomic_shared_allocations : Aspect<"usm_atomic_shared_allocations">;
+def AspectAtomic64 : Aspect<"atomic64">;
+def AspectExt_intel_device_info_uuid : Aspect<"ext_intel_device_info_uuid">;
+def AspectExt_oneapi_srgb : Aspect<"ext_oneapi_srgb">;
+def AspectExt_oneapi_native_assert : Aspect<"ext_oneapi_native_assert">;
+def AspectHost_debuggable : Aspect<"host_debuggable">;
+def AspectExt_intel_gpu_hw_threads_per_eu : Aspect<"ext_intel_gpu_hw_threads_per_eu">;
+def AspectExt_oneapi_cuda_async_barrier : Aspect<"ext_oneapi_cuda_async_barrier">;
+def AspectExt_oneapi_bfloat16_math_functions : Aspect<"ext_oneapi_bfloat16_math_functions">;
+def AspectExt_intel_free_memory : Aspect<"ext_intel_free_memory">;
+def AspectExt_intel_device_id : Aspect<"ext_intel_device_id">;
+def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
+def AspectExt_intel_memory_bus_width : Aspect<"ext_intel_memory_bus_width">;
+def AspectEmulated : Aspect<"emulated">;
     
 def TargetTable : DynamicTable { 
     let FilterClass = "TargetInfo";
     let Fields = ["TargetName", "aspects", "maySupportOtherAspects",
-                  "subGroupSizes", "aotToolchain", "oclocDevice"];
-    let PrimaryKey = ["TargetName"];
+                  "subGroupSizes", "aotToolchain", "aotToolchain-options"];
+    string TypeOf_aspects = "list<Aspect>";
 }
 
-class TargetInfo <string tgtName, list<AspectEntry> listAspects, bit otherAspects,
-                  list<int> listSubGroupSizes, string toolchain, string device>
+class TargetInfo <string tgtName, list<Aspect> aspectList, bit otherAspects,
+                  list<int> listSubGroupSizes, string toolchain, string option>
 {
-    list<AspectEntry> aspects = listAspects;
+    list<Aspect> aspects = aspectList;
     bits<1> maySupportOtherAspects = otherAspects;
     list<int> subGroupSizes = listSubGroupSizes;
     string aotToolchain = toolchain;
-    string oclocDevice = device;
+    string aotToolchain-options = option;
 }
 
 def : TargetInfo<"TargetA", [AspectCpu, AspectAtomic64], 
@@ -149,81 +146,34 @@ def : TargetInfo<"TargetB", [AspectGpu, AspectFp16],
 def : TargetInfo<"TargetC", [AspectEmulated, AspectImage],
                                    0, [8, 32], "ocloc", "tgtC">;
 ```
-Note: backends tested don't allow lists within `TargetInfo` class. I
-_think_ this is a backend limitation, rather than a TableGen limitation.
-Thus, we should be able to lift this limitation in our own backend.
+Note: backends tested don't allow lists within `TargetInfo` class. This is a 
+backend limitation, rather than a TableGen limitation. Thus, we should be able
+to lift this limitation in our own backend, as shown in the initial prototype
+implemented to drive the design.
 
 The generated `.inc` file should look like the example below: 
 ```c++
-enum AspectEnum {
-  AspectAccelerator = 3,
-  AspectAtomic64 = 28,
-  AspectCpu = 1,
-  AspectCustom = 4,
-  AspectEmulated = 40,
-  AspectExt_intel_device_id = 37,
-  AspectExt_intel_device_info_uuid = 29,
-  AspectExt_intel_free_memory = 36,
-  AspectExt_intel_gpu_eu_count = 19,
-  AspectExt_intel_gpu_eu_count_per_subslice = 23,
-  AspectExt_intel_gpu_eu_simd_width = 20,
-  AspectExt_intel_gpu_hw_threads_per_eu = 33,
-  AspectExt_intel_gpu_slices = 21,
-  AspectExt_intel_gpu_subslices_per_slice = 22,
-  AspectExt_intel_max_mem_bandwidth = 24,
-  AspectExt_intel_mem_channel = 25,
-  AspectExt_intel_memory_bus_width = 39,
-  AspectExt_intel_memory_clock_rate = 38,
-  AspectExt_intel_pci_address = 18,
-  AspectExt_oneapi_bfloat16_math_functions = 35,
-  AspectExt_oneapi_cuda_async_barrier = 34,
-  AspectExt_oneapi_native_assert = 31,
-  AspectExt_oneapi_srgb = 30,
-  AspectFp16 = 5,
-  AspectFp64 = 6,
-  AspectGpu = 2,
-  AspectHost_debuggable = 32,
-  AspectImage = 9,
-  AspectOnline_compiler = 10,
-  AspectOnline_linker = 11,
-  AspectQueue_profiling = 12,
-  AspectUsm_atomic_host_allocations = 26,
-  AspectUsm_atomic_shared_allocations = 27,
-  AspectUsm_device_allocations = 13,
-  AspectUsm_host_allocations = 14,
-  AspectUsm_shared_allocations = 15,
-  AspectUsm_system_allocations = 17,
-};
-    
-struct TargetInfo {
-  bool maySupportOtherAspects;
-  std::vector<unsigned> aspects;
-  std::vector<unsigned> subGroupSizes;
-  std::string aotToolchain;
-  std::string oclocDevice;
-};
-
 std::map<std::string, TargetInfo> targets = {
     {"TargetA",
-     {{AspectCpu, AspectAtomic64}, 0, {8, 16}, "ocloc", "tgtA"}},
+     {{"cpu", "atomic64"}, 0, {8, 16}, "ocloc", "tgtA"}},
     {"TargetB",
-     {{AspectGpu, AspectFp16}, 0, {8, 16}, "ocloc", "tgtB"}},
+     {{"gpu", "fp16"}, 0, {8, 16}, "ocloc", "tgtB"}},
     {"TargetC",
-     {{AspectEmulated, AspectImage}, 0, {8, 32}, "ocloc", "tgtC"}}};
+     {{"emulated", "image"}, 0, {8, 32}, "ocloc", "tgtC"}}};
 ```
 
 We also need a header file that includes the `.inc` file generated by the
 TableGen backend. Other backends don't generate the definition of `struct
-TargetInfo`. This might be a limitation of the backends, or a limitation of
-TableGen. In case it cannot be autogenerated by the backend, a possible
-workaround is simply to define the struct in this header file. This header
-file should look like the code below:
+TargetInfo`, and this seems a good idea to me: it simplifies the backend
+implementation, and it is easier for developers to check the data structure
+to understand how to work with it. The idea is simply to define the struct 
+in this header file. This header file should look like the code below:
 ```c++
 namespace DeviceConfigFile {
 // In case the backend cannot generate a definition for TargetInfo
 struct TargetInfo {
   bool maySupportOtherAspects;
-  std::vector<unsigned> aspects;
+  std::vector<std::string> aspects;
   std::vector<unsigned> subGroupSizes;
   std::string aotToolchain;
   std::string oclocDevice;
