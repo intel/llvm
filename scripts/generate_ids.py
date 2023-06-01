@@ -1,6 +1,8 @@
 """
  Copyright (C) 2023 Intel Corporation
- SPDX-License-Identifier: MIT
+ Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ See LICENSE.TXT
+ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  Generates a unique id for each spec function that doesn't have it.
 """
 
