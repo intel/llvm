@@ -445,7 +445,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
-  if (C.getDriver().isFPGAEmulationMode()) {
+  if (C.getDriver().IsFPGAEmulationMode()) {
     constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
     return;
   }
@@ -850,7 +850,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     }
   }
   // Strip out -O0 for FPGA Hardware device compilation.
-  if (!getDriver().isFPGAEmulationMode() &&
+  if (getDriver().IsFPGAHWMode() &&
       getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
     DAL->eraseArg(options::OPT_O0);
 
