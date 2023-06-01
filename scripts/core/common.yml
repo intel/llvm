@@ -318,6 +318,8 @@ etors:
       desc: $x_queue_native_desc_t
     - name: DEVICE_PARTITION_PROPERTIES
       desc: $x_device_partition_properties_t
+    - name: EXP_COMMAND_BUFFER_DESC
+      desc: $x_exp_command_buffer_desc_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
