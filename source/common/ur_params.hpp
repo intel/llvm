@@ -167,6 +167,10 @@ inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_rect_offset_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_rect_region_t params);
+inline std::ostream &
+operator<<(std::ostream &os, enum ur_exp_command_buffer_support_level_t value);
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -726,6 +730,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -895,6 +903,12 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
             (const ur_device_partition_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC: {
+        const ur_exp_command_buffer_desc_t *pstruct =
+            (const ur_exp_command_buffer_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
     default:
         os << "unknown enumerator";
         break;
@@ -971,6 +985,43 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ".depth = ";
 
     os << (params.depth);
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os, enum ur_exp_command_buffer_support_level_t value) {
+    switch (value) {
+
+    case UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_UNSUPPORTED:
+        os << "UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_UNSUPPORTED";
+        break;
+
+    case UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_EMULATED:
+        os << "UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_EMULATED";
+        break;
+
+    case UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_NATIVE:
+        os << "UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_NATIVE";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params) {
+    os << "(struct ur_exp_command_buffer_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
 
     os << "}";
     return os;
@@ -1731,6 +1782,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
 
     case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
         os << "UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP";
+        break;
+
+    case UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT:
+        os << "UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT";
         break;
     default:
         os << "unknown enumerator";
@@ -3270,6 +3325,21 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size
                << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT: {
+        const ur_exp_command_buffer_support_level_t *tptr =
+            (const ur_exp_command_buffer_support_level_t *)ptr;
+        if (sizeof(ur_exp_command_buffer_support_level_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >="
+               << sizeof(ur_exp_command_buffer_support_level_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
@@ -8135,6 +8205,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_USM_POOL_CREATE";
         break;
 
+    case UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP";
+        break;
+
     case UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION:
         os << "UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION";
         break;
@@ -8161,6 +8235,38 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_USM_POOL_GET_INFO:
         os << "UR_FUNCTION_USM_POOL_GET_INFO";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_MEMCPY_USM_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_MEMCPY_USM_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_RECT_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_RECT_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -8311,6 +8417,313 @@ inline std::ostream &operator<<(std::ostream &os,
     os << ".pParams = ";
 
     ur_params::serializePtr(os, *(params->ppParams));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_create_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
+    os << ".pCommandBufferDesc = ";
+
+    ur_params::serializePtr(os, *(params->ppCommandBufferDesc));
+
+    os << ", ";
+    os << ".phCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->pphCommandBuffer));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_retain_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_release_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_finalize_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_append_kernel_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".hKernel = ";
+
+    ur_params::serializePtr(os, *(params->phKernel));
+
+    os << ", ";
+    os << ".WorkDim = ";
+
+    os << *(params->pWorkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkOffset = ";
+
+    ur_params::serializePtr(os, *(params->ppGlobalWorkOffset));
+
+    os << ", ";
+    os << ".pGlobalWorkSize = ";
+
+    ur_params::serializePtr(os, *(params->ppGlobalWorkSize));
+
+    os << ", ";
+    os << ".pLocalWorkSize = ";
+
+    ur_params::serializePtr(os, *(params->ppLocalWorkSize));
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pDependencies = ";
+
+    ur_params::serializePtr(os, *(params->ppDependencies));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_memcpy_usm_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".pDst = ";
+
+    ur_params::serializePtr(os, *(params->ppDst));
+
+    os << ", ";
+    os << ".pSrc = ";
+
+    ur_params::serializePtr(os, *(params->ppSrc));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pDependencies = ";
+
+    ur_params::serializePtr(os, *(params->ppDependencies));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_membuffer_copy_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".hSrcMem = ";
+
+    ur_params::serializePtr(os, *(params->phSrcMem));
+
+    os << ", ";
+    os << ".hDstMem = ";
+
+    ur_params::serializePtr(os, *(params->phDstMem));
+
+    os << ", ";
+    os << ".srcOffset = ";
+
+    os << *(params->psrcOffset);
+
+    os << ", ";
+    os << ".dstOffset = ";
+
+    os << *(params->pdstOffset);
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pDependencies = ";
+
+    ur_params::serializePtr(os, *(params->ppDependencies));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    const struct ur_command_buffer_membuffer_copy_rect_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".hSrcMem = ";
+
+    ur_params::serializePtr(os, *(params->phSrcMem));
+
+    os << ", ";
+    os << ".hDstMem = ";
+
+    ur_params::serializePtr(os, *(params->phDstMem));
+
+    os << ", ";
+    os << ".SrcOrigin = ";
+
+    os << *(params->pSrcOrigin);
+
+    os << ", ";
+    os << ".DstOrigin = ";
+
+    os << *(params->pDstOrigin);
+
+    os << ", ";
+    os << ".Region = ";
+
+    os << *(params->pRegion);
+
+    os << ", ";
+    os << ".SrcRowPitch = ";
+
+    os << *(params->pSrcRowPitch);
+
+    os << ", ";
+    os << ".SrcSlicePitch = ";
+
+    os << *(params->pSrcSlicePitch);
+
+    os << ", ";
+    os << ".DstRowPitch = ";
+
+    os << *(params->pDstRowPitch);
+
+    os << ", ";
+    os << ".DstSlicePitch = ";
+
+    os << *(params->pDstSlicePitch);
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pDependencies = ";
+
+    ur_params::serializePtr(os, *(params->ppDependencies));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_command_buffer_enqueue_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = {";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
+                       i < *params->pnumEventsInWaitList;
+         ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur_params::serializePtr(os, *(params->pphEvent));
 
     return os;
 }
@@ -11924,6 +12337,36 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     } break;
     case UR_FUNCTION_TEAR_DOWN: {
         os << (const struct ur_tear_down_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP: {
+        os << (const struct ur_command_buffer_create_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP: {
+        os << (const struct ur_command_buffer_retain_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP: {
+        os << (const struct ur_command_buffer_release_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP: {
+        os << (const struct ur_command_buffer_finalize_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_EXP: {
+        os << (const struct ur_command_buffer_append_kernel_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_MEMCPY_USM_EXP: {
+        os << (const struct ur_command_buffer_memcpy_usm_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_EXP: {
+        os << (const struct ur_command_buffer_membuffer_copy_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_RECT_EXP: {
+        os << (const struct ur_command_buffer_membuffer_copy_rect_exp_params_t
+                   *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP: {
+        os << (const struct ur_command_buffer_enqueue_exp_params_t *)params;
     } break;
     case UR_FUNCTION_CONTEXT_CREATE: {
         os << (const struct ur_context_create_params_t *)params;

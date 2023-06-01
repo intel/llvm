@@ -26,6 +26,11 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = urGetCommandBufferExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &urDdiTable.CommandBufferExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
                                            &urDdiTable.Context);
     }

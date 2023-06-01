@@ -343,6 +343,9 @@ etors:
 - name: USM_POOL_CREATE
   desc: Enumerator for $xUSMPoolCreate
   value: '112'
+- name: COMMAND_BUFFER_CREATE_EXP
+  desc: Enumerator for $xCommandBufferCreateExp
+  value: '113'
 - name: PLATFORM_GET_BACKEND_OPTION
   desc: Enumerator for $xPlatformGetBackendOption
   value: '114'
@@ -364,3 +367,27 @@ etors:
 - name: USM_POOL_GET_INFO
   desc: Enumerator for $xUSMPoolGetInfo
   value: '120'
+- name: COMMAND_BUFFER_RETAIN_EXP
+  desc: Enumerator for $xCommandBufferRetainExp
+  value: '121'
+- name: COMMAND_BUFFER_RELEASE_EXP
+  desc: Enumerator for $xCommandBufferReleaseExp
+  value: '122'
+- name: COMMAND_BUFFER_FINALIZE_EXP
+  desc: Enumerator for $xCommandBufferFinalizeExp
+  value: '123'
+- name: COMMAND_BUFFER_APPEND_KERNEL_EXP
+  desc: Enumerator for $xCommandBufferAppendKernelExp
+  value: '124'
+- name: COMMAND_BUFFER_MEMCPY_USM_EXP
+  desc: Enumerator for $xCommandBufferMemcpyUSMExp
+  value: '125'
+- name: COMMAND_BUFFER_MEMBUFFER_COPY_EXP
+  desc: Enumerator for $xCommandBufferMembufferCopyExp
+  value: '126'
+- name: COMMAND_BUFFER_MEMBUFFER_COPY_RECT_EXP
+  desc: Enumerator for $xCommandBufferMembufferCopyRectExp
+  value: '127'
+- name: COMMAND_BUFFER_ENQUEUE_EXP
+  desc: Enumerator for $xCommandBufferEnqueueExp
+  value: '128'
