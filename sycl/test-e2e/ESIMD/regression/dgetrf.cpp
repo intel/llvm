@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// TODO: remove fno-fast-math option once a compiler issue resulting
-// incorrect execution results when using fast-math is resolved.
+// TODO: remove fno-fast-math option once the issue is investigated and the test
+// is fixed.
 // UNSUPPORTED: esimd_emulator
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} %{mathflags} -I%S/.. -o %t.out
