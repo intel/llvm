@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/group.hpp>
 #include <sycl/known_identity.hpp>
 
 namespace sycl {
