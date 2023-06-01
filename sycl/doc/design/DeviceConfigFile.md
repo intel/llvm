@@ -246,16 +246,17 @@ name is `intel_gpu_skl`. From that name, we can infer that `aot-toolchain` is
 `aot-toolchain-ocloc-device` set to `skl` just by keeping what is left after the
 prefix `intel_gpu`.
 
-#### Auto-detection Potential Issues/Limitations
-The auto-detection mechanism is a best effort to relieve users from specifying
-`aot-toolchain` and `ocloc-device` from well known devices. However, it has
-limitations and potential issues:
-- Rules for target names: **TODO: Define rules for names so that they can be
-auto-detected.**
+#### Potential Issues/Limitations
 - Multiple targets with the same name: On the one hand, the compiler emits a
 warning so that the user is aware that multiple targets share the same name. On
 the other hand, it simply processes each new entry and updates the map with the
 latest information found.
+
+The auto-detection mechanism is a best effort to relieve users from specifying
+`aot-toolchain` and `aot-toolchain-%option_name` from well known devices. However, 
+it has its own limitations and potential issues:
+- Rules for target names: **TODO: Define rules for names so that they can be
+auto-detected.**
 - A target name that can be auto-detected specifies `aot-toolchain` and
 `ocloc-device`: user-specified information has precedence over auto-detected
 information.
