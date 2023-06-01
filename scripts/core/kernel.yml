@@ -308,7 +308,7 @@ params:
       desc: "[in] argument index in range [0, num args - 1]"
     - type: "const void*"
       name: pArgValue
-      desc: "[in][optional] SVM pointer to memory location holding the argument value. If null then argument value is considered null."
+      desc: "[in][optional] USM pointer to memory location holding the argument value. If null then argument value is considered null."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
