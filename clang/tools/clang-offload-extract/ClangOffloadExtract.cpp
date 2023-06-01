@@ -99,16 +99,24 @@ linked fat binary, and store them in separate files.
 )",
                               nullptr, nullptr, true);
 
-  // Read input file. It should have one of the supported object file formats.
+  // Read input file. It should have one of the supported object file
+  // formats:
+  // * Common Object File Format (COFF) : https://wiki.osdev.org/COFF
+  // * Executable Linker Format (ELF)   : https://wiki.osdev.org/ELF
   Expected<OwningBinary<ObjectFile>> ObjectOrErr =
       ObjectFile::createObjectFile(Input);
   if (auto E = ObjectOrErr.takeError()) {
     reportError(std::move(E), "Input File: '" + Input + "'\n");
   }
 
+  // LLVM::ObjectFile has no constructor, but we can extract it from the
+  // LLVM::OwningBinary object
   ObjectFile *Binary = ObjectOrErr->getBinary();
 
   // Do we plan to support 32-bit offload binaries?
+  //                  Size of void pointer:
+  // 32-bit systems:  4
+  // 64-bit systems:  8
   if (!(isa<ELF64LEObjectFile>(Binary) || isa<COFFObjectFile>(Binary)) ||
       Binary->getBytesInAddress() != sizeof(void *)) {
     reportError(
@@ -134,18 +142,20 @@ linked fat binary, and store them in separate files.
       reportError(std::move(E), "Input File: '" + Input + "'\n");
     }
 
-    // This section contains concatenated <address, size> pairs describing
-    // target images that are stored in the binary. Loop over these
-    // descriptors and extract each target image.
-    struct ImgInfoTy {
+    // The "IMAGE_INFO_SECTION_NAME" section contains packed
+    // <address, size> pairs describing target images that are stored in
+    // the binary.
+    struct ImgInfoType {
       uintptr_t Addr;
       uintptr_t Size;
     };
 
-    auto ImgInfo = makeArrayRef<ImgInfoTy>(
-        reinterpret_cast<const ImgInfoTy *>(DataOrErr->data()),
-        DataOrErr->size() / sizeof(ImgInfoTy));
+    auto ImgInfo = ArrayRef(
+        reinterpret_cast<const ImgInfoType *>(DataOrErr->data()),
+        DataOrErr->size() / sizeof(ImgInfoType));
 
+    //  Loop over the image information descriptors to extract each
+    // target image.
     for (auto &Img : ImgInfo) {
       // Ignore zero padding that can be inserted by the linker.
       if (!Img.Addr)
