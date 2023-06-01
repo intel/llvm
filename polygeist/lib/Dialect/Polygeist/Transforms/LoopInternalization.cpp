@@ -97,18 +97,18 @@ Value getTileSize(OpBuilder builder) {
                                                 LoopInternalizationTileSize);
 }
 
-LogicalResult tile(affine::AffineForOp nestedLoops, Value tileSizes,
+LogicalResult tile(affine::AffineForOp loop, Value tileSize,
                    SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
   LogicalResult res =
-      tilePerfectlyNestedParametric({nestedLoops}, tileSizes, &newNestedLoops);
+      tilePerfectlyNestedParametric({loop}, tileSize, &newNestedLoops);
   tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
                                                newNestedLoops.end());
   return res;
 }
-LogicalResult tile(scf::ForOp nestedLoops, Value tileSizes,
+LogicalResult tile(scf::ForOp loop, Value tileSize,
                    SmallVectorImpl<scf::ForOp> &tiledNest) {
-  tiledNest = tile({nestedLoops}, tileSizes, nestedLoops);
+  tiledNest = tile({loop}, tileSize, loop);
   return success();
 }
 
