@@ -125,6 +125,8 @@ linked fat binary, and store them in separate files.
         "Input File: '" + Input + "'");
   }
 
+  // We are dealing with an appropriate object file, locate the section
+  // that contains the metadata on the embedded binaries
   unsigned FileNum = 0;
 
   for (SectionRef Section : Binary->sections()) {
@@ -150,9 +152,9 @@ linked fat binary, and store them in separate files.
       uintptr_t Size;
     };
 
-    auto ImgInfo = ArrayRef(
-        reinterpret_cast<const ImgInfoType *>(DataOrErr->data()),
-        DataOrErr->size() / sizeof(ImgInfoType));
+    auto ImgInfo =
+        ArrayRef(reinterpret_cast<const ImgInfoType *>(DataOrErr->data()),
+                 DataOrErr->size() / sizeof(ImgInfoType));
 
     //  Loop over the image information descriptors to extract each
     // target image.
