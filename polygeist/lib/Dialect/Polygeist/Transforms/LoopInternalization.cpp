@@ -380,7 +380,7 @@ private:
   /// A map from a candidate loop to memref values used in the loop.
   DenseMap<LoopLikeOpInterface, SmallVector<Value>> loopToMemref;
 
-  /// Map from a candidate a memref value to its ideal memory space.
+  /// Map from a candidate memref value to its ideal memory space.
   DenseMap<Value, MemorySelector::MemorySpace> memrefToMemorySpace;
 };
 
@@ -433,15 +433,11 @@ void LoopInternalization::runOnOperation() {
 
     // Now that we have the ideal memory space for all analyzable memref
     // accesses in each loop, transform the loops.
-    for (auto &entry : loopToMemref) {
-      if (isa<affine::AffineForOp>(entry.first))
-        transform(cast<affine::AffineForOp>(entry.first), memAccessAnalysis,
-                  solver);
-      else if (isa<scf::ForOp>(entry.first))
-        transform(cast<scf::ForOp>(entry.first), memAccessAnalysis, solver);
-      else
-        llvm_unreachable("Unexpected loop kind");
-    }
+    for (auto &entry : loopToMemref)
+      TypeSwitch<Operation *>(entry.first)
+          .Case<affine::AffineForOp, scf::ForOp>(
+              [&](auto loop) { transform(loop, memAccessAnalysis, solver); })
+          .Default([](auto) { llvm_unreachable("Unexpected loop kind"); });
   });
 }
 
@@ -477,7 +473,7 @@ void LoopInternalization::selectMemorySpace(
     if (!memSpace)
       return;
 
-    // Record we have processes the memref in this loop...
+    // Record we have processed the memref in this loop...
     auto it = loopToMemref.find(loop);
     if (it == loopToMemref.end())
       loopToMemref[loop] = {memRefAccess.memref};

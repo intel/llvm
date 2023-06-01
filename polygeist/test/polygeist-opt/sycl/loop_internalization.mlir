@@ -15,12 +15,17 @@
 // CHECK-DAG:   [[MAP2:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0)>
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0 + s0, 256)>
 // CHECK-LABEL: func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_2_>) {
+// CHECK:         %c0_i32 = arith.constant 0 : i32
+// CHECK-NEXT:    [[TX:%.*]] = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2_>, i32) -> i64  
 // SIZE1:         [[TILESIZE:%.*]] = arith.constant 1 : index
 // SIZE2:         [[TILESIZE:%.*]] = arith.constant 2 : index
 // CHECK-NEXT:    affine.for [[IV1:%.*]] = 0 to [[MAP1]]()[[[TILESIZE]]] {
 // CHECK-NEXT:      spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      affine.for [[IV2:%.*]] = [[MAP2]]([[IV1]])[[[TILESIZE]]] to min [[MAP3]]([[IV1]])[[[TILESIZE]]] {
-// CHECK:           {{.*}} = affine.load {{.*}}[0] : memref<?xf32>
+// CHECK:             [[IV2_CAST:%.*]] = arith.index_cast [[IV2]] : index to i64 
+// CHECK-NEXT:        sycl.constructor @id([[ID:%.*]], [[TX]], [[IV2_CAST]]) {{.*}} : (memref<?x!sycl_id_2_>, i64, i64)
+// CHECK-NEXT:        [[SUBSCR:%.*]] = sycl.accessor.subscript %arg0[[[ID]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2_>) -> memref<?xf32>
+// CHECK:             {{.*}} = affine.load [[SUBSCR]][0] : memref<?xf32>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:    }
