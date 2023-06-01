@@ -14,21 +14,21 @@ the well known targets at the time of building the compiler.  This embedded
 knowledge must be extendable, since our AOT toolchain allows compiling for
 targets not known at the time of building the compiler so long as the
 appropriate toolchain --AOT compiler and driver-- support such targets. In
-other words, we need to provide a way for users to add entries for new targets
-at application compile time.
+other words, we need to provide a way for users to add entries for new targets or
+update existing targets at application compile time.
 
 An entry of the Device Configuration File should include:
 - Name of the target.
 - List of supported aspects.
 - List of supported sub-group sizes.
-- [Optional] `aot-toolchain` command to be called when compiling for this
-target. This information is optional because we plan to implement an
+- [Optional] `aot-toolchain` name/identifier describing the toolchain used to compile
+for this target. This information is optional because we plan to implement an
 auto-detection mechanism that is able to infer the `aot-toolchain` from the
 target name for well known targets.
-- [Optional] `ocloc-device` information to be passed to the `aot-toolchain`
-command so that it knows what the target device is. This information is optional
-because we plan to implement an auto-detection mechanism that is able to infer
-the `ocloc-device` from the target name for well known targets.
+- [Optional] `aot-toolchain-%option_name` information to be passed to the
+`aot-toolchain` command. This information is optional. For some targets, the 
+auto-detection mechanism might be able to infer values for this. One example of this
+information would be `ocloc-device %device_id`.
 
 The information provided in the Device Configuration File is required from
 different tools and compiler modules:
@@ -248,6 +248,18 @@ if (info == DeviceConfigFile::targets.end()) {
 }
 ```
 
+## Tools and Modules Interacting with Device Config File
+This is a list of the tools and compiler modules that require using the file:
+- The *compiler driver* needs the file to determine the set of legal values for 
+`-fsycl-targets`.
+- The *compiler driver* needs the file to define macros for `any_device_has/all_devices_have`.
+- *Clang* needs the file to emit diagnostics related to `-fsycl-fixed-targets.`
+- `sycl-post-link` needs the file to filter kernels in device images when doing AOT
+compilation.
+
+Following, you can find the changes required in different parts of the project
+in more detail.
+
 ### Changes to Build Infrastructure
 We need the information about the targets in multiple tools and compiler
 modules listed in [Requirements](#Requirements).  Thus, we need to make sure
@@ -260,7 +272,7 @@ run before any of the consumers need it.
 ### Changes to the DPC++ Frontend
 To allow users to add new targets we provide a new flag:
 `fsycl-device-config-file=/path/to/file.yaml`. Users can pass a `.yaml` file
-describing the targets to be added/updated. An example of how such .yaml` file
+describing the targets to be added/updated. An example of how such `.yaml` file
 should look like is shown below.
 ```
 intel_gpu_skl:
@@ -276,11 +288,12 @@ map with the new information about targets. LLVM provides
 files.
 
 As mentioned in [Requirements](#Requirements), there is an auto-detection
-mechanism for `aot-toolchain` and `ocloc-device` inferring these from the target
-name. In the `.yaml` example shown above the target name is `intel_gpu_skl`.
-From that name, we can infer that `aot-toolchain` is `ocloc` because the name
-starts with `intel_gpu`. Also, we can infer that `ocloc-device` is `skl` just by
-keeping what is left after the prefix `intel_gpu`.
+mechanism for `aot-toolchain` and `aot-toolchain-%option_name` that is able to
+infer these from the target name. In the `.yaml` example shown above the target
+name is `intel_gpu_skl`. From that name, we can infer that `aot-toolchain` is
+`ocloc` because the name starts with `intel_gpu`. Also, we can infer that it needs
+`aot-toolchain-ocloc-device` set to `skl` just by keeping what is left after the
+prefix `intel_gpu`.
 
 #### Auto-detection Potential Issues/Limitations
 The auto-detection mechanism is a best effort to relieve users from specifying
@@ -295,3 +308,6 @@ latest information found.
 - A target name that can be auto-detected specifies `aot-toolchain` and
 `ocloc-device`: user-specified information has precedence over auto-detected
 information.
+
+## Testing
+// TODO
