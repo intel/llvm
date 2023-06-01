@@ -170,7 +170,6 @@ to understand how to work with it. The idea is simply to define the struct
 in this header file. This header file should look like the code below:
 ```c++
 namespace DeviceConfigFile {
-// In case the backend cannot generate a definition for TargetInfo
 struct TargetInfo {
   bool maySupportOtherAspects;
   std::vector<std::string> aspects;
