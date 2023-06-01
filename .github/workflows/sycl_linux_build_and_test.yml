@@ -119,7 +119,7 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target polygeist-doc
     # TODO allow to optionally disable in-tree checks
     - name: check-mlir-sycl
-      shell: bash    
+      shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-mlir-sycl
@@ -137,10 +137,15 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-polygeist
     - name: check-polygeist-unit
-      shell: bash    
+      shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-polygeist-unit
+    - name: check-clang-driver
+      shell: bash
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-clang-driver
     - name: Install
       # TODO replace utility installation with a single CMake target
       run: |
