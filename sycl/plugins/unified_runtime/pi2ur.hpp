@@ -381,6 +381,54 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
   return PI_SUCCESS;
 }
 
+inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
+                                       size_t ParamValueSizePI,
+                                       size_t *ParamValueSizeUR,
+                                       void *ParamValue) {
+
+  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+  switch (ParamName) {
+  case UR_SAMPLER_INFO_ADDRESSING_MODE: {
+    auto ConvertFunc = [](ur_sampler_addressing_mode_t UrValue) {
+      switch (UrValue) {
+      case UR_SAMPLER_ADDRESSING_MODE_CLAMP:
+        return PI_SAMPLER_ADDRESSING_MODE_CLAMP;
+      case UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE:
+        return PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
+      case UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
+        return PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
+      case UR_SAMPLER_ADDRESSING_MODE_NONE:
+        return PI_SAMPLER_ADDRESSING_MODE_NONE;
+      case UR_SAMPLER_ADDRESSING_MODE_REPEAT:
+        return PI_SAMPLER_ADDRESSING_MODE_REPEAT;
+
+      default:
+        die("UR_SAMPLER_ADDRESSING_MODE_TYPE: unhandled value");
+      }
+    };
+    return Value
+        .convert<ur_sampler_addressing_mode_t, pi_sampler_addressing_mode>(
+            ConvertFunc);
+  }
+  case UR_SAMPLER_INFO_FILTER_MODE: {
+    auto ConvertFunc = [](ur_sampler_filter_mode_t UrValue) {
+      switch (UrValue) {
+      case UR_SAMPLER_FILTER_MODE_LINEAR:
+        return PI_SAMPLER_FILTER_MODE_LINEAR;
+      case UR_SAMPLER_FILTER_MODE_NEAREST:
+        return PI_SAMPLER_FILTER_MODE_NEAREST;
+      default:
+        die("UR_SAMPLER_FILTER_MODE: unhandled value");
+      }
+    };
+    return Value.convert<ur_sampler_filter_mode_t, pi_sampler_filter_mode>(
+        ConvertFunc);
+  }
+  default:
+    return PI_SUCCESS;
+  }
+}
+
 // Translate UR device info values to PI info values
 inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
                                         size_t ParamValueSizePI,
@@ -3821,6 +3869,7 @@ inline pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
   auto hSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
   HANDLE_ERRORS(urSamplerGetInfo(hSampler, InfoType, SizeInOut, ParamValue,
                                  ParamValueSizeRet));
+  ur2piSamplerInfoValue(InfoType, ParamValueSize, &ParamValueSize, ParamValue);
   fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
 
   return PI_SUCCESS;
