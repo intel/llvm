@@ -103,6 +103,16 @@ linked fat binary, and store them in separate files.
   // formats:
   // * Common Object File Format (COFF) : https://wiki.osdev.org/COFF
   // * Executable Linker Format (ELF)   : https://wiki.osdev.org/ELF
+  // This utility works on a hierarchy of objects:
+  // =                        OwningBinary<ObjectFile>   ObjectOrError
+  // |_->getBinary()          ObjectFile                 *Binary
+  //   |_->getSections()      section_iterator_range     -
+  //     |_:                  SectionRef                 Section
+  //       |_.getName()       StringRef                  -
+  //       |_.getContents()   StringRef                  -
+  //       |_.isData()        bool                       -
+  //       |_.getAddress()    uint64_t                   -
+  //       |_.getSize()       uint64_t                   -
   Expected<OwningBinary<ObjectFile>> ObjectOrErr =
       ObjectFile::createObjectFile(Input);
   if (auto E = ObjectOrErr.takeError()) {
@@ -125,12 +135,12 @@ linked fat binary, and store them in separate files.
         "Input File: '" + Input + "'");
   }
 
-  // We are dealing with an appropriate object file, locate the section
-  // that contains the metadata on the embedded binaries
+  // We are dealing with an appropriate fat binary;
+  // Locate the section IMAGE_INFO_SECTION_NAME (which contains the
+  // metadata on the embedded binaries)
   unsigned FileNum = 0;
 
   for (SectionRef Section : Binary->sections()) {
-    // Look for the .tgtimg section in the binary.
     Expected<StringRef> NameOrErr = Section.getName();
     if (auto E = NameOrErr.takeError()) {
       reportError(std::move(E), "Input File: '" + Input + "'\n");
@@ -138,20 +148,23 @@ linked fat binary, and store them in separate files.
     if (*NameOrErr != IMAGE_INFO_SECTION_NAME)
       continue;
 
-    // This is the section we are looking for.
+    // This is the section we are looking for;
+    // Extract the meta information:
+    // The IMAGE_INFO_SECTION_NAME section contains packed <address,
+    // size> pairs describing target images that are stored in the fat
+    // binary.
     Expected<StringRef> DataOrErr = Section.getContents();
     if (auto E = DataOrErr.takeError()) {
       reportError(std::move(E), "Input File: '" + Input + "'\n");
     }
-
-    // The "IMAGE_INFO_SECTION_NAME" section contains packed
-    // <address, size> pairs describing target images that are stored in
-    // the binary.
+    // Data type to store the metadata for an individual target image
     struct ImgInfoType {
       uintptr_t Addr;
       uintptr_t Size;
     };
 
+    // Store the metadata for all target images in an array of target
+    // image information descriptors
     auto ImgInfo =
         ArrayRef(reinterpret_cast<const ImgInfoType *>(DataOrErr->data()),
                  DataOrErr->size() / sizeof(ImgInfoType));
@@ -168,12 +181,12 @@ linked fat binary, and store them in separate files.
       // example sections and images could be sorted by address then one pass
       // performed through both at the same time.
       auto ImgSec = find_if(Binary->sections(), [&Img](SectionRef Sec) {
-        if (!Sec.isData())
-          return false;
-        if (Img.Addr < Sec.getAddress() ||
-            Img.Addr + Img.Size > Sec.getAddress() + Sec.getSize())
-          return false;
-        return true;
+        // Sanity check: this section does not contain data
+        return (                              //
+            Sec.isData()                      //
+            && (Img.Addr == Sec.getAddress()) //
+            && (Img.Size == Sec.getSize())    //
+        );
       });
       if (ImgSec == Binary->section_end()) {
         reportError(
