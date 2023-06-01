@@ -144,10 +144,10 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
   cl_filter_mode filterMode = ur2clFilterMode(pDesc->filterMode);
 
   // Always call OpenCL 1.0 API
-  *phSampler = cl::cast<ur_sampler_handle_t>(clCreateSampler(
-      cl::cast<cl_context>(hContext),
+  *phSampler = cl_adapter::cast<ur_sampler_handle_t>(clCreateSampler(
+      cl_adapter::cast<cl_context>(hContext),
       static_cast<cl_bool>(pDesc->normalizedCoords), addressingMode, filterMode,
-      cl::cast<cl_int *>(&error_code)));
+      cl_adapter::cast<cl_int *>(&error_code)));
 
   return map_cl_error_to_ur(error_code);
 }
@@ -163,7 +163,7 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
                 sizeof(ur_sampler_addressing_mode_t));
 
   if (ur_result_t err = map_cl_error_to_ur(
-          clGetSamplerInfo(cl::cast<cl_sampler>(hSampler), sampler_info,
+          clGetSamplerInfo(cl_adapter::cast<cl_sampler>(hSampler), sampler_info,
                            propSize, pPropValue, pPropSizeRet))) {
     return err;
   }
@@ -176,13 +176,15 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(ur_sampler_handle_t hSampler) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  return map_cl_error_to_ur(clRetainSampler(cl::cast<cl_sampler>(hSampler)));
+  return map_cl_error_to_ur(
+      clRetainSampler(cl_adapter::cast<cl_sampler>(hSampler)));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(ur_sampler_handle_t hSampler) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  return map_cl_error_to_ur(clReleaseSampler(cl::cast<cl_sampler>(hSampler)));
+  return map_cl_error_to_ur(
+      clReleaseSampler(cl_adapter::cast<cl_sampler>(hSampler)));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
@@ -190,8 +192,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phNativeSampler, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  *phNativeSampler =
-      reinterpret_cast<ur_native_handle_t>(cl::cast<cl_sampler>(hSampler));
+  *phNativeSampler = reinterpret_cast<ur_native_handle_t>(
+      cl_adapter::cast<cl_sampler>(hSampler));
   return UR_RESULT_SUCCESS;
 }
 
@@ -204,6 +206,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
 
   std::ignore = hContext;
   *phSampler = reinterpret_cast<ur_sampler_handle_t>(
-      cl::cast<cl_sampler>(hNativeSampler));
+      cl_adapter::cast<cl_sampler>(hNativeSampler));
   return UR_RESULT_SUCCESS;
 }

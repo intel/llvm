@@ -97,9 +97,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
-  cl_int result = clGetDeviceIDs(
-      cl::cast<cl_platform_id>(hPlatform), type, cl::cast<cl_uint>(NumEntries),
-      cl::cast<cl_device_id *>(phDevices), cl::cast<cl_uint *>(pNumDevices));
+  cl_int result = clGetDeviceIDs(cl_adapter::cast<cl_platform_id>(hPlatform),
+                                 type, cl_adapter::cast<cl_uint>(NumEntries),
+                                 cl_adapter::cast<cl_device_id *>(phDevices),
+                                 cl_adapter::cast<cl_uint *>(pNumDevices));
 
   // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
   if (result == CL_DEVICE_NOT_FOUND) {
@@ -427,9 +428,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   switch (static_cast<uint32_t>(propName)) {
   case UR_DEVICE_INFO_TYPE: {
     cl_device_type cl_type;
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl::cast<cl_device_id>(hDevice),
-                                         cl_propName, sizeof(cl_device_type),
-                                         &cl_type, nullptr));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
+                        sizeof(cl_device_type), &cl_type, nullptr));
 
     /* TODO UR: If the device is an Accelerator (FPGA, VPU, etc.), there is not
      * enough information in the OpenCL runtime to know exactly which type it
@@ -450,7 +451,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
     OCLV::OpenCLVersion version;
     CL_RETURN_ON_FAILURE(
-        getDeviceVersion(cl::cast<cl_device_id>(hDevice), version));
+        getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), version));
 
     const std::string results = std::to_string(version.getMajor()) + "." +
                                 std::to_string(version.getMinor());
@@ -459,8 +460,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_PROPERTIES:
   case UR_DEVICE_INFO_PARTITION_TYPE: {
     size_t cl_size;
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl::cast<cl_device_id>(hDevice),
-                                         cl_propName, 0, nullptr, &cl_size));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName, 0,
+                        nullptr, &cl_size));
     const size_t n_properties = cl_size / sizeof(cl_device_partition_property);
 
     /* Special case for UR_DEVICE_INFO_PARTITION_TYPE because OpenCL
@@ -472,9 +474,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     auto cl_value =
         reinterpret_cast<cl_device_partition_property *>(alloca(cl_size));
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl::cast<cl_device_id>(hDevice),
-                                         cl_propName, cl_size, cl_value,
-                                         nullptr));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
+                        cl_size, cl_value, nullptr));
 
     std::vector<ur_device_partition_property_t> ur_value{};
     for (size_t i = 0; i < n_properties; ++i) {
@@ -510,12 +512,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      * and we have to emulate it on older OpenCL runtimes. */
     OCLV::OpenCLVersion devVer;
     CL_RETURN_ON_FAILURE(
-        getDeviceVersion(cl::cast<cl_device_id>(hDevice), devVer));
+        getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     if (devVer >= OCLV::V2_1) {
       cl_uint cl_value;
       CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-          cl::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_NUM_SUB_GROUPS,
+          cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_NUM_SUB_GROUPS,
           sizeof(cl_uint), &cl_value, nullptr));
 
       if (cl_value == 0u) {
@@ -540,7 +542,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     if (propName == UR_DEVICE_INFO_HALF_FP_CONFIG) {
       bool supported;
       CL_RETURN_ON_FAILURE(checkDeviceExtensions(
-          cl::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, supported));
+          cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, supported));
 
       if (!supported) {
         return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -549,7 +551,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     cl_device_fp_config cl_value;
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl::cast<cl_device_id>(hDevice), cl_propName,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
                         sizeof(cl_device_fp_config), &cl_value, nullptr));
 
     return ReturnValue(map_ur_cl_device_fp_config_to_ur(cl_value));
@@ -560,7 +562,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      * appropriately */
     OCLV::OpenCLVersion devVer;
     CL_RETURN_ON_FAILURE(
-        getDeviceVersion(cl::cast<cl_device_id>(hDevice), devVer));
+        getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     /* Minimum required capability to be returned. For OpenCL 1.2, this is all
      * that is required */
@@ -571,7 +573,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       /* For OpenCL >=3.0, the query should be implemented */
       cl_device_atomic_capabilities cl_capabilities;
       CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-          cl::cast<cl_device_id>(hDevice), CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+          cl_adapter::cast<cl_device_id>(hDevice),
+          CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
           sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr));
 
       /* Mask operation to only consider atomic_memory_order* capabilities */
@@ -618,12 +621,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     OCLV::OpenCLVersion devVer;
     CL_RETURN_ON_FAILURE(
-        getDeviceVersion(cl::cast<cl_device_id>(hDevice), devVer));
+        getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     cl_device_atomic_capabilities cl_capabilities;
     if (devVer >= OCLV::V3_0) {
       CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-          cl::cast<cl_device_id>(hDevice), CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+          cl_adapter::cast<cl_device_id>(hDevice),
+          CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
           sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr));
 
       assert((cl_capabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
@@ -670,12 +674,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     OCLV::OpenCLVersion devVer;
     CL_RETURN_ON_FAILURE(
-        getDeviceVersion(cl::cast<cl_device_id>(hDevice), devVer));
+        getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     cl_device_atomic_capabilities cl_capabilities;
     if (devVer >= OCLV::V3_0) {
       CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-          cl::cast<cl_device_id>(hDevice), CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+          cl_adapter::cast<cl_device_id>(hDevice),
+          CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
           sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr));
 
       assert((cl_capabilities & CL_DEVICE_ATOMIC_ORDER_RELAXED) &&
@@ -718,12 +723,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     OCLV::OpenCLVersion devVer;
     CL_RETURN_ON_FAILURE(
-        getDeviceVersion(cl::cast<cl_device_id>(hDevice), devVer));
+        getDeviceVersion(cl_adapter::cast<cl_device_id>(hDevice), devVer));
 
     cl_device_atomic_capabilities cl_capabilities;
     if (devVer >= OCLV::V3_0) {
       CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-          cl::cast<cl_device_id>(hDevice), CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+          cl_adapter::cast<cl_device_id>(hDevice),
+          CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
           sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr));
 
       assert((cl_capabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
@@ -770,7 +776,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ATOMIC_64: {
     bool supported = false;
     CL_RETURN_ON_FAILURE(checkDeviceExtensions(
-        cl::cast<cl_device_id>(hDevice),
+        cl_adapter::cast<cl_device_id>(hDevice),
         {"cl_khr_int64_base_atomics", "cl_khr_int64_extended_atomics"},
         supported));
 
@@ -779,16 +785,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
 
     cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl::cast<cl_device_id>(hDevice),
-                                         CL_DEVICE_TYPE, sizeof(cl_device_type),
-                                         &devType, nullptr));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_TYPE,
+                        sizeof(cl_device_type), &devType, nullptr));
 
     return ReturnValue(devType == CL_DEVICE_TYPE_GPU);
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
     bool supported = false;
     CL_RETURN_ON_FAILURE(
-        checkDeviceExtensions(cl::cast<cl_device_id>(hDevice),
+        checkDeviceExtensions(cl_adapter::cast<cl_device_id>(hDevice),
                               {"cl_intel_mem_channel_property"}, supported));
 
     return ReturnValue(supported);
@@ -809,9 +815,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      * UR type: ur_flags_t (uint32_t) */
 
     cl_bitfield cl_value;
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl::cast<cl_device_id>(hDevice),
-                                         cl_propName, sizeof(cl_bitfield),
-                                         &cl_value, nullptr));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
+                        sizeof(cl_bitfield), &cl_value, nullptr));
 
     /* We can just static_cast the output because OpenCL and UR bitfields
      * map 1 to 1 for these properties. cl_bitfield is uint64_t and ur_flags_t
@@ -832,9 +838,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      * UR type: ur_bool_t */
 
     cl_bool cl_value;
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl::cast<cl_device_id>(hDevice),
-                                         cl_propName, sizeof(cl_bool),
-                                         &cl_value, nullptr));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
+                        sizeof(cl_bool), &cl_value, nullptr));
 
     /* cl_bool is uint32_t and ur_bool_t is bool */
     return ReturnValue(static_cast<ur_bool_t>(cl_value));
@@ -907,9 +913,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      * | ur_device_handle_t | cl_device_id           | 8    |
      */
 
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl::cast<cl_device_id>(hDevice),
-                                         cl_propName, propSize, pPropValue,
-                                         pPropSizeRet));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), cl_propName,
+                        propSize, pPropValue, pPropSizeRet));
 
     return UR_RESULT_SUCCESS;
   }
@@ -954,9 +960,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 
   cl_uint cl_num_devices_ret;
   CL_RETURN_ON_FAILURE(clCreateSubDevices(
-      cl::cast<cl_device_id>(hDevice),
-      cl::cast<const cl_device_partition_property *>(pProperties), 0, nullptr,
-      &cl_num_devices_ret));
+      cl_adapter::cast<cl_device_id>(hDevice),
+      cl_adapter::cast<const cl_device_partition_property *>(pProperties), 0,
+      nullptr, &cl_num_devices_ret));
 
   if (pNumDevicesRet) {
     *pNumDevicesRet = cl_num_devices_ret;
@@ -967,8 +973,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
   if (phSubDevices) {
     std::vector<cl_device_id> cl_sub_devices(cl_num_devices_ret);
     CL_RETURN_ON_FAILURE(clCreateSubDevices(
-        cl::cast<cl_device_id>(hDevice),
-        cl::cast<const cl_device_partition_property *>(pProperties),
+        cl_adapter::cast<cl_device_id>(hDevice),
+        cl_adapter::cast<const cl_device_partition_property *>(pProperties),
         cl_num_devices_ret, cl_sub_devices.data(), nullptr));
 
     std::memcpy(phSubDevices, cl_sub_devices.data(),
@@ -982,7 +988,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  cl_int result = clRetainDevice(cl::cast<cl_device_id>(hDevice));
+  cl_int result = clRetainDevice(cl_adapter::cast<cl_device_id>(hDevice));
 
   return map_cl_error_to_ur(result);
 }
@@ -992,7 +998,7 @@ urDeviceRelease(ur_device_handle_t hDevice) {
 
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  cl_int result = clReleaseDevice(cl::cast<cl_device_id>(hDevice));
+  cl_int result = clReleaseDevice(cl_adapter::cast<cl_device_id>(hDevice));
 
   return map_cl_error_to_ur(result);
 }

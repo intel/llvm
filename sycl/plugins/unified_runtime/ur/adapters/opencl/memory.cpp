@@ -10,7 +10,8 @@
 
 #include <sycl/detail/cl.h>
 
-cl_image_format map_ur_image_format_to_cl(const ur_image_format_t *pImageFormat) {
+cl_image_format
+map_ur_image_format_to_cl(const ur_image_format_t *pImageFormat) {
   cl_image_format clImageFormat;
   switch (pImageFormat->channelOrder) {
   case UR_IMAGE_CHANNEL_ORDER_A:
@@ -119,32 +120,33 @@ cl_image_format map_ur_image_format_to_cl(const ur_image_format_t *pImageFormat)
 
 cl_image_desc map_ur_image_desc_to_cl(const ur_image_desc_t *pImageDesc) {
   cl_image_desc clImageDesc;
-  clImageDesc.image_type = cl::cast<cl_mem_object_type>(pImageDesc->type);
+  clImageDesc.image_type =
+      cl_adapter::cast<cl_mem_object_type>(pImageDesc->type);
 
   switch (pImageDesc->type) {
-    case UR_MEM_TYPE_BUFFER:
-      clImageDesc.image_type = CL_MEM_OBJECT_BUFFER;
+  case UR_MEM_TYPE_BUFFER:
+    clImageDesc.image_type = CL_MEM_OBJECT_BUFFER;
     break;
-    case UR_MEM_TYPE_IMAGE2D:
-      clImageDesc.image_type = CL_MEM_OBJECT_IMAGE2D;
+  case UR_MEM_TYPE_IMAGE2D:
+    clImageDesc.image_type = CL_MEM_OBJECT_IMAGE2D;
     break;
-    case UR_MEM_TYPE_IMAGE3D:
-      clImageDesc.image_type = CL_MEM_OBJECT_IMAGE3D;
+  case UR_MEM_TYPE_IMAGE3D:
+    clImageDesc.image_type = CL_MEM_OBJECT_IMAGE3D;
     break;
-    case UR_MEM_TYPE_IMAGE2D_ARRAY:
-      clImageDesc.image_type = CL_MEM_OBJECT_IMAGE2D_ARRAY;
+  case UR_MEM_TYPE_IMAGE2D_ARRAY:
+    clImageDesc.image_type = CL_MEM_OBJECT_IMAGE2D_ARRAY;
     break;
-    case UR_MEM_TYPE_IMAGE1D:
-      clImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D;
+  case UR_MEM_TYPE_IMAGE1D:
+    clImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D;
     break;
-    case UR_MEM_TYPE_IMAGE1D_ARRAY:
-      clImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D_ARRAY;
+  case UR_MEM_TYPE_IMAGE1D_ARRAY:
+    clImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D_ARRAY;
     break;
-    case UR_MEM_TYPE_IMAGE1D_BUFFER:
-      clImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D_BUFFER;
+  case UR_MEM_TYPE_IMAGE1D_BUFFER:
+    clImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D_BUFFER;
     break;
-    default:
-      clImageDesc.image_type = -1;
+  default:
+    clImageDesc.image_type = -1;
     break;
   }
 
@@ -237,14 +239,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);   
+  UR_ASSERT(phBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   cl_int ret_err = CL_INVALID_OPERATION;
   if (pProperties) {
     // TODO: need to check if all properties are supported by OpenCL RT and
     // ignore unsupported
     clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
-    cl_context CLContext = cl::cast<cl_context>(hContext);
+    cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
     // First we need to look up the function pointer
     ret_err =
         cl_ext::getExtFuncFromContext<clCreateBufferWithPropertiesINTEL_fn>(
@@ -277,14 +279,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
       *phBuffer = reinterpret_cast<ur_mem_handle_t>(FuncPtr(
           CLContext, propertiesIntel.data(), static_cast<cl_mem_flags>(flags),
-          size, pProperties->pHost, cl::cast<cl_int *>(&ret_err)));
+          size, pProperties->pHost, cl_adapter::cast<cl_int *>(&ret_err)));
       CL_RETURN_ON_FAILURE(ret_err);
     }
   }
 
   *phBuffer = reinterpret_cast<ur_mem_handle_t>(clCreateBuffer(
-      cl::cast<cl_context>(hContext), static_cast<cl_mem_flags>(flags), size,
-      pProperties->pHost, cl::cast<cl_int *>(&ret_err)));
+      cl_adapter::cast<cl_context>(hContext), static_cast<cl_mem_flags>(flags),
+      size, pProperties->pHost, cl_adapter::cast<cl_int *>(&ret_err)));
   CL_RETURN_ON_FAILURE(ret_err);
 
   return UR_RESULT_SUCCESS;
@@ -295,7 +297,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     void *pHost, ur_mem_handle_t *phMem) {
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);   
+  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   cl_int ret_err = CL_INVALID_OPERATION;
 
@@ -304,10 +306,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   cl_map_flags map_flags = convert_ur_mem_flags_to_cl(flags);
 
   *phMem = reinterpret_cast<ur_mem_handle_t>(clCreateImage(
-      cl::cast<cl_context>(hContext),
-      map_flags, &image_format,
-      &image_desc, pHost,
-      cl::cast<cl_int *>(&ret_err)));
+      cl_adapter::cast<cl_context>(hContext), map_flags, &image_format,
+      &image_desc, pHost, cl_adapter::cast<cl_int *>(&ret_err)));
   CL_RETURN_ON_FAILURE(ret_err);
 
   return UR_RESULT_SUCCESS;
@@ -335,9 +335,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   buffer_region.origin = pRegion->origin;
   buffer_region.size = pRegion->size;
 
-  *phMem = reinterpret_cast<ur_mem_handle_t>(clCreateSubBuffer(
-      cl::cast<cl_mem>(hBuffer), static_cast<cl_mem_flags>(flags),
-      buffer_create_type, &buffer_region, cl::cast<cl_int *>(&ret_err)));
+  *phMem = reinterpret_cast<ur_mem_handle_t>(
+      clCreateSubBuffer(cl_adapter::cast<cl_mem>(hBuffer),
+                        static_cast<cl_mem_flags>(flags), buffer_create_type,
+                        &buffer_region, cl_adapter::cast<cl_int *>(&ret_err)));
   CL_RETURN_ON_FAILURE(ret_err);
 
   return UR_RESULT_SUCCESS;
@@ -385,8 +386,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   const cl_int clPropName = map_ur_mem_info_to_cl(propName);
 
-  CL_RETURN_ON_FAILURE(clGetMemObjectInfo(cl::cast<cl_mem>(hMemory), clPropName,
-                                          propSize, pPropValue, pPropSizeRet));
+  CL_RETURN_ON_FAILURE(clGetMemObjectInfo(cl_adapter::cast<cl_mem>(hMemory),
+                                          clPropName, propSize, pPropValue,
+                                          pPropSizeRet));
   return UR_RESULT_SUCCESS;
 }
 
@@ -400,19 +402,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   const cl_int clPropName = map_ur_mem_image_info_to_cl(propName);
 
-  CL_RETURN_ON_FAILURE(clGetImageInfo(cl::cast<cl_mem>(hMemory), clPropName,
-                                      propSize, pPropValue, pPropSizeRet));
+  CL_RETURN_ON_FAILURE(clGetImageInfo(cl_adapter::cast<cl_mem>(hMemory),
+                                      clPropName, propSize, pPropValue,
+                                      pPropSizeRet));
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
   UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  CL_RETURN_ON_FAILURE(clRetainMemObject(cl::cast<cl_mem>(hMem)));
+  CL_RETURN_ON_FAILURE(clRetainMemObject(cl_adapter::cast<cl_mem>(hMem)));
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  CL_RETURN_ON_FAILURE(clReleaseMemObject(cl::cast<cl_mem>(hMem)));
+  CL_RETURN_ON_FAILURE(clReleaseMemObject(cl_adapter::cast<cl_mem>(hMem)));
   return UR_RESULT_SUCCESS;
 }

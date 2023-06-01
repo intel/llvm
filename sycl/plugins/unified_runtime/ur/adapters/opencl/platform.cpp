@@ -52,9 +52,9 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_VERSION:
   case UR_PLATFORM_INFO_EXTENSIONS:
   case UR_PLATFORM_INFO_PROFILE: {
-    CL_RETURN_ON_FAILURE(clGetPlatformInfo(cl::cast<cl_platform_id>(hPlatform),
-                                           cl_propName, propSize, pPropValue,
-                                           pSizeRet));
+    CL_RETURN_ON_FAILURE(
+        clGetPlatformInfo(cl_adapter::cast<cl_platform_id>(hPlatform),
+                          cl_propName, propSize, pPropValue, pSizeRet));
     return UR_RESULT_SUCCESS;
   }
   default:
@@ -78,9 +78,10 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
   UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
 
-  cl_int result = clGetPlatformIDs(cl::cast<cl_uint>(NumEntries),
-                                   cl::cast<cl_platform_id *>(phPlatforms),
-                                   cl::cast<cl_uint *>(pNumPlatforms));
+  cl_int result =
+      clGetPlatformIDs(cl_adapter::cast<cl_uint>(NumEntries),
+                       cl_adapter::cast<cl_platform_id *>(phPlatforms),
+                       cl_adapter::cast<cl_uint *>(pNumPlatforms));
 
   /* Absorb the CL_PLATFORM_NOT_FOUND_KHR and just return 0 in num_platforms */
   if (result == CL_PLATFORM_NOT_FOUND_KHR) {

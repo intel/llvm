@@ -106,7 +106,7 @@ inline const OpenCLVersion V3_0(3, 0);
 
 } // namespace OCLV
 
-namespace cl {
+namespace cl_adapter {
 constexpr size_t MaxMessageSize = 256;
 extern thread_local ur_result_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];

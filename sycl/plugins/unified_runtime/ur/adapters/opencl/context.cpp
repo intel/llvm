@@ -18,10 +18,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
   UR_ASSERT(phContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   cl_int ret;
-  *phContext = cl::cast<ur_context_handle_t>(
-      clCreateContext(nullptr, cl::cast<cl_uint>(DeviceCount),
-                      cl::cast<const cl_device_id *>(phDevices), nullptr,
-                      nullptr, cl::cast<cl_int *>(&ret)));
+  *phContext = cl_adapter::cast<ur_context_handle_t>(
+      clCreateContext(nullptr, cl_adapter::cast<cl_uint>(DeviceCount),
+                      cl_adapter::cast<const cl_device_id *>(phDevices),
+                      nullptr, nullptr, cl_adapter::cast<cl_int *>(&ret)));
 
   return map_cl_error_to_ur(ret);
 }
@@ -66,17 +66,17 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
     /* These queries should be dealt with in context_impl.cpp by calling the
      * queries of each device separately and building the intersection set. */
-    cl::setErrorMessage("These queries should have never come here.",
-                    UR_RESULT_ERROR_INVALID_ARGUMENT);
+    cl_adapter::setErrorMessage("These queries should have never come here.",
+                                UR_RESULT_ERROR_INVALID_ARGUMENT);
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
   case UR_CONTEXT_INFO_NUM_DEVICES:
   case UR_CONTEXT_INFO_DEVICES:
   case UR_CONTEXT_INFO_REFERENCE_COUNT: {
 
-    CL_RETURN_ON_FAILURE(clGetContextInfo(cl::cast<cl_context>(hContext),
-                                          cl_propName, propSize, pPropValue,
-                                          pPropSizeRet));
+    CL_RETURN_ON_FAILURE(
+        clGetContextInfo(cl_adapter::cast<cl_context>(hContext), cl_propName,
+                         propSize, pPropValue, pPropSizeRet));
     return UR_RESULT_SUCCESS;
   }
   default:
@@ -88,7 +88,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
 
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret = clReleaseContext(cl::cast<cl_context>(hContext));
+  cl_int ret = clReleaseContext(cl_adapter::cast<cl_context>(hContext));
   return map_cl_error_to_ur(ret);
 }
 
@@ -96,7 +96,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
 
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  cl_int ret = clRetainContext(cl::cast<cl_context>(hContext));
+  cl_int ret = clRetainContext(cl_adapter::cast<cl_context>(hContext));
   return map_cl_error_to_ur(ret);
 }
 
