@@ -1118,7 +1118,7 @@ pi_result piextEnablePeerAccess(pi_device command_device,
 
   setErrorMessage("piextEnablePeerAccess not "
                   "implemented in L0",
-                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+                  UR_RESULT_ERROR_INVALID_VALUE);
 
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
@@ -1131,7 +1131,7 @@ pi_result piextDisablePeerAccess(pi_device command_device,
 
   setErrorMessage("piextDisablePeerAccess not "
                   "implemented in L0",
-                  PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+                  UR_RESULT_ERROR_INVALID_VALUE);
 
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
