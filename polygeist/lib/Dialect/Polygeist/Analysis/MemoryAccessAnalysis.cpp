@@ -1071,9 +1071,12 @@ mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccess &access) {
 
 MemoryAccessMatrix
 MemoryAccess::getIntraThreadAccessMatrix(unsigned numThreads) const {
-  assert(numThreads < matrix.getNumColumns() &&
-         "Expecting 'numThreadsColumns' to be smaller than the number of "
+  assert(numThreads <= matrix.getNumColumns() &&
+         "Expecting 'numThreads' to be smaller than the number of "
          "columns in the memory access matrix");
+  if (numThreads == 0)
+    return matrix;
+
   std::vector<size_t> v(numThreads);
   std::iota(v.begin(), v.end(), 0);
   std::set<size_t> columns(v.begin(), v.end());
@@ -1082,9 +1085,12 @@ MemoryAccess::getIntraThreadAccessMatrix(unsigned numThreads) const {
 
 MemoryAccessMatrix
 MemoryAccess::getInterThreadAccessMatrix(unsigned numThreads) const {
-  assert(numThreads < matrix.getNumColumns() &&
-         "Expecting 'numThreadsColumns' to be smaller than the number of "
+  assert(numThreads <= matrix.getNumColumns() &&
+         "Expecting 'numThreads' to be smaller than the number of "
          "columns in the memory access matrix");
+  if (numThreads == 0)
+    return {};
+
   std::vector<size_t> v(matrix.getNumColumns() - numThreads);
   std::iota(v.begin(), v.end(), numThreads);
   std::set<size_t> columns(v.begin(), v.end());
@@ -1192,7 +1198,7 @@ MemoryAccessAnalysis::computeThreadVector(FunctionOpInterface funcOp,
   auto getIndexValue =
       [&](sycl::SYCLNDItemGetGlobalIDOp &op) -> std::optional<APInt> {
     std::optional<TypedValue<IntegerType>> idx = op.getIndex();
-    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
+    return idx.has_value() ? getConstIntegerValue(*idx, solver) : std::nullopt;
   };
 
   // Ensure that all "get_global_ids" have index values known at compile time.
