@@ -31,8 +31,8 @@ int main() {
 //CHECK-HC-NEXT: #include <sycl/detail/native_cpu.hpp>
 //CHECK-HC-NEXT: #include <sycl/detail/pi.h>
 //CHECK-HC-NEXT: extern "C" void __sycl_register_lib(pi_device_binaries desc);
-//CHECK-HC:extern "C" void _Z5Test1(void *, void *, nativecpu_state *);
-//CHECK-HC:inline static void _Z5Test1subhandler(const sycl::detail::NativeCPUArgDesc *MArgs, nativecpu_state *state) {
+//CHECK-HC:extern "C" void _Z5Test1(void *, void *, __nativecpu_state *);
+//CHECK-HC:inline static void _Z5Test1subhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
 //CHECK-HC-NEXT:  void* arg0 = MArgs[0].getPtr();
 //CHECK-HC-NEXT:  void* arg3 = MArgs[3].getPtr();
 //CHECK-HC-NEXT:  _Z5Test1(arg0, arg3, state);

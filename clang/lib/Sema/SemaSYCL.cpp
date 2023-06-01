@@ -37,11 +37,6 @@
 #include <initializer_list>
 #include <regex>
 
-namespace llvm {
-cl::opt<bool> SYCLNativeCPU("sycl-native-cpu", cl::init(false),
-                            cl::desc("Enable SYCL Native CPU"));
-}
-
 using namespace clang;
 using namespace std::placeholders;
 
@@ -1068,7 +1063,7 @@ constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
   // When compiling for the SYCLNativeCPU device we need a C++ identifier
   // as the kernel name and cannot use the name produced by some manglers
   // including the MS mangler.
-  if (llvm::SYCLNativeCPU) {
+  if (S.getLangOpts().SYCLIsNativeCPU) {
     MangledName = StableName;
     changeManglingForNativeCPU(MangledName);
   }
@@ -5723,7 +5718,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
   }
 
-  if (llvm::SYCLNativeCPU) {
+  if (S.getLangOpts().SYCLIsNativeCPU) {
     // This is a temporary workaround for the integration header file
     // being emitted too early.
     std::string HCName = getNativeCPUHeaderName(S.getLangOpts());

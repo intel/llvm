@@ -56,7 +56,7 @@ struct _pi_program : _pi_object {
 };
 
 using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
-                                nativecpu_state *);
+                                __nativecpu_state *);
 using nativecpu_ptr_t = nativecpu_kernel_t *;
 using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 struct _pi_kernel : _pi_object {
@@ -1052,10 +1052,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // TODO: add proper event dep management
   sycl::detail::NDRDescT ndr =
       getNDRDesc(WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize);
-  nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2],
-                        ndr.LocalSize[0], ndr.LocalSize[1], ndr.LocalSize[2],
-                        ndr.GlobalOffset[0], ndr.GlobalOffset[1],
-                        ndr.GlobalOffset[2]);
+  __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
+                          ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
+                          ndr.LocalSize[2], ndr.GlobalOffset[0],
+                          ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];

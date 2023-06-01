@@ -79,10 +79,6 @@ static llvm::cl::opt<bool> LimitedCoverage(
     "limited-coverage-experimental", llvm::cl::Hidden,
     llvm::cl::desc("Emit limited coverage mapping information (experimental)"));
 
-namespace llvm {
-extern cl::opt<bool> SYCLNativeCPU;
-}
-
 static const char AnnotationSection[] = "llvm.metadata";
 
 static CGCXXABI *createCXXABI(CodeGenModule &CGM) {
@@ -896,6 +892,10 @@ void CodeGenModule::Release() {
             (CodeGenOpts.FPDenormalMode.Output != llvm::DenormalMode::IEEE));
     getModule().addModuleFlag(llvm::Module::Max, "nvvm-reflect-prec-sqrt",
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
+  }
+
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsNativeCPU) {
+    getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
   }
 
   if (LangOpts.EHAsynch)
@@ -2115,7 +2115,7 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
       Fn->setMetadata("kernel_arg_exclusive_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
     }
-    if (llvm::SYCLNativeCPU) {
+    if (LangOpts.SYCLIsNativeCPU) {
       Fn->setMetadata("kernel_arg_type",
                       llvm::MDNode::get(VMContext, argTypeNames));
     }

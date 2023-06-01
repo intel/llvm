@@ -29,7 +29,7 @@
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[SRCWFOOTER]].cpp", "[[KERNELIR]].bc"], output: "[[HOSTOBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[HOSTOBJ]].o", "[[KERNELOBJ]].o"], output: "a.{{.*}}"
 
-//CHECK_INVO:{{.*}}clang{{.*}}-fsycl-is-device{{.*}}"-mllvm" "-sycl-native-cpu" "-D" "__SYCL_NATIVE_CPU__" 
+//CHECK_INVO:{{.*}}clang{{.*}}-fsycl-is-device{{.*}}"-fsycl-is-native-cpu" "-D" "__SYCL_NATIVE_CPU__" 
 //CHECK_INVO:{{.*}}clang{{.*}}"-x" "ir"
 //CHECK_INVO:{{.*}}clang{{.*}}"-fsycl-is-host"{{.*}}
 

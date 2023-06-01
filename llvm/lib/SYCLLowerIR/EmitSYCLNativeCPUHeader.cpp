@@ -113,7 +113,7 @@ void emitKernelDecl(const Function *F, const SmallVector<bool> &argMask,
   // find the index of the last used arg
   while (!argMask[I] && I + 1 < argMask.size())
     I++;
-  O << EmitArgDecl(F->getArg(UsedI), I) << ", nativecpu_state *);\n";
+  O << EmitArgDecl(F->getArg(UsedI), I) << ", __nativecpu_state *);\n";
 }
 
 void emitSubKernelHandler(const Function *F, const SmallVector<bool> &argMask,
@@ -138,7 +138,7 @@ void emitSubKernelHandler(const Function *F, const SmallVector<bool> &argMask,
 
   O << "\ninline static void " << F->getName() << "subhandler(";
   O << "const sycl::detail::NativeCPUArgDesc *MArgs, "
-       "nativecpu_state *state) {\n";
+       "__nativecpu_state *state) {\n";
   // Retrieve only the args that are used
   for (unsigned I = 0, UsedI = 0;
        I < argMask.size() && UsedI < F->getFunctionType()->getNumParams();

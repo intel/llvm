@@ -96,15 +96,13 @@ Function *cloneFunctionAndAddParam(Function *oldF, Type *T) {
 
 // Todo: add support for more SPIRV builtins here
 static std::map<std::string, std::string> BuiltinNamesMap{
-    {"__spirv_BuiltInGlobalInvocationId",
-     "_Z13get_global_idmP15nativecpu_state"},
-    {"__spirv_BuiltInWorkgroupSize", "_Z13get_wg_sizemP15nativecpu_state"},
-    {"__spirv_BuiltInWorkgroupId", "_Z13get_wgid_mP15nativecpu_state"},
-    {"__spirv_BuiltInLocalInvocationId",
-     "_Z13get_local_id_mP15nativecpu_state"},
-    {"__spirv_BuiltInNumWorkgroups", "_Z13get_num_groupsmP15nativecpu_state"},
-    {"__spirv_BuiltInGlobalOffset", "_Z13get_global_offsetmP15nativecpu_state"},
-    {"__spirv_BuiltInGlobalSize", "_Z13get_global_rangemP15nativecpu_state"}};
+    {"__spirv_BuiltInGlobalInvocationId", "__dpcpp_nativecpu_global_id"},
+    {"__spirv_BuiltInGlobalSize", "__dpcpp_nativecpu_global_range"},
+    {"__spirv_BuiltInWorkgroupSize", "__dpcpp_nativecpu_get_wg_size"},
+    {"__spirv_BuiltInWorkgroupId", "__dpcpp_nativecpu_get_wg_id"},
+    {"__spirv_BuiltInLocalInvocationId", "__dpcpp_nativecpu_get_local_id"},
+    {"__spirv_BuiltInNumWorkgroups", "__dpcpp_nativecpu_get_num_groups"},
+    {"__spirv_BuiltInGlobalOffset", "__dpcpp_nativecpu_get_global_offset"}};
 
 Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
   Function *F = M.getFunction(Name);
@@ -153,7 +151,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // First we add a pointer to the Native CPU state as arg to all the
   // kernels.
   Type *StateType =
-      StructType::getTypeByName(M.getContext(), "struct.nativecpu_state");
+      StructType::getTypeByName(M.getContext(), "struct.__nativecpu_state");
   if (!StateType)
     report_fatal_error("Couldn't find the Native CPU state in the "
                        "module, make sure that -D __SYCL_NATIVE_CPU__ is set",

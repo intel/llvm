@@ -103,7 +103,6 @@ using namespace llvm;
 
 namespace llvm {
 extern cl::opt<bool> DebugInfoCorrelate;
-extern cl::opt<bool> SYCLNativeCPU;
 
 // Experiment to move sanitizers earlier.
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
@@ -1072,7 +1071,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(CompileTimePropertiesPass());
     }
 
-    if (LangOpts.SYCLIsDevice && llvm::SYCLNativeCPU) {
+    if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsNativeCPU) {
       MPM.addPass(
           EmitSYCLNativeCPUHeaderPass(getNativeCPUHeaderName(LangOpts)));
       MPM.addPass(PrepareSYCLNativeCPUPass());
