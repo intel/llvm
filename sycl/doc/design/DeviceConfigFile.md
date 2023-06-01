@@ -18,7 +18,9 @@ other words, we need to provide a way for users to add entries for new targets o
 update existing targets at application compile time.
 
 An entry of the Device Configuration File should include:
-- Name of the target.
+- Name of the target. Target names should be spelled exactly as expected in
+`-fsycl-targets`, since these are going to be used to implement validation of
+supported targets.
 - List of supported aspects.
 - List of supported sub-group sizes.
 - [Optional] `aot-toolchain` name/identifier describing the toolchain used to compile
