@@ -22,6 +22,7 @@ using namespace sycl;
 XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
                                                   std::string &Message);
 XPTI_CALLBACK_API void resetReceivedNotifications();
+XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t);
 
 inline pi_result redefinedPluginGetLastError(char **message) {
   return PI_ERROR_INVALID_VALUE;
@@ -40,6 +41,7 @@ protected:
   void SetUp() {
     xptiForceSetTraceEnabled(true);
     xptiTraceTryToEnable();
+    addAnalyzedTraceType(xpti::trace_diagnostics);
   }
 
   void TearDown() {
@@ -89,7 +91,6 @@ public:
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
   const std::string PiLevelFailMessage = "Native API failed";
-  const std::string UnknownCodeLocation = "code location unknown";
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {
@@ -159,7 +160,7 @@ TEST_F(QueueApiFailures, QueueMemset) {
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
   try {
-    Q.memset(HostAlloc, 42, 1);
+    Q.memset(HostAlloc, 42, 1, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -171,7 +172,7 @@ TEST_F(QueueApiFailures, QueueMemset) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -194,7 +195,7 @@ TEST_F(QueueApiFailures, QueueMemcpy) {
   unsigned char *HostAllocSrc = (unsigned char *)sycl::malloc_host(1, Q);
   unsigned char *HostAllocDst = (unsigned char *)sycl::malloc_host(1, Q);
   try {
-    Q.memcpy(HostAllocDst, HostAllocSrc, 1);
+    Q.memcpy(HostAllocDst, HostAllocSrc, 1, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -207,7 +208,7 @@ TEST_F(QueueApiFailures, QueueMemcpy) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -256,7 +257,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
   try {
-    Q.fill(HostAlloc, 42, 1);
+    Q.fill(HostAlloc, 42, 1, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -268,7 +269,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr("fill;sycl/queue.hpp"));
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -290,7 +291,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(4, Q);
   try {
-    Q.prefetch(HostAlloc, 2);
+    Q.prefetch(HostAlloc, 2, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -302,7 +303,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr("prefetch;sycl/queue.hpp"));
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -322,7 +323,7 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
   try {
-    Q.mem_advise(HostAlloc, 1, 0 /*default*/);
+    Q.mem_advise(HostAlloc, 1, 0 /*default*/, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -334,7 +335,7 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -500,7 +501,7 @@ TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
   EXPECT_FALSE(ExceptionCaught);
   TestLock.unlock();
 
-  // Need to wait till host task enqueue kernek to check code location report.
+  // Need to wait till host task enqueue kernel to check code location report.
   using namespace std::chrono_literals;
   std::this_thread::sleep_for(10ms);
   try {
