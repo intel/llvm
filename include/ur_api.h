@@ -3776,7 +3776,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    const void *pArgValue       ///< [in][optional] SVM pointer to memory location holding the argument
+    const void *pArgValue       ///< [in][optional] USM pointer to memory location holding the argument
                                 ///< value. If null then argument value is considered null.
 );
 
