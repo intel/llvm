@@ -13,7 +13,7 @@
 // - SYCL device binary images are compiled with the corresponding
 //   compiler option
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu && gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
 // TODO/FIXME: esimd_emulator does not support online compilation that
 //             invokes 'piProgramBuild'/'piKernelCreate'

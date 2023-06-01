@@ -80,35 +80,28 @@ namespace {
 constexpr int DebugLevel = 0;
 #endif
 
-constexpr char SLM_ALLOC_PREFIX[] = "_Z17__esimd_slm_alloc";
-constexpr char SLM_FREE_PREFIX[] = "_Z16__esimd_slm_free";
-constexpr char SLM_INIT_PREFIX[] = "_Z16__esimd_slm_init";
-
 bool isSlmInitCall(const CallInst *CI) {
-  if (!CI) {
+  if (!CI)
     return false;
-  }
   Function *F = CI->getCalledFunction();
-  return F && F->getName().startswith(SLM_INIT_PREFIX);
+  return F && esimd::isSlmInit(*F);
 }
 
 bool isSlmAllocCall(const CallInst *CI) {
-  if (!CI) {
+  if (!CI)
     return false;
-  }
   Function *F = CI->getCalledFunction();
-  return F && F->getName().startswith(SLM_ALLOC_PREFIX);
+  return F && esimd::isSlmAlloc(*F);
 }
 
 // Checks if given call is a call to '__esimd_slm_free' function, and if yes,
 // finds the corresponding '__esimd_slm_alloc' call and returns it.
 CallInst *isSlmFreeCall(const CallInst *CI) {
-  if (!CI) {
+  if (!CI)
     return nullptr;
-  }
-  Function *F = CI->getCalledFunction();
 
-  if (!F || !F->getName().startswith(SLM_FREE_PREFIX))
+  Function *F = CI->getCalledFunction();
+  if (!F || !esimd::isSlmFree(*F))
     return nullptr;
   Value *Arg = CI->getArgOperand(0);
 
@@ -144,7 +137,7 @@ int getSLMUsage(const CallInst *SLMReserveCall) {
         SLMReserveCall->getFunction()->getName());
     return -1;
   }
-  size_t Res = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
+  int64_t Res = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
   assert(Res < std::numeric_limits<int>::max());
   return static_cast<int>(Res);
 }
@@ -544,6 +537,19 @@ TraversalResult findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
 size_t lowerSLMReservationCalls(Module &M) {
   // Create a detailed "scoped" call graph. Scope start/end is marked with
   // x = __esimd_slm_alloc / __esimd_slm_free(x)
+  //
+  // The alternative version may appears when inlining is off:
+  //   %slm_obj = ...
+  //   call spir_func void slm_allocator(%slm_obj)
+  //   ...
+  //   call spir_func void ~slm_allocator(%slm_obj)
+  // This second variant though is automatically converted to the first one
+  // by enforcing always-inliner pass started before this SLM reservation.
+  // TODO: enforcing the inlining helps to simplify the alloc/free pattern
+  // recognition, but even with inlining the use-def chains may be too complex
+  // especially with -O0. So, some extra work is needed for -O0 to enable
+  // usage of slm_allocator().
+
   ScopedCallGraph SCG(M);
 #ifndef NDEBUG
   if (DebugLevel > 0) {

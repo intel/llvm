@@ -59,7 +59,7 @@ class ELFLinkGraphBuilder : public ELFLinkGraphBuilderBase {
 
 public:
   ELFLinkGraphBuilder(const object::ELFFile<ELFT> &Obj, Triple TT,
-                      StringRef FileName,
+                      LinkGraph::FeatureVector Features, StringRef FileName,
                       LinkGraph::GetEdgeKindNameFunction GetEdgeKindName);
 
   /// Debug sections are included in the graph by default. Use
@@ -195,11 +195,11 @@ protected:
 
 template <typename ELFT>
 ELFLinkGraphBuilder<ELFT>::ELFLinkGraphBuilder(
-    const ELFFile &Obj, Triple TT, StringRef FileName,
-    LinkGraph::GetEdgeKindNameFunction GetEdgeKindName)
+    const ELFFile &Obj, Triple TT, LinkGraph::FeatureVector Features,
+    StringRef FileName, LinkGraph::GetEdgeKindNameFunction GetEdgeKindName)
     : ELFLinkGraphBuilderBase(std::make_unique<LinkGraph>(
-          FileName.str(), Triple(std::move(TT)), ELFT::Is64Bits ? 8 : 4,
-          support::endianness(ELFT::TargetEndianness),
+          FileName.str(), Triple(std::move(TT)), std::move(Features),
+          ELFT::Is64Bits ? 8 : 4, support::endianness(ELFT::TargetEndianness),
           std::move(GetEdgeKindName))),
       Obj(Obj) {
   LLVM_DEBUG(
@@ -539,6 +539,21 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
       // If L is Linkage::Weak that means this is a weakly referenced symbol.
       auto &GSym = G->addExternalSymbol(*Name, Sym.st_size,
                                         Sym.getBinding() == ELF::STB_WEAK);
+      setGraphSymbol(SymIndex, GSym);
+    } else if (Sym.isUndefined() && Sym.st_value == 0 && Sym.st_size == 0 &&
+               Sym.getType() == ELF::STT_NOTYPE &&
+               Sym.getBinding() == ELF::STB_LOCAL && Name->empty()) {
+      // Some relocations (e.g., R_RISCV_ALIGN) don't have a target symbol and
+      // use this kind of null symbol as a placeholder.
+      LLVM_DEBUG({
+        dbgs() << "      " << SymIndex << ": Creating null graph symbol\n";
+      });
+
+      auto SymName =
+          G->allocateContent("__jitlink_ELF_SYM_UND_" + Twine(SymIndex));
+      auto SymNameRef = StringRef(SymName.data(), SymName.size());
+      auto &GSym = G->addAbsoluteSymbol(SymNameRef, orc::ExecutorAddr(0), 0,
+                                        Linkage::Strong, Scope::Local, false);
       setGraphSymbol(SymIndex, GSym);
     } else {
       LLVM_DEBUG({

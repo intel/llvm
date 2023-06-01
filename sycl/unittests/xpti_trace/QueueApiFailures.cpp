@@ -24,6 +24,7 @@ using namespace sycl;
 XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
                                                   std::string &Message);
 XPTI_CALLBACK_API void resetReceivedNotifications();
+XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t);
 
 inline pi_result redefinedPluginGetLastError(char **message) {
   return PI_ERROR_INVALID_VALUE;
@@ -42,6 +43,7 @@ protected:
   void SetUp() {
     xptiForceSetTraceEnabled(true);
     xptiTraceTryToEnable();
+    addAnalyzedTraceType(xpti::trace_diagnostics);
   }
 
   void TearDown() {

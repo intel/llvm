@@ -27,7 +27,7 @@ int main() {
         Acc[0] = KH.get_specialization_constant<SpecConst2>();
       });
     });
-    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor Acc(Buf, sycl::read_only);
     assert(Acc[0] == 1);
   }
 
@@ -42,7 +42,7 @@ int main() {
         Acc[0] = KH.get_specialization_constant<SpecConst3>();
       });
     });
-    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    sycl::host_accessor Acc(Buf, sycl::read_only);
     assert(Acc[0].a == 1 && Acc[0].b == 2);
   }
 
