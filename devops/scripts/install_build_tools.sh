@@ -18,7 +18,8 @@ apt update && apt install -yqq \
       libtool \
       libdw1 \
       wget \
-      sudo
+      sudo \
+      lz4
 
 pip3 install psutil
 
