@@ -12,8 +12,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/MachineValueType.h"
 #include <cassert>
 #include <cstddef>
 #include <memory>
@@ -21,7 +21,7 @@
 #include <utility>
 
 namespace llvm {
-  struct CodeGenRegister;
+  class CodeGenRegister;
   class CodeGenDAGPatterns;
   class CodeGenInstruction;
   class Matcher;
@@ -47,7 +47,7 @@ class Matcher {
   // The next matcher node that is executed after this one.  Null if this is the
   // last stage of a match.
   std::unique_ptr<Matcher> Next;
-  size_t Size; // Size in bytes of matcher and all its children (if any).
+  size_t Size = 0; // Size in bytes of matcher and all its children (if any).
   virtual void anchor();
 public:
   enum KindTy {

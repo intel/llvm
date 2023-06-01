@@ -10,9 +10,9 @@
 #define LIBC_TEST_SRC_STRING_MEMORY_UTILS_MEMORY_CHECK_UTILS_H
 
 #include "src/__support/CPP/span.h"
+#include "src/__support/libc_assert.h"
 #include "src/__support/macros/sanitizer.h"
 #include "src/string/memory_utils/utils.h"
-#include <assert.h> // assert
 #include <stddef.h> // size_t
 #include <stdint.h> // uintxx_t
 #include <stdlib.h> // malloc/free
@@ -24,7 +24,6 @@ namespace __llvm_libc {
 // This is a utility class to be used by Buffer below, do not use directly.
 struct PoisonedBuffer {
   PoisonedBuffer(size_t size) : ptr((char *)malloc(size)) {
-    assert(ptr);
     ASAN_POISON_MEMORY_REGION(ptr, size);
   }
   ~PoisonedBuffer() { free(ptr); }
@@ -45,11 +44,8 @@ struct Buffer : private PoisonedBuffer {
       : PoisonedBuffer(size + kLeeway), size(size) {
     offset_ptr = ptr;
     offset_ptr += distance_to_next_aligned<kAlign>(ptr);
-    assert((uintptr_t)(offset_ptr) % kAlign == 0);
     if (aligned == Aligned::NO)
       ++offset_ptr;
-    assert(offset_ptr > ptr);
-    assert((offset_ptr + size) < (ptr + size + kLeeway));
     ASAN_UNPOISON_MEMORY_REGION(offset_ptr, size);
   }
   cpp::span<char> span() { return cpp::span<char>(offset_ptr, size); }
@@ -77,22 +73,24 @@ static inline void Randomize(cpp::span<char> buffer) {
 // Copy one span to another.
 static inline void ReferenceCopy(cpp::span<char> dst,
                                  const cpp::span<char> src) {
-  assert(dst.size() == src.size());
   for (size_t i = 0; i < dst.size(); ++i)
     dst[i] = src[i];
+}
+
+static inline bool IsEqual(const cpp::span<char> a, const cpp::span<char> b) {
+  LIBC_ASSERT(a.size() == b.size());
+  for (size_t i = 0; i < a.size(); ++i)
+    if (a[i] != b[i])
+      return false;
+  return true;
 }
 
 // Checks that FnImpl implements the memcpy semantic.
 template <auto FnImpl>
 bool CheckMemcpy(cpp::span<char> dst, cpp::span<char> src, size_t size) {
-  assert(dst.size() == src.size());
-  assert(dst.size() == size);
   Randomize(dst);
   FnImpl(dst, src, size);
-  for (size_t i = 0; i < size; ++i)
-    if (dst[i] != src[i])
-      return false;
-  return true;
+  return IsEqual(dst, src);
 }
 
 // Checks that FnImpl implements the memset semantic.
@@ -109,7 +107,6 @@ bool CheckMemset(cpp::span<char> dst, uint8_t value, size_t size) {
 // Checks that FnImpl implements the bcmp semantic.
 template <auto FnImpl>
 bool CheckBcmp(cpp::span<char> span1, cpp::span<char> span2, size_t size) {
-  assert(span1.size() == span2.size());
   ReferenceCopy(span2, span1);
   // Compare equal
   if (int cmp = FnImpl(span1, span2, size); cmp != 0)
@@ -129,7 +126,6 @@ bool CheckBcmp(cpp::span<char> span1, cpp::span<char> span2, size_t size) {
 // Checks that FnImpl implements the memcmp semantic.
 template <auto FnImpl>
 bool CheckMemcmp(cpp::span<char> span1, cpp::span<char> span2, size_t size) {
-  assert(span1.size() == span2.size());
   ReferenceCopy(span2, span1);
   // Compare equal
   if (int cmp = FnImpl(span1, span2, size); cmp != 0)
@@ -154,7 +150,52 @@ bool CheckMemcmp(cpp::span<char> span1, cpp::span<char> span2, size_t size) {
   return true;
 }
 
-// TODO: Also implement the memmove semantic
+uint16_t Checksum(cpp::span<char> dst) {
+  // We use Fletcher16 as it is trivial to implement.
+  uint16_t sum1 = 0;
+  uint16_t sum2 = 0;
+  for (char c : dst) {
+    sum1 = (sum1 + c) % 255U;
+    sum2 = (sum2 + sum1) % 255U;
+  }
+  return (sum2 << 8) | sum1;
+}
+
+template <auto FnImpl>
+bool CheckMemmove(cpp::span<char> dst, cpp::span<char> src) {
+  LIBC_ASSERT(dst.size() == src.size());
+  // Memmove can override the src buffer. Technically we should save it into a
+  // temporary buffer so we can check that 'dst' is equal to what 'src' was
+  // before we called the function. To save on allocation and copy we use a
+  // checksum instead.
+  const auto src_checksum = Checksum(src);
+  FnImpl(dst, src, dst.size());
+  return Checksum(dst) == src_checksum;
+}
+
+// Checks that FnImpl implements the memmove semantic.
+//  - Buffer size should be greater than 2 * size + 1.
+//  - Overlap refers to the number of bytes in common between the two buffers:
+//    - Negative means buffers are disjoint
+//    - zero mean they overlap exactly
+//  - Caller is responsible for randomizing the buffer.
+template <auto FnImpl>
+bool CheckMemmove(cpp::span<char> buffer, size_t size, int overlap) {
+  LIBC_ASSERT(buffer.size() > (2 * size + 1));
+  const size_t half_size = buffer.size() / 2;
+  LIBC_ASSERT((size_t)(overlap >= 0 ? overlap : -overlap) < half_size);
+  cpp::span<char> head = buffer.first(half_size + overlap).last(size);
+  cpp::span<char> tail = buffer.last(half_size).first(size);
+  LIBC_ASSERT(head.size() == size);
+  LIBC_ASSERT(tail.size() == size);
+  // dst before src
+  if (!CheckMemmove<FnImpl>(head, tail))
+    return false;
+  // dst after src
+  if (!CheckMemmove<FnImpl>(tail, head))
+    return false;
+  return true;
+}
 
 } // namespace __llvm_libc
 

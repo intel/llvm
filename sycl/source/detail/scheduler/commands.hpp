@@ -290,6 +290,17 @@ public:
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();
 
+  /// Clear all dependency events This should only be used if a command is about
+  /// to be deleted without being executed before that. As of now, the only
+  /// valid use case for this function is in kernel fusion, where the fused
+  /// kernel commands are replaced by the fused command without ever being
+  /// executed.
+  void clearAllDependencies() {
+    MPreparedDepsEvents.clear();
+    MPreparedHostDepsEvents.clear();
+    MDeps.clear();
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -643,6 +654,16 @@ private:
 
   friend class Command;
 };
+
+// For XPTI instrumentation only.
+// Method used to emit data in cases when we do not create node in graph.
+// Very close to ExecCGCommand::emitInstrumentationData content.
+void emitKernelInstrumentationData(
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs);
 
 class UpdateHostRequirementCommand : public Command {
 public:

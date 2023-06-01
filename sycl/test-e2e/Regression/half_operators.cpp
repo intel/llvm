@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: gpu
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 #include <iostream>
 #include <sycl.hpp>
 #include <vector>

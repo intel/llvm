@@ -103,82 +103,82 @@ class VMVRSched<int n> : Sched<[
   !cast<SchedReadWrite>("ReadVMov" #n #"V")
 ]>;
 
-class VLESched<string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVLDE_"#suffix),
+class VLESched<string lmul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVLDE_" #lmul),
   ReadVLDX, ReadVMask
 ]>;
 
-class VSESched<string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVSTE_" # suffix),
-  !cast<SchedReadWrite>("ReadVSTEV_" # suffix),
+class VSESched<string lmul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVSTE_" #lmul),
+  !cast<SchedReadWrite>("ReadVSTEV_" #lmul),
   ReadVSTX, ReadVMask
 ]>;
 
-class VLSSched<int n, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVLDS" #n #"_" # suffix),
+class VLSSched<int eew, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVLDS" #eew #"_" #emul),
   ReadVLDX, ReadVLDSX, ReadVMask
 ]>;
 
-class VSSSched<int n, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVSTS" #n #"_"#suffix),
-  !cast<SchedReadWrite>("ReadVSTS" #n #"V_"#suffix),
+class VSSSched<int eew, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVSTS" #eew #"_" #emul),
+  !cast<SchedReadWrite>("ReadVSTS" #eew #"V_" #emul),
   ReadVSTX, ReadVSTSX, ReadVMask
 ]>;
 
-class VLXSched<int n, string o,
-               string dataSuffix = "WorstCase",
-               string idxSuffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVLD" #o #"X" #n #"_" # dataSuffix),
+class VLXSched<int dataEEW, string isOrdered,
+               string dataEMUL = "WorstCase",
+               string idxEMUL = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVLD" #isOrdered #"X" #dataEEW #"_" #dataEMUL),
   ReadVLDX,
-  !cast<SchedReadWrite>("ReadVLD" #o #"XV_" # idxSuffix), ReadVMask
+  !cast<SchedReadWrite>("ReadVLD" #isOrdered #"XV_" #idxEMUL), ReadVMask
 ]>;
 
-class VSXSched<int n, string o,
-               string dataSuffix = "WorstCase",
-               string idxSuffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVST" #o #"X" #n #"_"#dataSuffix),
-  !cast<SchedReadWrite>("ReadVST" #o #"X" #n #"_"#dataSuffix),
-  ReadVSTX, !cast<SchedReadWrite>("ReadVST" #o #"XV_"#idxSuffix), ReadVMask
+class VSXSched<int dataEEW, string isOrdered,
+               string dataEMUL = "WorstCase",
+               string idxEMUL = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVST" #isOrdered #"X" #dataEEW #"_" #dataEMUL),
+  !cast<SchedReadWrite>("ReadVST" #isOrdered #"X" #dataEEW #"_" #dataEMUL),
+  ReadVSTX, !cast<SchedReadWrite>("ReadVST" #isOrdered #"XV_" #idxEMUL), ReadVMask
 ]>;
 
-class VLFSched<string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVLDFF_" # suffix),
+class VLFSched<string lmul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVLDFF_" #lmul),
   ReadVLDX, ReadVMask
 ]>;
 
 // Unit-Stride Segment Loads and Stores
-class VLSEGSched<int nf, int eew, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVLSEG" #nf #"e" #eew #"_"#suffix),
+class VLSEGSched<int nf, int eew, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVLSEG" #nf #"e" #eew #"_" #emul),
   ReadVLDX, ReadVMask
 ]>;
-class VSSEGSched<int nf, int eew, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVSSEG" #nf #"e" #eew #"_"#suffix),
-  !cast<SchedReadWrite>("ReadVSTEV_"#suffix),
+class VSSEGSched<int nf, int eew, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVSSEG" #nf #"e" #eew #"_" #emul),
+  !cast<SchedReadWrite>("ReadVSTEV_" #emul),
   ReadVSTX, ReadVMask
 ]>;
-class VLSEGFFSched<int nf, int eew, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVLSEGFF" #nf #"e" #eew #"_"#suffix),
+class VLSEGFFSched<int nf, int eew, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVLSEGFF" #nf #"e" #eew #"_" #emul),
   ReadVLDX, ReadVMask
 ]>;
 // Strided Segment Loads and Stores
-class VLSSEGSched<int nf, int eew, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVLSSEG" #nf #"e" #eew #"_"#suffix),
+class VLSSEGSched<int nf, int eew, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVLSSEG" #nf #"e" #eew #"_" #emul),
   ReadVLDX, ReadVLDSX, ReadVMask
 ]>;
-class VSSSEGSched<int nf, int eew, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVSSSEG" #nf #"e" #eew #"_"#suffix),
-  !cast<SchedReadWrite>("ReadVSTS" #eew #"V_"#suffix),
+class VSSSEGSched<int nf, int eew, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVSSSEG" #nf #"e" #eew #"_" #emul),
+  !cast<SchedReadWrite>("ReadVSTS" #eew #"V_" #emul),
   ReadVSTX, ReadVSTSX, ReadVMask
 ]>;
 // Indexed Segment Loads and Stores
-class VLXSEGSched<int nf, int eew, string o, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVL" #o #"XSEG" #nf #"e" #eew #"_"#suffix),
-  ReadVLDX, !cast<SchedReadWrite>("ReadVLD" #o #"XV" #"_"#suffix), ReadVMask
+class VLXSEGSched<int nf, int eew, string isOrdered, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVL" #isOrdered #"XSEG" #nf #"e" #eew #"_" #emul),
+  ReadVLDX, !cast<SchedReadWrite>("ReadVLD" #isOrdered #"XV_" #emul), ReadVMask
 ]>;
-class VSXSEGSched<int nf, int eew, string o, string suffix = "WorstCase"> : Sched<[
-  !cast<SchedReadWrite>("WriteVS" #o #"XSEG" #nf #"e" #eew #"_"#suffix),
-  !cast<SchedReadWrite>("ReadVST" #o #"X" #eew # "_"#suffix),
-  ReadVSTX, !cast<SchedReadWrite>("ReadVST" #o #"XV" # "_"#suffix), ReadVMask
+class VSXSEGSched<int nf, int eew, string isOrdered, string emul = "WorstCase"> : Sched<[
+  !cast<SchedReadWrite>("WriteVS" #isOrdered #"XSEG" #nf #"e" #eew #"_" #emul),
+  !cast<SchedReadWrite>("ReadVST" #isOrdered #"X" #eew #"_" #emul),
+  ReadVSTX, !cast<SchedReadWrite>("ReadVST" #isOrdered #"XV_" #emul), ReadVMask
 ]>;
 
 //===----------------------------------------------------------------------===//
@@ -190,14 +190,14 @@ let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
 class VUnitStrideLoad<RISCVWidth width, string opcodestr>
     : RVInstVLU<0b000, width.Value{3}, LUMOPUnitStride, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, VMaskOp:$vm), opcodestr, "$vd, (${rs1})$vm">;
+                (ins GPRMemZeroOffset:$rs1, VMaskOp:$vm), opcodestr, "$vd, ${rs1}$vm">;
 
 let vm = 1, RVVConstraint = NoConstraint in {
 // unit-stride whole register load vl<nf>r.v vd, (rs1)
 class VWholeLoad<bits<3> nf, RISCVWidth width, string opcodestr, RegisterClass VRC>
     : RVInstVLU<nf, width.Value{3}, LUMOPUnitStrideWholeReg,
-                width.Value{2-0}, (outs VRC:$vd), (ins GPRMem:$rs1),
-                opcodestr, "$vd, (${rs1})"> {
+                width.Value{2-0}, (outs VRC:$vd), (ins GPRMemZeroOffset:$rs1),
+                opcodestr, "$vd, $rs1"> {
   let Uses = [];
 }
 
@@ -205,110 +205,110 @@ class VWholeLoad<bits<3> nf, RISCVWidth width, string opcodestr, RegisterClass V
 class VUnitStrideLoadMask<string opcodestr>
     : RVInstVLU<0b000, LSWidth8.Value{3}, LUMOPUnitStrideMask, LSWidth8.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1), opcodestr, "$vd, (${rs1})">;
+                (ins GPRMemZeroOffset:$rs1), opcodestr, "$vd, $rs1">;
 } // vm = 1, RVVConstraint = NoConstraint
 
 // unit-stride fault-only-first load vd, (rs1), vm
 class VUnitStrideLoadFF<RISCVWidth width, string opcodestr>
     : RVInstVLU<0b000, width.Value{3}, LUMOPUnitStrideFF, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, VMaskOp:$vm), opcodestr, "$vd, (${rs1})$vm">;
+                (ins GPRMemZeroOffset:$rs1, VMaskOp:$vm), opcodestr, "$vd, ${rs1}$vm">;
 
 // strided load vd, (rs1), rs2, vm
 class VStridedLoad<RISCVWidth width, string opcodestr>
     : RVInstVLS<0b000, width.Value{3}, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, GPR:$rs2, VMaskOp:$vm), opcodestr,
-                "$vd, (${rs1}), $rs2$vm">;
+                (ins GPRMemZeroOffset:$rs1, GPR:$rs2, VMaskOp:$vm), opcodestr,
+                "$vd, $rs1, $rs2$vm">;
 
 // indexed load vd, (rs1), vs2, vm
 class VIndexedLoad<RISCVMOP mop, RISCVWidth width, string opcodestr>
     : RVInstVLX<0b000, width.Value{3}, mop, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, VR:$vs2, VMaskOp:$vm), opcodestr,
-                "$vd, (${rs1}), $vs2$vm">;
+                (ins GPRMemZeroOffset:$rs1, VR:$vs2, VMaskOp:$vm), opcodestr,
+                "$vd, $rs1, $vs2$vm">;
 
 // unit-stride segment load vd, (rs1), vm
 class VUnitStrideSegmentLoad<bits<3> nf, RISCVWidth width, string opcodestr>
     : RVInstVLU<nf, width.Value{3}, LUMOPUnitStride, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, VMaskOp:$vm), opcodestr, "$vd, (${rs1})$vm">;
+                (ins GPRMemZeroOffset:$rs1, VMaskOp:$vm), opcodestr, "$vd, ${rs1}$vm">;
 
 // segment fault-only-first load vd, (rs1), vm
 class VUnitStrideSegmentLoadFF<bits<3> nf, RISCVWidth width, string opcodestr>
     : RVInstVLU<nf, width.Value{3}, LUMOPUnitStrideFF, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, VMaskOp:$vm), opcodestr, "$vd, (${rs1})$vm">;
+                (ins GPRMemZeroOffset:$rs1, VMaskOp:$vm), opcodestr, "$vd, ${rs1}$vm">;
 
 // strided segment load vd, (rs1), rs2, vm
 class VStridedSegmentLoad<bits<3> nf, RISCVWidth width, string opcodestr>
     : RVInstVLS<nf, width.Value{3}, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, GPR:$rs2, VMaskOp:$vm), opcodestr,
-                "$vd, (${rs1}), $rs2$vm">;
+                (ins GPRMemZeroOffset:$rs1, GPR:$rs2, VMaskOp:$vm), opcodestr,
+                "$vd, $rs1, $rs2$vm">;
 
 // indexed segment load vd, (rs1), vs2, vm
 class VIndexedSegmentLoad<bits<3> nf, RISCVMOP mop, RISCVWidth width,
                           string opcodestr>
     : RVInstVLX<nf, width.Value{3}, mop, width.Value{2-0},
                 (outs VR:$vd),
-                (ins GPRMem:$rs1, VR:$vs2, VMaskOp:$vm), opcodestr,
-                "$vd, (${rs1}), $vs2$vm">;
+                (ins GPRMemZeroOffset:$rs1, VR:$vs2, VMaskOp:$vm), opcodestr,
+                "$vd, $rs1, $vs2$vm">;
 } // hasSideEffects = 0, mayLoad = 1, mayStore = 0
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in {
 // unit-stride store vd, vs3, (rs1), vm
 class VUnitStrideStore<RISCVWidth width, string opcodestr>
     : RVInstVSU<0b000, width.Value{3}, SUMOPUnitStride, width.Value{2-0},
-                (outs), (ins VR:$vs3, GPRMem:$rs1, VMaskOp:$vm), opcodestr,
-                "$vs3, (${rs1})$vm">;
+                (outs), (ins VR:$vs3, GPRMemZeroOffset:$rs1, VMaskOp:$vm), opcodestr,
+                "$vs3, ${rs1}$vm">;
 
 let vm = 1 in {
 // vs<nf>r.v vd, (rs1)
 class VWholeStore<bits<3> nf, string opcodestr, RegisterClass VRC>
     : RVInstVSU<nf, 0, SUMOPUnitStrideWholeReg,
-                0b000, (outs), (ins VRC:$vs3, GPRMem:$rs1),
-                opcodestr, "$vs3, (${rs1})"> {
+                0b000, (outs), (ins VRC:$vs3, GPRMemZeroOffset:$rs1),
+                opcodestr, "$vs3, $rs1"> {
   let Uses = [];
 }
 
 // unit-stride mask store vd, vs3, (rs1)
 class VUnitStrideStoreMask<string opcodestr>
     : RVInstVSU<0b000, LSWidth8.Value{3}, SUMOPUnitStrideMask, LSWidth8.Value{2-0},
-                (outs), (ins VR:$vs3, GPRMem:$rs1), opcodestr,
-                "$vs3, (${rs1})">;
+                (outs), (ins VR:$vs3, GPRMemZeroOffset:$rs1), opcodestr,
+                "$vs3, $rs1">;
 } // vm = 1
 
 // strided store vd, vs3, (rs1), rs2, vm
 class VStridedStore<RISCVWidth width, string opcodestr>
     : RVInstVSS<0b000, width.Value{3}, width.Value{2-0}, (outs),
-                (ins VR:$vs3, GPRMem:$rs1, GPR:$rs2, VMaskOp:$vm),
-                opcodestr, "$vs3, (${rs1}), $rs2$vm">;
+                (ins VR:$vs3, GPRMemZeroOffset:$rs1, GPR:$rs2, VMaskOp:$vm),
+                opcodestr, "$vs3, $rs1, $rs2$vm">;
 
 // indexed store vd, vs3, (rs1), vs2, vm
 class VIndexedStore<RISCVMOP mop, RISCVWidth width, string opcodestr>
     : RVInstVSX<0b000, width.Value{3}, mop, width.Value{2-0}, (outs),
-                (ins VR:$vs3, GPRMem:$rs1, VR:$vs2, VMaskOp:$vm),
-                opcodestr, "$vs3, (${rs1}), $vs2$vm">;
+                (ins VR:$vs3, GPRMemZeroOffset:$rs1, VR:$vs2, VMaskOp:$vm),
+                opcodestr, "$vs3, $rs1, $vs2$vm">;
 
 // segment store vd, vs3, (rs1), vm
 class VUnitStrideSegmentStore<bits<3> nf, RISCVWidth width, string opcodestr>
     : RVInstVSU<nf, width.Value{3}, SUMOPUnitStride, width.Value{2-0},
-                (outs), (ins VR:$vs3, GPRMem:$rs1, VMaskOp:$vm), opcodestr,
-                "$vs3, (${rs1})$vm">;
+                (outs), (ins VR:$vs3, GPRMemZeroOffset:$rs1, VMaskOp:$vm), opcodestr,
+                "$vs3, ${rs1}$vm">;
 
 // segment store vd, vs3, (rs1), rs2, vm
 class VStridedSegmentStore<bits<3> nf, RISCVWidth width, string opcodestr>
     : RVInstVSS<nf, width.Value{3}, width.Value{2-0}, (outs),
-                (ins VR:$vs3, GPRMem:$rs1, GPR:$rs2, VMaskOp:$vm),
-                opcodestr, "$vs3, (${rs1}), $rs2$vm">;
+                (ins VR:$vs3, GPRMemZeroOffset:$rs1, GPR:$rs2, VMaskOp:$vm),
+                opcodestr, "$vs3, $rs1, $rs2$vm">;
 
 // segment store vd, vs3, (rs1), vs2, vm
 class VIndexedSegmentStore<bits<3> nf, RISCVMOP mop, RISCVWidth width,
                            string opcodestr>
     : RVInstVSX<nf, width.Value{3}, mop, width.Value{2-0}, (outs),
-                (ins VR:$vs3, GPRMem:$rs1, VR:$vs2, VMaskOp:$vm),
-                opcodestr, "$vs3, (${rs1}), $vs2$vm">;
+                (ins VR:$vs3, GPRMemZeroOffset:$rs1, VR:$vs2, VMaskOp:$vm),
+                opcodestr, "$vs3, $rs1, $vs2$vm">;
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 1
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in {
@@ -1615,12 +1615,11 @@ def VID_V : RVInstV<0b010100, 0b10001, OPMVV, (outs VR:$vd),
 let vm = 1, RVVConstraint = NoConstraint in {
 def VMV_X_S : RVInstV<0b010000, 0b00000, OPMVV, (outs GPR:$vd),
                       (ins VR:$vs2), "vmv.x.s", "$vd, $vs2">,
-              Sched<[WriteVIMovVX_WorstCase, ReadVIMovVX_WorstCase]>;
+              Sched<[WriteVIMovVX, ReadVIMovVX]>;
 let Constraints = "$vd = $vd_wb" in
 def VMV_S_X : RVInstV2<0b010000, 0b00000, OPMVX, (outs VR:$vd_wb),
                       (ins VR:$vd, GPR:$rs1), "vmv.s.x", "$vd, $rs1">,
-              Sched<[WriteVIMovXV_WorstCase, ReadVIMovXV_WorstCase,
-                     ReadVIMovXX_WorstCase]>;
+              Sched<[WriteVIMovXV, ReadVIMovXV, ReadVIMovXX]>;
 }
 
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0
@@ -1634,12 +1633,11 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0, vm = 1,
 // Floating-Point Scalar Move Instructions
 def VFMV_F_S : RVInstV<0b010000, 0b00000, OPFVV, (outs FPR32:$vd),
                       (ins VR:$vs2), "vfmv.f.s", "$vd, $vs2">,
-               Sched<[WriteVFMovVF_WorstCase, ReadVFMovVF_WorstCase]>;
+               Sched<[WriteVFMovVF, ReadVFMovVF]>;
 let Constraints = "$vd = $vd_wb" in
 def VFMV_S_F : RVInstV2<0b010000, 0b00000, OPFVF, (outs VR:$vd_wb),
                        (ins VR:$vd, FPR32:$rs1), "vfmv.s.f", "$vd, $rs1">,
-               Sched<[WriteVFMovFV_WorstCase, ReadVFMovFV_WorstCase,
-                      ReadVFMovFX_WorstCase]>;
+               Sched<[WriteVFMovFV, ReadVFMovFV, ReadVFMovFX]>;
 
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0, vm = 1
 
@@ -1778,5 +1776,6 @@ let Predicates = [HasVInstructionsI64, IsRV64] in {
   }
 } // Predicates = [HasVInstructionsI64, IsRV64]
 
+include "RISCVInstrInfoZvfbf.td"
 include "RISCVInstrInfoZvk.td"
 include "RISCVInstrInfoVPseudos.td"

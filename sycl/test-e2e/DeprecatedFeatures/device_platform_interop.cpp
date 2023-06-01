@@ -1,9 +1,7 @@
 // REQUIRES: opencl
 
-// RUN: %clangxx -fsycl -D__SYCL_INTERNAL_API %s -o %t.run
-// RUN: %GPU_RUN_PLACEHOLDER %t.run
-// RUN: %CPU_RUN_PLACEHOLDER %t.run
-// RUN: %ACC_RUN_PLACEHOLDER %t.run
+// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.run
+// RUN: %{run} %t.run
 
 //==------------------- device_platform_interop.cpp ------------------------==//
 // The test for SYCL device and platform interop constructors

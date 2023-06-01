@@ -1,6 +1,6 @@
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: cuda
+// RUN: %{build} %debug_option -o %t.out
+// RUN: %{run} %t.out
 
 // NOTE: Tests that the implicit global offset pass copies debug information
 

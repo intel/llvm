@@ -213,6 +213,11 @@
 #define __SYCL_ALL_DEVICES_HAVE_40__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_41__
+// __SYCL_ASPECT(ext_intel_legacy_image, 41)
+#define __SYCL_ALL_DEVICES_HAVE_41__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_0__
 // __SYCL_ASPECT(host, 0)
 #define __SYCL_ANY_DEVICE_HAS_0__ 0
@@ -416,4 +421,9 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_40__
 // __SYCL_ASPECT(emulated, 40)
 #define __SYCL_ANY_DEVICE_HAS_40__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_41__
+// __SYCL_ASPECT(ext_intel_legacy_image, 41)
+#define __SYCL_ANY_DEVICE_HAS_41__ 0
 #endif

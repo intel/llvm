@@ -447,9 +447,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
   };
   llvm::DenseMap<Module*, PerModuleInitializers*> ModuleInitializers;
 
-  /// For module code-gen cases, this is the top-level (C++20) Named module
-  /// we are building.
-  Module *TopLevelCXXNamedModule = nullptr;
+  /// This is the top-level (C++20) Named module we are building.
+  Module *CurrentCXXNamedModule = nullptr;
 
   static constexpr unsigned ConstantArrayTypesLog2InitSize = 8;
   static constexpr unsigned GeneralTypesLog2InitSize = 9;
@@ -1052,10 +1051,10 @@ public:
   ArrayRef<Decl*> getModuleInitializers(Module *M);
 
   /// Set the (C++20) module we are building.
-  void setNamedModuleForCodeGen(Module *M) { TopLevelCXXNamedModule = M; }
+  void setCurrentNamedModule(Module *M);
 
   /// Get module under construction, nullptr if this is not a C++20 module.
-  Module *getNamedModuleForCodeGen() const { return TopLevelCXXNamedModule; }
+  Module *getCurrentNamedModule() const { return CurrentCXXNamedModule; }
 
   TranslationUnitDecl *getTranslationUnitDecl() const {
     return TUDecl->getMostRecentDecl();
@@ -1478,9 +1477,12 @@ public:
 
   /// Return the unique reference to a scalable vector type of the specified
   /// element type and scalable number of elements.
+  /// For RISC-V, number of fields is also provided when it fetching for
+  /// tuple type.
   ///
   /// \pre \p EltTy must be a built-in type.
-  QualType getScalableVectorType(QualType EltTy, unsigned NumElts) const;
+  QualType getScalableVectorType(QualType EltTy, unsigned NumElts,
+                                 unsigned NumFields = 1) const;
 
   /// Return a WebAssembly externref type.
   QualType getWebAssemblyExternrefType() const;
@@ -2258,6 +2260,17 @@ public:
   /// false otherwise.
   bool areLaxCompatibleSveTypes(QualType FirstType, QualType SecondType);
 
+  /// Return true if the given types are an RISC-V vector builtin type and a
+  /// VectorType that is a fixed-length representation of the RISC-V vector
+  /// builtin type for a specific vector-length.
+  bool areCompatibleRVVTypes(QualType FirstType, QualType SecondType);
+
+  /// Return true if the given vector types are lax-compatible RISC-V vector
+  /// types as defined by -flax-vector-conversions=, which permits implicit
+  /// conversions between vectors with different number of elements and/or
+  /// incompatible element types, false otherwise.
+  bool areLaxCompatibleRVVTypes(QualType FirstType, QualType SecondType);
+
   /// Return true if the type has been explicitly qualified with ObjC ownership.
   /// A type may be implicitly qualified with ownership under ObjC ARC, and in
   /// some cases the compiler treats these differently.
@@ -2497,7 +2510,9 @@ public:
 
   /// Return true if the specified type has unique object representations
   /// according to (C++17 [meta.unary.prop]p9)
-  bool hasUniqueObjectRepresentations(QualType Ty) const;
+  bool
+  hasUniqueObjectRepresentations(QualType Ty,
+                                 bool CheckIfTriviallyCopyable = true) const;
 
   //===--------------------------------------------------------------------===//
   //                            Type Operators
@@ -3203,7 +3218,6 @@ private:
 
   public:
     ObjCEncOptions() : Bits(0) {}
-    ObjCEncOptions(const ObjCEncOptions &RHS) : Bits(RHS.Bits) {}
 
 #define OPT_LIST(V)                                                            \
   V(ExpandPointedToStructures, 0)                                              \

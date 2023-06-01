@@ -9,11 +9,6 @@
 // Ensure that none of the standard C++ headers implicitly include cassert or
 // assert.h (because assert() is implemented as a macro).
 
-// Prevent <ext/hash_map> from generating deprecated warnings for this test.
-#if defined(__DEPRECATED)
-#    undef __DEPRECATED
-#endif
-
 /*
 BEGIN-SCRIPT
 
@@ -134,6 +129,7 @@ END-SCRIPT
 #endif
 #include <map>
 #include <math.h>
+#include <mdspan>
 #include <memory>
 #include <memory_resource>
 #if !defined(_LIBCPP_HAS_NO_THREADS)
@@ -257,8 +253,6 @@ END-SCRIPT
 #if __cplusplus >= 201103L
 #   include <experimental/vector>
 #endif
-#include <ext/hash_map>
-#include <ext/hash_set>
 // GENERATED-MARKER
 
 #ifdef assert

@@ -1,11 +1,10 @@
+// REQUIRES: cpu
 // UNSUPPORTED: windows
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER sycl-trace --sycl  %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} sycl-trace --sycl  %t.out | FileCheck %s
 
 // Test tracing of the code location data for queue.parallel_for in case of
 // failure (exception generation)
-//
-// CHECK: code_location_queue_parallel_for.cpp:22 E2ETestKernel
 
 #include <sycl/sycl.hpp>
 
@@ -17,6 +16,7 @@ int main() {
       Dev.get_info<sycl::info::device::max_work_item_sizes<1>>();
   bool ExceptionCaught = false;
   try {
+// CHECK: code_location_queue_parallel_for.cpp:[[# @LINE + 3 ]] E2ETestKernel
     Queue.parallel_for<class E2ETestKernel>(
         sycl::nd_range<1>{MaxWISizes.get(0), 2 * MaxWISizes.get(0)},
         [](sycl::id<1> idx) {});

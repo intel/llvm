@@ -53,7 +53,7 @@ const std::string DuplicateNameStr = "----";
 enum ProfileFormat {
   PF_None = 0,
   PF_Text,
-  PF_Compact_Binary,
+  PF_Compact_Binary, // Deprecated
   PF_Ext_Binary,
   PF_GCC,
   PF_Binary
@@ -233,9 +233,10 @@ static void overlapInput(const std::string &BaseFilename,
   auto ReaderOrErr = InstrProfReader::create(TestFilename, *FS);
   if (Error E = ReaderOrErr.takeError()) {
     // Skip the empty profiles by returning sliently.
-    instrprof_error IPE = InstrProfError::take(std::move(E));
-    if (IPE != instrprof_error::empty_raw_profile)
-      WC->Errors.emplace_back(make_error<InstrProfError>(IPE), TestFilename);
+    auto [ErrorCode, Msg] = InstrProfError::take(std::move(E));
+    if (ErrorCode != instrprof_error::empty_raw_profile)
+      WC->Errors.emplace_back(make_error<InstrProfError>(ErrorCode, Msg),
+                              TestFilename);
     return;
   }
 
@@ -280,8 +281,9 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
     }
 
     auto MemProfError = [&](Error E) {
-      instrprof_error IPE = InstrProfError::take(std::move(E));
-      WC->Errors.emplace_back(make_error<InstrProfError>(IPE), Filename);
+      auto [ErrorCode, Msg] = InstrProfError::take(std::move(E));
+      WC->Errors.emplace_back(make_error<InstrProfError>(ErrorCode, Msg),
+                              Filename);
     };
 
     // Add the frame mappings into the writer context.
@@ -306,9 +308,10 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
   auto ReaderOrErr = InstrProfReader::create(Input.Filename, *FS, Correlator);
   if (Error E = ReaderOrErr.takeError()) {
     // Skip the empty profiles by returning silently.
-    instrprof_error IPE = InstrProfError::take(std::move(E));
-    if (IPE != instrprof_error::empty_raw_profile)
-      WC->Errors.emplace_back(make_error<InstrProfError>(IPE), Filename);
+    auto [ErrCode, Msg] = InstrProfError::take(std::move(E));
+    if (ErrCode != instrprof_error::empty_raw_profile)
+      WC->Errors.emplace_back(make_error<InstrProfError>(ErrCode, Msg),
+                              Filename);
     return;
   }
 
@@ -335,11 +338,11 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
       }
       Reported = true;
       // Only show hint the first time an error occurs.
-      instrprof_error IPE = InstrProfError::take(std::move(E));
+      auto [ErrCode, Msg] = InstrProfError::take(std::move(E));
       std::unique_lock<std::mutex> ErrGuard{WC->ErrLock};
-      bool firstTime = WC->WriterErrorCodes.insert(IPE).second;
-      handleMergeWriterError(make_error<InstrProfError>(IPE), Input.Filename,
-                             FuncName, firstTime);
+      bool firstTime = WC->WriterErrorCodes.insert(ErrCode).second;
+      handleMergeWriterError(make_error<InstrProfError>(ErrCode, Msg),
+                             Input.Filename, FuncName, firstTime);
     });
   }
 
@@ -370,11 +373,11 @@ static void mergeWriterContexts(WriterContext *Dst, WriterContext *Src) {
     exitWithError(std::move(E));
 
   Dst->Writer.mergeRecordsFromWriter(std::move(Src->Writer), [&](Error E) {
-    instrprof_error IPE = InstrProfError::take(std::move(E));
+    auto [ErrorCode, Msg] = InstrProfError::take(std::move(E));
     std::unique_lock<std::mutex> ErrGuard{Dst->ErrLock};
-    bool firstTime = Dst->WriterErrorCodes.insert(IPE).second;
+    bool firstTime = Dst->WriterErrorCodes.insert(ErrorCode).second;
     if (firstTime)
-      warn(toString(make_error<InstrProfError>(IPE)));
+      warn(toString(make_error<InstrProfError>(ErrorCode, Msg)));
   });
 }
 
@@ -406,8 +409,10 @@ mergeInstrProfile(const WeightedFileVector &Inputs, StringRef DebugInfoFilename,
                   uint64_t MaxTraceLength, bool OutputSparse,
                   unsigned NumThreads, FailureMode FailMode,
                   const StringRef ProfiledBinary) {
-  if (OutputFormat != PF_Binary && OutputFormat != PF_Compact_Binary &&
-      OutputFormat != PF_Ext_Binary && OutputFormat != PF_Text)
+  if (OutputFormat == PF_Compact_Binary)
+    exitWithError("Compact Binary is deprecated");
+  if (OutputFormat != PF_Binary && OutputFormat != PF_Ext_Binary &&
+      OutputFormat != PF_Text)
     exitWithError("unknown format is specified");
 
   std::unique_ptr<InstrProfCorrelator> Correlator;
@@ -909,7 +914,7 @@ remapSamples(const sampleprof::FunctionSamples &Samples,
 static sampleprof::SampleProfileFormat FormatMap[] = {
     sampleprof::SPF_None,
     sampleprof::SPF_Text,
-    sampleprof::SPF_Compact_Binary,
+    sampleprof::SPF_None,
     sampleprof::SPF_Ext_Binary,
     sampleprof::SPF_GCC,
     sampleprof::SPF_Binary};
@@ -1177,12 +1182,11 @@ static int merge_main(int argc, const char *argv[]) {
       cl::values(clEnumVal(instr, "Instrumentation profile (default)"),
                  clEnumVal(sample, "Sample profile")));
   cl::opt<ProfileFormat> OutputFormat(
-      cl::desc("Format of output profile"), cl::init(PF_Binary),
+      cl::desc("Format of output profile"), cl::init(PF_Ext_Binary),
       cl::values(
-          clEnumValN(PF_Binary, "binary", "Binary encoding (default)"),
-          clEnumValN(PF_Compact_Binary, "compbinary",
-                     "Compact binary encoding"),
-          clEnumValN(PF_Ext_Binary, "extbinary", "Extensible binary encoding"),
+          clEnumValN(PF_Binary, "binary", "Binary encoding"),
+          clEnumValN(PF_Ext_Binary, "extbinary", "Extensible binary encoding "
+                     "(default)"),
           clEnumValN(PF_Text, "text", "Text encoding"),
           clEnumValN(PF_GCC, "gcc",
                      "GCC encoding (only meaningful for -sample)")));
@@ -3064,6 +3068,12 @@ int llvm_profdata_main(int argc, char **argvNonConst,
              << "USAGE: " << ProgName << " <command> -help\n\n"
              << "See each individual command --help for more details.\n"
              << "Available commands: merge, show, overlap\n";
+      return 0;
+    }
+
+    if (strcmp(argv[1], "--version") == 0) {
+      outs() << ProgName << '\n';
+      cl::PrintVersionMessage();
       return 0;
     }
   }

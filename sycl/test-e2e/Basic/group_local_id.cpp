@@ -1,7 +1,7 @@
 // REQUIRES: cpu
 
-// RUN: %clangxx -fsycl -std=c++17 -fsycl-targets=%sycl_triple %s -o %t.run
-// RUN: %CPU_RUN_PLACEHOLDER %t.run
+// RUN: %{build} -std=c++17 -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

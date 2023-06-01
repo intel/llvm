@@ -20,7 +20,7 @@ TEST(InOrderQueue, CheckFlagIsPassed) {
   unittest::PiMock Mock;
   platform Plt = Mock.getPlatform();
 
-  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate2>(
+  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
       piextQueueCreateRedefineBefore);
 
   EXPECT_FALSE(InOrderFlagSeen);

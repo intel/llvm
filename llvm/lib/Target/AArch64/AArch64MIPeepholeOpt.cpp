@@ -608,23 +608,16 @@ bool AArch64MIPeepholeOpt::visitINSviGPR(MachineInstr &MI, unsigned Opc) {
   return true;
 }
 
-static bool is64bitDefwithZeroHigh64bit(MachineInstr *MI) {
-  // ToDo: check and add more MIs which set zero for high 64bits.
-  switch (MI->getOpcode()) {
-  default:
-    break;
-  case AArch64::FCVTNv2i32:
-  case AArch64::FCVTNv4i16:
-  case AArch64::RSHRNv2i32_shift:
-  case AArch64::RSHRNv4i16_shift:
-  case AArch64::RSHRNv8i8_shift :
-  case AArch64::SHRNv2i32_shift:
-  case AArch64::SHRNv4i16_shift:
-  case AArch64::SHRNv8i8_shift:
-    return true;
-  }
-
-  return false;
+// All instructions that set a FPR64 will implicitly zero the top bits of the
+// register.
+static bool is64bitDefwithZeroHigh64bit(MachineInstr *MI,
+                                        MachineRegisterInfo *MRI) {
+  if (!MI->getOperand(0).isDef() || !MI->getOperand(0).isReg())
+    return false;
+  const TargetRegisterClass *RC = MRI->getRegClass(MI->getOperand(0).getReg());
+  if (RC != &AArch64::FPR64RegClass)
+    return false;
+  return MI->getOpcode() > TargetOpcode::GENERIC_OP_END;
 }
 
 bool AArch64MIPeepholeOpt::visitINSvi64lane(MachineInstr &MI) {
@@ -639,7 +632,7 @@ bool AArch64MIPeepholeOpt::visitINSvi64lane(MachineInstr &MI) {
   if (Low64MI->getOpcode() != AArch64::INSERT_SUBREG)
     return false;
   Low64MI = MRI->getUniqueVRegDef(Low64MI->getOperand(2).getReg());
-  if (!is64bitDefwithZeroHigh64bit(Low64MI))
+  if (!Low64MI || !is64bitDefwithZeroHigh64bit(Low64MI, MRI))
     return false;
 
   // Check there is `mov 0` MI for high 64-bits.
@@ -656,13 +649,13 @@ bool AArch64MIPeepholeOpt::visitINSvi64lane(MachineInstr &MI) {
   //  %7:fpr128 = INSERT_SUBREG %8:fpr128(tied-def 0), killed %6:fpr64, %subreg.dsub
   //  %11:fpr128 = INSvi64lane %9:fpr128(tied-def 0), 1, killed %7:fpr128, 0
   MachineInstr *High64MI = MRI->getUniqueVRegDef(MI.getOperand(3).getReg());
-  if (High64MI->getOpcode() != AArch64::INSERT_SUBREG)
+  if (!High64MI || High64MI->getOpcode() != AArch64::INSERT_SUBREG)
     return false;
   High64MI = MRI->getUniqueVRegDef(High64MI->getOperand(2).getReg());
-  if (High64MI->getOpcode() == TargetOpcode::COPY)
+  if (High64MI && High64MI->getOpcode() == TargetOpcode::COPY)
     High64MI = MRI->getUniqueVRegDef(High64MI->getOperand(1).getReg());
-  if (High64MI->getOpcode() != AArch64::MOVID &&
-      High64MI->getOpcode() != AArch64::MOVIv2d_ns)
+  if (!High64MI || (High64MI->getOpcode() != AArch64::MOVID &&
+                    High64MI->getOpcode() != AArch64::MOVIv2d_ns))
     return false;
   if (High64MI->getOperand(1).getImm() != 0)
     return false;
@@ -696,63 +689,63 @@ bool AArch64MIPeepholeOpt::runOnMachineFunction(MachineFunction &MF) {
       default:
         break;
       case AArch64::INSERT_SUBREG:
-        Changed = visitINSERT(MI);
+        Changed |= visitINSERT(MI);
         break;
       case AArch64::ANDWrr:
-        Changed = visitAND<uint32_t>(AArch64::ANDWri, MI);
+        Changed |= visitAND<uint32_t>(AArch64::ANDWri, MI);
         break;
       case AArch64::ANDXrr:
-        Changed = visitAND<uint64_t>(AArch64::ANDXri, MI);
+        Changed |= visitAND<uint64_t>(AArch64::ANDXri, MI);
         break;
       case AArch64::ORRWrs:
-        Changed = visitORR(MI);
+        Changed |= visitORR(MI);
         break;
       case AArch64::ADDWrr:
-        Changed = visitADDSUB<uint32_t>(AArch64::ADDWri, AArch64::SUBWri, MI);
+        Changed |= visitADDSUB<uint32_t>(AArch64::ADDWri, AArch64::SUBWri, MI);
         break;
       case AArch64::SUBWrr:
-        Changed = visitADDSUB<uint32_t>(AArch64::SUBWri, AArch64::ADDWri, MI);
+        Changed |= visitADDSUB<uint32_t>(AArch64::SUBWri, AArch64::ADDWri, MI);
         break;
       case AArch64::ADDXrr:
-        Changed = visitADDSUB<uint64_t>(AArch64::ADDXri, AArch64::SUBXri, MI);
+        Changed |= visitADDSUB<uint64_t>(AArch64::ADDXri, AArch64::SUBXri, MI);
         break;
       case AArch64::SUBXrr:
-        Changed = visitADDSUB<uint64_t>(AArch64::SUBXri, AArch64::ADDXri, MI);
+        Changed |= visitADDSUB<uint64_t>(AArch64::SUBXri, AArch64::ADDXri, MI);
         break;
       case AArch64::ADDSWrr:
-        Changed = visitADDSSUBS<uint32_t>({AArch64::ADDWri, AArch64::ADDSWri},
-                                          {AArch64::SUBWri, AArch64::SUBSWri},
-                                          MI);
+        Changed |=
+            visitADDSSUBS<uint32_t>({AArch64::ADDWri, AArch64::ADDSWri},
+                                    {AArch64::SUBWri, AArch64::SUBSWri}, MI);
         break;
       case AArch64::SUBSWrr:
-        Changed = visitADDSSUBS<uint32_t>({AArch64::SUBWri, AArch64::SUBSWri},
-                                          {AArch64::ADDWri, AArch64::ADDSWri},
-                                          MI);
+        Changed |=
+            visitADDSSUBS<uint32_t>({AArch64::SUBWri, AArch64::SUBSWri},
+                                    {AArch64::ADDWri, AArch64::ADDSWri}, MI);
         break;
       case AArch64::ADDSXrr:
-        Changed = visitADDSSUBS<uint64_t>({AArch64::ADDXri, AArch64::ADDSXri},
-                                          {AArch64::SUBXri, AArch64::SUBSXri},
-                                          MI);
+        Changed |=
+            visitADDSSUBS<uint64_t>({AArch64::ADDXri, AArch64::ADDSXri},
+                                    {AArch64::SUBXri, AArch64::SUBSXri}, MI);
         break;
       case AArch64::SUBSXrr:
-        Changed = visitADDSSUBS<uint64_t>({AArch64::SUBXri, AArch64::SUBSXri},
-                                          {AArch64::ADDXri, AArch64::ADDSXri},
-                                          MI);
+        Changed |=
+            visitADDSSUBS<uint64_t>({AArch64::SUBXri, AArch64::SUBSXri},
+                                    {AArch64::ADDXri, AArch64::ADDSXri}, MI);
         break;
       case AArch64::INSvi64gpr:
-        Changed = visitINSviGPR(MI, AArch64::INSvi64lane);
+        Changed |= visitINSviGPR(MI, AArch64::INSvi64lane);
         break;
       case AArch64::INSvi32gpr:
-        Changed = visitINSviGPR(MI, AArch64::INSvi32lane);
+        Changed |= visitINSviGPR(MI, AArch64::INSvi32lane);
         break;
       case AArch64::INSvi16gpr:
-        Changed = visitINSviGPR(MI, AArch64::INSvi16lane);
+        Changed |= visitINSviGPR(MI, AArch64::INSvi16lane);
         break;
       case AArch64::INSvi8gpr:
-        Changed = visitINSviGPR(MI, AArch64::INSvi8lane);
+        Changed |= visitINSviGPR(MI, AArch64::INSvi8lane);
         break;
       case AArch64::INSvi64lane:
-        Changed = visitINSvi64lane(MI);
+        Changed |= visitINSvi64lane(MI);
         break;
       }
     }

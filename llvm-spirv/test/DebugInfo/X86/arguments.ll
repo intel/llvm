@@ -3,7 +3,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-unknown -O0 -filetype=obj < %t.ll > %t
+; RUN: llvm-dwarfdump %t | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-unknown -O0 -filetype=obj < %t.ll > %t
+; RUN: llvm-dwarfdump %t | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-unknown-unknown -O0 -filetype=obj < %t.ll > %t
 ; RUN: llvm-dwarfdump %t | FileCheck %s
 

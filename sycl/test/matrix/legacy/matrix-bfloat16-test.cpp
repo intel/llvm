@@ -70,25 +70,30 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
            // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
            // strideX = X's cols, so strideC = N, strideA = K, strideB = N*4
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, matrix_layout::row_major);
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<sycl::access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, matrix_layout::row_major);
            for (int k = 0; k < K / TK; k += 1) { //
              joint_matrix_load(
-                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
+                 sg, sub_a,
+                 accA.template get_multi_ptr<sycl::access::decorated::no>() +
+                     (sg_startx * TM) * K + k * TK,
                  K, matrix_layout::row_major);
              // Assuming B data is already in VNNI format.
-             joint_matrix_load(sg, sub_b,
-                               accB.get_pointer() + (k * TK / 2) * (N * 2) +
-                                   sg_starty / SG_SZ * TN * 2,
-                               N * 2, matrix_layout::packed_b);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<sycl::access::decorated::no>() +
+                     (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
+                 N * 2, matrix_layout::packed_b);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<sycl::access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, matrix_layout::row_major);
          }); // parallel for
    }).wait();
 }

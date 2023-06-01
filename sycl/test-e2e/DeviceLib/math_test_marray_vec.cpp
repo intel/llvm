@@ -1,9 +1,9 @@
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
 // TODO fix windows failures
 // UNSUPPORTED: windows && (level_zero || opencl)
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{run} %t.out
 
 // tests sycl floating point math functions for sycl::vec and sycl::marray float
 // and double cases.

@@ -1,10 +1,10 @@
-// RUN: %clangxx -fsycl  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-fp64
+// UNSUPPORTED: gpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
 
 #include <array>
 #include <cassert>
@@ -198,8 +198,6 @@ void device_complex_test(s::queue &deviceQueue) {
 
 int main() {
   s::queue deviceQueue;
-  if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
-    device_complex_test(deviceQueue);
-    std::cout << "Pass" << std::endl;
-  }
+  device_complex_test(deviceQueue);
+  std::cout << "Pass" << std::endl;
 }

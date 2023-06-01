@@ -733,20 +733,6 @@ def ConvertOpenACCToSCF : Pass<"convert-openacc-to-scf", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
-// OpenACCToLLVM
-//===----------------------------------------------------------------------===//
-
-def ConvertOpenACCToLLVMPass : Pass<"convert-openacc-to-llvm", "ModuleOp"> {
-  let summary = "Convert the OpenACC ops to LLVM dialect";
-  let dependentDialects = ["LLVM::LLVMDialect"];
-  let options = [
-    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-           /*default=*/"true", "Generate LLVM IR using opaque pointers "
-           "instead of typed pointers">,
-  ];
-}
-
-//===----------------------------------------------------------------------===//
 // OpenMPToLLVM
 //===----------------------------------------------------------------------===//
 
@@ -856,7 +842,7 @@ def ConvertAffineForToGPU
 def ConvertParallelLoopToGpu : Pass<"convert-parallel-loops-to-gpu"> {
   let summary = "Convert mapped scf.parallel ops to gpu launch operations";
   let constructor = "mlir::createParallelLoopToGpuPass()";
-  let dependentDialects = ["AffineDialect", "gpu::GPUDialect"];
+  let dependentDialects = ["affine::AffineDialect", "gpu::GPUDialect"];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1033,7 +1019,7 @@ def ConvertVectorToGPU : Pass<"convert-vector-to-gpu"> {
                 "dialect";
   let constructor = "mlir::createConvertVectorToGPUPass()";
   let dependentDialects = [
-    "memref::MemRefDialect", "gpu::GPUDialect", "AffineDialect",
+    "memref::MemRefDialect", "gpu::GPUDialect", "affine::AffineDialect",
     "vector::VectorDialect", "nvgpu::NVGPUDialect"
   ];
 
@@ -1052,7 +1038,7 @@ def ConvertVectorToSCF : Pass<"convert-vector-to-scf"> {
                 "dialect";
   let constructor = "mlir::createConvertVectorToSCFPass()";
   let dependentDialects = [
-    "AffineDialect",
+    "affine::AffineDialect",
     "memref::MemRefDialect",
     "scf::SCFDialect",
     "tensor::TensorDialect"

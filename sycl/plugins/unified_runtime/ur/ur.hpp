@@ -8,6 +8,7 @@
 #pragma once
 
 #include <atomic>
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -20,42 +21,51 @@
 
 #include <ur_api.h>
 
+template <class To, class From> To ur_cast(From Value) {
+  // TODO: see if more sanity checks are possible.
+  assert(sizeof(From) == sizeof(To));
+  return (To)(Value);
+}
+
+template <> uint32_t inline ur_cast(uint64_t Value) {
+  // Cast value and check that we don't lose any information.
+  uint32_t CastedValue = (uint32_t)(Value);
+  assert((uint64_t)CastedValue == Value);
+  return CastedValue;
+}
+
 // TODO: promote all of the below extensions to the Unified Runtime
 //       and get rid of these ZER_EXT constants.
-const int UR_EXT_DEVICE_INFO_END = UR_DEVICE_INFO_FORCE_UINT32;
-const int UR_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE = UR_EXT_DEVICE_INFO_END - 1;
-const int UR_EXT_DEVICE_INFO_MAX_WORK_GROUPS_3D = UR_EXT_DEVICE_INFO_END - 2;
-// const int UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES =
-//     UR_EXT_DEVICE_INFO_END - 3;
-// const int ZER_EXT_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS =
-//     UR_EXT_DEVICE_INFO_END - 4;
-const int UR_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH = UR_EXT_DEVICE_INFO_END - 6;
-const int UR_EXT_DEVICE_INFO_GPU_HW_THREADS_PER_EU = UR_EXT_DEVICE_INFO_END - 7;
-const int UR_EXT_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE =
-    UR_EXT_DEVICE_INFO_END - 8;
-const int UR_EXT_DEVICE_INFO_GPU_SLICES = UR_EXT_DEVICE_INFO_END - 9;
-// const int UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES =
-//     UR_EXT_DEVICE_INFO_END - 10;
-const int UR_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH = UR_EXT_DEVICE_INFO_END - 11;
-// const int ZER_EXT_DEVICE_INFO_MEMORY_CLOCK_RATE = UR_EXT_DEVICE_INFO_END -
-// 12;
-const int UR_EXT_DEVICE_INFO_FREE_MEMORY = UR_EXT_DEVICE_INFO_END - 13;
-// const int ZER_EXT_DEVICE_INFO_DEVICE_ID = UR_EXT_DEVICE_INFO_END - 14;
-// const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
-//     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
-const int UR_EXT_DEVICE_INFO_MEM_CHANNEL_SUPPORT = UR_EXT_DEVICE_INFO_END - 15;
-
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
 
-const int UR_EXT_RESULT_END = 0x1000;
-const ur_result_t UR_EXT_RESULT_ADAPTER_SPECIFIC_ERROR =
-    ur_result_t(UR_EXT_RESULT_END - 1);
+const ur_command_t UR_EXT_COMMAND_TYPE_USER =
+    (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
 
-const int UR_EXT_USM_CAPS_ACCESS = 1 << 0;
-const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
-const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
-const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
+const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG =
+    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 1);
+
+typedef enum {
+  // No preference for SLM or data cache.
+  UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
+  // Large SLM size.
+  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM = 0x1,
+  // Large General Data size.
+  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
+} ur_kernel_cache_config;
+
+// TODO(ur): These CUDA specific queue properties should live in the UR spec. In
+// the mean time just use the PI values.
+// PI Command Queue using Default stream
+#define __SYCL_UR_CUDA_USE_DEFAULT_STREAM (0xFF03)
+// PI Command queue will sync with default stream
+#define __SYCL_UR_CUDA_SYNC_WITH_DEFAULT (0xFF04)
+
+/// Program metadata tags recognized by the UR adapters. For kernels the tag
+/// must appear after the kernel name.
+#define __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
+  "@reqd_work_group_size"
+#define __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
@@ -67,8 +77,9 @@ const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
 // overhead from mutex locking. Default value is 0 which means that single
 // thread mode is disabled.
 static const bool SingleThreadMode = [] {
-  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
-  const bool RetVal = Ret ? std::stoi(Ret) : 0;
+  const char *UrRet = std::getenv("UR_L0_SINGLE_THREAD_MODE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
+  const bool RetVal = UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0);
   return RetVal;
 }();
 
@@ -163,74 +174,8 @@ template <class T> struct ZeCache : private T {
   }
 };
 
-// This wrapper around std::atomic is created to limit operations with reference
-// counter and to make allowed operations more transparent in terms of
-// thread-safety in the plugin. increment() and load() operations do not need a
-// mutex guard around them since the underlying data is already atomic.
-// decrementAndTest() method is used to guard a code which needs to be
-// executed when object's ref count becomes zero after release. This method also
-// doesn't need a mutex guard because decrement operation is atomic and only one
-// thread can reach ref count equal to zero, i.e. only a single thread can pass
-// through this check.
-struct ReferenceCounter {
-  ReferenceCounter() : RefCount{1} {}
-
-  // Reset the counter to the initial value.
-  void reset() { RefCount = 1; }
-
-  // Used when retaining an object.
-  void increment() { RefCount++; }
-
-  // Supposed to be used in pi*GetInfo* methods where ref count value is
-  // requested.
-  uint32_t load() { return RefCount.load(); }
-
-  // This method allows to guard a code which needs to be executed when object's
-  // ref count becomes zero after release. It is important to notice that only a
-  // single thread can pass through this check. This is true because of several
-  // reasons:
-  //   1. Decrement operation is executed atomically.
-  //   2. It is not allowed to retain an object after its refcount reaches zero.
-  //   3. It is not allowed to release an object more times than the value of
-  //   the ref count.
-  // 2. and 3. basically means that we can't use an object at all as soon as its
-  // refcount reaches zero. Using this check guarantees that code for deleting
-  // an object and releasing its resources is executed once by a single thread
-  // and we don't need to use any mutexes to guard access to this object in the
-  // scope after this check. Of course if we access another objects in this code
-  // (not the one which is being deleted) then access to these objects must be
-  // guarded, for example with a mutex.
-  bool decrementAndTest() { return --RefCount == 0; }
-
-private:
-  std::atomic<uint32_t> RefCount;
-};
-
-// Base class to store common data
-struct _ur_object {
-  _ur_object() : RefCount{} {}
-
-  // Must be atomic to prevent data race when incrementing/decrementing.
-  ReferenceCounter RefCount;
-
-  // This mutex protects accesses to all the non-const member variables.
-  // Exclusive access is required to modify any of these members.
-  //
-  // To get shared access to the object in a scope use std::shared_lock:
-  //    std::shared_lock Lock(Obj->Mutex);
-  // To get exclusive access to the object in a scope use std::scoped_lock:
-  //    std::scoped_lock Lock(Obj->Mutex);
-  //
-  // If several pi objects are accessed in a scope then each object's mutex must
-  // be locked. For example, to get write access to Obj1 and Obj2 and read
-  // access to Obj3 in a scope use the following approach:
-  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
-  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
-  ur_shared_mutex Mutex;
-};
-
 // Helper for one-liner validation
-#define PI_ASSERT(condition, error)                                            \
+#define UR_ASSERT(condition, error)                                            \
   if (!(condition))                                                            \
     return error;
 
@@ -278,7 +223,7 @@ ur_result_t getInfo(size_t param_value_size, void *param_value,
                     size_t *param_value_size_ret, T value) {
 
   auto assignment = [](void *param_value, T value, size_t value_size) {
-    (void)value_size;
+    std::ignore = value_size;
     *static_cast<T *>(param_value) = value;
   };
 
@@ -352,12 +297,3 @@ protected:
   void *param_value;
   size_t *param_value_size_ret;
 };
-
-// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
-constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
-extern thread_local char ErrorMessage[MaxMessageSize];
-
-// Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code);

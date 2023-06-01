@@ -6,11 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -DUSE_REF %s -I%S/.. -o %t.ref.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.ref.out 3 2 1
+// RUN: %{build} -DUSE_REF -I%S/.. -o %t.ref.out
+// RUN: %{run} %t.ref.out 3 2 1
 //
 // This test checks the correctness of ESIMD program for batched LU
 // decomposition without pivoting. The program contains multiple branches

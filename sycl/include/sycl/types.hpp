@@ -947,7 +947,8 @@ public:
                   "The new SYCL vec type must have the same storage size in "
                   "bytes as this SYCL vec");
     static_assert(
-        detail::is_contained<asT, detail::gtl::vector_basic_list>::value,
+        detail::is_contained<asT, detail::gtl::vector_basic_list>::value ||
+            detail::is_contained<asT, detail::gtl::vector_bool_list>::value,
         "asT must be SYCL vec of a different element type and "
         "number of elements specified by asT");
     asT Result;
@@ -1228,7 +1229,11 @@ public:
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
-    return vec{(typename vec::DataType) ~m_Data};
+    vec Ret{(typename vec::DataType) ~m_Data};
+    if constexpr (std::is_same<Type, bool>::value) {
+      Ret.ConvertToDataT();
+    }
+    return Ret;
 #else
     vec Ret;
     for (size_t I = 0; I < NumElements; ++I) {
@@ -1955,7 +1960,8 @@ public:
                   "The new SYCL vec type must have the same storage size in "
                   "bytes as this SYCL swizzled vec");
     static_assert(
-        detail::is_contained<asT, detail::gtl::vector_basic_list>::value,
+        detail::is_contained<asT, detail::gtl::vector_basic_list>::value ||
+            detail::is_contained<asT, detail::gtl::vector_bool_list>::value,
         "asT must be SYCL vec of a different element type and "
         "number of elements specified by asT");
     return Tmp.template as<asT>();

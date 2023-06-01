@@ -711,10 +711,9 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   // For bare-metal none-eabi.
   if (getTriple().getOS() == llvm::Triple::UnknownOS &&
       (getTriple().getEnvironment() == llvm::Triple::EABI ||
-       getTriple().getEnvironment() == llvm::Triple::EABIHF)) {
-    Builder.defineMacro("__ELF__");
-    if (Opts.CPlusPlus)
-      Builder.defineMacro("_GNU_SOURCE");
+       getTriple().getEnvironment() == llvm::Triple::EABIHF) &&
+      Opts.CPlusPlus) {
+    Builder.defineMacro("_GNU_SOURCE");
   }
 
   // Target properties.
@@ -1244,7 +1243,7 @@ bool ARMTargetInfo::validateConstraintModifier(
 
   return true;
 }
-const char *ARMTargetInfo::getClobbers() const {
+std::string_view ARMTargetInfo::getClobbers() const {
   // FIXME: Is this really right?
   return "";
 }

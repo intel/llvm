@@ -1,11 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.event_list.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.event_list.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS=1 %GPU_RUN_PLACEHOLDER %t.event_list.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.event_list.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DUSE_QUEUE_WIDE_BARRIER %s -o %t.queue_wide.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.queue_wide.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS=1 %GPU_RUN_PLACEHOLDER %t.queue_wide.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.queue_wide.out
+// RUN: %{build} -o %t.event_list.out
+// RUN: %if gpu %{ env SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS=1 %} %{run} %t.event_list.out
+// RUN: %{build} -DUSE_QUEUE_WIDE_BARRIER -o %t.queue_wide.out
+// RUN: %if gpu %{ env SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS=1 %} %{run} %t.queue_wide.out
 //
 // Tests that barriers block all following execution on queues with active work.
 // For L0 we currently need to set

@@ -93,8 +93,6 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ArrayRecycler.h"
 #include "llvm/Support/Casting.h"
@@ -104,7 +102,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVNExpression.h"
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -1614,6 +1611,12 @@ NewGVN::ExprResult NewGVN::performSymbolicCallEvaluation(Instruction *I) const {
   // optimizations. Revert this one when we detect the memory
   // accessing kind more precisely.
   if (CI->getFunction()->isPresplitCoroutine())
+    return ExprResult::none();
+
+  // Do not combine convergent calls since they implicitly depend on the set of
+  // threads that is currently executing, and they might be in different basic
+  // blocks.
+  if (CI->isConvergent())
     return ExprResult::none();
 
   if (AA->doesNotAccessMemory(CI)) {

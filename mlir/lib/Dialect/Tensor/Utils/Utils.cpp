@@ -35,7 +35,8 @@ PadOp mlir::tensor::createPadHighOp(RankedTensorType type, Value source,
     bindDims(b.getContext(), d0);
     auto dimOp = b.createOrFold<tensor::DimOp>(loc, source, en.index());
     high[en.index()] =
-        makeComposedAffineApply(b, loc, en.value() - d0, {dimOp}).getResult();
+        affine::makeComposedAffineApply(b, loc, en.value() - d0, {dimOp})
+            .getResult();
   }
   return b.create<PadOp>(loc, type, source, low, high, pad, nofold);
 }
@@ -43,7 +44,7 @@ PadOp mlir::tensor::createPadHighOp(RankedTensorType type, Value source,
 SmallVector<Value> mlir::tensor::createDynamicDimValues(OpBuilder &b,
                                                         Location loc,
                                                         Value rankedTensor) {
-  auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
+  auto tensorTy = cast<RankedTensorType>(rankedTensor.getType());
   SmallVector<Value> dynamicDims;
   for (const auto &en : llvm::enumerate(tensorTy.getShape())) {
     if (en.value() == ShapedType::kDynamic)
@@ -56,7 +57,7 @@ SmallVector<Value> mlir::tensor::createDynamicDimValues(OpBuilder &b,
 FailureOr<OpFoldResult> mlir::tensor::createDimValue(OpBuilder &b, Location loc,
                                                      Value rankedTensor,
                                                      int64_t dim) {
-  auto tensorTy = rankedTensor.getType().dyn_cast<RankedTensorType>();
+  auto tensorTy = dyn_cast<RankedTensorType>(rankedTensor.getType());
   if (!tensorTy)
     return failure();
   auto shape = tensorTy.getShape();
@@ -69,7 +70,7 @@ FailureOr<OpFoldResult> mlir::tensor::createDimValue(OpBuilder &b, Location loc,
 
 SmallVector<OpFoldResult>
 mlir::tensor::createDimValues(OpBuilder &b, Location loc, Value rankedTensor) {
-  auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
+  auto tensorTy = cast<RankedTensorType>(rankedTensor.getType());
   SmallVector<OpFoldResult> dims;
   for (const auto &en : llvm::enumerate(tensorTy.getShape())) {
     if (ShapedType::isDynamic(en.value())) {

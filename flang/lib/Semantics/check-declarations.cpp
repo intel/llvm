@@ -58,6 +58,7 @@ private:
   }
   void CheckValue(const Symbol &, const DerivedTypeSpec *);
   void CheckVolatile(const Symbol &, const DerivedTypeSpec *);
+  void CheckContiguous(const Symbol &);
   void CheckPointer(const Symbol &);
   void CheckPassArg(
       const Symbol &proc, const Symbol *interface, const WithPassArg &);
@@ -260,19 +261,8 @@ void CheckHelper::Check(const Symbol &symbol) {
       !symbol.implicitAttrs().test(Attr::SAVE)) {
     CheckExplicitSave(symbol);
   }
-  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
   if (symbol.attrs().test(Attr::CONTIGUOUS)) {
-    if ((!object && !symbol.has<UseDetails>()) ||
-        !((IsPointer(symbol) && symbol.Rank() > 0) || IsAssumedShape(symbol) ||
-            evaluate::IsAssumedRank(symbol))) {
-      if (symbol.owner().IsDerivedType()) { // C752
-        messages_.Say(
-            "A CONTIGUOUS component must be an array with the POINTER attribute"_err_en_US);
-      } else { // C830
-        messages_.Say(
-            "CONTIGUOUS entity must be an array pointer, assumed-shape, or assumed-rank"_err_en_US);
-      }
-    }
+    CheckContiguous(symbol);
   }
   CheckGlobalName(symbol);
   if (isDone) {
@@ -323,6 +313,7 @@ void CheckHelper::Check(const Symbol &symbol) {
           "A dummy procedure of a pure subprogram must be pure"_err_en_US);
     }
   }
+  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
   if (type) { // Section 7.2, paragraph 7; C795
     bool isChar{type->category() == DeclTypeSpec::Character};
     bool canHaveAssumedParameter{(isChar && IsNamedConstant(symbol)) ||
@@ -702,14 +693,62 @@ void CheckHelper::CheckObjectEntity(
             "non-POINTER dummy argument of pure subroutine must have INTENT() or VALUE attribute"_err_en_US);
       }
     }
+    if (auto ignoreTKR{GetIgnoreTKR(symbol)}; !ignoreTKR.empty()) {
+      const Symbol *ownerSymbol{symbol.owner().symbol()};
+      const auto *ownerSubp{ownerSymbol->detailsIf<SubprogramDetails>()};
+      bool inInterface{ownerSubp && ownerSubp->isInterface()};
+      bool inExplicitInterface{
+          inInterface && !IsSeparateModuleProcedureInterface(ownerSymbol)};
+      bool inModuleProc{
+          !inInterface && ownerSymbol && IsModuleProcedure(*ownerSymbol)};
+      if (!inExplicitInterface && !inModuleProc) {
+        messages_.Say(
+            "!DIR$ IGNORE_TKR may apply only in an interface or a module procedure"_err_en_US);
+      }
+      if (ignoreTKR.test(common::IgnoreTKR::Contiguous) &&
+          !IsAssumedShape(symbol)) {
+        messages_.Say(
+            "!DIR$ IGNORE_TKR(C) may apply only to an assumed-shape array"_err_en_US);
+      }
+      if (ownerSymbol && ownerSymbol->attrs().test(Attr::ELEMENTAL) &&
+          details.ignoreTKR().test(common::IgnoreTKR::Rank)) {
+        messages_.Say(
+            "!DIR$ IGNORE_TKR(R) may not apply in an ELEMENTAL procedure"_err_en_US);
+      }
+      if (IsPassedViaDescriptor(symbol)) {
+        if (IsAllocatableOrPointer(symbol)) {
+          if (inExplicitInterface) {
+            messages_.Say(
+                "!DIR$ IGNORE_TKR should not apply to an allocatable or pointer"_warn_en_US);
+          } else {
+            messages_.Say(
+                "!DIR$ IGNORE_TKR may not apply to an allocatable or pointer"_err_en_US);
+          }
+        } else if (ignoreTKR.test(common::IgnoreTKR::Rank)) {
+          if (ignoreTKR.count() == 1 && evaluate::IsAssumedRank(symbol)) {
+            messages_.Say(
+                "!DIR$ IGNORE_TKR(R) is not meaningful for an assumed-rank array"_warn_en_US);
+          } else if (inExplicitInterface) {
+            messages_.Say(
+                "!DIR$ IGNORE_TKR(R) should not apply to a dummy argument passed via descriptor"_warn_en_US);
+          } else {
+            messages_.Say(
+                "!DIR$ IGNORE_TKR(R) may not apply to a dummy argument passed via descriptor"_err_en_US);
+          }
+        }
+      }
+    }
   } else if (symbol.attrs().test(Attr::INTENT_IN) ||
       symbol.attrs().test(Attr::INTENT_OUT) ||
       symbol.attrs().test(Attr::INTENT_INOUT)) {
-    messages_.Say("INTENT attributes may apply only to a dummy "
-                  "argument"_err_en_US); // C843
+    messages_.Say(
+        "INTENT attributes may apply only to a dummy argument"_err_en_US); // C843
   } else if (IsOptional(symbol)) {
-    messages_.Say("OPTIONAL attribute may apply only to a dummy "
-                  "argument"_err_en_US); // C849
+    messages_.Say(
+        "OPTIONAL attribute may apply only to a dummy argument"_err_en_US); // C849
+  } else if (!details.ignoreTKR().empty()) {
+    messages_.Say(
+        "!DIR$ IGNORE_TKR directive may apply only to a dummy data argument"_err_en_US);
   }
   if (InElemental()) {
     if (details.isDummy()) { // C15100
@@ -795,6 +834,11 @@ void CheckHelper::CheckObjectEntity(
       }
     }
   }
+  if (symbol.attrs().test(Attr::EXTERNAL)) {
+    SayWithDeclaration(symbol,
+        "'%s' is a data object and may not be EXTERNAL"_err_en_US,
+        symbol.name());
+  }
 }
 
 void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
@@ -806,7 +850,7 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
           auto restorer{messages_.SetLocation(symbol.name())};
           context_.set_location(symbol.name());
           CheckInitialTarget(
-              foldingContext_, *designator, *object->init(), DEREF(scope_));
+              context_, *designator, *object->init(), DEREF(scope_));
         }
       }
     } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
@@ -1804,6 +1848,21 @@ void CheckHelper::CheckVolatile(const Symbol &symbol,
             "VOLATILE attribute may not apply to a type with a coarray ultimate component accessed by USE or host association"_err_en_US);
       }
     }
+  }
+}
+
+void CheckHelper::CheckContiguous(const Symbol &symbol) {
+  if (evaluate::IsVariable(symbol) &&
+      ((IsPointer(symbol) && symbol.Rank() > 0) || IsAssumedShape(symbol) ||
+          evaluate::IsAssumedRank(symbol))) {
+  } else if (symbol.owner().IsDerivedType()) { // C752
+    messages_.Say(
+        "CONTIGUOUS component '%s' must be an array with the POINTER attribute"_err_en_US,
+        symbol.name());
+  } else {
+    messages_.Say(
+        "CONTIGUOUS entity '%s' must be an array pointer, assumed-shape, or assumed-rank"_err_en_US,
+        symbol.name());
   }
 }
 

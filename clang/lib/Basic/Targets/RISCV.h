@@ -41,6 +41,7 @@ public:
     HasRISCVVTypes = true;
     MCountName = "_mcount";
     HasFloat16 = true;
+    HasStrictFP = true;
   }
 
   bool setCPU(const std::string &Name) override {
@@ -60,7 +61,7 @@ public:
     return TargetInfo::VoidPtrBuiltinVaList;
   }
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
 
   StringRef getConstraintRegister(StringRef Constraint,
                                   StringRef Expression) const override {

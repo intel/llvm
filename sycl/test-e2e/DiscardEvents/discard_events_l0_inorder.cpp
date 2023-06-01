@@ -1,11 +1,11 @@
 // REQUIRES: level_zero
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 //
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=0 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=2 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=0 ONEAPI_DEVICE_SELECTOR="level_zero:*" %{run} %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 ONEAPI_DEVICE_SELECTOR="level_zero:*" %{run} %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=2 ONEAPI_DEVICE_SELECTOR="level_zero:*" %{run} %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 ONEAPI_DEVICE_SELECTOR="level_zero:*" %{run} %t.out
 //
 // The test is to check the execution of different queue operations has in-order
 // semantics regardless of batching.
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
   sycl::property_list Props{
       sycl::property::queue::in_order{},
       sycl::ext::oneapi::property::queue::discard_events{}};
-  sycl::queue queue(sycl::default_selector{}, Props);
+  sycl::queue queue(Props);
 
   RunCalculation(queue, sycl::usm::alloc::host);
   RunCalculation(queue, sycl::usm::alloc::shared);

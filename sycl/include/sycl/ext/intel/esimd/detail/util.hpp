@@ -181,10 +181,16 @@ public:
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 /// Returns the address referenced by the accessor \p Acc and
 /// the byte offset \p Offset.
-template <typename T, typename AccessorTy>
-T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
-  auto BytePtr = reinterpret_cast<char *>(Acc.get_pointer().get()) + Offset;
-  return reinterpret_cast<T *>(BytePtr);
+template <typename T, typename AccessorTy, typename OffsetTy = uint32_t>
+auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
+  using QualCharPtrType =
+      std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
+                         const char *, char *>;
+  using QualTPtrType =
+      std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
+                         const T *, T *>;
+  auto BytePtr = reinterpret_cast<QualCharPtrType>(Acc.get_pointer()) + Offset;
+  return reinterpret_cast<QualTPtrType>(BytePtr);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
 

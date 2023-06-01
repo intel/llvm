@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: cpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

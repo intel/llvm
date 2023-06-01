@@ -129,7 +129,7 @@ public:
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const plugin &getPlugin();
+  const PluginPtr &getPlugin();
 
   /// Associate event with the context.
   ///
@@ -251,7 +251,10 @@ public:
 
   bool isContextInitialized() const noexcept { return MIsContextInitialized; }
 
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  ContextImplPtr getContextImplPtr() {
+    ensureContextInitialized();
+    return MContext;
+  }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and

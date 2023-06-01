@@ -20,6 +20,7 @@
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/ValueTypes.h"
@@ -29,7 +30,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/MachineValueType.h"
 #include <optional>
 #include <utility>
 
@@ -738,6 +738,9 @@ class VectorType;
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
 
+    bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
+                                              EVT VT) const override;
+
     bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
     bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
@@ -764,9 +767,6 @@ class VectorType;
     const TargetRegisterInfo *RegInfo;
 
     const InstrItineraryData *Itins;
-
-    /// ARMPCLabelIndex - Keep track of the number of ARM PC labels created.
-    unsigned ARMPCLabelIndex;
 
     // TODO: remove this, and have shouldInsertFencesForAtomic do the proper
     // check.
@@ -821,7 +821,6 @@ class VectorType;
                                  TLSModel::Model model) const;
     SDValue LowerGlobalTLSAddressDarwin(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerGlobalTLSAddressWindows(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerGLOBAL_OFFSET_TABLE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBR_JT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSignedALUO(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerUnsignedALUO(SDValue Op, SelectionDAG &DAG) const;
@@ -970,8 +969,6 @@ class VectorType;
                                 MachineBasicBlock *DispatchBB, int FI) const;
 
     void EmitSjLjDispatchBlock(MachineInstr &MI, MachineBasicBlock *MBB) const;
-
-    bool RemapAddSubWithFlags(MachineInstr &MI, MachineBasicBlock *BB) const;
 
     MachineBasicBlock *EmitStructByval(MachineInstr &MI,
                                        MachineBasicBlock *MBB) const;

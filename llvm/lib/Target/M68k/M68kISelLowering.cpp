@@ -1005,7 +1005,7 @@ SDValue M68kTargetLowering::LowerFormalArguments(
     }
   }
 
-  unsigned StackSize = CCInfo.getNextStackOffset();
+  unsigned StackSize = CCInfo.getStackSize();
   // Align stack specially for tail calls.
   if (shouldGuaranteeTCO(CCID, MF.getTarget().Options.GuaranteedTailCallOpt))
     StackSize = GetAlignedArgumentStackSize(StackSize, DAG);
@@ -1057,6 +1057,14 @@ SDValue M68kTargetLowering::LowerFormalArguments(
 //===----------------------------------------------------------------------===//
 //              Return Value Calling Convention Implementation
 //===----------------------------------------------------------------------===//
+
+bool M68kTargetLowering::CanLowerReturn(
+    CallingConv::ID CCID, MachineFunction &MF, bool IsVarArg,
+    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
+  SmallVector<CCValAssign, 16> RVLocs;
+  CCState CCInfo(CCID, IsVarArg, MF, RVLocs, Context);
+  return CCInfo.CheckReturn(Outs, RetCC_M68k);
+}
 
 SDValue
 M68kTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CCID,
@@ -1286,9 +1294,9 @@ bool M68kTargetLowering::IsEligibleForTailCallOptimization(
     CCState CCInfo(CalleeCC, IsVarArg, MF, ArgLocs, C);
 
     CCInfo.AnalyzeCallOperands(Outs, CC_M68k);
-    StackArgsSize = CCInfo.getNextStackOffset();
+    StackArgsSize = CCInfo.getStackSize();
 
-    if (CCInfo.getNextStackOffset()) {
+    if (StackArgsSize) {
       // Check if the arguments are already laid out in the right way as
       // the caller's fixed stack objects.
       MachineFrameInfo &MFI = MF.getFrameInfo();

@@ -4309,16 +4309,13 @@ void Sema::CodeCompleteModuleImport(SourceLocation ImportLoc,
                                         /*IsInclusionDirective=*/false);
     // Enumerate submodules.
     if (Mod) {
-      for (Module::submodule_iterator Sub = Mod->submodule_begin(),
-                                      SubEnd = Mod->submodule_end();
-           Sub != SubEnd; ++Sub) {
-
+      for (auto *Submodule : Mod->submodules()) {
         Builder.AddTypedTextChunk(
-            Builder.getAllocator().CopyString((*Sub)->Name));
+            Builder.getAllocator().CopyString(Submodule->Name));
         Results.AddResult(Result(
             Builder.TakeString(), CCP_Declaration, CXCursor_ModuleImportDecl,
-            (*Sub)->isAvailable() ? CXAvailability_Available
-                                  : CXAvailability_NotAvailable));
+            Submodule->isAvailable() ? CXAvailability_Available
+                                     : CXAvailability_NotAvailable));
       }
     }
   }
@@ -6423,7 +6420,7 @@ static QualType getDesignatedType(QualType BaseType, const Designation &Desig) {
       assert(D.isFieldDesignator());
       auto *RD = getAsRecordDecl(BaseType);
       if (RD && RD->isCompleteDefinition()) {
-        for (const auto *Member : RD->lookup(D.getField()))
+        for (const auto *Member : RD->lookup(D.getFieldDecl()))
           if (const FieldDecl *FD = llvm::dyn_cast<FieldDecl>(Member)) {
             NextType = FD->getType();
             break;
@@ -10033,11 +10030,11 @@ void Sema::CodeCompleteIncludedFile(llvm::StringRef Dir, bool Angled) {
         break;
       case llvm::sys::fs::file_type::regular_file: {
         // Only files that really look like headers. (Except in special dirs).
-        const bool IsHeader = Filename.endswith_insensitive(".h") ||
-                              Filename.endswith_insensitive(".hh") ||
-                              Filename.endswith_insensitive(".hpp") ||
-                              Filename.endswith_insensitive(".hxx") ||
-                              Filename.endswith_insensitive(".inc") ||
+        const bool IsHeader = Filename.ends_with_insensitive(".h") ||
+                              Filename.ends_with_insensitive(".hh") ||
+                              Filename.ends_with_insensitive(".hpp") ||
+                              Filename.ends_with_insensitive(".hxx") ||
+                              Filename.ends_with_insensitive(".inc") ||
                               (ExtensionlessHeaders && !Filename.contains('.'));
         if (!IsHeader)
           break;

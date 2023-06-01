@@ -932,8 +932,8 @@ Scheduler::GraphBuildResult
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                const QueueImplPtr &Queue,
                                std::vector<Command *> &ToEnqueue) {
-  std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
-  std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
+  std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
+  std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
@@ -1216,8 +1216,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   handleVisitedNodes(MVisitedCmds);
 }
 
-void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd,
-                                             bool AllowUnsubmitted) {
+void Scheduler::GraphBuilder::cleanupCommand(
+    Command *Cmd, [[maybe_unused]] bool AllowUnsubmitted) {
   if (SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
     static bool DeprWarningPrinted = false;
     if (!DeprWarningPrinted) {
@@ -1305,9 +1305,11 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
-        /* ArgsStorage = */ {}, /* AccStorage = */ {},
-        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CG::CodeplayHostTask,
+        detail::CG::StorageInitHelper(
+            /* ArgsStorage = */ {}, /* AccStorage = */ {},
+            /* SharedPtrStorage = */ {}, /* Requirements = */ {},
+            /* DepEvents = */ {DepEvent}),
+        CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
@@ -1395,7 +1397,10 @@ void Scheduler::GraphBuilder::removeNodeFromGraph(
     Dep.MDepCommand->MUsers.erase(Node);
   }
 
-  Node->MDeps.clear();
+  // Clear all the dependencies to avoid cleanDepEventsThroughOneLevel, called
+  // from the destructor of the command to delete the dependencies of the
+  // command this command depends on.
+  Node->clearAllDependencies();
 }
 
 void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
@@ -1582,7 +1587,7 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   }
 
   createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
-                        FusedKernelCmd->getCG().MRequirements, FusedEventDeps,
+                        FusedKernelCmd->getCG().getRequirements(), FusedEventDeps,
                         Queue, ToEnqueue);
 
   ToEnqueue.push_back(FusedKernelCmd.get());

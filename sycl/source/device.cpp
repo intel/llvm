@@ -37,12 +37,12 @@ device::device(cl_device_id DeviceId) {
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   detail::RT::PiDevice Device;
   auto Plugin = detail::RT::getPlugin<backend::opencl>();
-  Plugin.call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+  Plugin->call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
       detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
   auto Platform =
       detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  Plugin.call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
+  Plugin->call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -175,6 +175,13 @@ device::get_info<info::device::aspects>() const {
   DeviceAspects.erase(UnsupportedAspects, DeviceAspects.end());
 
   return DeviceAspects;
+}
+
+template <>
+__SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
+  // Explicit specialization is needed due to the class of info handle. The
+  // implementation is done in get_device_info_impl.
+  return impl->template get_info<info::device::image_support>();
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \

@@ -1,7 +1,5 @@
-// RUN: %clangxx -D__SYCL_INTERNAL_API -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
+// RUN: %{run} %t.out
 
 //==----------------info.cpp - SYCL objects get_info() test ----------------==//
 //
@@ -327,6 +325,8 @@ int main() {
   print_info<info::device::driver_version, std::string>(dev, "Driver version");
   print_info<info::device::profile, std::string>(dev, "Profile");
   print_info<info::device::version, std::string>(dev, "Version");
+  print_info<info::device::backend_version, std::string>(dev,
+                                                         "Backend version");
   print_info<info::device::opencl_c_version, std::string>(dev,
                                                           "OpenCL C version");
   print_info<info::device::extensions, std::vector<std::string>>(dev,

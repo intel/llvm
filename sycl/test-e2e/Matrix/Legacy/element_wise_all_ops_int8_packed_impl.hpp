@@ -45,10 +45,11 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] + 2;
            }
-           joint_matrix_store(sg, sub_b,
-                              accA.get_pointer() + (sg_startx * TM) * N * 4 +
-                                  sg_starty / SG_SZ * TN * 4,
-                              N * 4, matrix_layout::row_major);
+           joint_matrix_store(
+               sg, sub_b,
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N * 4 + sg_starty / SG_SZ * TN * 4,
+               N * 4, matrix_layout::row_major);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufB.get_host_access(read_only), ref);
@@ -78,10 +79,11 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] - 2;
            }
-           joint_matrix_store(sg, sub_b,
-                              accA.get_pointer() + (sg_startx * TM) * N * 4 +
-                                  sg_starty / SG_SZ * TN * 4,
-                              N * 4, matrix_layout::row_major);
+           joint_matrix_store(
+               sg, sub_b,
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N * 4 + sg_starty / SG_SZ * TN * 4,
+               N * 4, matrix_layout::row_major);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufB.get_host_access(read_only), ref);
@@ -111,10 +113,11 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] * 3;
            }
-           joint_matrix_store(sg, sub_b,
-                              accA.get_pointer() + (sg_startx * TM) * N * 4 +
-                                  sg_starty / SG_SZ * TN * 4,
-                              N * 4, matrix_layout::row_major);
+           joint_matrix_store(
+               sg, sub_b,
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N * 4 + sg_starty / SG_SZ * TN * 4,
+               N * 4, matrix_layout::row_major);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufB.get_host_access(read_only), ref);
@@ -144,10 +147,11 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] / 2;
            }
-           joint_matrix_store(sg, sub_b,
-                              accA.get_pointer() + (sg_startx * TM) * N * 4 +
-                                  sg_starty / SG_SZ * TN * 4,
-                              N * 4, matrix_layout::row_major);
+           joint_matrix_store(
+               sg, sub_b,
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N * 4 + sg_starty / SG_SZ * TN * 4,
+               N * 4, matrix_layout::row_major);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufB.get_host_access(read_only), ref);
@@ -192,10 +196,11 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                }
              }
            }
-           joint_matrix_store(sg, sub_b,
-                              accA.get_pointer() + (sg_startx * TM) * N * 4 +
-                                  sg_starty / SG_SZ * TN * 4,
-                              N * 4, matrix_layout::row_major);
+           joint_matrix_store(
+               sg, sub_b,
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N * 4 + sg_starty / SG_SZ * TN * 4,
+               N * 4, matrix_layout::row_major);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufB.get_host_access(read_only), ref);

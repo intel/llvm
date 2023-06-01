@@ -1,11 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.ext.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.ext.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.ext.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.ext.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==-- kernel_name_class.cpp - SYCL kernel naming variants test ------------==//
 //

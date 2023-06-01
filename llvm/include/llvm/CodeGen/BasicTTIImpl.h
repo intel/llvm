@@ -26,6 +26,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TargetTransformInfoImpl.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
@@ -44,7 +45,6 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -277,8 +277,6 @@ public:
   }
 
   bool hasBranchDivergence() { return false; }
-
-  bool useGPUDivergenceAnalysis() { return false; }
 
   bool isSourceOfDivergence(const Value *V) { return false; }
 
@@ -1514,7 +1512,7 @@ public:
           InstructionCost Cost = (ActiveBits + PopCount - 2) *
                                  thisT()->getArithmeticInstrCost(
                                      Instruction::FMul, RetTy, CostKind);
-          if (RHSC->getSExtValue() < 0)
+          if (RHSC->isNegative())
             Cost += thisT()->getArithmeticInstrCost(Instruction::FDiv, RetTy,
                                                     CostKind);
           return Cost;

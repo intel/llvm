@@ -1,10 +1,12 @@
-// FIXME: Fails on HIP and OpenCL accelerator
-// UNSUPPORTED: hip, (opencl && accelerator)
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// FIXME: Fails on HIP
+// UNSUPPORTED: hip
 //
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// Same hang as on Basic/barrier_order.cpp tracked in
+// https://github.com/intel/llvm/issues/7330.
+// UNSUPPORTED: opencl && gpu
+// RUN: %{build} -o %t.out
+//
+// RUN: %{run} %t.out
 //
 // The test checks that each PI call to the queue returns a discarded event
 // with the status "ext_oneapi_unknown"

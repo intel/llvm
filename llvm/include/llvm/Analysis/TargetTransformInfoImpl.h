@@ -89,8 +89,6 @@ public:
 
   bool hasBranchDivergence() const { return false; }
 
-  bool useGPUDivergenceAnalysis() const { return false; }
-
   bool isSourceOfDivergence(const Value *V) const { return false; }
 
   bool isAlwaysUniform(const Value *V) const { return false; }
@@ -880,6 +878,8 @@ public:
 
   bool hasArmWideBranch(bool) const { return false; }
 
+  unsigned getMaxNumArgs() const { return UINT_MAX; }
+
 protected:
   // Obtain the minimum required size to hold the value (without the sign)
   // In case of a vector it returns the min required size for one element.
@@ -1041,6 +1041,7 @@ public:
   InstructionCost getPointersChainCost(ArrayRef<const Value *> Ptrs,
                                        const Value *Base,
                                        const TTI::PointersChainInfo &Info,
+                                       Type *AccessTy,
                                        TTI::TargetCostKind CostKind) {
     InstructionCost Cost = TTI::TCC_Free;
     // In the basic model we take into account GEP instructions only
@@ -1269,7 +1270,7 @@ public:
           APInt DemandedDstElts =
               APInt::getZero(Shuffle->getShuffleMask().size());
           for (auto I : enumerate(Shuffle->getShuffleMask())) {
-            if (I.value() != UndefMaskElem)
+            if (I.value() != PoisonMaskElem)
               DemandedDstElts.setBit(I.index());
           }
           return TargetTTI->getReplicationShuffleCost(

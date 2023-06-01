@@ -7,19 +7,15 @@
 // UNSUPPORTED: hip_amd
 // XFAIL: cuda && windows
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
 //        support is considered stable.
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.constant.out \
-// RUN: -DTEST_CONSTANT_AS
-// RUN: %CPU_RUN_PLACEHOLDER %t.constant.out %CPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.constant.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.constant.out -DTEST_CONSTANT_AS
+// RUN: %{run} %t.constant.out | FileCheck %s
 //
 // FIXME: Enable on GPU once %% conversion is supported there
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUNx: %GPU_RUN_PLACEHOLDER %t.constant.out %GPU_CHECK_PLACEHOLDER
+// UNSUPPORTED: gpu
 //
 // CHECK: %c %s %d %i %o %x %X %u
 // CHECK-NEXT: %f %F %e %E %a %A %g %G %n %p

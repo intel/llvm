@@ -144,6 +144,8 @@ private:
     if (Previous.Previous) {
       if (Previous.Previous->Tok.isLiteral())
         return false;
+      if (Previous.Previous->is(tok::r_brace))
+        return false;
       if (Previous.Previous->is(tok::r_paren) && Contexts.size() > 1 &&
           (!Previous.Previous->MatchingParen ||
            !Previous.Previous->MatchingParen->is(
@@ -970,6 +972,10 @@ private:
     case tok::colon:
       if (!Tok->Previous)
         return false;
+      // Goto labels and case labels are already identified in
+      // UnwrappedLineParser.
+      if (Tok->isTypeFinalized())
+        break;
       // Colons from ?: are handled in parseConditional().
       if (Style.isJavaScript()) {
         if (Contexts.back().ColonIsForRangeExpr || // colon in for loop
@@ -1008,7 +1014,7 @@ private:
           // In Verilog a case label doesn't have the case keyword. We
           // assume a colon following an expression is a case label.
           // Colons from ?: are annotated in parseConditional().
-          Tok->setType(TT_GotoLabelColon);
+          Tok->setType(TT_CaseLabelColon);
           if (Line.Level > 1 || (!Line.InPPDirective && Line.Level > 0))
             --Line.Level;
         }
@@ -1312,11 +1318,34 @@ private:
       if (Style.isCSharp()) {
         // `Type?)`, `Type?>`, `Type? name;` and `Type? name =` can only be
         // nullable types.
+
+        // `Type?)`, `Type?>`, `Type? name;`
+        if (Tok->Next &&
+            (Tok->Next->startsSequence(tok::question, tok::r_paren) ||
+             Tok->Next->startsSequence(tok::question, tok::greater) ||
+             Tok->Next->startsSequence(tok::question, tok::identifier,
+                                       tok::semi))) {
+          Tok->setType(TT_CSharpNullable);
+          break;
+        }
+
+        // `Type? name =`
+        if (Tok->Next && Tok->Next->is(tok::identifier) && Tok->Next->Next &&
+            Tok->Next->Next->is(tok::equal)) {
+          Tok->setType(TT_CSharpNullable);
+          break;
+        }
+
         // Line.MustBeDeclaration will be true for `Type? name;`.
-        if ((!Contexts.back().IsExpression && Line.MustBeDeclaration) ||
-            (Tok->Next && Tok->Next->isOneOf(tok::r_paren, tok::greater)) ||
-            (Tok->Next && Tok->Next->is(tok::identifier) && Tok->Next->Next &&
-             Tok->Next->Next->is(tok::equal))) {
+        // But not
+        // cond ? "A" : "B";
+        // cond ? id : "B";
+        // cond ? cond2 ? "A" : "B" : "C";
+        if (!Contexts.back().IsExpression && Line.MustBeDeclaration &&
+            (!Tok->Next ||
+             !Tok->Next->isOneOf(tok::identifier, tok::string_literal) ||
+             !Tok->Next->Next ||
+             !Tok->Next->Next->isOneOf(tok::colon, tok::question))) {
           Tok->setType(TT_CSharpNullable);
           break;
         }
@@ -2138,6 +2167,10 @@ private:
   /// This is a heuristic based on whether \p Tok is an identifier following
   /// something that is likely a type.
   bool isStartOfName(const FormatToken &Tok) {
+    // Handled in ExpressionParser for Verilog.
+    if (Style.isVerilog())
+      return false;
+
     if (Tok.isNot(tok::identifier) || !Tok.Previous)
       return false;
 
@@ -3025,8 +3058,8 @@ void TokenAnnotator::setCommentLineLevels(
 
     // If the comment is currently aligned with the line immediately following
     // it, that's probably intentional and we should keep it.
-    if (NextNonCommentLine && Line->isComment() &&
-        NextNonCommentLine->First->NewlinesBefore <= 1 &&
+    if (NextNonCommentLine && !NextNonCommentLine->First->Finalized &&
+        Line->isComment() && NextNonCommentLine->First->NewlinesBefore <= 1 &&
         NextNonCommentLine->First->OriginalColumn ==
             Line->First->OriginalColumn) {
       const bool PPDirectiveOrImportStmt =
@@ -3281,6 +3314,8 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) const {
       if (Prev->is(BK_BracedInit) && Prev->opensScope()) {
         Current->SpacesRequiredBefore =
             (Style.Cpp11BracedListStyle && !Style.SpacesInParentheses) ? 0 : 1;
+      } else if (Prev->is(TT_VerilogMultiLineListLParen)) {
+        Current->SpacesRequiredBefore = 0;
       } else {
         Current->SpacesRequiredBefore = Style.SpacesBeforeTrailingComments;
       }
@@ -3700,9 +3735,11 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
       LeftParen = &Left;
     else if (Right.is(tok::r_paren) && Right.MatchingParen)
       LeftParen = Right.MatchingParen;
-    if (LeftParen && LeftParen->Previous &&
-        isKeywordWithCondition(*LeftParen->Previous)) {
-      return true;
+    if (LeftParen) {
+      if (LeftParen->is(TT_ConditionLParen))
+        return true;
+      if (LeftParen->Previous && isKeywordWithCondition(*LeftParen->Previous))
+        return true;
     }
   }
 
@@ -3915,6 +3952,8 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
       }
     }
   }
+  if (Style.isCSharp() && Left.is(Keywords.kw_is) && Right.is(tok::l_square))
+    return true;
   const auto SpaceRequiredForArrayInitializerLSquare =
       [](const FormatToken &LSquareTok, const FormatStyle &Style) {
         return Style.SpacesInContainerLiterals ||
@@ -4514,13 +4553,12 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
            Style.BitFieldColonSpacing == FormatStyle::BFCS_After;
   }
   if (Right.is(tok::colon)) {
-    if (Right.is(TT_GotoLabelColon) ||
-        (!Style.isVerilog() &&
-         Line.First->isOneOf(tok::kw_default, tok::kw_case))) {
+    if (Right.is(TT_CaseLabelColon))
       return Style.SpaceBeforeCaseColon;
-    }
-    const FormatToken *Next = Right.getNextNonComment();
-    if (!Next || Next->is(tok::semi))
+    if (Right.is(TT_GotoLabelColon))
+      return false;
+    // `private:` and `public:`.
+    if (!Right.getNextNonComment())
       return false;
     if (Right.is(TT_ObjCMethodExpr))
       return false;

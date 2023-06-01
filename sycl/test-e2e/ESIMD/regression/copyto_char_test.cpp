@@ -1,8 +1,7 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -O2 -o %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: opencl && gpu-intel-pvc
 
 //==- copyto_char_test.cpp - Test for using copy_to to copy char buffers -==//
 //

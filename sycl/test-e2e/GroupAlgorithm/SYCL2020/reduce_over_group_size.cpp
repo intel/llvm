@@ -1,15 +1,11 @@
 // Test hangs on AMD with https://github.com/intel/llvm/pull/8412
 // UNSUPPORTED: hip_amd
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s  -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -O0 %s -o %t_O0.out
-// RUN: %CPU_RUN_PLACEHOLDER %t_O0.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_O0.out
-// RUN: %ACC_RUN_PLACEHOLDER %t_O0.out
+// RUN: %{build} -O0 -o %t_O0.out
+// RUN: %{run} %t_O0.out
 
 /*
     test performs a lattice reduction.

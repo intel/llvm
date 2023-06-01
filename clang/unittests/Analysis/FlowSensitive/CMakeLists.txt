@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_clang_unittest(ClangAnalysisFlowSensitiveTests
+  ArenaTest.cpp
   CFGMatchSwitchTest.cpp
   ChromiumCheckModelTest.cpp
   DataflowAnalysisContextTest.cpp
@@ -27,11 +28,11 @@ add_clang_unittest(ClangAnalysisFlowSensitiveTests
 
 clang_target_link_libraries(ClangAnalysisFlowSensitiveTests
   PRIVATE
+  clangAST
+  clangASTMatchers
   clangAnalysis
   clangAnalysisFlowSensitive
   clangAnalysisFlowSensitiveModels
-  clangAST
-  clangASTMatchers
   clangBasic
   clangFrontend
   clangLex

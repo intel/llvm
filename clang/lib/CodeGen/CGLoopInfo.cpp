@@ -622,6 +622,15 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
+  // enable_loop_pipelining attribute corresponds to
+  // 'llvm.loop.intel.pipelining.enable, i32 1' metadata
+  if (Attrs.SYCLLoopPipeliningEnable) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
+                        ConstantAsMetadata::get(
+                            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -635,7 +644,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       VectorizeScalable(LoopAttributes::Unspecified), InterleaveCount(0),
       SYCLIInterval(0), SYCLLoopCoalesceEnable(false),
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
-      UnrollCount(0), UnrollAndJamCount(0),
+      SYCLLoopPipeliningEnable(false), UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
       PipelineInitiationInterval(0), SYCLNofusionEnable(false),
       MustProgress(false) {}
@@ -656,6 +665,7 @@ void LoopAttributes::clear() {
   SYCLSpeculatedIterationsNIterations.reset();
   SYCLIntelFPGAVariantCount.clear();
   SYCLMaxReinvocationDelayNCycles.reset();
+  SYCLLoopPipeliningEnable = false;
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -693,8 +703,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !Attrs.SYCLSpeculatedIterationsNIterations &&
       Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
       !Attrs.SYCLMaxReinvocationDelayNCycles &&
-      Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
-      Attrs.PipelineInitiationInterval == 0 &&
+      !Attrs.SYCLLoopPipeliningEnable && Attrs.UnrollAndJamCount == 0 &&
+      !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
@@ -1027,6 +1037,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // For attribute max_reinvocation_delay:
   // n - 'llvm.loop.intel.max_reinvocation_delay.count, i32 n' metadata will be
   // emitted
+  // For attribute enable_loop_pipelining:
+  // 'llvm.loop.intel.pipelining.enable, i32 1' metadata will be emitted
   for (const auto *A : Attrs) {
     if (const auto *SYCLIntelIVDep = dyn_cast<SYCLIntelIVDepAttr>(A))
       addSYCLIVDepInfo(Header->getContext(), SYCLIntelIVDep->getSafelenValue(),
@@ -1099,6 +1111,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxReinvocationDelayNCycles(ArgVal.getSExtValue());
     }
+
+    if (isa<SYCLIntelEnableLoopPipeliningAttr>(A))
+      setSYCLLoopPipeliningEnable();
   }
 
   setMustProgress(MustProgress);

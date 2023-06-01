@@ -210,14 +210,14 @@ def ext_cxx11_longlong : Extension<
 def warn_cxx98_compat_longlong : Warning<
   "'long long' is incompatible with C++98">,
   InGroup<CXX98CompatPedantic>, DefaultIgnore;
-def ext_cxx2b_size_t_suffix : ExtWarn<
-  "'size_t' suffix for literals is a C++2b extension">,
-  InGroup<CXX2b>;
+def ext_cxx23_size_t_suffix : ExtWarn<
+  "'size_t' suffix for literals is a C++23 extension">,
+  InGroup<CXX23>;
 def warn_cxx20_compat_size_t_suffix : Warning<
   "'size_t' suffix for literals is incompatible with C++ standards before "
-  "C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
-def err_cxx2b_size_t_suffix: Error<
-  "'size_t' suffix for literals is a C++2b feature">;
+  "C++23">, InGroup<CXXPre23Compat>, DefaultIgnore;
+def err_cxx23_size_t_suffix: Error<
+  "'size_t' suffix for literals is a C++23 feature">;
 def err_size_t_literal_too_large: Error<
   "%select{signed |}0'size_t' literal is out of range of possible "
   "%select{signed |}0'size_t' values">;
@@ -308,7 +308,7 @@ def warn_dup_category_def : Warning<
 // Targets
 
 def err_target_unknown_triple : Error<
-  "unknown target triple '%0', please use -triple or -arch">;
+  "unknown target triple '%0'">;
 def err_target_unknown_cpu : Error<"unknown target CPU '%0'">;
 def note_valid_options : Note<"valid target CPU values are: %0">;
 def err_target_unsupported_cpu_for_micromips : Error<

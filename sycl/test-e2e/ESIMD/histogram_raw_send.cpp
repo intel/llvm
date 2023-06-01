@@ -7,13 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip, gpu-intel-pvc
-// UNSUPPORTED: ze_debug-1,ze_debug4
-// RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %clangxx -fsycl -DNEW_API %s -o %t2.out
-// RUN: %GPU_RUN_PLACEHOLDER %t2.out
+// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
+// UNSUPPORTED: ze_debug
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
+// RUN: %{build} -DNEW_API -o %t2.out
+// RUN: %{run} %t2.out
 
 // The test checks raw send functionality with atomic write implementation
 // on SKL. It does not work on DG1 due to send instruction incompatibility.

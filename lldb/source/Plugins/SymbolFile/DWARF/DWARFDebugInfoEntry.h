@@ -12,7 +12,7 @@
 #include "SymbolFileDWARF.h"
 #include "llvm/ADT/SmallVector.h"
 
-#include "DWARFAbbreviationDeclaration.h"
+#include "DWARFAttribute.h"
 #include "DWARFBaseDIE.h"
 #include "DWARFDebugAbbrev.h"
 #include "DWARFDebugRanges.h"
@@ -20,6 +20,8 @@
 #include <optional>
 #include <set>
 #include <vector>
+
+#include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
 
 class DWARFDeclContext;
 
@@ -50,9 +52,11 @@ public:
                const DWARFUnit *cu, lldb::offset_t *offset_ptr);
 
   using Recurse = DWARFBaseDIE::Recurse;
-  size_t GetAttributes(DWARFUnit *cu, DWARFAttributes &attrs,
-                       Recurse recurse = Recurse::yes) const {
-    return GetAttributes(cu, attrs, recurse, 0 /* curr_depth */);
+  DWARFAttributes GetAttributes(DWARFUnit *cu,
+                                Recurse recurse = Recurse::yes) const {
+    DWARFAttributes attrs;
+    GetAttributes(cu, attrs, recurse, 0 /* curr_depth */);
+    return attrs;
   }
 
   dw_offset_t
@@ -109,7 +113,7 @@ public:
       std::optional<int> &call_column,
       lldb_private::DWARFExpressionList *frame_base = nullptr) const;
 
-  const DWARFAbbreviationDeclaration *
+  const llvm::DWARFAbbreviationDeclaration *
   GetAbbreviationDeclarationPtr(const DWARFUnit *cu) const;
 
   lldb::offset_t GetFirstAttributeOffset() const;
@@ -184,8 +188,8 @@ protected:
   dw_tag_t m_tag = llvm::dwarf::DW_TAG_null;
 
 private:
-  size_t GetAttributes(DWARFUnit *cu, DWARFAttributes &attrs, Recurse recurse,
-                       uint32_t curr_depth) const;
+  void GetAttributes(DWARFUnit *cu, DWARFAttributes &attrs, Recurse recurse,
+                     uint32_t curr_depth) const;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGINFOENTRY_H

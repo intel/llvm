@@ -19,6 +19,7 @@
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -4024,6 +4025,7 @@ void PragmaMaxTokensTotalHandler::HandlePragma(Preprocessor &PP,
 }
 
 // Handle '#pragma clang riscv intrinsic vector'.
+//        '#pragma clang riscv intrinsic sifive_vector'.
 void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
                                       PragmaIntroducer Introducer,
                                       Token &FirstToken) {
@@ -4039,9 +4041,10 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
 
   PP.Lex(Tok);
   II = Tok.getIdentifierInfo();
-  if (!II || !II->isStr("vector")) {
+  if (!II || !(II->isStr("vector") || II->isStr("sifive_vector"))) {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
-        << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true << "'vector'";
+        << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true
+        << "'vector' or 'sifive_vector'";
     return;
   }
 
@@ -4052,5 +4055,8 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
-  Actions.DeclareRISCVVBuiltins = true;
+  if (II->isStr("vector"))
+    Actions.DeclareRISCVVBuiltins = true;
+  else if (II->isStr("sifive_vector"))
+    Actions.DeclareRISCVVectorBuiltins = true;
 }

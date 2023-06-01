@@ -228,8 +228,13 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    if (LinkSYCLDeviceLibs)
+    if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
+      // FIXME remove this when opaque pointers are supported for SPIR-V
+      if (!this->getToolChain().getTriple().isSPIR()) {
+        Opts.push_back("-opaque-pointers");
+      }
+    }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
@@ -440,7 +445,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
-  if (C.getDriver().isFPGAEmulationMode()) {
+  if (C.getDriver().IsFPGAEmulationMode()) {
     constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
     return;
   }
@@ -845,7 +850,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     }
   }
   // Strip out -O0 for FPGA Hardware device compilation.
-  if (!getDriver().isFPGAEmulationMode() &&
+  if (getDriver().IsFPGAHWMode() &&
       getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
     DAL->eraseArg(options::OPT_O0);
 
@@ -979,8 +984,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     }
     // -ftarget-compile-fast
     if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
-      BeArgs.push_back(
-          "\"-igc_opts PartitionUnit=1,SubroutineThreshold=50000\"");
+      BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
     }
   }
   if (BeArgs.empty())

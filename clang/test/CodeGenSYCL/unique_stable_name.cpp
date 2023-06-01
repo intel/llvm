@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 // CHECK: @[[LAMBDA_KERNEL3:[^\w]+]] = private unnamed_addr constant [[LAMBDA_K3_SIZE:\[[0-9]+ x i8\]]] c"_ZTSZ4mainEUlPZ4mainEUlvE_E_\00"
 // CHECK: @[[INT1:[^\w]+]] = private unnamed_addr constant [[INT_SIZE:\[[0-9]+ x i8\]]] c"_ZTSi\00"
 // CHECK: @[[STRING:[^\w]+]] = private unnamed_addr constant [[STRING_SIZE:\[[0-9]+ x i8\]]] c"_ZTSAppL_ZZ4mainE1jE_i\00",
@@ -77,48 +77,48 @@ void not_kernel_single_task(KernelType kernelFunc) {
 
 int main() {
   not_kernel_single_task<class kernel2>(func<Derp>);
-  // CHECK: call void @_Z22not_kernel_single_taskIZ4mainE7kernel2PFPKcvEEvT0_(i8* ()* noundef @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv)
+  // CHECK: call void @_Z22not_kernel_single_taskIZ4mainE7kernel2PFPKcvEEvT0_(ptr noundef @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv)
 
   auto l1 = []() { return 1; };
   auto l2 = [](decltype(l1) *l = nullptr) { return 2; };
   kernel_single_task<decltype(l2)>(l2);
   puts(__builtin_sycl_unique_stable_name(decltype(l2)));
   // CHECK: call void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvT0_
-  // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[LAMBDA_K3_SIZE]], [[LAMBDA_K3_SIZE]]* @[[LAMBDA_KERNEL3]], i32 0, i32 0))
+  // CHECK: call void @puts(ptr noundef @[[LAMBDA_KERNEL3]])
 
   constexpr const char str[] = "lalala";
   static_assert(__builtin_strcmp(__builtin_sycl_unique_stable_name(decltype(str)), "_ZTSA7_Kc\0") == 0, "unexpected mangling");
 
   int i = 0;
   puts(__builtin_sycl_unique_stable_name(decltype(i++)));
-  // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT1]], i32 0, i32 0))
+  // CHECK: call void @puts(ptr noundef @[[INT1]])
 
   // FIXME: Ensure that j is incremented because VLAs are terrible.
   int j = 55;
   puts(__builtin_sycl_unique_stable_name(int[++j]));
-  // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[STRING_SIZE]], [[STRING_SIZE]]* @[[STRING]], i32 0, i32 0))
+  // CHECK: call void @puts(ptr noundef @[[STRING]])
 
   // CHECK: define internal void @_Z22not_kernel_single_taskIZ4mainE7kernel2PFPKcvEEvT0_
-  // CHECK: declare noundef i8* @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv
+  // CHECK: declare noundef ptr @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv
   // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvT0_
   // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlvE0_S0_EvT0_
 
   unnamed_kernel_single_task(
       []() {
         puts(__builtin_sycl_unique_stable_name(int));
-        // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT2]], i32 0, i32 0))
+        // CHECK: call void @puts(ptr noundef @[[INT2]])
 
         auto x = []() {};
         puts(__builtin_sycl_unique_stable_name(decltype(x)));
-        // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]], i32 0, i32 0))
+        // CHECK: call void @puts(ptr noundef @[[LAMBDA_X]])
 
         DEF_IN_MACRO();
-        // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[MACRO_SIZE]], [[MACRO_SIZE]]* @[[MACRO_X]], i32 0, i32 0))
-        // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[MACRO_SIZE]], [[MACRO_SIZE]]* @[[MACRO_Y]], i32 0, i32 0))
+        // CHECK: call void @puts(ptr noundef @[[MACRO_X]])
+        // CHECK: call void @puts(ptr noundef @[[MACRO_Y]])
 
         MACRO_CALLS_MACRO();
-        // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[MACRO_MACRO_SIZE]], [[MACRO_MACRO_SIZE]]* @[[MACRO_MACRO_X]], i32 0, i32 0))
-        // CHECK: call void @puts(i8* noundef getelementptr inbounds ([[MACRO_MACRO_SIZE]], [[MACRO_MACRO_SIZE]]* @[[MACRO_MACRO_Y]], i32 0, i32 0))
+        // CHECK: call void @puts(ptr noundef @[[MACRO_MACRO_X]])
+        // CHECK: call void @puts(ptr noundef @[[MACRO_MACRO_Y]])
 
         template_param<int>();
         // CHECK: call void @_Z14template_paramIiEvv
@@ -148,22 +148,22 @@ int main() {
 }
 
 // CHECK: define linkonce_odr void @_Z14template_paramIiEvv
-// CHECK: call void @puts(i8* noundef getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT3]], i32 0, i32 0))
+// CHECK: call void @puts(ptr noundef @[[INT3]])
 
 // CHECK: define internal void @_Z14template_paramIZZ4mainENKUlvE0_clEvEUlvE_Evv
-// CHECK: call void @puts(i8* noundef getelementptr inbounds ([[LAMBDA_SIZE]], [[LAMBDA_SIZE]]* @[[LAMBDA]], i32 0, i32 0))
+// CHECK: call void @puts(ptr noundef @[[LAMBDA]])
 
 // CHECK: define linkonce_odr void @_Z28lambda_in_dependent_functionIiEvv
-// CHECK: call void @puts(i8* noundef getelementptr inbounds ([[DEP_INT_SIZE]], [[DEP_INT_SIZE]]* @[[LAMBDA_IN_DEP_INT]], i32 0, i32 0))
+// CHECK: call void @puts(ptr noundef @[[LAMBDA_IN_DEP_INT]])
 
 // CHECK: define internal void @_Z28lambda_in_dependent_functionIZZ4mainENKUlvE0_clEvEUlvE_Evv
-// CHECK: call void @puts(i8* noundef getelementptr inbounds ([[DEP_LAMBDA_SIZE]], [[DEP_LAMBDA_SIZE]]* @[[LAMBDA_IN_DEP_X]], i32 0, i32 0))
+// CHECK: call void @puts(ptr noundef @[[LAMBDA_IN_DEP_X]])
 
 // CHECK: define linkonce_odr void @_Z13lambda_no_depIidEvT_T0_(i32 noundef %a, double noundef %b)
-// CHECK: call void @puts(i8* noundef getelementptr inbounds ([[NO_DEP_LAMBDA_SIZE]], [[NO_DEP_LAMBDA_SIZE]]* @[[LAMBDA_NO_DEP]], i32 0, i32 0))
+// CHECK: call void @puts(ptr noundef @[[LAMBDA_NO_DEP]])
 
 // CHECK: define internal void @_Z14lambda_two_depIZZ4mainENKUlvE0_clEvEUliE_ZZ4mainENKS0_clEvEUldE_Evv
-// CHECK: call void @puts(i8* noundef getelementptr inbounds ([[DEP_LAMBDA1_SIZE]], [[DEP_LAMBDA1_SIZE]]* @[[LAMBDA_TWO_DEP]], i32 0, i32 0))
+// CHECK: call void @puts(ptr noundef @[[LAMBDA_TWO_DEP]])
 
 // CHECK: define internal void @_Z14lambda_two_depIZZ4mainENKUlvE0_clEvEUldE_ZZ4mainENKS0_clEvEUliE_Evv
-// CHECK: call void @puts(i8* noundef getelementptr inbounds ([[DEP_LAMBDA2_SIZE]], [[DEP_LAMBDA2_SIZE]]* @[[LAMBDA_TWO_DEP2]], i32 0, i32 0))
+// CHECK: call void @puts(ptr noundef @[[LAMBDA_TWO_DEP2]])

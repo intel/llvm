@@ -190,11 +190,11 @@ enum PropKind : uint32_t {
   CacheConfig = 24,
   BitsPerSymbol = 25,
   FirstSymbolInHigherOrderBit = 26,
-  MinCapacity = 27,
-  PipeProtocol = 28,
-  ReadyLatency = 29,
-  UsesReady = 30,
-  UsesValid = 31,
+  PipeProtocol = 27,
+  ReadyLatency = 28,
+  UsesValid = 29,
+  UseRootSync = 30,
+  RegisterAllocMode = 31,
   // PropKindSize must always be the last value.
   PropKindSize = 32,
 };

@@ -1,7 +1,5 @@
-// RUN: %clangxx -D__SYCL_INTERNAL_API -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
+// RUN: %{run} %t.out
 
 //==------------- deprecated.cpp - SYCL 2020 deprecation test --------------==//
 //

@@ -327,6 +327,13 @@ static Decomposition decompose(Value *V,
     if (match(V, m_NSWAdd(m_Value(Op0), m_Value(Op1))))
       return MergeResults(Op0, Op1, IsSigned);
 
+    ConstantInt *CI;
+    if (match(V, m_NSWMul(m_Value(Op0), m_ConstantInt(CI)))) {
+      auto Result = decompose(Op0, Preconditions, IsSigned, DL);
+      Result.mul(CI->getSExtValue());
+      return Result;
+    }
+
     return V;
   }
 
@@ -487,7 +494,9 @@ ConstraintInfo::getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   }
 
   for (const auto &KV : VariablesB) {
-    R[GetOrAddIndex(KV.Variable)] -= KV.Coefficient;
+    if (SubOverflow(R[GetOrAddIndex(KV.Variable)], KV.Coefficient,
+                    R[GetOrAddIndex(KV.Variable)]))
+      return {};
     auto I =
         KnownNonNegativeVariables.insert({KV.Variable, KV.IsKnownNonNegative});
     I.first->second &= KV.IsKnownNonNegative;
@@ -582,11 +591,15 @@ void ConstraintInfo::transferToOtherSystem(
     if (doesHold(CmpInst::ICMP_SGE, A, ConstantInt::get(B->getType(), 0)))
       addFact(CmpInst::ICMP_ULT, A, B, NumIn, NumOut, DFSInStack);
     break;
-  case CmpInst::ICMP_SGT:
+  case CmpInst::ICMP_SGT: {
     if (doesHold(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), -1)))
       addFact(CmpInst::ICMP_UGE, A, ConstantInt::get(B->getType(), 0), NumIn,
               NumOut, DFSInStack);
+    if (doesHold(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), 0)))
+      addFact(CmpInst::ICMP_UGT, A, B, NumIn, NumOut, DFSInStack);
+
     break;
+  }
   case CmpInst::ICMP_SGE:
     if (doesHold(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), 0))) {
       addFact(CmpInst::ICMP_UGE, A, B, NumIn, NumOut, DFSInStack);
@@ -955,7 +968,8 @@ static bool checkAndReplaceCondition(
     NumCondsRemoved++;
     Changed = true;
   }
-  if (CSToUse.isConditionImplied(ConstraintSystem::negate(R.Coefficients))) {
+  auto Negated = ConstraintSystem::negate(R.Coefficients);
+  if (!Negated.empty() && CSToUse.isConditionImplied(Negated)) {
     if (!DebugCounter::shouldExecute(EliminatedCounter))
       return false;
 

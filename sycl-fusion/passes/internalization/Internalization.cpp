@@ -19,15 +19,11 @@
 #include "cleanup/Cleanup.h"
 #include "debug/PassDebug.h"
 #include "metadata/MDParsing.h"
+#include "target/TargetFusionInfo.h"
 
 #define DEBUG_TYPE "sycl-fusion"
 
 using namespace llvm;
-
-// Corresponds to definition of spir_private and spir_local in
-// "clang/lib/Basic/Target/SPIR.h", "SPIRDefIsGenMap".
-constexpr static unsigned PrivateAS{0};
-constexpr static unsigned LocalAS{3};
 
 constexpr static StringLiteral PrivatePromotion{"private"};
 constexpr static StringLiteral LocalPromotion{"local"};
@@ -44,6 +40,8 @@ struct SYCLInternalizerImpl {
   StringRef Kind;
   /// Whether or not to create allocas.
   bool CreateAllocas;
+  /// Interface to target-specific information.
+  TargetFusionInfo TargetInfo;
 
   /// Implements internalization the pass run.
   PreservedAnalyses operator()(Module &M, ModuleAnalysisManager &AM) const;
@@ -338,11 +336,14 @@ Error SYCLInternalizerImpl::checkArgsPromotable(
 
 ///
 /// Function to perform the required cleaning actions.
-static void cleanup(Function *OldF, Function *NewF, bool KeepOriginal) {
+static void cleanup(Function *OldF, Function *NewF, bool KeepOriginal,
+                    const TargetFusionInfo &TFI) {
   if (!KeepOriginal) {
     NewF->takeName(OldF);
+    TFI.notifyFunctionsDelete(OldF);
     OldF->eraseFromParent();
   }
+  TFI.addKernelFunction(NewF);
 }
 
 void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
@@ -499,11 +500,6 @@ Value *replaceByNewAlloca(Argument *Arg, unsigned AS, std::size_t LocalSize) {
 Function *SYCLInternalizerImpl::promoteFunctionArgs(
     Function *OldF, ArrayRef<std::size_t> PromoteToLocal, bool CreateAllocas,
     bool KeepOriginal) const {
-  constexpr unsigned AddressSpaceBitWidth{32};
-
-  auto *NewAddrspace = ConstantAsMetadata::get(ConstantInt::get(
-      IntegerType::get(OldF->getContext(), AddressSpaceBitWidth), AS));
-
   // We first declare the promoted function with the new signature.
   Function *NewF =
       getPromotedFunctionDeclaration(OldF, PromoteToLocal, AS,
@@ -542,32 +538,9 @@ Function *SYCLInternalizerImpl::promoteFunctionArgs(
     promoteValue(Arg, LocalSize);
   }
 
-  {
-    constexpr StringLiteral KernelArgAddrSpaceMD{"kernel_arg_addr_space"};
-    if (auto *AddrspaceMD =
-            dyn_cast_or_null<MDNode>(NewF->getMetadata(KernelArgAddrSpaceMD))) {
-      // If we have kernel_arg_addr_space metadata in the original function,
-      // we should update it in the new one.
-      SmallVector<Metadata *> NewInfo{AddrspaceMD->op_begin(),
-                                      AddrspaceMD->op_end()};
-      for (auto I : enumerate(PromoteToLocal)) {
-        if (I.value() == 0) {
-          continue;
-        }
-        const auto Index = I.index();
-        if (const auto *PtrTy =
-                dyn_cast<PointerType>(NewF->getArg(Index)->getType())) {
-          if (PtrTy->getAddressSpace() == LocalAS) {
-            NewInfo[Index] = NewAddrspace;
-          }
-        }
-      }
-      NewF->setMetadata(KernelArgAddrSpaceMD,
-                        MDNode::get(NewF->getContext(), NewInfo));
-    }
-  }
+  TargetInfo.updateAddressSpaceMetadata(NewF, PromoteToLocal, AS);
 
-  cleanup(OldF, NewF, KeepOriginal);
+  cleanup(OldF, NewF, KeepOriginal, TargetInfo);
 
   return NewF;
 }
@@ -625,7 +598,8 @@ SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-static void moduleCleanup(Module &M, ModuleAnalysisManager &AM) {
+static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
+                          TargetFusionInfo &TFI) {
   SmallVector<Function *> ToProcess;
   for (auto &F : M) {
     if (F.hasMetadata(SYCLInternalizer::Key)) {
@@ -650,24 +624,25 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM) {
         NewArgInfo.push_back(jit_compiler::ArgUsage::Used);
       }
     }
-    fullCleanup(NewArgInfo, F, AM,
+    fullCleanup(NewArgInfo, F, AM, TFI,
                 {SYCLInternalizer::Key, SYCLInternalizer::LocalSizeKey});
   }
 }
 
 PreservedAnalyses llvm::SYCLInternalizer::run(Module &M,
                                               ModuleAnalysisManager &AM) {
+  TargetFusionInfo TFI{&M};
   // Private promotion
-  const PreservedAnalyses Tmp =
-      SYCLInternalizerImpl{PrivateAS, PrivatePromotion, true}(M, AM);
+  const PreservedAnalyses Tmp = SYCLInternalizerImpl{
+      TFI.getPrivateAddressSpace(), PrivatePromotion, true, TFI}(M, AM);
   // Local promotion
-  PreservedAnalyses Res =
-      SYCLInternalizerImpl{LocalAS, LocalPromotion, false}(M, AM);
+  PreservedAnalyses Res = SYCLInternalizerImpl{
+      TFI.getLocalAddressSpace(), LocalPromotion, false, TFI}(M, AM);
 
   Res.intersect(Tmp);
 
   if (!Res.areAllPreserved()) {
-    moduleCleanup(M, AM);
+    moduleCleanup(M, AM, TFI);
   }
   return Res;
 }

@@ -5,18 +5,19 @@
 #pragma once
 
 #include <detail/plugin.hpp>
+#include <string>
 
 namespace pi {
-inline const char *GetBackendString(const sycl::detail::plugin &Plugin) {
+inline std::string GetBackendString(const sycl::detail::PluginPtr &Plugin) {
   std::stringstream Str;
   for (sycl::backend Backend :
        {sycl::backend::opencl, sycl::backend::ext_oneapi_level_zero,
         sycl::backend::ext_oneapi_cuda, sycl::backend::ext_intel_esimd_emulator,
         sycl::backend::ext_oneapi_hip}) {
-    if (Plugin.hasBackend(Backend)) {
+    if (Plugin->hasBackend(Backend)) {
       Str << Backend;
     }
   }
-  return Str.str().c_str();
+  return Str.str();
 }
 } // namespace pi

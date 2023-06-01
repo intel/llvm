@@ -8,6 +8,7 @@ add_llvm_library(SYCLKernelFusion MODULE
   syclcp/SYCLCP.cpp
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
+  target/TargetFusionInfo.cpp
 
   DEPENDS
   intrinsics_gen
@@ -25,6 +26,10 @@ target_link_libraries(SYCLKernelFusion
   sycl-fusion-common
 )
 
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusion PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()
+
 # Static library for linking with the jit_compiler
 add_llvm_library(SYCLKernelFusionPasses
   SYCLFusionPasses.cpp
@@ -35,6 +40,7 @@ add_llvm_library(SYCLKernelFusionPasses
   syclcp/SYCLCP.cpp
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
+  target/TargetFusionInfo.cpp
 
   DEPENDS
   intrinsics_gen
@@ -44,6 +50,7 @@ add_llvm_library(SYCLKernelFusionPasses
   Support
   TransformUtils
   Passes
+  TargetParser
 )
 
 target_include_directories(SYCLKernelFusionPasses
@@ -57,3 +64,7 @@ target_link_libraries(SYCLKernelFusionPasses
   PRIVATE
   sycl-fusion-common
 )
+
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusionPasses PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()

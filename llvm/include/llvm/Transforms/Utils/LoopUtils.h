@@ -76,10 +76,13 @@ bool formDedicatedExitBlocks(Loop *L, DominatorTree *DT, LoopInfo *LI,
 /// This function may introduce unused PHI nodes. If \p PHIsToRemove is not
 /// nullptr, those are added to it (before removing, the caller has to check if
 /// they still do not have any uses). Otherwise the PHIs are directly removed.
+///
+/// If \p InsertedPHIs is not nullptr, inserted phis will be added to this
+/// vector.
 bool formLCSSAForInstructions(
     SmallVectorImpl<Instruction *> &Worklist, const DominatorTree &DT,
-    const LoopInfo &LI, ScalarEvolution *SE, IRBuilderBase &Builder,
-    SmallVectorImpl<PHINode *> *PHIsToRemove = nullptr);
+    const LoopInfo &LI, SmallVectorImpl<PHINode *> *PHIsToRemove = nullptr,
+    SmallVectorImpl<PHINode *> *InsertedPHIs = nullptr);
 
 /// Put loop into LCSSA form.
 ///
@@ -88,25 +91,21 @@ bool formLCSSAForInstructions(
 /// the loop are rewritten to use this node. Sub-loops must be in LCSSA form
 /// already.
 ///
-/// LoopInfo and DominatorTree are required and preserved.
-///
-/// If ScalarEvolution is passed in, it will be preserved.
+/// LoopInfo and DominatorTree are required and preserved. ScalarEvolution is
+/// preserved.
 ///
 /// Returns true if any modifications are made to the loop.
-bool formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
-               ScalarEvolution *SE);
+bool formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI);
 
 /// Put a loop nest into LCSSA form.
 ///
 /// This recursively forms LCSSA for a loop nest.
 ///
-/// LoopInfo and DominatorTree are required and preserved.
-///
-/// If ScalarEvolution is passed in, it will be preserved.
+/// LoopInfo and DominatorTree are required and preserved. ScalarEvolution is
+/// preserved.
 ///
 /// Returns true if any modifications are made to the loop.
-bool formLCSSARecursively(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
-                          ScalarEvolution *SE);
+bool formLCSSARecursively(Loop &L, const DominatorTree &DT, const LoopInfo *LI);
 
 /// Flags controlling how much is checked when sinking or hoisting
 /// instructions.  The number of memory access in the loop (and whether there

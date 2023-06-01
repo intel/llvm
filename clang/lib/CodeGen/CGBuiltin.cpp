@@ -99,13 +99,29 @@ llvm::Constant *CodeGenModule::getBuiltinLibFunction(const FunctionDecl *FD,
 
   // TODO: This list should be expanded or refactored after all GCC-compatible
   // std libcall builtins are implemented.
-  static SmallDenseMap<unsigned, StringRef, 8> F128Builtins{
+  static SmallDenseMap<unsigned, StringRef, 64> F128Builtins{
+      {Builtin::BI__builtin___fprintf_chk, "__fprintf_chkieee128"},
+      {Builtin::BI__builtin___printf_chk, "__printf_chkieee128"},
+      {Builtin::BI__builtin___snprintf_chk, "__snprintf_chkieee128"},
+      {Builtin::BI__builtin___sprintf_chk, "__sprintf_chkieee128"},
+      {Builtin::BI__builtin___vfprintf_chk, "__vfprintf_chkieee128"},
+      {Builtin::BI__builtin___vprintf_chk, "__vprintf_chkieee128"},
+      {Builtin::BI__builtin___vsnprintf_chk, "__vsnprintf_chkieee128"},
+      {Builtin::BI__builtin___vsprintf_chk, "__vsprintf_chkieee128"},
+      {Builtin::BI__builtin_fprintf, "__fprintfieee128"},
       {Builtin::BI__builtin_printf, "__printfieee128"},
+      {Builtin::BI__builtin_snprintf, "__snprintfieee128"},
+      {Builtin::BI__builtin_sprintf, "__sprintfieee128"},
+      {Builtin::BI__builtin_vfprintf, "__vfprintfieee128"},
+      {Builtin::BI__builtin_vprintf, "__vprintfieee128"},
       {Builtin::BI__builtin_vsnprintf, "__vsnprintfieee128"},
       {Builtin::BI__builtin_vsprintf, "__vsprintfieee128"},
-      {Builtin::BI__builtin_sprintf, "__sprintfieee128"},
-      {Builtin::BI__builtin_snprintf, "__snprintfieee128"},
-      {Builtin::BI__builtin_fprintf, "__fprintfieee128"},
+      {Builtin::BI__builtin_fscanf, "__fscanfieee128"},
+      {Builtin::BI__builtin_scanf, "__scanfieee128"},
+      {Builtin::BI__builtin_sscanf, "__sscanfieee128"},
+      {Builtin::BI__builtin_vfscanf, "__vfscanfieee128"},
+      {Builtin::BI__builtin_vscanf, "__vscanfieee128"},
+      {Builtin::BI__builtin_vsscanf, "__vsscanfieee128"},
       {Builtin::BI__builtin_nexttowardf128, "__nexttowardieee128"},
   };
 
@@ -170,6 +186,21 @@ static Value *EmitFromInt(CodeGenFunction &CGF, llvm::Value *V,
   return V;
 }
 
+static llvm::Value *CheckAtomicAlignment(CodeGenFunction &CGF,
+                                         const CallExpr *E) {
+  ASTContext &Ctx = CGF.getContext();
+  Address Ptr = CGF.EmitPointerWithAlignment(E->getArg(0));
+  unsigned Bytes = Ptr.getElementType()->isPointerTy()
+                       ? Ctx.getTypeSizeInChars(Ctx.VoidPtrTy).getQuantity()
+                       : Ptr.getElementType()->getScalarSizeInBits() / 8;
+  unsigned Align = Ptr.getAlignment().getQuantity();
+  if (Align % Bytes != 0) {
+    DiagnosticsEngine &Diags = CGF.CGM.getDiags();
+    Diags.Report(E->getBeginLoc(), diag::warn_sync_op_misaligned);
+  }
+  return Ptr.getPointer();
+}
+
 /// Utility to insert an atomic instruction based on Intrinsic::ID
 /// and the expression node.
 static Value *MakeBinaryAtomicValue(
@@ -182,7 +213,7 @@ static Value *MakeBinaryAtomicValue(
                                   E->getArg(0)->getType()->getPointeeType()));
   assert(CGF.getContext().hasSameUnqualifiedType(T, E->getArg(1)->getType()));
 
-  llvm::Value *DestPtr = CGF.EmitScalarExpr(E->getArg(0));
+  llvm::Value *DestPtr = CheckAtomicAlignment(CGF, E);
   unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
   llvm::IntegerType *IntType =
@@ -224,23 +255,9 @@ static Value *EmitNontemporalLoad(CodeGenFunction &CGF, const CallExpr *E) {
   return CGF.EmitLoadOfScalar(LV, E->getExprLoc());
 }
 
-static void CheckAtomicAlignment(CodeGenFunction &CGF, const CallExpr *E) {
-  ASTContext &Ctx = CGF.getContext();
-  Address Ptr = CGF.EmitPointerWithAlignment(E->getArg(0));
-  unsigned Bytes = Ptr.getElementType()->isPointerTy()
-                       ? Ctx.getTypeSizeInChars(Ctx.VoidPtrTy).getQuantity()
-                       : Ptr.getElementType()->getScalarSizeInBits() / 8;
-  unsigned Align = Ptr.getAlignment().getQuantity();
-  if (Align % Bytes != 0) {
-    DiagnosticsEngine &Diags = CGF.CGM.getDiags();
-    Diags.Report(E->getBeginLoc(), diag::warn_sync_op_misaligned);
-  }
-}
-
 static RValue EmitBinaryAtomic(CodeGenFunction &CGF,
                                llvm::AtomicRMWInst::BinOp Kind,
                                const CallExpr *E) {
-  CheckAtomicAlignment(CGF, E);
   return RValue::get(MakeBinaryAtomicValue(CGF, Kind, E));
 }
 
@@ -252,14 +269,13 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
                                    const CallExpr *E,
                                    Instruction::BinaryOps Op,
                                    bool Invert = false) {
-  CheckAtomicAlignment(CGF, E);
   QualType T = E->getType();
   assert(E->getArg(0)->getType()->isPointerType());
   assert(CGF.getContext().hasSameUnqualifiedType(T,
                                   E->getArg(0)->getType()->getPointeeType()));
   assert(CGF.getContext().hasSameUnqualifiedType(T, E->getArg(1)->getType()));
 
-  llvm::Value *DestPtr = CGF.EmitScalarExpr(E->getArg(0));
+  llvm::Value *DestPtr = CheckAtomicAlignment(CGF, E);
   unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
   llvm::IntegerType *IntType =
@@ -300,9 +316,8 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
 /// invoke the function EmitAtomicCmpXchgForMSIntrin.
 static Value *MakeAtomicCmpXchgValue(CodeGenFunction &CGF, const CallExpr *E,
                                      bool ReturnBool) {
-  CheckAtomicAlignment(CGF, E);
   QualType T = ReturnBool ? E->getArg(1)->getType() : E->getType();
-  llvm::Value *DestPtr = CGF.EmitScalarExpr(E->getArg(0));
+  llvm::Value *DestPtr = CheckAtomicAlignment(CGF, E);
   unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
   llvm::IntegerType *IntType = llvm::IntegerType::get(
@@ -940,7 +955,7 @@ static llvm::Value *EmitX86BitTestIntrinsic(CodeGenFunction &CGF,
 
   // Build the constraints. FIXME: We should support immediates when possible.
   std::string Constraints = "={@ccc},r,r,~{cc},~{memory}";
-  std::string MachineClobbers = CGF.getTarget().getClobbers();
+  std::string_view MachineClobbers = CGF.getTarget().getClobbers();
   if (!MachineClobbers.empty()) {
     Constraints += ',';
     Constraints += MachineClobbers;
@@ -1083,7 +1098,7 @@ static llvm::Value *emitPPCLoadReserveIntrinsic(CodeGenFunction &CGF,
   AsmOS << "$0, ${1:y}";
 
   std::string Constraints = "=r,*Z,~{memory}";
-  std::string MachineClobbers = CGF.getTarget().getClobbers();
+  std::string_view MachineClobbers = CGF.getTarget().getClobbers();
   if (!MachineClobbers.empty()) {
     Constraints += ',';
     Constraints += MachineClobbers;
@@ -2830,8 +2845,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_assume_aligned: {
     const Expr *Ptr = E->getArg(0);
     Value *PtrValue = EmitScalarExpr(Ptr);
-    if (PtrValue->getType() != VoidPtrTy)
-      PtrValue = EmitCastToVoidPtr(PtrValue);
     Value *OffsetValue =
       (E->getNumArgs() > 2) ? EmitScalarExpr(E->getArg(2)) : nullptr;
 
@@ -4045,8 +4058,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__sync_lock_release_4:
   case Builtin::BI__sync_lock_release_8:
   case Builtin::BI__sync_lock_release_16: {
-    CheckAtomicAlignment(*this, E);
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    Value *Ptr = CheckAtomicAlignment(*this, E);
     QualType ElTy = E->getArg(0)->getType()->getPointeeType();
     CharUnits StoreSize = getContext().getTypeSizeInChars(ElTy);
     llvm::Type *ITy = llvm::IntegerType::get(getLLVMContext(),
@@ -16558,7 +16570,7 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
   // use custom code generation to expand a builtin call with a pointer to a
   // load (if the corresponding instruction accumulates its result) followed by
   // the call to the intrinsic and a store of the result.
-#define CUSTOM_BUILTIN(Name, Intr, Types, Accumulate) \
+#define CUSTOM_BUILTIN(Name, Intr, Types, Accumulate, Feature) \
   case PPC::BI__builtin_##Name:
 #include "clang/Basic/BuiltinsPPC.def"
   {
@@ -16608,7 +16620,7 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     }
     bool Accumulate;
     switch (BuiltinID) {
-  #define CUSTOM_BUILTIN(Name, Intr, Types, Acc) \
+  #define CUSTOM_BUILTIN(Name, Intr, Types, Acc, Feature) \
     case PPC::BI__builtin_##Name: \
       ID = Intrinsic::ppc_##Intr; \
       Accumulate = Acc; \
@@ -18185,6 +18197,19 @@ static Value *MakeScopedAtomic(unsigned IntrinsicID, CodeGenFunction &CGF,
   return CGF.Builder.CreateCall(
       CGF.CGM.getIntrinsic(IntrinsicID, {ElemTy, Ptr->getType()}),
       {Ptr, CGF.EmitScalarExpr(E->getArg(1))});
+}
+
+static Value *MakeCpAsync(unsigned IntrinsicID, unsigned IntrinsicIDS,
+                          CodeGenFunction &CGF, const CallExpr *E,
+                          int SrcSize) {
+  return E->getNumArgs() == 3
+             ? CGF.Builder.CreateCall(CGF.CGM.getIntrinsic(IntrinsicIDS),
+                                      {CGF.EmitScalarExpr(E->getArg(0)),
+                                       CGF.EmitScalarExpr(E->getArg(1)),
+                                       CGF.EmitScalarExpr(E->getArg(2))})
+             : CGF.Builder.CreateCall(CGF.CGM.getIntrinsic(IntrinsicID),
+                                      {CGF.EmitScalarExpr(E->getArg(0)),
+                                       CGF.EmitScalarExpr(E->getArg(1))});
 }
 
 static Value *MakeHalfType(unsigned IntrinsicID, unsigned BuiltinID,
@@ -20851,6 +20876,22 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
   case NVPTX::BI__nvvm_ldu_h2: {
     return MakeHalfType(Intrinsic::nvvm_ldu_global_f, BuiltinID, E, *this);
   }
+  case NVPTX::BI__nvvm_cp_async_ca_shared_global_4:
+    return MakeCpAsync(Intrinsic::nvvm_cp_async_ca_shared_global_4,
+                       Intrinsic::nvvm_cp_async_ca_shared_global_4_s, *this, E,
+                       4);
+  case NVPTX::BI__nvvm_cp_async_ca_shared_global_8:
+    return MakeCpAsync(Intrinsic::nvvm_cp_async_ca_shared_global_8,
+                       Intrinsic::nvvm_cp_async_ca_shared_global_8_s, *this, E,
+                       8);
+  case NVPTX::BI__nvvm_cp_async_ca_shared_global_16:
+    return MakeCpAsync(Intrinsic::nvvm_cp_async_ca_shared_global_16,
+                       Intrinsic::nvvm_cp_async_ca_shared_global_16_s, *this, E,
+                       16);
+  case NVPTX::BI__nvvm_cp_async_cg_shared_global_16:
+    return MakeCpAsync(Intrinsic::nvvm_cp_async_cg_shared_global_16,
+                       Intrinsic::nvvm_cp_async_cg_shared_global_16_s, *this, E,
+                       16);
   default:
     return nullptr;
   }
@@ -21847,7 +21888,20 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     assert(Error == ASTContext::GE_None && "Unexpected error");
   }
 
+  if (BuiltinID == RISCV::BI__builtin_riscv_ntl_load)
+    ICEArguments |= (1 << 1);
+  if (BuiltinID == RISCV::BI__builtin_riscv_ntl_store)
+    ICEArguments |= (1 << 2);
+
   for (unsigned i = 0, e = E->getNumArgs(); i != e; i++) {
+    // Handle aggregate argument, namely RVV tuple types in segment load/store
+    if (hasAggregateEvaluationKind(E->getArg(i)->getType())) {
+      LValue L = EmitAggExprToLValue(E->getArg(i));
+      llvm::Value *AggValue = Builder.CreateLoad(L.getAddress(*this));
+      Ops.push_back(AggValue);
+      continue;
+    }
+
     // If this is a normal argument, just emit it as a scalar.
     if ((ICEArguments & (1 << i)) == 0) {
       Ops.push_back(EmitScalarExpr(E->getArg(i)));
@@ -22049,8 +22103,60 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
     IntrinsicTypes = {ResultType};
     break;
 
+  // Zihintntl
+  case RISCV::BI__builtin_riscv_ntl_load: {
+    llvm::Type *ResTy = ConvertType(E->getType());
+    ConstantInt *Mode = cast<ConstantInt>(Ops[1]);
+
+    llvm::MDNode *RISCVDomainNode = llvm::MDNode::get(
+        getLLVMContext(),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(Mode->getZExtValue())));
+    llvm::MDNode *NontemporalNode = llvm::MDNode::get(
+        getLLVMContext(), llvm::ConstantAsMetadata::get(Builder.getInt32(1)));
+
+    int Width;
+    if(ResTy->isScalableTy()) {
+      const ScalableVectorType *SVTy = cast<ScalableVectorType>(ResTy);
+      llvm::Type *ScalarTy = ResTy->getScalarType();
+      Width = ScalarTy->getPrimitiveSizeInBits() *
+              SVTy->getElementCount().getKnownMinValue();
+    } else
+      Width = ResTy->getPrimitiveSizeInBits();
+    LoadInst *Load = Builder.CreateLoad(
+        Address(Ops[0], ResTy, CharUnits::fromQuantity(Width / 8)));
+
+    Load->setMetadata(CGM.getModule().getMDKindID("nontemporal"),
+                      NontemporalNode);
+    Load->setMetadata(CGM.getModule().getMDKindID("riscv-nontemporal-domain"),
+                      RISCVDomainNode);
+
+    return Load;
+  }
+  case RISCV::BI__builtin_riscv_ntl_store: {
+    ConstantInt *Mode = cast<ConstantInt>(Ops[2]);
+
+    llvm::MDNode *RISCVDomainNode = llvm::MDNode::get(
+        getLLVMContext(),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(Mode->getZExtValue())));
+    llvm::MDNode *NontemporalNode = llvm::MDNode::get(
+        getLLVMContext(), llvm::ConstantAsMetadata::get(Builder.getInt32(1)));
+
+    Value *BC = Builder.CreateBitCast(
+        Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()), "cast");
+
+    StoreInst *Store = Builder.CreateDefaultAlignedStore(Ops[1], BC);
+    Store->setMetadata(CGM.getModule().getMDKindID("nontemporal"),
+                       NontemporalNode);
+    Store->setMetadata(CGM.getModule().getMDKindID("riscv-nontemporal-domain"),
+                       RISCVDomainNode);
+
+    return Store;
+  }
+
   // Vector builtins are handled from here.
 #include "clang/Basic/riscv_vector_builtin_cg.inc"
+  // SiFive Vector builtins are handled from here.
+#include "clang/Basic/riscv_sifive_vector_builtin_cg.inc"
   }
 
   assert(ID != Intrinsic::not_intrinsic);

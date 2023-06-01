@@ -253,6 +253,7 @@ struct Config {
   bool pie;
   bool printGcSections;
   bool printIcfSections;
+  bool printMemoryUsage;
   bool relax;
   bool relaxGP;
   bool relocatable;
@@ -408,6 +409,12 @@ struct Config {
   bool androidMemtagStack;
 
   unsigned threadCount;
+
+  // If an input file equals a key, remap it to the value.
+  llvm::DenseMap<llvm::StringRef, llvm::StringRef> remapInputs;
+  // If an input file matches a wildcard pattern, remap it to the value.
+  llvm::SmallVector<std::pair<llvm::GlobPattern, llvm::StringRef>, 0>
+      remapInputsWildcards;
 };
 struct ConfigWrapper {
   Config c;

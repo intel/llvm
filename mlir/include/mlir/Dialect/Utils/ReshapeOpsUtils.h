@@ -92,9 +92,8 @@ static OpFoldResult foldReshapeOp(ReshapeOpTy reshapeOp,
   if (reshapeSrcOp && reshapeSrcOp.getSrcType() == reshapeOp.getResultType())
     return reshapeSrcOp.getSrc();
   // Reshape of a constant can be replaced with a new constant.
-  if (auto elements = operands.front().dyn_cast_or_null<DenseElementsAttr>()) {
-    return elements.reshape(
-        reshapeOp.getResult().getType().template cast<ShapedType>());
+  if (auto elements = dyn_cast_or_null<DenseElementsAttr>(operands.front())) {
+    return elements.reshape(cast<ShapedType>(reshapeOp.getResult().getType()));
   }
   return nullptr;
 }
@@ -475,7 +474,7 @@ struct CollapseShapeRankReducingSliceSimplificationInfo {
   /// The shape of the output of the rank-reducing slice.
   RankedTensorType sliceResultType;
   /// The reassociation indices for the new collapse shape op, if required. If
-  /// `None`, the slice should replace the collapse shape op.
+  /// `std::nullopt`, the slice should replace the collapse shape op.
   std::optional<SmallVector<ReassociationIndices>> newReassociationIndices;
 };
 
@@ -522,6 +521,7 @@ getSimplifyCollapseShapeWithRankReducingSliceInfo(
 
 struct PackingMetadata {
   SmallVector<int64_t> insertPositions;
+  SmallVector<int64_t> outerPositions;
   SmallVector<ReassociationIndices> reassociations;
 };
 

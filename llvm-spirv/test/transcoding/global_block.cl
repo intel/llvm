@@ -22,8 +22,8 @@ kernel void block_kernel(__global int* res) {
 }
 
 // CHECK-SPIRV: Name [[block_invoke:[0-9]+]] "_block_invoke"
-// CHECK-SPIRV: TypeInt [[int:[0-9]+]] 32
-// CHECK-SPIRV: TypeInt [[int8:[0-9]+]] 8
+// CHECK-SPIRV-DAG: TypeInt [[int:[0-9]+]] 32
+// CHECK-SPIRV-DAG: TypeInt [[int8:[0-9]+]] 8
 // CHECK-SPIRV: Constant [[int]] [[five:[0-9]+]] 5
 // CHECK-SPIRV: TypePointer [[int8Ptr:[0-9]+]] 8 [[int8]]
 // CHECK-SPIRV: TypeFunction [[block_invoke_type:[0-9]+]] [[int]] [[int8Ptr]] [[int]]

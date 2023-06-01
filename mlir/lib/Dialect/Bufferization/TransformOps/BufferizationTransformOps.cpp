@@ -13,8 +13,6 @@
 #include "mlir/Dialect/Bufferization/Transforms/OneShotModuleBufferize.h"
 #include "mlir/Dialect/Bufferization/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/PDL/IR/PDL.h"
-#include "mlir/Dialect/PDL/IR/PDLTypes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/IR/FunctionInterfaces.h"
@@ -41,7 +39,7 @@ transform::OneShotBufferizeOp::apply(TransformResults &transformResults,
     options.setFunctionBoundaryTypeConversion(
         *getFunctionBoundaryTypeConversion());
 
-  ArrayRef<Operation *> payloadOps = state.getPayloadOps(getTarget());
+  auto payloadOps = state.getPayloadOps(getTarget());
   for (Operation *target : payloadOps) {
     if (!isa<ModuleOp, FunctionOpInterface>(target))
       return emitSilenceableError() << "expected module or function target";
@@ -59,7 +57,7 @@ transform::OneShotBufferizeOp::apply(TransformResults &transformResults,
 
   // This transform op is currently restricted to ModuleOps and function ops.
   // Such ops are modified in-place.
-  transformResults.set(getTransformed().cast<OpResult>(), payloadOps);
+  transformResults.set(cast<OpResult>(getTransformed()), payloadOps);
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -80,8 +78,7 @@ transform::EliminateEmptyTensorsOp::apply(TransformResults &transformResults,
   OneShotBufferizationOptions options;
   options.allowReturnAllocs = true;
 
-  ArrayRef<Operation *> payloadOps = state.getPayloadOps(getTarget());
-  for (Operation *target : payloadOps) {
+  for (Operation *target : state.getPayloadOps(getTarget())) {
     OneShotAnalysisState state(target, options);
     if (failed(analyzeOp(target, state)))
       return mlir::emitSilenceableFailure(target->getLoc())
@@ -124,8 +121,6 @@ public:
   using Base::Base;
 
   void init() {
-    declareDependentDialect<pdl::PDLDialect>();
-
     declareGeneratedDialect<bufferization::BufferizationDialect>();
     declareGeneratedDialect<memref::MemRefDialect>();
 

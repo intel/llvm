@@ -5,12 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 3 2 1
+// TODO: remove fno-fast-math option once the issue is investigated and the test
+// is fixed.
+// UNSUPPORTED: esimd_emulator
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} %{mathflags} -I%S/.. -o %t.out
+// RUN: %{run} %t.out 3 2 1
 //
 // This test checks the correctness of ESIMD program for batched LU
 // decomposition without pivoting. The program contains multiple branches

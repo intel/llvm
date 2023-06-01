@@ -243,6 +243,16 @@ void Instruction::dropUBImplyingAttrsAndUnknownMetadata(
   CB->removeRetAttrs(UBImplyingAttributes);
 }
 
+void Instruction::dropUBImplyingAttrsAndMetadata() {
+  // !annotation metadata does not impact semantics.
+  // !range, !nonnull and !align produce poison, so they are safe to speculate.
+  // !noundef and various AA metadata must be dropped, as it generally produces
+  // immediate undefined behavior.
+  unsigned KnownIDs[] = {LLVMContext::MD_annotation, LLVMContext::MD_range,
+                         LLVMContext::MD_nonnull, LLVMContext::MD_align};
+  dropUBImplyingAttrsAndUnknownMetadata(KnownIDs);
+}
+
 bool Instruction::isExact() const {
   return cast<PossiblyExactOperator>(this)->isExact();
 }
@@ -733,7 +743,29 @@ bool Instruction::isVolatile() const {
   }
 }
 
-bool Instruction::mayThrow() const {
+static bool canUnwindPastLandingPad(const LandingPadInst *LP,
+                                    bool IncludePhaseOneUnwind) {
+  // Because phase one unwinding skips cleanup landingpads, we effectively
+  // unwind past this frame, and callers need to have valid unwind info.
+  if (LP->isCleanup())
+    return IncludePhaseOneUnwind;
+
+  for (unsigned I = 0; I < LP->getNumClauses(); ++I) {
+    Constant *Clause = LP->getClause(I);
+    // catch ptr null catches all exceptions.
+    if (LP->isCatch(I) && isa<ConstantPointerNull>(Clause))
+      return false;
+    // filter [0 x ptr] catches all exceptions.
+    if (LP->isFilter(I) && Clause->getType()->getArrayNumElements() == 0)
+      return false;
+  }
+
+  // May catch only some subset of exceptions, in which case other exceptions
+  // will continue unwinding.
+  return true;
+}
+
+bool Instruction::mayThrow(bool IncludePhaseOneUnwind) const {
   switch (getOpcode()) {
   case Instruction::Call:
     return !cast<CallInst>(this)->doesNotThrow();
@@ -743,6 +775,18 @@ bool Instruction::mayThrow() const {
     return cast<CatchSwitchInst>(this)->unwindsToCaller();
   case Instruction::Resume:
     return true;
+  case Instruction::Invoke: {
+    // Landingpads themselves don't unwind -- however, an invoke of a skipped
+    // landingpad may continue unwinding.
+    BasicBlock *UnwindDest = cast<InvokeInst>(this)->getUnwindDest();
+    Instruction *Pad = UnwindDest->getFirstNonPHI();
+    if (auto *LP = dyn_cast<LandingPadInst>(Pad))
+      return canUnwindPastLandingPad(LP, IncludePhaseOneUnwind);
+    return false;
+  }
+  case Instruction::CleanupPad:
+    // Treat the same as cleanup landingpad.
+    return IncludePhaseOneUnwind;
   default:
     return false;
   }

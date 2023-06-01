@@ -181,6 +181,22 @@ void populateVectorExtractStridedSliceToExtractInsertChainPatterns(
     std::function<bool(ExtractStridedSliceOp)> controlFn = nullptr,
     PatternBenefit benefit = 1);
 
+/// Populate `patterns` with a pattern to break down 1-D vector.bitcast ops
+/// based on the destination vector shape. Bitcasts from a lower bitwidth
+/// element type to a higher bitwidth one are extracted from the lower bitwidth
+/// based on the native destination vector shape and inserted based on the ratio
+/// of the bitwidths.
+///
+/// This acts as a last resort way to break down vector.bitcast ops to smaller
+/// vector sizes. Because this pattern composes until it is bitcasting to a
+/// single element of the higher bitwidth, the is an optional control function.
+/// If `controlFn` is not nullptr, the pattern will only apply to ops where
+/// `controlFn` returns true, otherwise applies to all bitcast ops.
+void populateBreakDownVectorBitCastOpPatterns(
+    RewritePatternSet &patterns,
+    std::function<bool(BitCastOp)> controlFn = nullptr,
+    PatternBenefit benefit = 1);
+
 /// Populate `patterns` with the following patterns.
 ///
 /// Patterns in populateVectorInsertExtractStridedSliceDecompositionPatterns();
@@ -201,6 +217,17 @@ void populateVectorExtractStridedSliceToExtractInsertChainPatterns(
 /// For such cases, we can lower it to a ShuffleOp.
 void populateVectorInsertExtractStridedSliceTransforms(
     RewritePatternSet &patterns, PatternBenefit benefit = 1);
+
+/// Collect patterns to fold tensor.extract_slice -> vector.transfer_read and
+/// vector.transfer_write -> tensor.insert_slice op chains into vector tranfer
+/// read and write ops.
+///
+/// If `controlFn` is not nullptr, the pattern will only apply to ops where
+/// `controlFn` returns true, given the vector transfer read/write op as input.
+void populateVectorTransferTensorSliceTransforms(
+    RewritePatternSet &patterns,
+    std::function<bool(Operation *vectorOp)> controlFn = nullptr,
+    PatternBenefit benefit = 1);
 
 /// Collect a set of pattern to unroll vector operations to a smaller shapes.
 /// `options` structure controls which operations are unrolled and the target

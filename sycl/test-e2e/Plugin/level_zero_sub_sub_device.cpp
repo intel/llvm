@@ -1,8 +1,8 @@
 // REQUIRES:  gpu-intel-pvc, level_zero
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env ZE_DEBUG=1 env ZEX_NUMBER_OF_CCS=0:4  %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
-// RUN: env ZEX_NUMBER_OF_CCS=0:4 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: env ZE_DEBUG=1 env ZEX_NUMBER_OF_CCS=0:4  %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env ZEX_NUMBER_OF_CCS=0:4 %{run} %t.out
 
 // Check that queues created on sub-sub-devices are going to specific compute
 // engines:

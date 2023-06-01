@@ -1,7 +1,8 @@
 ;; Test callsite context graph generation for call graph with with MIBs
 ;; that have pruned contexts that partially match multiple inlined
 ;; callsite contexts, requiring duplication of context ids and nodes
-;; while matching callsite nodes onto the graph.
+;; while matching callsite nodes onto the graph. Also tests graph and IR
+;; cloning.
 ;;
 ;; Original code looks like:
 ;;
@@ -38,7 +39,7 @@
 ;;   return 0;
 ;; }
 ;;
-;; Code compiled with -mllvm -memprof-min-lifetime-cold-threshold=5 so that the
+;; Code compiled with -mllvm -memprof-ave-lifetime-cold-threshold=5 so that the
 ;; memory freed after sleep(10) results in cold lifetimes.
 ;;
 ;; The code below was created by forcing inlining of C into both B and E.
@@ -52,13 +53,20 @@
 ;;
 ;; The IR was then reduced using llvm-reduce with the expected FileCheck input.
 
-; RUN: opt -passes=memprof-context-disambiguation \
+;; -stats requires asserts
+; REQUIRES: asserts
+
+; RUN: opt -passes=memprof-context-disambiguation -supports-hot-cold-new \
 ; RUN:  -memprof-verify-ccg -memprof-verify-nodes -memprof-dump-ccg \
 ; RUN:  -memprof-export-to-dot -memprof-dot-file-path-prefix=%t. \
-; RUN:  %s -S 2>&1 | FileCheck %s --check-prefix=DUMP
+; RUN:  -stats -pass-remarks=memprof-context-disambiguation \
+; RUN:  %s -S 2>&1 | FileCheck %s --check-prefix=DUMP --check-prefix=IR \
+; RUN:  --check-prefix=STATS --check-prefix=REMARKS
 
 ; RUN:  cat %t.ccg.prestackupdate.dot | FileCheck %s --check-prefix=DOTPRE
 ; RUN:  cat %t.ccg.postbuild.dot | FileCheck %s --check-prefix=DOTPOST
+;; We should clone D once for the cold allocations via C.
+; RUN:  cat %t.ccg.cloned.dot | FileCheck %s --check-prefix=DOTCLONED
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -207,6 +215,93 @@ attributes #6 = { builtin }
 ; DUMP: 		Edge from Callee [[D]] to Caller: [[E]] AllocTypes: Cold ContextIds: 1
 ; DUMP: 	CallerEdges:
 
+; DUMP: CCG after cloning:
+; DUMP: Callsite Context Graph:
+; DUMP: Node [[D]]
+; DUMP: 	  %call = call noalias noundef nonnull ptr @_Znam(i64 noundef 10) #6	(clone 0)
+; DUMP: 	AllocTypes: NotCold
+; DUMP: 	ContextIds: 2
+; DUMP: 	CalleeEdges:
+; DUMP: 	CallerEdges:
+; DUMP: 		Edge from Callee [[D]] to Caller: [[F]] AllocTypes: NotCold ContextIds: 2
+; DUMP:         Clones: [[D2:0x[a-z0-9]+]]
+
+; DUMP: Node [[F]]
+; DUMP: 	  %call = call noundef ptr @_Z1Dv()	(clone 0)
+; DUMP: 	AllocTypes: NotCold
+; DUMP: 	ContextIds: 2
+; DUMP: 	CalleeEdges:
+; DUMP: 		Edge from Callee [[D]] to Caller: [[F]] AllocTypes: NotCold ContextIds: 2
+; DUMP: 	CallerEdges:
+
+; DUMP: Node [[C2]]
+; DUMP: 	  %call = call noundef ptr @_Z1Dv()	(clone 0)
+; DUMP: 	AllocTypes: Cold
+; DUMP: 	ContextIds: 3
+; DUMP: 	CalleeEdges:
+; DUMP: 		Edge from Callee [[D2]] to Caller: [[C2]] AllocTypes: Cold ContextIds: 3
+; DUMP: 	CallerEdges:
+
+; DUMP: Node [[B]]
+; DUMP: 	  %call.i = call noundef ptr @_Z1Dv()	(clone 0)
+; DUMP: 	AllocTypes: Cold
+; DUMP: 	ContextIds: 4
+; DUMP: 	CalleeEdges:
+; DUMP: 		Edge from Callee [[D2]] to Caller: [[B]] AllocTypes: Cold ContextIds: 4
+; DUMP: 	CallerEdges:
+
+; DUMP: Node [[E]]
+; DUMP: 	  %call.i = call noundef ptr @_Z1Dv()	(clone 0)
+; DUMP: 	AllocTypes: Cold
+; DUMP: 	ContextIds: 1
+; DUMP: 	CalleeEdges:
+; DUMP: 		Edge from Callee [[D2]] to Caller: [[E]] AllocTypes: Cold ContextIds: 1
+; DUMP: 	CallerEdges:
+
+; DUMP: Node [[D2]]
+; DUMP: 	  %call = call noalias noundef nonnull ptr @_Znam(i64 noundef 10) #6	(clone 0)
+; DUMP: 	AllocTypes: Cold
+; DUMP: 	ContextIds: 1 3 4
+; DUMP: 	CalleeEdges:
+; DUMP: 	CallerEdges:
+; DUMP: 		Edge from Callee [[D2]] to Caller: [[E:0x[a-z0-9]+]] AllocTypes: Cold ContextIds: 1
+; DUMP: 		Edge from Callee [[D2]] to Caller: [[C2:0x[a-z0-9]+]] AllocTypes: Cold ContextIds: 3
+; DUMP: 		Edge from Callee [[D2]] to Caller: [[B:0x[a-z0-9]+]] AllocTypes: Cold ContextIds: 4
+; DUMP:         Clone of [[D]]
+
+; REMARKS: created clone _Z1Dv.memprof.1
+; REMARKS: call in clone _Z1Ev assigned to call function clone _Z1Dv.memprof.1
+; REMARKS: call in clone _Z1Cv assigned to call function clone _Z1Dv.memprof.1
+; REMARKS: call in clone _Z1Bv assigned to call function clone _Z1Dv.memprof.1
+; REMARKS: call in clone _Z1Dv.memprof.1 marked with memprof allocation attribute cold
+; REMARKS: call in clone _Z1Fv assigned to call function clone _Z1Dv
+; REMARKS: call in clone _Z1Dv marked with memprof allocation attribute notcold
+
+
+;; The allocation via F does not allocate cold memory. It should call the
+;; original D, which ultimately call the original allocation decorated
+;; with a "notcold" attribute.
+; IR: define internal {{.*}} @_Z1Dv()
+; IR:   call {{.*}} @_Znam(i64 noundef 10) #[[NOTCOLD:[0-9]+]]
+; IR: define internal {{.*}} @_Z1Fv()
+; IR:   call {{.*}} @_Z1Dv()
+;; The allocations via B and E allocate cold memory. They should call the
+;; cloned D, which ultimately call the cloned allocation decorated with a
+;; "cold" attribute.
+; IR: define internal {{.*}} @_Z1Bv()
+; IR:   call {{.*}} @_Z1Dv.memprof.1()
+; IR: define internal {{.*}} @_Z1Ev()
+; IR:   call {{.*}} @_Z1Dv.memprof.1()
+; IR: define internal {{.*}} @_Z1Dv.memprof.1()
+; IR:   call {{.*}} @_Znam(i64 noundef 10) #[[COLD:[0-9]+]]
+; IR: attributes #[[NOTCOLD]] = { builtin "memprof"="notcold" }
+; IR: attributes #[[COLD]] = { builtin "memprof"="cold" }
+
+
+; STATS: 1 memprof-context-disambiguation - Number of cold static allocations (possibly cloned)
+; STATS: 1 memprof-context-disambiguation - Number of not cold static allocations (possibly cloned)
+; STATS: 1 memprof-context-disambiguation - Number of function clones created during whole program analysis
+
 
 ; DOTPRE: digraph "prestackupdate" {
 ; DOTPRE: 	label="prestackupdate";
@@ -230,3 +325,18 @@ attributes #6 = { builtin }
 ; DOTPOST:	Node[[E:0x[a-z0-9]+]] [shape=record,tooltip="N[[E]] ContextIds: 1",fillcolor="cyan",style="filled",style="filled",label="{OrigId: 0\n_Z1Ev -\> _Z1Dv}"];
 ; DOTPOST:	Node[[E]] -> Node[[D]][tooltip="ContextIds: 1",fillcolor="cyan"];
 ; DOTPOST:}
+
+
+; DOTCLONED: digraph "cloned" {
+; DOTCLONED: 	label="cloned";
+; DOTCLONED: 	Node[[D:0x[a-z0-9]+]] [shape=record,tooltip="N[[D]] ContextIds: 2",fillcolor="brown1",style="filled",style="filled",label="{OrigId: Alloc0\n_Z1Dv -\> _Znam}"];
+; DOTCLONED: 	Node[[F:0x[a-z0-9]+]] [shape=record,tooltip="N[[F]] ContextIds: 2",fillcolor="brown1",style="filled",style="filled",label="{OrigId: 13543580133643026784\n_Z1Fv -\> _Z1Dv}"];
+; DOTCLONED: 	Node[[F]] -> Node[[D]][tooltip="ContextIds: 2",fillcolor="brown1"];
+; DOTCLONED: 	Node[[C:0x[a-z0-9]+]] [shape=record,tooltip="N[[C]] ContextIds: 3",fillcolor="cyan",style="filled",style="filled",label="{OrigId: 0\n_Z1Cv -\> _Z1Dv}"];
+; DOTCLONED: 	Node[[C]] -> Node[[D2:0x[a-z0-9]+]][tooltip="ContextIds: 3",fillcolor="cyan"];
+; DOTCLONED: 	Node[[B:0x[a-z0-9]+]] [shape=record,tooltip="N[[B]] ContextIds: 4",fillcolor="cyan",style="filled",style="filled",label="{OrigId: 0\n_Z1Bv -\> _Z1Dv}"];
+; DOTCLONED: 	Node[[B]] -> Node[[D2]][tooltip="ContextIds: 4",fillcolor="cyan"];
+; DOTCLONED: 	Node[[E:0x[a-z0-9]+]] [shape=record,tooltip="N[[E]] ContextIds: 1",fillcolor="cyan",style="filled",style="filled",label="{OrigId: 0\n_Z1Ev -\> _Z1Dv}"];
+; DOTCLONED: 	Node[[E]] -> Node[[D2]][tooltip="ContextIds: 1",fillcolor="cyan"];
+; DOTCLONED: 	Node[[D2]] [shape=record,tooltip="N[[D2]] ContextIds: 1 3 4",fillcolor="cyan",style="filled",color="blue",style="filled,bold,dashed",label="{OrigId: Alloc0\n_Z1Dv -\> _Znam}"];
+; DOTCLONED: }

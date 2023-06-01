@@ -96,6 +96,12 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
+template <typename DataT, int Dimensions>
+class __SYCL_EBO
+    __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
 
 namespace detail::acc_properties {
 template <typename T> struct is_accessor : std::false_type {};
@@ -104,11 +110,35 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           typename PropertyListT>
 struct is_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget,
                             IsPlaceholder, PropertyListT>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_accessor_v = is_accessor<T>::value;
 
 template <typename T> struct is_host_accessor : std::false_type {};
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct is_host_accessor<host_accessor<DataT, Dimensions, AccessMode>>
     : std::true_type {};
+template <typename T>
+inline constexpr bool is_host_accessor_v = is_host_accessor<T>::value;
+
+template <typename T> struct is_local_accessor : std::false_type {};
+template <typename T, int Dimensions>
+struct is_local_accessor<local_accessor<T, Dimensions>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_local_accessor_v = is_local_accessor<T>::value;
+
+template <typename T> struct is_image_accessor : std::false_type {};
+template <typename T, int Dimensions, access::mode AccessMode,
+          access::placeholder IsPlaceholder, typename PropertyListT>
+struct is_image_accessor<
+    accessor<T, Dimensions, AccessMode, access::target::image, IsPlaceholder,
+             PropertyListT>> : std::true_type {};
+template <typename T, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+struct is_image_accessor<
+    image_accessor<T, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
+    : std::true_type {};
+template <typename T>
+inline constexpr bool is_image_accessor_v = is_image_accessor<T>::value;
 } // namespace detail::acc_properties
 
 // Accessor property trait specializations

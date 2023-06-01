@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-atomic64
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 #include "assignment.h"
 #include <iostream>
@@ -11,11 +10,6 @@ int main() {
   queue q;
 
   device dev = q.get_device();
-
-  if (!dev.has(aspect::atomic64)) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   const bool DoublesSupported = dev.has(sycl::aspect::fp64);
 

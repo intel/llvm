@@ -146,73 +146,73 @@ CommandInterpreter::CommandInterpreter(Debugger &debugger,
 
 bool CommandInterpreter::GetExpandRegexAliases() const {
   const uint32_t idx = ePropertyExpandRegexAliases;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 bool CommandInterpreter::GetPromptOnQuit() const {
   const uint32_t idx = ePropertyPromptOnQuit;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 void CommandInterpreter::SetPromptOnQuit(bool enable) {
   const uint32_t idx = ePropertyPromptOnQuit;
-  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, enable);
+  SetPropertyAtIndex(idx, enable);
 }
 
 bool CommandInterpreter::GetSaveSessionOnQuit() const {
   const uint32_t idx = ePropertySaveSessionOnQuit;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 void CommandInterpreter::SetSaveSessionOnQuit(bool enable) {
   const uint32_t idx = ePropertySaveSessionOnQuit;
-  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, enable);
+  SetPropertyAtIndex(idx, enable);
 }
 
 bool CommandInterpreter::GetOpenTranscriptInEditor() const {
   const uint32_t idx = ePropertyOpenTranscriptInEditor;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 void CommandInterpreter::SetOpenTranscriptInEditor(bool enable) {
   const uint32_t idx = ePropertyOpenTranscriptInEditor;
-  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, enable);
+  SetPropertyAtIndex(idx, enable);
 }
 
 FileSpec CommandInterpreter::GetSaveSessionDirectory() const {
   const uint32_t idx = ePropertySaveSessionDirectory;
-  return m_collection_sp->GetPropertyAtIndexAsFileSpec(nullptr, idx);
+  return GetPropertyAtIndexAs<FileSpec>(idx, {});
 }
 
 void CommandInterpreter::SetSaveSessionDirectory(llvm::StringRef path) {
   const uint32_t idx = ePropertySaveSessionDirectory;
-  m_collection_sp->SetPropertyAtIndexAsString(nullptr, idx, path);
+  SetPropertyAtIndex(idx, path);
 }
 
 bool CommandInterpreter::GetEchoCommands() const {
   const uint32_t idx = ePropertyEchoCommands;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 void CommandInterpreter::SetEchoCommands(bool enable) {
   const uint32_t idx = ePropertyEchoCommands;
-  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, enable);
+  SetPropertyAtIndex(idx, enable);
 }
 
 bool CommandInterpreter::GetEchoCommentCommands() const {
   const uint32_t idx = ePropertyEchoCommentCommands;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 void CommandInterpreter::SetEchoCommentCommands(bool enable) {
   const uint32_t idx = ePropertyEchoCommentCommands;
-  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, enable);
+  SetPropertyAtIndex(idx, enable);
 }
 
 void CommandInterpreter::AllowExitCodeOnQuit(bool allow) {
@@ -246,26 +246,26 @@ void CommandInterpreter::ResolveCommand(const char *command_line,
 
 bool CommandInterpreter::GetStopCmdSourceOnError() const {
   const uint32_t idx = ePropertyStopCmdSourceOnError;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 bool CommandInterpreter::GetSpaceReplPrompts() const {
   const uint32_t idx = ePropertySpaceReplPrompts;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 bool CommandInterpreter::GetRepeatPreviousCommand() const {
   const uint32_t idx = ePropertyRepeatPreviousCommand;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 bool CommandInterpreter::GetRequireCommandOverwrite() const {
   const uint32_t idx = ePropertyRequireCommandOverwrite;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_interpreter_properties[idx].default_uint_value != 0);
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_interpreter_properties[idx].default_uint_value != 0);
 }
 
 void CommandInterpreter::Initialize() {
@@ -1374,11 +1374,12 @@ bool CommandInterpreter::RemoveAlias(llvm::StringRef alias_name) {
   return false;
 }
 
-bool CommandInterpreter::RemoveCommand(llvm::StringRef cmd) {
+bool CommandInterpreter::RemoveCommand(llvm::StringRef cmd, bool force) {
   auto pos = m_command_dict.find(std::string(cmd));
   if (pos != m_command_dict.end()) {
-    if (pos->second->IsRemovable()) {
-      // Only regular expression objects or python commands are removable
+    if (force || pos->second->IsRemovable()) {
+      // Only regular expression objects or python commands are removable under
+      // normal circumstances.
       m_command_dict.erase(pos);
       return true;
     }
@@ -1689,20 +1690,19 @@ CommandObject *CommandInterpreter::BuildAliasResult(
           return nullptr;
         }
         llvm::StringRef arg_text = entry.ref();
-        if (strpos - start_fudge + arg_text.size() + len_fudge 
-            > raw_input_string.size()) {
+        if (strpos - start_fudge + arg_text.size() + len_fudge >
+            raw_input_string.size()) {
           result.AppendError("Unmatched quote at command end.");
-          return nullptr;  
+          return nullptr;
         }
         raw_input_string = raw_input_string.erase(
-            strpos - start_fudge, 
+            strpos - start_fudge,
             strlen(cmd_args.GetArgumentAtIndex(index)) + len_fudge);
       }
       if (quote_char == '\0')
         result_str.Printf("%s", cmd_args.GetArgumentAtIndex(index));
       else
-        result_str.Printf("%c%s%c", quote_char, 
-                          entry.c_str(), quote_char);
+        result_str.Printf("%c%s%c", quote_char, entry.c_str(), quote_char);
     }
   }
 
@@ -1759,7 +1759,7 @@ Status CommandInterpreter::PreprocessCommand(std::string &command) {
     command.insert(start_backtick, std::string(expr_str));
     pos = start_backtick + expr_str.size();
   }
-  return error;                        
+  return error;
 }
 
 Status
@@ -1794,7 +1794,7 @@ CommandInterpreter::PreprocessToken(std::string &expr_str) {
           expr_result_valobj_sp->GetQualifiedRepresentationIfAvailable(
               expr_result_valobj_sp->GetDynamicValueType(), true);
     if (expr_result_valobj_sp->ResolveValue(scalar)) {
-      
+
       StreamString value_strm;
       const bool show_type = false;
       scalar.GetValue(&value_strm, show_type);
@@ -1982,11 +1982,11 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
 
   CommandObject *cmd_obj = ResolveCommandImpl(command_string, result);
 
-  // We have to preprocess the whole command string for Raw commands, since we 
+  // We have to preprocess the whole command string for Raw commands, since we
   // don't know the structure of the command.  For parsed commands, we only
   // treat backticks as quote characters specially.
   // FIXME: We probably want to have raw commands do their own preprocessing.
-  // For instance, I don't think people expect substitution in expr expressions. 
+  // For instance, I don't think people expect substitution in expr expressions.
   if (cmd_obj && cmd_obj->WantsRawCommandString()) {
     Status error(PreprocessCommand(command_string));
 
@@ -3270,8 +3270,11 @@ bool CommandInterpreter::SaveTranscript(
   if (GetOpenTranscriptInEditor() && Host::IsInteractiveGraphicSession()) {
     const FileSpec file_spec;
     error = file->GetFileSpec(const_cast<FileSpec &>(file_spec));
-    if (error.Success())
-      Host::OpenFileInExternalEditor(file_spec, 1);
+    if (error.Success()) {
+      if (llvm::Error e = Host::OpenFileInExternalEditor(
+              m_debugger.GetExternalEditor(), file_spec, 1))
+        result.AppendError(llvm::toString(std::move(e)));
+    }
   }
 
   return true;
@@ -3391,8 +3394,8 @@ CommandInterpreterRunResult CommandInterpreter::RunCommandInterpreter(
     // If the current thread is not managed by a host thread, we won't detect
     // that this IS the CommandInterpreter IOHandler thread, so make it so:
     HostThread new_io_handler_thread(Host::GetCurrentThread());
-    HostThread old_io_handler_thread 
-        = m_debugger.SetIOHandlerThread(new_io_handler_thread);
+    HostThread old_io_handler_thread =
+        m_debugger.SetIOHandlerThread(new_io_handler_thread);
     m_debugger.RunIOHandlers();
     m_debugger.SetIOHandlerThread(old_io_handler_thread);
 

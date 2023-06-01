@@ -43,7 +43,6 @@ endfunction()
 add_math_entrypoint_object(acosf)
 add_math_entrypoint_object(acoshf)
 
-add_math_entrypoint_object(asin)
 add_math_entrypoint_object(asinf)
 add_math_entrypoint_object(asinhf)
 
@@ -115,10 +114,13 @@ add_math_entrypoint_object(ldexpl)
 add_math_entrypoint_object(log10)
 add_math_entrypoint_object(log10f)
 
+add_math_entrypoint_object(log1p)
 add_math_entrypoint_object(log1pf)
 
+add_math_entrypoint_object(log2)
 add_math_entrypoint_object(log2f)
 
+add_math_entrypoint_object(log)
 add_math_entrypoint_object(logf)
 
 add_math_entrypoint_object(logb)
@@ -152,8 +154,6 @@ add_math_entrypoint_object(nearbyintl)
 add_math_entrypoint_object(nextafter)
 add_math_entrypoint_object(nextafterf)
 add_math_entrypoint_object(nextafterl)
-
-add_math_entrypoint_object(pow)
 
 add_math_entrypoint_object(remainder)
 add_math_entrypoint_object(remainderf)

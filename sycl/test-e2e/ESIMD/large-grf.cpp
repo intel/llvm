@@ -5,32 +5,31 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This test verifies effect of
-//   set_kernel_properties(kernel_properties::use_large_grf);
+// This test verifies effect of the register_alloc_mode kernel property
 // API call in device code:
 // - ESIMD/SYCL splitting happens as usual
-// - ESIMD module is further split into callgraphs for entry points requesting
-//   "large GRF" and callgraphs for entry points which are not
-// - ESIMD device binary images requesting "large GRF" must be compiled with
-//   -doubleGRF option
+// - ESIMD module is further split into callgraphs for entry points for
+//   each value
+// - ESIMD device binary images are compiled with the corresponding
+//   compiler option
 
 // REQUIRES: gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
 // TODO/FIXME: esimd_emulator does not support online compilation that
 //             invokes 'piProgramBuild'/'piKernelCreate'
 // UNSUPPORTED: esimd_emulator
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 
 #include "esimd_test_utils.hpp"
 
 #include <iostream>
+#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/intel/experimental/kernel_properties.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+using namespace sycl::detail;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
@@ -53,12 +52,6 @@ bool checkResult(const std::vector<float> &A, int Inc) {
     return false;
   }
   return true;
-}
-
-// Make the large GRF request from non-inlineable function - compiler should
-// mark the caller kernel as "large GRF" anyway.
-__attribute__((noinline)) void large_grf_marker() {
-  set_kernel_properties(kernel_properties::use_large_grf);
 }
 
 int main(void) {
@@ -129,15 +122,15 @@ int main(void) {
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
     queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-
+    sycl::ext::oneapi::experimental::properties prop{
+        register_alloc_mode<register_alloc_mode_enum::large>};
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernelLargeGRF>(
-          Size, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            large_grf_marker();
+          Size, prop, [=](id<1> i) SYCL_ESIMD_KERNEL {
             unsigned int offset = i * VL * sizeof(float);
             simd<float, VL> va;
             va.copy_from(PA, offset);

@@ -162,6 +162,39 @@ TEST_F(FormatTestVerilog, Block) {
                "x = x;");
   verifyFormat("rand join x x;\n"
                "x = x;");
+  // The begin keyword should not be indented if it is too long to fit on the
+  // same line.
+  verifyFormat("while (true) //\n"
+               "begin\n"
+               "  while (true) //\n"
+               "  begin\n"
+               "  end\n"
+               "end");
+  verifyFormat("while (true) //\n"
+               "begin : x\n"
+               "  while (true) //\n"
+               "  begin : x\n"
+               "  end : x\n"
+               "end : x");
+  verifyFormat("while (true) //\n"
+               "fork\n"
+               "  while (true) //\n"
+               "  fork\n"
+               "  join\n"
+               "join");
+  auto Style = getDefaultStyle();
+  Style.ColumnLimit = 17;
+  verifyFormat("while (true)\n"
+               "begin\n"
+               "  while (true)\n"
+               "  begin\n"
+               "  end\n"
+               "end",
+               "while (true) begin\n"
+               "  while (true) begin"
+               "  end\n"
+               "end",
+               Style);
 }
 
 TEST_F(FormatTestVerilog, Case) {
@@ -359,6 +392,12 @@ TEST_F(FormatTestVerilog, Headers) {
                "     input var shortreal in2,\n"
                "     output tagged_st out);\n"
                "endmodule");
+  // There should be a space following the type but not the variable name.
+  verifyFormat("module test\n"
+               "    (input wire [7 : 0] a,\n"
+               "     input wire b[7 : 0],\n"
+               "     input wire [7 : 0] c[7 : 0]);\n"
+               "endmodule");
   // Ports should be grouped by types.
   verifyFormat("module test\n"
                "    (input [7 : 0] a,\n"
@@ -478,6 +517,15 @@ TEST_F(FormatTestVerilog, Headers) {
                "    (input var x `a, //\n"
                "                 b);\n"
                "endmodule");
+  // A line comment shouldn't disrupt the indentation of the port list.
+  verifyFormat("extern module x\n"
+               "    (//\n"
+               "     output y);");
+  verifyFormat("extern module x\n"
+               "    #(//\n"
+               "      parameter x)\n"
+               "    (//\n"
+               "     output y);");
   // With a concatenation in the names.
   auto Style = getDefaultStyle();
   Style.ColumnLimit = 40;
@@ -671,6 +719,107 @@ TEST_F(FormatTestVerilog, If) {
                "  x = x;");
   verifyFormat("(* x, x = \"x\" *) if (x)\n"
                "  x = x;");
+
+  // Assert are treated similar to if.  But the else parts should not be
+  // chained.
+  verifyFormat("assert (x);");
+  verifyFormat("assert (x)\n"
+               "  $info();");
+  verifyFormat("assert (x)\n"
+               "  $info();\n"
+               "else\n"
+               "  $error();");
+  verifyFormat("assert (x)\n"
+               "else\n"
+               "  $error();");
+  verifyFormat("assert (x)\n"
+               "else begin\n"
+               "end");
+  verifyFormat("assert (x)\n"
+               "else\n"
+               "  if (x)\n"
+               "    $error();");
+  verifyFormat("assert (x)\n"
+               "  $info();\n"
+               "else\n"
+               "  if (x)\n"
+               "    $error();");
+  verifyFormat("assert (x)\n"
+               "  $info();\n"
+               "else\n"
+               "  if (x)\n"
+               "    $error();\n"
+               "  else\n"
+               "    $error();");
+  verifyFormat("assert (x)\n"
+               "  $info();\n"
+               "else\n"
+               "  if (x)\n"
+               "    $error();\n"
+               "  else if (x)\n"
+               "    $error();\n"
+               "  else\n"
+               "    $error();");
+  // The body is optional for asserts.  The next line should not be indented if
+  // the statement already ended with a semicolon.
+  verifyFormat("assert (x);\n"
+               "x = x;");
+  verifyFormat("if (x)\n"
+               "  assert (x);\n"
+               "else if (x) begin\n"
+               "end else begin\n"
+               "end");
+  verifyFormat("if (x)\n"
+               "  assert (x);\n"
+               "else begin\n"
+               "end");
+  verifyFormat("if (x)\n"
+               "  assert (x)\n"
+               "  else begin\n"
+               "  end");
+  // Other keywords.
+  verifyFormat("assume (x)\n"
+               "  $info();");
+  verifyFormat("cover (x)\n"
+               "  $info();");
+  verifyFormat("restrict (x)\n"
+               "  $info();");
+  verifyFormat("assert #0 (x)\n"
+               "  $info();");
+  verifyFormat("assert final (x)\n"
+               "  $info();");
+  verifyFormat("cover #0 (x)\n"
+               "  $info();");
+  verifyFormat("cover final (x)\n"
+               "  $info();");
+
+  // The space around parentheses options should work.
+  auto Style = getDefaultStyle();
+  verifyFormat("if (x)\n"
+               "  x = x;\n"
+               "else if (x)\n"
+               "  x = x;",
+               Style);
+  verifyFormat("assert (x);", Style);
+  verifyFormat("assert #0 (x);", Style);
+  verifyFormat("assert (x)\n"
+               "else\n"
+               "  if (x)\n"
+               "    x = x;",
+               Style);
+  Style.SpacesInConditionalStatement = true;
+  verifyFormat("if ( x )\n"
+               "  x = x;\n"
+               "else if ( x )\n"
+               "  x = x;",
+               Style);
+  verifyFormat("assert ( x );", Style);
+  verifyFormat("assert #0 ( x );", Style);
+  verifyFormat("assert ( x )\n"
+               "else\n"
+               "  if ( x )\n"
+               "    x = x;",
+               Style);
 }
 
 TEST_F(FormatTestVerilog, Instantiation) {
@@ -741,6 +890,25 @@ TEST_F(FormatTestVerilog, Instantiation) {
   verifyFormat("ffnand //\n"
                "    ff1(.q(), .qbar(out1), .clear(in1), .preset(in2)),\n"
                "    ff1(.q(), .qbar(out1), .clear(in1), .preset(in2));",
+               Style);
+}
+
+TEST_F(FormatTestVerilog, Loop) {
+  verifyFormat("foreach (x[x])\n"
+               "  x = x;");
+  verifyFormat("repeat (x)\n"
+               "  x = x;");
+  verifyFormat("foreach (x[x]) begin\n"
+               "end");
+  verifyFormat("repeat (x) begin\n"
+               "end");
+  auto Style = getDefaultStyle();
+  Style.SpacesInConditionalStatement = true;
+  verifyFormat("foreach ( x[x] )\n"
+               "  x = x;",
+               Style);
+  verifyFormat("repeat ( x )\n"
+               "  x = x;",
                Style);
 }
 
@@ -1030,6 +1198,14 @@ TEST_F(FormatTestVerilog, StructuredProcedure) {
   verifyFormat("always @(x)\n"
                "  x <= x;");
   verifyFormat("always @(posedge x)\n"
+               "  x <= x;");
+  verifyFormat("always @(posedge x or posedge y)\n"
+               "  x <= x;");
+  verifyFormat("always @(posedge x, posedge y)\n"
+               "  x <= x;");
+  verifyFormat("always @(negedge x, negedge y)\n"
+               "  x <= x;");
+  verifyFormat("always @(edge x, edge y)\n"
                "  x <= x;");
   verifyFormat("always\n"
                "  x <= x;");

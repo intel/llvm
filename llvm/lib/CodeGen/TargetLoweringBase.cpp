@@ -28,6 +28,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -48,7 +49,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -821,8 +821,8 @@ void TargetLoweringBase::initActions() {
                         ISD::SMULO, ISD::UMULO},
                        VT, Expand);
 
-    // ADDCARRY operations default to expand
-    setOperationAction({ISD::ADDCARRY, ISD::SUBCARRY, ISD::SETCCCARRY,
+    // Carry-using overflow operations default to expand.
+    setOperationAction({ISD::UADDO_CARRY, ISD::USUBO_CARRY, ISD::SETCCCARRY,
                         ISD::SADDO_CARRY, ISD::SSUBO_CARRY},
                        VT, Expand);
 
@@ -1977,7 +1977,7 @@ void TargetLoweringBase::insertSSPDeclarations(Module &M) const {
                                   "__stack_chk_guard");
 
     // FreeBSD has "__stack_chk_guard" defined externally on libc.so
-    if (TM.getRelocationModel() == Reloc::Static &&
+    if (M.getDirectAccessExternalData() &&
         !TM.getTargetTriple().isWindowsGNUEnvironment() &&
         !TM.getTargetTriple().isOSFreeBSD())
       GV->setDSOLocal(true);

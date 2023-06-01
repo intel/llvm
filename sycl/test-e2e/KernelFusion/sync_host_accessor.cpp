@@ -1,9 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %GPU_CHECK_PLACEHOLDER
-// UNSUPPORTED: cuda || hip
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test fusion cancellation on host accessor creation happening before
 // complete_fusion.
@@ -58,7 +54,7 @@ int main() {
     // the kernels in the fusion list. This causes a blocking wait for one of
     // the kernels in the fusion list. This should lead to cancellation of the
     // fusion.
-    auto hostAcc = bIn3.get_access<access::mode::read>();
+    host_accessor hostAcc(bIn3, read_only);
 
     assert(!fw.is_in_fusion_mode() &&
            "Queue should not be in fusion mode anymore");

@@ -167,7 +167,7 @@ struct Fragment {
     /// etc). Valid values are:
     /// - A single path to a directory (absolute, or relative to the fragment)
     /// - Ancestors: search all parent directories (the default)
-    /// - None: do not use a compilation database, just default flags.
+    /// - std::nullopt: do not use a compilation database, just default flags.
     std::optional<Located<std::string>> CompilationDatabase;
   };
   CompileFlagsBlock CompileFlags;
@@ -232,7 +232,7 @@ struct Fragment {
     ///
     /// Valid values are:
     /// - Strict
-    /// - None
+    /// - std::nullopt
     std::optional<Located<std::string>> UnusedIncludes;
 
 
@@ -249,7 +249,7 @@ struct Fragment {
     ///
     /// Valid values are:
     /// - Strict
-    /// - None
+    /// - std::nullopt
     std::optional<Located<std::string>> MissingIncludes;
 
     /// Controls IncludeCleaner diagnostics.
@@ -322,6 +322,8 @@ struct Fragment {
     std::optional<Located<bool>> DeducedTypes;
     /// Show designators in aggregate initialization.
     std::optional<Located<bool>> Designators;
+    /// Limit the length of type name hints. (0 means no limit)
+    std::optional<Located<uint32_t>> TypeNameLimit;
   };
   InlayHintsBlock InlayHints;
 };

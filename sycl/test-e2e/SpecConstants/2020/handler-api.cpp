@@ -7,12 +7,10 @@
 // - test that specialization constant values can be set within command group
 //   scope and correctly retrieved within a kernel
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out \
-// RUN:          -fsycl-dead-args-optimization
-// FIXME: SYCL 2020 specialization constants are not supported on host device
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -fsycl-dead-args-optimization
+// RUN: %{run} %t.out
 // FIXME: ACC devices use emulation path, which is not yet supported
+// UNSUPPORTED: accelerator
 // UNSUPPORTED: hip
 
 #include <cstdlib>
@@ -88,22 +86,21 @@ bool test_default_values(sycl::queue q) {
     });
   });
 
-  auto int_acc = int_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor int_acc(int_buffer, sycl::read_only);
   if (!check_value(
           0, int_acc[0],
           "integer specialization constant (defined without default value)"))
     return false;
 
-  auto int_acc2 = int_buffer2.get_access<sycl::access::mode::read>();
+  sycl::host_accessor int_acc2(int_buffer2, sycl::read_only);
   if (!check_value(2, int_acc2[0], "integer specialization constant"))
     return false;
 
-  auto float_acc = float_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor float_acc(float_buffer, sycl::read_only);
   if (!check_value(3.14f, float_acc[0], "float specialization constant"))
     return false;
 
-  auto custom_type_acc =
-      custom_type_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor custom_type_acc(custom_type_buffer, sycl::read_only);
   const custom_type custom_type_ref;
   if (!check_value(custom_type_ref, custom_type_acc[0],
                    "custom_type specialization constant"))
@@ -190,23 +187,22 @@ bool test_set_and_get_on_device(sycl::queue q) {
     });
   });
 
-  auto int_acc = int_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor int_acc(int_buffer, sycl::read_only);
   if (!check_value(new_int_value, int_acc[0],
                    "integer specialization constant"))
     return false;
 
-  auto int_acc2 = int_buffer2.get_access<sycl::access::mode::read>();
+  sycl::host_accessor int_acc2(int_buffer2, sycl::read_only);
   if (!check_value(new_int_value2, int_acc2[0],
                    "integer specialization constant"))
     return false;
 
-  auto float_acc = float_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor float_acc(float_buffer, sycl::read_only);
   if (!check_value(new_float_value, float_acc[0],
                    "float specialization constant"))
     return false;
 
-  auto custom_type_acc =
-      custom_type_buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor custom_type_acc(custom_type_buffer, sycl::read_only);
   if (!check_value(new_custom_type_value, custom_type_acc[0],
                    "custom_type specialization constant"))
     return false;

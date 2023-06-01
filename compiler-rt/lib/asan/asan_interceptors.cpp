@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "asan_interceptors.h"
+
 #include "asan_allocator.h"
 #include "asan_internal.h"
 #include "asan_mapping.h"
@@ -20,7 +21,9 @@
 #include "asan_stack.h"
 #include "asan_stats.h"
 #include "asan_suppressions.h"
+#include "asan_thread.h"
 #include "lsan/lsan_common.h"
+#include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_libc.h"
 
 // There is no general interception at all on Fuchsia.
@@ -196,19 +199,26 @@ DECLARE_REAL_AND_INTERCEPTOR(void, free, void *)
 static thread_return_t THREAD_CALLING_CONV asan_thread_start(void *arg) {
   AsanThread *t = (AsanThread *)arg;
   SetCurrentThread(t);
-  return t->ThreadStart(GetTid());
+  auto self = GetThreadSelf();
+  auto args = asanThreadArgRetval().GetArgs(self);
+  thread_return_t retval = t->ThreadStart(GetTid());
+  asanThreadArgRetval().Finish(self, retval);
+  CHECK_EQ(args.arg_retval, t->get_arg());
+  return retval;
 }
 
-INTERCEPTOR(int, pthread_create, void *thread,
-    void *attr, void *(*start_routine)(void*), void *arg) {
+INTERCEPTOR(int, pthread_create, void *thread, void *attr,
+            void *(*start_routine)(void *), void *arg) {
   EnsureMainThreadIDIsCorrect();
   // Strict init-order checking is thread-hostile.
   if (flags()->strict_init_order)
     StopInitOrderChecking();
   GET_STACK_TRACE_THREAD;
-  int detached = 0;
-  if (attr)
-    REAL(pthread_attr_getdetachstate)(attr, &detached);
+  bool detached = [attr]() {
+    int d = 0;
+    return attr && !REAL(pthread_attr_getdetachstate)(attr, &d) &&
+           IsStateDetached(d);
+  }();
 
   u32 current_tid = GetCurrentTidOrInvalid();
   AsanThread *t =
@@ -220,10 +230,13 @@ INTERCEPTOR(int, pthread_create, void *thread,
     // stored by pthread for future reuse even after thread destruction, and
     // the linked list it's stored in doesn't even hold valid pointers to the
     // objects, the latter are calculated by obscure pointer arithmetic.
-#if CAN_SANITIZE_LEAKS
+#    if CAN_SANITIZE_LEAKS
     __lsan::ScopedInterceptorDisabler disabler;
-#endif
-    result = REAL(pthread_create)(thread, attr, asan_thread_start, t);
+#    endif
+    asanThreadArgRetval().Create(detached, {start_routine, arg}, [&]() -> uptr {
+      result = REAL(pthread_create)(thread, attr, asan_thread_start, t);
+      return result ? 0 : *(uptr *)(thread);
+    });
   }
   if (result != 0) {
     // If the thread didn't start delete the AsanThread to avoid leaking it.
@@ -234,9 +247,51 @@ INTERCEPTOR(int, pthread_create, void *thread,
   return result;
 }
 
-INTERCEPTOR(int, pthread_join, void *t, void **arg) {
-  return real_pthread_join(t, arg);
+INTERCEPTOR(int, pthread_join, void *thread, void **retval) {
+  int result;
+  asanThreadArgRetval().Join((uptr)thread, [&]() {
+    result = REAL(pthread_join)(thread, retval);
+    return !result;
+  });
+  return result;
 }
+
+INTERCEPTOR(int, pthread_detach, void *thread) {
+  int result;
+  asanThreadArgRetval().Detach((uptr)thread, [&]() {
+    result = REAL(pthread_detach)(thread);
+    return !result;
+  });
+  return result;
+}
+
+INTERCEPTOR(int, pthread_exit, void *retval) {
+  asanThreadArgRetval().Finish(GetThreadSelf(), retval);
+  return REAL(pthread_exit)(retval);
+}
+
+#    if ASAN_INTERCEPT_TRYJOIN
+INTERCEPTOR(int, pthread_tryjoin_np, void *thread, void **ret) {
+  int result;
+  asanThreadArgRetval().Join((uptr)thread, [&]() {
+    result = REAL(pthread_tryjoin_np)(thread, ret);
+    return !result;
+  });
+  return result;
+}
+#    endif
+
+#    if ASAN_INTERCEPT_TIMEDJOIN
+INTERCEPTOR(int, pthread_timedjoin_np, void *thread, void **ret,
+            const struct timespec *abstime) {
+  int result;
+  asanThreadArgRetval().Join((uptr)thread, [&]() {
+    result = REAL(pthread_timedjoin_np)(thread, ret, abstime);
+    return !result;
+  });
+  return result;
+}
+#    endif
 
 DEFINE_REAL_PTHREAD_FUNCTIONS
 #endif  // ASAN_INTERCEPT_PTHREAD_CREATE
@@ -388,7 +443,7 @@ INTERCEPTOR(_Unwind_Reason_Code, _Unwind_SjLj_RaiseException,
 #if ASAN_INTERCEPT_INDEX
 # if ASAN_USE_ALIAS_ATTRIBUTE_FOR_INDEX
 INTERCEPTOR(char*, index, const char *string, int c)
-  ALIAS(WRAPPER_NAME(strchr));
+  ALIAS(WRAP(strchr));
 # else
 #  if SANITIZER_APPLE
 DECLARE_REAL(char*, index, const char *string, int c)
@@ -656,6 +711,7 @@ void InitializeAsanInterceptors() {
   static bool was_called_once;
   CHECK(!was_called_once);
   was_called_once = true;
+  InitializePlatformInterceptors();
   InitializeCommonInterceptors();
   InitializeSignalInterceptors();
 
@@ -706,11 +762,11 @@ void InitializeAsanInterceptors() {
 #endif
   // Indirectly intercept std::rethrow_exception.
 #if ASAN_INTERCEPT__UNWIND_RAISEEXCEPTION
-  INTERCEPT_FUNCTION(_Unwind_RaiseException);
+  ASAN_INTERCEPT_FUNC(_Unwind_RaiseException);
 #endif
   // Indirectly intercept std::rethrow_exception.
 #if ASAN_INTERCEPT__UNWIND_SJLJ_RAISEEXCEPTION
-  INTERCEPT_FUNCTION(_Unwind_SjLj_RaiseException);
+  ASAN_INTERCEPT_FUNC(_Unwind_SjLj_RaiseException);
 #endif
 
   // Intercept threading-related functions
@@ -722,6 +778,16 @@ void InitializeAsanInterceptors() {
   ASAN_INTERCEPT_FUNC(pthread_create);
 #endif
   ASAN_INTERCEPT_FUNC(pthread_join);
+  ASAN_INTERCEPT_FUNC(pthread_detach);
+  ASAN_INTERCEPT_FUNC(pthread_exit);
+#  endif
+
+#  if ASAN_INTERCEPT_TIMEDJOIN
+  ASAN_INTERCEPT_FUNC(pthread_timedjoin_np);
+#endif
+
+#if ASAN_INTERCEPT_TRYJOIN
+  ASAN_INTERCEPT_FUNC(pthread_tryjoin_np);
 #endif
 
   // Intercept atexit function.
@@ -740,8 +806,6 @@ void InitializeAsanInterceptors() {
 #if ASAN_INTERCEPT_VFORK
   ASAN_INTERCEPT_FUNC(vfork);
 #endif
-
-  InitializePlatformInterceptors();
 
   VReport(1, "AddressSanitizer: libc interceptors initialized\n");
 }

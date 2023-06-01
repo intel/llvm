@@ -39,18 +39,18 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         PI_ERROR_INVALID_CONTEXT);
 
   RT::PiContext Context = nullptr;
-  const plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
 
-  Plugin.call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+  Plugin->call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
       MemObject, MInteropContext->getHandleRef(), OwnNativeHandle,
       &MInteropMemObject);
 
   // Get the size of the buffer in bytes
-  Plugin.call<detail::PiApiKind::piMemGetInfo>(
+  Plugin->call<detail::PiApiKind::piMemGetInfo>(
       MInteropMemObject, PI_MEM_SIZE, sizeof(size_t), &MSizeInBytes, nullptr);
 
-  Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
-                                       sizeof(Context), &Context, nullptr);
+  Plugin->call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
@@ -58,7 +58,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         PI_ERROR_INVALID_CONTEXT);
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
+    Plugin->call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 
 RT::PiMemObjectType getImageType(int Dimensions) {
@@ -89,7 +89,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         PI_ERROR_INVALID_CONTEXT);
 
   RT::PiContext Context = nullptr;
-  const plugin &Plugin = getPlugin();
+  const PluginPtr &Plugin = getPlugin();
 
   RT::PiMemImageFormat Format{Order, Type};
   RT::PiMemImageDesc Desc;
@@ -104,12 +104,12 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
   Desc.num_samples = 0;
   Desc.buffer = nullptr;
 
-  Plugin.call<detail::PiApiKind::piextMemImageCreateWithNativeHandle>(
+  Plugin->call<detail::PiApiKind::piextMemImageCreateWithNativeHandle>(
       MemObject, MInteropContext->getHandleRef(), OwnNativeHandle, &Format,
       &Desc, &MInteropMemObject);
 
-  Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
-                                       sizeof(Context), &Context, nullptr);
+  Plugin->call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
@@ -117,7 +117,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         PI_ERROR_INVALID_CONTEXT);
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
+    Plugin->call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
@@ -159,12 +159,12 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
-    const plugin &Plugin = getPlugin();
-    Plugin.call<PiApiKind::piMemRelease>(
+    const PluginPtr &Plugin = getPlugin();
+    Plugin->call<PiApiKind::piMemRelease>(
         pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
-const plugin &SYCLMemObjT::getPlugin() const {
+const PluginPtr &SYCLMemObjT::getPlugin() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
   return (MInteropContext->getPlugin());
@@ -173,9 +173,9 @@ const plugin &SYCLMemObjT::getPlugin() const {
 size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
                                          pi_native_handle MemObject) {
   size_t BufSize = 0;
-  const detail::plugin &Plugin = Context->getPlugin();
+  const PluginPtr &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
-  Plugin.call<detail::PiApiKind::piMemGetInfo>(
+  Plugin->call<detail::PiApiKind::piMemGetInfo>(
       detail::pi::cast<detail::RT::PiMem>(MemObject), PI_MEM_SIZE,
       sizeof(size_t), &BufSize, nullptr);
   return BufSize;

@@ -5,13 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
-
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // This test is for element wise operations when matrix size does not multiply
 // SG size. This corner case only applies to AMX. Also, it tests bf16 type.
 // only run this on AMX
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: cpu
+// REQUIRES: matrix
+
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -83,18 +84,23 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                         ext::intel::experimental::matrix::layout::packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, layout::row_major);
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(
-                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k, K);
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>() +
+                     (sg_startx * TM) * K + k,
+                 K);
              // Assume we alreay in vnni format.
-             joint_matrix_load(sg, sub_b,
-                               accB.get_pointer() + (k) * (N) +
-                                   sg_starty / SG_SZ * TN * 2,
-                               N * 2);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (k) * (N) + sg_starty / SG_SZ * TN * 2,
+                 N * 2);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            auto wi_slice_c =
@@ -102,10 +108,11 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            for (int i = 0; i < wi_slice_c.length(); i++) {
              wi_slice_c[i] += 5.0;
            }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, layout::row_major);
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
          }); // parallel for
    }).wait();
 }

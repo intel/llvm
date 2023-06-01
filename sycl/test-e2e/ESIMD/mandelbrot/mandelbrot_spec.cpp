@@ -8,11 +8,14 @@
 
 // TODO enable on Windows
 // REQUIRES: linux && gpu
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// REQUIRES: aspect-ext_intel_legacy_image
 // TODO online_compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator
-// RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %T/output_spec.ppm %S/golden_hw.ppm 512 -2.09798 -1.19798 0.004 4.0
+// TODO: remove fno-fast-math option once the issue is investigated and the test
+// is fixed.
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} %{mathflags} -I%S/.. -o %t.out
+// RUN: %{run} %t.out %T/output_spec.ppm %S/golden_hw.ppm 512 -2.09798 -1.19798 0.004 4.0
 
 #include "esimd_test_utils.hpp"
 

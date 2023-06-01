@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
+// RUN: %{build} -o %t1.out
 // RUN: %t1.out
 
 // REQUIRES: cpu, gpu

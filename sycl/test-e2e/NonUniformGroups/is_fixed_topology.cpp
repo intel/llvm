@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -fsyntax-only -o %t.out
 
 #include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;

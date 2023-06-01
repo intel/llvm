@@ -335,7 +335,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
 }
 
 void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
-                    RT::PiPlatform PiPlatform, const plugin &Plugin) {
+                    RT::PiPlatform PiPlatform, const PluginPtr &Plugin) {
 
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
@@ -367,9 +367,9 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
     RT::PiDeviceType PiDevType;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
-                                            sizeof(RT::PiDeviceType),
-                                            &PiDevType, nullptr);
+    Plugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
+                                             sizeof(RT::PiDeviceType),
+                                             &PiDevType, nullptr);
     sycl::info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
     for (const auto &SyclDeviceType : getSyclDeviceTypeMap()) {
       if (SyclDeviceType.second == DeviceType) {

@@ -6,15 +6,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, level_zero
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// XREQUIRES: gpu
-// TODO gpu and level_zero in REQUIRES due to only this platforms supported yet.
-// The current "REQUIRES" should be replaced with "gpu" only as mentioned in
-// "XREQUIRES".
-// UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 // TODO simd<char, 16> fills with unexpected values. The
 // SIMD_RUN_TEST_WITH_CHAR_TYPES macros must be enabled when it is resolved.

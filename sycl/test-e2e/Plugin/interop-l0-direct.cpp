@@ -1,8 +1,8 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out
 
 #include <iostream>
 #include <level_zero/ze_api.h>

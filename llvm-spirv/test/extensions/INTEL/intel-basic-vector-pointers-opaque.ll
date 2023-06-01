@@ -23,7 +23,7 @@
 ; CHECK-SPIRV-DAG: TypePointer [[#TYPEPTR1:]] 5 [[#TYPEINT1]]
 ; CHECK-SPIRV-DAG: TypeVector [[#TYPEVEC1:]] [[#TYPEPTR1]] 4
 ; CHECK-SPIRV-DAG: TypeVoid [[#TYPEVOID:]]
-; CHECK-SPIRV-DAG: TypePointer [[#TYPEPTR2:]] [[#TYPEVOID]] 2
+; CHECK-SPIRV-DAG: TypePointer [[#TYPEPTR2:]] 8 [[#TYPEINT1]]
 ; CHECK-SPIRV-DAG: TypeVector [[#TYPEVEC2:]] [[#TYPEPTR2]] 4
 ; CHECK-SPIRV-DAG: TypePointer [[#PTRTOVECTYPE:]] 7 [[#TYPEVEC2]]
 ; CHECK-SPIRV-DAG: TypePointer [[#TYPEPTR4:]] 5 [[#TYPEINT2]]
@@ -34,8 +34,7 @@
 ; CHECK-SPIRV: Load [[#TYPEVEC2]]
 ; CHECK-SPIRV: Store
 ; CHECK-SPIRV: GenericCastToPtr [[#TYPEVEC1]]
-; CHECK-SPIRV: FunctionCall [[#TYPEVEC1]]
-; CHECK-SPIRV: Bitcast [[#TYPEVEC3]]
+; CHECK-SPIRV: FunctionCall [[#TYPEVEC3]]
 ; CHECK-SPIRV: InBoundsPtrAccessChain [[#TYPEVEC3]]
 
 ; CHECK-LLVM: alloca <4 x i8 addrspace(4)*>
@@ -43,8 +42,7 @@
 ; CHECK-LLVM: load <4 x i8 addrspace(4)*>, <4 x i8 addrspace(4)*>*
 ; CHECK-LLVM: store <4 x i8 addrspace(4)*> %[[#]], <4 x i8 addrspace(4)*>*
 ; CHECK-LLVM: addrspacecast <4 x i8 addrspace(4)*> %{{.*}} to <4 x i8 addrspace(1)*>
-; CHECK-LLVM: call spir_func <4 x i8 addrspace(1)*> @boo(<4 x i8 addrspace(1)*>
-; CHECK-LLVM: bitcast <4 x i8 addrspace(1)*> %{{.*}} to <4 x i32 addrspace(1)*>
+; CHECK-LLVM: call spir_func <4 x i32 addrspace(1)*> @boo(<4 x i8 addrspace(1)*>
 ; CHECK-LLVM: getelementptr inbounds i32, <4 x i32 addrspace(1)*> %{{.*}}, i32 1
 
 ; CHECK-LLVM-OPAQUE: alloca <4 x ptr addrspace(4)>

@@ -660,9 +660,14 @@ public:
 class OffloadWrapperJobAction : public JobAction {
   void anchor() override;
 
+  bool EmbedIR;
+
 public:
   OffloadWrapperJobAction(ActionList &Inputs, types::ID Type);
-  OffloadWrapperJobAction(Action *Input, types::ID OutputType);
+  OffloadWrapperJobAction(Action *Input, types::ID OutputType,
+                          bool EmbedIR = false);
+
+  bool isEmbeddedIR() const { return EmbedIR; }
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrapperJobClass;

@@ -111,13 +111,15 @@ public:
 #endif
   }
 
-private:
+protected:
   sub_group_mask Mask;
 
-protected:
   opportunistic_group(sub_group_mask m) : Mask(m) {}
 
   friend opportunistic_group this_kernel::get_opportunistic_group();
+
+  friend sub_group_mask
+  sycl::detail::GetMask<opportunistic_group>(opportunistic_group Group);
 };
 
 namespace this_kernel {
@@ -130,7 +132,12 @@ inline opportunistic_group get_opportunistic_group() {
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);
   return opportunistic_group(mask);
 #elif defined(__NVPTX__)
-  // TODO: Construct from __activemask
+  uint32_t active_mask;
+  asm volatile("activemask.b32 %0;" : "=r"(active_mask));
+  sub_group_mask mask =
+      sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+          active_mask, 32);
+  return opportunistic_group(mask);
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
@@ -144,5 +151,10 @@ template <>
 struct is_user_constructed_group<opportunistic_group> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
+
+template <>
+struct is_group<ext::oneapi::experimental::opportunistic_group>
+    : std::true_type {};
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

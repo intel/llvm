@@ -78,6 +78,47 @@ image_plain::image_plain(const std::shared_ptr<const void> &HostPointer,
                                               Dimensions, PropList, IsConstPtr);
 }
 
+image_plain::image_plain(const void *HostPointer, image_channel_order Order,
+                         image_channel_type Type, image_sampler Sampler,
+                         const range<3> &Range,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(HostPointer, Order, Type, Sampler,
+                                              Range, std::move(Allocator),
+                                              Dimensions, PropList);
+}
+
+image_plain::image_plain(const void *HostPointer, image_channel_order Order,
+                         image_channel_type Type, image_sampler Sampler,
+                         const range<3> &Range, const range<2> &Pitch,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(
+      HostPointer, Order, Type, Sampler, Range, Pitch, std::move(Allocator),
+      Dimensions, PropList);
+}
+
+image_plain::image_plain(const std::shared_ptr<const void> &HostPointer,
+                         image_channel_order Order, image_channel_type Type,
+                         image_sampler Sampler, const range<3> &Range,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(HostPointer, Order, Type, Sampler,
+                                              Range, std::move(Allocator),
+                                              Dimensions, PropList);
+}
+
+image_plain::image_plain(const std::shared_ptr<const void> &HostPointer,
+                         image_channel_order Order, image_channel_type Type,
+                         image_sampler Sampler, const range<3> &Range,
+                         const range<2> &Pitch,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                         uint8_t Dimensions, const property_list &PropList) {
+  impl = std::make_shared<detail::image_impl>(
+      HostPointer, Order, Type, Sampler, Range, Pitch, std::move(Allocator),
+      Dimensions, PropList);
+}
+
 #ifdef __SYCL_INTERNAL_API
 image_plain::image_plain(cl_mem ClMemObject, const context &SyclContext,
                          event AvailableEvent,
@@ -122,9 +163,9 @@ range<3> image_plain::get_range() const { return impl->get_range(); }
 
 range<2> image_plain::get_pitch() const { return impl->get_pitch(); }
 
-size_t image_plain::get_size() const { return impl->getSizeInBytes(); }
+size_t image_plain::get_size() const noexcept { return impl->getSizeInBytes(); }
 
-size_t image_plain::get_count() const { return impl->get_count(); }
+size_t image_plain::get_count() const noexcept { return impl->get_count(); }
 
 void image_plain::set_final_data_internal() { impl->set_final_data(nullptr); }
 
@@ -148,6 +189,10 @@ size_t image_plain::getElementSize() const { return impl->getElementSize(); }
 size_t image_plain::getRowPitch() const { return impl->getRowPitch(); }
 
 size_t image_plain::getSlicePitch() const { return impl->getSlicePitch(); }
+
+image_sampler image_plain::getSampler() const noexcept {
+  return impl->getSampler();
+}
 
 image_channel_order image_plain::getChannelOrder() const {
   return impl->getChannelOrder();

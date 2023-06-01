@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -std=c++17 -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -std=c++17 -o %t.out
+// RUN: %{run} %t.out
 
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
 //

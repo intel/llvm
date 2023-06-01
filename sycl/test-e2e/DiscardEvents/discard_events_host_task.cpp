@@ -2,10 +2,11 @@
 // and host_task() which should be used instead does not use the PI call
 // piEnqueueNativeKernel
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// REQUIRES: cpu
 //
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out &> %t.txt
-// RUN: %CPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
+// RUN: %{build} -o %t.out
+//
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
 // The test checks that the last parameter is `nullptr` for
 // piEnqueueNativeKernel.

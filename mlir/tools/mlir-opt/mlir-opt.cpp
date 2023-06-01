@@ -31,6 +31,7 @@ using namespace mlir;
 namespace mlir {
 void registerConvertToTargetEnvPass();
 void registerCloneTestPasses();
+void registerLazyLoadingTestPasses();
 void registerPassManagerTestPass();
 void registerPrintSpirvAvailabilityPass();
 void registerLoopLikeInterfaceTestPasses();
@@ -52,6 +53,7 @@ void registerTestOperationEqualPass();
 void registerTestPrintDefUsePass();
 void registerTestPrintInvalidPass();
 void registerTestPrintNestingPass();
+void registerTestPreserveUseListOrders();
 void registerTestReducer();
 void registerTestSpirvEntryPointABIPass();
 void registerTestSpirvModuleCombinerPass();
@@ -104,6 +106,7 @@ void registerTestCFGLoopInfoPass();
 void registerTestLoopMappingPass();
 void registerTestLoopUnrollingPass();
 void registerTestLowerToLLVM();
+void registerTestMakeIsolatedFromAbovePass();
 void registerTestMatchReductionPass();
 void registerTestMathAlgebraicSimplificationPass();
 void registerTestMathPolynomialApproximationPass();
@@ -145,6 +148,7 @@ void registerTestPasses() {
   registerConvertToTargetEnvPass();
   registerPassManagerTestPass();
   registerPrintSpirvAvailabilityPass();
+  registerLazyLoadingTestPasses();
   registerLoopLikeInterfaceTestPasses();
   registerShapeFunctionTestPasses();
   registerSideEffectTestPasses();
@@ -164,6 +168,7 @@ void registerTestPasses() {
   registerTestPrintDefUsePass();
   registerTestPrintInvalidPass();
   registerTestPrintNestingPass();
+  registerTestPreserveUseListOrders();
   registerTestReducer();
   registerTestSpirvEntryPointABIPass();
   registerTestSpirvModuleCombinerPass();
@@ -218,6 +223,7 @@ void registerTestPasses() {
   mlir::test::registerTestLoopMappingPass();
   mlir::test::registerTestLoopUnrollingPass();
   mlir::test::registerTestLowerToLLVM();
+  mlir::test::registerTestMakeIsolatedFromAbovePass();
   mlir::test::registerTestMatchReductionPass();
   mlir::test::registerTestMathAlgebraicSimplificationPass();
   mlir::test::registerTestMathPolynomialApproximationPass();
@@ -259,6 +265,5 @@ int main(int argc, char **argv) {
   ::test::registerTestDynDialect(registry);
 #endif
   return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
-                        /*preloadDialectsInContext=*/false));
+      mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry));
 }

@@ -1,15 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 1
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 1
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 1
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out 1
 
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 2
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 2
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 2
+// RUN: %{run} %t.out 2
 
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 3
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 3
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 3
+// RUN: %{run} %t.out 3
 
 #include <chrono>
 #include <iostream>

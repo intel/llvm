@@ -58,8 +58,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, address_bits, pi_uint32,
                          PI_DEVICE_INFO_ADDRESS_BITS)
 __SYCL_PARAM_TRAITS_SPEC(device, max_mem_alloc_size, pi_uint64,
                          PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE)
-__SYCL_PARAM_TRAITS_SPEC(device, image_support, bool,
-                         PI_DEVICE_INFO_IMAGE_SUPPORT)
 __SYCL_PARAM_TRAITS_SPEC(device, max_read_image_args, pi_uint32,
                          PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS)
 __SYCL_PARAM_TRAITS_SPEC(device, max_write_image_args, pi_uint32,
@@ -174,6 +172,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, partition_type_affinity_domain,
 __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, parent_device, sycl::device,
                          PI_DEVICE_INFO_PARENT_DEVICE)
 __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, aspects, std::vector<sycl::aspect>, 0)
+__SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, image_support, bool, 0)
 
 // Extensions/deprecated
 __SYCL_PARAM_TRAITS_SPEC(device, atomic64, bool, PI_DEVICE_INFO_ATOMIC_64)

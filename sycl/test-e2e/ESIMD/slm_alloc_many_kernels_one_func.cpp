@@ -1,13 +1,11 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || esimd_emulator
+// UNSUPPORTED: esimd_emulator
 //
-// RUN: %clangxx -fsycl %s -o %t.1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.1.out
+// RUN: %{build} -o %t.1.out
+// RUN: %{run} %t.1.out
 //
 // Vary the test case by forcing inlining of the functions with slm_allocator:
-// RUN: %clangxx -fsycl -DFORCE_INLINE %s -o %t.2.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.2.out
+// RUN: %{build} -DFORCE_INLINE -o %t.2.out
+// RUN: %{run} %t.2.out
 
 // Check that SLM frame offset of a function foo called from two kernels Test1
 // and Test2 is the maximum of the SLM size used in both kernels.
@@ -91,5 +89,6 @@ int main(void) {
     std::cout << test << " == " << gold << "(gold)\n";
   }
   std::cout << (err_cnt ? "FAILED\n" : "Passed\n");
+  free(arr, ctxt);
   return err_cnt ? 1 : 0;
 }
