@@ -2926,51 +2926,40 @@ pi_result hip_piKernelCreate(pi_program program, const char *kernel_name,
 }
 
 pi_result hip_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                             size_t arg_size, const void *arg_value) {
+                             size_t arg_size, const void *arg_value, const pi_kernel_arg_properties *arg_properties) {
 
   assert(kernel != nullptr);
   pi_result retErr = PI_SUCCESS;
   try {
     if (arg_value) {
       kernel->set_kernel_arg(arg_index, arg_size, arg_value);
+    } else if (arg_properties) {
+      if (arg_properties->type != PI_KERNEL_ARG_MEM_OBJ)
+        return PI_ERROR_INVALID_VALUE;
+      assert(arg_properties->property != nullptr);
+
+      pi_kernel_arg_mem_obj* memObjData = static_cast<pi_kernel_arg_mem_obj*>(arg_properties->property);
+      pi_mem arg_mem = *memObjData->mem_obj;
+      if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
+        auto array = arg_mem->mem_.surface_mem_.get_array();
+        hipArray_Format Format;
+        size_t NumChannels;
+        getArrayDesc(array, Format, NumChannels);
+        if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
+            Format != HIP_AD_FORMAT_SIGNED_INT32 &&
+            Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
+          sycl::detail::pi::die(
+              "PI HIP kernels only support images with channel types int32, "
+              "uint32, float, and half.");
+        }
+        hipSurfaceObject_t hipSurf = arg_mem->mem_.surface_mem_.get_surface();
+        kernel->set_kernel_arg(arg_index, sizeof(hipSurf), (void *)&hipSurf);
+      } else {
+        void *hipPtr = arg_mem->mem_.buffer_mem_.get_void();
+        kernel->set_kernel_arg(arg_index, sizeof(void *), (void *)&hipPtr);
+      }
     } else {
       kernel->set_kernel_local_arg(arg_index, arg_size);
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  }
-  return retErr;
-}
-
-pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                      const pi_mem *arg_value) {
-
-  assert(kernel != nullptr);
-  assert(arg_value != nullptr);
-
-  pi_result retErr = PI_SUCCESS;
-  try {
-    pi_mem arg_mem = *arg_value;
-
-    if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
-      auto array = arg_mem->mem_.surface_mem_.get_array();
-      hipArray_Format Format;
-      size_t NumChannels;
-      getArrayDesc(array, Format, NumChannels);
-      if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
-          Format != HIP_AD_FORMAT_SIGNED_INT32 &&
-          Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        sycl::detail::pi::die(
-            "PI HIP kernels only support images with channel types int32, "
-            "uint32, float, and half.");
-      }
-      hipSurfaceObject_t hipSurf = arg_mem->mem_.surface_mem_.get_surface();
-      kernel->set_kernel_arg(arg_index, sizeof(hipSurf), (void *)&hipSurf);
-    } else
-
-    {
-      void *hipPtr = arg_mem->mem_.buffer_mem_.get_void();
-      kernel->set_kernel_arg(arg_index, sizeof(void *), (void *)&hipPtr);
     }
   } catch (pi_result err) {
     retErr = err;
@@ -5749,7 +5738,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
 
-  _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)

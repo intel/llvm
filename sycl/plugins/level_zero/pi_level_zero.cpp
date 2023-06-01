@@ -362,16 +362,10 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
 }
 
 pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
-                         const void *ArgValue) {
+                         const void *ArgValue, const pi_kernel_arg_properties *arg_properties) {
+  std::ignore = arg_properties;
 
   return pi2ur::piKernelSetArg(Kernel, ArgIndex, ArgSize, ArgValue);
-}
-
-// Special version of piKernelSetArg to accept pi_mem.
-pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                  const pi_mem *ArgValue) {
-
-  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgValue);
 }
 
 // Special version of piKernelSetArg to accept pi_sampler.

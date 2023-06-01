@@ -3018,49 +3018,41 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
 }
 
 pi_result cuda_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                              size_t arg_size, const void *arg_value) {
-
+                              size_t arg_size, const void *arg_value, const pi_kernel_arg_properties *arg_properties) {
   assert(kernel != nullptr);
   pi_result retErr = PI_SUCCESS;
   try {
     if (arg_value) {
       kernel->set_kernel_arg(arg_index, arg_size, arg_value);
+    } else if (arg_properties){
+      if (arg_properties->type != PI_KERNEL_ARG_MEM_OBJ)
+        return PI_ERROR_INVALID_VALUE;
+      assert(arg_properties->property != nullptr);
+
+      pi_kernel_arg_mem_obj* memObjData = static_cast<pi_kernel_arg_mem_obj*>(arg_properties->property);
+      pi_mem arg_mem = *memObjData->mem_obj;
+
+      if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
+        CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
+        PI_CHECK_ERROR(cuArray3DGetDescriptor(
+            &arrayDesc, arg_mem->mem_.surface_mem_.get_array()));
+        if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
+            arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
+            arrayDesc.Format != CU_AD_FORMAT_HALF &&
+            arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
+          setErrorMessage("PI CUDA kernels only support images with channel "
+                          "types int32, uint32, float, and half.",
+                          PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+          return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+        }
+        CUsurfObject cuSurf = arg_mem->mem_.surface_mem_.get_surface();
+        kernel->set_kernel_arg(arg_index, sizeof(cuSurf), (void *)&cuSurf);
+      } else {
+        CUdeviceptr cuPtr = arg_mem->mem_.buffer_mem_.get();
+        kernel->set_kernel_arg(arg_index, sizeof(CUdeviceptr), (void *)&cuPtr);
+      }
     } else {
       kernel->set_kernel_local_arg(arg_index, arg_size);
-    }
-  } catch (pi_result err) {
-    retErr = err;
-  }
-  return retErr;
-}
-
-pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                       const pi_mem *arg_value) {
-
-  assert(kernel != nullptr);
-  assert(arg_value != nullptr);
-
-  pi_result retErr = PI_SUCCESS;
-  try {
-    pi_mem arg_mem = *arg_value;
-    if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
-      CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
-      PI_CHECK_ERROR(cuArray3DGetDescriptor(
-          &arrayDesc, arg_mem->mem_.surface_mem_.get_array()));
-      if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
-          arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
-          arrayDesc.Format != CU_AD_FORMAT_HALF &&
-          arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
-        setErrorMessage("PI CUDA kernels only support images with channel "
-                        "types int32, uint32, float, and half.",
-                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
-        return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-      }
-      CUsurfObject cuSurf = arg_mem->mem_.surface_mem_.get_surface();
-      kernel->set_kernel_arg(arg_index, sizeof(cuSurf), (void *)&cuSurf);
-    } else {
-      CUdeviceptr cuPtr = arg_mem->mem_.buffer_mem_.get();
-      kernel->set_kernel_arg(arg_index, sizeof(CUdeviceptr), (void *)&cuPtr);
     }
   } catch (pi_result err) {
     retErr = err;
@@ -5997,7 +5989,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueReadHostPipe, cuda_piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, cuda_piextEnqueueWriteHostPipe)
 
-  _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)

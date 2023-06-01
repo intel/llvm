@@ -1112,11 +1112,23 @@ pi_result piSamplerCreate(pi_context context,
   return error_code;
 }
 
-pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                  const pi_mem *arg_value) {
-  return cast<pi_result>(
+pi_result piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
+                             size_t arg_size, const void *arg_value, const pi_kernel_arg_properties *arg_properties) {
+  if (arg_properties)
+  {
+    if (arg_properties->type != PI_KERNEL_ARG_MEM_OBJ)
+        return PI_ERROR_INVALID_VALUE;
+    assert(arg_properties->property != nullptr);
+
+    pi_kernel_arg_mem_obj* memObjData = static_cast<pi_kernel_arg_mem_obj*>(arg_properties->property);
+    return cast<pi_result>(
       clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
-                     sizeof(arg_value), cast<const cl_mem *>(arg_value)));
+                    sizeof(arg_value), cast<const void *>(memObjData->mem_obj)));
+  }
+  else
+    return cast<pi_result>(
+      clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
+                    sizeof(arg_value), arg_value));
 }
 
 pi_result piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
@@ -2406,7 +2418,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextProgramCreateWithNativeHandle, piextProgramCreateWithNativeHandle)
   // Kernel
   _PI_CL(piKernelCreate, piKernelCreate)
-  _PI_CL(piKernelSetArg, clSetKernelArg)
+  _PI_CL(piKernelSetArg, piKernelSetArg)
   _PI_CL(piKernelGetInfo, clGetKernelInfo)
   _PI_CL(piKernelGetGroupInfo, piKernelGetGroupInfo)
   _PI_CL(piKernelGetSubGroupInfo, piKernelGetSubGroupInfo)
@@ -2472,7 +2484,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
 
-  _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)

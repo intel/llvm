@@ -1434,12 +1434,38 @@ typedef enum {
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;
 
+typedef enum {
+  read_write,
+  read,
+  write
+} _pi_mem_obj_access;
+using pi_mem_obj_access = _pi_mem_obj_access;
+
+typedef enum {
+  PI_KERNEL_ARG_MEM_OBJ
+} _pi_kernel_arg_properties_type;
+using pi_kernel_arg_properties_type = _pi_kernel_arg_properties_type;
+
+typedef struct {
+  const pi_mem *      mem_obj;
+  _pi_mem_obj_access  mem_access;
+} _pi_kernel_arg_mem_obj;
+using pi_kernel_arg_mem_obj = _pi_kernel_arg_mem_obj;
+
+typedef struct
+{
+  pi_kernel_arg_properties_type type;
+  void *property;
+} _pi_kernel_arg_properties;
+using pi_kernel_arg_properties = _pi_kernel_arg_properties;
+
 __SYCL_EXPORT pi_result piKernelCreate(pi_program program,
                                        const char *kernel_name,
                                        pi_kernel *ret_kernel);
 
 __SYCL_EXPORT pi_result piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                                       size_t arg_size, const void *arg_value);
+                                       size_t arg_size, const void *arg_value,
+                                       const pi_kernel_arg_properties *arg_properties);
 
 __SYCL_EXPORT pi_result piKernelGetInfo(pi_kernel kernel,
                                         pi_kernel_info param_name,
@@ -1708,14 +1734,6 @@ __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           pi_uint32 num_events_in_wait_list,
                                           const pi_event *event_wait_list,
                                           pi_event *event);
-
-// Extension to allow backends to process a PI memory object before adding it
-// as an argument for a kernel.
-// Note: This is needed by the CUDA backend to extract the device pointer to
-// the memory as the kernels uses it rather than the PI object itself.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
-                                                pi_uint32 arg_index,
-                                                const pi_mem *arg_value);
 
 // Extension to allow backends to process a PI sampler object before adding it
 // as an argument for a kernel.

@@ -1405,11 +1405,7 @@ pi_result piKernelCreate(pi_program, const char *, pi_kernel *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piKernelSetArg(pi_kernel, pi_uint32, size_t, const void *) {
-  DIE_NO_IMPLEMENTATION;
-}
-
-pi_result piextKernelSetArgMemObj(pi_kernel, pi_uint32, const pi_mem *) {
+pi_result piKernelSetArg(pi_kernel, pi_uint32, size_t, const void *, const pi_kernel_arg_properties *) {
   DIE_NO_IMPLEMENTATION;
 }
 

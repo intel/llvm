@@ -136,7 +136,6 @@ _PI_API(piextUSMGetMemAllocInfo)
 _PI_API(piextEnqueueReadHostPipe)
 _PI_API(piextEnqueueWriteHostPipe)
 
-_PI_API(piextKernelSetArgMemObj)
 _PI_API(piextKernelSetArgSampler)
 
 _PI_API(piextPluginGetOpaqueData)

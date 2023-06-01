@@ -149,17 +149,9 @@ __SYCL_EXPORT pi_result piKernelCreate(pi_program Program,
   return pi2ur::piKernelCreate(Program, KernelName, RetKernel);
 }
 
-// Special version of piKernelSetArg to accept pi_mem.
-__SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel Kernel,
-                                                pi_uint32 ArgIndex,
-                                                const pi_mem *ArgValue) {
-
-  return pi2ur::piextKernelSetArgMemObj(Kernel, ArgIndex, ArgValue);
-}
-
 __SYCL_EXPORT pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                       size_t ArgSize, const void *ArgValue) {
-
+                                       size_t ArgSize, const void *ArgValue, const pi_kernel_arg_properties *arg_properties) {
+  std::ignore = arg_properties;
   return pi2ur::piKernelSetArg(Kernel, ArgIndex, ArgSize, ArgValue);
 }
 
@@ -1057,7 +1049,6 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextProgramSetSpecializationConstant)
   _PI_API(piProgramLink)
   _PI_API(piKernelCreate)
-  _PI_API(piextKernelSetArgMemObj)
   _PI_API(piextKernelCreateWithNativeHandle)
   _PI_API(piProgramRetain)
   _PI_API(piKernelSetExecInfo)

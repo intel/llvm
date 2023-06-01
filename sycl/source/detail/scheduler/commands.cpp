@@ -2195,18 +2195,19 @@ static pi_result SetKernelParamsAndLaunch(
              "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
-      if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
-        Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
-                                                sizeof(RT::PiMem), &MemArg);
-      } else {
-        Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                         &MemArg);
-      }
+      pi_kernel_arg_mem_obj MemObjData{};
+      MemObjData.mem_obj = &MemArg;
+      MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
+      pi_kernel_arg_properties Props{};
+      Props.type = PI_KERNEL_ARG_MEM_OBJ;
+      Props.property = static_cast<void*>(&MemObjData);
+      Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, 0
+                                                         nullptr, &Props);
       break;
     }
     case kernel_param_kind_t::kind_std_layout: {
       Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
-                                              Arg.MPtr);
+                                              Arg.MPtr, nullptr);
       break;
     }
     case kernel_param_kind_t::kind_sampler: {
@@ -2231,11 +2232,15 @@ static pi_result SetKernelParamsAndLaunch(
       }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
-      // Avoid taking an address of nullptr
-      RT::PiMem *SpecConstsBufferArg =
-          SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                       SpecConstsBufferArg);
+  
+      pi_kernel_arg_mem_obj MemObjData{};
+      MemObjData.mem_obj = SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
+      MemObjData.mem_access = pi_mem_obj_access::read_write;
+      pi_kernel_arg_properties Props{};
+      Props.type = PI_KERNEL_ARG_MEM_OBJ;
+      Props.property = static_cast<void*>(&MemObjData);
+      Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, 0
+                                                         nullptr, &Props);
       break;
     }
     case kernel_param_kind_t::kind_invalid:
