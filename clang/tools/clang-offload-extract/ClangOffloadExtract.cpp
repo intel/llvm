@@ -104,15 +104,17 @@ linked fat binary, and store them in separate files.
   // * Common Object File Format (COFF) : https://wiki.osdev.org/COFF
   // * Executable Linker Format (ELF)   : https://wiki.osdev.org/ELF
   // This utility works on a hierarchy of objects:
-  // =                        OwningBinary<ObjectFile>   ObjectOrError
-  // |_->getBinary()          ObjectFile                 *Binary
-  //   |_->getSections()      section_iterator_range     -
-  //     |_:                  SectionRef                 Section
-  //       |_.getName()       StringRef                  -
-  //       |_.getContents()   StringRef                  -
-  //       |_.isData()        bool                       -
-  //       |_.getAddress()    uint64_t                   -
-  //       |_.getSize()       uint64_t                   -
+  // =                           OwningBinary<ObjectFile>   ObjectOrError
+  // |_->getBinary()             ObjectFile                 *Binary
+  //   |_->getBytesInAddress()   uint8_t                    -
+  //   |_->section_end()         section_iterator           -
+  //   |_->sections()            section_iterator_range     -
+  //     |_:                     SectionRef                 Section
+  //       |_.getName()          StringRef                  -
+  //       |_.getContents()      StringRef                  -
+  //       |_.isData()           bool                       -
+  //       |_.getAddress()       uint64_t                   -
+  //       |_.getSize()          uint64_t                   -
   Expected<OwningBinary<ObjectFile>> ObjectOrErr =
       ObjectFile::createObjectFile(Input);
   if (auto E = ObjectOrErr.takeError()) {
@@ -123,15 +125,15 @@ linked fat binary, and store them in separate files.
   // LLVM::OwningBinary object
   ObjectFile *Binary = ObjectOrErr->getBinary();
 
-  // Do we plan to support 32-bit offload binaries?
-  //                  Size of void pointer:
+  // Bitness       :  sizeof(void *)
   // 32-bit systems:  4
   // 64-bit systems:  8
-  if (!(isa<ELF64LEObjectFile>(Binary) || isa<COFFObjectFile>(Binary)) ||
-      Binary->getBytesInAddress() != sizeof(void *)) {
+  if (!(isa<ELF64LEObjectFile>(Binary) || isa<COFFObjectFile>(Binary)) //
+      || Binary->getBytesInAddress() != sizeof(void *)                 //
+  ) {
     reportError(
         createStringError(errc::invalid_argument,
-                          "only 64-bit ELF or COFF inputs are supported"),
+                          "Only 64-bit ELF or COFF inputs are supported"),
         "Input File: '" + Input + "'");
   }
 
@@ -180,15 +182,21 @@ linked fat binary, and store them in separate files.
       // TODO: can use more efficient algorithm than linear search. For
       // example sections and images could be sorted by address then one pass
       // performed through both at the same time.
-      auto ImgSec = find_if(Binary->sections(), [&Img](SectionRef Sec) {
-        // Sanity check: this section does not contain data
-        return (                              //
-            Sec.isData()                      //
-            && (Img.Addr == Sec.getAddress()) //
-            && (Img.Size == Sec.getSize())    //
-        );
-      });
-      if (ImgSec == Binary->section_end()) {
+      bool ImgFound = false;
+      auto ImgSec =
+          find_if(Binary->sections(), [&Img, &ImgFound](SectionRef Sec) {
+            bool pred = (                         //
+                Sec.isData()                      //
+                && (Img.Addr == Sec.getAddress()) //
+                && (Img.Size == Sec.getSize())    //
+            );
+            ImgFound = ImgFound || pred;
+            return pred;
+          });
+      if (ImgFound) {
+        // std::find_if
+        // * searches for a true predicate in [first,last] =~ [first,end)
+        // * returns end if no predicate is true
         reportError(
             createStringError(
                 inconvertibleErrorCode(),
