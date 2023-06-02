@@ -37,6 +37,7 @@ runs:
     run: |
       echo "::group::CMake configuration"
       export PATH=$PWD/toolchain/bin/:$PATH
+      export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
       cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.targets }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.cmake_args }}
       echo "::endgroup::"
   - name: Run testing
