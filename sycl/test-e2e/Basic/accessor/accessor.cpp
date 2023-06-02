@@ -1414,29 +1414,19 @@ int main() {
 
     {
       sycl::queue queue;
-      queue
-          .submit([&](sycl::handler &cgh) {
-            auto B =
-                Buf.template get_access<sycl::access::mode::read_write>(cgh);
+      for (auto &IBuf : {Buf, Buf2}) {
+        queue
+            .submit([&](sycl::handler &cgh) {
+              auto B =
+                  IBuf.template get_access<sycl::access::mode::read_write>(cgh);
 
-            cgh.single_task<class acc_with_zero_sized_buffer>([=]() {
-              for (size_t I = 0; I < B.size(); ++I)
-                B[I] = 1;
-            });
-          })
-          .wait();
-
-      queue
-          .submit([&](sycl::handler &cgh) {
-            auto B =
-                Buf2.template get_access<sycl::access::mode::read_write>(cgh);
-
-            cgh.single_task<class acc_with_non_zero_sized_buffer>([=]() {
-              for (size_t I = 0; I < B.size(); ++I)
-                B[I] = 1;
-            });
-          })
-          .wait();
+              cgh.single_task<class fill_with_potentially_zero_size>([=]() {
+                for (size_t I = 0; I < B.size(); ++I)
+                  B[I] = 1;
+              });
+            })
+            .wait();
+      }
     }
   }
 
