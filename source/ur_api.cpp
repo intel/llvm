@@ -2946,7 +2946,7 @@ ur_result_t UR_APICALL urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PROFILING_INFO_COMMAND_END < propName`
+///         + `::UR_PROFILING_INFO_COMMAND_COMPLETE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pPropValue && propSize == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
