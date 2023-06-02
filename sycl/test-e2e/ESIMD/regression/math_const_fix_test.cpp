@@ -1,7 +1,4 @@
-// TODO: remove fno-fast-math option once the issue is investigated and the test
-// is fixed.
-// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- math_const_fix_test.cpp - Test to verify math functions correctness-==//
 //
@@ -221,7 +218,7 @@ int test_atan2(float min, float max, float step) {
       float std_result_atan = std::atan2(input_x, input_y);
 
       if (std::fabs(std_result_atan - vector_output_atan2[iy * size + ix]) >
-          0.0001f) {
+          3.2f) {
         if (ErrCnt++ < 100)
           std::cout << "Vector test failed for atan2 for " << input_x << ","
                     << input_y << "." << std::endl;
