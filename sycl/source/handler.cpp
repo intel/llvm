@@ -196,10 +196,10 @@ event handler::finalize() {
     }
 
     if (MQueue && !MQueue->getCommandGraph() && !MGraph && !MSubgraphNode &&
-        !MQueue->is_in_fusion_mode() && CGData.MRequirements.size() +
-                                                CGData.MEvents.size() +
-                                                MStreamStorage.size() ==
-                                            0) {
+        !MQueue->is_in_fusion_mode() &&
+        CGData.MRequirements.size() + CGData.MEvents.size() +
+                MStreamStorage.size() ==
+            0) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
       // this faster path is used to submit kernel bypassing scheduler and
@@ -366,8 +366,8 @@ event handler::finalize() {
   case detail::CG::ReadWriteHostPipe: {
     CommandGroup.reset(new detail::CGReadWriteHostPipe(
         MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
-        MImpl->HostPipeTypeSize, MImpl->HostPipeRead,
-        std::move(CGData), MCodeLoc));
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(CGData),
+        MCodeLoc));
     break;
   }
   case detail::CG::ExecCommandBuffer:
