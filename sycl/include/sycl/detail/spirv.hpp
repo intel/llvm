@@ -140,7 +140,7 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
 }
 template <size_t PartitionSize, typename ParentGroup>
 bool GroupAll(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
     bool pred) {
   // GroupNonUniformAll doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseAnd(
@@ -153,7 +153,7 @@ bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
 }
 
-bool GroupAll(const ext::oneapi::experimental::opportunistic_group &g,
+bool GroupAll(const ext::oneapi::experimental::opportunistic_group &,
               bool pred) {
   return __spirv_GroupNonUniformAll(
       group_scope<ext::oneapi::experimental::opportunistic_group>::value, pred);
@@ -176,7 +176,7 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
 }
 template <size_t PartitionSize, typename ParentGroup>
 bool GroupAny(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
     bool pred) {
   // GroupNonUniformAny doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseOr(
@@ -188,7 +188,7 @@ template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
 }
-bool GroupAny(const ext::oneapi::experimental::opportunistic_group &g,
+bool GroupAny(const ext::oneapi::experimental::opportunistic_group &,
               bool pred) {
   return __spirv_GroupNonUniformAny(
       group_scope<ext::oneapi::experimental::opportunistic_group>::value, pred);
@@ -269,6 +269,7 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
                T x, IdT local_id) {
   // Remap local_id to its original numbering in ParentGroup.
   auto LocalId = detail::IdToMaskPosition(g, local_id);
+
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
@@ -295,6 +296,7 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
     T x, IdT local_id) {
   // Remap local_id to its original numbering in ParentGroup
   auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
+
   // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
@@ -336,6 +338,8 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
                IdT local_id) {
   // Remap local_id to its original numbering in sub-group
   auto LocalId = detail::IdToMaskPosition(g, local_id);
+
+  // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<sycl::ext::oneapi::sub_group>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
