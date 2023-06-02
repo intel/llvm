@@ -5,10 +5,10 @@
 using namespace sycl;
 static constexpr unsigned N = 8;
 
-// CHECK-MLIR-LABEL: parallel_for_id
+// CHECK-MLIR-LABEL: kernel_parallel_for_id
 // CHECK-SAME:         reqd_work_group_size = [4, 2]
 
-// CHECK-LLVM-LABEL: parallel_for_id
+// CHECK-LLVM-LABEL: kernel_parallel_for_id
 // CHECK-SAME:         !reqd_work_group_size [[MD:!.*]] {
 // CHECK: [[MD]] = !{i32 4, i32 2}
 
