@@ -14,6 +14,20 @@
 #include <gtest/gtest.h>
 
 namespace uma_test {
+
+#define NOEXCEPT_COND(cond, val, expected_val)                                                                   \
+    try {                                                                                                        \
+        cond(val, expected_val);                                                                                 \
+    } catch (                                                                                                    \
+        ...) { /* Silencing possible GoogleTestFailureException throw when gtest flag throw_on_failure is set */ \
+    }
+
+#define EXPECT_EQ_NOEXCEPT(val, expected_val)                                  \
+    NOEXCEPT_COND(EXPECT_EQ, val, expected_val)
+
+#define EXPECT_NE_NOEXCEPT(val, expected_val)                                  \
+    NOEXCEPT_COND(EXPECT_NE, val, expected_val)
+
 struct test : ::testing::Test {
     void SetUp() override { ::testing::Test::SetUp(); }
     void TearDown() override { ::testing::Test::TearDown(); }
