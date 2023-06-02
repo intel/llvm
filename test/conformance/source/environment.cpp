@@ -197,7 +197,7 @@ void DevicesEnvironment::TearDown() {
 KernelsEnvironment *KernelsEnvironment::instance = nullptr;
 
 KernelsEnvironment::KernelsEnvironment(int argc, char **argv,
-                                       std::string kernels_default_dir)
+                                       const std::string &kernels_default_dir)
     : DevicesEnvironment(argc, argv),
       kernel_options(parseKernelOptions(argc, argv, kernels_default_dir)) {
     instance = this;
@@ -208,7 +208,7 @@ KernelsEnvironment::KernelsEnvironment(int argc, char **argv,
 
 KernelsEnvironment::KernelOptions
 KernelsEnvironment::parseKernelOptions(int argc, char **argv,
-                                       std::string kernels_default_dir) {
+                                       const std::string &kernels_default_dir) {
     KernelOptions options;
     for (int argi = 1; argi < argc; ++argi) {
         const char *arg = argv[argi];
