@@ -18,6 +18,30 @@ on:
         type: string
         required: false
         default: ""
+      check_llvm:
+        type: string
+        required: false
+        default: 'true'
+      check_clang:
+        type: string
+        required: false
+        default: 'true'
+      check_sycl:
+        type: string
+        required: false
+        default: 'true'
+      check_llvm_spirv:
+        type: string
+        required: false
+        default: 'true'
+      check_xptifw:
+        type: string
+        required: false
+        default: 'true'
+      check_libclc:
+        type: string
+        required: false
+        default: 'true'
 
 jobs:
   build:
@@ -66,26 +90,26 @@ jobs:
         cmake --build build --target sycl-toolchain
     - name: check-llvm
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_llvm == 'true' }}
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_clang == 'true' }}
       shell: bash
       run: |
         cmake --build build --target check-clang
     - name: check-sycl
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_sycl == 'true' }}
       shell: bash
       run: |
         cmake --build build --target check-sycl
     - name: check-llvm-spirv
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_llvm_spirv == 'true' }}
       shell: bash
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_xptifw == 'true' }}
       shell: bash
       run: |
         cmake --build build --target check-xptifw
