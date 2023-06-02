@@ -142,7 +142,7 @@ linked fat binary, and store them in separate files.
   // metadata on the embedded binaries)
   unsigned FileNum = 0;
 
-  for (SectionRef Section : Binary->sections()) {
+  for (const auto &Section : Binary->sections()) {
     Expected<StringRef> NameOrErr = Section.getName();
     if (auto E = NameOrErr.takeError()) {
       reportError(std::move(E), "Input File: '" + Input + "'\n");
@@ -173,7 +173,7 @@ linked fat binary, and store them in separate files.
 
     //  Loop over the image information descriptors to extract each
     // target image.
-    for (auto &Img : ImgInfo) {
+    for (const auto &Img : ImgInfo) {
       // Ignore zero padding that can be inserted by the linker.
       if (!Img.Addr)
         continue;
