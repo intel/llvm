@@ -3186,7 +3186,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_PROFILING_INFO_COMMAND_END < propName) {
+        if (UR_PROFILING_INFO_COMMAND_COMPLETE < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 

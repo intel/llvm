@@ -122,6 +122,8 @@ etors:
       desc: "[uint64_t] A 64-bit value of current device counter in nanoseconds when the event starts execution"
     - name: COMMAND_END
       desc: "[uint64_t] A 64-bit value of current device counter in nanoseconds when the event has finished execution"
+    - name: COMMAND_COMPLETE
+      desc: "[uint64_t] A 64-bit value of current device counter in nanoseconds when the event and any child events enqueued by this event on the device have finished execution"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get event object information"

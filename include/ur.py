@@ -1652,6 +1652,9 @@ class ur_profiling_info_v(IntEnum):
                                                     ## when the event starts execution
     COMMAND_END = 3                                 ## [uint64_t] A 64-bit value of current device counter in nanoseconds
                                                     ## when the event has finished execution
+    COMMAND_COMPLETE = 4                            ## [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                                    ## when the event and any child events enqueued by this event on the
+                                                    ## device have finished execution
 
 class ur_profiling_info_t(c_int):
     def __str__(self):
