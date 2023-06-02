@@ -4369,14 +4369,17 @@ typedef enum ur_event_info_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Profiling query information type
 typedef enum ur_profiling_info_t {
-    UR_PROFILING_INFO_COMMAND_QUEUED = 0, ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
-                                          ///< when the event is enqueued
-    UR_PROFILING_INFO_COMMAND_SUBMIT = 1, ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
-                                          ///< when the event is submitted
-    UR_PROFILING_INFO_COMMAND_START = 2,  ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
-                                          ///< when the event starts execution
-    UR_PROFILING_INFO_COMMAND_END = 3,    ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
-                                          ///< when the event has finished execution
+    UR_PROFILING_INFO_COMMAND_QUEUED = 0,   ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                            ///< when the event is enqueued
+    UR_PROFILING_INFO_COMMAND_SUBMIT = 1,   ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                            ///< when the event is submitted
+    UR_PROFILING_INFO_COMMAND_START = 2,    ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                            ///< when the event starts execution
+    UR_PROFILING_INFO_COMMAND_END = 3,      ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                            ///< when the event has finished execution
+    UR_PROFILING_INFO_COMMAND_COMPLETE = 4, ///< [uint64_t] A 64-bit value of current device counter in nanoseconds
+                                            ///< when the event and any child events enqueued by this event on the
+                                            ///< device have finished execution
     /// @cond
     UR_PROFILING_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4434,7 +4437,7 @@ urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PROFILING_INFO_COMMAND_END < propName`
+///         + `::UR_PROFILING_INFO_COMMAND_COMPLETE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pPropValue && propSize == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
