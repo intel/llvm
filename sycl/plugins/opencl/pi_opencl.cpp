@@ -99,8 +99,6 @@ pi_result piPluginGetLastError(char **message) {
 }
 
 // Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
 pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
                                    const char **backend_option) {
   using namespace std::literals;
@@ -110,6 +108,7 @@ pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
     *backend_option = "";
     return PI_SUCCESS;
   }
+  // Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
   if (!strcmp(frontend_option, "-O0")) {
     *backend_option = "-cl-opt-disable";
     return PI_SUCCESS;
