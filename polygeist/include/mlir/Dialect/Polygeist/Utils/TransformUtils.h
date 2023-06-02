@@ -57,6 +57,10 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
                                        DominanceInfo &DI);
 bool isValidIndex(Value val);
 
+/// Updates \p newName to a unique function/global name if it is already
+/// defined.
+void getUniqueSymbolName(std::string &newName, Operation *symbolTable);
+
 /// Returns true if the given function has 'linkonce_odr' LLVM  linkage.
 bool isLinkonceODR(FunctionOpInterface);
 

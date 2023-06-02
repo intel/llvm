@@ -59,6 +59,26 @@ namespace polygeist {
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
+void getUniqueSymbolName(std::string &newName, Operation *symbolTable) {
+  assert(symbolTable && symbolTable->hasTrait<OpTrait::SymbolTable>() &&
+         "Expecting symbol table");
+  auto alreadyDefined = [&symbolTable](std::string name) {
+    return llvm::any_of(symbolTable->getRegion(0), [&](auto &block) {
+      return llvm::any_of(block, [&](auto &op) {
+        auto nameAttr = op.template getAttrOfType<StringAttr>(
+            SymbolTable::getSymbolAttrName());
+        return nameAttr && nameAttr.getValue() == name;
+      });
+    });
+  };
+  std::string fnName = newName;
+  unsigned counter = 0;
+  while (alreadyDefined(newName)) {
+    ++counter;
+    newName = fnName + ("." + std::to_string(counter));
+  }
+}
+
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
 bool isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
