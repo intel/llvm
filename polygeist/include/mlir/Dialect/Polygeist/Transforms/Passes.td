@@ -134,7 +134,8 @@ def LoopInternalization : Pass<"loop-internalization"> {
   let options = [
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
            /*default=*/"false", 
-           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"tileSize", "tile-size", "unsigned", /*default=*/"1", "Tile size">
   ];
   let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect", "spirv::SPIRVDialect"];
 }

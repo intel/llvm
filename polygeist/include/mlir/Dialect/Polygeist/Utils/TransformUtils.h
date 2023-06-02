@@ -285,11 +285,11 @@ public:
   static void versionLoop(LoopLikeOpInterface loop,
                           const VersionCondition &versionCond);
 
-  /// Return true is \p loop is the outermost loop in a loop nest and false
+  /// Return true if \p loop is the outermost loop in a loop nest and false
   /// otherwise.
   static bool isOutermostLoop(LoopLikeOpInterface loop);
 
-  /// Return true is \p loop is an innermost loop in a loop nest and false
+  /// Return true if \p loop is an innermost loop in a loop nest and false
   /// otherwise.
   static bool isInnermostLoop(LoopLikeOpInterface loop);
 

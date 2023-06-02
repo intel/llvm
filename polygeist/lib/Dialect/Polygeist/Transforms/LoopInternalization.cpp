@@ -40,15 +40,6 @@ namespace polygeist {
 using namespace mlir;
 using namespace mlir::polygeist;
 
-static llvm::cl::opt<bool>
-    CollectReadOnlyAccesses(DEBUG_TYPE "-collect-read-only-accesses",
-                            llvm::cl::init(true),
-                            llvm::cl::desc("Promote only read-only accesses"));
-
-static llvm::cl::opt<unsigned> LoopInternalizationTileSize(
-    DEBUG_TYPE "-tile-size", llvm::cl::init(1),
-    llvm::cl::desc("Tile size used in LoopInternalization"));
-
 namespace {
 
 //===----------------------------------------------------------------------===//
@@ -82,27 +73,18 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
     return false;
   }
 
-  WalkResult walkResult =
-      loop->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
-        if (!isa<affine::AffineForOp, scf::ForOp>(loop)) {
-          LLVM_DEBUG(llvm::dbgs()
-                     << "not candidate: not affine or scf for loop\n");
-          return WalkResult::interrupt();
-        }
-        return WalkResult::advance();
-      });
+  std::optional<LoopLikeOpInterface> innermostLoop =
+      LoopTools::getInnermostLoop(loop);
+  assert(innermostLoop.has_value() && "Failed to get the innermost loop");
+
+  if (!isa<affine::AffineForOp, scf::ForOp>(*innermostLoop)) {
+    LLVM_DEBUG(llvm::dbgs() << "not candidate: not affine or scf for loop\n");
+    return false;
+  }
 
   // TODO: check uniformity.
 
-  return !walkResult.wasInterrupted();
-}
-
-/// Determine the tile size for \p loop.
-Value getTileSize(LoopLikeOpInterface loop) {
-  // TODO: calculate proper tile sizes.
-  OpBuilder builder(loop);
-  return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(),
-                                                LoopInternalizationTileSize);
+  return true;
 }
 
 /// Tile an affine for \p loop given the tile size \p tileSize.
@@ -144,6 +126,9 @@ public:
                  DataFlowSolver &solver)
       : memAccessAnalysis(memAccessAnalysis), solver(solver) {}
 
+  /// The kind of accesses to consider.
+  enum class AccessKind { ReadOnly, WriteOnly, ReadWrite };
+
   /// Enumerate memory spaces.
   enum class MemorySpace { Global, Shared, Constant, Texture };
 
@@ -151,7 +136,7 @@ public:
   std::optional<MemorySpace> selectMemorySpace(Value memref) const;
 
   /// Analyze the memory accesses in the given loop.
-  void analyze(LoopLikeOpInterface loop);
+  void analyze(LoopLikeOpInterface loop, AccessKind accessKind);
 
 private:
   /// Add the given \p access to the 'accesses' map.
@@ -209,7 +194,7 @@ MemorySelector::selectMemorySpace(Value memref) const {
   return MemorySpace::Global;
 }
 
-void MemorySelector::analyze(LoopLikeOpInterface loop) {
+void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
   assert(accesses.empty() && accessToMemSpace.empty() &&
          "Expecting empty maps");
 
@@ -231,8 +216,12 @@ void MemorySelector::analyze(LoopLikeOpInterface loop) {
   for (auto &entry : accesses) {
     ArrayRef<affine::MemRefAccess> accesses = entry.second;
 
-    // Filter out memRef accesses that aren't read-only.
-    if (CollectReadOnlyAccesses && !areReadOnly(accesses))
+    // Skip accesses that aren't of the requested kind.
+    if (accessKind == AccessKind::ReadOnly && !areReadOnly(accesses))
+      continue;
+    if (accessKind == AccessKind::WriteOnly && !areWriteOnly(accesses))
+      continue;
+    if (accessKind == AccessKind::ReadWrite && !areReadWrite(accesses))
       continue;
 
     for (const affine::MemRefAccess &access : accesses) {
@@ -370,6 +359,9 @@ private:
                          const MemoryAccessAnalysis &memAccessAnalysis,
                          DataFlowSolver &solver);
 
+  /// Determine the tile size for \p loop.
+  Value getTileSize(LoopLikeOpInterface loop) const;
+
   /// Transform a candidate loop.
   template <typename T>
   void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis,
@@ -384,9 +376,6 @@ private:
 };
 
 void LoopInternalization::runOnOperation() {
-  assert(CollectReadOnlyAccesses &&
-         "Limitation: only able to handle read only accesses currently");
-
   Operation *module = getOperation();
   ModuleAnalysisManager mam(module, /*passInstrumentor=*/nullptr);
   AnalysisManager am = mam;
@@ -438,11 +427,11 @@ void LoopInternalization::runOnOperation() {
 
     // Now that we have the ideal memory space for all analyzable memref
     // accesses in each loop nest's innermost loop, perform the transformation.
-    for (auto &entry : loopToMemref)
+    for (auto &entry : loopToMemref) {
       TypeSwitch<Operation *>(entry.first)
           .Case<affine::AffineForOp, scf::ForOp>(
-              [&](auto loop) { transform(loop, memAccessAnalysis, solver); })
-          .Default([](auto) { llvm_unreachable("Unexpected loop kind"); });
+              [&](auto loop) { transform(loop, memAccessAnalysis, solver); });
+    }
   });
 }
 
@@ -455,8 +444,9 @@ void LoopInternalization::selectMemorySpace(
 
   // Use the memory selector to determine the ideal memory space for memref
   // accesses in the innermost loop.
+  // TODO: allow memory selection on read-write accesses.
   MemorySelector memorySelector(memAccessAnalysis, solver);
-  memorySelector.analyze(loop);
+  memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
     if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
@@ -487,6 +477,13 @@ void LoopInternalization::selectMemorySpace(
     // ... and record the memref memory space.
     memrefToMemorySpace[memRefAccess.memref] = *memSpace;
   });
+}
+
+Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
+  // TODO: calculate proper tile sizes.
+  OpBuilder builder(loop);
+  return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(),
+                                                tileSize);
 }
 
 template <typename T>

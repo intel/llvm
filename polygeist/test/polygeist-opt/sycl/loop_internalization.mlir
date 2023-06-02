@@ -1,5 +1,5 @@
 // RUN: polygeist-opt --loop-internalization --split-input-file -allow-unregistered-dialect %s | FileCheck %s --check-prefixes=CHECK,SIZE1
-// RUN: polygeist-opt --loop-internalization --loop-internalization-tile-size=2 --split-input-file -allow-unregistered-dialect %s | FileCheck %s --check-prefixes=CHECK,SIZE2
+// RUN: polygeist-opt --loop-internalization="tile-size=2" --split-input-file -allow-unregistered-dialect %s | FileCheck %s --check-prefixes=CHECK,SIZE2
 
 !sycl_array_2 = !sycl.array<[2], (memref<2xi64, 4>)>
 !sycl_id_2 = !sycl.id<[2], (!sycl_array_2)>
