@@ -188,8 +188,9 @@ class ur_result_v(IntEnum):
                                                     ## memory
     ERROR_INVALID_HOST_PTR = 64                     ## Invalid host pointer
     ERROR_INVALID_USM_SIZE = 65                     ## Invalid USM size
-    ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
-    ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
+    ERROR_INVALID_COMMAND_BUFFER_EXP = 66           ## Invalid Command-Buffer
+    ERROR_OBJECT_ALLOCATION_FAILURE = 67            ## Objection allocation failure
+    ERROR_ADAPTER_SPECIFIC = 68                     ## An adapter specific warning/error has been reported and can be
                                                     ## retrieved via the urGetLastResult entry point.
     ERROR_UNKNOWN = 0x7ffffffe                      ## Unknown or internal error
 
@@ -1640,6 +1641,7 @@ class ur_command_v(IntEnum):
     DEVICE_GLOBAL_VARIABLE_READ = 24                ## Event created by ::urEnqueueDeviceGlobalVariableRead
     READ_HOST_PIPE = 25                             ## Event created by ::urEnqueueReadHostPipe
     WRITE_HOST_PIPE = 26                            ## Event created by ::urEnqueueWriteHostPipe
+    COMMAND_BUFFER_ENQUEUE_EXP = 27                 ## Event created by ::urCommandBufferEnqueueExp
 
 class ur_command_t(c_int):
     def __str__(self):
@@ -2798,9 +2800,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urCommandBufferEnqueueExp
 if __use_win_types:
-    _urCommandBufferEnqueueExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urCommandBufferEnqueueExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_queue_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urCommandBufferEnqueueExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urCommandBufferEnqueueExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_queue_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 
 ###############################################################################

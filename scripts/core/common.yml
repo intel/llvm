@@ -251,6 +251,8 @@ etors:
       desc: "Invalid host pointer"
     - name: ERROR_INVALID_USM_SIZE
       desc: "Invalid USM size"
+    - name: ERROR_INVALID_COMMAND_BUFFER_EXP
+      desc: "Invalid Command-Buffer"
     - name: ERROR_OBJECT_ALLOCATION_FAILURE
       desc: "Objection allocation failure"
     - name: ERROR_ADAPTER_SPECIFIC

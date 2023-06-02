@@ -174,7 +174,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMemcpyUSMExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer, ///< [in] handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
-    void *pSrc,         ///< [in] The data to be copied.
+    const void *pSrc,   ///< [in] The data to be copied.
     size_t size,        ///< [in] The number of bytes to copy
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
@@ -321,7 +321,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyRectExp(
 /// @brief Intercept function for urCommandBufferEnqueueExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,           ///< [in] handle of the command-buffer object.
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    ur_queue_handle_t
+        hQueue, ///< [in] the queue to submit this command-buffer for execution.
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -339,13 +341,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     }
 
     ur_command_buffer_enqueue_exp_params_t params = {
-        &hCommandBuffer, &numEventsInWaitList, &phEventWaitList, &phEvent};
+        &hCommandBuffer, &hQueue, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
                              "urCommandBufferEnqueueExp", &params);
 
-    ur_result_t result = pfnEnqueueExp(hCommandBuffer, numEventsInWaitList,
-                                       phEventWaitList, phEvent);
+    ur_result_t result = pfnEnqueueExp(
+        hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
     context.notify_end(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
                        "urCommandBufferEnqueueExp", &params, &result, instance);
