@@ -7,18 +7,18 @@
 // RUN:   --sparse-compiler="enable-runtime-library=true enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71"  \
 // RUN: | mlir-cpu-runner \
 // RUN:   --shared-libs=%mlir_cuda_runtime \
-// RUN:   --shared-libs=%mlir_runner_utils \
+// RUN:   --shared-libs=%mlir_c_runner_utils \
 // RUN:   --e main --entry-point-result=void \
 // RUN: | FileCheck %s
 //
 // TODO: without RT lib (AoS COO):
 
 #SortedCOO = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed-nu", "singleton" ]
+  lvlTypes = [ "compressed-nu", "singleton" ]
 }>
 
 #CSR = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ],
+  lvlTypes = [ "dense", "compressed" ],
   posWidth = 32,
   crdWidth = 32
 }>
@@ -87,7 +87,7 @@ module {
     //
     %pb0 = vector.transfer_read %0[%c0], %f0 : tensor<?xf64>, vector<64xf64>
     vector.print %pb0 : vector<64xf64>
-    %pb1 = vector.transfer_read %0[%c0], %f0 : tensor<?xf64>, vector<64xf64>
+    %pb1 = vector.transfer_read %1[%c0], %f0 : tensor<?xf64>, vector<64xf64>
     vector.print %pb1 : vector<64xf64>
 
     // Release the resources.

@@ -19,10 +19,9 @@ int main() {
   Q.parallel_for(NDR, [=](nd_item<1> NDI) SYCL_ESIMD_KERNEL {
      slm_init(1024);
    }).wait();
-  // CHECK: spir_kernel void @_ZTSZ4mainEUlN4sycl3_V17nd_itemILi1EEEE_()
-  // CHECK: entry:
-  // CHECK-NOT: entry:
-  // CHECK: call void @llvm.genx.slm.init
+  // CHECK:     spir_kernel void @_ZTSZ4mainEUlN4sycl3_V17nd_itemILi1EEEE_()
+  // CHECK-NOT: ret void
+  // CHECK:     call void @llvm.genx.slm.init
 
   return 0;
 }
