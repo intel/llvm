@@ -104,8 +104,6 @@ Basic/image/srgba-read.cpp
 Basic/multi_ptr.cpp
 Basic/multi_ptr_legacy_usm_addr_ext.cpp
 Basic/multi_ptr_usm_addr_ext.cpp
-Basic/reqd_work_group_size.cpp
-Basic/reqd_work_group_size_check_exception.cpp
 Basic/scalar_vec_access.cpp
 Basic/span.cpp
 Basic/stream/auto_flush.cpp
@@ -481,7 +479,6 @@ Sampler/unnormalized-clampedge-linear-float.cpp
 Sampler/unnormalized-clampedge-nearest.cpp
 Sampler/unnormalized-none-linear-float.cpp
 Sampler/unnormalized-none-nearest.cpp
-Scheduler/HandleException.cpp
 SpecConstants/2020/handler-api.cpp
 SpecConstants/2020/host_apis.cpp
 SpecConstants/2020/kernel-bundle-api.cpp

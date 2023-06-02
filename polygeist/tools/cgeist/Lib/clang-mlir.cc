@@ -2591,6 +2591,25 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
           AttrBuilder.addAttribute(spirv::getEntryPointABIAttrName(),
                                    spirv::getEntryPointABIAttr(Ctx));
         }
+
+        if (const clang::SYCLReqdWorkGroupSizeAttr *A =
+                FD.getAttr<clang::SYCLReqdWorkGroupSizeAttr>()) {
+          std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
+          std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
+          std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+          SmallVector<int64_t> AttrArgs;
+
+          // On SYCL target the dimensions are reversed if present.
+          if (ZDimVal)
+            AttrArgs.push_back(ZDimVal->getExtValue());
+          if (YDimVal)
+            AttrArgs.push_back(YDimVal->getExtValue());
+          AttrArgs.push_back(XDimVal->getExtValue());
+
+          OpBuilder Builder(Ctx);
+          AttrBuilder.addAttribute("reqd_work_group_size",
+                                   Builder.getI64ArrayAttr(AttrArgs));
+        }
       }
 
       if (CGM.getLangOpts().SYCLIsDevice)
