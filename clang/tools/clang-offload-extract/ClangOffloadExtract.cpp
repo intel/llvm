@@ -193,7 +193,7 @@ linked fat binary, and store them in separate files.
             ImgFound = ImgFound || pred;
             return pred;
           });
-      if (ImgFound) {
+      if (! ImgFound) {
         // std::find_if
         // * searches for a true predicate in [first,last] =~ [first,end)
         // * returns end if no predicate is true
@@ -230,10 +230,11 @@ linked fat binary, and store them in separate files.
         reportError(createFileError(FileName, OS.error()),
                     "Try a different Output File ('--stem' option)");
       }
-    }
+    } // &Img: ImgInfo
 
-    // Binary is not expected to have more than one .tgtimg section.
+    // Fat binary is not expected to have more than one .tgtimg section.
     break;
   }
+
   return 0;
 }
