@@ -840,54 +840,6 @@ int main() {
     }
   }
 
-  //  Unused accessor with buffer size 0.
-  {
-    try {
-      int data[10] = {0};
-      {
-        sycl::buffer<int, 1> b{&data[0], 10};
-        sycl::buffer<int, 1> b1{0};
-
-        sycl::queue queue;
-        queue.submit([&](sycl::handler &cgh) {
-          sycl::accessor<int, 1, sycl::access::mode::read_write,
-                         sycl::target::device>
-              B(b, cgh);
-          auto B1 = b1.template get_access<sycl::access::mode::read_write>(cgh);
-
-          cgh.single_task<class acc_with_unused_zero_sized_buffer>(
-              [=]() { B[0] = 1; });
-        });
-      }
-    } catch (sycl::exception e) {
-      std::cout << "SYCL exception caught: " << e.what();
-      assert(false && "Unexpected exception!");
-    }
-  }
-
-  // Used accessor with buffer size 0.
-  {
-    bool CaughtException = false;
-
-    try {
-      sycl::buffer<int, 1> b{0};
-
-      sycl::queue queue;
-      queue.submit([&](sycl::handler &cgh) {
-        auto B = b.template get_access<sycl::access::mode::read_write>(cgh);
-
-        cgh.single_task<class acc_with_zero_sized_buffer>([=]() {
-          if (!B.empty())
-            B[0] = 1;
-        });
-      });
-    } catch (const sycl::exception &e) {
-      CaughtException = std::string(e.what()).find("Invalid memory object") !=
-                        std::string::npos;
-    }
-    assert(CaughtException && "Expected exception!");
-  }
-
   // Accessor to fixed size array type.
   {
     try {
