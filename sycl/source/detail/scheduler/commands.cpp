@@ -2195,7 +2195,6 @@ static pi_result SetKernelParamsAndLaunch(
              "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
-
       if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
         if (!MemArg)
           MemArg = RT::PiMem();
