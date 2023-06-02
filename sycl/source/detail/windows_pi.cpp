@@ -21,7 +21,7 @@ namespace detail {
 namespace pi {
 
 void *loadOsPluginLibrary(const std::string &PluginPath) {
-  // We fetch the preloaded plugin from the win_proxy_loader.
+  // We fetch the preloaded plugin from the pi_win_proxy_loader.
   // The proxy_loader handles any required error suppression.
   auto Result = getPreloadedPlugin(PluginPath);
 

@@ -1,10 +1,10 @@
-//==------------ win_proxy_loader.cpp - SYCL standard source file ----------==//
+//==------------ pi_win_proxy_loader.cpp - SYCL standard source file ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===--------------------------------------------------------------------===//
 
 // On Windows, DLLs loaded dynamically (via LoadLibrary) are not tracked as
 // dependencies of the caller in the same way they would be if linked
@@ -38,7 +38,7 @@
 #include <map>
 #include <string>
 
-#include "win_proxy_loader.hpp"
+#include "pi_win_proxy_loader.hpp"
 
 #ifdef _WIN32
 
@@ -214,14 +214,14 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
   switch (fdwReason) {
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_ATTACH win_proxy_loader.dll\n"
+      std::cout << "---> DLL_PROCESS_ATTACH pi_win_proxy_loader.dll\n"
                 << std::endl;
 
     preloadLibraries();
     break;
   case DLL_PROCESS_DETACH:
     if (PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_DETACH win_proxy_loader.dll\n"
+      std::cout << "---> DLL_PROCESS_DETACH pi_win_proxy_loader.dll\n"
                 << std::endl;
 
   case DLL_THREAD_ATTACH:
