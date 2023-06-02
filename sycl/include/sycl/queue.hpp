@@ -1897,6 +1897,50 @@ public:
 // Clean KERNELFUNC macros.
 #undef _KERNELFUNCPARAM
 
+  /// Shortcut for executing a graph of commands.
+  ///
+  /// \param Graph the graph of commands to execute
+  /// \return an event representing graph execution operation.
+  event ext_oneapi_graph(ext::oneapi::experimental::command_graph<
+                         ext::oneapi::experimental::graph_state::executable>
+                             Graph _CODELOCPARAM(&CodeLoc)) {
+    return submit(
+        [&](handler &CGH) { CGH.ext_oneapi_graph(Graph); } _CODELOCFW(CodeLoc));
+  }
+
+  /// Shortcut for executing a graph of commands.
+  ///
+  /// \param Graph the graph of commands to execute
+  /// \param DepEvent is an event that specifies the graph execution
+  /// dependencies.
+  /// \return an event representing graph execution operation.
+  event ext_oneapi_graph(ext::oneapi::experimental::command_graph<
+                             ext::oneapi::experimental::graph_state::executable>
+                             Graph,
+                         event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_graph(Graph);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Shortcut for executing a graph of commands.
+  ///
+  /// \param Graph the graph of commands to execute
+  /// \param DepEvents is a vector of events that specifies the graph
+  /// execution dependencies.
+  /// \return an event representing graph execution operation.
+  event ext_oneapi_graph(ext::oneapi::experimental::command_graph<
+                             ext::oneapi::experimental::graph_state::executable>
+                             Graph,
+                         const std::vector<event> &DepEvents
+                             _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_graph(Graph);
+    } _CODELOCFW(CodeLoc));
+  }
+
   /// Returns whether the queue is in order or OoO
   ///
   /// Equivalent to has_property<property::queue::in_order>()

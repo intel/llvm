@@ -75,6 +75,7 @@ public:
     CopyToDeviceGlobal = 19,
     CopyFromDeviceGlobal = 20,
     ReadWriteHostPipe = 21,
+    ExecCommandBuffer = 22,
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -98,6 +99,7 @@ public:
   }
 
   CG(CG &&CommandGroup) = default;
+  CG(const CG &CommandGroup) = default;
 
   CGTYPE getType() { return MType; }
 
@@ -137,7 +139,7 @@ class CGExecKernel : public CG {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
-  std::unique_ptr<HostKernelBase> MHostKernel;
+  std::shared_ptr<HostKernelBase> MHostKernel;
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
@@ -174,6 +176,8 @@ public:
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
            "Wrong type of exec kernel CG.");
   }
+
+  CGExecKernel(const CGExecKernel &CGExec) = default;
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
