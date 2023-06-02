@@ -74,6 +74,10 @@ static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
         assert(memref::MemorySpaceCastOp::areCastCompatible(Arg.getType(),
                                                             DstTy) &&
                "Incompatible cast");
+        assert(
+            DstTy.getMemorySpaceAsInt() ==
+                static_cast<unsigned>(sycl::AccessAddrSpace::GenericAccess) &&
+            "Expecting generic address space");
         B.setInsertionPointAfterValue(Arg);
         Arg = B.create<memref::MemorySpaceCastOp>(Arg.getLoc(), DstTy, Arg);
       }
