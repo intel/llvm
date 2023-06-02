@@ -27,6 +27,19 @@ extern llvm::cl::opt<bool> UseOpaquePointers;
 /*                           Utility Functions                                */
 /******************************************************************************/
 
+/// Determine whether \p SrcTy memref can be passed as argument to a parameter
+/// expecting a \p DstTy memref. The two memrefs must either have the same
+/// address space or the destination memref must be in the generic address
+/// space.
+static bool addressSpaceMatches(MemRefType SrcTy, MemRefType DstTy) {
+  if (SrcTy.getMemorySpace() == DstTy.getMemorySpace())
+    return true;
+
+  // Cast to a pointer with generic address space is always legal.
+  return DstTy.getMemorySpaceAsInt() ==
+         static_cast<unsigned>(sycl::AccessAddrSpace::GenericAccess);
+}
+
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
 /// callee arg type. We only deal with the cast where src and dst have the same
 /// shape size and elem type, and just the first shape differs: src has
@@ -39,19 +52,33 @@ static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
   if (MemRefType DstTy = dyn_cast_or_null<MemRefType>(CalleeArgType)) {
     MemRefType SrcTy = dyn_cast<MemRefType>(CallerArgType);
     if (SrcTy && DstTy.getElementType() == SrcTy.getElementType() &&
-        DstTy.getMemorySpace() == SrcTy.getMemorySpace()) {
+        addressSpaceMatches(SrcTy, DstTy)) {
       auto SrcShape = SrcTy.getShape();
       auto DstShape = DstTy.getShape();
 
+      Value Arg = CallerArg;
       if (SrcShape.size() == DstShape.size() && !SrcShape.empty() &&
           SrcShape[0] == ShapedType::kDynamic &&
           std::equal(std::next(SrcShape.begin()), SrcShape.end(),
                      std::next(DstShape.begin()))) {
         B.setInsertionPointAfterValue(CallerArg);
 
-        return B.create<memref::CastOp>(CallerArg.getLoc(), CalleeArgType,
-                                        CallerArg);
+        auto CastTy =
+            MemRefType::get(DstTy.getShape(), DstTy.getElementType(),
+                            DstTy.getLayout(), SrcTy.getMemorySpace());
+
+        Arg = B.create<memref::CastOp>(CallerArg.getLoc(), CastTy, CallerArg);
       }
+
+      if (SrcTy.getMemorySpace() != DstTy.getMemorySpace()) {
+        assert(memref::MemorySpaceCastOp::areCastCompatible(Arg.getType(),
+                                                            DstTy) &&
+               "Incompatible cast");
+        B.setInsertionPointAfterValue(Arg);
+        Arg = B.create<memref::MemorySpaceCastOp>(Arg.getLoc(), DstTy, Arg);
+      }
+
+      return Arg;
     }
   }
 
