@@ -1159,7 +1159,10 @@ protected:
       !IsConst || IsAccessReadOnly,
       "A const qualified DataT is only allowed for a read-only accessor");
 
-  using ConcreteASPtrType = typename detail::DecoratedType<DataT, AS>::type *;
+  using ConcreteASPtrType = typename detail::DecoratedType<
+      typename std::conditional_t<IsAccessReadOnly && !IsConstantBuf,
+                                  const DataT, DataT>,
+      AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
@@ -1209,6 +1212,11 @@ protected:
             std::is_same<TagT, mode_tag_t<AccessMode>>,
             std::is_same<TagT, mode_target_tag_t<AccessMode, AccessTarget>>> {};
 
+  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
+            access::target AccessTarget_, access::placeholder IsPlaceholder_,
+            typename PropertyListT_>
+  friend class accessor;
+
 #ifdef __SYCL_DEVICE_ONLY__
 
   id<AdjustedDim> &getOffset() { return impl.Offset; }
@@ -1257,11 +1265,6 @@ protected:
   }
 
   ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
-
-  template <typename DataT_, int Dimensions_, access::mode AccessMode_,
-            access::target AccessTarget_, access::placeholder IsPlaceholder_,
-            typename PropertyListT_>
-  friend class accessor;
 
 #ifndef __SYCL_DEVICE_ONLY__
   using AccessorBaseHost::impl;
@@ -1337,6 +1340,8 @@ public:
             /*IsPlaceH=*/true,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
+  template <typename, int, access_mode> friend class host_accessor;
+
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -1405,7 +1410,7 @@ public:
   accessor(const accessor<DataT_, Dimensions, AccessMode, AccessTarget,
                           IsPlaceholder, PropertyListT> &other)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(other.impl) {
+      : impl(other.impl), MData(other.MData) {
 #else
       : accessor(other.impl) {
 #endif // __SYCL_DEVICE_ONLY__
@@ -1421,7 +1426,7 @@ public:
   accessor(const accessor<DataT_, Dimensions, AccessMode_, AccessTarget,
                           IsPlaceholder, PropertyListT> &other)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(other.impl) {
+      : impl(other.impl), MData(other.MData) {
 #else
       : accessor(other.impl) {
 #endif // __SYCL_DEVICE_ONLY__
@@ -2098,9 +2103,9 @@ public:
                      ext::oneapi::accessor_property_list<NewPropsT...>> &Other,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(Other.impl)
+      : impl(Other.impl), MData(Other.MData)
 #else
-      : detail::AccessorBaseHost(Other)
+      : detail::AccessorBaseHost(Other), MAccData(Other.MAccData)
 #endif
   {
     static_assert(detail::IsCxPropertyList<PropertyListT>::value,
@@ -2116,7 +2121,9 @@ public:
 
   void swap(accessor &other) {
     std::swap(impl, other.impl);
-#ifndef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
+    std::swap(MData, other.MData);
+#else
     std::swap(MAccData, other.MAccData);
 #endif
   }
@@ -2943,6 +2950,9 @@ public:
                 std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
   local_accessor(const local_accessor<DataT_, Dimensions> &other) {
     local_acc::impl = other.impl;
+#ifdef __SYCL_DEVICE_ONLY__
+    local_acc::MData = other.MData;
+#endif
   }
 
   using value_type = DataT;
@@ -3412,9 +3422,11 @@ public:
                                std::remove_const_t<DataT>>>>
   host_accessor(const host_accessor<DataT_, Dimensions, AccessMode> &other)
 #ifndef __SYCL_DEVICE_ONLY__
-      : host_accessor(other.impl)
-#endif // __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl) {
+    AccessorT::MAccData = other.MAccData;
+#else
   {
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   // implicit conversion from read_write T accessor to read only T (const)
@@ -3425,9 +3437,11 @@ public:
                 std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
   host_accessor(const host_accessor<DataT_, Dimensions, AccessMode_> &other)
 #ifndef __SYCL_DEVICE_ONLY__
-      : host_accessor(other.impl)
-#endif // __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl) {
+    AccessorT::MAccData = other.MAccData;
+#else
   {
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   // host_accessor needs to explicitly define the owner_before member functions
