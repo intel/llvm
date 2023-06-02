@@ -1414,7 +1414,7 @@ int main() {
 
     {
       sycl::queue queue;
-      for (auto &IBuf : {Buf, Buf2}) {
+      for (auto IBuf : {Buf, Buf2}) {
         queue
             .submit([&](sycl::handler &cgh) {
               auto B =
