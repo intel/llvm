@@ -2946,6 +2946,10 @@ pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
                                       const pi_mem *arg_value) {
 
   assert(kernel != nullptr);
+  assert(arg_value != nullptr);
+
+  // below sets kernel arg when zero-sized buffers are handled.
+  // in such case the corresponding memory is null.
   if (*arg_value == nullptr) {
     kernel->set_kernel_arg(arg_index, 0, nullptr);
     return PI_SUCCESS;
