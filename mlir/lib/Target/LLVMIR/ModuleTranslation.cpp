@@ -1031,6 +1031,20 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     if (std::optional<uint64_t> entryCount = function.getFunctionEntryCount())
       llvmFunc->setEntryCount(entryCount.value());
 
+    // Convert reqd_work_group_size attribute to metadata.
+    if (ArrayAttr wgSizes = dyn_cast_or_null<ArrayAttr>(
+            function->getAttr("reqd_work_group_size"))) {
+      llvm::LLVMContext &ctx = llvmModule->getContext();
+      llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
+      for (IntegerAttr wgSize : wgSizes.getAsRange<IntegerAttr>()) {
+        llvm::IntegerType *i32Ty = llvm::IntegerType::get(ctx, 32);
+        AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(
+            llvm::ConstantInt::get(i32Ty, wgSize.getInt())));
+      }
+      llvmFunc->setMetadata("reqd_work_group_size",
+                            llvm::MDNode::get(ctx, AttrMDArgs));
+    }
+
     // Convert result attributes.
     if (ArrayAttr allResultAttrs = function.getAllResultAttrs()) {
       DictionaryAttr resultAttrs = cast<DictionaryAttr>(allResultAttrs[0]);
