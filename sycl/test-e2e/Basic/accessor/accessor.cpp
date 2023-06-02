@@ -1421,7 +1421,7 @@ int main() {
 
             cgh.single_task<class acc_with_zero_sized_buffer>([=]() {
               for (size_t I = 0; I < B.size(); ++I)
-                B[0] = 1;
+                B[I] = 1;
             });
           })
           .wait();
@@ -1433,7 +1433,7 @@ int main() {
 
             cgh.single_task<class acc_with_non_zero_sized_buffer>([=]() {
               for (size_t I = 0; I < B.size(); ++I)
-                B[0] = 1;
+                B[I] = 1;
             });
           })
           .wait();
