@@ -35,6 +35,10 @@ class AffineIfOp;
 class AffineParallelOp;
 } // namespace affine
 
+namespace gpu {
+class GPUFuncOp;
+} // namespace gpu
+
 namespace scf {
 class ForOp;
 class IfOp;
@@ -80,6 +84,10 @@ bool isTailCall(CallOpInterface);
 ///   getMaxDepthFromAnyGPUKernel(func1) returns 1.
 ///   getMaxDepthFromAnyGPUKernel(func2) returns 2.
 Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface);
+
+/// Populates \p kernels with GPU kernels that can reach \p func.
+void getKernelCallers(FunctionOpInterface func,
+                      SmallVectorImpl<gpu::GPUFuncOp> &kernels);
 
 /// Returns true if the given function is potentially a SYCL kernel body
 /// function. The SYCL kernel body function is created by SemaSYCL in clang for

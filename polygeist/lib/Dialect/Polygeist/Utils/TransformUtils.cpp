@@ -102,55 +102,72 @@ bool isTailCall(CallOpInterface call) {
           isRegionReturnLike(nextOp));
 }
 
-/// Populate \p funcMaxDepthMap with the maximum depth from a GPU kernel for \p
-/// func and its callers.
-static void getMaxDepthFromAnyGPUKernel(
-    FunctionOpInterface func,
-    DenseMap<FunctionOpInterface, Optional<unsigned>> &funcMaxDepthMap) {
-  assert(!funcMaxDepthMap.contains(func) &&
-         "Expecting maximum depth of func is not already calculated");
+struct GPUKernelInfo {
+  gpu::GPUFuncOp kernel;
+  unsigned depth; // Depth from the associated kernel
+};
+
+/// Populate \p funcKernelCallerMap with the list of GPU kernels that can reach
+/// \p func and their associated depth.
+static void
+populateGPUKernelInfo(FunctionOpInterface func,
+                      DenseMap<FunctionOpInterface, SmallVector<GPUKernelInfo>>
+                          &funcKernelCallerMap) {
+  assert(!funcKernelCallerMap.contains(func) &&
+         "Expecting funcKernelCallerMap for func is not already calculated");
 
   // A function that does not reside in a GPU module cannot be called from a GPU
   // kernel.
   if (!func->getParentOfType<gpu::GPUModuleOp>()) {
-    funcMaxDepthMap[func] = std::nullopt;
+    funcKernelCallerMap[func] = {};
     return;
   }
 
   Operation *op = func;
   if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
     if (gpuFunc.isKernel()) {
-      funcMaxDepthMap[func] = 0;
+      funcKernelCallerMap[func].push_back({gpuFunc, 0});
       return;
     }
 
   ModuleOp module = func->getParentOfType<ModuleOp>();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
-  Optional<unsigned> maxDepth = std::nullopt;
   for (Operation *call : userMap.getUsers(func)) {
     auto caller = call->getParentOfType<FunctionOpInterface>();
-    if (!funcMaxDepthMap.contains(caller))
-      getMaxDepthFromAnyGPUKernel(caller, funcMaxDepthMap);
-    Optional<unsigned> callerDepth = funcMaxDepthMap[caller];
+    if (!funcKernelCallerMap.contains(caller))
+      populateGPUKernelInfo(caller, funcKernelCallerMap);
+    SmallVector<GPUKernelInfo> kernelInfos = funcKernelCallerMap[caller];
 
     // Caller not called from a GPU kernel.
-    if (!callerDepth.has_value())
+    if (kernelInfos.empty())
       continue;
 
-    unsigned depth = 1 + callerDepth.value();
-    if (!maxDepth.has_value())
-      maxDepth = depth;
-    else if (depth > maxDepth.value())
-      maxDepth = depth;
+    for (GPUKernelInfo kernelInfo : kernelInfos)
+      funcKernelCallerMap[func].push_back(
+          {kernelInfo.kernel, kernelInfo.depth + 1});
   }
-  funcMaxDepthMap[func] = maxDepth;
 }
 
 Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
-  DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
-  getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
-  return funcMaxDepthMap[func];
+  DenseMap<FunctionOpInterface, SmallVector<GPUKernelInfo>> funcKernelCallerMap;
+  populateGPUKernelInfo(func, funcKernelCallerMap);
+  Optional<unsigned> maxDepth = std::nullopt;
+  for (GPUKernelInfo &kernelInfo : funcKernelCallerMap[func]) {
+    if (!maxDepth.has_value())
+      maxDepth = kernelInfo.depth;
+    else if (kernelInfo.depth > maxDepth.value())
+      maxDepth = kernelInfo.depth;
+  }
+  return maxDepth;
+}
+
+void getKernelCallers(FunctionOpInterface func,
+                      SmallVectorImpl<gpu::GPUFuncOp> &kernels) {
+  DenseMap<FunctionOpInterface, SmallVector<GPUKernelInfo>> funcKernelCallerMap;
+  populateGPUKernelInfo(func, funcKernelCallerMap);
+  for (GPUKernelInfo &kernelInfo : funcKernelCallerMap[func])
+    kernels.push_back(kernelInfo.kernel);
 }
 
 bool isPotentialKernelBodyFunc(FunctionOpInterface func) {

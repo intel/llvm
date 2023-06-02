@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
@@ -47,7 +48,7 @@ namespace {
 //===----------------------------------------------------------------------===//
 
 /// A function is a candidate iff is a kernel body functions with an nd_item
-/// argument.
+/// argument, and no dynamic sized local accessor.
 bool isCandidateFunction(FunctionOpInterface func) {
   if (!polygeist::isPotentialKernelBodyFunc(func))
     return false;
@@ -55,6 +56,21 @@ bool isCandidateFunction(FunctionOpInterface func) {
   // TODO: construct nd_item when not passed in.
   if (func.getNumArguments() == 0 ||
       !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
+    return false;
+
+  // Available local memory of a kernel cannot be calculated when dynamic sized
+  // local memory is used, as its size is not compile time known on device.
+  SmallVector<gpu::GPUFuncOp> kernels;
+  polygeist::getKernelCallers(func, kernels);
+  if (any_of(kernels, [](gpu::GPUFuncOp kernel) {
+        for (Value arg : kernel.getArguments())
+          if (auto memRefTy = dyn_cast<MemRefType>(arg.getType()))
+            if (auto memSpace = dyn_cast_or_null<sycl::AccessAddrSpaceAttr>(
+                    memRefTy.getMemorySpace()))
+              if (memSpace.getValue() == sycl::AccessAddrSpace::LocalAccess)
+                return true;
+        return false;
+      }))
     return false;
 
   return true;
