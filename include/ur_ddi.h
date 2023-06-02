@@ -1254,7 +1254,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferMemcpyUSMExp_t)(
     ur_exp_command_buffer_handle_t,
     void *,
-    void *,
+    const void *,
     size_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
@@ -1294,6 +1294,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferMembufferCopyRectExp_t)(
 /// @brief Function-pointer for urCommandBufferEnqueueExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
     ur_exp_command_buffer_handle_t,
+    ur_queue_handle_t,
     uint32_t,
     const ur_event_handle_t *,
     ur_event_handle_t *);

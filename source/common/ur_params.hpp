@@ -602,6 +602,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
         os << "UR_RESULT_ERROR_INVALID_USM_SIZE";
         break;
 
+    case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
+        os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
+        break;
+
     case UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE:
         os << "UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE";
         break;
@@ -7448,6 +7452,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
     case UR_COMMAND_WRITE_HOST_PIPE:
         os << "UR_COMMAND_WRITE_HOST_PIPE";
         break;
+
+    case UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP:
+        os << "UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -8701,6 +8709,11 @@ operator<<(std::ostream &os,
     os << ".hCommandBuffer = ";
 
     ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".hQueue = ";
+
+    ur_params::serializePtr(os, *(params->phQueue));
 
     os << ", ";
     os << ".numEventsInWaitList = ";

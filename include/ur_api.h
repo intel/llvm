@@ -212,8 +212,9 @@ typedef enum ur_result_t {
                                                           ///< memory
     UR_RESULT_ERROR_INVALID_HOST_PTR = 64,                ///< Invalid host pointer
     UR_RESULT_ERROR_INVALID_USM_SIZE = 65,                ///< Invalid USM size
-    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 66,       ///< Objection allocation failure
-    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 67,                ///< An adapter specific warning/error has been reported and can be
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 66,      ///< Invalid Command-Buffer
+    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 67,       ///< Objection allocation failure
+    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 68,                ///< An adapter specific warning/error has been reported and can be
                                                           ///< retrieved via the urGetLastResult entry point.
     UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                 ///< Unknown or internal error
     /// @cond
@@ -450,7 +451,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferMemcpyUSMExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,           ///< [in] handle of the command-buffer object.
     void *pDst,                                              ///< [in] Location the data will be copied to.
-    void *pSrc,                                              ///< [in] The data to be copied.
+    const void *pSrc,                                        ///< [in] The data to be copied.
     size_t size,                                             ///< [in] The number of bytes to copy
     uint32_t numSyncPointsInWaitList,                        ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pDependencies, ///< [in] A list of sync points that this command depends on.
@@ -524,9 +525,11 @@ urCommandBufferMembufferCopyRectExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
+///         + `NULL == hQueue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ///< [in] handle of the command-buffer object.
+    ur_queue_handle_t hQueue,                      ///< [in] the queue to submit this command-buffer for execution.
     uint32_t numEventsInWaitList,                  ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList,      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                    ///< events that must be complete before the command-buffer execution.
@@ -4576,6 +4579,7 @@ typedef enum ur_command_t {
     UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 24,  ///< Event created by ::urEnqueueDeviceGlobalVariableRead
     UR_COMMAND_READ_HOST_PIPE = 25,               ///< Event created by ::urEnqueueReadHostPipe
     UR_COMMAND_WRITE_HOST_PIPE = 26,              ///< Event created by ::urEnqueueWriteHostPipe
+    UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 27,   ///< Event created by ::urCommandBufferEnqueueExp
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7434,7 +7438,7 @@ typedef struct ur_command_buffer_append_kernel_exp_params_t {
 typedef struct ur_command_buffer_memcpy_usm_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     void **ppDst;
-    void **ppSrc;
+    const void **ppSrc;
     size_t *psize;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppDependencies;
@@ -7483,6 +7487,7 @@ typedef struct ur_command_buffer_membuffer_copy_rect_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_enqueue_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
+    ur_queue_handle_t *phQueue;
     uint32_t *pnumEventsInWaitList;
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
