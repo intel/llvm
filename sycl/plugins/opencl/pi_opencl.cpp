@@ -119,6 +119,10 @@ pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
     *backend_option = "";
     return PI_SUCCESS;
   }
+  if (frontend_option == "-ftarget-compile-fast"sv) {
+    *backend_option = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
+    return PI_SUCCESS;
+  }
   return PI_ERROR_INVALID_VALUE;
 }
 

@@ -573,5 +573,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     *PlatformOption = "-ze-opt-level=2";
     return UR_RESULT_SUCCESS;
   }
+  if (FrontendOption == "-ftarget-compile-fast"sv) {
+    *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
+    return UR_RESULT_SUCCESS;
+  }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }

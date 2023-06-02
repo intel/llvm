@@ -470,21 +470,17 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += " ";
     CompileOpts += "-ze-take-global-address";
   }
-  if (!IsIntelGPU && !CompileOptsEnv) {
-    // Strip any Intel GPU-specific options added by the driver
-    // when running on other platforms.
-    static const char *IGCOptsStr = "-igc_opts ";
-    auto Pos = CompileOpts.find(IGCOptsStr);
-    while (Pos != std::string::npos) {
-      std::string PartBeforeIGCOpts;
-      if (Pos != 0)
-        PartBeforeIGCOpts = CompileOpts.substr(0, Pos - 1);
-      auto EndOfIGCOpts = CompileOpts.find(' ', Pos + strlen(IGCOptsStr));
-      std::string PartAfterIGCOpts;
-      if (EndOfIGCOpts != std::string::npos)
-        PartAfterIGCOpts = CompileOpts.substr(EndOfIGCOpts);
-      CompileOpts = PartBeforeIGCOpts + PartAfterIGCOpts;
-      Pos = CompileOpts.find(IGCOptsStr);
+  if (!CompileOptsEnv) {
+    static const char *TargetCompileFast = "-ftarget-compile-fast";
+    if (auto Pos = CompileOpts.find(TargetCompileFast);
+        Pos != std::string::npos) {
+      const char *BackendOption = nullptr;
+      PlatformImpl->getBackendOption(TargetCompileFast, &BackendOption);
+      auto OptLen = strlen(TargetCompileFast);
+      if (IsIntelGPU && BackendOption && BackendOption[0] != '\0')
+        CompileOpts.replace(Pos, OptLen, BackendOption);
+      else
+        CompileOpts.erase(Pos, OptLen);
     }
   }
 }
