@@ -254,6 +254,17 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntry(const MDNode *DIEntry) {
   }
   SPIRVEntry *Res = transDbgEntryImpl(DIEntry);
   assert(Res && "Translation failure");
+  // We might end up having a recursive debug info generation like the
+  // following:
+  // translation of DIDerivedType (member) calls DICompositeType translation
+  // as its parent scope;
+  // translation of DICompositeType calls translation of its members
+  // (DIDerivedType with member tag).
+  // Here we make only the latest of these instructions be cached and hence
+  // reused
+  // FIXME: find a way to not create dead instruction
+  if (MDMap[DIEntry])
+    return MDMap[DIEntry];
   MDMap[DIEntry] = Res;
   return Res;
 }
@@ -961,7 +972,14 @@ LLVMToSPIRVDbgTran::transDbgCompositeType(const DICompositeType *CT) {
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgMemberType(const DIDerivedType *MT) {
-  using namespace SPIRVDebug::Operand::TypeMember;
+  if (isNonSemanticDebugInfo())
+    return transDbgMemberTypeNonSemantic(MT);
+  return transDbgMemberTypeOpenCL(MT);
+}
+
+SPIRVEntry *
+LLVMToSPIRVDbgTran::transDbgMemberTypeOpenCL(const DIDerivedType *MT) {
+  using namespace SPIRVDebug::Operand::TypeMember::OpenCL;
   SPIRVWordVec Ops(MinOperandCount);
 
   Ops[NameIdx] = BM->getString(MT->getName().str())->getId();
@@ -985,6 +1003,34 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgMemberType(const DIDerivedType *MT) {
   }
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
+  return BM->addDebugInfo(SPIRVDebug::TypeMember, getVoidTy(), Ops);
+}
+
+SPIRVEntry *
+LLVMToSPIRVDbgTran::transDbgMemberTypeNonSemantic(const DIDerivedType *MT) {
+  using namespace SPIRVDebug::Operand::TypeMember::NonSemantic;
+  SPIRVWordVec Ops(MinOperandCount);
+
+  Ops[NameIdx] = BM->getString(MT->getName().str())->getId();
+  Ops[TypeIdx] = transDbgEntry(MT->getBaseType())->getId();
+  Ops[SourceIdx] = getSource(MT)->getId();
+  Ops[LineIdx] = MT->getLine();
+  Ops[ColumnIdx] = 0; // This version of DIDerivedType has no column number
+  ConstantInt *Offset = getUInt(M, MT->getOffsetInBits());
+  Ops[OffsetIdx] = SPIRVWriter->transValue(Offset, nullptr)->getId();
+  ConstantInt *Size = getUInt(M, MT->getSizeInBits());
+  Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
+  Ops[FlagsIdx] = adjustAccessFlags(MT->getScope(), transDebugFlags(MT));
+  transDbgEntry(MT->getScope())->getId();
+  if (MT->isStaticMember()) {
+    if (llvm::Constant *C = MT->getConstant()) {
+      SPIRVValue *Val = SPIRVWriter->transValue(C, nullptr);
+      assert(isConstantOpCode(Val->getOpCode()) &&
+             "LLVM constant must be translated to SPIRV constant");
+      Ops.push_back(Val->getId());
+    }
+  }
+  transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
   return BM->addDebugInfo(SPIRVDebug::TypeMember, getVoidTy(), Ops);
 }
 
