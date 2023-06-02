@@ -7542,6 +7542,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_PROFILING_INFO_COMMAND_END:
         os << "UR_PROFILING_INFO_COMMAND_END";
         break;
+
+    case UR_PROFILING_INFO_COMMAND_COMPLETE:
+        os << "UR_PROFILING_INFO_COMMAND_COMPLETE";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -7602,6 +7606,20 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     } break;
 
     case UR_PROFILING_INFO_COMMAND_END: {
+        const uint64_t *tptr = (const uint64_t *)ptr;
+        if (sizeof(uint64_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint64_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_PROFILING_INFO_COMMAND_COMPLETE: {
         const uint64_t *tptr = (const uint64_t *)ptr;
         if (sizeof(uint64_t) > size) {
             os << "invalid size (is: " << size
