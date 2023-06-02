@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -internal-isystem %S/Inputs -fsyntax-only -Wsycl-strict -sycl-std=2020 -verify %s -DSPIR64
-// RUN: %clang_cc1 -fsycl-is-device -triple spir -internal-isystem %S/Inputs -fsyntax-only -Wsycl-strict -sycl-std=2020 -verify %s -DSPIR32
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -internal-isystem %S/Inputs -fsyntax-only -Wsycl-strict -Wno-builtin-macro-redefined -sycl-std=2020 -verify %s -DSPIR64
+// RUN: %clang_cc1 -fsycl-is-device -triple spir -internal-isystem %S/Inputs -fsyntax-only -Wsycl-strict -Wno-builtin-macro-redefined -sycl-std=2020 -verify %s -DSPIR32
 
 #include "sycl.hpp"
 class Foo;

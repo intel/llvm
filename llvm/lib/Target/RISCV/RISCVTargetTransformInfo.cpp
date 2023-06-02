@@ -45,14 +45,11 @@ InstructionCost RISCVTTIImpl::getLMULCost(MVT VT) {
     bool Fractional;
     std::tie(LMul, Fractional) =
         RISCVVType::decodeVLMUL(RISCVTargetLowering::getLMUL(VT));
-    if (Fractional)
-      Cost = 1;
-    else
-      Cost = LMul;
+    Cost = Fractional ? 1 : LMul;
   } else {
-    Cost = VT.getSizeInBits() / ST->getRealMinVLen();
+    Cost = divideCeil(VT.getSizeInBits(), ST->getRealMinVLen());
   }
-  return std::max<unsigned>(Cost, 1);
+  return Cost;
 }
 
 InstructionCost RISCVTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
@@ -145,8 +142,8 @@ InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
     Takes12BitImm = true;
     break;
   case Instruction::Mul:
-    // Negated power of 2 is a shift and a negate.
-    if (Imm.isNegatedPowerOf2())
+    // Power of 2 is a shift. Negated power of 2 is a shift and a negate.
+    if (Imm.isPowerOf2() || Imm.isNegatedPowerOf2())
       return TTI::TCC_Free;
     // FIXME: There is no MULI instruction.
     Takes12BitImm = true;
@@ -1593,6 +1590,55 @@ InstructionCost RISCVTTIImpl::getArithmeticInstrCost(
            BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info, Op2Info,
                                          Args, CxtI);
   }
+}
+
+// TODO: Deduplicate from TargetTransformInfoImplCRTPBase.
+InstructionCost RISCVTTIImpl::getPointersChainCost(
+    ArrayRef<const Value *> Ptrs, const Value *Base,
+    const TTI::PointersChainInfo &Info, Type *AccessTy,
+    TTI::TargetCostKind CostKind) {
+  InstructionCost Cost = TTI::TCC_Free;
+  // In the basic model we take into account GEP instructions only
+  // (although here can come alloca instruction, a value, constants and/or
+  // constant expressions, PHIs, bitcasts ... whatever allowed to be used as a
+  // pointer). Typically, if Base is a not a GEP-instruction and all the
+  // pointers are relative to the same base address, all the rest are
+  // either GEP instructions, PHIs, bitcasts or constants. When we have same
+  // base, we just calculate cost of each non-Base GEP as an ADD operation if
+  // any their index is a non-const.
+  // If no known dependecies between the pointers cost is calculated as a sum
+  // of costs of GEP instructions.
+  for (auto [I, V] : enumerate(Ptrs)) {
+    const auto *GEP = dyn_cast<GetElementPtrInst>(V);
+    if (!GEP)
+      continue;
+    if (Info.isSameBase() && V != Base) {
+      if (GEP->hasAllConstantIndices())
+        continue;
+      // If the chain is unit-stride and BaseReg + stride*i is a legal
+      // addressing mode, then presume the base GEP is sitting around in a
+      // register somewhere and check if we can fold the offset relative to
+      // it.
+      unsigned Stride = DL.getTypeStoreSize(AccessTy);
+      if (Info.isUnitStride() &&
+          isLegalAddressingMode(AccessTy,
+                                /* BaseGV */ nullptr,
+                                /* BaseOffset */ Stride * I,
+                                /* HasBaseReg */ true,
+                                /* Scale */ 0,
+                                GEP->getType()->getPointerAddressSpace()))
+        continue;
+      Cost += getArithmeticInstrCost(Instruction::Add, GEP->getType(), CostKind,
+                                     {TTI::OK_AnyValue, TTI::OP_None},
+                                     {TTI::OK_AnyValue, TTI::OP_None},
+                                     std::nullopt);
+    } else {
+      SmallVector<const Value *> Indices(GEP->indices());
+      Cost += getGEPCost(GEP->getSourceElementType(), GEP->getPointerOperand(),
+                         Indices, CostKind);
+    }
+  }
+  return Cost;
 }
 
 void RISCVTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,

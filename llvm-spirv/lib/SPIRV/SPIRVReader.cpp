@@ -3300,14 +3300,6 @@ bool SPIRVToLLVM::translate() {
   if (!transAddressingModel())
     return false;
 
-  for (unsigned I = 0, E = BM->getNumVariables(); I != E; ++I) {
-    auto BV = BM->getVariable(I);
-    if (BV->getStorageClass() != StorageClassFunction)
-      transValue(BV, nullptr, nullptr);
-    else
-      transGlobalCtorDtors(BV);
-  }
-
   // Entry Points should be translated before all debug intrinsics.
   for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
     if (EI->getExtOp() == SPIRVDebug::EntryPoint)
@@ -3319,6 +3311,14 @@ bool SPIRVToLLVM::translate() {
     // Translate Compile Units first.
     if (EI->getExtOp() == SPIRVDebug::CompilationUnit)
       DbgTran->transDebugInst(EI);
+  }
+
+  for (unsigned I = 0, E = BM->getNumVariables(); I != E; ++I) {
+    auto BV = BM->getVariable(I);
+    if (BV->getStorageClass() != StorageClassFunction)
+      transValue(BV, nullptr, nullptr);
+    else
+      transGlobalCtorDtors(BV);
   }
 
   // Then translate all debug instructions.
