@@ -2,6 +2,11 @@
 
 [![GHA build status](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml/badge.svg?branch=main)](https://github.com/oneapi-src/unified-runtime/actions)
 
+## Adapters
+Adapter implementations for Unified Runtime currently reside in the [SYCL repository](https://github.com/intel/llvm/tree/sycl/sycl/plugins/unified_runtime/ur). This branch contains scripts to automatically
+fetch and build them directly in the UR tree. The adapters are disabled by default,
+see cmake options for details.
+
 ## Contents
 
 This repo contains the following:
@@ -99,6 +104,7 @@ List of options provided by CMake:
 | UR_USE_MSAN | Enable MemorySanitizer (clang only) | ON/OFF | OFF |
 | UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
+| UR_BUILD_ADAPTER_L0 | Fetch and use level-zero adapter from SYCL | ON/OFF | OFF |
 
 **General**:
 
