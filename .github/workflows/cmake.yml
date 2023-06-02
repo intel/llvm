@@ -55,10 +55,10 @@ jobs:
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DUR_ENABLE_TRACING=ON
-        -DUR_DEVELOPER_MODE=ON
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
+        -DUR_BUILD_ADAPTER_L0=ON
         ${{matrix.libbacktrace}}
 
     - name: Generate source from spec, check for uncommitted diff
