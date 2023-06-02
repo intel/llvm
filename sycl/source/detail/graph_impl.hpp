@@ -315,8 +315,7 @@ public:
   /// @param GraphImpl Modifiable graph implementation to create with.
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl)
-      : MSchedule(), MGraphImpl(GraphImpl), MPiCommandBuffers(),
-        MPiSyncPoints(), MContext(Context) {}
+      : MSchedule(), MGraphImpl(GraphImpl), MContext(Context) {}
 
   /// Destructor.
   ///
@@ -337,11 +336,6 @@ public:
   /// @return Event associated with the execution of the graph
   sycl::event exec(const std::shared_ptr<sycl::detail::queue_impl> &Queue);
 
-  /// Turns our internal graph representation into PI command-buffers for a
-  /// device.
-  /// @param D Device to create backend command-buffers for.
-  void create_pi_command_buffers(sycl::device D);
-
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
   sycl::context get_context() const { return MContext; }
@@ -353,47 +347,11 @@ public:
   }
 
 private:
-  /// Create a command-group for the node and add it to command-buffer by going
-  /// through the scheduler.
-  /// @param Ctx Context to use.
-  /// @param DeviceImpl Device associated with the enqueue.
-  /// @param CommandBuffer Command-buffer to add node to as a command.
-  /// @param Node The node being enqueued.
-  /// @return PI sync point created for this node in the command-buffer.
-  RT::PiExtSyncPoint enqueue_node(sycl::context Ctx,
-                                  sycl::detail::DeviceImplPtr DeviceImpl,
-                                  RT::PiExtCommandBuffer CommandBuffer,
-                                  std::shared_ptr<node_impl> Node);
-
-  /// Enqueue a node directly to the command-buffer without going through the
-  /// scheduler.
-  /// @param Ctx Context to use.
-  /// @param DeviceImpl Device associated with the enqueue.
-  /// @param CommandBuffer Command-buffer to add node to as a command.
-  /// @param Node The node being enqueued.
-  /// @return PI sync point created for this node in the command-buffer.
-  RT::PiExtSyncPoint enqueue_node_direct(sycl::context Ctx,
-                                         sycl::detail::DeviceImplPtr DeviceImpl,
-                                         RT::PiExtCommandBuffer CommandBuffer,
-                                         std::shared_ptr<node_impl> Node);
-
-  /// Iterates back through predecessors to find the real dependency.
-  /// @param[out] Deps Found dependencies.
-  /// @param[in] CurrentNode Node to find dependencies for.
-  void find_real_deps(std::vector<RT::PiExtSyncPoint> &Deps,
-                      std::shared_ptr<node_impl> CurrentNode);
-
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
   /// graph.
   std::shared_ptr<graph_impl> MGraphImpl;
-  /// Map of devices to command buffers.
-  std::unordered_map<sycl::device, RT::PiExtCommandBuffer> MPiCommandBuffers;
-  /// Map of nodes in the exec graph to the sync point representing their
-  /// execution in the command graph.
-  std::unordered_map<std::shared_ptr<node_impl>, RT::PiExtSyncPoint>
-      MPiSyncPoints;
   /// Context associated with this executable graph.
   sycl::context MContext;
   /// List of requirements for enqueueing this command graph, accumulated from

@@ -2479,15 +2479,12 @@ pi_int32 ExecCGCommand::enqueueImp() {
     std::vector<Requirement *> *CopyReqs =
         new std::vector<Requirement *>(HostTask->MRequirements);
 
-    // Not actually a copy, but move. Should be OK as it's not expected that
-    // MHostKernel will be used elsewhere.
-    std::unique_ptr<HostKernelBase> *CopyHostKernel =
-        new std::unique_ptr<HostKernelBase>(std::move(HostTask->MHostKernel));
+    std::shared_ptr<HostKernelBase> CopyHostKernel = HostTask->MHostKernel;
 
     NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
 
     ArgsBlob[0] = (void *)CopyReqs;
-    ArgsBlob[1] = (void *)CopyHostKernel;
+    ArgsBlob[1] = (void *)CopyHostKernel.get();
     ArgsBlob[2] = (void *)CopyNDRDesc;
 
     void **NextArg = ArgsBlob.data() + 3;
@@ -2809,6 +2806,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, Event, read);
+  }
+  case CG::CGTYPE::ExecCommandBuffer: {
+    throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

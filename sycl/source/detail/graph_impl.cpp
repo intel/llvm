@@ -220,135 +220,7 @@ bool graph_impl::clear_queues() {
   return AnyQueuesCleared;
 }
 
-// Check if nodes are empty and if so loop back through predecessors until we
-// find the real dependency.
-void exec_graph_impl::find_real_deps(std::vector<RT::PiExtSyncPoint> &Deps,
-                                     std::shared_ptr<node_impl> CurrentNode) {
-  if (CurrentNode->is_empty()) {
-    for (auto &N : CurrentNode->MPredecessors) {
-      auto NodeImpl = N.lock();
-      find_real_deps(Deps, NodeImpl);
-    }
-  } else {
-    // Verify that the sync point has actually been set for this node.
-    if (auto SyncPoint = MPiSyncPoints.find(CurrentNode);
-        SyncPoint != MPiSyncPoints.end()) {
-      // Check if the dependency has already been added.
-      if (std::find(Deps.begin(), Deps.end(), SyncPoint->second) ==
-          Deps.end()) {
-        Deps.push_back(SyncPoint->second);
-      }
-    } else {
-      assert(false && "No sync point has been set for node dependency.");
-    }
-  }
-}
-
-RT::PiExtSyncPoint exec_graph_impl::enqueue_node_direct(
-    sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
-    RT::PiExtCommandBuffer CommandBuffer, std::shared_ptr<node_impl> Node) {
-  std::vector<RT::PiExtSyncPoint> Deps;
-  for (auto &N : Node->MPredecessors) {
-    find_real_deps(Deps, N.lock());
-  }
-  RT::PiExtSyncPoint NewSyncPoint;
-  pi_int32 Res = sycl::detail::enqueueImpCommandBufferKernel(
-      Ctx, DeviceImpl, CommandBuffer,
-      *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
-      Deps, &NewSyncPoint, nullptr);
-
-  if (Res != pi_result::PI_SUCCESS) {
-    throw sycl::exception(errc::invalid,
-                          "Failed to add kernel to PI command-buffer");
-  }
-
-  return NewSyncPoint;
-}
-
-RT::PiExtSyncPoint exec_graph_impl::enqueue_node(
-    sycl::context Ctx, std::shared_ptr<sycl::detail::device_impl> DeviceImpl,
-    RT::PiExtCommandBuffer CommandBuffer, std::shared_ptr<node_impl> Node) {
-
-  // Queue which will be used for allocation operations for accessors.
-  auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
-      DeviceImpl, sycl::detail::getSyclObjImpl(Ctx), sycl::async_handler{},
-      sycl::property_list{});
-
-  std::vector<RT::PiExtSyncPoint> Deps;
-  for (auto &N : Node->MPredecessors) {
-    find_real_deps(Deps, N.lock());
-  }
-
-  sycl::detail::EventImplPtr Event =
-      sycl::detail::Scheduler::getInstance().addCG(
-          std::move(Node->getCGCopy()), AllocaQueue, CommandBuffer, Deps);
-
-  return Event->getSyncPoint();
-}
-void exec_graph_impl::create_pi_command_buffers(sycl::device D) {
-  // TODO we only have a single command-buffer per graph here, but
-  // this will need to be multiple command-buffers for non-trivial graphs
-  RT::PiExtCommandBuffer OutCommandBuffer;
-  RT::PiExtCommandBufferDesc Desc{};
-  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
-  auto DeviceImpl = sycl::detail::getSyclObjImpl(D);
-  pi_result Res =
-      Plugin->call_nocheck<sycl::detail::PiApiKind::piextCommandBufferCreate>(
-          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
-          &OutCommandBuffer);
-  if (Res != pi_result::PI_SUCCESS) {
-    throw sycl::exception(errc::invalid, "Failed to create PI command-buffer");
-  }
-
-  MPiCommandBuffers[D] = OutCommandBuffer;
-
-  // TODO extract kernel bundle logic from enqueueImpKernel
-  for (auto Node : MSchedule) {
-    sycl::detail::CG::CGTYPE type = Node->MCGType;
-    // If the node is a kernel with no special requirements we can enqueue it
-    // directly.
-    if (type == sycl::detail::CG::Kernel &&
-        Node->MCommandGroup->MRequirements.size() +
-                static_cast<sycl::detail::CGExecKernel *>(
-                    Node->MCommandGroup.get())
-                    ->MStreams.size() ==
-            0) {
-      MPiSyncPoints[Node] =
-          enqueue_node_direct(MContext, DeviceImpl, OutCommandBuffer, Node);
-    } else {
-      MPiSyncPoints[Node] =
-          enqueue_node(MContext, DeviceImpl, OutCommandBuffer, Node);
-    }
-
-    // Append Node requirements to overall graph requirements
-    MRequirements.insert(MRequirements.end(),
-                         Node->MCommandGroup->MRequirements.begin(),
-                         Node->MCommandGroup->MRequirements.end());
-  }
-
-  Res =
-      Plugin->call_nocheck<sycl::detail::PiApiKind::piextCommandBufferFinalize>(
-          OutCommandBuffer);
-  if (Res != pi_result::PI_SUCCESS) {
-    throw sycl::exception(errc::invalid,
-                          "Failed to finalize PI command-buffer");
-  }
-}
-
-exec_graph_impl::~exec_graph_impl() {
-  MSchedule.clear();
-  for (auto Iter : MPiCommandBuffers) {
-    const sycl::detail::PluginPtr &Plugin =
-        sycl::detail::getSyclObjImpl(MContext)->getPlugin();
-    if (auto CmdBuf = Iter.second; CmdBuf) {
-      pi_result Res = Plugin->call_nocheck<
-          sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
-      (void)Res;
-      assert(Res == pi_result::PI_SUCCESS);
-    }
-  }
-}
+exec_graph_impl::~exec_graph_impl() { MSchedule.clear(); }
 
 sycl::event exec_graph_impl::enqueue(
     const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
@@ -360,36 +232,9 @@ sycl::event exec_graph_impl::enqueue(
     return NewEvent;
   });
 
-  auto CommandBuffer = MPiCommandBuffers[Queue->get_device()];
   sycl::detail::EventImplPtr NewEvent;
 
-  if (CommandBuffer) {
-    NewEvent = CreateNewEvent();
-    RT::PiEvent *OutEvent = &NewEvent->getHandleRef();
-
-    // If we have no requirements for accessors for the command buffer, enqueue
-    // it directly
-    if (MRequirements.empty()) {
-      pi_result Res =
-          Queue->getPlugin()
-              ->call_nocheck<
-                  sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-                  CommandBuffer, Queue->getHandleRef(), RawEvents.size(),
-                  RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
-      if (Res != pi_result::PI_SUCCESS) {
-        throw sycl::exception(
-            errc::event,
-            "Failed to enqueue event for command buffer submission");
-      }
-    } else {
-      std::unique_ptr<sycl::detail::CG> CommandGroup =
-          std::make_unique<sycl::detail::CGExecCommandBuffer>(CommandBuffer,
-                                                              MRequirements);
-
-      NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-          std::move(CommandGroup), Queue);
-    }
-  } else {
+  {
     std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
     for (auto &NodeImpl : MSchedule) {
       std::vector<RT::PiEvent> RawEvents;
@@ -564,30 +409,6 @@ command_graph<graph_state::executable>::command_graph(
 void command_graph<graph_state::executable>::finalize_impl() {
   // Create PI command-buffers for each device in the finalized context
   impl->schedule();
-
-  auto Context = impl->get_context();
-  for (auto Device : impl->get_context().get_devices()) {
-    pi_bool CmdBufSupport;
-
-    const sycl::detail::PluginPtr &Plugin =
-        sycl::detail::getSyclObjImpl(Context)->getPlugin();
-
-    auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
-    Plugin->call<sycl::detail::PiApiKind::piDeviceGetInfo>(
-        DeviceImpl->getHandleRef(),
-        PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT, sizeof(pi_bool),
-        &CmdBufSupport, nullptr);
-
-#if FORCE_EMULATION_MODE
-    // Above query should still succeed in emulation mode, but ignore the
-    // result and use emulation.
-    CmdBufSupport = false;
-#endif
-
-    if (CmdBufSupport) {
-      impl->create_pi_command_buffers(Device);
-    }
-  }
 }
 
 void command_graph<graph_state::executable>::update(
