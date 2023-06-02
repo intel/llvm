@@ -182,6 +182,10 @@ linked fat binary, and store them in separate files.
       // TODO: can use more efficient algorithm than linear search. For
       // example sections and images could be sorted by address then one pass
       // performed through both at the same time.
+      // std::find_if
+      // * searches for a true predicate in [first,last] =~ [first,end)
+      // * returns end if no predicate is true
+      // It is probably faster to track  success through a bool (ImgFound)
       bool ImgFound = false;
       auto ImgSec =
           find_if(Binary->sections(), [&Img, &ImgFound](SectionRef Sec) {
@@ -193,10 +197,8 @@ linked fat binary, and store them in separate files.
             ImgFound = ImgFound || pred;
             return pred;
           });
-      if (! ImgFound) {
-        // std::find_if
-        // * searches for a true predicate in [first,last] =~ [first,end)
-        // * returns end if no predicate is true
+      if (!ImgFound) {
+
         reportError(
             createStringError(
                 inconvertibleErrorCode(),
@@ -211,13 +213,13 @@ linked fat binary, and store them in separate files.
       }
 
       // Output file name is composed from the name prefix provided by the
-      // user and the image number which is appended to the prefix.
+      // user and the image number which is appended to the prefix
       std::string FileName = FileNameStem + "." + std::to_string(FileNum++);
 
       // Tell user that we are saving an image.
-      outs() << "Saving target image to \"" << FileName << "\"\n";
+      outs() << "Saving target image to '" << FileName << "'\n";
 
-      // And write image data to the output.
+      // Write image data to the output
       std::error_code EC;
       raw_fd_ostream OS(FileName, EC);
       if (EC) {
