@@ -26,6 +26,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   need_check:
     name: Decide which tests could be affected by the changes
@@ -124,3 +128,9 @@ jobs:
     with:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
       build_ref: ${{ github.event.pull_request.head.sha }}
+      check_llvm: ${{ needs.need_check.outputs.llvm }}
+      check_llvm_spirv: ${{ needs.need_check.outputs.llvm_spirv }}
+      check_clang: ${{ needs.need_check.outputs.clang }}
+      check_xptifw: ${{ needs.need_check.outputs.xptifw }}
+      check_libclc: ${{ needs.need_check.outputs.libclc }}
+      check_sycl: ${{ needs.need_check.outputs.sycl }}
