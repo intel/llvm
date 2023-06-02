@@ -676,7 +676,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 
     // convert loader handles to platform handles
     auto phDevicesLocal = new ur_device_handle_t[DeviceCount];
-    for (size_t i = 0; (nullptr != phDevices) && (i < DeviceCount); ++i) {
+    for (size_t i = 0; i < DeviceCount; ++i) {
         phDevicesLocal[i] =
             reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
     }
@@ -849,7 +849,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
     // convert loader handles to platform handles
     auto phDevicesLocal = new ur_device_handle_t[numDevices];
-    for (size_t i = 0; (nullptr != phDevices) && (i < numDevices); ++i) {
+    for (size_t i = 0; i < numDevices; ++i) {
         phDevicesLocal[i] =
             reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
     }
@@ -1933,7 +1933,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
     // convert loader handles to platform handles
     auto phProgramsLocal = new ur_program_handle_t[count];
-    for (size_t i = 0; (nullptr != phPrograms) && (i < count); ++i) {
+    for (size_t i = 0; i < count; ++i) {
         phProgramsLocal[i] =
             reinterpret_cast<ur_program_object_t *>(phPrograms[i])->handle;
     }
@@ -3036,7 +3036,7 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEvents];
-    for (size_t i = 0; (nullptr != phEventWaitList) && (i < numEvents); ++i) {
+    for (size_t i = 0; i < numEvents; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3252,8 +3252,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3310,8 +3309,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3368,8 +3366,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3432,8 +3429,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3498,8 +3494,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3575,8 +3570,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3656,8 +3650,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3725,8 +3718,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3802,8 +3794,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3868,8 +3859,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -3938,8 +3928,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4009,8 +3998,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4083,8 +4071,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4150,8 +4137,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4213,8 +4199,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4277,8 +4262,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4337,8 +4321,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4396,8 +4379,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4507,8 +4489,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4573,8 +4554,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4643,8 +4623,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4713,8 +4692,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4786,8 +4764,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
@@ -4859,8 +4836,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
     // convert loader handles to platform handles
     auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
-    for (size_t i = 0;
-         (nullptr != phEventWaitList) && (i < numEventsInWaitList); ++i) {
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
