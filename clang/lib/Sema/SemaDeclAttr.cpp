@@ -4519,7 +4519,7 @@ Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
     if (DeclAttr->getAttributeSpellingListIndex() !=
         A.getAttributeSpellingListIndex()) {
       Diag(A.getLoc(), diag::err_attributes_are_not_compatible)
-          << &A << DeclAttr;
+          << &A << DeclAttr << A.isRegularKeywordAttribute();
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
       return nullptr;
     }
