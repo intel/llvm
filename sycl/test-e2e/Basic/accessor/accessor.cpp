@@ -1455,5 +1455,38 @@ int main() {
     assert(results[1] == 6 && "Unexpected value!");
   }
 
+  // accessor with buffer size 0.
+  {
+    sycl::buffer<int, 1> Buf{0};
+    sycl::buffer<int, 1> Buf2{200};
+
+    {
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            auto B =
+                Buf.template get_access<sycl::access::mode::read_write>(cgh);
+
+            cgh.single_task<class acc_with_zero_sized_buffer>([=]() {
+              for (size_t I = 0; I < B.size(); ++I)
+                B[0] = 1;
+            });
+          })
+          .wait();
+
+      queue
+          .submit([&](sycl::handler &cgh) {
+            auto B =
+                Buf2.template get_access<sycl::access::mode::read_write>(cgh);
+
+            cgh.single_task<class acc_with_non_zero_sized_buffer>([=]() {
+              for (size_t I = 0; I < B.size(); ++I)
+                B[0] = 1;
+            });
+          })
+          .wait();
+    }
+  }
+
   std::cout << "Test passed" << std::endl;
 }

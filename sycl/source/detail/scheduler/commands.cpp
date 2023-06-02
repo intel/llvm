@@ -2195,11 +2195,11 @@ static pi_result SetKernelParamsAndLaunch(
              "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
-      if (!MemArg)
-        throw runtime_error("Invalid memory object",
-                            PI_ERROR_INVALID_MEM_OBJECT);
 
       if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
+        if (!MemArg)
+          MemArg = RT::PiMem();
+
         Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                 sizeof(RT::PiMem), &MemArg);
       } else {

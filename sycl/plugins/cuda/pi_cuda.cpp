@@ -3038,7 +3038,10 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
                                        const pi_mem *arg_value) {
 
   assert(kernel != nullptr);
-  assert(arg_value != nullptr);
+  if (*arg_value == nullptr) {
+    kernel->set_kernel_arg(arg_index, 0, nullptr);
+    return PI_SUCCESS;
+  }
 
   pi_result retErr = PI_SUCCESS;
   try {
