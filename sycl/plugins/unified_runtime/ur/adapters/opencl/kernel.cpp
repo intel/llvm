@@ -155,11 +155,68 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  CL_RETURN_ON_FAILURE(
-      clGetKernelSubGroupInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                              cl_adapter::cast<cl_device_id>(hDevice),
-                              map_ur_kernel_sub_group_info_to_cl(propName), 0,
-                              nullptr, propSize, pPropValue, pPropSizeRet));
+  std::shared_ptr<void> InputValue;
+  size_t InputValueSize = 0;
+  size_t RetVal;
+
+  if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
+    // OpenCL needs an input value for PI_KERNEL_MAX_SUB_GROUP_SIZE so if no
+    // value is given we use the max work item size of the device in the first
+    // dimention to avoid truncation of max sub-group size.
+    uint32_t MaxDims = 0;
+    ur_result_t UrRet =
+        urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
+                               sizeof(uint32_t), &MaxDims, nullptr);
+    if (UrRet != UR_RESULT_SUCCESS)
+      return UrRet;
+    std::shared_ptr<size_t[]> WGSizes{new size_t[MaxDims]};
+    UrRet = urDeviceGetInfo(
+        hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES, MaxDims * sizeof(size_t),
+        WGSizes.get(), nullptr);
+    if (UrRet != UR_RESULT_SUCCESS)
+      return UrRet;
+    for (size_t i = 1; i < MaxDims; ++i)
+      WGSizes.get()[i] = 1;
+    InputValue = std::move(WGSizes);
+    InputValueSize = MaxDims * sizeof(size_t);
+  }
+
+  cl_int Ret = clGetKernelSubGroupInfo(
+      cl_adapter::cast<cl_kernel>(hKernel),
+      cl_adapter::cast<cl_device_id>(hDevice),
+      map_ur_kernel_sub_group_info_to_cl(propName), InputValueSize,
+      InputValue.get(), sizeof(size_t), &RetVal, pPropSizeRet);
+
+  if (Ret == CL_INVALID_OPERATION) {
+    // clGetKernelSubGroupInfo returns CL_INVALID_OPERATION if the device does
+    // not support subgroups.
+    if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS) {
+      RetVal = 1; // Minimum required by SYCL 2020 spec
+      Ret = CL_SUCCESS;
+    } else if (propName == UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS) {
+      RetVal = 0; // Not specified by kernel
+      Ret = CL_SUCCESS;
+    } else if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
+      // Return the maximum work group size for the kernel
+      size_t KernelWGSize = 0;
+      ur_result_t UrRet = urKernelGetGroupInfo(
+          hKernel, hDevice, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+          sizeof(size_t), &KernelWGSize, nullptr);
+      if (UrRet != UR_RESULT_SUCCESS)
+        return UrRet;
+      RetVal = KernelWGSize;
+      Ret = CL_SUCCESS;
+    } else if (propName == UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL) {
+      RetVal = 0; // Not specified by kernel
+      Ret = CL_SUCCESS;
+    }
+  }
+
+  *(static_cast<uint32_t *>(pPropValue)) = static_cast<uint32_t>(RetVal);
+  if (pPropSizeRet)
+    *pPropSizeRet = sizeof(uint32_t);
+
+  CL_RETURN_ON_FAILURE(Ret);
 
   return UR_RESULT_SUCCESS;
 }

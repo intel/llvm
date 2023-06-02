@@ -45,7 +45,7 @@ ur_result_t map_cl_error_to_ur(cl_int result) {
   case CL_BUILD_PROGRAM_FAILURE:
     return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
   default:
-    assert(false && "OpenCL error has no UR equivalent.");
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 }
 
