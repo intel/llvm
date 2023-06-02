@@ -73,15 +73,74 @@ use _Search Indexes_ backend as inspiration for ours.
 Our backend should generate a map where the key is the target name and the value
 is an object of a custom class/struct including all the information required. 
 
-TODO: Explain how to define new DynamicTable class so that it can be used.
+Firstly, we need to provide a file describing the `DynamicTable` class. An
+example for this is `SearchableTable.td`, which describes `GenericEnum`, and
+`GenericTable` classes for `gen-searchable-tables` backend. File
+`llvm/include/llvm/TableGen/DynamicTable.td` should look like the one below:
+```
+//===- DynamicTable.td ----------------------------------*- tablegen -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the key top-level classes needed to produce a reasonably
+// generic dynamic table that can be updated in runtime. DynamicTable objects
+// can be defined using the class in this file:
+// 1. (Dynamic) Tables. By instantiating the DynamicTable
+// class once, a table with the name of the instantiating def is generated and
+// guarded by the GET_name_IMPL preprocessor guard.
+//
+//===----------------------------------------------------------------------===//
+// Define a record derived from this class to generate a dynamic table. This
+// table resembles a hashtable with a key-value pair, and can updated in runtime.
+//
+// The name of the record is used as the name of the global primary array of
+// entries of the table in C++.
+class DynamicTable {
+  // Name of a class. The table will have one entry for each record that
+  // derives from that class.
+  string FilterClass;
 
-The original `.td` file should look like the one below: 
+  // Name of the C++ struct/class type that holds table entries. The
+  // declaration of this type is not generated automatically.
+  string CppTypeName = FilterClass;
+
+  // List of the names of fields of collected records that contain the data for
+  // table entries, in the order that is used for initialization in C++.
+  //
+  // TableGen needs to know the type of the fields so that it can format
+  // the initializers correctly.
+  //
+  // For each field of the table named xxx, TableGen will look for a field
+  // named TypeOf_xxx and use that as a more detailed description of the
+  // type of the field.
+
+  //   class MyTableEntry {
+  //     MyEnum V;
+  //     ...
+  //   }
+  //
+  //   def MyTable : DynamicTable {
+  //     let FilterClass = "MyTableEntry";
+  //     let Fields = ["V", ...];
+  //     string TypeOf_V = "list<int>";
+  //   }
+  list<string> Fields;
+}
+```
+
+This file should be included --either directly or indirectly-- in any other
+`.td` file that uses `DynamicTable` class.
+
+The default device configuration `.td` file should look like the one below: 
 ``` 
-include "llvm/TableGen/SearchableTable.td"
+include "llvm/TableGen/DynamicTable.td"
 
 // Aspect and all the aspects definitions could be outlined
 // to another .td file that could be included into this file
-
 class Aspect<string name> {
   string Name = name;
 }
@@ -255,11 +314,19 @@ latest information found.
 The auto-detection mechanism is a best effort to relieve users from specifying
 `aot-toolchain` and `aot-toolchain-%option_name` from well known devices. However, 
 it has its own limitations and potential issues:
-- Rules for target names: **TODO: Define rules for names so that they can be
-auto-detected.**
+- Rules for target names: As of now, auto-detection is only available for Intel GPU
+targets. All targets starting with `intel_gpu_` will automatically set
+`aot-toolchain=ocloc` and `aot-toolchain-ocloc-device=suffix` being suffix the part
+left after `intel_gpu_` prefix.
 - User specifies `aot-toolchain` and `aot-toolchain-%option_name` for a target name 
 that can be auto-detected: user-specified information has precedence over auto-detected
 information.
 
 ## Testing
-// TODO
+There is a danger that the device configuration file will get out-of-sync with the
+actual device capabilities. In order to prevent that, we need testing to validate
+that the device config file does not go out-of-sync. The idea here is to develop
+a mechanism that is able to autogenerate tests from the `.td` file that compare the
+aspects listed in the `.td` file with the aspects reported via `device::has` for each
+device listed in `.td` file. Obviously, the aspects listed in the `.td` file and the
+aspects reported via `device::has` should match.
