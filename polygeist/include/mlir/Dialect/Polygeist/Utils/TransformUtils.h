@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 #define MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
@@ -34,10 +35,6 @@ class AffineForOp;
 class AffineIfOp;
 class AffineParallelOp;
 } // namespace affine
-
-namespace gpu {
-class GPUFuncOp;
-} // namespace gpu
 
 namespace scf {
 class ForOp;
@@ -74,27 +71,47 @@ void privatize(FunctionOpInterface);
 /// Returns true if the given call is a tail call.
 bool isTailCall(CallOpInterface);
 
-/// Returns the maximum depth from any GPU kernel.
-/// Returns std::nullopt if the call is not called from a GPU kernel.
-/// For example:
-/// Call chains:
-///   GPUKernel1 -> func1 (depth 1) -> func2 (depth 2)
-///   GPUKernel2 -> func2 (depth 1)
-/// =>
-///   getMaxDepthFromAnyGPUKernel(func1) returns 1.
-///   getMaxDepthFromAnyGPUKernel(func2) returns 2.
-Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface);
+/// Create a map from each function to a list of all the kernel that can reach
+/// the function, and its associated depth from the kernel to the function.
+class FunctionKernelInfo {
+public:
+  FunctionKernelInfo() = delete;
+  FunctionKernelInfo(ModuleOp);
+  struct KernelInfo {
+    gpu::GPUFuncOp kernel;
+    unsigned depth; // Depth from the associated kernel
+  };
 
-/// Populates \p kernels with GPU kernels that can reach \p func.
-void getKernelCallers(FunctionOpInterface func,
-                      SmallVectorImpl<gpu::GPUFuncOp> &kernels);
+  /// Returns the maximum depth from any GPU kernel.
+  /// Returns std::nullopt if the call is not called from a GPU kernel.
+  /// For example:
+  /// Call chains:
+  ///   GPUKernel1 -> func1 (depth 1) -> func2 (depth 2)
+  ///   GPUKernel2 -> func2 (depth 1)
+  /// =>
+  ///   getMaxDepthFromAnyGPUKernel(func1) returns 1.
+  ///   getMaxDepthFromAnyGPUKernel(func2) returns 2.
+  Optional<unsigned>
+  getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) const;
+
+  /// Populates \p kernels with GPU kernels that can reach \p func.
+  void getKernelCallers(FunctionOpInterface func,
+                        SmallVectorImpl<gpu::GPUFuncOp> &kernels) const;
+
+private:
+  /// Populate funcKernelCallerMap with the list of GPU kernels that can reach
+  /// \p func and their associated depth.
+  void populateGPUKernelInfo(FunctionOpInterface func);
+
+  DenseMap<FunctionOpInterface, SmallVector<KernelInfo>> funcKernelCallerMap;
+};
 
 /// Returns true if the given function is potentially a SYCL kernel body
 /// function. The SYCL kernel body function is created by SemaSYCL in clang for
 /// the body of the SYCL kernel, e.g., code in parallel_for.
 /// TODO: add an attribute to the call operator of the SYCL kernel functor in
 /// SemaSYCL in clang, to identify SYCL kernel body function accurately.
-bool isPotentialKernelBodyFunc(FunctionOpInterface);
+bool isPotentialKernelBodyFunc(FunctionOpInterface, const FunctionKernelInfo &);
 
 /// Return the accessor used by \p op if found, and std::nullopt otherwise.
 Optional<Value> getAccessorUsedByOperation(const Operation &op);

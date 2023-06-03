@@ -47,10 +47,35 @@ namespace {
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
-/// A function is a candidate iff is a kernel body functions with an nd_item
-/// argument, and no dynamic sized local accessor.
-bool isCandidateFunction(FunctionOpInterface func) {
-  if (!polygeist::isPotentialKernelBodyFunc(func))
+bool isLocalAccessAddrSpace(Type ty) {
+  if (auto memRefTy = dyn_cast<MemRefType>(ty)) {
+    if (auto memSpace = dyn_cast_or_null<sycl::AccessAddrSpaceAttr>(
+            memRefTy.getMemorySpace())) {
+      if (memSpace.getValue() == sycl::AccessAddrSpace::LocalAccess)
+        return true;
+      return false;
+    }
+    return (memRefTy.getMemorySpaceAsInt() == 3);
+  }
+  if (auto ptrTy = dyn_cast<LLVM::LLVMPointerType>(ty))
+    return (ptrTy.getAddressSpace() == 3);
+  return false;
+}
+
+/// A kernel is a candidate iff no dynamic sized local accessor is used.
+bool isCandidateKernel(gpu::GPUFuncOp kernel) {
+  // Available local memory of a kernel cannot be calculated when dynamic sized
+  // local memory is used, as its size is not compile time known on device.
+  return none_of(kernel.getArguments(), [](Value arg) {
+    return isLocalAccessAddrSpace(arg.getType());
+  });
+}
+
+/// A function is a candidate iff is a kernel body function with an nd_item
+/// argument, and only called from candidate kernel(s).
+bool isCandidateFunction(FunctionOpInterface func,
+                         const FunctionKernelInfo &funcKernelInfo) {
+  if (!polygeist::isPotentialKernelBodyFunc(func, funcKernelInfo))
     return false;
 
   // TODO: construct nd_item when not passed in.
@@ -58,19 +83,10 @@ bool isCandidateFunction(FunctionOpInterface func) {
       !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
     return false;
 
-  // Available local memory of a kernel cannot be calculated when dynamic sized
-  // local memory is used, as its size is not compile time known on device.
   SmallVector<gpu::GPUFuncOp> kernels;
-  polygeist::getKernelCallers(func, kernels);
-  if (any_of(kernels, [](gpu::GPUFuncOp kernel) {
-        for (Value arg : kernel.getArguments())
-          if (auto memRefTy = dyn_cast<MemRefType>(arg.getType()))
-            if (auto memSpace = dyn_cast_or_null<sycl::AccessAddrSpaceAttr>(
-                    memRefTy.getMemorySpace()))
-              if (memSpace.getValue() == sycl::AccessAddrSpace::LocalAccess)
-                return true;
-        return false;
-      }))
+  funcKernelInfo.getKernelCallers(func, kernels);
+  if (any_of(kernels,
+             [](gpu::GPUFuncOp kernel) { return !isCandidateKernel(kernel); }))
     return false;
 
   return true;
@@ -381,7 +397,7 @@ private:
   /// Transform a candidate loop.
   template <typename T>
   void transform(T loop, const MemoryAccessAnalysis &memAccessAnalysis,
-                 DataFlowSolver &solver) const;
+                 DataFlowSolver &solver);
 
 private:
   /// A map from a candidate loop to memref values used in the loop.
@@ -397,10 +413,11 @@ void LoopInternalization::runOnOperation() {
   AnalysisManager am = mam;
   auto &memAccessAnalysis =
       am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
+  FunctionKernelInfo funcKernelInfo(cast<ModuleOp>(module));
 
   // Walk each function in the module.
   module->walk([&](FunctionOpInterface func) {
-    if (!isCandidateFunction(func))
+    if (!isCandidateFunction(func, funcKernelInfo))
       return;
 
     LLVM_DEBUG(llvm::dbgs()
@@ -505,7 +522,7 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
 template <typename T>
 void LoopInternalization::transform(
     T loop, const MemoryAccessAnalysis &memAccessAnalysis,
-    DataFlowSolver &solver) const {
+    DataFlowSolver &solver) {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
   assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
   assert(loopToMemref.find(loop) != loopToMemref.end() &&
@@ -514,7 +531,7 @@ void LoopInternalization::transform(
   SmallVector<T> tiledNest;
   LogicalResult res = tile(loop, getTileSize(loop), tiledNest);
   assert(res.succeeded() && "Expecting innermost loop to be tiled");
-
+  ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 
   // TODO: promote loop accesses to local memory.
