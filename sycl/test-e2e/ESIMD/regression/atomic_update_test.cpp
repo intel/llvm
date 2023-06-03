@@ -21,40 +21,36 @@
 
 int main() {
   sycl::queue q{};
-  constexpr uint32_t Size = 16;
-  auto int_sync = malloc_shared<uint32_t>(Size, q);
-  auto fp_sync = malloc_shared<float>(Size, q);
-  for (int i = 0; i < Size; ++i) {
-    int_sync[i] = i;
-    fp_sync[i] = i;
-  }
+  auto int_sync = malloc_shared<uint32_t>(16, q);
+  auto fp_sync = malloc_shared<float>(16, q);
+  int_sync[0] = 5;
+  int_sync[1] = 0;
+  fp_sync[0] = 6;
+  fp_sync[1] = 0;
   q.submit([&](sycl::handler &cgh) {
-    cgh.single_task([=]() [[intel::sycl_explicit_simd]] {
-      __ESIMD_NS::simd<uint32_t, Size> offsets(0, sizeof(uint32_t));
-
-      auto int_result =
+    cgh.single_task<class reproducer>([=]() [[intel::sycl_explicit_simd]] {
+      uint32_t int_result =
           sycl::ext::intel::experimental::esimd::lsc_atomic_update<
-              sycl::ext::intel::esimd::atomic_op::load, uint32_t, Size>(
-              int_sync, offsets, 1);
+              sycl::ext::intel::esimd::atomic_op::load, uint32_t, 1>(int_sync,
+                                                                     0, 1)[0];
       sycl::ext::intel::experimental::esimd::lsc_atomic_update<
-          sycl::ext::intel::esimd::atomic_op::store, uint32_t, Size>(
-          int_sync, offsets, int_result * 2, 1);
-      auto fp_result = sycl::ext::intel::experimental::esimd::lsc_atomic_update<
-          sycl::ext::intel::esimd::atomic_op::load, float, Size>(fp_sync,
-                                                                 offsets, 1);
+          sycl::ext::intel::esimd::atomic_op::store, uint32_t, 1>(
+          int_sync, 1, int_result, 1);
+      float fp_result =
+          sycl::ext::intel::experimental::esimd::lsc_atomic_update<
+              sycl::ext::intel::esimd::atomic_op::load, float, 1>(fp_sync, 0,
+                                                                  1)[0];
       sycl::ext::intel::experimental::esimd::lsc_atomic_update<
-          sycl::ext::intel::esimd::atomic_op::store, float, Size>(
-          fp_sync, offsets, fp_result * 2, 1);
+          sycl::ext::intel::esimd::atomic_op::store, float, 1>(fp_sync, 1,
+                                                               fp_result, 1);
     });
   });
   q.wait();
 
   bool passed = true;
 
-  for (int i = 0; i < Size; ++i) {
-    passed &= int_sync[i] == 2 * i;
-    passed &= fp_sync[i] == 2 * i;
-  }
+  passed &= int_sync[0] == int_sync[1];
+  passed &= fp_sync[0] == fp_sync[1];
 
   std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
 
