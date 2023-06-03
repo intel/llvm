@@ -90,6 +90,7 @@ public:
           MSharedPtrStorage(std::move(SharedPtrStorage)),
           MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
     StorageInitHelper(StorageInitHelper &&) = default;
+    StorageInitHelper(const StorageInitHelper &) = default;
     // The following storages are needed to ensure that arguments won't die
     // while we are using them.
     /// Storage for standard layout arguments.
@@ -124,13 +125,19 @@ public:
 
   CGTYPE getType() { return MType; }
 
-  std::vector<std::vector<char>> &getArgsStorage() { return MData.MArgsStorage; }
-  std::vector<detail::AccessorImplPtr> &getAccStorage() { return MData.MAccStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return MData.MArgsStorage;
+  }
+  std::vector<detail::AccessorImplPtr> &getAccStorage() {
+    return MData.MAccStorage;
+  }
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
     return MData.MSharedPtrStorage;
   }
 
-  std::vector<AccessorImplHost *> &getRequirements() { return MData.MRequirements; }
+  std::vector<AccessorImplHost *> &getRequirements() {
+    return MData.MRequirements;
+  }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
   virtual ~CG() = default;

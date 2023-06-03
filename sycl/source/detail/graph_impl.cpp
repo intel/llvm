@@ -185,7 +185,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   }
 
   // Add any nodes specified by event dependencies into the dependency list
-  for (auto Dep : CommandGroup->MEvents) {
+  for (auto Dep : CommandGroup->getEvents()) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
       Deps.push_back(NodeImpl->second);
     } else {
@@ -242,7 +242,7 @@ sycl::event exec_graph_impl::enqueue(
       // If the node has no requirements for accessors etc. then we skip the
       // scheduler and enqueue directly.
       if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
-          NodeImpl->MCommandGroup->MRequirements.size() +
+          NodeImpl->MCommandGroup->getRequirements().size() +
                   static_cast<sycl::detail::CGExecKernel *>(
                       NodeImpl->MCommandGroup.get())
                       ->MStreams.size() ==
