@@ -131,7 +131,6 @@ DeviceLib/built-ins/marray_integer.cpp
 DeviceLib/built-ins/marray_relational.cpp
 DeviceLib/built-ins/nan.cpp
 DeviceLib/built-ins/printf.cpp
-DeviceLib/built-ins/scalar_math_2.cpp
 DeviceLib/built-ins/scalar_relational.cpp
 DeviceLib/built-ins/vector_integer.cpp
 DeviceLib/built-ins/vector_math.cpp
