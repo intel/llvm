@@ -864,8 +864,12 @@ bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
         return false;
 
       if (isOnDiagonal) {
+        bool isFirstDiagonalElem = (row == 0 && col == 0);
+        if (isFirstDiagonalElem && !isOne(val, solver))
+          return false;
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(val, solver) &&
+            !::isZero(val, solver))
           return false;
         if (isLastDiagonalElem && !isGreaterThanOne(val, solver) &&
             !::isZero(val, solver))
@@ -921,8 +925,12 @@ bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
         return false;
 
       if (!isAboveDiagonal) {
+        bool isFirstDiagonalElem = (row == 0 && col == 0);
+        if (isFirstDiagonalElem && !isOne(val, solver))
+          return false;
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(val, solver) &&
+            !::isZero(val, solver))
           return false;
         if (isLastDiagonalElem && !isStrictlyPositive(val, solver) &&
             !::isZero(val, solver))
@@ -1090,10 +1098,10 @@ MemoryAccess::getIntraThreadAccessMatrix(unsigned numGridDimensions) const {
          "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
   if (numGridDimensions == 0)
-    return matrix;
+    return {};
 
-  std::vector<size_t> v(numGridDimensions);
-  std::iota(v.begin(), v.end(), 0);
+  std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
+  std::iota(v.begin(), v.end(), numGridDimensions);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }
@@ -1104,10 +1112,10 @@ MemoryAccess::getInterThreadAccessMatrix(unsigned numGridDimensions) const {
          "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
   if (numGridDimensions == 0)
-    return {};
+    return matrix;
 
-  std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
-  std::iota(v.begin(), v.end(), numGridDimensions);
+  std::vector<size_t> v(numGridDimensions);
+  std::iota(v.begin(), v.end(), 0);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }

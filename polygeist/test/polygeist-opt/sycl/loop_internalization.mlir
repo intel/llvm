@@ -16,7 +16,9 @@
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0 + s0, 256)>
 // CHECK-LABEL: func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_2_>) {
 // CHECK:         %c0_i32 = arith.constant 0 : i32
+// CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:    [[TX:%.*]] = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2_>, i32) -> i64  
+// CHECK-NEXT:    [[TY:%.*]] = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_2_>, i32) -> i64  
 // SIZE1-NEXT:    [[TILESIZE:%.*]] = arith.constant 1 : index
 // SIZE2-NEXT:    [[TILESIZE:%.*]] = arith.constant 2 : index
 // CHECK-NEXT:    affine.for [[IV1:%.*]] = 0 to [[MAP1]]()[[[TILESIZE]]] {
@@ -36,7 +38,10 @@ func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: 
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0_i32 = arith.constant 0 : i32
+  %c1_i32 = arith.constant 1 : i32
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
+  // FIXME: should build access matrix with nd_item dimension and not the number of get_global_id.
+  %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
 
   affine.for %ii = 0 to 256 {
     %i = arith.index_cast %ii : index to i64
@@ -68,7 +73,11 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> ((d0 - 1) * s0 + s0 + 1, 512)>
 // CHECK-LABEL: func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3_>) {
 // CHECK:         %c0_i32 = arith.constant 0 : i32
+// CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
+// CHECK-NEXT:    %c2_i32 = arith.constant 2 : i32
 // CHECK-NEXT:    [[TX:%.*]] = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_3_>, i32) -> i64  
+// CHECK-NEXT:    [[TY:%.*]] = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_3_>, i32) -> i64  
+// CHECK-NEXT:    [[TZ:%.*]] = sycl.nd_item.get_global_id(%arg1, %c2_i32) : (memref<?x!sycl_nd_item_3_>, i32) -> i64  
 // CHECK-NEXT:    affine.for [[IV1:%.*]] = 0 to 256 {
 // SIZE1-NEXT:      [[TILESIZE:%.*]] = arith.constant 1 : index
 // SIZE2-NEXT:      [[TILESIZE:%.*]] = arith.constant 2 : index
@@ -91,7 +100,11 @@ func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: 
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
   %id = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
   %c0_i32 = arith.constant 0 : i32
+  %c1_i32 = arith.constant 1 : i32
+  %c2_i32 = arith.constant 2 : i32
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
+  %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
+  %tz = sycl.nd_item.get_global_id(%arg1, %c2_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
 
   affine.for %ii = 0 to 256 {
     affine.for %jj = 1 to 512 {
@@ -126,7 +139,9 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %c256 = arith.constant 256 : index
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:    [[TX:%.*]] = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2_>, i32) -> i64  
+// CHECK-NEXT:    [[TY:%.*]] = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_2_>, i32) -> i64  
 // SIZE1-NEXT:    [[TILESIZE:%.*]] = arith.constant 1 : index
 // SIZE2-NEXT:    [[TILESIZE:%.*]] = arith.constant 2 : index
 // CHECK-NEXT:    [[STEP:%.*]] = arith.muli %c1, [[TILESIZE]] : index
@@ -150,10 +165,12 @@ func.func private @scf_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: mem
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0 = arith.constant 0 : index
-  %c0_i32 = arith.constant 0 : i32  
   %c1 = arith.constant 1 : index
   %c256 = arith.constant 256 : index
+  %c0_i32 = arith.constant 0 : i32  
+  %c1_i32 = arith.constant 1 : i32  
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
+  %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
 
   scf.for %ii = %c0 to %c256 step %c1 {
     %i = arith.index_cast %ii : index to i64    
@@ -186,7 +203,11 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-DAG:     %c256 = arith.constant 256 : index
 // CHECK-DAG:     %c512 = arith.constant 512 : index
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
+// CHECK-DAG:     %c2_i32 = arith.constant 2 : i32
 // CHECK-NEXT:    [[TX:%.*]] = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_3_>, i32) -> i64  
+// CHECK-NEXT:    [[TY:%.*]] = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_3_>, i32) -> i64  
+// CHECK-NEXT:    [[TZ:%.*]] = sycl.nd_item.get_global_id(%arg1, %c2_i32) : (memref<?x!sycl_nd_item_3_>, i32) -> i64  
 // CHECK-NEXT:    scf.for [[IV1:.*]] = %c0 to %c256 step %c1 {
 // SIZE1-NEXT:      [[TILESIZE:%.*]] = arith.constant 1 : index
 // SIZE2-NEXT:      [[TILESIZE:%.*]] = arith.constant 2 : index
@@ -212,12 +233,16 @@ gpu.module @device_func {
 func.func private @scf_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
   %id = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
-  %c0_i32 = arith.constant 0 : i32  
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c256 = arith.constant 256 : index
   %c512 = arith.constant 512 : index
+  %c0_i32 = arith.constant 0 : i32  
+  %c1_i32 = arith.constant 1 : i32  
+  %c2_i32 = arith.constant 2 : i32  
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
+  %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
+  %tz = sycl.nd_item.get_global_id(%arg1, %c2_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
 
   scf.for %ii = %c0 to %c256 step %c1 {
     scf.for %jj = %c1 to %c512 step %c1 {
