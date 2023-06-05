@@ -216,7 +216,7 @@ private:
 
   /// Return true is the callee is a candidate, and false otherwise.
   bool isCandidateCallable(CallableOpInterface callableOp,
-                           const polygeist::FunctionKernelInfo &);
+                           const polygeist::FunctionKernelInfo &funcKernelInfo);
 
   /// Return true if the call \p callOp operand at position \p pos is a
   /// candidate for peeling, and false otherwise.

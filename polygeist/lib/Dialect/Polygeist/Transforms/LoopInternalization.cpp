@@ -86,8 +86,8 @@ bool isCandidateFunction(FunctionOpInterface func,
 
   SmallVector<gpu::GPUFuncOp> kernels;
   funcKernelInfo.getKernelCallers(func, kernels);
-  if (any_of(kernels,
-             [](gpu::GPUFuncOp kernel) { return !isCandidateKernel(kernel); }))
+  if (!all_of(kernels,
+              [](gpu::GPUFuncOp kernel) { return isCandidateKernel(kernel); }))
     return false;
 
   return true;

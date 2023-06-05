@@ -77,6 +77,7 @@ class FunctionKernelInfo {
 public:
   FunctionKernelInfo() = delete;
   FunctionKernelInfo(gpu::GPUModuleOp);
+
   struct KernelInfo {
     gpu::GPUFuncOp kernel;
     unsigned depth; // Depth from the associated kernel
