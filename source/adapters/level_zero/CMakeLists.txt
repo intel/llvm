@@ -28,11 +28,20 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         GIT_REPOSITORY    ${LEVEL_ZERO_LOADER_REPO}
         GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
     )
-    if (WIN32)
-        set(USE_Z7 ON)
+    set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
+    if(MSVC)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
+      # FIXME: Unified runtime build fails with /DUNICODE
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
+      # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+      set(USE_Z7 ON)
     endif()
     FetchContent_MakeAvailable(level-zero-loader)
     FetchContent_GetProperties(level-zero-loader)
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
     set(LEVEL_ZERO_LIBRARY ze_loader)
     set(LEVEL_ZERO_INCLUDE_DIR
@@ -51,10 +60,8 @@ target_link_directories(LevelZeroLoader
 target_link_libraries(LevelZeroLoader
     INTERFACE "${LEVEL_ZERO_LIB_NAME}"
 )
-if (WIN32)
-    # TODO: fix building level-zero loader on Windows
-    # target_compile_options(${LEVEL_ZERO_LIB_NAME} /UUNICODE)
-else()
+
+if (NOT MSVC)
     target_compile_options(${LEVEL_ZERO_LIB_NAME} PUBLIC
         -Wno-unused-but-set-variable
         -Wno-pedantic
@@ -75,6 +82,7 @@ add_library(${TARGET_NAME}
     ${L0_DIR}/ur_level_zero_context.hpp
     ${L0_DIR}/ur_level_zero_device.hpp
     ${L0_DIR}/ur_level_zero_event.hpp
+    ${L0_DIR}/ur_level_zero_usm.hpp
     ${L0_DIR}/ur_level_zero_mem.hpp
     ${L0_DIR}/ur_level_zero_kernel.hpp
     ${L0_DIR}/ur_level_zero_platform.hpp
@@ -86,6 +94,7 @@ add_library(${TARGET_NAME}
     ${L0_DIR}/ur_level_zero_context.cpp
     ${L0_DIR}/ur_level_zero_device.cpp
     ${L0_DIR}/ur_level_zero_event.cpp
+    ${L0_DIR}/ur_level_zero_usm.cpp
     ${L0_DIR}/ur_level_zero_mem.cpp
     ${L0_DIR}/ur_level_zero_kernel.cpp
     ${L0_DIR}/ur_level_zero_platform.cpp
@@ -93,6 +102,9 @@ add_library(${TARGET_NAME}
     ${L0_DIR}/ur_level_zero_queue.cpp
     ${L0_DIR}/ur_level_zero_sampler.cpp
     ${L0_DIR}/../../ur.cpp
+    ${L0_DIR}/../../usm_allocator.cpp
+    ${L0_DIR}/../../usm_allocator.hpp
+    ${L0_DIR}/../../usm_allocator_config.cpp
     ${L0_DIR}/../../usm_allocator_config.hpp
 )
 
@@ -104,6 +116,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    LevelZeroLoader
     LevelZeroLoader-Headers
 )
 
