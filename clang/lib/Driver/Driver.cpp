@@ -6076,7 +6076,7 @@ class OffloadingActionBuilder final {
         if (SYCLTargets->getNumValues() > 1)
           C.getDriver().Diag(clang::diag::warn_drv_sycl_native_cpu_and_targets);
       }
-      if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
+      if (HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {
           Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
           // Fill SYCLTripleList
@@ -6110,6 +6110,12 @@ class OffloadingActionBuilder final {
                   C.getDriver().MakeSYCLDeviceTriple("amdgcn-amd-amdhsa"),
                   ValidDevice->data());
               UserTargetName = "amdgcn-amd-amdhsa";
+            } else if (Val == "native_cpu") {
+              const ToolChain *HostTC =
+                  C.getSingleOffloadToolChain<Action::OFK_Host>();
+              llvm::Triple TT = HostTC->getTriple();
+              SYCLTripleList.push_back(TT);
+              continue;
             }
 
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
@@ -6196,14 +6202,6 @@ class OffloadingActionBuilder final {
               GpuArchList.emplace_back(TT, nullptr);
           }
         }
-      } else if (IsSYCLNativeCPU) {
-        const ToolChain *HostTC =
-            C.getSingleOffloadToolChain<Action::OFK_Host>();
-        llvm::Triple TT = HostTC->getTriple();
-        auto TCIt = llvm::find_if(
-            ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
-        SYCLTripleList.push_back(TT);
-        SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
       } else if (HasValidSYCLRuntime) {
         // -fsycl is provided without -fsycl-*targets.
         bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
