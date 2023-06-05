@@ -1087,16 +1087,18 @@ extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
 
 template <typename dataT, typename ReturnT, typename... ArgsT>
 extern SYCL_EXTERNAL size_t
-__spirv_TaskSequenceCreateINTEL(dataT *Data, ReturnT (*f)(ArgsT...),
+__spirv_TaskSequenceCreateINTEL(ReturnT (*f)(ArgsT...),
                                 uint32_t Pipelined,
-                                uint32_t UseStallEnableClusters) noexcept;
+                                uint32_t UseStallEnableClusters,
+                                uint32_t GetCapacity,
+                                uint32_t AsyncCapacity) noexcept;
 template <typename dataT, typename... ArgsT>
 extern SYCL_EXTERNAL void
-__spirv_TaskSequenceAsyncINTEL(dataT *Data, uint32_t AsyncCapacity,
+__spirv_TaskSequenceAsyncINTEL(dataT *Data,
                                ArgsT... Args) noexcept;
 template <typename dataT, typename ReturnT, typename... ArgsT>
 extern SYCL_EXTERNAL ReturnT
-__spirv_TaskSequenceGetINTEL(dataT *Data, uint32_t GetCapacity) noexcept;
+__spirv_TaskSequenceGetINTEL(dataT *Data) noexcept;
 template <typename dataT>
 extern SYCL_EXTERNAL void
 __spirv_TaskSequenceReleaseINTEL(dataT *Data) noexcept;
