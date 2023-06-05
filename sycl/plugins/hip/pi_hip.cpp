@@ -5264,6 +5264,27 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                       pi_uint32 num_events_in_waitlist,
                                       const pi_event *events_waitlist,
                                       pi_event *event) {
+  pi_device device = queue->get_context()->get_device();
+
+  // Certain hip devices and Windows do not have support for some Unified
+  // Memory features. hipMemPrefetchAsync requires concurrent memory access
+  // for managed memory. Therfore, ignore prefetch hint if concurrent managed
+  // memory access is not available.
+  if (!getAttribute(device, hipDeviceAttributeConcurrentManagedAccess)) {
+    setErrorMessage("Prefetch hint ignored as device does not support "
+                    "concurrent managed access",
+                    PI_SUCCESS);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+
+  bool is_managed;
+  PI_CHECK_ERROR(hipPointerGetAttribute(
+      &is_managed, HIP_POINTER_ATTRIBUTE_IS_MANAGED, (hipDeviceptr_t)ptr));
+  if (!is_managed) {
+    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
+                    PI_SUCCESS);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // flags is currently unused so fail if set
   if (flags != 0)
@@ -5284,7 +5305,8 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(hipMemPrefetchAsync(
-        ptr, size, queue->get_context()->get_device()->get(), hipStream));
+        ptr, size, device->get(), hipStream));
+ 
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
