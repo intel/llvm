@@ -586,10 +586,11 @@ std::string deviceTestWithParamPrinter(
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
 
-struct urProgramTest : urContextTest {
+struct urProgramTest : urQueueTest {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+                                                      il_binary);
         ASSERT_SUCCESS(urProgramCreateWithIL(
             context, il_binary->data(), il_binary->size(), nullptr, &program));
     }
@@ -598,7 +599,7 @@ struct urProgramTest : urContextTest {
         if (program) {
             EXPECT_SUCCESS(urProgramRelease(program));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
     }
 
     std::shared_ptr<std::vector<char>> il_binary;
@@ -627,42 +628,15 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     ur_program_handle_t program = nullptr;
 };
 
-inline std::string getKernelName(ur_program_handle_t program) {
-    size_t kernel_string_size = 0;
-    if (UR_RESULT_SUCCESS != urProgramGetInfo(program,
-                                              UR_PROGRAM_INFO_KERNEL_NAMES, 0,
-                                              nullptr, &kernel_string_size)) {
-        return "";
-    }
-    std::string kernel_string;
-    kernel_string.resize(kernel_string_size);
-    if (UR_RESULT_SUCCESS !=
-        urProgramGetInfo(program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                         kernel_string.size(), kernel_string.data(), nullptr)) {
-        return "";
-    }
-    std::stringstream kernel_stream(kernel_string);
-    std::string kernel_name;
-    bool found_kernel = false;
-    // Go through the semi-colon separated list of kernel names looking for
-    // one that isn't a wrapper or an offset handler.
-    while (kernel_stream.good()) {
-        getline(kernel_stream, kernel_name, ';');
-        if (kernel_name.find("wrapper") == std::string::npos &&
-            kernel_name.find("offset") == std::string::npos) {
-            found_kernel = true;
-            break;
-        }
-    }
-    return found_kernel ? kernel_name : "";
-}
-
 struct urKernelTest : urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-        kernel_name = getKernelName(program);
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
+        kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
+        ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
     }
 
     void TearDown() override {
@@ -680,8 +654,13 @@ template <class T> struct urKernelTestWithParam : urProgramTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urProgramBuild(this->context, this->program, nullptr));
-        kernel_name = getKernelName(this->program);
+        auto kernel_names =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(
+                this->program_name);
+        kernel_name = kernel_names[0];
         ASSERT_FALSE(kernel_name.empty());
+        ASSERT_SUCCESS(
+            urKernelCreate(this->program, kernel_name.data(), &kernel));
     }
 
     void TearDown() override {
@@ -693,6 +672,81 @@ template <class T> struct urKernelTestWithParam : urProgramTestWithParam<T> {
 
     std::string kernel_name;
     ur_kernel_handle_t kernel = nullptr;
+};
+
+struct urKernelExecutionTest : urKernelTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+    }
+
+    void TearDown() override {
+        for (auto &buffer : buffer_args) {
+            ASSERT_SUCCESS(urMemRelease(buffer));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::TearDown());
+    }
+
+    // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
+    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer) {
+        ur_mem_handle_t mem_handle = nullptr;
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
+                                         nullptr, &mem_handle));
+        char zero = 0;
+        ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, mem_handle, &zero,
+                                              sizeof(zero), 0, size, 0, nullptr,
+                                              nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queue));
+        ASSERT_SUCCESS(
+            urKernelSetArgMemObj(kernel, current_arg_index, mem_handle));
+
+        // This emulates the offset struct sycl adds for a 1D buffer accessor.
+        struct {
+            size_t offsets[1] = {0};
+        } accessor;
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
+                                           sizeof(accessor), &accessor));
+
+        current_arg_index += 2;
+        buffer_args.push_back(mem_handle);
+        *out_buffer = mem_handle;
+    }
+
+    template <class T> void AddPodArg(T data) {
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index,
+                                           sizeof(data), &data));
+        current_arg_index++;
+    }
+
+    void Launch1DRange(size_t global_size, size_t local_size = 1) {
+        size_t offset = 0;
+        ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &offset,
+                                             &global_size, &local_size, 0,
+                                             nullptr, nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queue));
+    }
+
+    // Validate the contents of `buffer` according to the given validator.
+    template <class T>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size,
+                        std::function<bool(T &)> validator) {
+        std::vector<T> read_buffer(size / sizeof(T));
+        ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
+                                              read_buffer.data(), 0, nullptr,
+                                              nullptr));
+        ASSERT_TRUE(
+            std::all_of(read_buffer.begin(), read_buffer.end(), validator));
+    }
+
+    // Helper that uses the generic validate function to check for a given value.
+    template <class T>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size, T value) {
+        auto validator = [&value](T result) -> bool { return result == value; };
+
+        ValidateBuffer<T>(buffer, size, validator);
+    }
+
+    std::vector<ur_mem_handle_t> buffer_args;
+    uint32_t current_arg_index = 0;
 };
 } // namespace uur
 
