@@ -126,7 +126,6 @@ flags can be found by launching the script with `--help`):
 * `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
-* `--enable-sycl-graph` -> build SYCL Graph support
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (Debug or Release)
 * `-o` -> Path to build directory

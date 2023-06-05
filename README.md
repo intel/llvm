@@ -49,7 +49,7 @@ is something we are interested in expanding on.
 | Empty node                                                         | Implemented           |
 | Queue `ext_oneapi_get_state()` query                               | Implemented           |
 | Vendor test macro                                                  | Implemented           |
-| Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented           |
+| Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented, with the limitations that a subgraph can only be added as a node to any parent graph once, and will not correctly execute by itself after being added as a sub-graph. |
 | Using all capabilities of USM in a graph node                      | Implemented           |
 | Extending lifetime of buffers used in a graph                      | Not implemented       |
 | Buffer taking a copy of host data when buffer is used in a graph   | Not implemented       |
@@ -57,8 +57,8 @@ is something we are interested in expanding on.
 | Recording an in-order queue preserves linear dependencies          | Not implemented       |
 | Using `handler::parallel_for` in a graph node                      | Implemented           |
 | Using `handler::single_task` in a graph node                       | Implemented           |
-| Using `handler::memcpy` in a graph node                            | Implemented for USM, not implemented for buffer accessors |
-| Using `handler::copy` in a graph node                              | Not implemented       |
+| Using `handler::memcpy` in a graph node                            | Implemented           |
+| Using `handler::copy` in a graph node                              | Implemented           |
 | Using `handler::host_task` in a graph node                         | Not implemented       |
 | Using `handler::fill` in a graph node                              | Implemented for USM, not implemented for buffer accessors |
 | Using `handler::memset` in a graph node                            | Not implemented       |

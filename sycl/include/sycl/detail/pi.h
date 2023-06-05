@@ -2183,6 +2183,50 @@ __SYCL_EXPORT pi_result piextCommandBufferMemcpyUSM(
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
+/// API to append a mem buffer copy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param src_buffer is the data to be copied
+/// \param dst_buffer is the location the data will be copied
+/// \param src_offset offset into \p src_buffer
+/// \param dst_offset offset into \p dst_buffer
+/// \param size is number of bytes to copy
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a rectangular mem buffer copy command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param src_buffer is the data to be copied
+/// \param dst_buffer is the location the data will be copied
+/// \param src_origin offset for the start of the region to copy in src_buffer
+/// \param dst_origin offset for the start of the region to copy in dst_buffer
+/// \param region The size of the region to be copied
+/// \param src_row_pitch Row pitch for the src data
+/// \param src_slice_pitch Slice pitch for the src data
+/// \param dst_row_pitch Row pitch for the dst data
+/// \param dst_slice_pitch Slice pitch for the dst data
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
 /// API to submit the command-buffer to queue for execution, returns an error if
 /// command-buffer not finalized or another instance of same command-buffer
 /// currently executing.
