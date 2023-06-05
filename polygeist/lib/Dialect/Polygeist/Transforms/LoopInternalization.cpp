@@ -125,16 +125,13 @@ public:
   /// Enumerate memory spaces.
   enum class MemorySpace { Global, Shared, Constant, Texture };
 
-  /// Returns the most suitable memory space the \p memref should use.
-  std::optional<MemorySpace> selectMemorySpace(Value memref) const;
+  /// Returns the most suitable memory space the \p op should use.
+  std::optional<MemorySpace> getMemorySpace(Operation *op) const;
 
   /// Analyze the memory accesses in the given loop.
   void analyze(LoopLikeOpInterface loop, AccessKind accessKind);
 
 private:
-  /// Add the given \p access to the 'accesses' map.
-  void addMemRefAccess(affine::MemRefAccess access);
-
   /// Return true iff no memref accesses in \p accesses are stores.
   bool areReadOnly(ArrayRef<affine::MemRefAccess> accesses) const;
 
@@ -154,158 +151,138 @@ private:
 
   DataFlowSolver &solver;
 
-  /// Collects all memory accesses for a given memref value.
-  DenseMap<Value, SmallVector<affine::MemRefAccess>> accesses;
-
-  /// The preferred memory space for each memref access;
-  DenseMap<const Operation *, MemorySpace> accessToMemSpace;
+  /// The preferred memory space for each memref access.
+  DenseMap<Operation *, MemorySpace> accessToMemSpace;
 };
 
 std::optional<MemorySelector::MemorySpace>
-MemorySelector::selectMemorySpace(Value memref) const {
-  assert(isa<MemRefType>(memref.getType()) && "Expecting a memref");
-
-  auto it = accesses.find(memref);
-  if (it == accesses.end())
+MemorySelector::getMemorySpace(Operation *op) const {
+  auto it = accessToMemSpace.find(op);
+  if (it == accessToMemSpace.end())
     return std::nullopt;
-
-  auto numShared = [this](ArrayRef<affine::MemRefAccess> accesses) {
-    return llvm::count_if(accesses, [this](affine::MemRefAccess access) {
-      auto it = accessToMemSpace.find(access.opInst);
-      if (it == accessToMemSpace.end())
-        return false;
-      return (it->second == MemorySpace::Shared);
-    });
-  };
-
-  /// Recommend shared memory if at least half of the accesses for this memref
-  /// should use shared memory.
-  ArrayRef<affine::MemRefAccess> accesses = it->second;
-  if (numShared(accesses) >= std::ceil((double)accesses.size() / 2))
-    return MemorySpace::Shared;
-
-  return MemorySpace::Global;
+  return it->second;
 }
 
 void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
-  assert(accesses.empty() && accessToMemSpace.empty() &&
-         "Expecting empty maps");
-
   // Collect the global thread ids used in the function the loop is in.
   auto funcOp = loop->template getParentOfType<FunctionOpInterface>();
   SmallVector<Value> threadVars =
       memAccessAnalysis.getThreadVector(funcOp, solver);
 
   // Collect candidate memref accesses in the loop.
+  DenseMap<Value, SmallVector<affine::MemRefAccess>> accesses;
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
     if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
       return;
 
     affine::MemRefAccess access(op);
-    addMemRefAccess(access);
+    accesses[access.memref] = {access};
   });
+
+  // Return true iff the accesses are all of the requested access kind.
+  auto areOfRequestedKind = [&](ArrayRef<affine::MemRefAccess> accesses) {
+    switch (accessKind) {
+    case AccessKind::ReadOnly:
+      return areReadOnly(accesses);
+    case AccessKind::WriteOnly:
+      return areWriteOnly(accesses);
+    case AccessKind::ReadWrite:
+      return areReadWrite(accesses);
+    }
+  };
 
   // Analyze the accesses collected and populate the 'accessToMemSpace' map.
   for (auto &entry : accesses) {
     ArrayRef<affine::MemRefAccess> accesses = entry.second;
 
     // Skip accesses that aren't of the requested kind.
-    if (accessKind == AccessKind::ReadOnly && !areReadOnly(accesses))
-      continue;
-    if (accessKind == AccessKind::WriteOnly && !areWriteOnly(accesses))
-      continue;
-    if (accessKind == AccessKind::ReadWrite && !areReadWrite(accesses))
+    // TODO: consider aliased accesses.
+    if (!areOfRequestedKind(accesses))
       continue;
 
-    for (const affine::MemRefAccess &access : accesses) {
-      LLVM_DEBUG(llvm::dbgs() << "Classify: " << *access.opInst << "\n");
+    // Note: all our candidate accesses have the same subscript and zero index
+    // therefore we need to analyze the first one only.
+    const affine::MemRefAccess &access = accesses.front();
+    LLVM_DEBUG(llvm::dbgs() << "Classify: " << *access.opInst << "\n");
 
-      std::optional<MemoryAccess> memAccess =
-          memAccessAnalysis.getMemoryAccess(access);
-      if (!memAccess.has_value()) {
-        LLVM_DEBUG(llvm::dbgs() << "Unable to analyze memory access\n");
-        continue;
-      }
-
-      // Get the inter-thread access pattern and classify the memory access.
-      MemoryAccessMatrix interThreadMatrix =
-          memAccess->getInterThreadAccessMatrix(threadVars.size());
-      MemoryAccessPattern interThreadAccessPattern = MemoryAccess::classify(
-          interThreadMatrix, memAccess->getOffsetVector(), solver);
-
-      switch (interThreadAccessPattern) {
-      case Linear:
-      case Reverse:
-      case ReverseLinear:
-        // These patterns imply fully coalesced memory accesses.
-        accessToMemSpace[access.opInst] = MemorySpace::Global;
-        break;
-      case Shifted:
-      case LinearShifted:
-      case ReverseLinearShifted:
-      case LinearOverlapped:
-      case ReverseLinearOverlapped:
-        // These patterns imply partially coalesced memory accesses.
-        accessToMemSpace[access.opInst] = MemorySpace::Global;
-        break;
-      case Strided:
-      case ReverseStrided:
-      case StridedShifted:
-      case ReverseStridedShifted:
-      case Overlapped:
-      case StridedOverlapped:
-      case ReverseStridedOverlapped: {
-        Value strideVal =
-            interThreadMatrix(interThreadMatrix.getNumRows() - 1,
-                              interThreadMatrix.getNumColumns() - 1);
-
-        // Use shared memory iff:
-        //   - the memory access exhibits temporal reuse, and
-        //   - the stride is greater than a sufficiently large value (small
-        //     stride values yield partially coalesed memory accesses).
-        // Note that a zero stride is indicative of non-coalesed accesses.
-        // Example (assume tx,ty are global thread ids):
-        //     for(k)
-        //       ... = A[{tx, k}] // increasing tx's values read across rows.
-        // The inter-thread access matrix for A's load is:
-        //   1 0
-        //   0 C <- where C == 0 (C is the stride).
-        bool useSharedMemory = false;
-        if (auto stride = getConstIntegerValue(strideVal, solver)) {
-          bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
-          useSharedMemory = hasTemporalReuse(access, threadVars) &&
-                            (stride->isZero() || strideIsLargeEnough);
-          // FIXME: getConstIntegerValue doesn't return zero for
-          // ConstantIndexOp.
-        } else if (auto constVal = dyn_cast<arith::ConstantIndexOp>(
-                       strideVal.getDefiningOp());
-                   constVal.value() == 0)
-          useSharedMemory = hasTemporalReuse(access, threadVars);
-
-        accessToMemSpace[access.opInst] =
-            useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
-      } break;
-      default:
-        accessToMemSpace[access.opInst] = MemorySpace::Global;
-      }
-      LLVM_DEBUG({
-        if (accessToMemSpace.at(access.opInst) == MemorySpace::Shared)
-          llvm::dbgs().indent(2) << "shared memory space\n";
-        else {
-          assert(accessToMemSpace.at(access.opInst) == MemorySpace::Global);
-          llvm::dbgs().indent(2) << "global memory space\n";
-        }
-      });
+    std::optional<MemoryAccess> memAccess =
+        memAccessAnalysis.getMemoryAccess(access);
+    if (!memAccess.has_value()) {
+      LLVM_DEBUG(llvm::dbgs() << "Unable to analyze memory access\n");
+      continue;
     }
-  }
-}
 
-void MemorySelector::addMemRefAccess(affine::MemRefAccess access) {
-  auto it = accesses.find(access.memref);
-  if (it == accesses.end())
-    accesses[access.memref] = {access};
-  else
-    it->second.push_back(access);
+    // Get the inter-thread access pattern and classify the memory access.
+    MemoryAccessMatrix interThreadMatrix =
+        memAccess->getInterThreadAccessMatrix(threadVars.size());
+    MemoryAccessPattern interThreadAccessPattern = MemoryAccess::classify(
+        interThreadMatrix, memAccess->getOffsetVector(), solver);
+
+    switch (interThreadAccessPattern) {
+    case Linear:
+    case Reverse:
+    case ReverseLinear:
+      // These patterns imply fully coalesced memory accesses.
+      accessToMemSpace[access.opInst] = MemorySpace::Global;
+      break;
+    case Shifted:
+    case LinearShifted:
+    case ReverseLinearShifted:
+    case LinearOverlapped:
+    case ReverseLinearOverlapped:
+      // These patterns imply partially coalesced memory accesses.
+      accessToMemSpace[access.opInst] = MemorySpace::Global;
+      break;
+    case Strided:
+    case ReverseStrided:
+    case StridedShifted:
+    case ReverseStridedShifted:
+    case Overlapped:
+    case StridedOverlapped:
+    case ReverseStridedOverlapped: {
+      Value strideVal =
+          interThreadMatrix(interThreadMatrix.getNumRows() - 1,
+                            interThreadMatrix.getNumColumns() - 1);
+
+      // Use shared memory iff:
+      //   - the memory access exhibits temporal reuse, and
+      //   - the stride is greater than a sufficiently large value (small
+      //     stride values yield partially coalesed memory accesses).
+      // Note that a zero stride is indicative of non-coalesed accesses.
+      // Example (assume tx,ty are global thread ids):
+      //     for(k)
+      //       ... = A[{tx, k}] // increasing tx's values read across rows.
+      // The inter-thread access matrix for A's load is:
+      //   1 0
+      //   0 C <- where C == 0 (C is the stride).
+      bool useSharedMemory = false;
+      if (auto stride = getConstIntegerValue(strideVal, solver)) {
+        bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
+        useSharedMemory = hasTemporalReuse(access, threadVars) &&
+                          (stride->isZero() || strideIsLargeEnough);
+        // FIXME: getConstIntegerValue doesn't return zero for
+        // ConstantIndexOp.
+      } else if (auto constVal = dyn_cast<arith::ConstantIndexOp>(
+                     strideVal.getDefiningOp());
+                 constVal.value() == 0)
+        useSharedMemory = hasTemporalReuse(access, threadVars);
+
+      accessToMemSpace[access.opInst] =
+          useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
+    } break;
+    default:
+      accessToMemSpace[access.opInst] = MemorySpace::Global;
+    }
+
+    LLVM_DEBUG({
+      if (accessToMemSpace.at(access.opInst) == MemorySpace::Shared)
+        llvm::dbgs().indent(2) << "shared memory space\n";
+      else {
+        assert(accessToMemSpace.at(access.opInst) == MemorySpace::Global);
+        llvm::dbgs().indent(2) << "global memory space\n";
+      }
+    });
+  }
 }
 
 bool MemorySelector::areReadOnly(
@@ -481,7 +458,7 @@ void LoopInternalization::selectMemorySpace(
 
     // Compute the ideal memory space if possible.
     std::optional<MemorySelector::MemorySpace> memSpace =
-        memorySelector.selectMemorySpace(memRefAccess.memref);
+        memorySelector.getMemorySpace(op);
     if (!memSpace)
       return;
 
