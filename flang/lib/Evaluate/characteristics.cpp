@@ -149,7 +149,13 @@ std::optional<TypeAndShape> TypeAndShape::Characterize(
 
 std::optional<TypeAndShape> TypeAndShape::Characterize(
     const ActualArgument &arg, FoldingContext &context) {
-  return Characterize(arg.UnwrapExpr(), context);
+  if (const auto *expr{arg.UnwrapExpr()}) {
+    return Characterize(*expr, context);
+  } else if (const Symbol * assumed{arg.GetAssumedTypeDummy()}) {
+    return Characterize(*assumed, context);
+  } else {
+    return std::nullopt;
+  }
 }
 
 bool TypeAndShape::IsCompatibleWith(parser::ContextualMessages &messages,
@@ -393,6 +399,9 @@ llvm::raw_ostream &DummyDataObject::Dump(llvm::raw_ostream &o) const {
       expr.AsFortran(o << sep);
       sep = ',';
     }
+  }
+  if (!ignoreTKR.empty()) {
+    ignoreTKR.Dump(o << ' ', common::EnumToString);
   }
   return o;
 }

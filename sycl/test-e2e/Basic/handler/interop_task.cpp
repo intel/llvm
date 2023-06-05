@@ -2,8 +2,6 @@
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: accelerator
-
 //==------- interop_task.cpp -----------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

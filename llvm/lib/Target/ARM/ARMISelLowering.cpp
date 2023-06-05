@@ -2417,7 +2417,7 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   CCInfo.AnalyzeCallOperands(Outs, CCAssignFnForCall(CallConv, isVarArg));
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NumBytes = CCInfo.getNextStackOffset();
+  unsigned NumBytes = CCInfo.getStackSize();
 
   // SPDiff is the byte offset of the call's argument area from the callee's.
   // Stores to callee stack arguments will be placed in FixedStackSlots offset
@@ -2857,6 +2857,7 @@ ARMTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   if (isTailCall) {
     MF.getFrameInfo().setHasTailCall();
     SDValue Ret = DAG.getNode(ARMISD::TC_RETURN, dl, NodeTys, Ops);
+    DAG.addNoMergeSiteInfo(Ret.getNode(), CLI.NoMerge);
     DAG.addCallSiteInfo(Ret.getNode(), std::move(CSInfo));
     return Ret;
   }
@@ -2912,7 +2913,7 @@ void ARMTargetLowering::HandleByVal(CCState *State, unsigned &Size,
   // all remained GPR regs. In that case we can't split parameter, we must
   // send it to stack. We also must set NCRN to R4, so waste all
   // remained registers.
-  const unsigned NSAAOffset = State->getNextStackOffset();
+  const unsigned NSAAOffset = State->getStackSize();
   if (NSAAOffset != 0 && Size > Excess) {
     while (State->AllocateReg(GPRArgRegs))
       ;
@@ -3078,7 +3079,7 @@ bool ARMTargetLowering::IsEligibleForTailCallOptimization(
     SmallVector<CCValAssign, 16> ArgLocs;
     CCState CCInfo(CalleeCC, isVarArg, MF, ArgLocs, C);
     CCInfo.AnalyzeCallOperands(Outs, CCAssignFnForCall(CalleeCC, isVarArg));
-    if (CCInfo.getNextStackOffset()) {
+    if (CCInfo.getStackSize()) {
       // Check if the arguments are already laid out in the right way as
       // the caller's fixed stack objects.
       MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -4419,10 +4420,9 @@ void ARMTargetLowering::VarArgStyleRegisters(CCState &CCInfo, SelectionDAG &DAG,
   // the result of va_next.
   // If there is no regs to be stored, just point address after last
   // argument passed via stack.
-  int FrameIndex = StoreByValRegs(CCInfo, DAG, dl, Chain, nullptr,
-                                  CCInfo.getInRegsParamsCount(),
-                                  CCInfo.getNextStackOffset(),
-                                  std::max(4U, TotalArgRegsSaveSize));
+  int FrameIndex = StoreByValRegs(
+      CCInfo, DAG, dl, Chain, nullptr, CCInfo.getInRegsParamsCount(),
+      CCInfo.getStackSize(), std::max(4U, TotalArgRegsSaveSize));
   AFI->setVarArgsFrameIndex(FrameIndex);
 }
 
@@ -4657,7 +4657,7 @@ SDValue ARMTargetLowering::LowerFormalArguments(
 
   // varargs
   if (isVarArg && MFI.hasVAStart()) {
-    VarArgStyleRegisters(CCInfo, DAG, dl, Chain, CCInfo.getNextStackOffset(),
+    VarArgStyleRegisters(CCInfo, DAG, dl, Chain, CCInfo.getStackSize(),
                          TotalArgRegsSaveSize);
     if (AFI->isCmseNSEntryFunction()) {
       DiagnosticInfoUnsupported Diag(
@@ -4667,7 +4667,7 @@ SDValue ARMTargetLowering::LowerFormalArguments(
     }
   }
 
-  unsigned StackArgSize = CCInfo.getNextStackOffset();
+  unsigned StackArgSize = CCInfo.getStackSize();
   bool TailCallOpt = MF.getTarget().Options.GuaranteedTailCallOpt;
   if (canGuaranteeTCO(CallConv, TailCallOpt)) {
     // The only way to guarantee a tail call is if the callee restores its
@@ -4679,7 +4679,7 @@ SDValue ARMTargetLowering::LowerFormalArguments(
   }
   AFI->setArgumentStackSize(StackArgSize);
 
-  if (CCInfo.getNextStackOffset() > 0 && AFI->isCmseNSEntryFunction()) {
+  if (CCInfo.getStackSize() > 0 && AFI->isCmseNSEntryFunction()) {
     DiagnosticInfoUnsupported Diag(
         DAG.getMachineFunction().getFunction(),
         "secure entry function requires arguments on stack", dl.getDebugLoc());
@@ -20009,7 +20009,7 @@ void ARMTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
       return;
 
     KnownBits KnownRHS = DAG.computeKnownBits(Op.getOperand(1), Depth+1);
-    Known = KnownBits::commonBits(Known, KnownRHS);
+    Known = Known.intersectWith(KnownRHS);
     return;
   }
   case ISD::INTRINSIC_W_CHAIN: {
@@ -20091,7 +20091,7 @@ void ARMTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
       KnownOp1 = KnownBits::mul(
           KnownOp1, KnownBits::makeConstant(APInt(32, -1)));
 
-    Known = KnownBits::commonBits(KnownOp0, KnownOp1);
+    Known = KnownOp0.intersectWith(KnownOp1);
     break;
   }
   }

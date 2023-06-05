@@ -31,13 +31,15 @@ public:
   class Trait : public mlir::TypeTrait::TraitBase<ConcreteType, Trait> {};
 };
 
-/// Return true if the given \p Ty is a SYCL type.
-inline bool isSYCLType(Type Ty) { return isa<SYCLDialect>(Ty.getDialect()); }
+/// Return true if the given \p type is a SYCL type.
+inline bool isSYCLType(Type type) {
+  return isa<SYCLDialect>(type.getDialect());
+}
 
-/// Return the number of dimensions of type \p Ty.
-unsigned getDimensions(Type Ty);
+/// Return the number of dimensions of type \p type.
+unsigned getDimensions(Type type);
 
-llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
+llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID typeID);
 } // namespace sycl
 } // namespace mlir
 
@@ -47,8 +49,8 @@ llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
 namespace mlir {
 namespace sycl {
 
-/// Return true if type is 'memref<?x!sycl.accessor>'.
-bool isAccessorPtrType(Type type);
+/// Return true if type is 'memref<?xT>'.
+template <typename T> bool isPtrOf(Type type);
 
 /// Represent Value of type 'memref<?x!sycl.accessor>'.
 class AccessorPtrValue : public Value {

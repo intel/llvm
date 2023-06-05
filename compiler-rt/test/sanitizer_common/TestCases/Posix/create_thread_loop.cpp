@@ -2,6 +2,9 @@
 
 // RUN: %clangxx -O3 -pthread %s -o %t && %run %t 1000
 
+// Inconsistently fails on Android.
+// UNSUPPORTED: android
+
 #include <pthread.h>
 #include <stdlib.h>
 
@@ -16,8 +19,8 @@ int main(int argc, char **argv) {
   int n = atoi(argv[1]);
   for (int i = 0; i < n; ++i) {
     pthread_t thread;
-    pthread_create(&thread, 0, null_func, NULL);
-    pthread_detach(thread);
+    if (pthread_create(&thread, 0, null_func, NULL) == 0)
+      pthread_detach(thread);
   }
   return 0;
 }

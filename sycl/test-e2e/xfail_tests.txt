@@ -87,11 +87,11 @@ Basic/device_event.cpp
 Basic/device_implicitly_copyable.cpp
 Basic/diagnostics/non-uniform-wk-gp-test.cpp
 Basic/group_async_copy.cpp
+Basic/group_async_copy_legacy.cpp
 Basic/half_builtins.cpp
 Basic/half_type.cpp
 Basic/image/image.cpp
 Basic/image/image_accessor_readsampler.cpp
-Basic/image/image_accessor_readwrite.cpp
 Basic/image/image_accessor_readwrite_half.cpp
 Basic/image/image_array.cpp
 Basic/image/image_max_size.cpp
@@ -104,8 +104,6 @@ Basic/image/srgba-read.cpp
 Basic/multi_ptr.cpp
 Basic/multi_ptr_legacy_usm_addr_ext.cpp
 Basic/multi_ptr_usm_addr_ext.cpp
-Basic/reqd_work_group_size.cpp
-Basic/reqd_work_group_size_check_exception.cpp
 Basic/scalar_vec_access.cpp
 Basic/span.cpp
 Basic/stream/auto_flush.cpp
@@ -126,7 +124,6 @@ DeviceGlobal/device_global_device_only.cpp
 DeviceGlobal/device_global_operator_passthrough.cpp
 DeviceGlobal/device_global_subscript.cpp
 DeviceLib/ITTAnnotations/atomic.cpp
-DeviceLib/assert.cpp
 DeviceLib/built-ins/ext_native_math.cpp
 DeviceLib/built-ins/ext_native_math_fp16.cpp
 DeviceLib/built-ins/fast-math-flag.cpp
@@ -134,7 +131,6 @@ DeviceLib/built-ins/marray_integer.cpp
 DeviceLib/built-ins/marray_relational.cpp
 DeviceLib/built-ins/nan.cpp
 DeviceLib/built-ins/printf.cpp
-DeviceLib/built-ins/scalar_math_2.cpp
 DeviceLib/built-ins/scalar_relational.cpp
 DeviceLib/built-ins/vector_integer.cpp
 DeviceLib/built-ins/vector_math.cpp
@@ -176,6 +172,7 @@ ESIMD/acc_gather_scatter_rgba_stateless.cpp
 ESIMD/accessor.cpp
 ESIMD/accessor_gather_scatter.cpp
 ESIMD/accessor_gather_scatter_stateless.cpp
+ESIMD/accessor_global.cpp
 ESIMD/accessor_load_store.cpp
 ESIMD/accessor_load_store_stateless.cpp
 ESIMD/accessor_stateless.cpp
@@ -208,6 +205,12 @@ ESIMD/api/svm_gather_scatter.cpp
 ESIMD/api/svm_gather_scatter_64.cpp
 ESIMD/api/svm_gather_scatter_scalar_off.cpp
 ESIMD/api/unary_ops_heavy.cpp
+ESIMD/config_2d_mem_access_test.cpp
+ESIMD/dword_atomic_accessor_cmpxchg.cpp
+ESIMD/dword_atomic_accessor_cmpxchg_scalar_off.cpp
+ESIMD/dword_atomic_accessor_smoke.cpp
+ESIMD/dword_atomic_accessor_smoke_scalar_off.cpp
+ESIMD/dword_atomic_accessor_smoke_stateless.cpp
 ESIMD/dword_atomic_cmpxchg.cpp
 ESIMD/dword_atomic_cmpxchg_scalar_off.cpp
 ESIMD/dword_atomic_smoke.cpp
@@ -237,6 +240,8 @@ ESIMD/kmeans/kmeans.cpp
 ESIMD/linear/linear.cpp
 ESIMD/mandelbrot/mandelbrot.cpp
 ESIMD/mandelbrot/mandelbrot_spec.cpp
+ESIMD/matrix_transpose.cpp
+ESIMD/matrix_transpose2.cpp
 ESIMD/matrix_transpose_glb.cpp
 ESIMD/matrix_transpose_usm.cpp
 ESIMD/noinline_args_size/noinline_args_char_int_size_192.cpp
@@ -311,6 +316,7 @@ GroupAlgorithm/SYCL2020/group_broadcast.cpp
 GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
 GroupAlgorithm/SYCL2020/sort.cpp
 GroupAlgorithm/broadcast.cpp
+GroupAlgorithm/different_types.cpp
 GroupAlgorithm/exclusive_scan_sycl2020.cpp
 GroupAlgorithm/inclusive_scan_sycl2020.cpp
 GroupAlgorithm/reduce_sycl2020.cpp
@@ -338,9 +344,11 @@ InlineAsm/malloc_shared_32.cpp
 InlineAsm/malloc_shared_in_out_dif.cpp
 InlineAsm/malloc_shared_no_input.cpp
 InorderQueue/in_order_kernels.cpp
+InvokeSimd/Feature/ImplicitSubgroup/invoke_simd_struct_by_pointer.cpp
 InvokeSimd/Feature/invoke_simd_struct.cpp
 InvokeSimd/Feature/popcnt_emu.cpp
 InvokeSimd/Feature/scale.cpp
+InvokeSimd/Feature/scale_double.cpp
 InvokeSimd/Feature/split_module/SPMD_module.cpp
 InvokeSimd/Feature/void_retval.cpp
 InvokeSimd/Regression/call_vadd_1d_loop.cpp
@@ -349,6 +357,7 @@ InvokeSimd/Regression/call_vadd_1d_spill.cpp
 InvokeSimd/Regression/matrix_add.cpp
 InvokeSimd/Regression/matrix_multiply_USM.cpp
 InvokeSimd/Regression/matrix_multiply_accessor_get_pointer.cpp
+InvokeSimd/Regression/slm_load_store.cpp
 InvokeSimd/Regression/tiled_matrix_multiplication.cpp
 InvokeSimd/Spec/ESIMD_to_unmarked_function.cpp
 InvokeSimd/Spec/clang_run_error/sycl_marray_argument.cpp
@@ -469,7 +478,6 @@ Sampler/unnormalized-clampedge-linear-float.cpp
 Sampler/unnormalized-clampedge-nearest.cpp
 Sampler/unnormalized-none-linear-float.cpp
 Sampler/unnormalized-none-nearest.cpp
-Scheduler/HandleException.cpp
 SpecConstants/2020/handler-api.cpp
 SpecConstants/2020/host_apis.cpp
 SpecConstants/2020/kernel-bundle-api.cpp

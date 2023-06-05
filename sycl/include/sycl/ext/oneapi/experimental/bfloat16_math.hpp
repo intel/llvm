@@ -232,6 +232,53 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   return res;
 }
 
+#define BFLOAT16_MATH_FP32_WRAPPERS(op)                                        \
+  template <typename T>                                                        \
+  std::enable_if_t<std::is_same<T, bfloat16>::value, T> op(T x) {              \
+    return sycl::ext::oneapi::bfloat16{sycl::op(float{x})};                    \
+  }
+
+#define BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(op)                                 \
+  template <size_t N>                                                          \
+  sycl::marray<bfloat16, N> op(sycl::marray<bfloat16, N> x) {                  \
+    sycl::marray<bfloat16, N> res;                                             \
+    for (size_t i = 0; i < N; i++) {                                           \
+      res[i] = op(x[i]);                                                       \
+    }                                                                          \
+    return res;                                                                \
+  }
+
+BFLOAT16_MATH_FP32_WRAPPERS(ceil)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(ceil)
+BFLOAT16_MATH_FP32_WRAPPERS(cos)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(cos)
+BFLOAT16_MATH_FP32_WRAPPERS(exp)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp)
+BFLOAT16_MATH_FP32_WRAPPERS(exp10)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp10)
+BFLOAT16_MATH_FP32_WRAPPERS(exp2)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(exp2)
+BFLOAT16_MATH_FP32_WRAPPERS(floor)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(floor)
+BFLOAT16_MATH_FP32_WRAPPERS(log)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log)
+BFLOAT16_MATH_FP32_WRAPPERS(log2)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log2)
+BFLOAT16_MATH_FP32_WRAPPERS(log10)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(log10)
+BFLOAT16_MATH_FP32_WRAPPERS(rint)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(rint)
+BFLOAT16_MATH_FP32_WRAPPERS(rsqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(rsqrt)
+BFLOAT16_MATH_FP32_WRAPPERS(sin)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(sin)
+BFLOAT16_MATH_FP32_WRAPPERS(sqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(sqrt)
+BFLOAT16_MATH_FP32_WRAPPERS(trunc)
+BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(trunc)
+
+#undef BFLOAT16_MATH_FP32_WRAPPERS
+#undef BFLOAT16_MATH_FP32_WRAPPERS_MARRAY
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

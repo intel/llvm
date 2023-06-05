@@ -1,5 +1,5 @@
 // COM: Ensure warnings are suppressed (-w)
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -w -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir %s -S -emit-llvm -o - 2>&1 | FileCheck %s --implicit-check-not="{{warning|Warning}}:"
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -w -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir %s -S -emit-llvm -o - 2>&1 | FileCheck %s --implicit-check-not="{{warning|Warning}}:"
 
 #include <sycl/sycl.hpp>
 

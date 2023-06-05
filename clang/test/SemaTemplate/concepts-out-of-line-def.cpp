@@ -344,3 +344,71 @@ static_assert(S2<int>::foo<int>() == 2);
 static_assert(S3<int>::foo<int>() == 3);
 
 } // namespace GH62003
+
+namespace MultilevelTemplateWithPartialSpecialization {
+template <typename>
+concept Concept = true;
+
+namespace two_level {
+template <typename T1, int>
+struct W0 {
+  template <typename T2>
+  requires (Concept<T2>)
+  void f(const T2 &);
+};
+
+template <typename T3>
+struct W0<T3, 0> {
+  template <typename T4>
+  requires (Concept<T4>)
+  void f(const T4 &);
+};
+
+template <typename T3>
+template <typename T4>
+requires (Concept<T4>)
+inline void W0<T3, 0>::f(const T4 &) {}
+} // namespace two_level
+
+namespace three_level {
+template <typename T1, int>
+struct W0 {
+  template <typename T2>
+  struct W1 {
+    template <typename T3>
+    requires (Concept<T3>)
+    void f(const T3 &);
+  };
+};
+
+template <typename T4>
+struct W0<T4, 0> {
+  template <typename T5>
+  struct W1 {
+    template <typename T6>
+    requires (Concept<T6>)
+    void f(const T6 &);
+  };
+};
+
+template <typename T7>
+template <typename T8>
+template <typename T9>
+requires (Concept<T9>)
+inline void W0<T7, 0>::W1<T8>::f(const T9 &) {}
+} // namespace three_level
+
+} // namespace MultilevelTemplateWithPartialSpecialization
+
+namespace PR62697 {
+template<typename>
+concept c = true;
+
+template<typename T>
+struct s {
+    void f() requires c<void(T)>;
+};
+
+template<typename T>
+void s<T>::f() requires c<void(T)> { }
+}

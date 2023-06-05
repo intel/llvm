@@ -21,9 +21,6 @@ int main(void) {
   srand(seed);
   bool passed = true;
 
-  // These parameters require unpadding. It is not implemented yet
-  // passed &= test<0, T, 2, 2, 2, 2>(16, 4, 16, 1, 1);
-
   // non transposed, non transformed
   passed &= test<1, T, 1, 1, 16, 32, 1, false, false, L1H, L3H, true>(
       24, 64, 64, 6, 21);

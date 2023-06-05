@@ -4404,12 +4404,16 @@ INTERCEPTOR(int, pthread_sigmask, int how, __sanitizer_sigset_t *set,
 INTERCEPTOR(int, backtrace, void **buffer, int size) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, backtrace, buffer, size);
-  // FIXME: under ASan the call below may write to freed memory and corrupt
-  // its metadata. See
-  // https://github.com/google/sanitizers/issues/321.
-  int res = REAL(backtrace)(buffer, size);
-  if (res && buffer)
+  // 'buffer' might be freed memory, hence it is unsafe to directly call
+  // REAL(backtrace)(buffer, size). Instead, we use our own known-good
+  // scratch buffer.
+  void **scratch = (void**)InternalAlloc(sizeof(void*) * size);
+  int res = REAL(backtrace)(scratch, size);
+  if (res && buffer) {
     COMMON_INTERCEPTOR_WRITE_RANGE(ctx, buffer, res * sizeof(*buffer));
+    internal_memcpy(buffer, scratch, res * sizeof(*buffer));
+  }
+  InternalFree(scratch);
   return res;
 }
 
@@ -4418,9 +4422,8 @@ INTERCEPTOR(char **, backtrace_symbols, void **buffer, int size) {
   COMMON_INTERCEPTOR_ENTER(ctx, backtrace_symbols, buffer, size);
   if (buffer && size)
     COMMON_INTERCEPTOR_READ_RANGE(ctx, buffer, size * sizeof(*buffer));
-  // FIXME: under ASan the call below may write to freed memory and corrupt
-  // its metadata. See
-  // https://github.com/google/sanitizers/issues/321.
+  // The COMMON_INTERCEPTOR_READ_RANGE above ensures that 'buffer' is
+  // valid for reading.
   char **res = REAL(backtrace_symbols)(buffer, size);
   if (res && size) {
     COMMON_INTERCEPTOR_WRITE_RANGE(ctx, res, size * sizeof(*res));
@@ -4453,7 +4456,7 @@ INTERCEPTOR(void, _exit, int status) {
 
 #if SANITIZER_INTERCEPT___LIBC_MUTEX
 INTERCEPTOR(int, __libc_thr_setcancelstate, int state, int *oldstate)
-ALIAS(WRAPPER_NAME(pthread_setcancelstate));
+ALIAS(WRAP(pthread_setcancelstate));
 
 #define INIT___LIBC_THR_SETCANCELSTATE \
   COMMON_INTERCEPT_FUNCTION(__libc_thr_setcancelstate)
@@ -5484,9 +5487,7 @@ INTERCEPTOR(void *, __tls_get_addr, void *arg) {
 // On PowerPC, we also need to intercept __tls_get_addr_opt, which has
 // mostly the same semantics as __tls_get_addr, but its presence enables
 // some optimizations in linker (which are safe to ignore here).
-extern "C" __attribute__((alias("__interceptor___tls_get_addr"),
-                          visibility("default")))
-void *__tls_get_addr_opt(void *arg);
+INTERCEPTOR(void *, __tls_get_addr_opt, void *arg) ALIAS(WRAP(__tls_get_addr));
 #endif
 #else // SANITIZER_S390
 // On s390, we have to intercept two functions here:
@@ -7173,6 +7174,7 @@ INTERCEPTOR(int, mprobe, void *ptr) {
 }
 #endif
 
+#if SANITIZER_INTERCEPT_WCSLEN
 INTERCEPTOR(SIZE_T, wcslen, const wchar_t *s) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, wcslen, s);
@@ -7191,6 +7193,9 @@ INTERCEPTOR(SIZE_T, wcsnlen, const wchar_t *s, SIZE_T n) {
 #define INIT_WCSLEN                  \
   COMMON_INTERCEPT_FUNCTION(wcslen); \
   COMMON_INTERCEPT_FUNCTION(wcsnlen);
+#else
+#define INIT_WCSLEN
+#endif
 
 #if SANITIZER_INTERCEPT_WCSCAT
 INTERCEPTOR(wchar_t *, wcscat, wchar_t *dst, const wchar_t *src) {

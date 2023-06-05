@@ -15,16 +15,31 @@
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/Support/raw_ostream.h"
 #include <set>
 
 namespace mlir {
 
+namespace affine {
+struct MemRefAccess;
+} // namespace affine
+
+namespace sycl {
+class SYCLAccessorSubscriptOp;
+} // namespace sycl
+
 class DataFlowSolver;
+class FunctionOpInterface;
 
 namespace polygeist {
+
+class Definition;
+class ReachingDefinition;
 
 /// Classify array access patterns.
 enum MemoryAccessPattern : uint32_t {
@@ -115,7 +130,7 @@ class MemoryAccessMatrix {
   friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
 
 public:
-  MemoryAccessMatrix() = delete;
+  MemoryAccessMatrix() = default;
   MemoryAccessMatrix(MemoryAccessMatrix &&) = default;
   MemoryAccessMatrix(const MemoryAccessMatrix &) = default;
   MemoryAccessMatrix &operator=(MemoryAccessMatrix &&) = default;
@@ -285,16 +300,6 @@ private:
   SmallVector<Value> data;
 };
 
-inline raw_ostream &operator<<(raw_ostream &os,
-                               const MemoryAccessMatrix &matrix) {
-  for (size_t row = 0; row < matrix.getNumRows(); ++row) {
-    llvm::interleave(
-        matrix.getRow(row), os, [&os](Value elem) { os << elem; }, " ");
-    os << '\n';
-  }
-  return os;
-}
-
 /// A column vector representing offsets used to access an array.
 /// The size is equal to the number of array dimensions. The first vector
 /// element corresponds to the leftmost array dimension.
@@ -302,7 +307,7 @@ class OffsetVector {
   friend raw_ostream &operator<<(raw_ostream &, const OffsetVector &);
 
 public:
-  OffsetVector() = delete;
+  OffsetVector() = default;
   OffsetVector(OffsetVector &&) = default;
   OffsetVector(const OffsetVector &) = default;
   OffsetVector &operator=(OffsetVector &&) = default;
@@ -325,8 +330,8 @@ public:
     return offsets[row];
   }
 
-  Value &operator[](size_t row) { return at(row); }
-  Value operator[](size_t row) const { return at(row); }
+  Value &operator()(size_t row) { return at(row); }
+  Value operator()(size_t row) const { return at(row); }
 
   /// Swap \p row with \p otherRow.
   void swapRows(size_t row, size_t otherRow);
@@ -374,13 +379,6 @@ private:
   SmallVector<Value> offsets;
 };
 
-inline raw_ostream &operator<<(raw_ostream &os, const OffsetVector &vector) {
-  llvm::interleave(
-      vector.getOffsets(), os, [&os](Value elem) { os << elem; }, " ");
-  os << "\n";
-  return os;
-}
-
 /// Describes an array access via an access matrix and an offset vector.
 /// For example consider the following access in a loop nest:
 ///   for (i)
@@ -392,47 +390,126 @@ inline raw_ostream &operator<<(raw_ostream &os, const OffsetVector &vector) {
 ///   |      | * | | + |  |
 ///   | 0  c3|   |j|   |c4|
 ///
-template <typename OpTy> class MemoryAccess {
-  template <typename T>
-  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess<T> &);
+class MemoryAccess {
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccess &);
 
 public:
-  MemoryAccess() = delete;
-
-  template <
-      typename T = OpTy,
-      typename = std::enable_if_t<llvm::is_one_of<T, affine::AffineLoadOp,
-                                                  affine::AffineStoreOp>::value,
-                                  bool>>
-  MemoryAccess(T accessOp, MemoryAccessMatrix &&matrix, OffsetVector &&offsets)
-      : accessOp(accessOp), matrix(std::move(matrix)),
-        offsets(std::move(offsets)) {}
-
-  OpTy getAccessOp() const { return accessOp; }
+  MemoryAccess() = default;
+  MemoryAccess(MemoryAccessMatrix &&matrix, OffsetVector &&offsets)
+      : matrix(std::move(matrix)), offsets(std::move(offsets)) {
+    assert(matrix.getNumRows() == offsets.getNumRows() &&
+           "Matrix and offset vector must have the same number of rows");
+  }
 
   const MemoryAccessMatrix &getAccessMatrix() const { return matrix; }
 
   const OffsetVector &getOffsetVector() const { return offsets; }
 
+  /// Construct a new matrix containing [0...numGridDimensions-1] columns.
+  MemoryAccessMatrix
+  getInterThreadAccessMatrix(unsigned numGridDimensions) const;
+
+  /// Construct a new matrix containing [numGridDimensions...numColumns-1]
+  /// columns.
+  MemoryAccessMatrix
+  getIntraThreadAccessMatrix(unsigned numGridDimensions) const;
+
   /// Analyze the memory access and classify its access pattern.
-  MemoryAccessPattern classifyMemoryAccess(DataFlowSolver &solver) const;
+  MemoryAccessPattern classify(DataFlowSolver &solver) const;
+
+  /// Analyze the given access matrix and offset vector and classify the access
+  /// pattern.
+  static MemoryAccessPattern classify(const MemoryAccessMatrix &matrix,
+                                      const OffsetVector &offsets,
+                                      DataFlowSolver &solver);
 
 private:
-  OpTy accessOp;             /// The array load or store operation.
   MemoryAccessMatrix matrix; /// The memory access matrix.
   OffsetVector offsets;      /// The offset vector.
 };
 
-template <typename OpTy>
-inline raw_ostream &operator<<(raw_ostream &os,
-                               const MemoryAccess<OpTy> &access) {
-  os << "--- MemoryAccess ---\n\n";
-  os << "Operation: " << access.getAccessOp() << "\n";
-  os << "AccessMatrix:\n" << access.getAccessMatrix() << "\n";
-  os << "OffsetVector:\n" << access.getOffsetVector() << "\n";
-  os << "\n------------------\n";
-  return os;
-}
+class MemoryAccessAnalysis {
+  friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
+
+public:
+  MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
+
+  MemoryAccessAnalysis &initialize(bool relaxedAliasing) {
+    this->relaxedAliasing = relaxedAliasing;
+    return *this;
+  }
+
+  bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa);
+
+  /// Return the operation this analysis was constructed from.
+  Operation *getOperation() const { return operation; }
+
+  /// Return the memory access for the given memref \p access.
+  std::optional<MemoryAccess>
+  getMemoryAccess(const affine::MemRefAccess &access) const;
+
+  /// Return a vector containing the thread values used in \p funcOp.
+  SmallVector<Value> getThreadVector(FunctionOpInterface funcOp,
+                                     DataFlowSolver &solver) const;
+
+private:
+  /// Construct the access matrix and offset vector for the memory accesses
+  /// contained in the operation associated with the analysis.
+  void build();
+
+  /// Attempt to create an entry in the accessMap for the given memory operation
+  /// \p memoryOp.
+  template <typename T> void build(T memoryOp, DataFlowSolver &solver);
+
+  /// Construct the access matrix if possible.
+  std::optional<MemoryAccessMatrix>
+  buildAccessMatrix(sycl::SYCLAccessorSubscriptOp accessorSubscriptOp,
+                    const SmallVectorImpl<Value> &loopAndThreadVars,
+                    const SmallVectorImpl<Value> &underlyingVals,
+                    DataFlowSolver &solver);
+
+  /// Construct the offset vector if possible.
+  std::optional<OffsetVector>
+  buildOffsetVector(const MemoryAccessMatrix &matrix,
+                    const SmallVectorImpl<Value> &loopAndThreadVars,
+                    const SmallVectorImpl<Value> &underlyingVals,
+                    DataFlowSolver &solver);
+
+  /// Returns true if the memory access \p access has a single subscript that is
+  /// zero, and false otherwise.
+  bool hasZeroIndex(const affine::MemRefAccess &access) const;
+
+  /// Returns the unique definition for the operand at index \p opIndex in
+  /// operation \p op, or std::nullopt if it does not have a unique definition.
+  std::optional<Definition> getUniqueDefinition(unsigned opIndex, Operation *op,
+                                                DataFlowSolver &solver) const;
+
+  /// Collect the underlying value(s) of the operand at index \p opIndex in
+  /// operation \p op.
+  /// For example given:
+  ///
+  ///   sycl.constructor @id(%id, %i, %j) : (memref<?x!sycl_id_2>, i64, i64)
+  ///   %0 = sycl.accessor.subscript %acc[%id] ...
+  ///
+  /// The underlying values for '%id' are {%i, %j}.
+  SmallVector<Value> getUnderlyingValues(unsigned opIndex, Operation *op,
+                                         DataFlowSolver &solver) const;
+
+private:
+  /// The operation associated with the analysis.
+  Operation *operation;
+
+  /// A map from memory accesses to their memory access matrix and offset
+  /// vector.
+  DenseMap<Operation *, MemoryAccess> accessMap;
+
+  /// The analysis manager.
+  AnalysisManager &am;
+
+  /// Whether to assume the program abides to strict aliasing rules (i.e type
+  /// based aliasing) or not.
+  bool relaxedAliasing = false;
+};
 
 } // namespace polygeist
 } // namespace mlir

@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.run
 // RUN: %{run} %t.run
 //
-// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.run
-// RUN: %{run} %t.run
-//
 // Returns error "Barrier is not supported on the host device
 // yet." with Nvidia.
 // XFAIL: hip_nvidia
@@ -75,12 +72,7 @@ int test_strideN(size_t stride) {
 
     myQueue.submit([&](handler &cgh) {
       auto out_ptr = out_buf.get_access<access::mode::write>(cgh);
-#ifdef USE_DEPRECATED_LOCAL_ACC
-      accessor<int, 1, access::mode::read_write, access::target::local>
-          local_acc(range<1>(16), cgh);
-#else
       local_accessor<int, 1> local_acc(range<1>(16), cgh);
-#endif
 
       // Create work-groups with 16 work items in each group.
       auto myRange = nd_range<1>(range<1>(nElems), range<1>(workGroupSize));
@@ -92,8 +84,11 @@ int test_strideN(size_t stride) {
         local_acc[item.get_local_id()] = item.get_global_id()[0] + 300;
 
         auto grp = item.get_group();
-        local_ptr<int> lptr = local_acc.get_pointer();
-        global_ptr<int> gptr = out_ptr.get_pointer() + grp.get_id()[0] * 16;
+        decorated_local_ptr<int> lptr =
+            local_acc.get_multi_ptr<access::decorated::yes>();
+        decorated_global_ptr<int> gptr =
+            out_ptr.get_multi_ptr<access::decorated::yes>() +
+            grp.get_id()[0] * 16;
 
         // Write the values 700, 701, ..., 763 to global memory.
         // Why? Well, a) to ensure that something is written into that memory

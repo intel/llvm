@@ -116,6 +116,17 @@ public:
   bool hasStdExtFOrZfinx() const { return HasStdExtF || HasStdExtZfinx; }
   bool hasStdExtDOrZdinx() const { return HasStdExtD || HasStdExtZdinx; }
   bool hasStdExtZfhOrZfhmin() const { return HasStdExtZfh || HasStdExtZfhmin; }
+  bool hasStdExtZfhOrZhinx() const { return HasStdExtZfh || HasStdExtZhinx; }
+  bool hasStdExtZhinxOrZhinxmin() const {
+    return HasStdExtZhinx || HasStdExtZhinxmin;
+  }
+  bool hasStdExtZfhOrZfhminOrZhinxOrZhinxmin() const {
+    return hasStdExtZfhOrZfhmin() || hasStdExtZhinxOrZhinxmin();
+  }
+  bool hasHalfFPLoadStoreMove() const {
+    return HasStdExtZfh || HasStdExtZfhmin || HasStdExtZfbfmin ||
+           HasStdExtZvfbfwma;
+  }
   bool is64Bit() const { return IsRV64; }
   MVT getXLenVT() const { return XLenVT; }
   unsigned getXLen() const { return XLen; }
@@ -151,15 +162,14 @@ public:
   // Vector codegen related methods.
   bool hasVInstructions() const { return HasStdExtZve32x; }
   bool hasVInstructionsI64() const { return HasStdExtZve64x; }
-  bool hasVInstructionsF16() const {
-    return HasStdExtZvfh && hasStdExtZfhOrZfhmin();
-  }
+  bool hasVInstructionsF16() const { return HasStdExtZvfh; }
   // FIXME: Consider Zfinx in the future
   bool hasVInstructionsF32() const { return HasStdExtZve32f && HasStdExtF; }
   // FIXME: Consider Zdinx in the future
   bool hasVInstructionsF64() const { return HasStdExtZve64d && HasStdExtD; }
   // F16 and F64 both require F32.
   bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
+  bool hasVInstructionsFullMultiply() const { return HasStdExtV; }
   unsigned getMaxInterleaveFactor() const {
     return hasVInstructions() ? MaxInterleaveFactor : 1;
   }

@@ -1,6 +1,4 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip || esimd_emulator
+// UNSUPPORTED: esimd_emulator
 //
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out
@@ -91,5 +89,6 @@ int main(void) {
     std::cout << test << " == " << gold << "(gold)\n";
   }
   std::cout << (err_cnt ? "FAILED\n" : "Passed\n");
+  free(arr, ctxt);
   return err_cnt ? 1 : 0;
 }

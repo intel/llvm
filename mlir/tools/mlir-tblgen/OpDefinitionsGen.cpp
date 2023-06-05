@@ -3433,6 +3433,10 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
     assert(!attrOrProperties.empty());
     std::string declarations = "  struct Properties {\n";
     llvm::raw_string_ostream os(declarations);
+    std::string comparator =
+        "    bool operator==(const Properties &rhs) const {\n"
+        "      return \n";
+    llvm::raw_string_ostream comparatorOs(comparator);
     for (const auto &attrOrProp : attrOrProperties) {
       if (const auto *namedProperty =
               attrOrProp.dyn_cast<const NamedProperty *>()) {
@@ -3447,7 +3451,8 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
            << "    " << name << "Ty " << name;
         if (prop.hasDefaultValue())
           os << " = " << prop.getDefaultValue();
-
+        comparatorOs << "        rhs." << name << " == this->" << name
+                     << " &&\n";
         // Emit accessors using the interface type.
         const char *accessorFmt = R"decl(;
     {0} get{1}() {
@@ -3490,6 +3495,7 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
       }
       os << "    using " << name << "Ty = " << storageType << ";\n"
          << "    " << name << "Ty " << name << ";\n";
+      comparatorOs << "        rhs." << name << " == this->" << name << " &&\n";
 
       // Emit accessors using the interface type.
       if (attr) {
@@ -3509,8 +3515,15 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
                       storageType);
       }
     }
+    comparatorOs << "        true;\n    }\n"
+                    "    bool operator!=(const Properties &rhs) const {\n"
+                    "      return !(*this == rhs);\n"
+                    "    }\n";
+    comparatorOs.flush();
+    os << comparator;
     os << "  };\n";
     os.flush();
+
     genericAdaptorBase.declare<ExtraClassDeclaration>(std::move(declarations));
   }
   genericAdaptorBase.declare<VisibilityDeclaration>(Visibility::Protected);
@@ -3539,7 +3552,8 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
     if (useProperties)
       paramList.emplace_back("const Properties &", "properties", "{}");
     else
-      paramList.emplace_back("::mlir::EmptyProperties", "properties", "{}");
+      paramList.emplace_back("const ::mlir::EmptyProperties &", "properties",
+                             "{}");
     paramList.emplace_back("::mlir::RegionRange", "regions", "{}");
     auto *baseConstructor = genericAdaptorBase.addConstructor(paramList);
     baseConstructor->addMemberInitializer("odsAttrs", "attrs");
@@ -3554,9 +3568,33 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
         op.getOperationName());
 
     paramList.insert(paramList.begin(), MethodParameter("RangeT", "values"));
-    auto *constructor = genericAdaptor.addConstructor(std::move(paramList));
+    auto *constructor = genericAdaptor.addConstructor(paramList);
     constructor->addMemberInitializer("Base", "attrs, properties, regions");
     constructor->addMemberInitializer("odsOperands", "values");
+
+    // Add a forwarding constructor to the previous one that accepts
+    // OpaqueProperties instead and check for null and perform the cast to the
+    // actual properties type.
+    paramList[1] = MethodParameter("::mlir::DictionaryAttr", "attrs");
+    paramList[2] = MethodParameter("::mlir::OpaqueProperties", "properties");
+    auto *opaquePropertiesConstructor =
+        genericAdaptor.addConstructor(std::move(paramList));
+    if (useProperties) {
+      opaquePropertiesConstructor->addMemberInitializer(
+          genericAdaptor.getClassName(),
+          "values, "
+          "attrs, "
+          "(properties ? *properties.as<Properties *>() : Properties{}), "
+          "regions");
+    } else {
+      opaquePropertiesConstructor->addMemberInitializer(
+          genericAdaptor.getClassName(),
+          "values, "
+          "attrs, "
+          "(properties ? *properties.as<::mlir::EmptyProperties *>() : "
+          "::mlir::EmptyProperties{}), "
+          "regions");
+    }
   }
 
   std::string sizeAttrInit;

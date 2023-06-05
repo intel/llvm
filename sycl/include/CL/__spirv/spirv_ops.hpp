@@ -1229,7 +1229,7 @@ extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
 __SYCL_OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest,
-                                     dataT *Src, size_t NumElements,
+                                     const dataT *Src, size_t NumElements,
                                      size_t Stride, __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i] = Src[i * Stride];
@@ -1241,7 +1241,7 @@ __SYCL_OpGroupAsyncCopyGlobalToLocal(__spv::Scope::Flag, dataT *Dest,
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __ocl_event_t
 __SYCL_OpGroupAsyncCopyLocalToGlobal(__spv::Scope::Flag, dataT *Dest,
-                                     dataT *Src, size_t NumElements,
+                                     const dataT *Src, size_t NumElements,
                                      size_t Stride, __ocl_event_t) noexcept {
   for (size_t i = 0; i < NumElements; i++) {
     Dest[i * Stride] = Src[i];

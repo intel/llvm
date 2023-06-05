@@ -33,9 +33,11 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 
 #include <cctype>
 #include <cstring>
@@ -1198,7 +1200,7 @@ static Value *generateSpirvGlobalGenX(Instruction *EEI,
   } else if (SpirvGlobalName == "GlobalOffset") {
     // TODO: Support GlobalOffset SPIRV intrinsics
     // Currently all users of load of GlobalOffset are replaced with 0.
-    NewInst = llvm::Constant::getNullValue(EEI->getType());
+    NewInst = llvm::Constant::getNullValue(UseType ? UseType : EEI->getType());
   } else if (SpirvGlobalName == "NumWorkgroups") {
     NewInst = generateGenXCall(EEI, "group.count", true, IndexValue, UseType);
   }
@@ -1235,12 +1237,20 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
                                               llvm::APInt(32, 1, true));
   } else if (SpirvGlobalName == "GlobalLinearId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
-  } else if (isa<GetElementPtrConstantExpr>(LI->getPointerOperand())) {
+  } else if (auto *GEPOp = dyn_cast<GEPOperator>(LI->getPointerOperand())) {
     // Translate the load that has getelementptr as an operand
-    auto *GEPCE = cast<GetElementPtrConstantExpr>(LI->getPointerOperand());
-    uint64_t IndexValue =
-        cast<Constant>(GEPCE->getOperand(2))->getUniqueInteger().getZExtValue();
-    NewInst = generateSpirvGlobalGenX(LI, SpirvGlobalName, IndexValue);
+    const DataLayout &DL = LI->getFunction()->getParent()->getDataLayout();
+    APInt Offset(DL.getIndexSizeInBits(GEPOp->getPointerAddressSpace()), 0);
+    if (!GEPOp->accumulateConstantOffset(DL, Offset))
+      llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+    APInt IndexValue;
+    uint64_t Remainder;
+    APInt::udivrem(Offset, LI->getType()->getScalarSizeInBits() / 8, IndexValue,
+                   Remainder);
+    if (Remainder != 0)
+      llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+    NewInst =
+        generateSpirvGlobalGenX(LI, SpirvGlobalName, IndexValue.getZExtValue());
   }
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
@@ -1651,17 +1661,24 @@ void generateKernelMetadata(Module &M) {
         StringRef ArgDesc = "";
 
         if (Arg.getType()->isPointerTy()) {
-          const auto *IsAccMD =
-              KernelArgAccPtrs
-                  ? cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx))
-                  : nullptr;
-          unsigned IsAcc =
-              IsAccMD
-                  ? static_cast<unsigned>(cast<ConstantInt>(IsAccMD->getValue())
-                                              ->getValue()
-                                              .getZExtValue())
-                  : 0;
-          if (IsAcc && !ForceStatelessMem) {
+          bool IsAcc = false;
+          bool IsLocalAcc = false;
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            IsLocalAcc =
+                IsAcc &&
+                cast<PointerType>(Arg.getType())->getAddressSpace() == LocalAS;
+          }
+
+          if (IsLocalAcc) {
+            // Local accessor doesn't need any changes.
+          } else if (IsAcc && !ForceStatelessMem) {
             ArgDesc = "buffer_t";
             Kind = AK_SURFACE;
           } else
@@ -1766,40 +1783,180 @@ void lowerGlobalStores(Module &M, const SmallPtrSetImpl<Type *> &GVTS) {
   }
 }
 
+// Change in global variables:
+//
+// Old IR:
+// ======
+// @vc = global %"class.cm::gen::simd"
+//          zeroinitializer, align 64 #0
+//
+// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
+//    <16 x i32> addrspace(4) * getelementptr(
+//    % "class.cm::gen::simd",
+//    % "class.cm::gen::simd" addrspace(4) *
+//    addrspacecast(% "class.cm::gen::simd" * @vc to
+//    % "class.cm::gen::simd" addrspace(4) *), i64 0,
+//    i32 0))
+//
+// New IR:
+// ======
+//
+// @0 = dso_local global <16 x i32> zeroinitializer, align 64 #0 <-- New Global
+// Variable
+//
+// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
+//        <16 x i32> addrspace(4) * getelementptr(
+//        % "class.cm::gen::simd",
+//        % "class.cm::gen::simd" addrspace(4) *
+//        addrspacecast(% "class.cm::gen::simd" *
+//        bitcast(<16 x i32> * @0 to
+//        %"class.cm::gen::simd" *) to %
+//        "class.cm::gen::simd" addrspace(4) *),
+//        i64 0, i32 0))
+void lowerGlobalsToVector(Module &M) {
+  // Create new global variables of type vector* type
+  // when old one is of simd* type.
+  DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
+  for (auto &G : M.globals()) {
+    Type *GVTy = G.getValueType();
+    Type *NewTy = esimd::getVectorTyOrNull(dyn_cast<StructType>(GVTy));
+    if (NewTy && !G.user_empty()) {
+      auto InitVal =
+          G.hasInitializer() && isa<UndefValue>(G.getInitializer())
+              ? static_cast<ConstantData *>(UndefValue::get(NewTy))
+              : static_cast<ConstantData *>(ConstantAggregateZero::get(NewTy));
+      auto NewGlobalVar =
+          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), InitVal, "",
+                             G.getThreadLocalMode(), G.getAddressSpace());
+      NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
+      NewGlobalVar->setVisibility(G.getVisibility());
+      NewGlobalVar->copyAttributesFrom(&G);
+      NewGlobalVar->takeName(&G);
+      NewGlobalVar->copyMetadata(&G, 0);
+      M.insertGlobalVariable(NewGlobalVar);
+      OldNewGlobal.insert(std::make_pair(&G, NewGlobalVar));
+    }
+  }
+
+  // Remove old global variables from the program.
+  for (auto &G : OldNewGlobal) {
+    auto OldGlob = G.first;
+    auto NewGlobal = G.second;
+    OldGlob->replaceAllUsesWith(
+        ConstantExpr::getBitCast(NewGlobal, OldGlob->getType()));
+    OldGlob->eraseFromParent();
+  }
+}
+
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
+bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
+
+  auto markAlwaysInlined = [](Function &F) -> bool {
+    if (F.hasFnAttribute(llvm::Attribute::NoInline))
+      F.removeFnAttr(llvm::Attribute::NoInline);
+    if (F.hasFnAttribute(llvm::Attribute::InlineHint))
+      F.removeFnAttr(llvm::Attribute::InlineHint);
+    F.addFnAttr(llvm::Attribute::AlwaysInline);
+    return true;
+  };
+
+  bool NeedInline = false;
+  for (auto &F : M) {
+    // If some function already has 'alwaysinline' attribute, then request
+    // inliner pass.
+    if (F.hasFnAttribute(Attribute::AlwaysInline)) {
+      NeedInline = true;
+      continue;
+    }
+
+    // VC BE forbids 'alwaysinline' and "VCStackCall" on the same function.
+    // Such function may be used in other module, we cannot remove it
+    // after inlining.
+    if (F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
+      continue;
+
+    if (isESIMDKernel(F))
+      continue;
+
+    if (isSlmAllocatorConstructor(F) || isSlmAllocatorDestructor(F)) {
+      // slm_allocator constructor and destructor must be inlined
+      // to help SLM reservation analysis.
+      NeedInline |= markAlwaysInlined(F);
+      continue;
+    }
+
+    // TODO: The next code and comment was placed to ESIMDLoweringPass
+    // 2 years ago, when GPU VC BE did not support function calls and
+    // required everything to be inlined right into the kernel unless
+    // it had noinline or VCStackCall attrubute.
+    // This code migrated to here without changes, but... VC BE does support
+    //  the calls of spir_func these days, so this code may need re-visiting.
+    if (!F.hasFnAttribute(Attribute::NoInline))
+      NeedInline |= markAlwaysInlined(F);
+
+    if (!isSlmInit(F))
+      continue;
+
+    for (User *U : F.users()) {
+      auto *FCall = dyn_cast<CallInst>(U);
+      if (FCall && FCall->getCalledFunction() == &F) {
+        Function *GenF = FCall->getFunction();
+        // The original kernel (UserK) if often automatically separated into
+        // a spir_func (GenF) that is then called from spir_kernel (GenK).
+        // When that happens, the calls of slm_init<N>() originally placed
+        // in 'UserK' get moved to spir_func 'GenF', which creates wrong IR
+        // because slm_init() must be called only from a kernel.
+        // Fix it here: If 'GenF' has only 1 caller spir_kernel 'GenK',
+        // then inline 'GenF' to move slm_init call from spir_kernel 'GenK'.
+        SmallPtrSet<Function *, 1> GenFCallers;
+        for (User *GenFU : GenF->users()) {
+          auto *GenFCall = dyn_cast<CallInst>(GenFU);
+          if (GenFCall && GenFCall->getCalledFunction() == GenF) {
+            Function *GenK = GenFCall->getFunction();
+            GenFCallers.insert(GenK);
+          } else {
+            // Unexpected user of GenF. Do not require GenF inlining.
+            GenFCallers.clear();
+            break;
+          }
+        } // end for (User *GenFU : GenF->users())
+        if (GenFCallers.size() == 1 && isESIMDKernel(**GenFCallers.begin()))
+          NeedInline |= markAlwaysInlined(*GenF);
+      }
+    } // end for (User *U : F.users())
+  }
+  return NeedInline;
+}
+
+PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
+                                          ModuleAnalysisManager &MAM) {
+  // AlwaysInlinerPass is required for correctness.
+  bool ForceInline = prepareForAlwaysInliner(M);
+  if (ForceInline) {
+    ModulePassManager MPM;
+    MPM.addPass(AlwaysInlinerPass{});
+    MPM.run(M, MAM);
+  }
+
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
   // uses the generated metadata:
   size_t AmountOfESIMDIntrCalls = lowerSLMReservationCalls(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
   lowerGlobalStores(M, GVTS);
+  lowerGlobalsToVector(M);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
 
   // TODO FIXME ESIMD figure out less conservative result
-  return AmountOfESIMDIntrCalls > 0 ? PreservedAnalyses::none()
-                                    : PreservedAnalyses::all();
+  return AmountOfESIMDIntrCalls > 0 || ForceInline ? PreservedAnalyses::none()
+                                                   : PreservedAnalyses::all();
 }
 
 size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
                                          SmallPtrSetImpl<Type *> &GVTS) {
-  // There is a current limitation of GPU vector backend that requires kernel
-  // functions to be inlined into the kernel itself. To overcome this
-  // limitation, mark every function called from ESIMD kernel with
-  // 'alwaysinline' attribute, except few cases:
-  //     - kernels are not called from device code, so can't be inlined
-  if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
-      // - 'noninline' should not be overridden
-      !F.hasFnAttribute(Attribute::NoInline) &&
-      // - 'alwaysinline' should not be duplicated
-      !F.hasFnAttribute(Attribute::AlwaysInline) &&
-      // - VC BE forbids 'alwaysinline' and "VCStackCall" on the same function
-      !F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
-    F.addFnAttr(Attribute::AlwaysInline);
-
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
 
@@ -1888,8 +2045,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      assert(!Name.startswith("__sycl_set_kernel_properties") &&
-             "__sycl_set_kernel_properties must have been lowered");
 
       if (Name.empty() ||
           (!Name.startswith(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))

@@ -13,5 +13,5 @@ add_mlir_library(MLIRSYCLTransforms
   MLIRTransformUtils
   MLIRSYCLDialect
   MLIRFuncDialect
-  MLIRGPUOps
+  MLIRGPUDialect
   )

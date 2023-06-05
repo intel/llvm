@@ -22,16 +22,34 @@ add_integration_test(
     libc.src.__support.RPC.rpc_client
     libc.src.__support.GPU.utils
   LOADER_ARGS
-    --blocks 16
-    --threads 1
+    --blocks-x 2
+    --blocks-y 2
+    --blocks-z 2
+    --threads-x 4
+    --threads-y 4
+    --threads-z 4
 )
 
-# Constructors are currently only supported on AMDGPU.
-if(LIBC_GPU_TARGET_ARCHITECTURE_IS_AMDGPU)
-  add_integration_test(
-    init_fini_array_test
-    SUITE libc-startup-tests
-    SRCS
-      init_fini_array_test.cpp
-  )
-endif()
+add_integration_test(
+  init_fini_array_test
+  SUITE libc-startup-tests
+  SRCS
+    init_fini_array_test.cpp
+)
+
+add_integration_test(
+  startup_rpc_interface_test
+  SUITE libc-startup-tests
+  SRCS
+   rpc_interface_test.cpp
+)
+
+add_integration_test(
+  startup_rpc_stream_test
+  SUITE libc-startup-tests
+  SRCS
+   rpc_stream_test.cpp
+  LOADER_ARGS
+   --threads 32
+   --blocks 8
+)

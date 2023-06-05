@@ -3,7 +3,14 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj %t.ll -o - | llvm-dwarfdump -all - | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj %t.ll -o - | llvm-dwarfdump -all - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj %t.ll -o - | llvm-dwarfdump -all - | FileCheck %s
 
 ; Test that we accept and generate DWARF entities for DW_TAG_structure_type,

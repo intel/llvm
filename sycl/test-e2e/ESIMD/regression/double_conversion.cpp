@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This is basic test for testing conversion between double and unsigned int.
 
-// REQUIRES: gpu, aspect-fp64
-// UNSUPPORTED: cuda || hip
+// REQUIRES: aspect-fp64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

@@ -1,10 +1,10 @@
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w %s -o %t.O0.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O1 -w %s -o %t.O1.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O2 -w %s -o %t.O2.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O3 -w %s -o %t.O3.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -Ofast -w %s -o %t.Ofast.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w %s -o %t.O0.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O1 -w %s -o %t.O1.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O2 -w %s -o %t.O2.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O3 -w %s -o %t.O3.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -Ofast -w %s -o %t.Ofast.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
 
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
 
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -passes=verify -disable-output < %t.bc
@@ -12,9 +12,13 @@
 // Verify that LLVMIR generated is translatable to SPIRV.
 // RUN: llvm-spirv %t.bc
 
+// Test that all referenced sycl header functions are generated.
+// RUN: llvm-dis %t.bc
+// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM
+
 // Test that the kernel named `kernel_stream_copy` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_stream_copy(
-// LLVM-SAME:  i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* noundef byval([[RANGE_TY]]) {{.*}}, [[RANGE_TY]]* noundef byval([[RANGE_TY]]) {{.*}}, [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) {{.*}})
+// LLVM-SAME:  ptr addrspace(1) {{.*}}, ptr noundef byval([[RANGE_TY:%"class.sycl::_V1::range.1"]]) {{.*}}, ptr noundef byval([[RANGE_TY]]) {{.*}}, ptr noundef byval([[ID_TY:%"class.sycl::_V1::id.1"]]) {{.*}})
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

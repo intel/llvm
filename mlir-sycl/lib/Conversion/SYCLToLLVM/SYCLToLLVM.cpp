@@ -60,8 +60,6 @@ void mlir::populateSYCLToLLVMTypeConversion(sycl::Implementation implementation,
   case sycl::Implementation::DPCPP:
     dpcpp::populateSYCLToLLVMTypeConversion(typeConverter);
     break;
-  default:
-    llvm_unreachable("Unsupported implementation");
   }
 }
 
@@ -74,8 +72,6 @@ void mlir::populateSYCLToLLVMConversionPatterns(
                                                 patterns);
     dpcpp::populateSYCLToLLVMTypeConversion(typeConverter);
     break;
-  default:
-    llvm_unreachable("Unsupported implementation");
   }
 }
 

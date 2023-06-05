@@ -1,8 +1,6 @@
 // Test intended to run on PVC only
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu-intel-pvc && linux
+// REQUIRES: gpu-intel-pvc
 //
-// UNSUPPORTED: cuda || hip
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out

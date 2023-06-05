@@ -164,6 +164,9 @@ enum class GPUAddressSpace : unsigned {
   Local = 5,
 };
 
+/// Return true iff \p M target a GPU (and we can use GPU AS reasoning).
+bool isGPU(const Module &M);
+
 /// Flags to distinguish intra-procedural queries from *potentially*
 /// inter-procedural queries. Not that information can be valid for both and
 /// therefore both bits might be set.
@@ -5554,8 +5557,8 @@ struct AAPointerInfo : public AbstractAttribute {
     /// The instruction responsible for the access.
     Instruction *RemoteI;
 
-    /// The value written, if any. `llvm::none` means "not known yet", `nullptr`
-    /// cannot be determined.
+    /// The value written, if any. `std::nullopt` means "not known yet",
+    /// `nullptr` cannot be determined.
     std::optional<Value *> Content;
 
     /// Set of potential ranges accessed from the base pointer.

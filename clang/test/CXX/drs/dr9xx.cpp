@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 // RUN: %clang_cc1 -std=c++20 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -std=c++2b %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++23 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
 
 namespace std {
   __extension__ typedef __SIZE_TYPE__ size_t;
@@ -89,6 +89,19 @@ namespace dr974 { // dr974: yes
   }
 #endif
 }
+
+namespace dr977 { // dr977: yes
+enum E { e = E() };
+#ifndef _WIN32
+// expected-error@-2 {{invalid use of incomplete type 'E'}}
+// expected-note@-3 {{definition of 'dr977::E' is not complete until the closing '}'}}
+#endif
+#if __cplusplus >= 201103L
+enum E2 : int { e2 = E2() };
+enum struct E3 { e = static_cast<int>(E3()) };
+enum struct E4 : int { e = static_cast<int>(E4()) };
+#endif
+} // namespace dr977
 
 namespace dr990 { // dr990: 3.5
 #if __cplusplus >= 201103L

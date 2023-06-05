@@ -45,7 +45,7 @@ static llvm::cl::opt<unsigned> KernelDisjointSpecializationAccessorLimit(
 /// Returns true if \p arg is a candidate argument. Currently, all arguments
 /// with type 'memref<?x!sycl.accessor>' is a candidate argument.
 static bool isCandidateArg(Value arg) {
-  return sycl::isAccessorPtrType(arg.getType());
+  return sycl::isPtrOf<sycl::AccessorType>(arg.getType());
 }
 
 /// Populates \p candArgs with candidate arguments from \p call.
@@ -58,31 +58,11 @@ collectCandidateArguments(CallOpInterface call,
       candArgs.push_back(cast<sycl::AccessorPtrValue>(arg));
 }
 
-/// Updates \p newFnName to a unique function name if it is already defined.
-static void getUniqueFnName(std::string &newFnName, Operation *symbolTable) {
-  assert(symbolTable && symbolTable->hasTrait<OpTrait::SymbolTable>() &&
-         "Expecting symbol table");
-  auto alreadyDefined = [&symbolTable](std::string fnName) {
-    return llvm::any_of(symbolTable->getRegion(0), [&](auto &block) {
-      return llvm::any_of(block, [&](auto &op) {
-        auto nameAttr = op.template getAttrOfType<StringAttr>(
-            SymbolTable::getSymbolAttrName());
-        return nameAttr && nameAttr.getValue() == fnName;
-      });
-    });
-  };
-  std::string fnName = newFnName;
-  unsigned counter = 0;
-  while (alreadyDefined(newFnName)) {
-    ++counter;
-    newFnName = fnName + ("." + std::to_string(counter));
-  }
-}
-
 /// Returns the cloned version of \p func.
 static FunctionOpInterface cloneFunction(FunctionOpInterface func) {
   std::string newFnName = (func.getName() + ".specialized").str();
-  getUniqueFnName(newFnName, func->getParentWithTrait<OpTrait::SymbolTable>());
+  polygeist::getUniqueSymbolName(
+      newFnName, func->getParentWithTrait<OpTrait::SymbolTable>());
   OpBuilder builder(func);
   FunctionOpInterface clonedFunc = func.clone();
   clonedFunc.setName(newFnName);

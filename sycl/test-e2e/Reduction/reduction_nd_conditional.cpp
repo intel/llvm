@@ -17,7 +17,7 @@ template <typename T, class BinaryOperation>
 void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
                    BinaryOperation BOp, size_t N) {
   ExpectedOut = Identity;
-  auto In = InBuf.template get_access<access::mode::write>();
+  host_accessor In(InBuf, write_only);
   for (int I = 0; I < N; ++I) {
     In[I] = I + 1;
 
@@ -42,7 +42,7 @@ int test(queue &Q, T Identity, size_t WGSize, size_t NWItems) {
   BinaryOperation BOp;
   T CorrectOut;
   initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
-  (OutBuf.template get_access<access::mode::write>())[0] = Identity;
+  host_accessor(OutBuf, write_only)[0] = Identity;
 
   // Compute.
   Q.submit([&](handler &CGH) {
@@ -60,7 +60,7 @@ int test(queue &Q, T Identity, size_t WGSize, size_t NWItems) {
   });
 
   // Check correctness.
-  auto Out = OutBuf.template get_access<access::mode::read>();
+  host_accessor Out(OutBuf, read_only);
   T ComputedOut = *(Out.get_pointer());
   return checkResults(Q, BOp, NDRange, ComputedOut, CorrectOut);
 }

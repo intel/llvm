@@ -1,7 +1,7 @@
+// REQUIRES: fusion
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
-// REQUIRES: fusion, aspect-usm_shared_allocations
 
 // Test validity of events after cancel_fusion.
 

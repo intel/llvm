@@ -49,12 +49,14 @@ struct PtrElementModel
 
 namespace mlir {
 namespace test {
+void registerTestMemoryAccessAnalysisPass();
 void registerTestReachingDefinitionAnalysisPass();
 } // namespace test
 } // namespace mlir
 
 #ifdef MLIR_INCLUDE_TESTS
 void registerTestPasses() {
+  mlir::test::registerTestMemoryAccessAnalysisPass();
   mlir::test::registerTestReachingDefinitionAnalysisPass();
 }
 #endif

@@ -40,6 +40,7 @@ class Executor {
 public:
   virtual ~Executor() = default;
   virtual void add(std::function<void()> func, bool Sequential = false) = 0;
+  virtual size_t getThreadCount() const = 0;
 
   static Executor *getDefaultExecutor();
 };
@@ -49,7 +50,7 @@ public:
 class ThreadPoolExecutor : public Executor {
 public:
   explicit ThreadPoolExecutor(ThreadPoolStrategy S = hardware_concurrency()) {
-    unsigned ThreadCount = S.compute_thread_count();
+    ThreadCount = S.compute_thread_count();
     // Spawn all but one of the threads in another thread as spawning threads
     // can take a while.
     Threads.reserve(ThreadCount);
@@ -58,7 +59,7 @@ public:
     // Use operator[] before creating the thread to avoid data race in .size()
     // in “safe libc++” mode.
     auto &Thread0 = Threads[0];
-    Thread0 = std::thread([this, ThreadCount, S] {
+    Thread0 = std::thread([this, S] {
       for (unsigned I = 1; I < ThreadCount; ++I) {
         Threads.emplace_back([=] { work(S, I); });
         if (Stop)
@@ -99,11 +100,6 @@ public:
 
   void add(std::function<void()> F, bool Sequential = false) override {
     {
-      if (parallel::strategy.ThreadsRequested == 1) {
-        F();
-        return;
-      }
-
       std::lock_guard<std::mutex> Lock(Mutex);
       if (Sequential)
         WorkQueueSequential.emplace_front(std::move(F));
@@ -112,6 +108,8 @@ public:
     }
     Cond.notify_one();
   }
+
+  size_t getThreadCount() const override { return ThreadCount; }
 
 private:
   bool hasSequentialTasks() const {
@@ -154,6 +152,7 @@ private:
   std::condition_variable Cond;
   std::promise<void> ThreadsCreated;
   std::vector<std::thread> Threads;
+  unsigned ThreadCount;
 };
 
 Executor *Executor::getDefaultExecutor() {
@@ -183,20 +182,27 @@ Executor *Executor::getDefaultExecutor() {
 }
 } // namespace
 } // namespace detail
-#endif
 
-static std::atomic<int> TaskGroupInstances;
+size_t getThreadCount() {
+  return detail::Executor::getDefaultExecutor()->getThreadCount();
+}
+#endif
 
 // Latch::sync() called by the dtor may cause one thread to block. If is a dead
 // lock if all threads in the default executor are blocked. To prevent the dead
-// lock, only allow the first TaskGroup to run tasks parallelly. In the scenario
+// lock, only allow the root TaskGroup to run tasks parallelly. In the scenario
 // of nested parallel_for_each(), only the outermost one runs parallelly.
-TaskGroup::TaskGroup() : Parallel(TaskGroupInstances++ == 0) {}
+TaskGroup::TaskGroup()
+#if LLVM_ENABLE_THREADS
+    : Parallel((parallel::strategy.ThreadsRequested != 1) &&
+               (threadIndex == UINT_MAX)) {}
+#else
+    : Parallel(false) {}
+#endif
 TaskGroup::~TaskGroup() {
   // We must ensure that all the workloads have finished before decrementing the
   // instances count.
   L.sync();
-  --TaskGroupInstances;
 }
 
 void TaskGroup::spawn(std::function<void()> F, bool Sequential) {

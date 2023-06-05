@@ -142,29 +142,29 @@ public:
 
   uint64_t GetPacketTimeout() {
     const uint32_t idx = ePropertyPacketTimeout;
-    return m_collection_sp->GetPropertyAtIndexAsUInt64(idx).value_or(
-        g_processgdbremote_properties[idx].default_uint_value);
+    return GetPropertyAtIndexAs<uint64_t>(
+        idx, g_processgdbremote_properties[idx].default_uint_value);
   }
 
   bool SetPacketTimeout(uint64_t timeout) {
     const uint32_t idx = ePropertyPacketTimeout;
-    return m_collection_sp->SetPropertyAtIndexAsUInt64(idx, timeout);
+    return SetPropertyAtIndex(idx, timeout);
   }
 
   FileSpec GetTargetDefinitionFile() const {
     const uint32_t idx = ePropertyTargetDefinitionFile;
-    return m_collection_sp->GetPropertyAtIndexAsFileSpec(idx);
+    return GetPropertyAtIndexAs<FileSpec>(idx, {});
   }
 
   bool GetUseSVR4() const {
     const uint32_t idx = ePropertyUseSVR4;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(
-        g_processgdbremote_properties[idx].default_uint_value != 0);
+    return GetPropertyAtIndexAs<bool>(
+        idx, g_processgdbremote_properties[idx].default_uint_value != 0);
   }
 
   bool GetUseGPacketForReading() const {
     const uint32_t idx = ePropertyUseGPacketForReading;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(idx).value_or(true);
+    return GetPropertyAtIndexAs<bool>(idx, true);
   }
 };
 
@@ -342,7 +342,7 @@ bool ProcessGDBRemote::ParsePythonTargetDefinition(
           target_definition_sp->GetValueForKey("breakpoint-pc-offset");
       if (breakpoint_pc_offset_value) {
         if (auto breakpoint_pc_int_value =
-                breakpoint_pc_offset_value->GetAsInteger())
+                breakpoint_pc_offset_value->GetAsSignedInteger())
           m_breakpoint_pc_offset = breakpoint_pc_int_value->GetValue();
       }
 
@@ -1967,23 +1967,24 @@ ProcessGDBRemote::SetThreadStopInfo(StructuredData::Dictionary *thread_dict) {
                            StructuredData::Object *object) -> bool {
     if (key == g_key_tid) {
       // thread in big endian hex
-      tid = object->GetIntegerValue(LLDB_INVALID_THREAD_ID);
+      tid = object->GetUnsignedIntegerValue(LLDB_INVALID_THREAD_ID);
     } else if (key == g_key_metype) {
       // exception type in big endian hex
-      exc_type = object->GetIntegerValue(0);
+      exc_type = object->GetUnsignedIntegerValue(0);
     } else if (key == g_key_medata) {
       // exception data in big endian hex
       StructuredData::Array *array = object->GetAsArray();
       if (array) {
         array->ForEach([&exc_data](StructuredData::Object *object) -> bool {
-          exc_data.push_back(object->GetIntegerValue());
+          exc_data.push_back(object->GetUnsignedIntegerValue());
           return true; // Keep iterating through all array items
         });
       }
     } else if (key == g_key_name) {
       thread_name = std::string(object->GetStringValue());
     } else if (key == g_key_qaddr) {
-      thread_dispatch_qaddr = object->GetIntegerValue(LLDB_INVALID_ADDRESS);
+      thread_dispatch_qaddr =
+          object->GetUnsignedIntegerValue(LLDB_INVALID_ADDRESS);
     } else if (key == g_key_queue_name) {
       queue_vars_valid = true;
       queue_name = std::string(object->GetStringValue());
@@ -1997,11 +1998,11 @@ ProcessGDBRemote::SetThreadStopInfo(StructuredData::Dictionary *thread_dict) {
         queue_kind = eQueueKindConcurrent;
       }
     } else if (key == g_key_queue_serial_number) {
-      queue_serial_number = object->GetIntegerValue(0);
+      queue_serial_number = object->GetUnsignedIntegerValue(0);
       if (queue_serial_number != 0)
         queue_vars_valid = true;
     } else if (key == g_key_dispatch_queue_t) {
-      dispatch_queue_t = object->GetIntegerValue(0);
+      dispatch_queue_t = object->GetUnsignedIntegerValue(0);
       if (dispatch_queue_t != 0 && dispatch_queue_t != LLDB_INVALID_ADDRESS)
         queue_vars_valid = true;
     } else if (key == g_key_associated_with_dispatch_queue) {
@@ -2062,7 +2063,7 @@ ProcessGDBRemote::SetThreadStopInfo(StructuredData::Dictionary *thread_dict) {
       }
 
     } else if (key == g_key_signal)
-      signo = object->GetIntegerValue(LLDB_INVALID_SIGNAL_NUMBER);
+      signo = object->GetUnsignedIntegerValue(LLDB_INVALID_SIGNAL_NUMBER);
     return true; // Keep iterating through all dictionary key/value pairs
   });
 
@@ -2257,6 +2258,13 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
         StreamString ostr;
         ostr.Printf("%" PRIu64 " %" PRIu64, pid_tid->first, pid_tid->second);
         description = std::string(ostr.GetString());
+      } else if (key.compare("addressing_bits") == 0) {
+        uint64_t addressing_bits;
+        if (!value.getAsInteger(0, addressing_bits)) {
+          addr_t address_mask = ~((1ULL << addressing_bits) - 1);
+          SetCodeAddressMask(address_mask);
+          SetDataAddressMask(address_mask);
+        }
       } else if (key.size() == 2 && ::isxdigit(key[0]) && ::isxdigit(key[1])) {
         uint32_t reg = UINT32_MAX;
         if (!key.getAsInteger(16, reg))
@@ -3811,10 +3819,8 @@ StructuredData::ObjectSP ProcessGDBRemote::GetLoadedDynamicLibrariesInfos(
   StructuredData::ObjectSP args_dict(new StructuredData::Dictionary());
   StructuredData::ArraySP addresses(new StructuredData::Array);
 
-  for (auto addr : load_addresses) {
-    StructuredData::ObjectSP addr_sp(new StructuredData::Integer(addr));
-    addresses->AddItem(addr_sp);
-  }
+  for (auto addr : load_addresses)
+    addresses->AddIntegerItem(addr);
 
   args_dict->GetAsDictionary()->AddItem("solib_addresses", addresses);
 

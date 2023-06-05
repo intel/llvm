@@ -1,5 +1,4 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 || cuda || hip
+// UNSUPPORTED: gpu-intel-gen9
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: gpu && !esimd_emulator

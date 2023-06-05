@@ -8012,6 +8012,11 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
   if (!Indices.empty() && !Ty->isSized(&Visited))
     return error(Loc, "base element of getelementptr must be sized");
 
+  auto *STy = dyn_cast<StructType>(Ty);
+  if (STy && STy->containsScalableVectorType())
+    return error(Loc, "getelementptr cannot target structure that contains "
+                      "scalable vector type");
+
   if (!GetElementPtrInst::getIndexedType(Ty, Indices))
     return error(Loc, "invalid getelementptr indices");
   Inst = GetElementPtrInst::Create(Ty, Ptr, Indices);
@@ -10001,7 +10006,7 @@ bool LLParser::parseMemProfs(std::vector<MIBInfo> &MIBs) {
 }
 
 /// AllocType
-///   := ('none'|'notcold'|'cold')
+///   := ('none'|'notcold'|'cold'|'hot')
 bool LLParser::parseAllocType(uint8_t &AllocType) {
   switch (Lex.getKind()) {
   case lltok::kw_none:
@@ -10012,6 +10017,9 @@ bool LLParser::parseAllocType(uint8_t &AllocType) {
     break;
   case lltok::kw_cold:
     AllocType = (uint8_t)AllocationType::Cold;
+    break;
+  case lltok::kw_hot:
+    AllocType = (uint8_t)AllocationType::Hot;
     break;
   default:
     return error(Lex.getLoc(), "invalid alloc type");

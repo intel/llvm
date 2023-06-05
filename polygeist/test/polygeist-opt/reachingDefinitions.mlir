@@ -192,10 +192,10 @@ func.func @test11(%cond: i1, %val: i32, %arg1: memref<i32>, %arg2: memref<i32>) 
   } else {
     %c1 = arith.constant 1 : i32      
     memref.store %c1, %arg2[] {tag_name = "test11_store3"} : memref<i32>
-  }  
+  }
   memref.dealloc %arg2 {tag_name = "test11_dealloc1"} : memref<i32>
-  %1 = memref.load %arg1[] {tag = "test11_load1"} : memref<i32>  
-  %2 = memref.load %arg2[] {tag = "test11_load2"} : memref<i32>      
+  %1 = memref.load %arg1[] {tag = "test11_load1"} : memref<i32>
+  %2 = memref.load %arg2[] {tag = "test11_load2"} : memref<i32>
   return
 }
 

@@ -1,5 +1,5 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -Xcgeist --use-opaque-pointers=0 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 // CHECK-MLIR-DAG: func.func private @func_const() {{.*}} attributes {{{.*}}passthrough = [{{.*}}"nounwind", {{.*}}"willreturn", {{.*}}["memory", "0"]{{.*}}]}
 // CHECK-MLIR-DAG: func.func private @func_pure() {{.*}} attributes {{{.*}}passthrough = [{{.*}}"nounwind", {{.*}}"willreturn", {{.*}}["memory", "21"]{{.*}}]}

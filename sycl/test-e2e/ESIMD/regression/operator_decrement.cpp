@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 // This is a test for a bug found simd_view::operator--
 //
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: %{run} %t.out
 

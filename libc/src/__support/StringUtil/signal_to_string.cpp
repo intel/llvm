@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/StringUtil/signal_to_string.h"
+#include "signal_to_string.h"
+#include "platform_signals.h"
 
 #include "src/__support/CPP/span.h"
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/CPP/stringstream.h"
 #include "src/__support/StringUtil/message_mapper.h"
-#include "src/__support/StringUtil/tables/signal_table.h"
 #include "src/__support/integer_to_string.h"
 
 #include <signal.h>
@@ -34,15 +34,12 @@ constexpr size_t max_buff_size() {
 constexpr size_t SIG_BUFFER_SIZE = max_buff_size();
 thread_local char signal_buffer[SIG_BUFFER_SIZE];
 
-constexpr size_t RAW_ARRAY_LEN = PLATFORM_SIGNALS.size();
-constexpr size_t TOTAL_STR_LEN =
-    total_str_len(PLATFORM_SIGNALS.data(), RAW_ARRAY_LEN);
+constexpr size_t TOTAL_STR_LEN = total_str_len(PLATFORM_SIGNALS);
 
-constexpr size_t SIG_ARRAY_SIZE =
-    max_key_val(PLATFORM_SIGNALS.data(), RAW_ARRAY_LEN) + 1;
+constexpr size_t SIG_ARRAY_SIZE = max_key_val(PLATFORM_SIGNALS) + 1;
 
-static constexpr MessageMapper<SIG_ARRAY_SIZE, TOTAL_STR_LEN>
-    signal_mapper(PLATFORM_SIGNALS.data(), RAW_ARRAY_LEN);
+constexpr MessageMapper<SIG_ARRAY_SIZE, TOTAL_STR_LEN>
+    signal_mapper(PLATFORM_SIGNALS);
 
 cpp::string_view build_signal_string(int sig_num, cpp::span<char> buffer) {
   cpp::string_view base_str;

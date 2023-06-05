@@ -17,9 +17,9 @@ union int_wrapper {
 // CHECK-MLIR-NEXT:      return %[[VAL_0]] : memref<?xi32>
 // CHECK-MLIR-NEXT:    }
 
-// CHECK-LLVM-LABEL:   define i32* @foo(
-// CHECK-LLVM-SAME:                     i32* %[[VAL_0:.*]]) {
-// CHECK-LLVM-NEXT:      ret i32* %[[VAL_0]]
+// CHECK-LLVM-LABEL:   define ptr @foo(
+// CHECK-LLVM-SAME:                     ptr %[[VAL_0:.*]]) {
+// CHECK-LLVM-NEXT:      ret ptr %[[VAL_0]]
 // CHECK-LLVM-NEXT:    }
 
 union int_wrapper foo(union int_wrapper w) {

@@ -2990,7 +2990,7 @@ let Predicates = [HasAVX512] in {
 
   def : Pat<(insert_subvector (v16i1 immAllZerosV),
                               (v1i1 (scalar_to_vector GR8:$src)), (iPTR 0)),
-            (KMOVWkr (AND32ri8
+            (KMOVWkr (AND32ri
                       (INSERT_SUBREG (i32 (IMPLICIT_DEF)), GR8:$src, sub_8bit),
                       (i32 1)))>;
 }
@@ -4068,7 +4068,7 @@ def VMOVPQIto64Zrr : I<0x7E, MRMDestReg, (outs GR64:$dst), (ins VR128X:$src),
 let isCodeGenOnly = 1, ForceDisassemble = 1, hasSideEffects = 0, mayStore = 1 in
 def VMOVPQIto64Zmr : I<0x7E, MRMDestMem, (outs), (ins i64mem:$dst, VR128X:$src),
                       "vmovq\t{$src, $dst|$dst, $src}", []>, PD,
-                      EVEX, REX_W, Sched<[WriteVecStore]>,
+                      EVEX, REX_W, EVEX_CD8<64, CD8VT1>, Sched<[WriteVecStore]>,
                       Requires<[HasAVX512, In64BitMode]>;
 
 def VMOVPQI2QIZmr : I<0xD6, MRMDestMem, (outs),

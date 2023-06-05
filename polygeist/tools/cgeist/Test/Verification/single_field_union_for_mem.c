@@ -12,9 +12,9 @@ struct foo {
 // CHECK-MLIR-NEXT:      return %[[VAL_0]] : !llvm.struct<(!llvm.struct<(memref<?xi32>)>)>
 // CHECK-MLIR-NEXT:    }
 
-// CHECK-LLVM-LABEL:   define { { i32* } } @id(
-// CHECK-LLVM-SAME:                            { { i32* } } %[[VAL_0:.*]]) {
-// CHECK-LLVM-NEXT:      ret { { i32* } } %[[VAL_0]]
+// CHECK-LLVM-LABEL:   define { { ptr } } @id(
+// CHECK-LLVM-SAME:                            { { ptr } } %[[VAL_0:.*]]) {
+// CHECK-LLVM-NEXT:      ret { { ptr } } %[[VAL_0]]
 // CHECK-LLVM-NEXT:    }
 
 struct foo id(struct foo f) {

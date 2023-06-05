@@ -13,6 +13,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
 
 #define DEBUG_TYPE "reaching-definition-analysis"
 
@@ -41,7 +42,7 @@ bool Definition::operator<(const Definition &other) const {
   if (isOperation() && other.isOperation())
     return getOperation() < other.getOperation();
   if (isInitialDefinition() && other.isInitialDefinition())
-    return false; // InitialDefinition is a singleton.
+    return false;
   return isInitialDefinition();
 }
 
@@ -58,16 +59,16 @@ raw_ostream &operator<<(raw_ostream &os, const ReachingDefinition &lastDef) {
   auto printMap = [&os](const DenseMap<Value, ModifiersTy> &map,
                         StringRef title) {
     for (const auto &entry : map) {
-      Value val = entry.first;
+      const Value &val = entry.first;
       const ModifiersTy &valModifiers = entry.second;
 
-      os.indent(4) << val << "\n";
-      os.indent(4) << title << "\n";
+      os.indent(4) << "val: " << val << "\n";
+      os.indent(6) << title << "\n";
       if (valModifiers.empty())
-        os.indent(6) << "<none>\n";
+        os.indent(8) << "<none>\n";
       else {
         for (const Definition &def : valModifiers)
-          os.indent(6) << def << "\n";
+          os.indent(8) << def << "\n";
       }
     }
   };
@@ -126,11 +127,8 @@ ChangeResult ReachingDefinition::reset() {
 }
 
 ChangeResult ReachingDefinition::setModifier(Value val, Definition def) {
-  ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
-  assert((mods.size() != 1 || *mods.begin() != def) &&
-         "seen this modifier already");
-
   // Set the new modifier and clear out all previous definitions.
+  ReachingDefinition::ModifiersTy &mods = valueToModifiers[val];
   mods.clear();
   mods.insert(def);
   valueToPotentialModifiers[val].clear();

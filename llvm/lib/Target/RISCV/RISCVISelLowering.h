@@ -164,6 +164,12 @@ enum NodeType : unsigned {
   // value. The fourth and fifth operands are the mask and VL operands.
   VSLIDE1UP_VL,
   VSLIDE1DOWN_VL,
+  // Matches the semantics of vfslide1up/vfslide1down. The first operand is
+  // passthru operand, the second is source vector, third is a scalar value
+  // whose type matches the element type of the vectors.  The fourth and fifth
+  // operands are the mask and VL operands.
+  VFSLIDE1UP_VL,
+  VFSLIDE1DOWN_VL,
   // Matches the semantics of the vid.v instruction, with a mask and VL
   // operand.
   VID_VL,
@@ -255,6 +261,13 @@ enum NodeType : unsigned {
   VFNMADD_VL,
   VFMSUB_VL,
   VFNMSUB_VL,
+
+  // Vector widening FMA ops with a mask as a fourth operand and VL as a fifth
+  // operand.
+  VFWMADD_VL,
+  VFWNMADD_VL,
+  VFWMSUB_VL,
+  VFWNMSUB_VL,
 
   // Widening instructions with a merge value a third operand, a mask as a
   // fourth operand, and VL as a fifth operand.
@@ -524,6 +537,13 @@ public:
     return TargetLowering::shouldFormOverflowOp(Opcode, VT, MathUsed);
   }
 
+  bool storeOfVectorConstantIsCheap(bool IsZero, EVT MemVT, unsigned NumElem,
+                                    unsigned AddrSpace) const override {
+    // If we can replace 4 or more scalar stores, there will be a reduction
+    // in instructions even after we add a vector constant load.
+    return NumElem >= 4;
+  }
+
   bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
     return VT.isScalarInteger();
   }
@@ -549,6 +569,9 @@ public:
   ISD::NodeType getExtendForAtomicCmpSwapArg() const override {
     return ISD::SIGN_EXTEND;
   }
+
+  bool shouldTransformSignedTruncationCheck(EVT XVT,
+                                            unsigned KeptBits) const override;
 
   TargetLowering::ShiftLegalizationStrategy
   preferredShiftLegalizationStrategy(SelectionDAG &DAG, SDNode *N,
@@ -718,7 +741,6 @@ public:
   bool lowerInterleavedStore(StoreInst *SI, ShuffleVectorInst *SVI,
                              unsigned Factor) const override;
 
-private:
   /// RISCVCCAssignFn - This target-specific function extends the default
   /// CCValAssign with additional information used to lower RISC-V calling
   /// conventions.
@@ -730,6 +752,7 @@ private:
                                const RISCVTargetLowering &TLI,
                                std::optional<unsigned> FirstMaskArgument);
 
+private:
   void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
                         const SmallVectorImpl<ISD::InputArg> &Ins, bool IsRet,
                         RISCVCCAssignFn Fn) const;
@@ -857,6 +880,26 @@ private:
   /// faster than two FDIVs.
   unsigned combineRepeatedFPDivisors() const override;
 };
+
+namespace RISCV {
+
+bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
+              MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo,
+              ISD::ArgFlagsTy ArgFlags, CCState &State, bool IsFixed,
+              bool IsRet, Type *OrigTy, const RISCVTargetLowering &TLI,
+              std::optional<unsigned> FirstMaskArgument);
+
+bool CC_RISCV_FastCC(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
+                     MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo,
+                     ISD::ArgFlagsTy ArgFlags, CCState &State, bool IsFixed,
+                     bool IsRet, Type *OrigTy, const RISCVTargetLowering &TLI,
+                     std::optional<unsigned> FirstMaskArgument);
+
+bool CC_RISCV_GHC(unsigned ValNo, MVT ValVT, MVT LocVT,
+                  CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
+                  CCState &State);
+} // end namespace RISCV
+
 namespace RISCVVIntrinsicsTable {
 
 struct RISCVVIntrinsicInfo {

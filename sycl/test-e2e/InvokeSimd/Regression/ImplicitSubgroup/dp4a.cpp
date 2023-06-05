@@ -1,6 +1,3 @@
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip
 // REQUIRES: gpu-intel-dg1 || gpu-intel-dg2 || gpu-intel-pvc
 //
 // Check that full compilation works:

@@ -1,7 +1,3 @@
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip
-//
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
@@ -151,6 +147,7 @@ int main(void) {
   const bool SupportsDouble = dev.has(aspect::fp64);
 
   bool passed = true;
+#ifndef TEST_DOUBLE_TYPE
   passed &= test<unsigned char>(q);
   passed &= test<char>(q);
   passed &= test<unsigned short>(q);
@@ -161,9 +158,10 @@ int main(void) {
   passed &= test<long>(q);
 
   passed &= test<float>(q);
+#else
   if (SupportsDouble)
     passed &= test<double>(q);
-
+#endif
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }

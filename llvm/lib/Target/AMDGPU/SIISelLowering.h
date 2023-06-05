@@ -198,6 +198,7 @@ private:
   SDValue performCvtPkRTZCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performExtractVectorEltCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performInsertVectorEltCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performFPRoundCombine(SDNode *N, DAGCombinerInfo &DCI) const;
 
   SDValue reassociateScalarOps(SDNode *N, SelectionDAG &DAG) const;
   unsigned getFusedOpcode(const SelectionDAG &DAG,
@@ -272,6 +273,12 @@ public:
                        LLT SrcTy) const override;
 
   bool isShuffleMaskLegal(ArrayRef<int> /*Mask*/, EVT /*VT*/) const override;
+
+  // While address space 7 should never make it to codegen, it still needs to
+  // have a MVT to prevent some analyses that query this function from breaking,
+  // so, to work around the lack of i160, map it to v5i32.
+  MVT getPointerTy(const DataLayout &DL, unsigned AS) const override;
+  MVT getPointerMemTy(const DataLayout &DL, unsigned AS) const override;
 
   bool getTgtMemIntrinsic(IntrinsicInfo &, const CallInst &,
                           MachineFunction &MF,

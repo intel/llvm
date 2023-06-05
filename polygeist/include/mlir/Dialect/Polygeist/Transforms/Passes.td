@@ -124,6 +124,22 @@ def LLVMLegalizeForSPIRV : Pass<"legalize-for-spirv"> {
   let dependentDialects = ["LLVM::LLVMDialect"];  
 }
 
+def LoopInternalization : Pass<"loop-internalization"> {
+  let summary = "Promote SYCL memory accesses in a loop nest to shared local memory";
+  let description = [{
+    SYCL memory accesses in perfectly nested loops are promoted to shared local
+    memory by leveraging the loop tiling infrastructure.
+  }];
+  let constructor = "mlir::polygeist::createLoopInternalizationPass()";
+  let options = [
+    Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
+           /*default=*/"false", 
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
+    Option<"tileSize", "tile-size", "unsigned", /*default=*/"1", "Tile size">
+  ];
+  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect", "spirv::SPIRVDialect"];
+}
+
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";

@@ -168,6 +168,7 @@ private:
   mutable std::unique_ptr<Tool> SpirvToIrWrapper;
   mutable std::unique_ptr<Tool> LinkerWrapper;
   mutable std::unique_ptr<Tool> Cgeist;
+  mutable std::unique_ptr<Tool> MLIRTranslate;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -189,6 +190,7 @@ private:
   Tool *getSpirvToIrWrapper() const;
   Tool *getLinkerWrapper() const;
   Tool *getCgeist() const;
+  Tool *getMLIRTranslate() const;
 
   mutable bool SanitizerArgsChecked = false;
   mutable std::unique_ptr<XRayArgs> XRayArguments;

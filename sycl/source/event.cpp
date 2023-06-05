@@ -30,7 +30,7 @@ event::event(cl_event ClEvent, const context &SyclContext)
           detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  impl->getPlugin().call<detail::PiApiKind::piEventRetain>(
+  impl->getPlugin()->call<detail::PiApiKind::piEventRetain>(
       detail::pi::cast<RT::PiEvent>(ClEvent));
 }
 

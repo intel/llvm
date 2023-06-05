@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
+#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -18,28 +19,82 @@
 #include <optional>
 
 using namespace mlir;
-using namespace mlir::polygeist;
+
+static Block &getThenBlock(RegionBranchOpInterface ifOp) {
+  return ifOp->getRegion(0).front();
+}
+
+static Block &getElseBlock(RegionBranchOpInterface ifOp) {
+  return ifOp->getRegion(1).front();
+}
+
+// Replace uses of the operation \p op return value(s) with the value(s) yielded
+// by the \p ifOp operation.
+static void replaceUsesOfReturnValues(Operation *op,
+                                      RegionBranchOpInterface ifOp) {
+  assert(ifOp && "Expected valid ifOp");
+  for (auto [opVal, ifVal] : llvm::zip(op->getResults(), ifOp->getResults()))
+    opVal.replaceUsesWithIf(ifVal, [&](OpOperand &operand) {
+      Block *useBlock = operand.getOwner()->getBlock();
+      return useBlock != &getThenBlock(ifOp);
+    });
+}
+
+static void createThenBody(Operation *op, scf::IfOp ifOp) {
+  op->moveBefore(&getThenBlock(ifOp).front());
+}
+
+static void createThenBody(Operation *op, affine::AffineIfOp ifOp) {
+  OpBuilder thenBodyBuilder = ifOp.getThenBodyBuilder();
+  if (!op->getResults().empty())
+    thenBodyBuilder.create<affine::AffineYieldOp>(op->getLoc(),
+                                                  op->getResults());
+  op->moveBefore(&getThenBlock(ifOp).front());
+}
+
+namespace mlir {
+namespace polygeist {
 
 //===----------------------------------------------------------------------===//
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
+void getUniqueSymbolName(std::string &newName, Operation *symbolTable) {
+  assert(symbolTable && symbolTable->hasTrait<OpTrait::SymbolTable>() &&
+         "Expecting symbol table");
+  auto alreadyDefined = [&symbolTable](std::string name) {
+    return llvm::any_of(symbolTable->getRegion(0), [&](auto &block) {
+      return llvm::any_of(block, [&](auto &op) {
+        auto nameAttr = op.template getAttrOfType<StringAttr>(
+            SymbolTable::getSymbolAttrName());
+        return nameAttr && nameAttr.getValue() == name;
+      });
+    });
+  };
+  std::string fnName = newName;
+  unsigned counter = 0;
+  while (alreadyDefined(newName)) {
+    ++counter;
+    newName = fnName + ("." + std::to_string(counter));
+  }
+}
+
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
-bool polygeist::isLinkonceODR(FunctionOpInterface func) {
+bool isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-void polygeist::privatize(FunctionOpInterface func) {
+void privatize(FunctionOpInterface func) {
   func->setAttr(
       linkageAttrName,
       LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
   func.setPrivate();
 }
 
-bool polygeist::isTailCall(CallOpInterface call) {
+bool isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
   Operation *nextOp = call->getNextNode();
@@ -92,14 +147,13 @@ static void getMaxDepthFromAnyGPUKernel(
   funcMaxDepthMap[func] = maxDepth;
 }
 
-Optional<unsigned>
-polygeist::getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
+Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
   DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
-  ::getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
+  getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
   return funcMaxDepthMap[func];
 }
 
-bool polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
+bool isPotentialKernelBodyFunc(FunctionOpInterface func) {
   // The function must be defined, and private or with linkonce_odr linkage.
   if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
     return false;
@@ -124,7 +178,7 @@ bool polygeist::isPotentialKernelBodyFunc(FunctionOpInterface func) {
   return (maxDepth.value() == 1 || maxDepth.value() == 2);
 }
 
-Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
+Optional<Value> getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
         .Case<affine::AffineLoadOp, affine::AffineStoreOp>(
@@ -137,36 +191,40 @@ Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
   return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
 }
 
-static Block &getThenBlock(RegionBranchOpInterface ifOp) {
-  return ifOp->getRegion(0).front();
+std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
+  if (!val.getType().isIntOrIndex())
+    return std::nullopt;
+
+  auto *inferredRange =
+      solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
+  if (!inferredRange || inferredRange->getValue().isUninitialized())
+    return std::nullopt;
+
+  const ConstantIntRanges &range = inferredRange->getValue().getValue();
+  return range.getConstantValue();
 }
 
-static Block &getElseBlock(RegionBranchOpInterface ifOp) {
-  return ifOp->getRegion(1).front();
+/// Walk up the parents and records the ones with the specified type.
+template <typename T> SetVector<T> getParentsOfType(Block &block) {
+  SetVector<T> res;
+  constexpr auto getInitialParent = [](Block &b) -> T {
+    Operation *op = b.getParentOp();
+    auto typedOp = dyn_cast<T>(op);
+    return typedOp ? typedOp : op->getParentOfType<T>();
+  };
+
+  for (T parent = getInitialParent(block); parent;
+       parent = parent->template getParentOfType<T>())
+    res.insert(parent);
+
+  return res;
 }
 
-// Replace uses of the operation \p op return value(s) with the value(s) yielded
-// by the \p ifOp operation.
-static void replaceUsesOfReturnValues(Operation *op,
-                                      RegionBranchOpInterface ifOp) {
-  assert(ifOp && "Expected valid ifOp");
-  for (auto [opVal, ifVal] : llvm::zip(op->getResults(), ifOp->getResults()))
-    opVal.replaceUsesWithIf(ifVal, [&](OpOperand &operand) {
-      Block *useBlock = operand.getOwner()->getBlock();
-      return useBlock != &getThenBlock(ifOp);
-    });
-}
-
-static void createThenBody(Operation *op, scf::IfOp ifOp) {
-  op->moveBefore(&getThenBlock(ifOp).front());
-}
-
-static void createThenBody(Operation *op, affine::AffineIfOp ifOp) {
-  OpBuilder thenBodyBuilder = ifOp.getThenBodyBuilder();
-  if (!op->getResults().empty())
-    thenBodyBuilder.create<affine::AffineYieldOp>(op->getLoc(),
-                                                  op->getResults());
-  op->moveBefore(&getThenBlock(ifOp).front());
+template <typename T>
+SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
+  SetVector<T> res;
+  funcOp->walk([&](T op) { res.insert(op); });
+  return res;
 }
 
 namespace {
@@ -512,13 +570,81 @@ AffineMap AffineParallelGuardBuilder::getUpperBoundsMap() const {
 // Loop Tools
 //===----------------------------------------------------------------------===//
 
-void LoopTools::guardLoop(LoopLikeOpInterface loop) const {
+void LoopTools::guardLoop(LoopLikeOpInterface loop) {
   LoopGuardBuilder::create(loop)->guardLoop();
 }
 
 void LoopTools::versionLoop(LoopLikeOpInterface loop,
-                            const VersionCondition &versionCond) const {
+                            const VersionCondition &versionCond) {
   VersionBuilder(loop).version(versionCond);
+}
+
+bool LoopTools::isOutermostLoop(LoopLikeOpInterface loop) {
+  assert(loop && "Expecting a valid pointer");
+  return !loop->getParentOfType<LoopLikeOpInterface>();
+}
+
+bool LoopTools::isInnermostLoop(LoopLikeOpInterface loop) {
+  assert(loop && "Expecting a valid pointer");
+  LoopLikeOpInterface root = loop;
+  WalkResult walkResult =
+      root->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        if (loop == root)
+          return WalkResult::advance();
+        return WalkResult::interrupt();
+      });
+
+  return !walkResult.wasInterrupted();
+}
+
+bool LoopTools::isPerfectLoopNest(LoopLikeOpInterface root) {
+  assert(root && "Expecting a valid pointer");
+
+  LoopLikeOpInterface previousLoop = root;
+  WalkResult walkResult =
+      root->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        if (!arePerfectlyNested(previousLoop, loop))
+          return WalkResult::interrupt();
+
+        previousLoop = loop;
+        return WalkResult::advance();
+      });
+
+  return !walkResult.wasInterrupted();
+}
+
+std::optional<LoopLikeOpInterface>
+LoopTools::getInnermostLoop(LoopLikeOpInterface root) {
+  assert(root && "Expecting a valid pointer");
+
+  LoopLikeOpInterface previousLoop = root;
+  WalkResult walkResult =
+      root->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
+        if (!arePerfectlyNested(previousLoop, loop)) {
+          llvm::errs() << "Not perfectly nested\n";
+          return WalkResult::interrupt();
+        }
+
+        previousLoop = loop;
+        return WalkResult::advance();
+      });
+
+  if (!walkResult.wasInterrupted())
+    return previousLoop;
+  return std::nullopt;
+}
+
+bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
+                                   LoopLikeOpInterface inner) {
+  assert(outer && inner && "Expecting valid pointers");
+  if (outer == inner)
+    return true;
+
+  Block &outerLoopBody = outer.getLoopBody().front();
+  if (outerLoopBody.begin() != std::prev(outerLoopBody.end(), 2))
+    return false;
+
+  return inner == dyn_cast<LoopLikeOpInterface>(&outerLoopBody.front());
 }
 
 //===----------------------------------------------------------------------===//
@@ -661,3 +787,16 @@ VersionConditionBuilder::createSCFCondition(OpBuilder builder, Location loc,
   }
   return condition;
 }
+
+// Explicit template instantiations.
+
+template SetVector<FunctionOpInterface> getParentsOfType(Block &);
+template SetVector<LoopLikeOpInterface> getParentsOfType(Block &);
+
+template SetVector<sycl::SYCLNDItemGetGlobalIDOp>
+    getOperationsOfType(FunctionOpInterface);
+template SetVector<sycl::SYCLItemGetIDOp>
+    getOperationsOfType(FunctionOpInterface);
+
+} // namespace polygeist
+} // namespace mlir

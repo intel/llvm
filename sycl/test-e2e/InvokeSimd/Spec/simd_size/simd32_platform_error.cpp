@@ -1,8 +1,5 @@
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-//
 // Test not intended to run on PVC
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-pvc
 //
 // TODO: enable when Jira ticket resolved
 // XFAIL: gpu

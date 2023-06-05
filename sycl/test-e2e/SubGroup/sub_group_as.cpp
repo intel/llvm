@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out
+// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 //
 // Missing __spirv_GenericCastToPtrExplicit_ToLocal,
@@ -10,7 +10,7 @@
 // __spirv_SubgroupBlockWriteINTEL on AMD
 // error message `Barrier is not supported on the host device yet.` on Nvidia.
 // XFAIL: hip_amd || hip_nvidia
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 
 #include <cassert>
 #include <cstdint>

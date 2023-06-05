@@ -1,6 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
-// UNSUPPORTED: hip
 
 // Test fusion cancellation on an explicit memory operation on an accessor
 // happening before complete_fusion.

@@ -48,8 +48,11 @@ extern thread_local unsigned threadIndex;
 
 inline unsigned getThreadIndex() { GET_THREAD_INDEX_IMPL; }
 #endif
+
+size_t getThreadCount();
 #else
 inline unsigned getThreadIndex() { return 0; }
+inline size_t getThreadCount() { return 1; }
 #endif
 
 namespace detail {
@@ -99,6 +102,8 @@ public:
   void spawn(std::function<void()> f, bool Sequential = false);
 
   void sync() const { L.sync(); }
+
+  bool isParallel() const { return Parallel; }
 };
 
 namespace detail {

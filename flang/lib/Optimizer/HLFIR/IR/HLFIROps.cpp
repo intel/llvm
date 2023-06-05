@@ -442,6 +442,54 @@ mlir::LogicalResult hlfir::ParentComponentOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AnyOp
+//===----------------------------------------------------------------------===//
+mlir::LogicalResult hlfir::AnyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  auto results = op->getResultTypes();
+  assert(results.size() == 1);
+
+  mlir::Value mask = getMask();
+  mlir::Value dim = getDim();
+  fir::SequenceType maskTy =
+      hlfir::getFortranElementOrSequenceType(mask.getType())
+          .cast<fir::SequenceType>();
+  mlir::Type logicalTy = maskTy.getEleTy();
+  llvm::ArrayRef<int64_t> maskShape = maskTy.getShape();
+
+  mlir::Type resultType = results[0];
+  if (mlir::isa<fir::LogicalType>(resultType)) {
+    // Result is of the same type as MASK
+    if (resultType != logicalTy)
+      return emitOpError(
+          "result must have the same element type as MASK argument");
+
+  } else if (auto resultExpr =
+                 mlir::dyn_cast_or_null<hlfir::ExprType>(resultType)) {
+    // Result should only be in hlfir.expr form if it is an array
+    if (maskShape.size() > 1 && dim != nullptr) {
+      if (!resultExpr.isArray())
+        return emitOpError("result must be an array");
+
+      if (resultExpr.getEleTy() != logicalTy)
+        return emitOpError(
+            "result must have the same element type as MASK argument");
+
+      llvm::ArrayRef<int64_t> resultShape = resultExpr.getShape();
+      // Result has rank n-1
+      if (resultShape.size() != (maskShape.size() - 1))
+        return emitOpError("result rank must be one less than MASK");
+    } else {
+      return emitOpError("result must be of logical type");
+    }
+  } else {
+    return emitOpError("result must be of logical type");
+  }
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
 // ConcatOp
 //===----------------------------------------------------------------------===//
 
@@ -489,6 +537,92 @@ void hlfir::ConcatOp::build(mlir::OpBuilder &builder,
 }
 
 //===----------------------------------------------------------------------===//
+// ReductionOp
+//===----------------------------------------------------------------------===//
+
+template <typename ReductionOp>
+static mlir::LogicalResult verifyReductionOp(ReductionOp reductionOp) {
+  mlir::Operation *op = reductionOp->getOperation();
+
+  auto results = op->getResultTypes();
+  assert(results.size() == 1);
+
+  mlir::Value array = reductionOp->getArray();
+  mlir::Value dim = reductionOp->getDim();
+  mlir::Value mask = reductionOp->getMask();
+
+  fir::SequenceType arrayTy =
+      hlfir::getFortranElementOrSequenceType(array.getType())
+          .cast<fir::SequenceType>();
+  mlir::Type numTy = arrayTy.getEleTy();
+  llvm::ArrayRef<int64_t> arrayShape = arrayTy.getShape();
+
+  if (mask) {
+    fir::SequenceType maskSeq =
+        hlfir::getFortranElementOrSequenceType(mask.getType())
+            .dyn_cast<fir::SequenceType>();
+    llvm::ArrayRef<int64_t> maskShape;
+
+    if (maskSeq)
+      maskShape = maskSeq.getShape();
+
+    if (!maskShape.empty()) {
+      if (maskShape.size() != arrayShape.size())
+        return reductionOp->emitWarning("MASK must be conformable to ARRAY");
+      static_assert(fir::SequenceType::getUnknownExtent() ==
+                    hlfir::ExprType::getUnknownExtent());
+      constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
+      for (std::size_t i = 0; i < arrayShape.size(); ++i) {
+        int64_t arrayExtent = arrayShape[i];
+        int64_t maskExtent = maskShape[i];
+        if ((arrayExtent != maskExtent) && (arrayExtent != unknownExtent) &&
+            (maskExtent != unknownExtent))
+          return reductionOp->emitWarning("MASK must be conformable to ARRAY");
+      }
+    }
+  }
+
+  mlir::Type resultType = results[0];
+  if (hlfir::isFortranScalarNumericalType(resultType)) {
+    // Result is of the same type as ARRAY
+    if (resultType != numTy)
+      return reductionOp->emitOpError(
+          "result must have the same element type as ARRAY argument");
+
+  } else if (auto resultExpr =
+                 mlir::dyn_cast_or_null<hlfir::ExprType>(resultType)) {
+    if (arrayShape.size() > 1 && dim != nullptr) {
+      if (!resultExpr.isArray())
+        return reductionOp->emitOpError("result must be an array");
+
+      if (resultExpr.getEleTy() != numTy)
+        return reductionOp->emitOpError(
+            "result must have the same element type as ARRAY argument");
+
+      llvm::ArrayRef<int64_t> resultShape = resultExpr.getShape();
+      // Result has rank n-1
+      if (resultShape.size() != (arrayShape.size() - 1))
+        return reductionOp->emitOpError(
+            "result rank must be one less than ARRAY");
+    } else {
+      return reductionOp->emitOpError(
+          "result must be of numerical scalar type");
+    }
+  } else {
+    return reductionOp->emitOpError("result must be of numerical scalar type");
+  }
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// ProductOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::ProductOp::verify() {
+  return verifyReductionOp<hlfir::ProductOp *>(this);
+}
+
+//===----------------------------------------------------------------------===//
 // SetLengthOp
 //===----------------------------------------------------------------------===//
 
@@ -511,65 +645,7 @@ void hlfir::SetLengthOp::build(mlir::OpBuilder &builder,
 //===----------------------------------------------------------------------===//
 
 mlir::LogicalResult hlfir::SumOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  auto results = op->getResultTypes();
-  assert(results.size() == 1);
-
-  mlir::Value array = getArray();
-  mlir::Value mask = getMask();
-
-  fir::SequenceType arrayTy =
-      hlfir::getFortranElementOrSequenceType(array.getType())
-          .cast<fir::SequenceType>();
-  mlir::Type numTy = arrayTy.getEleTy();
-  llvm::ArrayRef<int64_t> arrayShape = arrayTy.getShape();
-  hlfir::ExprType resultTy = results[0].cast<hlfir::ExprType>();
-
-  if (mask) {
-    fir::SequenceType maskSeq =
-        hlfir::getFortranElementOrSequenceType(mask.getType())
-            .dyn_cast<fir::SequenceType>();
-    llvm::ArrayRef<int64_t> maskShape;
-
-    if (maskSeq)
-      maskShape = maskSeq.getShape();
-
-    if (!maskShape.empty()) {
-      if (maskShape.size() != arrayShape.size())
-        return emitWarning("MASK must be conformable to ARRAY");
-      static_assert(fir::SequenceType::getUnknownExtent() ==
-                    hlfir::ExprType::getUnknownExtent());
-      constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
-      for (std::size_t i = 0; i < arrayShape.size(); ++i) {
-        int64_t arrayExtent = arrayShape[i];
-        int64_t maskExtent = maskShape[i];
-        if ((arrayExtent != maskExtent) && (arrayExtent != unknownExtent) &&
-            (maskExtent != unknownExtent))
-          return emitWarning("MASK must be conformable to ARRAY");
-      }
-    }
-  }
-
-  if (resultTy.isArray()) {
-    // Result is of the same type as ARRAY
-    if (resultTy.getEleTy() != numTy)
-      return emitOpError(
-          "result must have the same element type as ARRAY argument");
-
-    llvm::ArrayRef<int64_t> resultShape = resultTy.getShape();
-
-    // Result has rank n-1
-    if (resultShape.size() != (arrayShape.size() - 1))
-      return emitOpError("result rank must be one less than ARRAY");
-  } else {
-    // Result is of the same type as ARRAY
-    if (resultTy.getElementType() != numTy)
-      return emitOpError(
-          "result must have the same element type as ARRAY argument");
-  }
-
-  return mlir::success();
+  return verifyReductionOp<hlfir::SumOp *>(this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1224,6 +1300,28 @@ mlir::LogicalResult hlfir::ElseWhereOp::verify() {
       return emitOpError(
           "mask region must yield a logical array when provided");
   return verifyWhereAndElseWhereBody(*this);
+}
+
+//===----------------------------------------------------------------------===//
+// ForallIndexOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult
+hlfir::ForallIndexOp::canonicalize(hlfir::ForallIndexOp indexOp,
+                                   mlir::PatternRewriter &rewriter) {
+  auto insertPt = rewriter.saveInsertionPoint();
+  for (mlir::Operation *user : indexOp->getResult(0).getUsers())
+    if (auto loadOp = mlir::dyn_cast_or_null<fir::LoadOp>(user)) {
+      rewriter.setInsertionPoint(loadOp);
+      rewriter.replaceOpWithNewOp<fir::ConvertOp>(
+          user, loadOp.getResult().getType(), indexOp.getIndex());
+    }
+  rewriter.restoreInsertionPoint(insertPt);
+  if (indexOp.use_empty()) {
+    rewriter.eraseOp(indexOp);
+    return mlir::success();
+  }
+  return mlir::failure();
 }
 
 #include "flang/Optimizer/HLFIR/HLFIROpInterfaces.cpp.inc"

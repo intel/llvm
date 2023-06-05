@@ -218,7 +218,23 @@ std::vector<Diag> generateMissingIncludeDiagnostics(
     D.Source = Diag::DiagSource::Clangd;
     D.File = AST.tuPath();
     D.InsideMainFile = true;
-    D.Severity = DiagnosticsEngine::Warning;
+    // We avoid the "warning" severity here in favor of LSP's "information".
+    //
+    // Users treat most warnings on code being edited as high-priority.
+    // They don't think of include cleanups the same way: they want to edit
+    // lines with existing violations without fixing them.
+    // Diagnostics at the same level tend to be visually indistinguishable,
+    // and a few missing includes can cause many diagnostics.
+    // Marking these as "information" leaves them visible, but less intrusive.
+    //
+    // (These concerns don't apply to unused #include warnings: these are fewer,
+    // they appear on infrequently-edited lines with few other warnings, and
+    // the 'Unneccesary' tag often result in a different rendering)
+    //
+    // Usually clang's "note" severity usually has special semantics, being
+    // translated into LSP RelatedInformation of a parent diagnostic.
+    // But not here: these aren't processed by clangd's DiagnosticConsumer.
+    D.Severity = DiagnosticsEngine::Note;
     D.Range = clangd::Range{
         offsetToPosition(Code,
                          SymbolWithMissingInclude.SymRefRange.beginOffset()),
@@ -440,8 +456,9 @@ IncludeCleanerFindings computeIncludeCleanerFindings(ParsedAST &AST) {
   return {std::move(UnusedIncludes), std::move(MissingIncludes)};
 }
 
-Fix removeAllUnusedIncludes(llvm::ArrayRef<Diag> UnusedIncludes) {
-  assert(!UnusedIncludes.empty());
+std::optional<Fix> removeAllUnusedIncludes(llvm::ArrayRef<Diag> UnusedIncludes) {
+  if (UnusedIncludes.empty())
+    return std::nullopt;
 
   Fix RemoveAll;
   RemoveAll.Message = "remove all unused includes";
@@ -465,8 +482,10 @@ Fix removeAllUnusedIncludes(llvm::ArrayRef<Diag> UnusedIncludes) {
   }
   return RemoveAll;
 }
-Fix addAllMissingIncludes(llvm::ArrayRef<Diag> MissingIncludeDiags) {
-  assert(!MissingIncludeDiags.empty());
+std::optional<Fix>
+addAllMissingIncludes(llvm::ArrayRef<Diag> MissingIncludeDiags) {
+  if (MissingIncludeDiags.empty())
+    return std::nullopt;
 
   Fix AddAllMissing;
   AddAllMissing.Message = "add all missing includes";
@@ -516,15 +535,11 @@ std::vector<Diag> generateIncludeCleanerDiagnostic(
     llvm::StringRef Code) {
   std::vector<Diag> UnusedIncludes = generateUnusedIncludeDiagnostics(
       AST.tuPath(), Findings.UnusedIncludes, Code);
-  std::optional<Fix> RemoveAllUnused;;
-  if (UnusedIncludes.size() > 1)
-    RemoveAllUnused = removeAllUnusedIncludes(UnusedIncludes);
+  std::optional<Fix> RemoveAllUnused = removeAllUnusedIncludes(UnusedIncludes);
 
   std::vector<Diag> MissingIncludeDiags = generateMissingIncludeDiagnostics(
       AST, Findings.MissingIncludes, Code);
-  std::optional<Fix> AddAllMissing;
-  if (MissingIncludeDiags.size() > 1)
-    AddAllMissing = addAllMissingIncludes(MissingIncludeDiags);
+  std::optional<Fix> AddAllMissing = addAllMissingIncludes(MissingIncludeDiags);
 
   std::optional<Fix> FixAll;
   if (RemoveAllUnused && AddAllMissing)
@@ -535,11 +550,16 @@ std::vector<Diag> generateIncludeCleanerDiagnostic(
     Out->Fixes.push_back(*F);
   };
   for (auto &Diag : MissingIncludeDiags) {
-    AddBatchFix(AddAllMissing, &Diag);
+    AddBatchFix(MissingIncludeDiags.size() > 1
+                    ? AddAllMissing
+                    : std::nullopt,
+                &Diag);
     AddBatchFix(FixAll, &Diag);
   }
   for (auto &Diag : UnusedIncludes) {
-    AddBatchFix(RemoveAllUnused, &Diag);
+    AddBatchFix(UnusedIncludes.size() > 1 ? RemoveAllUnused
+                                          : std::nullopt,
+                &Diag);
     AddBatchFix(FixAll, &Diag);
   }
 

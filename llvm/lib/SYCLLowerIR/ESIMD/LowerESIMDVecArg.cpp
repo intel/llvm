@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // Change in function parameter type from simd* to native llvm vector type for
-// cmc compiler to generate correct code for subroutine parameter passing and
-// globals:
+// cmc compiler to generate correct code for subroutine parameter passing:
 //
 // Old IR:
 // ======
@@ -35,36 +34,6 @@
 // since it does not affect correctness. But that may lead to vector backend
 // not being able to hold the value in GRF and generate memory references.
 //
-// Change in global variables:
-//
-// Old IR:
-// ======
-// @vc = global %"class.cm::gen::simd"
-//          zeroinitializer, align 64 #0
-//
-// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
-//    <16 x i32> addrspace(4) * getelementptr(
-//    % "class.cm::gen::simd",
-//    % "class.cm::gen::simd" addrspace(4) *
-//    addrspacecast(% "class.cm::gen::simd" * @vc to
-//    % "class.cm::gen::simd" addrspace(4) *), i64 0,
-//    i32 0))
-//
-// New IR:
-// ======
-//
-// @0 = dso_local global <16 x i32> zeroinitializer, align 64 #0 <-- New Global
-// Variable
-//
-// % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
-//        <16 x i32> addrspace(4) * getelementptr(
-//        % "class.cm::gen::simd",
-//        % "class.cm::gen::simd" addrspace(4) *
-//        addrspacecast(% "class.cm::gen::simd" *
-//        bitcast(<16 x i32> * @0 to
-//        %"class.cm::gen::simd" *) to %
-//        "class.cm::gen::simd" addrspace(4) *),
-//        i64 0, i32 0))
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
@@ -225,47 +194,8 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
   return NF;
 }
 
-// This function creates new global variables of type vector* type
-// when old one is of simd* type.
-void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
-  for (auto &G : M.globals()) {
-    Type *GVTy = G.getValueType();
-    Type *NewTy = esimd::getVectorTyOrNull(dyn_cast<StructType>(GVTy));
-    if (NewTy && !G.user_empty()) {
-      auto InitVal =
-          G.hasInitializer() && isa<UndefValue>(G.getInitializer())
-              ? static_cast<ConstantData *>(UndefValue::get(NewTy))
-              : static_cast<ConstantData *>(ConstantAggregateZero::get(NewTy));
-      auto NewGlobalVar =
-          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), InitVal, "",
-                             G.getThreadLocalMode(), G.getAddressSpace());
-      NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
-      NewGlobalVar->copyAttributesFrom(&G);
-      NewGlobalVar->takeName(&G);
-      NewGlobalVar->copyMetadata(&G, 0);
-      M.insertGlobalVariable(NewGlobalVar);
-      OldNewGlobal.insert(std::make_pair(&G, NewGlobalVar));
-    }
-  }
-
-  removeOldGlobals();
-}
-
-// Remove old global variables from the program.
-void ESIMDLowerVecArgPass::removeOldGlobals() {
-  for (auto &G : OldNewGlobal) {
-    auto OldGlob = G.first;
-    auto NewGlobal = G.second;
-    OldGlob->replaceAllUsesWith(
-        ConstantExpr::getBitCast(NewGlobal, OldGlob->getType()));
-    OldGlob->eraseFromParent();
-  }
-}
-
 PreservedAnalyses ESIMDLowerVecArgPass::run(Module &M,
                                             ModuleAnalysisManager &) {
-  fixGlobals(M);
-
   SmallVector<Function *, 10> functions;
   for (auto &F : M) {
     // Skip functions that are used through function pointers.

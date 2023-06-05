@@ -10,14 +10,16 @@
 #ifndef _PSTL_PARALLEL_BACKEND_H
 #define _PSTL_PARALLEL_BACKEND_H
 
-#include "pstl_config.h"
+#include <__config>
 
 #if defined(_PSTL_PAR_BACKEND_SERIAL)
 #    include "parallel_backend_serial.h"
+#    if !defined(_LIBCPP_HAS_NO_INCOMPLETE_PSTL) && _LIBCPP_STD_VER >= 17
 namespace __pstl
 {
 namespace __par_backend = __serial_backend;
-}
+} // namespace __pstl
+#    endif // !defined(_LIBCPP_HAS_NO_INCOMPLETE_PSTL) && _LIBCPP_STD_VER >= 17
 #elif defined(_PSTL_PAR_BACKEND_TBB)
 #    include "parallel_backend_tbb.h"
 namespace __pstl

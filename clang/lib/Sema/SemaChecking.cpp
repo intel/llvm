@@ -2028,6 +2028,9 @@ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
     return CheckWebAssemblyBuiltinFunctionCall(TI, BuiltinID, TheCall);
+  case llvm::Triple::nvptx:
+  case llvm::Triple::nvptx64:
+    return CheckNVPTXBuiltinFunctionCall(TI, BuiltinID, TheCall);
   }
 }
 
@@ -3814,7 +3817,7 @@ bool Sema::CheckLoongArchBuiltinFunctionCall(const TargetInfo &TI,
       return Diag(TheCall->getBeginLoc(),
                   diag::err_loongarch_builtin_requires_la64)
              << TheCall->getSourceRange();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LoongArch::BI__builtin_loongarch_cacop_w: {
     if (BuiltinID == LoongArch::BI__builtin_loongarch_cacop_w &&
         !TI.hasFeature("32bit"))
@@ -4197,21 +4200,6 @@ static bool isPPC_64Builtin(unsigned BuiltinID) {
   return false;
 }
 
-static bool SemaFeatureCheck(Sema &S, CallExpr *TheCall,
-                             StringRef FeatureToCheck, unsigned DiagID,
-                             StringRef DiagArg = "") {
-  if (S.Context.getTargetInfo().hasFeature(FeatureToCheck))
-    return false;
-
-  if (DiagArg.empty())
-    S.Diag(TheCall->getBeginLoc(), DiagID) << TheCall->getSourceRange();
-  else
-    S.Diag(TheCall->getBeginLoc(), DiagID)
-        << DiagArg << TheCall->getSourceRange();
-
-  return true;
-}
-
 /// Returns true if the argument consists of one contiguous run of 1s with any
 /// number of 0s on either side. The 1s are allowed to wrap from LSB to MSB, so
 /// 0x000FFF0, 0x0000FFFF, 0xFF0000FF, 0x0 are all runs. 0x0F0F0000 is not,
@@ -4256,42 +4244,16 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3);
   case PPC::BI__builtin_tbegin:
   case PPC::BI__builtin_tend:
-    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 1) ||
-           SemaFeatureCheck(*this, TheCall, "htm",
-                            diag::err_ppc_builtin_requires_htm);
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 1);
   case PPC::BI__builtin_tsr:
-    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 7) ||
-           SemaFeatureCheck(*this, TheCall, "htm",
-                            diag::err_ppc_builtin_requires_htm);
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 7);
   case PPC::BI__builtin_tabortwc:
   case PPC::BI__builtin_tabortdc:
-    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 31) ||
-           SemaFeatureCheck(*this, TheCall, "htm",
-                            diag::err_ppc_builtin_requires_htm);
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 31);
   case PPC::BI__builtin_tabortwci:
   case PPC::BI__builtin_tabortdci:
-    return SemaFeatureCheck(*this, TheCall, "htm",
-                            diag::err_ppc_builtin_requires_htm) ||
-           (SemaBuiltinConstantArgRange(TheCall, 0, 0, 31) ||
-            SemaBuiltinConstantArgRange(TheCall, 2, 0, 31));
-  case PPC::BI__builtin_tabort:
-  case PPC::BI__builtin_tcheck:
-  case PPC::BI__builtin_treclaim:
-  case PPC::BI__builtin_trechkpt:
-  case PPC::BI__builtin_tendall:
-  case PPC::BI__builtin_tresume:
-  case PPC::BI__builtin_tsuspend:
-  case PPC::BI__builtin_get_texasr:
-  case PPC::BI__builtin_get_texasru:
-  case PPC::BI__builtin_get_tfhar:
-  case PPC::BI__builtin_get_tfiar:
-  case PPC::BI__builtin_set_texasr:
-  case PPC::BI__builtin_set_texasru:
-  case PPC::BI__builtin_set_tfhar:
-  case PPC::BI__builtin_set_tfiar:
-  case PPC::BI__builtin_ttest:
-    return SemaFeatureCheck(*this, TheCall, "htm",
-                            diag::err_ppc_builtin_requires_htm);
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 31) ||
+           SemaBuiltinConstantArgRange(TheCall, 2, 0, 31);
   // According to GCC 'Basic PowerPC Built-in Functions Available on ISA 2.05',
   // __builtin_(un)pack_longdouble are available only if long double uses IBM
   // extended double representation.
@@ -4312,26 +4274,8 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_vsx_xxpermdi:
   case PPC::BI__builtin_vsx_xxsldwi:
     return SemaBuiltinVSX(TheCall);
-  case PPC::BI__builtin_divwe:
-  case PPC::BI__builtin_divweu:
-  case PPC::BI__builtin_divde:
-  case PPC::BI__builtin_divdeu:
-    return SemaFeatureCheck(*this, TheCall, "extdiv",
-                            diag::err_ppc_builtin_only_on_arch, "7");
-  case PPC::BI__builtin_bpermd:
-    return SemaFeatureCheck(*this, TheCall, "bpermd",
-                            diag::err_ppc_builtin_only_on_arch, "7");
   case PPC::BI__builtin_unpack_vector_int128:
-    return SemaFeatureCheck(*this, TheCall, "vsx",
-                            diag::err_ppc_builtin_only_on_arch, "7") ||
-           SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
-  case PPC::BI__builtin_pack_vector_int128:
-    return SemaFeatureCheck(*this, TheCall, "vsx",
-                            diag::err_ppc_builtin_only_on_arch, "7");
-  case PPC::BI__builtin_pdepd:
-  case PPC::BI__builtin_pextd:
-    return SemaFeatureCheck(*this, TheCall, "isa-v31-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "10");
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
   case PPC::BI__builtin_altivec_vgnb:
      return SemaBuiltinConstantArgRange(TheCall, 1, 2, 7);
   case PPC::BI__builtin_vsx_xxeval:
@@ -4345,17 +4289,8 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_ppc_tw:
   case PPC::BI__builtin_ppc_tdw:
     return SemaBuiltinConstantArgRange(TheCall, 2, 1, 31);
-  case PPC::BI__builtin_ppc_cmpeqb:
-  case PPC::BI__builtin_ppc_setb:
-  case PPC::BI__builtin_ppc_maddhd:
-  case PPC::BI__builtin_ppc_maddhdu:
-  case PPC::BI__builtin_ppc_maddld:
-    return SemaFeatureCheck(*this, TheCall, "isa-v30-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "9");
   case PPC::BI__builtin_ppc_cmprb:
-    return SemaFeatureCheck(*this, TheCall, "isa-v30-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "9") ||
-           SemaBuiltinConstantArgRange(TheCall, 0, 0, 1);
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 1);
   // For __rlwnm, __rlwimi and __rldimi, the last parameter mask must
   // be a constant that represents a contiguous bit field.
   case PPC::BI__builtin_ppc_rlwnm:
@@ -4364,15 +4299,8 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_ppc_rldimi:
     return SemaBuiltinConstantArg(TheCall, 2, Result) ||
            SemaValueIsRunOfOnes(TheCall, 3);
-  case PPC::BI__builtin_ppc_extract_exp:
-  case PPC::BI__builtin_ppc_extract_sig:
-  case PPC::BI__builtin_ppc_insert_exp:
-    return SemaFeatureCheck(*this, TheCall, "power9-vector",
-                            diag::err_ppc_builtin_only_on_arch, "9");
   case PPC::BI__builtin_ppc_addex: {
-    if (SemaFeatureCheck(*this, TheCall, "isa-v30-instructions",
-                         diag::err_ppc_builtin_only_on_arch, "9") ||
-        SemaBuiltinConstantArgRange(TheCall, 2, 0, 3))
+    if (SemaBuiltinConstantArgRange(TheCall, 2, 0, 3))
       return true;
     // Output warning for reserved values 1 to 3.
     int ArgValue =
@@ -4394,41 +4322,19 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
     return SemaBuiltinConstantArgPower2(TheCall, 0);
   case PPC::BI__builtin_ppc_rdlam:
     return SemaValueIsRunOfOnes(TheCall, 2);
-  case PPC::BI__builtin_ppc_icbt:
-  case PPC::BI__builtin_ppc_sthcx:
-  case PPC::BI__builtin_ppc_stbcx:
-  case PPC::BI__builtin_ppc_lharx:
-  case PPC::BI__builtin_ppc_lbarx:
-    return SemaFeatureCheck(*this, TheCall, "isa-v207-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "8");
   case PPC::BI__builtin_vsx_ldrmb:
   case PPC::BI__builtin_vsx_strmb:
-    return SemaFeatureCheck(*this, TheCall, "isa-v207-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "8") ||
-           SemaBuiltinConstantArgRange(TheCall, 1, 1, 16);
+    return SemaBuiltinConstantArgRange(TheCall, 1, 1, 16);
   case PPC::BI__builtin_altivec_vcntmbb:
   case PPC::BI__builtin_altivec_vcntmbh:
   case PPC::BI__builtin_altivec_vcntmbw:
   case PPC::BI__builtin_altivec_vcntmbd:
     return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
-  case PPC::BI__builtin_darn:
-  case PPC::BI__builtin_darn_raw:
-  case PPC::BI__builtin_darn_32:
-    return SemaFeatureCheck(*this, TheCall, "isa-v30-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "9");
   case PPC::BI__builtin_vsx_xxgenpcvbm:
   case PPC::BI__builtin_vsx_xxgenpcvhm:
   case PPC::BI__builtin_vsx_xxgenpcvwm:
   case PPC::BI__builtin_vsx_xxgenpcvdm:
     return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3);
-  case PPC::BI__builtin_ppc_compare_exp_uo:
-  case PPC::BI__builtin_ppc_compare_exp_lt:
-  case PPC::BI__builtin_ppc_compare_exp_gt:
-  case PPC::BI__builtin_ppc_compare_exp_eq:
-    return SemaFeatureCheck(*this, TheCall, "isa-v30-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "9") ||
-           SemaFeatureCheck(*this, TheCall, "vsx",
-                            diag::err_ppc_builtin_requires_vsx);
   case PPC::BI__builtin_ppc_test_data_class: {
     // Check if the first argument of the __builtin_ppc_test_data_class call is
     // valid. The argument must be 'float' or 'double' or '__float128'.
@@ -4438,11 +4344,7 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
         ArgType != QualType(Context.Float128Ty))
       return Diag(TheCall->getBeginLoc(),
                   diag::err_ppc_invalid_test_data_class_type);
-    return SemaFeatureCheck(*this, TheCall, "isa-v30-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "9") ||
-           SemaFeatureCheck(*this, TheCall, "vsx",
-                            diag::err_ppc_builtin_requires_vsx) ||
-           SemaBuiltinConstantArgRange(TheCall, 1, 0, 127);
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 127);
   }
   case PPC::BI__builtin_ppc_maxfe:
   case PPC::BI__builtin_ppc_minfe:
@@ -4471,11 +4373,7 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                << TheCall->getArg(I)->getType() << ArgType << 1 << 0 << 0;
     return false;
   }
-  case PPC::BI__builtin_ppc_load8r:
-  case PPC::BI__builtin_ppc_store8r:
-    return SemaFeatureCheck(*this, TheCall, "isa-v206-instructions",
-                            diag::err_ppc_builtin_only_on_arch, "7");
-#define CUSTOM_BUILTIN(Name, Intr, Types, Acc)                                 \
+#define CUSTOM_BUILTIN(Name, Intr, Types, Acc, Feature)                                 \
   case PPC::BI__builtin_##Name:                                                \
     return SemaBuiltinPPCMMACall(TheCall, BuiltinID, Types);
 #include "clang/Basic/BuiltinsPPC.def"
@@ -4649,9 +4547,12 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
     ASTContext::BuiltinVectorTypeInfo VecInfo =
         Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(
             TheCall->getArg(0)->getType().getCanonicalType().getTypePtr()));
-    unsigned MaxIndex =
-        (VecInfo.EC.getKnownMinValue() * VecInfo.NumVectors) /
-        (ResVecInfo.EC.getKnownMinValue() * ResVecInfo.NumVectors);
+    unsigned MaxIndex;
+    if (VecInfo.NumVectors != 1) // vget for tuple type
+      MaxIndex = VecInfo.NumVectors;
+    else // vget for non-tuple type
+      MaxIndex = (VecInfo.EC.getKnownMinValue() * VecInfo.NumVectors) /
+                 (ResVecInfo.EC.getKnownMinValue() * ResVecInfo.NumVectors);
     return SemaBuiltinConstantArgRange(TheCall, 1, 0, MaxIndex - 1);
   }
   case RISCVVector::BI__builtin_rvv_vset_v: {
@@ -4661,9 +4562,12 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
     ASTContext::BuiltinVectorTypeInfo VecInfo =
         Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(
             TheCall->getArg(2)->getType().getCanonicalType().getTypePtr()));
-    unsigned MaxIndex =
-        (ResVecInfo.EC.getKnownMinValue() * ResVecInfo.NumVectors) /
-        (VecInfo.EC.getKnownMinValue() * VecInfo.NumVectors);
+    unsigned MaxIndex;
+    if (ResVecInfo.NumVectors != 1) // vset for tuple type
+      MaxIndex = ResVecInfo.NumVectors;
+    else // vset fo non-tuple type
+      MaxIndex = (ResVecInfo.EC.getKnownMinValue() * ResVecInfo.NumVectors) /
+                 (VecInfo.EC.getKnownMinValue() * VecInfo.NumVectors);
     return SemaBuiltinConstantArgRange(TheCall, 1, 0, MaxIndex - 1);
   }
   case RISCVVector::BI__builtin_rvv_sf_vc_i_se_u8mf8:
@@ -4940,6 +4844,20 @@ bool Sema::CheckWebAssemblyBuiltinFunctionCall(const TargetInfo &TI,
     return BuiltinWasmRefNullExtern(TheCall);
   case WebAssembly::BI__builtin_wasm_ref_null_func:
     return BuiltinWasmRefNullFunc(TheCall);
+  }
+
+  return false;
+}
+
+bool Sema::CheckNVPTXBuiltinFunctionCall(const TargetInfo &TI,
+                                         unsigned BuiltinID,
+                                         CallExpr *TheCall) {
+  switch (BuiltinID) {
+  case NVPTX::BI__nvvm_cp_async_ca_shared_global_4:
+  case NVPTX::BI__nvvm_cp_async_ca_shared_global_8:
+  case NVPTX::BI__nvvm_cp_async_ca_shared_global_16:
+  case NVPTX::BI__nvvm_cp_async_cg_shared_global_16:
+    return checkArgCountAtMost(*this, TheCall, 3);
   }
 
   return false;
@@ -8251,8 +8169,9 @@ bool Sema::SemaBuiltinAssumeAligned(CallExpr *TheCall) {
   {
     ExprResult FirstArgResult =
         DefaultFunctionArrayLvalueConversion(FirstArg);
-    if (FirstArgResult.isInvalid())
+    if (checkBuiltinArgument(*this, TheCall, 0))
       return true;
+    /// In-place updation of FirstArg by checkBuiltinArgument is ignored.
     TheCall->setArg(0, FirstArgResult.get());
   }
 
@@ -8741,18 +8660,18 @@ bool Sema::SemaBuiltinARMSpecialReg(unsigned BuiltinID, CallExpr *TheCall,
 
     bool ValidString = true;
     if (IsARMBuiltin) {
-      ValidString &= Fields[0].startswith_insensitive("cp") ||
-                     Fields[0].startswith_insensitive("p");
+      ValidString &= Fields[0].starts_with_insensitive("cp") ||
+                     Fields[0].starts_with_insensitive("p");
       if (ValidString)
         Fields[0] = Fields[0].drop_front(
-            Fields[0].startswith_insensitive("cp") ? 2 : 1);
+            Fields[0].starts_with_insensitive("cp") ? 2 : 1);
 
-      ValidString &= Fields[2].startswith_insensitive("c");
+      ValidString &= Fields[2].starts_with_insensitive("c");
       if (ValidString)
         Fields[2] = Fields[2].drop_front(1);
 
       if (FiveFields) {
-        ValidString &= Fields[3].startswith_insensitive("c");
+        ValidString &= Fields[3].starts_with_insensitive("c");
         if (ValidString)
           Fields[3] = Fields[3].drop_front(1);
       }
@@ -8833,29 +8752,6 @@ bool Sema::SemaBuiltinPPCMMACall(CallExpr *TheCall, unsigned BuiltinID,
 
   assert((TypeStr[0] != '\0') &&
          "Invalid types in PPC MMA builtin declaration");
-
-  switch (BuiltinID) {
-  default:
-    // This function is called in CheckPPCBuiltinFunctionCall where the
-    // BuiltinID is guaranteed to be an MMA or pair vector memop builtin, here
-    // we are isolating the pair vector memop builtins that can be used with mma
-    // off so the default case is every builtin that requires mma and paired
-    // vector memops.
-    if (SemaFeatureCheck(*this, TheCall, "paired-vector-memops",
-                         diag::err_ppc_builtin_only_on_arch, "10") ||
-        SemaFeatureCheck(*this, TheCall, "mma",
-                         diag::err_ppc_builtin_only_on_arch, "10"))
-      return true;
-    break;
-  case PPC::BI__builtin_vsx_lxvp:
-  case PPC::BI__builtin_vsx_stxvp:
-  case PPC::BI__builtin_vsx_assemble_pair:
-  case PPC::BI__builtin_vsx_disassemble_pair:
-    if (SemaFeatureCheck(*this, TheCall, "paired-vector-memops",
-                         diag::err_ppc_builtin_only_on_arch, "10"))
-      return true;
-    break;
-  }
 
   unsigned Mask = 0;
   unsigned ArgNum = 0;

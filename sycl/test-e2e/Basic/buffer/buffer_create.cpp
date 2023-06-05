@@ -1,7 +1,7 @@
 // REQUIRES: gpu,level_zero
 // RUN: %{build} -o %t.out
 // RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 
 #include <iostream>
 #include <sycl/sycl.hpp>

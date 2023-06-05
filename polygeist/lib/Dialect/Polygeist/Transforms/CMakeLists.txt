@@ -9,6 +9,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   KernelDisjointSpecialization.cpp
   LegalizeForSPIRV.cpp  
   LICM.cpp
+  LoopInternalization.cpp
   LoopRestructure.cpp
   Mem2Reg.cpp
   OpenMPOpt.cpp
@@ -29,15 +30,18 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRAsyncDialect
   MLIRAffineUtils
   MLIRFuncDialect
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRIR
   MLIRLLVMCommonConversion
   MLIRMathDialect
   MLIRMemRefDialect
   MLIRNVVMDialect
   MLIRPass
+  MLIRPolygeistAnalysis  
   MLIRPolygeistDialect
   MLIRPolygeistUtils
+  MLIRSCFUtils
+  MLIRSPIRVDialect
   MLIRSYCLAnalysis  
   MLIRSYCLDialect
   MLIRSideEffectInterfaces

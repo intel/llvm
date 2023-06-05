@@ -246,7 +246,7 @@ public:
         cl_int, addressSpace, access::decorated::yes>::pointer>(Ptr);
     cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
-    cl_float ResVal = bit_cast<cl_float>(TmpVal);
+    cl_float ResVal = sycl::bit_cast<cl_float>(TmpVal);
     return ResVal;
   }
 #else

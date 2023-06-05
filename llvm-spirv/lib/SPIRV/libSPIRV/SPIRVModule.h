@@ -531,6 +531,10 @@ public:
     return TranslationOpts.preserveAuxData();
   }
 
+  BuiltinFormat getBuiltinFormat() const noexcept {
+    return TranslationOpts.getBuiltinFormat();
+  }
+
   SPIRVExtInstSetKind getDebugInfoEIS() const {
     switch (TranslationOpts.getDebugInfoEIS()) {
     case DebugInfoEIS::SPIRV_Debug:

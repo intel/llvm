@@ -5,9 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, aspect-fp64
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
+// REQUIRES: aspect-fp64
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: %{run} %t.out 1
 //

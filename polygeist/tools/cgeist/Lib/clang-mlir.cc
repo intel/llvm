@@ -68,21 +68,21 @@ constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 /******************************************************************************/
 
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
-                         LowerToInfo &LTInfo)
-    : Glob(Glob), Function(), Module(Module), Builder(Module->getContext()),
-      Loc(Builder.getUnknownLoc()), EntryBlock(nullptr), Loops(),
-      AllocationScope(nullptr), Bufs(), Constants(), Labels(),
-      EmittingFunctionDecl(nullptr), Params(), Captures(), CaptureKinds(),
-      ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
-      LTInfo(LTInfo) {}
+                         LowerToInfo &LTInfo, InsertionContext FuncContext)
+    : Glob(Glob), Function(), FuncContext(FuncContext), Module(Module),
+      Builder(Module->getContext()), Loc(Builder.getUnknownLoc()),
+      EntryBlock(nullptr), Loops(), AllocationScope(nullptr), Bufs(),
+      Constants(), Labels(), EmittingFunctionDecl(nullptr), Params(),
+      Captures(), CaptureKinds(), ThisCapture(nullptr), ArrayInit(), ThisVal(),
+      ReturnVal(), LTInfo(LTInfo) {}
 
 static void checkFunctionParent(const FunctionOpInterface F,
-                                FunctionContext Context,
+                                InsertionContext Context,
                                 const OwningOpRef<ModuleOp> &Module) {
   assert(
-      (Context != FunctionContext::Host || F->getParentOp() == Module.get()) &&
+      (Context != InsertionContext::Host || F->getParentOp() == Module.get()) &&
       "New function must be inserted into global module");
-  assert((Context != FunctionContext::SYCLDevice ||
+  assert((Context != InsertionContext::SYCLDevice ||
           F->getParentOfType<gpu::GPUModuleOp>() ==
               mlirclang::getDeviceModule(*Module)) &&
          "New device function must be inserted into device module");
@@ -236,8 +236,23 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
             Init = Clean->getSubExpr();
           }
 
-          VisitConstructCommon(cast<clang::CXXConstructExpr>(Init),
-                               /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
+          TypeSwitch<clang::Expr *>(Init)
+              .Case<clang::CXXConstructExpr>([&](auto *ConstructExpr) {
+                // Base case
+                VisitConstructCommon(ConstructExpr,
+                                     /*name=*/nullptr, /*space=*/0, /*mem=*/V);
+              })
+              .Case<clang::CXXInheritedCtorInitExpr>([&](auto *InheritedCtor) {
+                // Call to inherited ctor, e.g.:
+                // class A { ... };
+                // class B : public A {
+                //  public:
+                //   using A::A;
+                // ...
+                // };
+                emitCallToInheritedCtor(InheritedCtor, V, Func.getArguments());
+              });
+
           continue;
         }
 
@@ -369,6 +384,11 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
     Builder.create<func::ReturnOp>(Loc);
 
   checkFunctionParent(Function, FTE.getContext(), Module);
+}
+
+void MLIRScanner::setEntryAndAllocBlock(Block *B) {
+  AllocationScope = EntryBlock = B;
+  Builder.setInsertionPointToStart(B);
 }
 
 Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,
@@ -1613,7 +1633,7 @@ LLVM::LLVMFuncOp MLIRASTConsumer::getOrCreateFreeFunction() {
 
 LLVM::LLVMFuncOp
 MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
-                                         FunctionContext FuncContext) {
+                                         InsertionContext FuncContext) {
   std::string Name = MLIRScanner::getMangledFuncName(*FD, CGM);
   if (Name != "malloc" && Name != "free")
     Name = (PrefixABI + Name);
@@ -1647,7 +1667,8 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
 
   auto RT = TypeTranslator.translateType(
       mlirclang::anonymize(mlirclang::getLLVMType(FD->getReturnType(), CGM)));
-  if (auto RTPtrTy = dyn_cast<LLVM::LLVMPointerType>(RT)) {
+  if (auto RTPtrTy = dyn_cast<LLVM::LLVMPointerType>(RT);
+      RTPtrTy && !RTPtrTy.isOpaque()) {
     // Temporary workaround until the translation to LLVM/MLIR types from Clang
     // types completes migration to opaque pointers.
     RT = getTypes().getPointerType(RTPtrTy.getElementType(),
@@ -1666,7 +1687,8 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
 
 LLVM::GlobalOp
 MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
-                                       std::string Prefix) {
+                                       std::string Prefix,
+                                       InsertionContext FuncContext) {
   std::string Name = Prefix + CGM.getMangledName(FD).str();
   Name = (PrefixABI + Name);
 
@@ -1696,7 +1718,7 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
     Builder.setInsertionPointToStart(Blk);
     Value Res;
     if (const auto *Init = VD->getInit()) {
-      MLIRScanner MS(*this, Module, LTInfo);
+      MLIRScanner MS(*this, Module, LTInfo, FuncContext);
       MS.setEntryAndAllocBlock(Blk);
       Res = MS.Visit(const_cast<clang::Expr *>(Init)).getValue(Builder);
     } else
@@ -1776,7 +1798,7 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
 std::pair<memref::GlobalOp, bool>
 MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
                                    std::string Prefix,
-                                   FunctionContext FuncContext) {
+                                   InsertionContext FuncContext) {
   const std::string Name = PrefixABI + Prefix + CGM.getMangledName(&VD).str();
   if (Globals.find(Name) != Globals.end())
     return Globals[Name];
@@ -1858,7 +1880,7 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
     // explicit initialization.
     assert(DefKind == clang::VarDecl::Definition);
 
-    MLIRScanner MS(*this, Module, LTInfo);
+    MLIRScanner MS(*this, Module, LTInfo, FuncContext);
     Block B;
     MS.setEntryAndAllocBlock(&B);
 
@@ -1899,7 +1921,7 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
 
 Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
     Location Loc, OpBuilder &Builder, StringRef Value,
-    FunctionContext FuncContext) {
+    InsertionContext FuncContext) {
   using namespace mlir;
   // Create the global at the entry of the module.
   if (LLVMStringGlobals.find(Value.str()) == LLVMStringGlobals.end()) {
@@ -2008,8 +2030,8 @@ void MLIRASTConsumer::run() {
                TK_DependentFunctionTemplateSpecialization);
 
     std::string MangledName = MLIRScanner::getMangledFuncName(FD, CGM);
-    const std::pair<FunctionContext, std::string> DoneKey(FTE.getContext(),
-                                                          MangledName);
+    const std::pair<InsertionContext, std::string> DoneKey(FTE.getContext(),
+                                                           MangledName);
     if (Done.count(DoneKey))
       continue;
 
@@ -2024,7 +2046,7 @@ void MLIRASTConsumer::run() {
     });
 
     Done.insert(DoneKey);
-    MLIRScanner MS(*this, Module, LTInfo);
+    MLIRScanner MS(*this, Module, LTInfo, FTE.getContext());
     FunctionOpInterface Function = getOrCreateMLIRFunction(FTE);
     MS.init(Function, FTE);
 
@@ -2249,11 +2271,11 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   /// Inject the MLIR function created in either the device module or in the
   /// host module, depending on the calling context.
   switch (FTE.getContext()) {
-  case FunctionContext::Host:
+  case InsertionContext::Host:
     Module->push_back(Function);
     Functions[MangledName] = cast<func::FuncOp>(Function);
     break;
-  case FunctionContext::SYCLDevice:
+  case InsertionContext::SYCLDevice:
     mlirclang::getDeviceModule(*Module).push_back(Function);
     DeviceFunctions[MangledName] = Function;
     break;
@@ -2517,7 +2539,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
   const clang::FunctionDecl &FD = FTE.getDecl();
   MLIRContext *Ctx = Module->getContext();
 
-  bool IsDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
+  bool IsDeviceContext = (FTE.getContext() == InsertionContext::SYCLDevice);
   if (!EnableAttributes && !IsDeviceContext) {
     LLVM_DEBUG(llvm::dbgs()
                << "Not in a device context - skipping setting attributes for "
@@ -2568,6 +2590,25 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
         if (Triple.isSPIR() || Triple.isSPIRV()) {
           AttrBuilder.addAttribute(spirv::getEntryPointABIAttrName(),
                                    spirv::getEntryPointABIAttr(Ctx));
+        }
+
+        if (const clang::SYCLReqdWorkGroupSizeAttr *A =
+                FD.getAttr<clang::SYCLReqdWorkGroupSizeAttr>()) {
+          std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
+          std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
+          std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+          SmallVector<int64_t> AttrArgs;
+
+          // On SYCL target the dimensions are reversed if present.
+          if (ZDimVal)
+            AttrArgs.push_back(ZDimVal->getExtValue());
+          if (YDimVal)
+            AttrArgs.push_back(YDimVal->getExtValue());
+          AttrArgs.push_back(XDimVal->getExtValue());
+
+          OpBuilder Builder(Ctx);
+          AttrBuilder.addAttribute("reqd_work_group_size",
+                                   Builder.getI64ArrayAttr(AttrArgs));
         }
       }
 
@@ -2633,7 +2674,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
 
 llvm::Optional<FunctionOpInterface>
 MLIRASTConsumer::getMLIRFunction(const std::string &MangledName,
-                                 FunctionContext Context) const {
+                                 InsertionContext Context) const {
   const auto Find = [MangledName](const auto &Map) {
     const auto Iter = Map.find(MangledName);
     return Iter == Map.end()
@@ -2642,9 +2683,9 @@ MLIRASTConsumer::getMLIRFunction(const std::string &MangledName,
   };
 
   switch (Context) {
-  case FunctionContext::Host:
+  case InsertionContext::Host:
     return Find(Functions);
-  case FunctionContext::SYCLDevice:
+  case InsertionContext::SYCLDevice:
     return Find(DeviceFunctions);
   }
   llvm_unreachable("Invalid function context");
@@ -2655,7 +2696,7 @@ MLIRASTConsumer::getMLIRFunction(const std::string &MangledName,
 class MLIRAction : public clang::ASTFrontendAction {
 public:
   std::set<std::string> EmitIfFound;
-  std::set<std::pair<FunctionContext, std::string>> Done;
+  std::set<std::pair<InsertionContext, std::string>> Done;
   OwningOpRef<ModuleOp> &Module;
   std::map<std::string, LLVM::GlobalOp> LLVMStringGlobals;
   std::map<std::string, std::pair<memref::GlobalOp, bool>> Globals;
@@ -2671,16 +2712,22 @@ public:
   }
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI, StringRef InFile) override {
+    // To make opaque vs. typed pointer configurable, we have to set the
+    // opaque/typed pointer mode on the context before passing it to the
+    // contructor of MLIRASTConsumer, to avoid the pointer mode to be set to the
+    // default, which is configured through CMake.
+    auto LCtx = std::make_unique<llvm::LLVMContext>();
+    LCtx->setOpaquePointers(UseOpaquePointers);
     return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
         EmitIfFound, Done, LLVMStringGlobals, Globals, Functions,
         DeviceFunctions, LLVMGlobals, LLVMFunctions, CI.getPreprocessor(),
-        CI.getASTContext(), Module, CI.getSourceManager(), CI.getCodeGenOpts(),
-        ModuleId));
+        CI.getASTContext(), Module, CI.getSourceManager(), std::move(LCtx),
+        CI.getCodeGenOpts(), ModuleId));
   }
 };
 
 FunctionOpInterface MLIRScanner::EmitDirectCallee(const clang::FunctionDecl *FD,
-                                                  FunctionContext Context) {
+                                                  InsertionContext Context) {
   FunctionToEmit FTE(*FD, Context);
   return Glob.getOrCreateMLIRFunction(FTE);
 }

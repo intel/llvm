@@ -1,6 +1,7 @@
+// REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 #include <numeric>
 #include <sycl/sycl.hpp>

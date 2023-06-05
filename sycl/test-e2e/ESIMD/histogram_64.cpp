@@ -6,10 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_legacy_image
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %{build} -o %t.out
+// Use -O2 to avoid huge stack usage under -O0.
+// RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
 //
 // 64 bit offset variant of the test - uses 64 bit offsets.

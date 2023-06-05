@@ -192,8 +192,9 @@ bool group__async_work_group_copy() {
               const auto NumElem = AccLocal.get_count();
               const auto Off = Group[0] * I.get_group_range(1) * NumElem +
                                Group[1] * I.get_local_range(1);
-              auto PtrGlobal = AccGlobal.get_pointer() + Off;
-              auto PtrLocal = local_ptr<DataType>(AccLocal);
+              auto PtrGlobal =
+                  AccGlobal.get_multi_ptr<access::decorated::yes>() + Off;
+              auto PtrLocal = AccLocal.get_multi_ptr<access::decorated::yes>();
               if (I.get_local_range(0) == 1) {
                 Group.async_work_group_copy(PtrLocal, PtrGlobal, NumElem);
               } else {

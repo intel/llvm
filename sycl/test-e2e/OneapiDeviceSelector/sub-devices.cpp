@@ -11,12 +11,12 @@
 // select sub-devices
 //   ONEAPI_DEVICE_SELECTOR=(any backend):(any
 //   device).(all-the-sub-devices).(all-sub-sub-devices)
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:*.*"  %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:*.*.*"  %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:*.*" %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:*.*.*" %{run-unfiltered-devices} %t.out
 
 // select root devices and pass arg to test so it knows.
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %t.out 1
-// RUN: %t.out 1
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out 1
+// RUN: %{run-unfiltered-devices} %t.out 1
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // 64 bit offset variant of the test - uses 64 bit offsets.

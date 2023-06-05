@@ -1,7 +1,6 @@
+// REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not "Computation error" --implicit-check-not "Internalized"
-// UNSUPPORTED: hip
-// REQUIRES: fusion
 
 // Test pointers being stored are not internalized.
 

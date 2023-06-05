@@ -317,6 +317,7 @@ gentbl_cc_library(
         ":TransformDialectTdFiles",
         "//mlir:PDLDialectTdFiles",
         "//mlir:TransformDialectTdFiles",
+        "//mlir:TransformPDLExtension",
     ],
 )
 
@@ -333,6 +334,7 @@ cc_library(
         "//mlir:Pass",
         "//mlir:TransformDialect",
         "//mlir:TransformDialectTransforms",
+        "//mlir:TransformPDLExtension",
     ],
 )
 
@@ -386,9 +388,12 @@ cc_library(
         "//llvm:Support",
         "//mlir:Analysis",
         "//mlir:ArithDialect",
+        "//mlir:BytecodeReader",
+        "//mlir:BytecodeWriter",
         "//mlir:FuncDialect",
         "//mlir:IR",
         "//mlir:LinalgDialect",
+        "//mlir:Parser",
         "//mlir:Pass",
         "//mlir:Support",
     ],

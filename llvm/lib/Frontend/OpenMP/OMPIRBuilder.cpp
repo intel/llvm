@@ -21,6 +21,7 @@
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -445,7 +446,31 @@ Function *OpenMPIRBuilder::getOrCreateRuntimeFunctionPtr(RuntimeFunction FnID) {
   return Fn;
 }
 
-void OpenMPIRBuilder::initialize() { initializeTypes(M); }
+void OpenMPIRBuilder::initialize(StringRef HostFilePath) {
+  initializeTypes(M);
+
+  if (HostFilePath.empty())
+    return;
+
+  auto Buf = MemoryBuffer::getFile(HostFilePath);
+  if (std::error_code Err = Buf.getError()) {
+    report_fatal_error(("error opening host file from host file path inside of "
+                        "OpenMPIRBuilder: " +
+                        Err.message())
+                           .c_str());
+  }
+
+  LLVMContext Ctx;
+  auto M = expectedToErrorOrAndEmitErrors(
+      Ctx, parseBitcodeFile(Buf.get()->getMemBufferRef(), Ctx));
+  if (std::error_code Err = M.getError()) {
+    report_fatal_error(
+        ("error parsing host file inside of OpenMPIRBuilder: " + Err.message())
+            .c_str());
+  }
+
+  loadOffloadInfoMetadata(*M.get());
+}
 
 void OpenMPIRBuilder::finalize(Function *Fn) {
   SmallPtrSet<BasicBlock *, 32> ParallelRegionBlockSet;
@@ -534,6 +559,17 @@ void OpenMPIRBuilder::finalize(Function *Fn) {
 
   // Remove work items that have been completed.
   OutlineInfos = std::move(DeferredOutlines);
+
+  EmitMetadataErrorReportFunctionTy &&ErrorReportFn =
+      [](EmitMetadataErrorKind Kind,
+         const TargetRegionEntryInfo &EntryInfo) -> void {
+    errs() << "Error of kind: " << Kind
+           << " when emitting offload entries and metadata during "
+              "OMPIRBuilder finalization \n";
+  };
+
+  if (!OffloadInfoManager.empty())
+    createOffloadEntriesAndInfoMetadata(ErrorReportFn);
 }
 
 OpenMPIRBuilder::~OpenMPIRBuilder() {
@@ -2384,7 +2420,7 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::applyWorkshareLoop(
   case OMPScheduleType::BaseRuntimeSimd:
     assert(!ChunkSize &&
            "schedule type does not support user-defined chunk sizes");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case OMPScheduleType::BaseDynamicChunked:
   case OMPScheduleType::BaseGuidedChunked:
   case OMPScheduleType::BaseGuidedIterativeChunked:
@@ -3798,7 +3834,7 @@ CallInst *OpenMPIRBuilder::createOMPInteropInit(
     Device = ConstantInt::get(Int32, -1);
   Constant *InteropTypeVal = ConstantInt::get(Int32, (int)InteropType);
   if (NumDependences == nullptr) {
-    NumDependences = ConstantInt::get(Int64, 0);
+    NumDependences = ConstantInt::get(Int32, 0);
     PointerType *PointerTypeVar = Type::getInt8PtrTy(M.getContext());
     DependenceAddress = ConstantPointerNull::get(PointerTypeVar);
   }
@@ -4112,8 +4148,8 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createTargetData(
 }
 
 static Function *
-createOutlinedFunction(IRBuilderBase &Builder, StringRef FuncName,
-                       SmallVectorImpl<Value *> &Inputs,
+createOutlinedFunction(OpenMPIRBuilder &OMPBuilder, IRBuilderBase &Builder,
+                       StringRef FuncName, SmallVectorImpl<Value *> &Inputs,
                        OpenMPIRBuilder::TargetBodyGenCallbackTy &CBFunc) {
   SmallVector<Type *> ParameterTypes;
   for (auto &Arg : Inputs)
@@ -4130,7 +4166,16 @@ createOutlinedFunction(IRBuilderBase &Builder, StringRef FuncName,
   // Generate the region into the function.
   BasicBlock *EntryBB = BasicBlock::Create(Builder.getContext(), "entry", Func);
   Builder.SetInsertPoint(EntryBB);
+
+  // Insert target init call in the device compilation pass.
+  if (OMPBuilder.Config.isEmbedded())
+    Builder.restoreIP(OMPBuilder.createTargetInit(Builder, /*IsSPMD*/ false));
+
   Builder.restoreIP(CBFunc(Builder.saveIP(), Builder.saveIP()));
+
+  // Insert target deinit call in the device compilation pass.
+  if (OMPBuilder.Config.isEmbedded())
+    OMPBuilder.createTargetDeinit(Builder, /*IsSPMD*/ false);
 
   // Insert return instruction.
   Builder.CreateRetVoid();
@@ -4161,8 +4206,9 @@ emitTargetOutlinedFunction(OpenMPIRBuilder &OMPBuilder, IRBuilderBase &Builder,
                            OpenMPIRBuilder::TargetBodyGenCallbackTy &CBFunc) {
 
   OpenMPIRBuilder::FunctionGenCallback &&GenerateOutlinedFunction =
-      [&Builder, &Inputs, &CBFunc](StringRef EntryFnName) {
-        return createOutlinedFunction(Builder, EntryFnName, Inputs, CBFunc);
+      [&OMPBuilder, &Builder, &Inputs, &CBFunc](StringRef EntryFnName) {
+        return createOutlinedFunction(OMPBuilder, Builder, EntryFnName, Inputs,
+                                      CBFunc);
       };
 
   Constant *OutlinedFnID;
@@ -4173,7 +4219,7 @@ emitTargetOutlinedFunction(OpenMPIRBuilder &OMPBuilder, IRBuilderBase &Builder,
 
 static void emitTargetCall(IRBuilderBase &Builder, Function *OutlinedFn,
                            SmallVectorImpl<Value *> &Args) {
-  // TODO: Add kernel launch call when device codegen is supported.
+  // TODO: Add kernel launch call
   Builder.CreateCall(OutlinedFn, Args);
 }
 
@@ -4189,7 +4235,8 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createTarget(
   Function *OutlinedFn;
   emitTargetOutlinedFunction(*this, Builder, EntryInfo, OutlinedFn, NumTeams,
                              NumThreads, Args, CBFunc);
-  emitTargetCall(Builder, OutlinedFn, Args);
+  if (!Config.isEmbedded())
+    emitTargetCall(Builder, OutlinedFn, Args);
   return Builder.saveIP();
 }
 
@@ -4225,10 +4272,12 @@ OpenMPIRBuilder::getOrCreateInternalVariable(Type *Ty, const StringRef &Name,
     // variable for possibly changing that to internal or private, or maybe
     // create different versions of the function for different OMP internal
     // variables.
-    Elem.second = new GlobalVariable(
+    auto *GV = new GlobalVariable(
         M, Ty, /*IsConstant=*/false, GlobalValue::CommonLinkage,
         Constant::getNullValue(Ty), Elem.first(),
         /*InsertBefore=*/nullptr, GlobalValue::NotThreadLocal, AddressSpace);
+    GV->setAlignment(M.getDataLayout().getABITypeAlign(Ty));
+    Elem.second = GV;
   }
 
   return cast<GlobalVariable>(&*Elem.second);

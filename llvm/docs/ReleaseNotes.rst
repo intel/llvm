@@ -118,6 +118,8 @@ Changes to the Hexagon Backend
 Changes to the LoongArch Backend
 --------------------------------
 
+* The `lp64s` ABI is supported now and has been tested on Rust bare-matal target.
+
 Changes to the MIPS Backend
 ---------------------------
 
@@ -175,6 +177,12 @@ Changes to the RISC-V Backend
   ``RISCV::parseCPU``. The ``CPUKind`` enum is no longer part of the
   RISCVTargetParser.h interface. Similar for ``parseTuneCPUkind`` and
   ``checkTuneCPUKind``.
+* Add sifive-x280 processor.
+* Zve32f is no longer allowed with Zfinx. Zve64d is no longer allowed with
+  Zdinx.
+* Assembly support was added for the experimental Zfbfmin (scalar BF16
+  conversions), Zvfbfmin (vector BF16 conversions), and Zvfbfwma (vector BF16
+  widening mul-add) extensions.
 
 Changes to the WebAssembly Backend
 ----------------------------------
@@ -189,6 +197,11 @@ Changes to the X86 Backend
 
 Changes to the OCaml bindings
 -----------------------------
+
+Changes to the Python bindings
+------------------------------
+
+* The python bindings have been removed.
 
 
 Changes to the C API

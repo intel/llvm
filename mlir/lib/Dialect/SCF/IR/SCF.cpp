@@ -495,7 +495,7 @@ ParseResult ForOp::parse(OpAsmParser &parser, OperationState &result) {
 Region &ForOp::getLoopBody() { return getRegion(); }
 
 ForOp mlir::scf::getForInductionVarOwner(Value val) {
-  auto ivArg = val.dyn_cast<BlockArgument>();
+  auto ivArg = llvm::dyn_cast<BlockArgument>(val);
   if (!ivArg)
     return ForOp();
   assert(ivArg.getOwner() && "unlinked block argument");
@@ -576,7 +576,7 @@ void mlir::scf::promote(PatternRewriter &rewriter, scf::ForallOp forallOp) {
     };
 
     Value srcVal = mapping.lookupOrDefault(src);
-    if (srcVal.getType().isa<TensorType>()) {
+    if (llvm::isa<TensorType>(srcVal.getType())) {
       results.push_back(rewriter.create<tensor::InsertSliceOp>(
           forallOp.getLoc(), dst.getType(), srcVal,
           mapping.lookupOrDefault(dst),
@@ -890,7 +890,8 @@ static SmallVector<Value>
 replaceTensorCastForOpIterArg(PatternRewriter &rewriter, OpOperand &operand,
                               Value replacement) {
   Type oldType = operand.get().getType(), newType = replacement.getType();
-  assert(oldType.isa<RankedTensorType>() && newType.isa<RankedTensorType>() &&
+  assert(llvm::isa<RankedTensorType>(oldType) &&
+         llvm::isa<RankedTensorType>(newType) &&
          "expected ranked tensor types");
 
   // 1. Create new iter operands, exactly 1 is replaced.
@@ -1074,7 +1075,7 @@ struct LastTensorLoadCanonicalization : public OpRewritePattern<ForOp> {
           cast<scf::YieldOp>(forOp.getRegion().front().getTerminator());
       Value yieldVal = yieldOp->getOperand(idx);
       auto tensorLoadOp = yieldVal.getDefiningOp<bufferization::ToTensorOp>();
-      bool isTensor = bbArg.getType().isa<TensorType>();
+      bool isTensor = llvm::isa<TensorType>(bbArg.getType());
 
       bufferization::ToMemrefOp tensorToMemref;
       // Either bbArg has no use or it has a single buffer_cast use.
@@ -1219,17 +1220,17 @@ void ForallOp::print(OpAsmPrinter &p) {
   if (isNormalized()) {
     p << ") in ";
     printDynamicIndexList(p, op, getDynamicUpperBound(), getStaticUpperBound(),
-                          OpAsmParser::Delimiter::Paren);
+                          /*valueTypes=*/{}, OpAsmParser::Delimiter::Paren);
   } else {
     p << ") = ";
     printDynamicIndexList(p, op, getDynamicLowerBound(), getStaticLowerBound(),
-                          OpAsmParser::Delimiter::Paren);
+                          /*valueTypes=*/{}, OpAsmParser::Delimiter::Paren);
     p << " to ";
     printDynamicIndexList(p, op, getDynamicUpperBound(), getStaticUpperBound(),
-                          OpAsmParser::Delimiter::Paren);
+                          /*valueTypes=*/{}, OpAsmParser::Delimiter::Paren);
     p << " step ";
     printDynamicIndexList(p, op, getDynamicStep(), getStaticStep(),
-                          OpAsmParser::Delimiter::Paren);
+                          /*valueTypes=*/{}, OpAsmParser::Delimiter::Paren);
   }
   printInitializationList(p, getRegionOutArgs(), getOutputs(), " shared_outs");
   p << " ";
@@ -1261,6 +1262,7 @@ ParseResult ForallOp::parse(OpAsmParser &parser, OperationState &result) {
   if (succeeded(parser.parseOptionalKeyword("in"))) {
     // Parse upper bounds.
     if (parseDynamicIndexList(parser, dynamicUbs, staticUbs,
+                              /*valueTypes=*/nullptr,
                               OpAsmParser::Delimiter::Paren) ||
         parser.resolveOperands(dynamicUbs, indexType, result.operands))
       return failure();
@@ -1272,6 +1274,7 @@ ParseResult ForallOp::parse(OpAsmParser &parser, OperationState &result) {
     // Parse lower bounds.
     if (parser.parseEqual() ||
         parseDynamicIndexList(parser, dynamicLbs, staticLbs,
+                              /*valueTypes=*/nullptr,
                               OpAsmParser::Delimiter::Paren) ||
 
         parser.resolveOperands(dynamicLbs, indexType, result.operands))
@@ -1280,6 +1283,7 @@ ParseResult ForallOp::parse(OpAsmParser &parser, OperationState &result) {
     // Parse upper bounds.
     if (parser.parseKeyword("to") ||
         parseDynamicIndexList(parser, dynamicUbs, staticUbs,
+                              /*valueTypes=*/nullptr,
                               OpAsmParser::Delimiter::Paren) ||
         parser.resolveOperands(dynamicUbs, indexType, result.operands))
       return failure();
@@ -1287,6 +1291,7 @@ ParseResult ForallOp::parse(OpAsmParser &parser, OperationState &result) {
     // Parse step values.
     if (parser.parseKeyword("step") ||
         parseDynamicIndexList(parser, dynamicSteps, staticSteps,
+                              /*valueTypes=*/nullptr,
                               OpAsmParser::Delimiter::Paren) ||
         parser.resolveOperands(dynamicSteps, indexType, result.operands))
       return failure();
@@ -1445,7 +1450,7 @@ InParallelOp ForallOp::getTerminator() {
 }
 
 ForallOp mlir::scf::getForallOpThreadIndexOwner(Value val) {
-  auto tidxArg = val.dyn_cast<BlockArgument>();
+  auto tidxArg = llvm::dyn_cast<BlockArgument>(val);
   if (!tidxArg)
     return ForallOp();
   assert(tidxArg.getOwner() && "unlinked block argument");
@@ -1464,7 +1469,8 @@ struct DimOfForallOp : public OpRewritePattern<tensor::DimOp> {
     if (!forallOp)
       return failure();
     Value sharedOut =
-        forallOp.getTiedOpOperand(dimOp.getSource().cast<OpResult>())->get();
+        forallOp.getTiedOpOperand(llvm::cast<OpResult>(dimOp.getSource()))
+            ->get();
     rewriter.updateRootInPlace(
         dimOp, [&]() { dimOp.getSourceMutable().assign(sharedOut); });
     return success();
@@ -1676,6 +1682,25 @@ void ForallOp::getCanonicalizationPatterns(RewritePatternSet &results,
               ForallOpSingleOrZeroIterationDimsFolder>(context);
 }
 
+/// Given the region at `index`, or the parent operation if `index` is None,
+/// return the successor regions. These are the regions that may be selected
+/// during the flow of control. `operands` is a set of optional attributes that
+/// correspond to a constant value for each operand, or null if that operand is
+/// not a constant.
+void ForallOp::getSuccessorRegions(std::optional<unsigned> index,
+                                   ArrayRef<Attribute> operands,
+                                   SmallVectorImpl<RegionSuccessor> &regions) {
+  // If the predecessor is ForallOp, branch into the body with empty arguments.
+  if (!index) {
+    regions.push_back(RegionSuccessor(&getRegion()));
+    return;
+  }
+
+  // Otherwise, the loop should branch back to the parent operation.
+  assert(*index == 0 && "expected loop region");
+  regions.push_back(RegionSuccessor());
+}
+
 //===----------------------------------------------------------------------===//
 // InParallelOp
 //===----------------------------------------------------------------------===//
@@ -1744,7 +1769,7 @@ SmallVector<BlockArgument> InParallelOp::getDests() {
       llvm::map_range(getYieldingOps(), [](Operation &op) {
         // Add new ops here as needed.
         auto insertSliceOp = cast<tensor::ParallelInsertSliceOp>(&op);
-        return insertSliceOp.getDest().cast<BlockArgument>();
+        return llvm::cast<BlockArgument>(insertSliceOp.getDest());
       }));
 }
 
@@ -1964,7 +1989,7 @@ void IfOp::getSuccessorRegions(std::optional<unsigned> index,
 
   // Otherwise, the successor is dependent on the condition.
   bool condition;
-  if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
+  if (auto condAttr = llvm::dyn_cast_or_null<IntegerAttr>(operands.front())) {
     condition = condAttr.getValue().isOne();
   } else {
     // If the condition isn't constant, both regions may be executed.
@@ -2006,7 +2031,7 @@ LogicalResult IfOp::fold(FoldAdaptor adaptor,
 void IfOp::getRegionInvocationBounds(
     ArrayRef<Attribute> operands,
     SmallVectorImpl<InvocationBounds> &invocationBounds) {
-  if (auto cond = operands[0].dyn_cast_or_null<BoolAttr>()) {
+  if (auto cond = llvm::dyn_cast_or_null<BoolAttr>(operands[0])) {
     // If the condition is known, then one region is known to be executed once
     // and the other zero times.
     invocationBounds.emplace_back(0, cond.getValue() ? 1 : 0);
@@ -2542,7 +2567,7 @@ struct CombineNestedIfs : public OpRewritePattern<IfOp> {
     // come from the same scf.if.
     for (const auto &tup : llvm::enumerate(thenYield)) {
       if (tup.value().getDefiningOp() == nestedIf) {
-        auto nestedIdx = tup.value().cast<OpResult>().getResultNumber();
+        auto nestedIdx = llvm::cast<OpResult>(tup.value()).getResultNumber();
         if (nestedIf.elseYield().getOperand(nestedIdx) !=
             elseYield[tup.index()]) {
           return failure();
@@ -2818,7 +2843,7 @@ void ParallelOp::print(OpAsmPrinter &p) {
 Region &ParallelOp::getLoopBody() { return getRegion(); }
 
 ParallelOp mlir::scf::getParallelForInductionVarOwner(Value val) {
-  auto ivArg = val.dyn_cast<BlockArgument>();
+  auto ivArg = llvm::dyn_cast<BlockArgument>(val);
   if (!ivArg)
     return ParallelOp();
   assert(ivArg.getOwner() && "unlinked block argument");
@@ -2968,6 +2993,26 @@ void ParallelOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results
       .add<ParallelOpSingleOrZeroIterationDimsFolder, MergeNestedParallelLoops>(
           context);
+}
+
+/// Given the region at `index`, or the parent operation if `index` is None,
+/// return the successor regions. These are the regions that may be selected
+/// during the flow of control. `operands` is a set of optional attributes that
+/// correspond to a constant value for each operand, or null if that operand is
+/// not a constant.
+void ParallelOp::getSuccessorRegions(
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  // If the predecessor is ParallelOp, branch into the body with empty
+  // arguments.
+  if (!index) {
+    regions.push_back(RegionSuccessor(&getRegion()));
+    return;
+  }
+
+  assert(*index == 0 && "expected loop region");
+  // Otherwise, the loop should branch back to the parent operation.
+  regions.push_back(RegionSuccessor());
 }
 
 //===----------------------------------------------------------------------===//
@@ -3130,7 +3175,7 @@ void WhileOp::getSuccessorRegions(std::optional<unsigned> index,
 
   // Try to narrow the successor to the condition region.
   assert(!operands.empty() && "expected at least one operand");
-  auto cond = operands[0].dyn_cast_or_null<BoolAttr>();
+  auto cond = llvm::dyn_cast_or_null<BoolAttr>(operands[0]);
   if (!cond || !cond.getValue())
     regions.emplace_back(getResults());
   if (!cond || cond.getValue())
@@ -3360,7 +3405,7 @@ struct RemoveLoopInvariantArgsFromBeforeBlock
       // block argument or the initial value of i-th before block argument. If
       // the comparison results `true`, i-th before block argument is a loop
       // invariant.
-      auto yieldOpBlockArg = yieldOpArg.dyn_cast<BlockArgument>();
+      auto yieldOpBlockArg = llvm::dyn_cast<BlockArgument>(yieldOpArg);
       if (yieldOpBlockArg && yieldOpBlockArg.getOwner() == &afterBlock) {
         Value condOpArg = condOpArgs[yieldOpBlockArg.getArgNumber()];
         if (condOpArg == beforeBlockArgs[index] || condOpArg == initVal) {
@@ -3392,7 +3437,7 @@ struct RemoveLoopInvariantArgsFromBeforeBlock
         // before block argument or the initial value of i-th before block
         // argument. If the comparison results `true`, i-th before block
         // argument is a loop invariant.
-        auto yieldOpBlockArg = yieldOpArg.dyn_cast<BlockArgument>();
+        auto yieldOpBlockArg = llvm::dyn_cast<BlockArgument>(yieldOpArg);
         if (yieldOpBlockArg && yieldOpBlockArg.getOwner() == &afterBlock) {
           Value condOpArg = condOpArgs[yieldOpBlockArg.getArgNumber()];
           if (condOpArg == beforeBlockArgs[index] || condOpArg == initVal) {
@@ -3960,7 +4005,7 @@ void IndexSwitchOp::getSuccessorRegions(
   }
 
   // If a constant was not provided, all regions are possible successors.
-  auto operandValue = operands.front().dyn_cast_or_null<IntegerAttr>();
+  auto operandValue = llvm::dyn_cast_or_null<IntegerAttr>(operands.front());
   if (!operandValue) {
     for (Region &caseRegion : getCaseRegions())
       successors.emplace_back(&caseRegion);
@@ -3981,7 +4026,7 @@ void IndexSwitchOp::getSuccessorRegions(
 
 void IndexSwitchOp::getRegionInvocationBounds(
     ArrayRef<Attribute> operands, SmallVectorImpl<InvocationBounds> &bounds) {
-  auto operandValue = operands.front().dyn_cast_or_null<IntegerAttr>();
+  auto operandValue = llvm::dyn_cast_or_null<IntegerAttr>(operands.front());
   if (!operandValue) {
     // All regions are invoked at most once.
     bounds.append(getNumRegions(), InvocationBounds(/*lb=*/0, /*ub=*/1));

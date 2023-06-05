@@ -1372,12 +1372,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     });
     llvm::StructType *ST = cast<llvm::StructType>(LT);
 
-    bool Recursive = false;
-    for (size_t I = 0; I < ST->getNumElements(); I++) {
-      SmallPtrSet<llvm::Type *, 4> Seen;
-      if (isRecursiveStruct(ST->getTypeAtIndex(I), ST, Seen))
-        Recursive = true;
-    }
+    SmallPtrSet<const clang::Type *, 4> RecordsEncountered;
+    bool Recursive = isRecursiveStruct(QT, RecordsEncountered);
 
     const auto *RD = RT->getAsRecordDecl();
     if (const mlirclang::NamespaceKind NamespaceKind =

@@ -1,7 +1,6 @@
+// REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
-// REQUIRES: fusion
 
 // Test complete fusion with private internalization specified on the
 // accessors for a device kernel using multi_ptr to global address space.

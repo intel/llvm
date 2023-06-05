@@ -69,7 +69,7 @@ public:
   /// \param Plugin is the reference to the underlying Plugin that this
   /// context is associated with.
   context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
-               const plugin &Plugin);
+               const PluginPtr &Plugin);
 
   ~context_impl();
 
@@ -106,7 +106,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Plugin associated with the platform of this context.
-  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
+  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// \return the PlatformImpl associated with this context.
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
@@ -219,10 +219,11 @@ public:
       const void *DeviceGlobalPtr, const void *Src, size_t DeviceGlobalTSize,
       bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
 
-  void memcpyFromHostOnlyDeviceGlobal(
-      const std::shared_ptr<device_impl> &DeviceImpl, void *Dest,
-      const void *DeviceGlobalPtr, size_t DeviceGlobalTSize,
-      bool IsDeviceImageScoped, size_t NumBytes, size_t Offset);
+  void
+  memcpyFromHostOnlyDeviceGlobal(const std::shared_ptr<device_impl> &DeviceImpl,
+                                 void *Dest, const void *DeviceGlobalPtr,
+                                 bool IsDeviceImageScoped, size_t NumBytes,
+                                 size_t Offset);
 
   /// Gets a program associated with a device global from the cache.
   std::optional<RT::PiProgram>
@@ -265,7 +266,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const plugin &Plugin);
+    void ClearEvents(const PluginPtr &Plugin);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;

@@ -1,7 +1,6 @@
+// REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: hip
-// REQUIRES: fusion
 
 // Test complete fusion with local internalization and an local accessor that
 // already exists in one of the input kernels.

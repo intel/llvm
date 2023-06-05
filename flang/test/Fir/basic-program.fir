@@ -19,6 +19,8 @@ func.func @_QQmain() {
 // PASSES:        Canonicalizer
 // PASSES-NEXT: 'func.func' Pipeline
 // PASSES-NEXT:   SimplifyHLFIRIntrinsics
+// PASSES-NEXT:   InlineElementals
+// PASSES-NEXT:   LowerHLFIROrderedAssignments
 // PASSES-NEXT:   LowerHLFIRIntrinsics
 // PASSES-NEXT:   BufferizeHLFIR
 // PASSES-NEXT:   ConvertHLFIRtoFIR

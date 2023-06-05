@@ -76,6 +76,10 @@ cl::opt<bool> EnableLTOInternalization(
     cl::desc("Enable global value internalization in LTO"));
 }
 
+/// Indicate we are linking with an allocator that supports hot/cold operator
+/// new interfaces.
+extern cl::opt<bool> SupportsHotColdNew;
+
 /// Enable MemProf context disambiguation for thin link.
 extern cl::opt<bool> EnableMemProfContextDisambiguation;
 
@@ -170,22 +174,38 @@ void llvm::computeLTOCacheKey(
   // imported symbols for each module may affect code generation and is
   // sensitive to link order, so include that as well.
   using ImportMapIteratorTy = FunctionImporter::ImportMapTy::const_iterator;
-  std::vector<ImportMapIteratorTy> ImportModulesVector;
+  struct ImportModule {
+    ImportMapIteratorTy ModIt;
+    const ModuleSummaryIndex::ModuleInfo *ModInfo;
+
+    StringRef getIdentifier() const { return ModIt->getKey(); }
+    const FunctionImporter::FunctionsToImportTy &getFunctions() const {
+      return ModIt->second;
+    }
+
+    const ModuleHash &getHash() const { return ModInfo->second.second; }
+    uint64_t getId() const { return ModInfo->second.first; }
+  };
+
+  std::vector<ImportModule> ImportModulesVector;
   ImportModulesVector.reserve(ImportList.size());
 
   for (ImportMapIteratorTy It = ImportList.begin(); It != ImportList.end();
        ++It) {
-    ImportModulesVector.push_back(It);
+    ImportModulesVector.push_back({It, Index.getModule(It->getKey())});
   }
+  // Order using moduleId integer which is based on the order the module was
+  // added.
   llvm::sort(ImportModulesVector,
-             [](const ImportMapIteratorTy &Lhs, const ImportMapIteratorTy &Rhs)
-                 -> bool { return Lhs->getKey() < Rhs->getKey(); });
-  for (const ImportMapIteratorTy &EntryIt : ImportModulesVector) {
-    auto ModHash = Index.getModuleHash(EntryIt->first());
+             [](const ImportModule &Lhs, const ImportModule &Rhs) -> bool {
+               return Lhs.getId() < Rhs.getId();
+             });
+  for (const ImportModule &Entry : ImportModulesVector) {
+    auto ModHash = Entry.getHash();
     Hasher.update(ArrayRef<uint8_t>((uint8_t *)&ModHash[0], sizeof(ModHash)));
 
-    AddUint64(EntryIt->second.size());
-    for (auto &Fn : EntryIt->second)
+    AddUint64(Entry.getFunctions().size());
+    for (auto &Fn : Entry.getFunctions())
       AddUint64(Fn);
   }
 
@@ -255,9 +275,10 @@ void llvm::computeLTOCacheKey(
 
   // Imported functions may introduce new uses of type identifier resolutions,
   // so we need to collect their used resolutions as well.
-  for (auto &ImpM : ImportList)
-    for (auto &ImpF : ImpM.second) {
-      GlobalValueSummary *S = Index.findSummaryInModule(ImpF, ImpM.first());
+  for (const ImportModule &ImpM : ImportModulesVector)
+    for (auto &ImpF : ImpM.getFunctions()) {
+      GlobalValueSummary *S =
+          Index.findSummaryInModule(ImpF, ImpM.getIdentifier());
       AddUsedThings(S);
       // If this is an alias, we also care about any types/etc. that the aliasee
       // may reference.
@@ -1079,6 +1100,14 @@ Error LTO::run(AddStreamFn AddStream, FileCache Cache) {
     return StatsFileOrErr.takeError();
   std::unique_ptr<ToolOutputFile> StatsFile = std::move(StatsFileOrErr.get());
 
+  // TODO: Ideally this would be controlled automatically by detecting that we
+  // are linking with an allocator that supports these interfaces, rather than
+  // an internal option (which would still be needed for tests, however). For
+  // example, if the library exported a symbol like __malloc_hot_cold the linker
+  // could recognize that and set a flag in the lto::Config.
+  if (SupportsHotColdNew)
+    ThinLTO.CombinedIndex.setWithSupportsHotColdNew();
+
   Error Result = runRegularLTO(AddStream);
   if (!Result)
     Result = runThinLTO(AddStream, Cache, GUIDPreservedSymbols);
@@ -1087,6 +1116,37 @@ Error LTO::run(AddStreamFn AddStream, FileCache Cache) {
     PrintStatisticsJSON(StatsFile->os());
 
   return Result;
+}
+
+void lto::updateMemProfAttributes(Module &Mod,
+                                  const ModuleSummaryIndex &Index) {
+  if (Index.withSupportsHotColdNew())
+    return;
+
+  // The profile matcher applies hotness attributes directly for allocations,
+  // and those will cause us to generate calls to the hot/cold interfaces
+  // unconditionally. If supports-hot-cold-new was not enabled in the LTO
+  // link then assume we don't want these calls (e.g. not linking with
+  // the appropriate library, or otherwise trying to disable this behavior).
+  for (auto &F : Mod) {
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        auto *CI = dyn_cast<CallBase>(&I);
+        if (!CI)
+          continue;
+        if (CI->hasFnAttr("memprof"))
+          CI->removeFnAttr("memprof");
+        // Strip off all memprof metadata as it is no longer needed.
+        // Importantly, this avoids the addition of new memprof attributes
+        // after inlining propagation.
+        // TODO: If we support additional types of MemProf metadata beyond hot
+        // and cold, we will need to update the metadata based on the allocator
+        // APIs supported instead of completely stripping all.
+        CI->setMetadata(LLVMContext::MD_memprof, nullptr);
+        CI->setMetadata(LLVMContext::MD_callsite, nullptr);
+      }
+    }
+  }
 }
 
 Error LTO::runRegularLTO(AddStreamFn AddStream) {
@@ -1141,6 +1201,8 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
       GV->setName(I.first);
     }
   }
+
+  updateMemProfAttributes(*RegularLTO.CombinedModule, ThinLTO.CombinedIndex);
 
   // If allowed, upgrade public vcall visibility metadata to linkage unit
   // visibility before whole program devirtualization in the optimizer.

@@ -1,7 +1,20 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj < %t.ll \
+; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-V4
+; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj -dwarf-version=3 < %t.ll \
+; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-V3
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj < %t.ll \
+; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-V4
+; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj -dwarf-version=3 < %t.ll \
+; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-V3
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj < %t.ll \
 ; RUN:     | llvm-dwarfdump -v -debug-info - | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-V4
 ; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj -dwarf-version=3 < %t.ll \

@@ -65,7 +65,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
        CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();
-    ComputedOut = (Buf.template get_access<access::mode::read>())[0];
+    ComputedOut = host_accessor(Buf, read_only)[0];
   } else {
     ComputedOut = *ReduVarPtr;
   }

@@ -515,7 +515,15 @@ const Symbol *FindOverriddenBinding(const Symbol &symbol) {
     if (const DeclTypeSpec * parentType{FindParentTypeSpec(symbol.owner())}) {
       if (const DerivedTypeSpec * parentDerived{parentType->AsDerived()}) {
         if (const Scope * parentScope{parentDerived->typeSymbol().scope()}) {
-          return parentScope->FindComponent(symbol.name());
+          if (const Symbol *
+              overridden{parentScope->FindComponent(symbol.name())}) {
+            // 7.5.7.3 p1: only accessible bindings are overridden
+            if (!overridden->attrs().test(Attr::PRIVATE) ||
+                (FindModuleContaining(overridden->owner()) ==
+                    FindModuleContaining(symbol.owner()))) {
+              return overridden;
+            }
+          }
         }
       }
     }
@@ -642,21 +650,23 @@ bool HasDeclarationInitializer(const Symbol &symbol) {
   }
 }
 
-bool IsInitialized(
-    const Symbol &symbol, bool ignoreDataStatements, bool ignoreAllocatable) {
+bool IsInitialized(const Symbol &symbol, bool ignoreDataStatements,
+    bool ignoreAllocatable, bool ignorePointer) {
   if (!ignoreAllocatable && IsAllocatable(symbol)) {
     return true;
   } else if (!ignoreDataStatements && symbol.test(Symbol::Flag::InDataStmt)) {
     return true;
   } else if (HasDeclarationInitializer(symbol)) {
     return true;
-  } else if (IsNamedConstant(symbol) || IsFunctionResult(symbol) ||
-      IsPointer(symbol)) {
+  } else if (IsPointer(symbol)) {
+    return !ignorePointer;
+  } else if (IsNamedConstant(symbol) || IsFunctionResult(symbol)) {
     return false;
   } else if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
     if (!object->isDummy() && object->type()) {
       if (const auto *derived{object->type()->AsDerived()}) {
-        return derived->HasDefaultInitialization(ignoreAllocatable);
+        return derived->HasDefaultInitialization(
+            ignoreAllocatable, ignorePointer);
       }
     }
   }

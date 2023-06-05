@@ -8,7 +8,7 @@ add_mlir_conversion_library(MLIRSYCLToSPIRV
   MLIRSYCLConversionPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRIR
   MLIRSPIRVConversion
   MLIRSPIRVDialect

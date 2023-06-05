@@ -59,6 +59,7 @@
 #include <set>
 #include <string>
 #include <system_error>
+#include <unordered_set>
 #include <utility>
 
 using namespace llvm;
@@ -70,6 +71,8 @@ using namespace clang;
 
 /// Section name which holds target symbol names.
 #define SYMBOLS_SECTION_NAME ".tgtsym"
+
+#define DEBUG_TYPE "clang-offload-bundler"
 
 OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
                                      const OffloadBundlerConfig &BC)
@@ -107,11 +110,11 @@ bool OffloadTargetInfo::isOffloadKindCompatible(
   if (OffloadKind == TargetOffloadKind)
     return true;
   if (BundlerConfig.HipOpenmpCompatible) {
-    bool HIPCompatibleWithOpenMP = OffloadKind.startswith_insensitive("hip") &&
+    bool HIPCompatibleWithOpenMP = OffloadKind.starts_with_insensitive("hip") &&
                                    TargetOffloadKind == "openmp";
     bool OpenMPCompatibleWithHIP =
         OffloadKind == "openmp" &&
-        TargetOffloadKind.startswith_insensitive("hip");
+        TargetOffloadKind.starts_with_insensitive("hip");
     return HIPCompatibleWithOpenMP || OpenMPCompatibleWithHIP;
   }
   return false;
@@ -1015,6 +1018,10 @@ class ArchiveFileHandler final : public FileHandler {
           .Case("a", OutputType::Archive)
           .Default(OutputType::Unknown);
 
+  // Set contains indexes of Children that should be skipped during
+  // unbundling.
+  std::unordered_set<size_t> ExcludedChildIndexes;
+
 public:
   ArchiveFileHandler(const OffloadBundlerConfig &BC) : BundlerConfig(BC) {}
   ~ArchiveFileHandler() = default;
@@ -1029,8 +1036,10 @@ public:
     Ar = std::move(*ArOrErr);
 
     // Read all children.
+    ssize_t ChildIndex = -1;
     Error Err = Error::success();
     for (auto &C : Ar->children(Err)) {
+      ++ChildIndex;
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
@@ -1041,6 +1050,16 @@ public:
       auto &Bin = BinOrErr.get();
       if (!Bin->isObject())
         continue;
+
+      auto CheckOrErr = CheckIfObjectFileContainsExcludedTargets(C);
+      if (!CheckOrErr)
+        return CheckOrErr.takeError();
+
+      if (*CheckOrErr) {
+        LLVM_DEBUG(outs() << "Add child to ban list. Index: " << ChildIndex
+                          << "\n");
+        ExcludedChildIndexes.emplace(ChildIndex);
+      }
 
       auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
       auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
@@ -1099,7 +1118,14 @@ public:
 
     // Read all children.
     Error Err = Error::success();
+    ssize_t ChildIndex = -1;
     for (auto &C : Ar->children(Err)) {
+      ++ChildIndex;
+      if (ExcludedChildIndexes.count(ChildIndex)) {
+        LLVM_DEBUG(outs() << "Skip Child. Index: " << ChildIndex << "\n");
+        continue;
+      }
+
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
@@ -1214,6 +1240,58 @@ public:
 
   Error WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
     llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+private:
+  // NOTE: mostly a copy-paste of ReadHeader method.
+  Expected<std::vector<std::string>>
+  ReadTargetsFromChild(const Archive::Child &C) {
+    Expected<std::unique_ptr<Binary>> BinOrErr = C.getAsBinary();
+    if (!BinOrErr)
+      return BinOrErr.takeError();
+
+    std::unique_ptr<Binary> &Bin = BinOrErr.get();
+    auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+    std::unique_ptr<MemoryBuffer> Buf =
+        MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+    ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
+    if (Error Err = OFH.ReadHeader(*Buf))
+      return {std::move(Err)};
+    Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
+    if (!NameOrErr)
+      return NameOrErr.takeError();
+
+    std::vector<std::string> Targets;
+    while (*NameOrErr) {
+      if (*NameOrErr)
+        Targets.emplace_back((**NameOrErr).str());
+      NameOrErr = OFH.ReadBundleStart(*Buf);
+      if (!NameOrErr)
+        return NameOrErr.takeError();
+    }
+
+    return Targets;
+  }
+
+  // Function reads targets from Child and checks whether one of Targets
+  // is in Excluded list.
+  Expected<bool>
+  CheckIfObjectFileContainsExcludedTargets(const Archive::Child &C) {
+    if (BundlerConfig.ExcludedTargetNames.empty())
+      return false;
+
+    auto TargetNamesOrErr = ReadTargetsFromChild(C);
+    if (!TargetNamesOrErr)
+      return TargetNamesOrErr.takeError();
+
+    auto TargetNames = TargetNamesOrErr.get();
+    const auto &ExcludedTargets = BundlerConfig.ExcludedTargetNames;
+    return std::any_of(TargetNames.begin(), TargetNames.end(),
+                       [&ExcludedTargets](const std::string &Target) {
+                         auto It = std::find(ExcludedTargets.begin(),
+                                             ExcludedTargets.end(), Target);
+                         return It != ExcludedTargets.end();
+                       });
   }
 };
 
@@ -1424,22 +1502,8 @@ Error OffloadBundler::UnbundleFiles() {
       }
     }
 
-    if (Output == Worklist.end()) {
-      // FIXME: temporary solution for supporting binaries produced by old
-      // versions of SYCL toolchain. Old versions used triples with 'sycldevice'
-      // environment component of the triple, whereas new toolchain use
-      // 'unknown' value for that triple component. Here we assume that if we
-      // are looking for a bundle for sycl offload kind, for the same target
-      // triple there might be either one with 'sycldevice' environment or with
-      // 'unknown' environment, but not both. So we will look for any of these
-      // two variants.
-      if (!CurTriple.startswith("sycl-") || !CurTriple.endswith("-sycldevice"))
-        continue;
-      Output =
-          Worklist.find(CurTriple.drop_back(11 /*length of "-sycldevice"*/));
-      if (Output == Worklist.end())
-        continue;
-    }
+    if (Output == Worklist.end())
+      continue;
     // Check if the output file can be opened and copy the bundle to it.
     std::error_code EC;
     raw_fd_ostream OutputFile((*Output).second, EC, sys::fs::OF_None);
@@ -1544,20 +1608,7 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
 
   StringRef triple = BundlerConfig.TargetNames.front();
 
-  // FIXME: temporary solution for supporting binaries produced by old versions
-  // of SYCL toolchain. Old versions used triples with 'sycldevice' environment
-  // component of the triple, whereas new toolchain use 'unknown' value for that
-  // triple component. Here we assume that if we are looking for a bundle for
-  // sycl offload kind, for the same target triple there might be either one
-  // with 'sycldevice' environment or with 'unknown' environment, but not both.
-  // So we will look for any of these two variants.
-  OffloadTargetInfo TI(triple, BundlerConfig);
-  bool checkCompatibleTriple =
-      (TI.OffloadKind == "sycl") &&
-      (TI.Triple.getEnvironment() == Triple::UnknownEnvironment);
-  TI.Triple.setEnvironmentName("sycldevice");
-  std::string compatibleTriple = Twine("sycl-" + TI.Triple.str()).str();
-
+  // Read all the bundles that are in the work list. If we find no bundles we
   // assume the file is meant for the host target.
   bool found = false;
   while (!found) {
@@ -1570,9 +1621,7 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple ||
-        (checkCompatibleTriple &&
-         *CurTripleOrErr == StringRef(compatibleTriple))) {
+    if (*CurTripleOrErr == triple) {
       found = true;
       break;
     }

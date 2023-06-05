@@ -1,5 +1,5 @@
 // UNSUPPORTED: hip
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel -o %t_per_kernel.out
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_source -o %t_per_source.out

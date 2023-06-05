@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-dg2 || esimd_emulator
-// UNSUPPORTED: cuda || hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

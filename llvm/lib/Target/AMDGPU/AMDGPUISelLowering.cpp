@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Target/TargetMachine.h"
@@ -869,7 +870,7 @@ bool AMDGPUTargetLowering::isFNegFree(EVT VT) const {
   return VT == MVT::f32 || VT == MVT::f64 || VT == MVT::f16;
 }
 
-bool AMDGPUTargetLowering:: storeOfVectorConstantIsCheap(EVT MemVT,
+bool AMDGPUTargetLowering:: storeOfVectorConstantIsCheap(bool IsZero, EVT MemVT,
                                                          unsigned NumElem,
                                                          unsigned AS) const {
   return true;
@@ -1423,32 +1424,42 @@ SDValue AMDGPUTargetLowering::LowerCONCAT_VECTORS(SDValue Op,
 
 SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
                                                      SelectionDAG &DAG) const {
-
+  SDLoc SL(Op);
   SmallVector<SDValue, 8> Args;
   unsigned Start = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
   EVT VT = Op.getValueType();
   EVT SrcVT = Op.getOperand(0).getValueType();
 
-  // For these types, we have some TableGen patterns except if the index is 1
-  if (((SrcVT == MVT::v4f16 && VT == MVT::v2f16) ||
-       (SrcVT == MVT::v4i16 && VT == MVT::v2i16)) &&
-      Start != 1)
-    return Op;
+  if (VT.getScalarSizeInBits() == 16 && Start % 2 == 0) {
+    unsigned NumElt = VT.getVectorNumElements();
+    unsigned NumSrcElt = SrcVT.getVectorNumElements();
+    assert(NumElt % 2 == 0 && NumSrcElt % 2 == 0 && "expect legal types");
 
-  if (((SrcVT == MVT::v8f16 && VT == MVT::v4f16) ||
-       (SrcVT == MVT::v8i16 && VT == MVT::v4i16)) &&
-      (Start == 0 || Start == 4))
-    return Op;
+    // We have some TableGen patterns for when the extracted vector is exactly
+    // the low or high half of the operand.
+    if ((NumSrcElt == 2 * NumElt) && (Start == 0 || Start == NumElt))
+      return Op;
 
-  if (((SrcVT == MVT::v16f16 && VT == MVT::v8f16) ||
-       (SrcVT == MVT::v16i16 && VT == MVT::v8i16)) &&
-      (Start == 0 || Start == 8))
-    return Op;
+    // Extract 32-bit registers at a time.
+    EVT NewSrcVT = EVT::getVectorVT(*DAG.getContext(), MVT::i32, NumSrcElt / 2);
+    EVT NewVT = NumElt == 2
+                    ? MVT::i32
+                    : EVT::getVectorVT(*DAG.getContext(), MVT::i32, NumElt / 2);
+    SDValue Tmp = DAG.getNode(ISD::BITCAST, SL, NewSrcVT, Op.getOperand(0));
+
+    DAG.ExtractVectorElements(Tmp, Args, Start / 2, NumElt / 2);
+    if (NumElt == 2)
+      Tmp = Args[0];
+    else
+      Tmp = DAG.getBuildVector(NewVT, SL, Args);
+
+    return DAG.getNode(ISD::BITCAST, SL, VT, Tmp);
+  }
 
   DAG.ExtractVectorElements(Op.getOperand(0), Args, Start,
                             VT.getVectorNumElements());
 
-  return DAG.getBuildVector(Op.getValueType(), SDLoc(Op), Args);
+  return DAG.getBuildVector(Op.getValueType(), SL, Args);
 }
 
 // TODO: Handle fabs too
@@ -5122,4 +5133,23 @@ bool AMDGPUTargetLowering::isConstantUnsignedBitfieldExtractLegal(
     unsigned Opc, LLT Ty1, LLT Ty2) const {
   return (Ty1 == LLT::scalar(32) || Ty1 == LLT::scalar(64)) &&
          Ty2 == LLT::scalar(32);
+}
+
+/// Whether it is profitable to sink the operands of an
+/// Instruction I to the basic block of I.
+/// This helps using several modifiers (like abs and neg) more often.
+bool AMDGPUTargetLowering::shouldSinkOperands(
+    Instruction *I, SmallVectorImpl<Use *> &Ops) const {
+  using namespace PatternMatch;
+
+  for (auto &Op : I->operands()) {
+    // Ensure we are not already sinking this operand.
+    if (any_of(Ops, [&](Use *U) { return U->get() == Op.get(); }))
+      continue;
+
+    if (match(&Op, m_FAbs(m_Value())) || match(&Op, m_FNeg(m_Value())))
+      Ops.push_back(&Op);
+  }
+
+  return !Ops.empty();
 }

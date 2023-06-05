@@ -1,6 +1,6 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 ZE_DEBUG=4 %{run} %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 ZE_DEBUG=4 %{run} %t.out
 

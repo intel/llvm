@@ -115,6 +115,46 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
+// Return true if no flag passed by the user is incompatible with raising the
+// host. This function diagnoses incompatible options.
+static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
+                            bool Diagnose) {
+  // Host raising only works with opaque pointers.
+  const auto UseOpaquePointers = [&]() {
+    constexpr llvm::StringLiteral Pos = "-opaque-pointers";
+    constexpr llvm::StringLiteral Neg = "-no-opaque-pointers";
+
+    // Search for -Xclang -[no-]opaque-pointers
+    const auto FilteredArgs = Args.filtered_reverse(options::OPT_Xclang);
+    const auto Iter =
+        llvm::find_if(Args.filtered_reverse(options::OPT_Xclang), [=](Arg *A) {
+          const char *Val = A->getValue();
+          return Val == Pos || Val == Neg;
+        });
+    constexpr bool Default = CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL;
+    return (Iter == FilteredArgs.end()) ? Default : Pos == (*Iter)->getValue();
+  };
+  bool ShouldRaise = Args.hasArg(options::OPT_fsycl_raise_host);
+  if (ShouldRaise) {
+    if (Args.hasArg(options::OPT_fsyntax_only))
+      ShouldRaise = false;
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_host_compiler_EQ)) {
+      if (Diagnose)
+        C.getDriver().Diag(diag::err_drv_incompatible_options)
+            << "-fsycl-raise-host" << A->getSpelling();
+      ShouldRaise = false;
+    }
+    if (!UseOpaquePointers()) {
+      if (Diagnose)
+        C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
+            << "-fsycl-raise-host"
+            << "-Xclang -opaque-pointers";
+      ShouldRaise = false;
+    }
+  }
+  return ShouldRaise;
+}
+
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
                                                           const ArgList &Args) {
   auto OffloadTargets = Args.getAllArgValues(options::OPT_offload_EQ);
@@ -725,9 +765,9 @@ static llvm::Triple computeTargetTriple(const Driver &D,
     if (Args.hasArg(options::OPT_march_EQ) ||
         Args.hasArg(options::OPT_mcpu_EQ)) {
       StringRef ArchName = tools::riscv::getRISCVArch(Args, Target);
-      if (ArchName.startswith_insensitive("rv32"))
+      if (ArchName.starts_with_insensitive("rv32"))
         Target.setArch(llvm::Triple::riscv32);
-      else if (ArchName.startswith_insensitive("rv64"))
+      else if (ArchName.starts_with_insensitive("rv64"))
         Target.setArch(llvm::Triple::riscv64);
     }
   }
@@ -1204,32 +1244,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
-          // Warn about deprecated `sycldevice` environment component.
-          llvm::Triple TT(MakeSYCLDeviceTriple(UserTargetName));
-          if (TT.getEnvironmentName() == "sycldevice") {
-            // Build a string with suggested target triple.
-            std::string SuggestedTriple = TT.getArchName().str();
-            if (TT.getOS() != llvm::Triple::UnknownOS) {
-              SuggestedTriple += '-';
-              if (TT.getVendor() != llvm::Triple::UnknownVendor)
-                SuggestedTriple += TT.getVendorName();
-              SuggestedTriple += Twine("-" + TT.getOSName()).str();
-            } else if (TT.getVendor() != llvm::Triple::UnknownVendor)
-              SuggestedTriple += Twine("-" + TT.getVendorName()).str();
-            Diag(clang::diag::warn_drv_deprecated_arg)
-                << TT.str() << SuggestedTriple;
-            // Drop environment component.
-            std::string EffectiveTriple =
-                Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
-                      TT.getOSName())
-                    .str();
-            TT.setTriple(EffectiveTriple);
-          }
-
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
-          UniqueSYCLTriplesVec.push_back(TT);
+          UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(UserTargetName));
         }
         addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
@@ -1734,8 +1752,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   const Arg *Std = Args.getLastArg(options::OPT_std_EQ);
   ModulesModeCXX20 =
       !Args.hasArg(options::OPT_fmodules) && Std &&
-      (Std->containsValue("c++20") || Std->containsValue("c++2b") ||
-       Std->containsValue("c++2a") || Std->containsValue("c++latest"));
+      (Std->containsValue("c++20") || Std->containsValue("c++2a") ||
+       Std->containsValue("c++23") || Std->containsValue("c++2b") ||
+       Std->containsValue("c++26") || Std->containsValue("c++2c") ||
+       Std->containsValue("c++latest"));
 
   // Process -fmodule-header{=} flags.
   if (Arg *A = Args.getLastArg(options::OPT_fmodule_header_EQ,
@@ -1821,9 +1841,12 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
           static_cast<const toolchains::SYCLToolChain *>(TI->second);
       FPGATC->TranslateBackendTargetArgs(FPGATC->getTriple(), *TranslatedArgs,
                                          TargetArgs);
+      // By default, FPGAEmulationMode is true due to the fact that
+      // an external option setting is required to target hardware.
+      setOffloadCompileMode(FPGAEmulationMode);
       for (StringRef ArgString : TargetArgs) {
         if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
-          setFPGAEmulationMode(false);
+          setOffloadCompileMode(FPGAHWMode);
           break;
         }
       }
@@ -4707,6 +4730,10 @@ class OffloadingActionBuilder final {
     /// Flag to signal if the user requested device code split.
     bool DeviceCodeSplit = false;
 
+    /// Flag to signal this builder's purpose is to produce the stub file to be
+    /// used by the host compilation.
+    bool OnlyCreateStubFile = false;
+
     /// List of offload device toolchain, bound arch needed to track for
     /// different binary constructions.
     /// POD to hold information about a SYCL device action.
@@ -4787,14 +4814,24 @@ class OffloadingActionBuilder final {
       return HIPFatBinary;
     }
 
+    constexpr bool shouldRaiseHost() const {
+      return OffloadingActionBuilderRef.ShouldRaiseSYCLHost;
+    }
+
     Action *ExternalCudaAction = nullptr;
 
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs,
-                      OffloadingActionBuilder &OAB)
+                      OffloadingActionBuilder &OAB,
+                      bool OnlyCreateStubFile = false)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
-          SYCLInstallation(C.getDriver()) {}
+          OnlyCreateStubFile(OnlyCreateStubFile),
+          SYCLInstallation(C.getDriver()) {
+      assert((!OnlyCreateStubFile || OAB.ShouldRaiseSYCLHost) &&
+             "An action builder that only creates the stub file is needed only "
+             "if the host code is raised");
+    }
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4859,12 +4896,11 @@ class OffloadingActionBuilder final {
         for (auto TargetActionInfo :
              llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
           Action *&A = std::get<0>(TargetActionInfo);
-          auto &TargetInfo = std::get<1>(TargetActionInfo);
           types::ID OutputType = types::TY_LLVM_BC;
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
               Args.hasArg(options::OPT_S))
             OutputType = types::TY_LLVM_IR;
-          if (SYCLDeviceOnly && Args.hasArg(options::OPT_emit_mlir)) {
+          if (!OnlyCreateStubFile && Args.hasArg(options::OPT_emit_mlir)) {
             OutputType = types::TY_MLIR_IR;
           }
           // Use of -fsycl-device-obj=spirv converts the original LLVM-IR
@@ -4886,9 +4922,12 @@ class OffloadingActionBuilder final {
           DeviceCompilerInput = A;
         }
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
-        DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
-               Action::OFK_SYCL);
-        return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
+        bool ShouldRaiseHost = shouldRaiseHost();
+        if (!ShouldRaiseHost || OnlyCreateStubFile)
+          DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
+                 Action::OFK_SYCL);
+        return (SYCLDeviceOnly && !ShouldRaiseHost) ? ABRT_Ignore_Host
+                                                    : ABRT_Success;
       }
 
       // Backend/Assemble actions are obsolete for the SYCL device side
@@ -5048,6 +5087,31 @@ class OffloadingActionBuilder final {
         return ABRT_Success;
       }
 
+      if (OnlyCreateStubFile)
+        return ABRT_Success;
+
+      if (!SYCLDeviceActions.empty() && shouldRaiseHost() &&
+          isa<CompileJobAction>(SYCLDeviceActions.back()) &&
+          isa<CompileJobAction>(HostAction)) {
+        // Remove compile action from the list
+        Action *A = SYCLDeviceActions.back();
+        SYCLDeviceActions.pop_back();
+        // Create new compile action using host module
+        HostAction =
+            C.MakeAction<CompileJobAction>(HostAction, types::TY_MLIR_IR);
+        OffloadAction::HostDependence HDep(
+            *HostAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+            /*BoundArch=*/nullptr, Action::OFK_SYCL);
+        const DeviceTargetInfo &TargetInfo = SYCLTargetInfoList.front();
+        OffloadAction::DeviceDependences DDep;
+        DDep.add(*A->getInputs().front(), *TargetInfo.TC, TargetInfo.BoundArch,
+                 Action::OFK_SYCL);
+        HostAction = C.MakeAction<OffloadAction>(HDep, DDep);
+        SYCLDeviceActions.push_back(
+            C.MakeAction<CompileJobAction>(HostAction, A->getType()));
+        return ABRT_Success;
+      }
+
       // If this is an unbundling action use it as is for each SYCL toolchain.
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction)) {
         SYCLDeviceActions.clear();
@@ -5102,8 +5166,9 @@ class OffloadingActionBuilder final {
     }
 
     void appendTopLevelActions(ActionList &AL) override {
-      // We should always have an action for each input.
-      if (!SYCLDeviceActions.empty()) {
+      // We should always have an action for each input unless the only purpose
+      // of this builder was to create the stub file.
+      if (!OnlyCreateStubFile && !SYCLDeviceActions.empty()) {
         assert(SYCLDeviceActions.size() == SYCLTargetInfoList.size() &&
                "Number of SYCL actions and toolchains/boundarch pairs do not "
                "match.");
@@ -5430,6 +5495,9 @@ class OffloadingActionBuilder final {
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
+      // This action's output should not be used to generate the final image
+      if (OnlyCreateStubFile)
+        return;
       // DeviceLinkerInputs holds binaries per ToolChain (TC) / bound-arch pair
       // The following will loop link and post process for each TC / bound-arch
       // to produce a final binary.
@@ -6210,7 +6278,7 @@ class OffloadingActionBuilder final {
         FPGAOutType = (A->getValue() == StringRef("early"))
                           ? types::TY_FPGA_AOCR
                           : types::TY_FPGA_AOCX;
-        if (C.getDriver().isFPGAEmulationMode())
+        if (C.getDriver().IsFPGAEmulationMode())
           FPGAOutType = (A->getValue() == StringRef("early"))
                             ? types::TY_FPGA_AOCR_EMU
                             : types::TY_FPGA_AOCX;
@@ -6269,6 +6337,10 @@ class OffloadingActionBuilder final {
   /// Flag set to true if all valid builders allow file bundling/unbundling.
   bool CanUseBundler;
 
+  /// Flag set to true if the SYCL host should be raised to MLIR to be used
+  /// during device compilation.
+  bool ShouldRaiseSYCLHost;
+
 public:
   OffloadingActionBuilder(Compilation &C, DerivedArgList &Args,
                           const Driver::InputList &Inputs)
@@ -6291,6 +6363,15 @@ public:
     // Create a specialized builder for SYCL.
     SpecializedBuilders.push_back(
         new SYCLActionBuilder(C, Args, Inputs, *this));
+
+    // We will need two specialized SYCL builders: one will run before host
+    // compilation just to produce the device stub and other to perform the
+    // actual compilation.
+    ShouldRaiseSYCLHost = shouldRaiseHost(C, Args, /*Diagnose=*/true);
+    if (ShouldRaiseSYCLHost)
+      SpecializedBuilders.push_back(
+          new SYCLActionBuilder(C, Args, Inputs, *this,
+                                /*OnlyCreateStubFile=*/true));
 
     //
     // TODO: Build other specialized builders here.
@@ -6414,7 +6495,6 @@ public:
                           DerivedArgList &Args) {
     std::string InputName = InputArg->getAsString(Args);
     const Driver &D = C.getDriver();
-    bool IsFPGAEmulation = D.isFPGAEmulationMode();
     // Only check for FPGA device information when using fpga SubArch.
     if (A->getType() == types::TY_Object && isObjectFile(InputName))
       return true;
@@ -6442,12 +6522,13 @@ public:
         {types::TY_FPGA_AOCR_EMU, true}};
     for (const auto &ArchiveType : FPGAAOCTypes) {
       bool BinaryFound = hasFPGABinary(C, InputName, ArchiveType.first);
-      if (BinaryFound && ArchiveType.second == IsFPGAEmulation) {
+      if (BinaryFound && ArchiveType.second == D.IsFPGAEmulationMode()) {
         // Binary matches check and emulation type, we keep this one.
         A = C.MakeAction<InputAction>(*InputArg, ArchiveType.first);
         return true;
       }
-      ArchiveTypeMismatch(BinaryFound && ArchiveType.second != IsFPGAEmulation);
+      ArchiveTypeMismatch(BinaryFound &&
+                          ArchiveType.second == D.IsFPGAHWMode());
     }
     return true;
   }
@@ -6577,18 +6658,40 @@ public:
       SB->appendTopLevelActions(OffloadAL);
     }
 
-    // If we can use the bundler, replace the host action by the bundling one in
-    // the resulting list. Otherwise, just append the device actions. For
-    // device only compilation, HostAction is a null pointer, therefore only do
-    // this when HostAction is not a null pointer.
-    if (CanUseBundler && HostAction &&
-        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty()) {
-      // Add the host action to the list in order to create the bundling action.
+    if (const llvm::opt::DerivedArgList &Args = C.getArgs();
+        ShouldRaiseSYCLHost && (Args.hasArg(options::OPT_fsycl_device_only) ||
+                                Args.hasArg(options::OPT_emit_mlir))) {
+      // The host action will be discarded if it was created for instrumentation
+      // and it is not needed in the output
+      HostAction = nullptr;
+      AL = OffloadAL;
+    } else if (CanUseBundler && HostAction &&
+               HostAction->getType() != types::TY_Nothing &&
+               !OffloadAL.empty()) {
+      // If we can use the bundler, replace the host action by the bundling one
+      // in the resulting list. Otherwise, just append the device actions. For
+      // device only compilation, HostAction is a null pointer, therefore only
+      // do this when HostAction is not a null pointer.
+      bool UseHostActionInput =
+          HostAction->getType() == types::TY_MLIR_IR && ShouldRaiseSYCLHost;
+
+      if (UseHostActionInput) {
+        assert(isa<CompileJobAction>(HostAction) &&
+               HostAction->getInputs().front()->getType() ==
+                   types::TY_LLVM_IR &&
+               HostAction->getType() == types::TY_MLIR_IR &&
+               "Expecting an MLIR raising action here");
+        HostAction = HostAction->getInputs().front();
+      }
+
+      // Add the host action to the list in order to create the bundling
+      // action.
       OffloadAL.push_back(HostAction);
 
       // We expect that the host action was just appended to the action list
       // before this method was called.
-      assert(HostAction == AL.back() && "Host action not in the list??");
+      assert((UseHostActionInput || HostAction == AL.back()) &&
+             "Host action not in the list??");
       HostAction = C.MakeAction<OffloadBundlingJobAction>(OffloadAL);
       recordHostAction(HostAction, InputArg);
       AL.back() = HostAction;
@@ -6771,13 +6874,8 @@ public:
         // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
         // differentiate if aoco unbundling is needed.  Unbundling of aoco is
         // not needed for emulation, as these are treated as regular archives.
-        if (!C.getDriver().isFPGAEmulationMode())
+        if (C.getDriver().IsFPGAHWMode())
           unbundleStaticLib(types::TY_FPGA_AOCO, LA);
-        // Do not unbundle any AOCO archive as a regular archive when we are
-        // in FPGA Hardware/Simulation mode.
-        if (!C.getDriver().isFPGAEmulationMode() &&
-            hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
-          continue;
         unbundleStaticLib(types::TY_Archive, LA);
       }
     }
@@ -6815,6 +6913,21 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
         !Args.getLastArgValue(options::OPT_fuse_ld_EQ)
              .equals_insensitive("lld"))
       Diag(clang::diag::err_drv_lto_without_lld);
+
+    // If -dumpdir is not specified, give a default prefix derived from the link
+    // output filename. For example, `clang -g -gsplit-dwarf a.c -o x` passes
+    // `-dumpdir x-` to cc1. If -o is unspecified, use
+    // stem(getDefaultImageName()) (usually stem("a.out") = "a").
+    if (!Args.hasArg(options::OPT_dumpdir)) {
+      Arg *Arg = Args.MakeSeparateArg(
+          nullptr, getOpts().getOption(options::OPT_dumpdir),
+          Args.MakeArgString(Args.getLastArgValue(
+                                 options::OPT_o,
+                                 llvm::sys::path::stem(getDefaultImageName())) +
+                             "-"));
+      Arg->claim();
+      Args.append(Arg);
+    }
   }
 
   if (FinalPhase == phases::Preprocess || Args.hasArg(options::OPT__SLASH_Y_)) {
@@ -7749,6 +7862,10 @@ Action *Driver::ConstructPhaseAction(
               : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
+    // We will need a compile action before to avoid compiling the host code
+    // twice in this scenario.
+    if (shouldRaiseHost(C, Args, /*Diagnose=*/false))
+      Input = C.MakeAction<CompileJobAction>(Input, types::TY_PP_Asm);
     return C.MakeAction<BackendJobAction>(Input, types::TY_PP_Asm);
   }
   case phases::Assemble:
@@ -8329,6 +8446,37 @@ InputInfoList Driver::BuildJobsForAction(
   return Result;
 }
 
+static void handleTimeTrace(Compilation &C, const ArgList &Args,
+                            const JobAction *JA, const char *BaseInput,
+                            const InputInfo &Result) {
+  Arg *A =
+      Args.getLastArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
+  if (!A)
+    return;
+  SmallString<128> Path;
+  if (A->getOption().matches(options::OPT_ftime_trace_EQ)) {
+    Path = A->getValue();
+    if (llvm::sys::fs::is_directory(Path)) {
+      SmallString<128> Tmp(Result.getFilename());
+      llvm::sys::path::replace_extension(Tmp, "json");
+      llvm::sys::path::append(Path, llvm::sys::path::filename(Tmp));
+    }
+  } else {
+    if (Arg *DumpDir = Args.getLastArgNoClaim(options::OPT_dumpdir)) {
+      // The trace file is ${dumpdir}${basename}.json. Note that dumpdir may not
+      // end with a path separator.
+      Path = DumpDir->getValue();
+      Path += llvm::sys::path::filename(BaseInput);
+    } else {
+      Path = Result.getFilename();
+    }
+    llvm::sys::path::replace_extension(Path, "json");
+  }
+  const char *ResultFile = C.getArgs().MakeArgString(Path);
+  C.addTimeTraceFile(ResultFile, JA);
+  C.addResultFile(ResultFile, JA);
+}
+
 InputInfoList Driver::BuildJobsForActionNoCache(
     Compilation &C, const Action *A, const ToolChain *TC, StringRef BoundArch,
     bool AtTopLevel, bool MultipleArchs, const char *LinkingOutput,
@@ -8783,6 +8931,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
+    if (T->canEmitIR() && OffloadingPrefix.empty())
+      handleTimeTrace(C, Args, JA, BaseInput, Result);
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
@@ -9502,7 +9652,7 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       case llvm::Triple::MSVC:
       case llvm::Triple::UnknownEnvironment:
         if (Args.getLastArgValue(options::OPT_fuse_ld_EQ)
-                .startswith_insensitive("bfd"))
+                .starts_with_insensitive("bfd"))
           TC = std::make_unique<toolchains::CrossWindowsToolChain>(
               *this, Target, Args);
         else

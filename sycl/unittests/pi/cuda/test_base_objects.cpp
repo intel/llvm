@@ -25,7 +25,7 @@ using namespace sycl;
 
 class CudaBaseObjectsTest : public ::testing::Test {
 protected:
-  std::optional<detail::plugin> plugin =
+  std::optional<detail::PluginPtr> &plugin =
       pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   void SetUp() override {

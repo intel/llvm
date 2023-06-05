@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
 // UNSUPPORTED: esimd_emulator
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bdw %s -o %t.out
 // RUN: %t.out

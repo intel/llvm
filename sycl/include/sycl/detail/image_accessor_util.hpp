@@ -1019,17 +1019,12 @@ DataT ReadPixelDataLinearFiltMode(const int8 CoordValues, const float4 abc,
 // the values returned are undefined."
 
 template <typename CoordT, typename DataT>
-DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
-                               /*All image information*/ range<3> ImgRange,
-                               id<3> ImgPitch,
-                               image_channel_type ImgChannelType,
-                               image_channel_order ImgChannelOrder,
-                               void *BasePtr, uint8_t ElementSize) {
-
-  coordinate_normalization_mode SmplNormMode =
-      Smpl.get_coordinate_normalization_mode();
-  addressing_mode SmplAddrMode = Smpl.get_addressing_mode();
-  filtering_mode SmplFiltMode = Smpl.get_filtering_mode();
+DataT imageReadSamplerHostImpl(
+    const CoordT &Coords, coordinate_normalization_mode SmplNormMode,
+    addressing_mode SmplAddrMode, filtering_mode SmplFiltMode,
+    /*All image information*/ range<3> ImgRange, id<3> ImgPitch,
+    image_channel_type ImgChannelType, image_channel_order ImgChannelOrder,
+    void *BasePtr, uint8_t ElementSize) {
 
   CoordT Coorduvw;
   float4 FloatCoorduvw;
@@ -1119,6 +1114,42 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
   }
 
   return RetData;
+}
+
+// SYCL 1.2.1 sampler overload.
+template <typename CoordT, typename DataT>
+DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
+                               /*All image information*/ range<3> ImgRange,
+                               id<3> ImgPitch,
+                               image_channel_type ImgChannelType,
+                               image_channel_order ImgChannelOrder,
+                               void *BasePtr, uint8_t ElementSize) {
+
+  coordinate_normalization_mode SmplNormMode =
+      Smpl.get_coordinate_normalization_mode();
+  addressing_mode SmplAddrMode = Smpl.get_addressing_mode();
+  filtering_mode SmplFiltMode = Smpl.get_filtering_mode();
+
+  return imageReadSamplerHostImpl<CoordT, DataT>(
+      Coords, SmplNormMode, SmplAddrMode, SmplFiltMode, ImgRange, ImgPitch,
+      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
+}
+
+// SYCL 2020 image_sampler overload.
+template <typename CoordT, typename DataT>
+DataT imageReadSamplerHostImpl(const CoordT &Coords, const image_sampler &Smpl,
+                               /*All image information*/ range<3> ImgRange,
+                               id<3> ImgPitch,
+                               image_channel_type ImgChannelType,
+                               image_channel_order ImgChannelOrder,
+                               void *BasePtr, uint8_t ElementSize) {
+  coordinate_normalization_mode SmplNormMode = Smpl.coordinate;
+  addressing_mode SmplAddrMode = Smpl.addressing;
+  filtering_mode SmplFiltMode = Smpl.filtering;
+
+  return imageReadSamplerHostImpl<CoordT, DataT>(
+      Coords, SmplNormMode, SmplAddrMode, SmplFiltMode, ImgRange, ImgPitch,
+      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
 }
 
 } // namespace detail

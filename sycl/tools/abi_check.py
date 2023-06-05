@@ -68,10 +68,10 @@ def parse_readobj_output(output):
   #
   # Case 1:
   # pi.hpp:
-  #   template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
+  #   template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
   #
   # pi.cpp:
-  #   template <backend BE> const plugin &getPlugin() {
+  #   template <backend BE> const PluginPtr &getPlugin() {
   #     static const plugin *Plugin = nullptr;
   #     ...
   #   }

@@ -27,6 +27,19 @@ extern llvm::cl::opt<bool> UseOpaquePointers;
 /*                           Utility Functions                                */
 /******************************************************************************/
 
+/// Determine whether \p SrcTy memref can be passed as argument to a parameter
+/// expecting a \p DstTy memref. The two memrefs must either have the same
+/// address space or the destination memref must be in the generic address
+/// space.
+static bool addressSpaceMatches(MemRefType SrcTy, MemRefType DstTy) {
+  if (SrcTy.getMemorySpace() == DstTy.getMemorySpace())
+    return true;
+
+  // Cast to a pointer with generic address space is always legal.
+  return DstTy.getMemorySpaceAsInt() ==
+         static_cast<unsigned>(sycl::AccessAddrSpace::GenericAccess);
+}
+
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
 /// callee arg type. We only deal with the cast where src and dst have the same
 /// shape size and elem type, and just the first shape differs: src has
@@ -39,19 +52,37 @@ static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
   if (MemRefType DstTy = dyn_cast_or_null<MemRefType>(CalleeArgType)) {
     MemRefType SrcTy = dyn_cast<MemRefType>(CallerArgType);
     if (SrcTy && DstTy.getElementType() == SrcTy.getElementType() &&
-        DstTy.getMemorySpace() == SrcTy.getMemorySpace()) {
+        addressSpaceMatches(SrcTy, DstTy)) {
       auto SrcShape = SrcTy.getShape();
       auto DstShape = DstTy.getShape();
 
+      Value Arg = CallerArg;
       if (SrcShape.size() == DstShape.size() && !SrcShape.empty() &&
           SrcShape[0] == ShapedType::kDynamic &&
           std::equal(std::next(SrcShape.begin()), SrcShape.end(),
                      std::next(DstShape.begin()))) {
         B.setInsertionPointAfterValue(CallerArg);
 
-        return B.create<memref::CastOp>(CallerArg.getLoc(), CalleeArgType,
-                                        CallerArg);
+        auto CastTy =
+            MemRefType::get(DstTy.getShape(), DstTy.getElementType(),
+                            DstTy.getLayout(), SrcTy.getMemorySpace());
+
+        Arg = B.create<memref::CastOp>(CallerArg.getLoc(), CastTy, CallerArg);
       }
+
+      if (SrcTy.getMemorySpace() != DstTy.getMemorySpace()) {
+        assert(memref::MemorySpaceCastOp::areCastCompatible(Arg.getType(),
+                                                            DstTy) &&
+               "Incompatible cast");
+        assert(
+            DstTy.getMemorySpaceAsInt() ==
+                static_cast<unsigned>(sycl::AccessAddrSpace::GenericAccess) &&
+            "Expecting generic address space");
+        B.setInsertionPointAfterValue(Arg);
+        Arg = B.create<memref::MemorySpaceCastOp>(Arg.getLoc(), DstTy, Arg);
+      }
+
+      return Arg;
     }
   }
 
@@ -433,6 +464,27 @@ ValueCategory MLIRScanner::callHelper(
   return nullptr;
 }
 
+void MLIRScanner::emitCallToInheritedCtor(
+    const clang::CXXInheritedCtorInitExpr *InheritedCtor, Value BasePtr,
+    FunctionOpInterface::BlockArgListType Args) {
+  // The constructor to call
+  clang::CXXConstructorDecl *CtorDecl = InheritedCtor->getConstructor();
+  FunctionToEmit F(*CtorDecl, FuncContext);
+  auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
+
+  // The arguments to the constructor
+  SmallVector<Value> CallArgs;
+  CallArgs.reserve(Args.size());
+
+  // The first argument will be given by the input pointer
+  CallArgs.emplace_back(BasePtr);
+  // The rest can be retrieved from the input args. The first argument is
+  // omitted as it is the pointer to the derived object.
+  std::copy(Args.begin() + 1, Args.end(), std::back_inserter(CallArgs));
+
+  Builder.create<func::CallOp>(Loc, ToCall, CallArgs);
+}
+
 std::pair<ValueCategory, bool>
 MLIRScanner::emitClangBuiltinCallExpr(clang::CallExpr *Expr) {
   switch (Expr->getBuiltinCallee()) {
@@ -508,11 +560,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
             while (auto *CE = dyn_cast<llvm::ConstantExpr>(LC))
               LC = CE->getOperand(0);
             std::string Val = cast<llvm::GlobalVariable>(LC)->getName().str();
-            return CommonArrayToPointer(ValueCategory(
-                Glob.getOrCreateGlobalLLVMString(
-                    Loc, Builder, Val, mlirclang::getFuncContext(Function)),
-                /*isReference*/ true,
-                mlir::IntegerType::get(Builder.getContext(), 8)));
+            return CommonArrayToPointer(
+                ValueCategory(Glob.getOrCreateGlobalLLVMString(
+                                  Loc, Builder, Val, FuncContext),
+                              /*isReference*/ true,
+                              mlir::IntegerType::get(Builder.getContext(), 8)));
           }
         }
     }
@@ -936,7 +988,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       }
     }
 
-  FunctionContext FuncContext = mlirclang::getFuncContext(Function);
   if (auto *Ic = dyn_cast<clang::ImplicitCastExpr>(Expr->getCallee()))
     if (auto *Sr = dyn_cast<clang::DeclRefExpr>(Ic->getSubExpr())) {
       if ((Sr->getDecl()->getIdentifier() &&
@@ -1150,7 +1201,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
     return ValueCategory(Called, IsReference, ElementType);
   }
 
-  FunctionToEmit F(*Callee, mlirclang::getInputContext(Builder));
+  FunctionToEmit F(*Callee, FuncContext);
   auto ToCall = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(F));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> Args;
@@ -1212,8 +1263,8 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
 
         if (isa<LLVM::LLVMPointerType>(Arg.getType())) {
           const clang::FunctionDecl *Callee = EmitCallee(Expr->getCallee());
-          LLVM::LLVMFuncOp StrcmpF = Glob.getOrCreateLLVMFunction(
-              Callee, mlirclang::getFuncContext(Function));
+          LLVM::LLVMFuncOp StrcmpF =
+              Glob.getOrCreateLLVMFunction(Callee, FuncContext);
           Builder.create<LLVM::CallOp>(
               Loc, StrcmpF,
               ValueRange({Builder.create<LLVM::BitcastOp>(
