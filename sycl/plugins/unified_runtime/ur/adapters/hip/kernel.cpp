@@ -284,7 +284,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
 
   UR_ASSERT(hKernel != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hArgValue != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  // Below sets kernel arg when zero-sized buffers are handled.
+  // In such case the corresponding memory is null.
+  if (hArgValue == nullptr) {
+    hKernel->set_kernel_arg(argIndex, 0, nullptr);
+    return UR_RESULT_SUCCESS;
+  }
 
   ur_result_t retErr = UR_RESULT_SUCCESS;
   try {
