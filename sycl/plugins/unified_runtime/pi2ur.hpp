@@ -1826,44 +1826,20 @@ inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
   return PI_SUCCESS;
 }
 
-// Special version of piKernelSetArg to accept pi_mem.
-inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                         const pi_mem *ArgValue) {
-
-  // TODO: the better way would probably be to add a new PI API for
-  // extracting native PI object from PI handle, and have SYCL
-  // RT pass that directly to the regular piKernelSetArg (and
-  // then remove this piextKernelSetArgMemObj).
-
-  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
-
-  ur_mem_handle_t UrMemory{};
-  if (ArgValue)
-    UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
-
-  // We don't yet know the device where this kernel will next be run on.
-  // Thus we can't know the actual memory allocation that needs to be used.
-  // Remember the memory object being used as an argument for this kernel
-  // to process it later when the device is known (at the kernel enqueue).
-  //
-  // TODO: for now we have to conservatively assume the access as read-write.
-  //       Improve that by passing SYCL buffer accessor type into
-  //       piextKernelSetArgMemObj.
-  //
-
-  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  HANDLE_ERRORS(urKernelSetArgMemObj(UrKernel, ArgIndex, UrMemory));
-  return PI_SUCCESS;
-}
-
 inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                size_t ArgSize, const void *ArgValue) {
+                                size_t ArgSize, const void *ArgValue, const pi_kernel_arg_properties *ArgProperties) {
 
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-
-  HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  if (ArgValue || !ArgProperties)
+  {
+    HANDLE_ERRORS(urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, ArgValue));
+  }
+  else
+  {
+    //
+  }
   return PI_SUCCESS;
 }
 

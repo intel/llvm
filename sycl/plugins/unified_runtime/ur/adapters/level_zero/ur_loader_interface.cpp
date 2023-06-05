@@ -139,7 +139,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
-  pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
   return retVal;
 }

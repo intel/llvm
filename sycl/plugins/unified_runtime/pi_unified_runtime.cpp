@@ -150,9 +150,8 @@ __SYCL_EXPORT pi_result piKernelCreate(pi_program Program,
 }
 
 __SYCL_EXPORT pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
-                                       size_t ArgSize, const void *ArgValue, const pi_kernel_arg_properties *arg_properties) {
-  std::ignore = arg_properties;
-  return pi2ur::piKernelSetArg(Kernel, ArgIndex, ArgSize, ArgValue);
+                                       size_t ArgSize, const void *ArgValue, const pi_kernel_arg_properties *ArgProperties) {
+  return pi2ur::piKernelSetArg(Kernel, ArgIndex, ArgSize, ArgValue, ArgProperties);
 }
 
 __SYCL_EXPORT pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,

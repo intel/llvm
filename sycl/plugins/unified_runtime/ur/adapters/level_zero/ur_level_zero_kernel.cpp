@@ -667,24 +667,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex,       ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t ArgValue ///< [in][optional] handle of Memory object.
-) {
-  std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  // The ArgValue may be a NULL pointer in which case a NULL value is used for
-  // the kernel argument declared as a pointer to global or constant memory.
-
-  ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
-
-  auto Arg = UrMem ? UrMem : nullptr;
-  Kernel->PendingArguments.push_back(
-      {ArgIndex, sizeof(void *), Arg, ur_mem_handle_t_::read_write});
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel.
     ur_native_handle_t
