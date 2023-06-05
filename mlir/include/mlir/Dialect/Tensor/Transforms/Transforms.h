@@ -34,9 +34,6 @@ FailureOr<TilingResult> replaceExtractSliceWithTiledProducer(
 // Populate functions.
 //===----------------------------------------------------------------------===//
 
-/// Collects a set of patterns to rewrite ops within the tensor dialect.
-void populateExpandOpsPatterns(RewritePatternSet &patterns);
-
 /// Appends patterns for folding tensor aliasing ops into consumer load/store
 /// ops into `patterns`.
 void populateFoldTensorSubsetOpPatterns(RewritePatternSet &patterns);
@@ -46,6 +43,11 @@ void populateFoldTensorSubsetOpPatterns(RewritePatternSet &patterns);
 /// bufferization is sensitive over IR structure, particularly those
 /// tensor.extract_slice and tensor.insert_slice ops for creating the slices.
 void populateMergeConsecutiveInsertExtractSlicePatterns(
+    RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that drop redundant tensor.insert_slice
+/// rank expansions.
+void populateDropRedundantInsertSliceRankExpansionPatterns(
     RewritePatternSet &patterns);
 
 /// Populates `patterns` with patterns that fold `tensor.expand_shape` and

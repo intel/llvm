@@ -150,11 +150,12 @@ def FuseIntoContainingOp :
 
   let description = [{
     Fuses the `producer_op` into the `containing_op`.
-    Returns a handle to the fused ops.
+    Returns a handle to the fused ops and the `new_containing_op`.
 
     The producer is typically a slice of a tileable op (i.e., implements
     TilingInterface). In that case, this transform computes the accessed
-    producer slice inside of the containing op ("tile and fuse"). Otherwise,
+    producer slice inside of the containing op ("tile and fuse") and if required,
+    creates a new containing op with outputs from the fused producer. Otherwise,
     the entire producer is cloned inside the containing op ("clone and fuse").
 
     The containing op handle must be associated with exactly one payload op. The
@@ -1528,7 +1529,8 @@ def TileOp : Op<Transform_Dialect, "structured.tile",
   let arguments = (ins TransformHandleTypeInterface:$target,
                    Variadic<TransformParamTypeOrAnyHandle>:$dynamic_sizes,
                    DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$static_sizes,
-                   DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$interchange);
+                   DefaultValuedOptionalAttr<DenseI64ArrayAttr, "{}">:$interchange,
+                   DefaultValuedOptionalAttr<BoolAttr, "false">:$last_tile_size_scalable);
   let results = (outs TransformHandleTypeInterface:$tiled_linalg_op,
                       Variadic<TransformHandleTypeInterface>:$loops);
   let builders = [

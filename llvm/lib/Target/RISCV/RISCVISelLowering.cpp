@@ -5261,7 +5261,7 @@ static SDValue getTargetNode(JumpTableSDNode *N, SDLoc DL, EVT Ty,
 
 template <class NodeTy>
 SDValue RISCVTargetLowering::getAddr(NodeTy *N, SelectionDAG &DAG,
-                                     bool IsLocal) const {
+                                     bool IsLocal, bool IsExternWeak) const {
   SDLoc DL(N);
   EVT Ty = getPointerTy(DAG.getDataLayout());
 
@@ -5278,7 +5278,7 @@ SDValue RISCVTargetLowering::getAddr(NodeTy *N, SelectionDAG &DAG,
       return DAG.getNode(RISCVISD::LLA, DL, Ty, Addr);
 
     // Use PC-relative addressing to access the GOT for this symbol, then load
-    // the address from the GOT. This generates the pattern (PseudoLA sym),
+    // the address from the GOT. This generates the pattern (PseudoLGA sym),
     // which expands to (ld (addi (auipc %got_pcrel_hi(sym)) %pcrel_lo(auipc))).
     MachineFunction &MF = DAG.getMachineFunction();
     MachineMemOperand *MemOp = MF.getMachineMemOperand(
@@ -5287,7 +5287,7 @@ SDValue RISCVTargetLowering::getAddr(NodeTy *N, SelectionDAG &DAG,
             MachineMemOperand::MOInvariant,
         LLT(Ty.getSimpleVT()), Align(Ty.getFixedSizeInBits() / 8));
     SDValue Load =
-        DAG.getMemIntrinsicNode(RISCVISD::LA, DL, DAG.getVTList(Ty, MVT::Other),
+        DAG.getMemIntrinsicNode(RISCVISD::LGA, DL, DAG.getVTList(Ty, MVT::Other),
                                 {DAG.getEntryNode(), Addr}, Ty, MemOp);
     return Load;
   }
@@ -5304,10 +5304,28 @@ SDValue RISCVTargetLowering::getAddr(NodeTy *N, SelectionDAG &DAG,
     return DAG.getNode(RISCVISD::ADD_LO, DL, Ty, MNHi, AddrLo);
   }
   case CodeModel::Medium: {
+    SDValue Addr = getTargetNode(N, DL, Ty, DAG, 0);
+    if (IsExternWeak) {
+      // An extern weak symbol may be undefined, i.e. have value 0, which may
+      // not be within 2GiB of PC, so use GOT-indirect addressing to access the
+      // symbol. This generates the pattern (PseudoLGA sym), which expands to
+      // (ld (addi (auipc %got_pcrel_hi(sym)) %pcrel_lo(auipc))).
+      MachineFunction &MF = DAG.getMachineFunction();
+      MachineMemOperand *MemOp = MF.getMachineMemOperand(
+          MachinePointerInfo::getGOT(MF),
+          MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
+              MachineMemOperand::MOInvariant,
+          LLT(Ty.getSimpleVT()), Align(Ty.getFixedSizeInBits() / 8));
+      SDValue Load =
+          DAG.getMemIntrinsicNode(RISCVISD::LGA, DL,
+                                  DAG.getVTList(Ty, MVT::Other),
+                                  {DAG.getEntryNode(), Addr}, Ty, MemOp);
+      return Load;
+    }
+
     // Generate a sequence for accessing addresses within any 2GiB range within
     // the address space. This generates the pattern (PseudoLLA sym), which
     // expands to (addi (auipc %pcrel_hi(sym)) %pcrel_lo(auipc)).
-    SDValue Addr = getTargetNode(N, DL, Ty, DAG, 0);
     return DAG.getNode(RISCVISD::LLA, DL, Ty, Addr);
   }
   }
@@ -5317,7 +5335,8 @@ SDValue RISCVTargetLowering::lowerGlobalAddress(SDValue Op,
                                                 SelectionDAG &DAG) const {
   GlobalAddressSDNode *N = cast<GlobalAddressSDNode>(Op);
   assert(N->getOffset() == 0 && "unexpected offset in global node");
-  return getAddr(N, DAG, N->getGlobal()->isDSOLocal());
+  const GlobalValue *GV = N->getGlobal();
+  return getAddr(N, DAG, GV->isDSOLocal(), GV->hasExternalWeakLinkage());
 }
 
 SDValue RISCVTargetLowering::lowerBlockAddress(SDValue Op,
@@ -11119,6 +11138,10 @@ static SDValue performFP_TO_INTCombine(SDNode *N,
 
   SDValue Src = N->getOperand(0);
 
+  // Don't do this for strict-fp Src.
+  if (Src->isStrictFPOpcode() || Src->isTargetStrictFPOpcode())
+    return SDValue();
+
   // Ensure the FP type is legal.
   if (!TLI.isTypeLegal(Src.getValueType()))
     return SDValue();
@@ -11217,6 +11240,10 @@ static SDValue performFP_TO_INT_SATCombine(SDNode *N,
     return SDValue();
 
   SDValue Src = N->getOperand(0);
+
+  // Don't do this for strict-fp Src.
+  if (Src->isStrictFPOpcode() || Src->isTargetStrictFPOpcode())
+    return SDValue();
 
   // Ensure the FP type is also legal.
   if (!TLI.isTypeLegal(Src.getValueType()))
@@ -15279,8 +15306,8 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(ADD_LO)
   NODE_NAME_CASE(HI)
   NODE_NAME_CASE(LLA)
+  NODE_NAME_CASE(LGA)
   NODE_NAME_CASE(ADD_TPREL)
-  NODE_NAME_CASE(LA)
   NODE_NAME_CASE(LA_TLS_IE)
   NODE_NAME_CASE(LA_TLS_GD)
   NODE_NAME_CASE(MULHSU)
