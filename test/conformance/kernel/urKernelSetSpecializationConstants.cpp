@@ -7,6 +7,8 @@
 
 struct urKernelSetSpecializationConstantsTest : uur::urKernelExecutionTest {
     void SetUp() override {
+        program_name = "spec_constant";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
         bool supports_kernel_spec_constant = false;
         ASSERT_SUCCESS(urDeviceGetInfo(
             device, UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS,
@@ -16,8 +18,6 @@ struct urKernelSetSpecializationConstantsTest : uur::urKernelExecutionTest {
             GTEST_SKIP()
                 << "Device does not support setting kernel spec constants.";
         }
-        program_name = "spec_constant";
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
     }
 
     uint32_t spec_value = 42;
