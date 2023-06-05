@@ -1158,7 +1158,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
-  if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
+  if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
@@ -1193,6 +1193,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
               continue;
             }
             UserTargetName = "amdgcn-amd-amdhsa";
+          } else if (Val == "native_cpu") {
+            const ToolChain *HostTC =
+                C.getSingleOffloadToolChain<Action::OFK_Host>();
+            llvm::Triple HostTriple = HostTC->getTriple();
+            UniqueSYCLTriplesVec.push_back(HostTriple);
+            addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
+            continue;
           }
 
           if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
@@ -1260,11 +1267,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLAddTargets->getAsString(C.getInputArgs());
     }
-  } else if (IsSYCLNativeCPU) {
-    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    llvm::Triple HostTriple = HostTC->getTriple();
-    UniqueSYCLTriplesVec.push_back(HostTriple);
-    addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
   } else {
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
@@ -5448,6 +5450,11 @@ class OffloadingActionBuilder final {
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+        // Todo: currently we assume that if none of the above is true, we are
+        // handling actions for Native CPU. This is a very strong assumption
+        // and we should find a better way to identify it, e.g. if the device
+        // triple is the same as the host.
+        bool isSYCLNativeCPU = !isNVPTX && !isAMDGCN && !isSPIR && !isSpirvAOT;
         for (const auto &Input : LI) {
           if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
               types::isFPGA(Input->getType())) {
@@ -5669,8 +5676,7 @@ class OffloadingActionBuilder final {
           } else
             FullDeviceLinkAction = FullLinkObject;
 
-          bool IsSYCLNativeCPU = isSYCLNativeCPU(Args);
-          if (IsSYCLNativeCPU) {
+          if (isSYCLNativeCPU) {
             // for SYCL Native CPU, we just take the linked device
             // modules, lower them to an object file , and link it to the host
             // object file.
@@ -9715,8 +9721,8 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
             break;
           default:
             if (isSYCLNativeCPU(Args)) {
-          TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
-                                                           HostTC, Args);
+              TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
+                                                               HostTC, Args);
             }
           break;
         }
