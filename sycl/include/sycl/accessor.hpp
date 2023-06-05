@@ -2246,7 +2246,7 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
-  template <access::decorated IsDecorated>
+  template <access::decorated IsDecorated = access::decorated::no>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
@@ -3010,7 +3010,7 @@ public:
     return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
   }
 
-  template <access::decorated IsDecorated>
+  template <access::decorated IsDecorated = access::decorated::no>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
