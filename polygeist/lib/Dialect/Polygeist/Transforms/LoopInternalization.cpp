@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
@@ -22,6 +23,7 @@
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
@@ -107,17 +109,62 @@ void createLocalBarrier(OpBuilder &builder) {
           spirv::MemorySemantics::WorkgroupMemory);
 }
 
+/// Return true if \p op potentially writes the same memory as \p memRefAccess.
+bool mayConflictWithWrite(affine::MemRefAccess memRefAccess, Operation *op,
+                          AliasAnalysis &AA) {
+  if (op == memRefAccess.opInst || isMemoryEffectFree(op))
+    return false;
+
+  // Conservatively assume operations with unknown memory effects may
+  // conflict.
+  if (!isa<MemoryEffectOpInterface>(op) &&
+      !op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+    return true;
+
+  if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
+    SmallVector<MemoryEffects::EffectInstance, 1> effects;
+    memEffect.getEffects(effects);
+
+    return any_of(effects, [&](const MemoryEffects::EffectInstance &EI) {
+      if (isa<MemoryEffects::Read>(EI.getEffect()))
+        return false;
+
+      AliasResult aliasRes = AA.alias(EI.getValue(), memRefAccess.memref);
+      return !aliasRes.isNo();
+    });
+  }
+
+  return false;
+}
+
+/// Return true if any operation in \p loop potentially writes the same memory
+/// as \p memRefAccess.
+bool mayConflictWithWriteInLoop(affine::MemRefAccess memRefAccess,
+                                LoopLikeOpInterface loop, AliasAnalysis &AA) {
+  WalkResult walkResult = loop->walk([&](Operation *op) {
+    if (mayConflictWithWrite(memRefAccess, op, AA)) {
+      LLVM_DEBUG(llvm::dbgs() << "Found conflict between " << *op << " and "
+                              << *memRefAccess.opInst << "\n");
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+
+  return walkResult.wasInterrupted();
+}
+
 //===----------------------------------------------------------------------===//
 // MemorySelector
 //===----------------------------------------------------------------------===//
 
-/// Collect memory accesses in a loop and determine the memory space each access
-/// should ideally use.
+/// Collect memory accesses in a loop and determine the memory space each
+/// access should ideally use.
 class MemorySelector {
 public:
-  MemorySelector(const MemoryAccessAnalysis &memAccessAnalysis,
-                 DataFlowSolver &solver)
-      : memAccessAnalysis(memAccessAnalysis), solver(solver) {}
+  MemorySelector(MemoryAccessAnalysis &memAccessAnalysis,
+                 AliasAnalysis &aliasAnalysis, DataFlowSolver &solver)
+      : memAccessAnalysis(memAccessAnalysis), aliasAnalysis(aliasAnalysis),
+        solver(solver) {}
 
   /// The kind of accesses to consider.
   enum class AccessKind { ReadOnly, WriteOnly, ReadWrite };
@@ -132,23 +179,17 @@ public:
   void analyze(LoopLikeOpInterface loop, AccessKind accessKind);
 
 private:
-  /// Return true iff no memref accesses in \p memRefAccesses are stores.
-  bool areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses) const;
-
-  /// Return true iff all memref accesses in \p memRefAccesses are stores.
-  bool areWriteOnly(ArrayRef<affine::MemRefAccess> memRefAccesses) const;
-
-  /// Return true if memref accesses in \p memRefAccesses are a mix of loads and
-  /// stores.
-  bool areReadWrite(ArrayRef<affine::MemRefAccess> memRefAccesses) const;
+  /// Return true iff no memref accesses in \p accesses are stores.
+  bool areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
+                   LoopLikeOpInterface loop);
 
   /// Determine whether \p memRefAccess exhibits temporal reuse.
   bool hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
                         const SmallVectorImpl<Value> &threadVars) const;
 
 private:
-  const MemoryAccessAnalysis &memAccessAnalysis;
-
+  MemoryAccessAnalysis &memAccessAnalysis;
+  AliasAnalysis &aliasAnalysis;
   DataFlowSolver &solver;
 
   /// The preferred memory space for each memref access.
@@ -178,32 +219,27 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       return;
 
     affine::MemRefAccess memRefAccess(op);
-    memRefToMemRefAccesses[memRefAccess.memref] = {memRefAccess};
-  });
 
-  // Return true iff the memref accesses are of the requested kind.
-  auto areOfRequestedKind = [&](ArrayRef<affine::MemRefAccess> memRefAccess) {
-    switch (accessKind) {
-    case AccessKind::ReadOnly:
-      return areReadOnly(memRefAccess);
-    case AccessKind::WriteOnly:
-      return areWriteOnly(memRefAccess);
-    case AccessKind::ReadWrite:
-      return areReadWrite(memRefAccess);
-    }
-  };
+    auto it = memRefToMemRefAccesses.find(memRefAccess.memref);
+    if (it == memRefToMemRefAccesses.end())
+      memRefToMemRefAccesses[memRefAccess.memref] = {memRefAccess};
+    else
+      memRefToMemRefAccesses[memRefAccess.memref].push_back(memRefAccess);
+  });
 
   // Analyze the memref accesses collected and populate the map.
   for (auto &entry : memRefToMemRefAccesses) {
+    Value memRef = entry.first;
     ArrayRef<affine::MemRefAccess> memRefAccesses = entry.second;
 
-    // Skip memref accesses that aren't of the requested kind.
-    // TODO: consider aliased accesses.
-    if (!areOfRequestedKind(memRefAccesses))
+    // If interested in read-only memref accesses, ensure none of them is a
+    // store or aliases a write operation in the loop.
+    if (accessKind == AccessKind::ReadOnly &&
+        !areReadOnly(memRefAccesses, loop))
       continue;
 
-    // Note: all our candidate memref accesses have the same subscript and zero
-    // index therefore we need to analyze the first one only.
+    // Note: all our candidate memref accesses have the same subscript and
+    // zero index therefore we need to analyze the first one only.
     const affine::MemRefAccess &memRefAccess = memRefAccesses.front();
     LLVM_DEBUG(llvm::dbgs() << "Classify: " << *memRefAccess.opInst << "\n");
 
@@ -225,7 +261,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     case Reverse:
     case ReverseLinear:
       // These patterns imply fully coalesced memory accesses.
-      memRefAccessToMemSpace[memRefAccess.memref] = MemorySpace::Global;
+      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
       break;
     case Shifted:
     case LinearShifted:
@@ -233,7 +269,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     case LinearOverlapped:
     case ReverseLinearOverlapped:
       // These patterns imply partially coalesced memory accesses.
-      memRefAccessToMemSpace[memRefAccess.memref] = MemorySpace::Global;
+      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
       break;
     case Strided:
     case ReverseStrided:
@@ -269,52 +305,31 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
                  constVal.value() == 0)
         useSharedMemory = hasTemporalReuse(memRefAccess, threadVars);
 
-      memRefAccessToMemSpace[memRefAccess.memref] =
+      memRefAccessToMemSpace[memRef] =
           useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
     } break;
     default:
-      memRefAccessToMemSpace[memRefAccess.memref] = MemorySpace::Global;
+      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
     }
 
     LLVM_DEBUG({
-      if (memRefAccessToMemSpace.at(memRefAccess.memref) == MemorySpace::Shared)
+      if (memRefAccessToMemSpace.at(memRef) == MemorySpace::Shared)
         llvm::dbgs().indent(2) << "shared memory space\n";
       else {
-        assert(memRefAccessToMemSpace.at(memRefAccess.memref) ==
-               MemorySpace::Global);
+        assert(memRefAccessToMemSpace.at(memRef) == MemorySpace::Global);
         llvm::dbgs().indent(2) << "global memory space\n";
       }
     });
   }
 }
 
-bool MemorySelector::areReadOnly(
-    ArrayRef<affine::MemRefAccess> memRefAccesses) const {
-  return llvm::none_of(memRefAccesses,
-                       [](const affine::MemRefAccess &memRefAccess) {
-                         return memRefAccess.isStore();
-                       });
-}
-
-bool MemorySelector::areWriteOnly(
-    ArrayRef<affine::MemRefAccess> memRefAccesses) const {
-  return llvm::all_of(memRefAccesses,
-                      [](const affine::MemRefAccess &memRefAccess) {
-                        return memRefAccess.isStore();
-                      });
-}
-
-bool MemorySelector::areReadWrite(
-    ArrayRef<affine::MemRefAccess> memRefAccesses) const {
-  bool hasStores = llvm::any_of(memRefAccesses,
-                                [](const affine::MemRefAccess &memRefAccess) {
-                                  return memRefAccess.isStore();
-                                });
-  bool hasLoads = llvm::any_of(memRefAccesses,
-                               [](const affine::MemRefAccess &memRefAccess) {
-                                 return !memRefAccess.isStore();
-                               });
-  return hasLoads && hasStores;
+bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
+                                 LoopLikeOpInterface loop) {
+  return llvm::none_of(
+      memRefAccesses, [&](const affine::MemRefAccess &memRefAccess) {
+        return memRefAccess.isStore() ||
+               mayConflictWithWriteInLoop(memRefAccess, loop, aliasAnalysis);
+      });
 }
 
 bool MemorySelector::hasTemporalReuse(
@@ -325,8 +340,8 @@ bool MemorySelector::hasTemporalReuse(
   if (!access)
     return false;
 
-  // A non-zero intra-thread access matrix implies that multiple threads access
-  // the same array element (in a loop).
+  // A non-zero intra-thread access matrix implies that multiple threads
+  // access the same array element (in a loop).
   return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero(solver);
 }
 
@@ -344,8 +359,8 @@ private:
   /// Construct a map from memref accesses in \p loop to their ideal memory
   /// space.
   void selectMemorySpace(LoopLikeOpInterface loop,
-                         const MemoryAccessAnalysis &memAccessAnalysis,
-                         DataFlowSolver &solver);
+                         MemoryAccessAnalysis &memAccessAnalysis,
+                         AliasAnalysis &aliasAnalysis, DataFlowSolver &solver);
 
   /// Determine the tile size for \p loop.
   Value getTileSize(LoopLikeOpInterface loop) const;
@@ -369,6 +384,8 @@ void LoopInternalization::runOnOperation() {
   AnalysisManager am = mam;
   auto &memAccessAnalysis =
       am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   // Walk each function in the module.
   module->walk([&](FunctionOpInterface func) {
@@ -407,7 +424,8 @@ void LoopInternalization::runOnOperation() {
 
       // Determine the ideal memory space for memref accesses contained in the
       // innermost loop.
-      selectMemorySpace(*innermostLoop, memAccessAnalysis, solver);
+      selectMemorySpace(*innermostLoop, memAccessAnalysis, aliasAnalysis,
+                        solver);
 
       // TODO: prioritize the array accesses that should use shared memory.
       // prioritize(memAccessAnalysis, solver);
@@ -421,14 +439,15 @@ void LoopInternalization::runOnOperation() {
                         MemorySelector::MemorySpace::Shared);
               });
 
-      // No need to transform if no accesses need to be promoted to shared local
-      // memory.
+      // No need to transform if no accesses need to be promoted to shared
+      // local memory.
       if (loopToSharedMemref.at(entry.first).empty())
         loopToSharedMemref.erase(entry.first);
     }
 
     // Now that we have the ideal memory space for all analyzable memref
-    // accesses in each loop nest's innermost loop, perform the transformation.
+    // accesses in each loop nest's innermost loop, perform the
+    // transformation.
     for (auto &entry : loopToSharedMemref) {
       TypeSwitch<Operation *>(entry.first)
           .Case<affine::AffineForOp, scf::ForOp>(
@@ -438,8 +457,8 @@ void LoopInternalization::runOnOperation() {
 }
 
 void LoopInternalization::selectMemorySpace(
-    LoopLikeOpInterface loop, const MemoryAccessAnalysis &memAccessAnalysis,
-    DataFlowSolver &solver) {
+    LoopLikeOpInterface loop, MemoryAccessAnalysis &memAccessAnalysis,
+    AliasAnalysis &aliasAnalysis, DataFlowSolver &solver) {
   assert(LoopTools::getInnermostLoop(loop) && "Expecting an innermost loop");
   assert(loopToMemref.find(loop) == loopToMemref.end() &&
          "The loop should not be already present in the map");
@@ -447,7 +466,7 @@ void LoopInternalization::selectMemorySpace(
   // Use the memory selector to determine the ideal memory space for memref
   // accesses in the innermost loop.
   // TODO: allow memory selection on read-write accesses.
-  MemorySelector memorySelector(memAccessAnalysis, solver);
+  MemorySelector memorySelector(memAccessAnalysis, aliasAnalysis, solver);
   memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
