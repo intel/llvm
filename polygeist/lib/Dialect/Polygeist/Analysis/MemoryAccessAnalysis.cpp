@@ -1091,7 +1091,7 @@ MemoryAccess::getIntraThreadAccessMatrix(unsigned numGridDimensions) const {
          "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
   if (numGridDimensions == 0)
-    return {};
+    return matrix;
 
   std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
   std::iota(v.begin(), v.end(), numGridDimensions);
@@ -1105,7 +1105,7 @@ MemoryAccess::getInterThreadAccessMatrix(unsigned numGridDimensions) const {
          "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
   if (numGridDimensions == 0)
-    return matrix;
+    return {};
 
   std::vector<size_t> v(numGridDimensions);
   std::iota(v.begin(), v.end(), 0);
