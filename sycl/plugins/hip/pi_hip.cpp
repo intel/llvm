@@ -5163,17 +5163,18 @@ pi_result hip_piextUSMFree(pi_context context, void *ptr) {
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
+    bool is_managed;
     unsigned int type;
-    hipPointerAttribute_t hipPointerAttributeType;
-    result =
-        PI_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-    type = hipPointerAttributeType.memoryType;
-    assert(type == hipMemoryTypeDevice or type == hipMemoryTypeHost);
-    if (type == hipMemoryTypeDevice) {
+    void *data[2] = {&is_managed, &type};
+    hipPointer_attribute attributes[2] = {HIP_POINTER_ATTRIBUTE_IS_MANAGED,
+                                          HIP_POINTER_ATTRIBUTE_MEMORY_TYPE};
+    result = PI_CHECK_ERROR(hipDrvPointerGetAttributes(
+        2, attributes, data, reinterpret_cast<hipDeviceptr_t>(ptr)));
+    assert(type == hipMemoryTypeDevice || type == hipMemoryTypeHost);
+    if (is_managed || type == hipMemoryTypeDevice) {
       result = PI_CHECK_ERROR(hipFree(ptr));
-    }
-    if (type == hipMemoryTypeHost) {
-      result = PI_CHECK_ERROR(hipFreeHost(ptr));
+    } else {
+      result = PI_CHECK_ERROR(hipHostFree(ptr));
     }
   } catch (pi_result error) {
     result = error;
