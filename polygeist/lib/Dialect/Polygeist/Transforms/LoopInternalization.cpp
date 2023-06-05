@@ -125,25 +125,25 @@ public:
   /// Enumerate memory spaces.
   enum class MemorySpace { Global, Shared, Constant, Texture };
 
-  /// Returns the most suitable memory space the \p op should use.
-  std::optional<MemorySpace> getMemorySpace(Operation *op) const;
+  /// Returns the most suitable memory space the \p memref should use.
+  std::optional<MemorySpace> getMemorySpace(Value memref) const;
 
   /// Analyze the memory accesses in the given loop.
   void analyze(LoopLikeOpInterface loop, AccessKind accessKind);
 
 private:
-  /// Return true iff no memref accesses in \p accesses are stores.
-  bool areReadOnly(ArrayRef<affine::MemRefAccess> accesses) const;
+  /// Return true iff no memref accesses in \p memRefAccesses are stores.
+  bool areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses) const;
 
-  /// Return true iff all memref accesses in \p accesses are stores.
-  bool areWriteOnly(ArrayRef<affine::MemRefAccess> accesses) const;
+  /// Return true iff all memref accesses in \p memRefAccesses are stores.
+  bool areWriteOnly(ArrayRef<affine::MemRefAccess> memRefAccesses) const;
 
-  /// Return true if memref accesses in \p accesses are a mix of loads and
+  /// Return true if memref accesses in \p memRefAccesses are a mix of loads and
   /// stores.
-  bool areReadWrite(ArrayRef<affine::MemRefAccess> accesses) const;
+  bool areReadWrite(ArrayRef<affine::MemRefAccess> memRefAccesses) const;
 
-  /// Determine whether the memref \access exhibits temporal reuse.
-  bool hasTemporalReuse(const affine::MemRefAccess &access,
+  /// Determine whether \p memRefAccess exhibits temporal reuse.
+  bool hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
                         const SmallVectorImpl<Value> &threadVars) const;
 
 private:
@@ -152,13 +152,15 @@ private:
   DataFlowSolver &solver;
 
   /// The preferred memory space for each memref access.
-  DenseMap<Operation *, MemorySpace> accessToMemSpace;
+  DenseMap<Value, MemorySpace> memRefAccessToMemSpace;
 };
 
 std::optional<MemorySelector::MemorySpace>
-MemorySelector::getMemorySpace(Operation *op) const {
-  auto it = accessToMemSpace.find(op);
-  if (it == accessToMemSpace.end())
+MemorySelector::getMemorySpace(Value memref) const {
+  assert(isa<MemRefType>(memref.getType()) && "Expecting a memref");
+
+  auto it = memRefAccessToMemSpace.find(memref);
+  if (it == memRefAccessToMemSpace.end())
     return std::nullopt;
   return it->second;
 }
@@ -170,45 +172,45 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       memAccessAnalysis.getThreadVector(funcOp, solver);
 
   // Collect candidate memref accesses in the loop.
-  DenseMap<Value, SmallVector<affine::MemRefAccess>> accesses;
+  DenseMap<Value, SmallVector<affine::MemRefAccess>> memRefToMemRefAccesses;
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
     if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
       return;
 
-    affine::MemRefAccess access(op);
-    accesses[access.memref] = {access};
+    affine::MemRefAccess memRefAccess(op);
+    memRefToMemRefAccesses[memRefAccess.memref] = {memRefAccess};
   });
 
-  // Return true iff the accesses are all of the requested access kind.
-  auto areOfRequestedKind = [&](ArrayRef<affine::MemRefAccess> accesses) {
+  // Return true iff the memref accesses are of the requested kind.
+  auto areOfRequestedKind = [&](ArrayRef<affine::MemRefAccess> memRefAccess) {
     switch (accessKind) {
     case AccessKind::ReadOnly:
-      return areReadOnly(accesses);
+      return areReadOnly(memRefAccess);
     case AccessKind::WriteOnly:
-      return areWriteOnly(accesses);
+      return areWriteOnly(memRefAccess);
     case AccessKind::ReadWrite:
-      return areReadWrite(accesses);
+      return areReadWrite(memRefAccess);
     }
   };
 
-  // Analyze the accesses collected and populate the 'accessToMemSpace' map.
-  for (auto &entry : accesses) {
-    ArrayRef<affine::MemRefAccess> accesses = entry.second;
+  // Analyze the memref accesses collected and populate the map.
+  for (auto &entry : memRefToMemRefAccesses) {
+    ArrayRef<affine::MemRefAccess> memRefAccesses = entry.second;
 
-    // Skip accesses that aren't of the requested kind.
+    // Skip memref accesses that aren't of the requested kind.
     // TODO: consider aliased accesses.
-    if (!areOfRequestedKind(accesses))
+    if (!areOfRequestedKind(memRefAccesses))
       continue;
 
-    // Note: all our candidate accesses have the same subscript and zero index
-    // therefore we need to analyze the first one only.
-    const affine::MemRefAccess &access = accesses.front();
-    LLVM_DEBUG(llvm::dbgs() << "Classify: " << *access.opInst << "\n");
+    // Note: all our candidate memref accesses have the same subscript and zero
+    // index therefore we need to analyze the first one only.
+    const affine::MemRefAccess &memRefAccess = memRefAccesses.front();
+    LLVM_DEBUG(llvm::dbgs() << "Classify: " << *memRefAccess.opInst << "\n");
 
     std::optional<MemoryAccess> memAccess =
-        memAccessAnalysis.getMemoryAccess(access);
+        memAccessAnalysis.getMemoryAccess(memRefAccess);
     if (!memAccess.has_value()) {
-      LLVM_DEBUG(llvm::dbgs() << "Unable to analyze memory access\n");
+      LLVM_DEBUG(llvm::dbgs() << "Unable to analyze memref access\n");
       continue;
     }
 
@@ -223,7 +225,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     case Reverse:
     case ReverseLinear:
       // These patterns imply fully coalesced memory accesses.
-      accessToMemSpace[access.opInst] = MemorySpace::Global;
+      memRefAccessToMemSpace[memRefAccess.memref] = MemorySpace::Global;
       break;
     case Shifted:
     case LinearShifted:
@@ -231,7 +233,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     case LinearOverlapped:
     case ReverseLinearOverlapped:
       // These patterns imply partially coalesced memory accesses.
-      accessToMemSpace[access.opInst] = MemorySpace::Global;
+      memRefAccessToMemSpace[memRefAccess.memref] = MemorySpace::Global;
       break;
     case Strided:
     case ReverseStrided:
@@ -258,27 +260,28 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       bool useSharedMemory = false;
       if (auto stride = getConstIntegerValue(strideVal, solver)) {
         bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
-        useSharedMemory = hasTemporalReuse(access, threadVars) &&
+        useSharedMemory = hasTemporalReuse(memRefAccess, threadVars) &&
                           (stride->isZero() || strideIsLargeEnough);
         // FIXME: getConstIntegerValue doesn't return zero for
         // ConstantIndexOp.
       } else if (auto constVal = dyn_cast<arith::ConstantIndexOp>(
                      strideVal.getDefiningOp());
                  constVal.value() == 0)
-        useSharedMemory = hasTemporalReuse(access, threadVars);
+        useSharedMemory = hasTemporalReuse(memRefAccess, threadVars);
 
-      accessToMemSpace[access.opInst] =
+      memRefAccessToMemSpace[memRefAccess.memref] =
           useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
     } break;
     default:
-      accessToMemSpace[access.opInst] = MemorySpace::Global;
+      memRefAccessToMemSpace[memRefAccess.memref] = MemorySpace::Global;
     }
 
     LLVM_DEBUG({
-      if (accessToMemSpace.at(access.opInst) == MemorySpace::Shared)
+      if (memRefAccessToMemSpace.at(memRefAccess.memref) == MemorySpace::Shared)
         llvm::dbgs().indent(2) << "shared memory space\n";
       else {
-        assert(accessToMemSpace.at(access.opInst) == MemorySpace::Global);
+        assert(memRefAccessToMemSpace.at(memRefAccess.memref) ==
+               MemorySpace::Global);
         llvm::dbgs().indent(2) << "global memory space\n";
       }
     });
@@ -286,29 +289,31 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
 }
 
 bool MemorySelector::areReadOnly(
-    ArrayRef<affine::MemRefAccess> accesses) const {
-  return llvm::none_of(accesses, [](const affine::MemRefAccess &access) {
-    return access.isStore();
-  });
+    ArrayRef<affine::MemRefAccess> memRefAccesses) const {
+  return llvm::none_of(memRefAccesses,
+                       [](const affine::MemRefAccess &memRefAccess) {
+                         return memRefAccess.isStore();
+                       });
 }
 
 bool MemorySelector::areWriteOnly(
-    ArrayRef<affine::MemRefAccess> accesses) const {
-  return llvm::all_of(accesses, [](const affine::MemRefAccess &access) {
-    return access.isStore();
-  });
+    ArrayRef<affine::MemRefAccess> memRefAccesses) const {
+  return llvm::all_of(memRefAccesses,
+                      [](const affine::MemRefAccess &memRefAccess) {
+                        return memRefAccess.isStore();
+                      });
 }
 
 bool MemorySelector::areReadWrite(
-    ArrayRef<affine::MemRefAccess> accesses) const {
-  bool hasStores =
-      llvm::any_of(accesses, [](const affine::MemRefAccess &access) {
-        return access.isStore();
-      });
-  bool hasLoads =
-      llvm::any_of(accesses, [](const affine::MemRefAccess &access) {
-        return !access.isStore();
-      });
+    ArrayRef<affine::MemRefAccess> memRefAccesses) const {
+  bool hasStores = llvm::any_of(memRefAccesses,
+                                [](const affine::MemRefAccess &memRefAccess) {
+                                  return memRefAccess.isStore();
+                                });
+  bool hasLoads = llvm::any_of(memRefAccesses,
+                               [](const affine::MemRefAccess &memRefAccess) {
+                                 return !memRefAccess.isStore();
+                               });
   return hasLoads && hasStores;
 }
 
@@ -458,7 +463,7 @@ void LoopInternalization::selectMemorySpace(
 
     // Compute the ideal memory space if possible.
     std::optional<MemorySelector::MemorySpace> memSpace =
-        memorySelector.getMemorySpace(op);
+        memorySelector.getMemorySpace(memRefAccess.memref);
     if (!memSpace)
       return;
 
