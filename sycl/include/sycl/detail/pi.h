@@ -1435,9 +1435,9 @@ typedef enum {
 using pi_kernel_exec_info = _pi_kernel_exec_info;
 
 typedef enum {
-  read_write,
-  read,
-  write
+  PI_ACCESS_READ_WRITE,
+  PI_ACCESS_READ,
+  PI_ACCESS_WRITE
 } _pi_mem_obj_access;
 using pi_mem_obj_access = _pi_mem_obj_access;
 

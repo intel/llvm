@@ -2174,6 +2174,20 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
+pi_mem_obj_access AccessModeToPi(access::mode AccessorMode)
+{
+  switch (AccessorMode)
+  {
+    case access::mode::read:
+      return PI_ACCESS_READ;
+    case access::mode::write:
+    case access::mode::discard_write:
+      return PI_ACCESS_WRITE;
+    default:
+      return PI_ACCESS_READ_WRITE;
+  }
+}
+
 static pi_result SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
@@ -2201,7 +2215,7 @@ static pi_result SetKernelParamsAndLaunch(
       pi_kernel_arg_properties Props{};
       Props.type = PI_KERNEL_ARG_MEM_OBJ;
       Props.property = static_cast<void*>(&MemObjData);
-      Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, 0
+      Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, 0,
                                                          nullptr, &Props);
       break;
     }
@@ -2235,11 +2249,11 @@ static pi_result SetKernelParamsAndLaunch(
   
       pi_kernel_arg_mem_obj MemObjData{};
       MemObjData.mem_obj = SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
-      MemObjData.mem_access = pi_mem_obj_access::read_write;
+      MemObjData.mem_access = pi_mem_obj_access::PI_ACCESS_READ; //to clarify if default should be different
       pi_kernel_arg_properties Props{};
       Props.type = PI_KERNEL_ARG_MEM_OBJ;
       Props.property = static_cast<void*>(&MemObjData);
-      Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, 0
+      Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, 0,
                                                          nullptr, &Props);
       break;
     }
