@@ -188,6 +188,20 @@ int main() {
   test<class KernelNameBitAndI>(q, input_small, output_small,
                                 sycl::bit_and<int>(), ~0);
 
+  test<class LogicalOrInt>(q, input, output, sycl::logical_or<int>(), 0);
+  test<class LogicalAndInt>(q, input, output, sycl::logical_and<int>(), 1);
+
+  std::array<bool, N> bool_input = {};
+  std::array<bool, N> bool_output = {};
+  test<class LogicalOrBool>(q, bool_input, bool_output,
+                            sycl::logical_or<bool>(), false);
+  test<class LogicalOrVoid>(q, bool_input, bool_output, sycl::logical_or<>(),
+                            false);
+  test<class LogicalAndBool>(q, bool_input, bool_output,
+                             sycl::logical_and<bool>(), true);
+  test<class LogicalAndVoid>(q, bool_input, bool_output, sycl::logical_and<>(),
+                             true);
+
   // as part of SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS (
   // https://github.com/intel/llvm/pull/5108/ ) joint_exclusive_scan and
   // exclusive_scan_over_group now operate on std::complex but limited to the

@@ -550,8 +550,6 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   CallGraphTy CG;
 
   for (Function &F : M.functions()) {
-    if (F.isDeclaration())
-      continue;
     processFunction(F, FunctionToUsedAspects, FunctionToDeclaredAspects,
                     TypesWithAspects, CG);
   }

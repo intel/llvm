@@ -1,10 +1,10 @@
-//==------------ win_proxy_loader.cpp - SYCL standard source file ----------==//
+//==------------ pi_win_proxy_loader.cpp - SYCL standard source file ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===--------------------------------------------------------------------===//
 
 // On Windows, DLLs loaded dynamically (via LoadLibrary) are not tracked as
 // dependencies of the caller in the same way they would be if linked
@@ -22,7 +22,6 @@
 // that the "grandchild" won't be unloaded early. They would need to employ a
 // similar approach.
 
-
 #include <cassert>
 
 #ifdef _WIN32
@@ -38,7 +37,7 @@
 #include <map>
 #include <string>
 
-#include "win_proxy_loader.hpp"
+#include "pi_win_proxy_loader.hpp"
 
 #ifdef _WIN32
 
@@ -125,7 +124,7 @@ std::string getCurrentDSODir() {
 
 using MapT = std::map<std::string, void *>;
 
-MapT& getDllMap() {
+MapT &getDllMap() {
   static MapT dllMap;
   return dllMap;
 }
@@ -150,7 +149,7 @@ void preloadLibraries() {
   // this path duplicates sycl/detail/pi.cpp:initializePlugins
   const std::string LibSYCLDir = getCurrentDSODir() + DirSep;
 
-  MapT& dllMap = getDllMap();
+  MapT &dllMap = getDllMap();
 
   std::string ocl_path = LibSYCLDir + __SYCL_OPENCL_PLUGIN_NAME;
   dllMap.emplace(ocl_path, LoadLibraryA(ocl_path.c_str()));
@@ -180,13 +179,14 @@ void preloadLibraries() {
   }
 }
 
-/// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded earlier.
+/// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded
+/// earlier.
 __declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
 
-  MapT& dllMap = getDllMap();
-  
-  auto match = dllMap.find(
-      PluginPath); // result might be nullptr (not found), which is perfectly valid.
+  MapT &dllMap = getDllMap();
+
+  auto match = dllMap.find(PluginPath); // result might be nullptr (not found),
+                                        // which is perfectly valid.
   if (match == dllMap.end()) {
     // unit testing? return nullptr (not found) rather than risk asserting below
     if (PluginPath.find("unittests") != std::string::npos)
@@ -214,14 +214,14 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
   switch (fdwReason) {
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_ATTACH win_proxy_loader.dll\n"
+      std::cout << "---> DLL_PROCESS_ATTACH pi_win_proxy_loader.dll\n"
                 << std::endl;
 
     preloadLibraries();
     break;
   case DLL_PROCESS_DETACH:
     if (PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_DETACH win_proxy_loader.dll\n"
+      std::cout << "---> DLL_PROCESS_DETACH pi_win_proxy_loader.dll\n"
                 << std::endl;
 
   case DLL_THREAD_ATTACH:

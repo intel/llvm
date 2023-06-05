@@ -2147,8 +2147,19 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    static_cast<uint32_t>(max_registers));
   }
 
-    // TODO: Investigate if this information is available on CUDA.
-  case PI_DEVICE_INFO_PCI_ADDRESS:
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    sycl::detail::pi::assertion(
+        cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
+        CUDA_SUCCESS);
+    // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
+                        param_value_size, param_value, param_value_size_ret,
+                        AddressBuffer);
+  }
+  // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
@@ -3028,6 +3039,13 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);
+
+  // Below sets kernel arg when zero-sized buffers are handled.
+  // In such case the corresponding memory is null.
+  if (*arg_value == nullptr) {
+    kernel->set_kernel_arg(arg_index, 0, nullptr);
+    return PI_SUCCESS;
+  }
 
   pi_result retErr = PI_SUCCESS;
   try {
