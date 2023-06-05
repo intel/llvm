@@ -71,6 +71,23 @@ void privatize(FunctionOpInterface);
 /// Returns true if the given call is a tail call.
 bool isTailCall(CallOpInterface);
 
+/// Return the accessor used by \p op if found, and std::nullopt otherwise.
+Optional<Value> getAccessorUsedByOperation(const Operation &op);
+
+/// Determine whether a value is a known integer value.
+std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver);
+
+/// Record the \p block parent operations with the specified type \tparam T.
+template <typename T> SetVector<T> getParentsOfType(Block &block);
+
+/// Retrieve operations with type \tparam T in \p funcOp.
+template <typename T>
+SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
+
+//===----------------------------------------------------------------------===//
+// FunctionKernelInfo
+//===----------------------------------------------------------------------===//
+
 /// Create a map from each function to a list of all the kernel that can reach
 /// the function, and its associated depth from the kernel to the function.
 class FunctionKernelInfo {
@@ -126,19 +143,6 @@ private:
 
   DenseMap<FunctionOpInterface, SmallVector<KernelInfo>> funcKernelCallerMap;
 };
-
-/// Return the accessor used by \p op if found, and std::nullopt otherwise.
-Optional<Value> getAccessorUsedByOperation(const Operation &op);
-
-/// Determine whether a value is a known integer value.
-std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver);
-
-/// Record the \p block parent operations with the specified type \tparam T.
-template <typename T> SetVector<T> getParentsOfType(Block &block);
-
-/// Retrieve operations with type \tparam T in \p funcOp.
-template <typename T>
-SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
 
 //===----------------------------------------------------------------------===//
 // Versioning Utilities

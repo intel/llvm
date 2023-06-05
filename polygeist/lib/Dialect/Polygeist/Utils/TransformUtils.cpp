@@ -101,6 +101,59 @@ bool isTailCall(CallOpInterface call) {
           isRegionReturnLike(nextOp));
 }
 
+Optional<Value> getAccessorUsedByOperation(const Operation &op) {
+  auto getMemrefOp = [](const Operation &op) {
+    return TypeSwitch<const Operation &, Operation *>(op)
+        .Case<affine::AffineLoadOp, affine::AffineStoreOp>(
+            [](auto &affineOp) { return affineOp.getMemref().getDefiningOp(); })
+        .Default([](auto &) { return nullptr; });
+  };
+
+  auto accSub =
+      dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
+  return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
+}
+
+std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
+  if (!val.getType().isIntOrIndex())
+    return std::nullopt;
+
+  auto *inferredRange =
+      solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
+  if (!inferredRange || inferredRange->getValue().isUninitialized())
+    return std::nullopt;
+
+  const ConstantIntRanges &range = inferredRange->getValue().getValue();
+  return range.getConstantValue();
+}
+
+/// Walk up the parents and records the ones with the specified type.
+template <typename T> SetVector<T> getParentsOfType(Block &block) {
+  SetVector<T> res;
+  constexpr auto getInitialParent = [](Block &b) -> T {
+    Operation *op = b.getParentOp();
+    auto typedOp = dyn_cast<T>(op);
+    return typedOp ? typedOp : op->getParentOfType<T>();
+  };
+
+  for (T parent = getInitialParent(block); parent;
+       parent = parent->template getParentOfType<T>())
+    res.insert(parent);
+
+  return res;
+}
+
+template <typename T>
+SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
+  SetVector<T> res;
+  funcOp->walk([&](T op) { res.insert(op); });
+  return res;
+}
+
+//===----------------------------------------------------------------------===//
+// FunctionKernelInfo
+//===----------------------------------------------------------------------===//
+
 FunctionKernelInfo::FunctionKernelInfo(gpu::GPUModuleOp module) {
   module.walk([&](FunctionOpInterface func) { populateGPUKernelInfo(func); });
 }
@@ -195,55 +248,6 @@ void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
       funcKernelCallerMap[func].push_back(
           {kernelInfo.kernel, kernelInfo.depth + 1});
   }
-}
-
-Optional<Value> getAccessorUsedByOperation(const Operation &op) {
-  auto getMemrefOp = [](const Operation &op) {
-    return TypeSwitch<const Operation &, Operation *>(op)
-        .Case<affine::AffineLoadOp, affine::AffineStoreOp>(
-            [](auto &affineOp) { return affineOp.getMemref().getDefiningOp(); })
-        .Default([](auto &) { return nullptr; });
-  };
-
-  auto accSub =
-      dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
-  return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
-}
-
-std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
-  if (!val.getType().isIntOrIndex())
-    return std::nullopt;
-
-  auto *inferredRange =
-      solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
-  if (!inferredRange || inferredRange->getValue().isUninitialized())
-    return std::nullopt;
-
-  const ConstantIntRanges &range = inferredRange->getValue().getValue();
-  return range.getConstantValue();
-}
-
-/// Walk up the parents and records the ones with the specified type.
-template <typename T> SetVector<T> getParentsOfType(Block &block) {
-  SetVector<T> res;
-  constexpr auto getInitialParent = [](Block &b) -> T {
-    Operation *op = b.getParentOp();
-    auto typedOp = dyn_cast<T>(op);
-    return typedOp ? typedOp : op->getParentOfType<T>();
-  };
-
-  for (T parent = getInitialParent(block); parent;
-       parent = parent->template getParentOfType<T>())
-    res.insert(parent);
-
-  return res;
-}
-
-template <typename T>
-SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
-  SetVector<T> res;
-  funcOp->walk([&](T op) { res.insert(op); });
-  return res;
 }
 
 namespace {
