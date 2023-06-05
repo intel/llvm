@@ -25,8 +25,8 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithNativeHandleTest);
 
 TEST_P(urProgramCreateWithNativeHandleTest, Success) {
-    ASSERT_SUCCESS(urProgramCreateWithNativeHandle(native_program_handle,
-                                                   context, &native_program));
+    ASSERT_SUCCESS(urProgramCreateWithNativeHandle(
+        native_program_handle, context, nullptr, &native_program));
 
     uint32_t ref_count = 0;
     ASSERT_SUCCESS(urProgramGetInfo(native_program,
@@ -39,17 +39,18 @@ TEST_P(urProgramCreateWithNativeHandleTest, Success) {
 TEST_P(urProgramCreateWithNativeHandleTest, InvalidNullHandleContext) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urProgramCreateWithNativeHandle(native_program_handle,
-                                                     context, &native_program));
+                                                     context, nullptr,
+                                                     &native_program));
 }
 
 TEST_P(urProgramCreateWithNativeHandleTest, InvalidNullHandleNativeProgram) {
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urProgramCreateWithNativeHandle(nullptr, context, &native_program));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urProgramCreateWithNativeHandle(nullptr, context, nullptr,
+                                                     &native_program));
 }
 
 TEST_P(urProgramCreateWithNativeHandleTest, InvalidNullPointerProgram) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urProgramCreateWithNativeHandle(native_program_handle,
-                                                     context, nullptr));
+                     urProgramCreateWithNativeHandle(
+                         native_program_handle, context, nullptr, nullptr));
 }

@@ -58,11 +58,11 @@ TEST_P(urKernelGetInfoTest, InvalidNullPointerPropValue) {
     size_t n_args = 0;
     ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
                                      sizeof(n_args), nullptr, nullptr),
-                     UR_RESULT_ERROR_INVALID_SIZE);
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urKernelGetInfoTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(
         urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+        UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
