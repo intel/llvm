@@ -2196,6 +2196,13 @@ static pi_result SetKernelParamsAndLaunch(
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
+        // clSetKernelArg (corresponding to piKernelSetArg) returns an error
+        // when MemArg is null, which is the case when zero-sized buffers are
+        // handled. Below assignment provides later call to clSetKernelArg with
+        // acceptable arguments.
+        if (!MemArg)
+          MemArg = RT::PiMem();
+
         Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                 sizeof(RT::PiMem), &MemArg);
       } else {
