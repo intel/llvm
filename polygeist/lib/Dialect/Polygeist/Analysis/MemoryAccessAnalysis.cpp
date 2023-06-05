@@ -36,13 +36,6 @@ using namespace mlir::polygeist;
 /// Determine whether a value is equal to a given integer constant.
 static bool isEqualTo(Value val, int64_t constant, DataFlowSolver &solver) {
   std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
-  if (!optConstVal.has_value()) {
-    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp());
-        constVal.value() == constant)
-      return true;
-    return false;
-  }
-
   APInt constVal = *optConstVal;
   APInt c(constVal.getBitWidth(), constant, true /*signed*/);
   return (constVal == c);
@@ -1098,7 +1091,7 @@ MemoryAccess::getIntraThreadAccessMatrix(unsigned numGridDimensions) const {
          "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
   if (numGridDimensions == 0)
-    return {};
+    return matrix;
 
   std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
   std::iota(v.begin(), v.end(), numGridDimensions);
@@ -1112,7 +1105,7 @@ MemoryAccess::getInterThreadAccessMatrix(unsigned numGridDimensions) const {
          "Expecting 'numGridDimensions' to be smaller than the number of "
          "columns in the memory access matrix");
   if (numGridDimensions == 0)
-    return matrix;
+    return {};
 
   std::vector<size_t> v(numGridDimensions);
   std::iota(v.begin(), v.end(), 0);

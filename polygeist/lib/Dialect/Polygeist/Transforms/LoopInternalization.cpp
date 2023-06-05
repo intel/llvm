@@ -157,7 +157,7 @@ private:
   /// Collects all memory accesses for a given memref value.
   DenseMap<Value, SmallVector<affine::MemRefAccess>> accesses;
 
-  /// The preferred memory space for each memref access;
+  /// The preferred memory space for each memref access.
   DenseMap<const Operation *, MemorySpace> accessToMemSpace;
 };
 
@@ -275,12 +275,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
           bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
           useSharedMemory = hasTemporalReuse(access, threadVars) &&
                             (stride->isZero() || strideIsLargeEnough);
-          // FIXME: getConstIntegerValue doesn't return zero for
-          // ConstantIndexOp.
-        } else if (auto constVal = dyn_cast<arith::ConstantIndexOp>(
-                       strideVal.getDefiningOp());
-                   constVal.value() == 0)
-          useSharedMemory = hasTemporalReuse(access, threadVars);
+        }
 
         accessToMemSpace[access.opInst] =
             useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
