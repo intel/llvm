@@ -119,6 +119,7 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 You can use the following flags with `configure.py` (full list of available
 flags can be found by launching the script with `--help`):
 
+* `--cmake-opt=-DLLVM_TARGETS_TO_BUILD="X86;NVPTX"` -> default, build LLVM for x86 architecture with nvptx device code.  Update to enable different target platforms (select from `AArch64;AMDGPU;ARM;AVR;BPF;Hexagon;Lanai;LoongArch;Mips;MSP430;NVPTX;PowerPC;RISCV;Sparc;SystemZ;VE;WebAssembly;X86;XCore`, be sure to include X86 within the list)
 * `--werror` -> treat warnings as errors when compiling LLVM
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
