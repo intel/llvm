@@ -3575,7 +3575,7 @@ class __SYCL_EBO unsampled_image_accessor :
                 "uint4, float4 or half4 from SYCL namespace");
   static_assert(AccessMode == access_mode::read ||
                     AccessMode == access_mode::write,
-                "Access target must be either read or write.");
+                "Access mode must be either read or write.");
 
 #ifdef __SYCL_DEVICE_ONLY__
   char MPadding[sizeof(detail::UnsampledImageAccessorBaseHost)];
