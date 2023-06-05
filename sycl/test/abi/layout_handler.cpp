@@ -156,36 +156,35 @@ void foo() {
 // CHECK-NEXT: 464 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
 // CHECK:      464 |           struct std::_Head_base<0, class sycl::detail::HostTask *> (base)
 // CHECK-NEXT: 464 |             class sycl::detail::HostTask * _M_head_impl
-// CHECK-NEXT: 472 |   detail::OSModuleHandle MOSModuleHandle
-// CHECK-NEXT: 480 |   class std::unique_ptr<class sycl::detail::InteropTask> MInteropTask
-// CHECK:      480 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> >
-// CHECK-NEXT: 480 |       class std::tuple<class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
-// CHECK-NEXT: 480 |         struct std::_Tuple_impl<0, class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > (base)
-// CHECK-NEXT: 480 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
-// CHECK:      480 |           struct std::_Head_base<0, class sycl::detail::InteropTask *> (base)
-// CHECK-NEXT: 480 |             class sycl::detail::InteropTask * _M_head_impl
-// CHECK-NEXT: 488 |   class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEventsWaitWithBarrier
-// CHECK-NEXT: 488 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > > (base)
-// CHECK-NEXT: 488 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl _M_impl
-// CHECK-NEXT: 488 |         class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
-// CHECK-NEXT: 488 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
-// CHECK:      488 |           pointer _M_start
-// CHECK-NEXT: 496 |           pointer _M_finish
-// CHECK-NEXT: 504 |           pointer _M_end_of_storage
-// CHECK-NEXT: 512 |   _Bool MIsHost
-// CHECK-NEXT: 520 |   struct sycl::detail::code_location MCodeLoc
-// CHECK-NEXT: 520 |     const char * MFileName
-// CHECK-NEXT: 528 |     const char * MFunctionName
-// CHECK-NEXT: 536 |     unsigned long MLineNo
-// CHECK-NEXT: 544 |     unsigned long MColumnNo
-// CHECK-NEXT: 552 |   _Bool MIsFinalized
-// CHECK-NEXT: 560 |   class sycl::event MLastEvent
-// CHECK-NEXT: 560 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
-// CHECK-NEXT: 560 |     class std::shared_ptr<class sycl::detail::event_impl> impl
-// CHECK-NEXT: 560 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
-// CHECK-NEXT: 560 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 560 |         element_type * _M_ptr
-// CHECK-NEXT: 568 |         class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 568 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=576, dsize=576, align=8,
-// CHECK-NEXT:     |  nvsize=576, nvalign=8]
+// CHECK-NEXT: 472 |   class std::unique_ptr<class sycl::detail::InteropTask> MInteropTask
+// CHECK:      472 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> >
+// CHECK-NEXT: 472 |       class std::tuple<class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
+// CHECK-NEXT: 472 |         struct std::_Tuple_impl<0, class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > (base)
+// CHECK-NEXT: 472 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
+// CHECK:      472 |           struct std::_Head_base<0, class sycl::detail::InteropTask *> (base)
+// CHECK-NEXT: 472 |             class sycl::detail::InteropTask * _M_head_impl
+// CHECK-NEXT: 480 |   class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEventsWaitWithBarrier
+// CHECK-NEXT: 480 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > > (base)
+// CHECK-NEXT: 480 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl _M_impl
+// CHECK-NEXT: 480 |         class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
+// CHECK-NEXT: 480 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
+// CHECK:      480 |           pointer _M_start
+// CHECK-NEXT: 488 |           pointer _M_finish
+// CHECK-NEXT: 496 |           pointer _M_end_of_storage
+// CHECK-NEXT: 504 |   _Bool MIsHost
+// CHECK-NEXT: 512 |   struct sycl::detail::code_location MCodeLoc
+// CHECK-NEXT: 512 |     const char * MFileName
+// CHECK-NEXT: 520 |     const char * MFunctionName
+// CHECK-NEXT: 528 |     unsigned long MLineNo
+// CHECK-NEXT: 536 |     unsigned long MColumnNo
+// CHECK-NEXT: 544 |   _Bool MIsFinalized
+// CHECK-NEXT: 552 |   class sycl::event MLastEvent
+// CHECK-NEXT: 552 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
+// CHECK-NEXT: 552 |     class std::shared_ptr<class sycl::detail::event_impl> impl
+// CHECK-NEXT: 552 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
+// CHECK-NEXT: 552 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 552 |         element_type * _M_ptr
+// CHECK-NEXT: 560 |         class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 560 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:     | [sizeof=568, dsize=568, align=8,
+// CHECK-NEXT:     |  nvsize=568, nvalign=8]
