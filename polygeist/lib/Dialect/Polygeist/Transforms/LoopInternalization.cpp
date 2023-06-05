@@ -64,6 +64,7 @@ bool isLocalAccessAddrSpace(Type ty) {
 
 /// A kernel is a candidate iff no dynamic sized local accessor is used.
 bool isCandidateKernel(gpu::GPUFuncOp kernel) {
+  assert(kernel.isKernel() && "Expecting kernel");
   // Available local memory of a kernel cannot be calculated when dynamic sized
   // local memory is used, as its size is not compile time known on device.
   return none_of(kernel.getArguments(), [](Value arg) {
@@ -75,7 +76,7 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
 /// argument, and only called from candidate kernel(s).
 bool isCandidateFunction(FunctionOpInterface func,
                          const FunctionKernelInfo &funcKernelInfo) {
-  if (!polygeist::isPotentialKernelBodyFunc(func, funcKernelInfo))
+  if (!funcKernelInfo.isPotentialKernelBodyFunc(func))
     return false;
 
   // TODO: construct nd_item when not passed in.
@@ -413,10 +414,14 @@ void LoopInternalization::runOnOperation() {
   AnalysisManager am = mam;
   auto &memAccessAnalysis =
       am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
-  FunctionKernelInfo funcKernelInfo(cast<ModuleOp>(module));
+  auto gpuModule = dyn_cast<gpu::GPUModuleOp>(
+      module->getRegion(0).front().getOperations().front());
+  if (!gpuModule)
+    return;
+  FunctionKernelInfo funcKernelInfo(gpuModule);
 
   // Walk each function in the module.
-  module->walk([&](FunctionOpInterface func) {
+  gpuModule->walk([&](FunctionOpInterface func) {
     if (!isCandidateFunction(func, funcKernelInfo))
       return;
 

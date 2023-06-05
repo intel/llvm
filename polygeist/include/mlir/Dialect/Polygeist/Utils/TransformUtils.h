@@ -76,11 +76,18 @@ bool isTailCall(CallOpInterface);
 class FunctionKernelInfo {
 public:
   FunctionKernelInfo() = delete;
-  FunctionKernelInfo(ModuleOp);
+  FunctionKernelInfo(gpu::GPUModuleOp);
   struct KernelInfo {
     gpu::GPUFuncOp kernel;
     unsigned depth; // Depth from the associated kernel
   };
+
+  /// Returns true if the given function is potentially a SYCL kernel body
+  /// function. The SYCL kernel body function is created by SemaSYCL in clang
+  /// for the body of the SYCL kernel, e.g., code in parallel_for.
+  /// TODO: add an attribute to the call operator of the SYCL kernel functor in
+  /// SemaSYCL in clang, to identify SYCL kernel body function accurately.
+  bool isPotentialKernelBodyFunc(FunctionOpInterface func) const;
 
   /// Returns the maximum depth from any GPU kernel.
   /// Returns std::nullopt if the call is not called from a GPU kernel.
@@ -94,6 +101,19 @@ public:
   Optional<unsigned>
   getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) const;
 
+  /// Returns the maximum depth from \p kernel to \p func.
+  /// For example:
+  /// Call chains:
+  ///   GPUKernel1 -> func1 (depth 1) -> func2 (depth 2)
+  ///   GPUKernel1 -> func2 (depth 1)
+  ///   GPUKernel2 -> func0 (depth 1) -> func1 (depth 2) -> func2 (depth 3)
+  /// =>
+  ///   getMaxDepthFromGPUKernel(func2, GPUKernel1) returns 2.
+  ///   getMaxDepthFromGPUKernel(func2, GPUKernel2) returns 3.
+  ///   getMaxDepthFromAnyGPUKernel(func2) returns 3.
+  Optional<unsigned> getMaxDepthFromGPUKernel(FunctionOpInterface func,
+                                              gpu::GPUFuncOp kernel) const;
+
   /// Populates \p kernels with GPU kernels that can reach \p func.
   void getKernelCallers(FunctionOpInterface func,
                         SmallVectorImpl<gpu::GPUFuncOp> &kernels) const;
@@ -105,13 +125,6 @@ private:
 
   DenseMap<FunctionOpInterface, SmallVector<KernelInfo>> funcKernelCallerMap;
 };
-
-/// Returns true if the given function is potentially a SYCL kernel body
-/// function. The SYCL kernel body function is created by SemaSYCL in clang for
-/// the body of the SYCL kernel, e.g., code in parallel_for.
-/// TODO: add an attribute to the call operator of the SYCL kernel functor in
-/// SemaSYCL in clang, to identify SYCL kernel body function accurately.
-bool isPotentialKernelBodyFunc(FunctionOpInterface, const FunctionKernelInfo &);
 
 /// Return the accessor used by \p op if found, and std::nullopt otherwise.
 Optional<Value> getAccessorUsedByOperation(const Operation &op);

@@ -439,10 +439,14 @@ void ArgumentPromotionPass::collectCandidates(
   ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
-  polygeist::FunctionKernelInfo funcKernelInfo(module);
+  auto gpuModule = dyn_cast<gpu::GPUModuleOp>(
+      module->getRegion(0).front().getOperations().front());
+  if (!gpuModule)
+    return;
+  polygeist::FunctionKernelInfo funcKernelInfo(gpuModule);
 
   // Search for candidate call operations in GPU kernels.
-  module->walk([&](gpu::GPUFuncOp gpuFuncOp) {
+  gpuModule->walk([&](gpu::GPUFuncOp gpuFuncOp) {
     assert(gpuFuncOp.isKernel() && "Expecting a kernel");
     LLVM_DEBUG(llvm::dbgs() << "\nAnalyzing GPU kernel "
                             << gpuFuncOp.getNameAttr() << ":\n");

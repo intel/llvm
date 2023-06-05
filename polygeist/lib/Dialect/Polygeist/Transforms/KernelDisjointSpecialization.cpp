@@ -139,9 +139,14 @@ private:
 //===----------------------------------------------------------------------===//
 
 void KernelDisjointSpecializationPass::runOnOperation() {
-  polygeist::FunctionKernelInfo funcKernelInfo(getOperation());
+  auto gpuModule = dyn_cast<gpu::GPUModuleOp>(
+      getOperation()->getRegion(0).front().getOperations().front());
+  if (!gpuModule)
+    return;
+  polygeist::FunctionKernelInfo funcKernelInfo(gpuModule);
+
   SmallVector<FunctionOpInterface> candidates;
-  getOperation()->walk([&](FunctionOpInterface func) {
+  gpuModule->walk([&](FunctionOpInterface func) {
     LLVM_DEBUG(llvm::dbgs()
                << "Processing function \"" << func.getName() << "\"\n");
     if (isCandidateFunction(func, funcKernelInfo))
@@ -171,7 +176,7 @@ void KernelDisjointSpecializationPass::runOnOperation() {
 bool KernelDisjointSpecializationPass::isCandidateFunction(
     FunctionOpInterface func,
     const polygeist::FunctionKernelInfo &funcKernelInfo) const {
-  if (!polygeist::isPotentialKernelBodyFunc(func, funcKernelInfo)) {
+  if (!funcKernelInfo.isPotentialKernelBodyFunc(func)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: not a potential kernel body function\n");
     return false;
