@@ -127,10 +127,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::errc::invalid, "The syclContext must match the OpenCL context associated with the clEvent.");
   }
 
   RT::PiContext TempContext;
@@ -138,10 +135,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                                sizeof(RT::PiContext),
                                                &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::errc::invalid, "The syclContext must match the OpenCL context associated with the clEvent.");
   }
 }
 
@@ -157,7 +151,7 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+        throw sycl::exception(sycl::errc::runtime, "Out of host memory");
     }
     return;
   }
@@ -287,8 +281,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(0,sycl::errc::invalid, "Profiling info is not available.");
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -302,8 +295,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(sycl::errc::invalid, "Profiling info is not available.");
   return MHostProfilingInfo->getEndTime();
 }
 

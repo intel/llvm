@@ -38,8 +38,7 @@ static const PluginPtr &getPlugin(backend Backend) {
   case backend::ext_oneapi_cuda:
     return pi::getPlugin<backend::ext_oneapi_cuda>();
   default:
-    throw sycl::runtime_error{"getPlugin: Unsupported backend",
-                              PI_ERROR_INVALID_OPERATION};
+    throw sycl::exception(sycl::errc::runtime, "getPlugin: Unsupported backend");
   }
 }
 
@@ -196,10 +195,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     case (PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT):
     case (PI_PROGRAM_BINARY_TYPE_LIBRARY):
       if (State == bundle_state::input)
-        // TODO SYCL2020 exception
-        throw sycl::runtime_error(errc::invalid,
-                                  "Program and kernel_bundle state mismatch",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(sycl::errc::runtime, "Program and kernel_bundle state mismatch");
       if (State == bundle_state::executable)
         Plugin->call<errc::build, PiApiKind::piProgramLink>(
             ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,
@@ -207,10 +203,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
       break;
     case (PI_PROGRAM_BINARY_TYPE_EXECUTABLE):
       if (State == bundle_state::input || State == bundle_state::object)
-        // TODO SYCL2020 exception
-        throw sycl::runtime_error(errc::invalid,
-                                  "Program and kernel_bundle state mismatch",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(sycl::errc::runtime, "Program and kernel_bundle state mismatch");
       break;
     }
   }
@@ -264,9 +257,7 @@ kernel make_kernel(const context &TargetContext,
   pi::PiProgram PiProgram = nullptr;
   if (Backend == backend::ext_oneapi_level_zero) {
     if (KernelBundleImpl->size() != 1)
-      throw sycl::runtime_error{
-          "make_kernel: kernel_bundle must have single program image",
-          PI_ERROR_INVALID_PROGRAM};
+      throw sycl::exception(sycl::errc::runtime, "make_kernel: kernel_bundle must have single program image");
 
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();
