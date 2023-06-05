@@ -174,13 +174,12 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
 
-    - name: Install clang-format/clang-tidy
-      # We install these into our nightly container that is later used in CI to
-      # run lint task.
+    - name: Install lint utilities
+      # We install these into our nightly container that CI uses to run lint
+      # checks.
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
-
 
     - name: Pack toolchain
       run: tar -I 'zstd -9' -cf llvm_sycl.tar.zst -C $GITHUB_WORKSPACE/build/install .
