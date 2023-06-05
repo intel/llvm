@@ -5279,7 +5279,7 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 
   bool is_managed;
   PI_CHECK_ERROR(hipPointerGetAttribute(&is_managed,
-      HIP_POINTER_ATTRIBUTE_IS_MANAGED, reinterpret_cast<hipDeviceptr_t>(ptr));
+      HIP_POINTER_ATTRIBUTE_IS_MANAGED, reinterpret_cast<hipDeviceptr_t>(ptr)));
   if (!is_managed) {
     setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
                     PI_SUCCESS);
