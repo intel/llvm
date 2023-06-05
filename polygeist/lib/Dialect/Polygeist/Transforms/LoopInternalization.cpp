@@ -251,12 +251,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       return;
 
     affine::MemRefAccess memRefAccess(op);
-
-    auto it = memRefToMemRefAccesses.find(memRefAccess.memref);
-    if (it == memRefToMemRefAccesses.end())
-      memRefToMemRefAccesses[memRefAccess.memref] = {memRefAccess};
-    else
-      memRefToMemRefAccesses[memRefAccess.memref].push_back(memRefAccess);
+    memRefToMemRefAccesses[memRefAccess.memref].push_back(memRefAccess);
   });
 
   // Analyze the memref accesses collected and populate the map.
