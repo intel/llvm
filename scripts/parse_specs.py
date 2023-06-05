@@ -816,6 +816,7 @@ def parse(section, version, tags, meta, ref):
         line_nums = _get_line_nums(f)
 
         header = None
+        name = None
         objects = []
 
         for i, d in enumerate(docs):
@@ -833,6 +834,15 @@ def parse(section, version, tags, meta, ref):
                 header['ordinal'] = int(int(header.get('ordinal',"1000")) * float(header.get('version',"1.0")))
                 header['ordinal'] *= 1000 if re.match(r"extension", header.get('desc',"").lower()) else 1
                 header['ordinal'] *= 1000 if re.match(r"experimental", header.get('desc',"").lower()) else 1
+                basename = os.path.splitext(os.path.basename(f))[0]
+                if 'name' in header:
+                    name = header['name']
+                elif basename.startswith('exp-'):
+                    name = f'{basename[len("exp-"):]} (experimental)'
+                else:
+                    name = basename
+                for c in '_-':
+                    name = name.replace(c, ' ')
             elif header:
                 # for d in _make_versions(d, float(version)):
                 objects.append(d)
@@ -840,7 +850,7 @@ def parse(section, version, tags, meta, ref):
 
         if header:
             specs.append({
-                'name'      : os.path.splitext(os.path.basename(f))[0],
+                'name'      : name,
                 'header'    : header,
                 'objects'   : objects,
             })
