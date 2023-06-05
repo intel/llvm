@@ -257,22 +257,77 @@ TEST_F(xptiApiTest, xptiRegisterCallbackGoodInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_construct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_construct,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_associate,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_associate,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_destruct,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_release,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_release,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_construct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_associate,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_destruct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_release,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_construct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_associate,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_destruct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_unsampled_image_release,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
@@ -342,22 +397,77 @@ TEST_F(xptiApiTest, xptiNotifySubscribersBadInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_construct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_construct,
       nullptr, nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_associate,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_associate,
       nullptr, nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_destruct,
       nullptr, nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_release,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_release, nullptr,
+      nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_construct,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_associate,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_destruct,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_release,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_construct,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_associate,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_destruct,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_unsampled_image_release,
       nullptr, nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 
@@ -423,19 +533,66 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
   EXPECT_NE(tmp, func_callback_update);
 
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_construct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_construct,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_associate,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_associate,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_destruct,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_release,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_release,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_construct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_associate,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_destruct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_release,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_construct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_associate,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_destruct,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_unsampled_image_release,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
@@ -444,30 +601,152 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   xpti::offload_buffer_data_t UserBufferData{1, 5, "int", 4, 2, {3, 2, 0}};
-  xpti::offload_buffer_association_data_t AssociationData{0x01020304,
-                                                          0x05060708};
+  xpti::offload_sampled_image_data_t UserSampledImageData{
+      1,        5, 4, {3, 2, 0}, "r32b32g32a32_sint", "repeat", "unnormalized",
+      "nearest"};
+  xpti::offload_unsampled_image_data_t UserUnsampledImageData{
+      1, 5, 4, {3, 2, 0}, "r32b32g32a32_sint"};
+  xpti::offload_association_data_t BufferAssociationData{0x01020304,
+                                                         0x05060708};
+  xpti::offload_association_data_t SampledImageAssociationData{0x01020404,
+                                                               0x05060808};
+  xpti::offload_association_data_t UnsampledImageAssociationData{0x01020504,
+                                                                 0x05060908};
+  xpti::offload_association_data_t SampledImageHostAssociationData{0x01020604,
+                                                                   0x05060818};
+  xpti::offload_association_data_t UnsampledImageHostAssociationData{
+      0x01020704, 0x05060918};
   xpti::offload_accessor_data_t UserAccessorData{0x01020304, 0x09000102, 1, 2};
+  xpti::offload_sampled_image_accessor_data_t UserSampledImageAccessorData{
+      0x01020404, 0x09000103, 1, "uint4", 16};
+  xpti::offload_unsampled_image_accessor_data_t UserUnsampledImageAccessorData{
+      0x01020504, 0x09000104, 1, 2, "uint4", 16};
+  xpti::offload_host_sampled_image_accessor_data_t
+      UserSampledImageHostAccessorData{0x01020604, 0x09000105, "uint4", 16};
+  xpti::offload_host_unsampled_image_accessor_data_t
+      UserUnsampledImageHostAccessorData{0x01020704, 0x09000106, 2, "uint4",
+                                         16};
 
   tmp = func_callback_update;
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_construct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_construct,
       nullptr, (xpti::trace_event_data_t *)1, 0, &UserBufferData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_associate,
-      nullptr, (xpti::trace_event_data_t *)1, 0, &AssociationData);
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_associate,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &BufferAssociationData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_release,
-      nullptr, (xpti::trace_event_data_t *)1, 0, &AssociationData);
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_release, nullptr,
+      (xpti::trace_event_data_t *)1, 0, &BufferAssociationData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiNotifySubscribers(
-      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct,
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_buffer_destruct,
       nullptr, (xpti::trace_event_data_t *)1, 0, &UserBufferData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_construct,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &UserSampledImageData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_associate,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &SampledImageAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_release,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &SampledImageAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_associate,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &SampledImageHostAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_release,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &SampledImageHostAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_destruct,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &UserSampledImageData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_construct,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &UserUnsampledImageData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_associate,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &UnsampledImageAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_unsampled_image_release,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &UnsampledImageAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_associate,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &UnsampledImageHostAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_unsampled_image_release,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &UnsampledImageHostAssociationData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_destruct,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &UserUnsampledImageData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiNotifySubscribers(
       StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_accessor,
       nullptr, (xpti::trace_event_data_t *)1, 0, &UserAccessorData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)xpti::trace_point_type_t::offload_alloc_sampled_image_accessor,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &UserSampledImageAccessorData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_unsampled_image_accessor,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &UserUnsampledImageAccessorData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_host_sampled_image_accessor,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &UserSampledImageHostAccessorData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID,
+      (uint16_t)
+          xpti::trace_point_type_t::offload_alloc_host_unsampled_image_accessor,
+      nullptr, (xpti::trace_event_data_t *)1, 0,
+      &UserUnsampledImageHostAccessorData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   Result = xptiRegisterCallback(

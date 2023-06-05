@@ -959,7 +959,7 @@ public:
       // have 'nullptr' for both the Parent and Object only if UserData is
       // provided and the trace_point_type is function_begin/function_end.
       // This allows us to trace function calls without too much effort.
-      std::array<trace_point_type_t, 14> AllowedTypes = {
+      std::array<trace_point_type_t, 26> AllowedTypes = {
           trace_point_type_t::function_begin,
           trace_point_type_t::function_end,
           trace_point_type_t::function_with_args_begin,
@@ -968,11 +968,23 @@ public:
           trace_point_type_t::mem_alloc_end,
           trace_point_type_t::mem_release_begin,
           trace_point_type_t::mem_release_end,
-          trace_point_type_t::offload_alloc_construct,
-          trace_point_type_t::offload_alloc_associate,
-          trace_point_type_t::offload_alloc_release,
-          trace_point_type_t::offload_alloc_destruct,
+          trace_point_type_t::offload_alloc_buffer_construct,
+          trace_point_type_t::offload_alloc_buffer_associate,
+          trace_point_type_t::offload_alloc_buffer_release,
+          trace_point_type_t::offload_alloc_buffer_destruct,
           trace_point_type_t::offload_alloc_accessor,
+          trace_point_type_t::offload_alloc_sampled_image_construct,
+          trace_point_type_t::offload_alloc_sampled_image_associate,
+          trace_point_type_t::offload_alloc_sampled_image_release,
+          trace_point_type_t::offload_alloc_sampled_image_destruct,
+          trace_point_type_t::offload_alloc_unsampled_image_construct,
+          trace_point_type_t::offload_alloc_unsampled_image_associate,
+          trace_point_type_t::offload_alloc_unsampled_image_release,
+          trace_point_type_t::offload_alloc_unsampled_image_destruct,
+          trace_point_type_t::offload_alloc_sampled_image_accessor,
+          trace_point_type_t::offload_alloc_host_sampled_image_accessor,
+          trace_point_type_t::offload_alloc_unsampled_image_accessor,
+          trace_point_type_t::offload_alloc_host_unsampled_image_accessor,
           trace_point_type_t::diagnostics};
       const auto Predicate = [TraceType](trace_point_type_t RHS) {
         return TraceType == static_cast<uint16_t>(RHS);

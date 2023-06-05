@@ -34,6 +34,7 @@
 #include <sycl/sampler.hpp>
 
 #include <iterator>
+#include <optional>
 #include <type_traits>
 
 #include <utility>
@@ -245,6 +246,15 @@ void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            access::target Target,
                                            access::mode Mode,
                                            const code_location &CodeLoc);
+
+void __SYCL_EXPORT unsampledImageConstructorNotification(
+    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
+    access::mode Mode, const void *Type, uint32_t ElemSize,
+    const code_location &CodeLoc);
+
+void __SYCL_EXPORT sampledImageConstructorNotification(
+    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
+    const void *Type, uint32_t ElemSize, const code_location &CodeLoc);
 
 template <typename T>
 using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
@@ -3518,15 +3528,24 @@ public:
   using const_reference = const DataT &;
 
   template <typename AllocatorT>
-  unsampled_image_accessor(unsampled_image<Dimensions, AllocatorT> &ImageRef,
-                           handler &CommandGroupHandlerRef,
-                           const property_list &PropList = {}) {
+  unsampled_image_accessor(
+      unsampled_image<Dimensions, AllocatorT> &ImageRef,
+      handler &CommandGroupHandlerRef, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
     if (AccessTarget == image_target::device && !Device.has(aspect::image))
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device associated with command group handler does not have "
           "aspect::image.");
+
+#ifndef __SYCL_DEVICE_ONLY__
+    // TODO: There is no impl to these classes yet. Fill in the accessor pointer
+    // argument when available.
+    detail::unsampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), nullptr, AccessTarget,
+        AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
+#endif // __SYCL_DEVICE_ONLY__
 
     std::ignore = ImageRef;
     std::ignore = PropList;
@@ -3638,7 +3657,8 @@ public:
   template <typename AllocatorT>
   host_unsampled_image_accessor(
       unsampled_image<Dimensions, AllocatorT> &ImageRef,
-      const property_list &PropList = {})
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                    AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                    Dimensions, ImageRef.getElementSize(),
@@ -3646,6 +3666,11 @@ public:
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                    PropList) {
     addHostUnsampledImageAccessorAndWait(base_class::impl.get());
+
+    detail::unsampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), base_class::impl.get(),
+        std::nullopt, AccessMode, (const void *)typeid(DataT).name(),
+        sizeof(DataT), CodeLoc);
   }
 
   /* -- common interface members -- */
@@ -3754,15 +3779,24 @@ public:
   using const_reference = const DataT &;
 
   template <typename AllocatorT>
-  sampled_image_accessor(sampled_image<Dimensions, AllocatorT> &ImageRef,
-                         handler &CommandGroupHandlerRef,
-                         const property_list &PropList = {}) {
+  sampled_image_accessor(
+      sampled_image<Dimensions, AllocatorT> &ImageRef,
+      handler &CommandGroupHandlerRef, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
     if (AccessTarget == image_target::device && !Device.has(aspect::image))
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device associated with command group handler does not have "
           "aspect::image.");
+
+#ifndef __SYCL_DEVICE_ONLY__
+    // TODO: There is no impl to these classes yet. Fill in the accessor pointer
+    // argument when available.
+    detail::sampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), nullptr, AccessTarget,
+        (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
+#endif // __SYCL_DEVICE_ONLY__
 
     std::ignore = ImageRef;
     std::ignore = PropList;
@@ -3848,8 +3882,10 @@ public:
   using const_reference = const DataT &;
 
   template <typename AllocatorT>
-  host_sampled_image_accessor(sampled_image<Dimensions, AllocatorT> &ImageRef,
-                              const property_list &PropList = {})
+  host_sampled_image_accessor(
+      sampled_image<Dimensions, AllocatorT> &ImageRef,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                    detail::getSyclObjImpl(ImageRef).get(), Dimensions,
                    ImageRef.getElementSize(),
@@ -3857,6 +3893,11 @@ public:
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                    ImageRef.getSampler(), PropList) {
     addHostSampledImageAccessorAndWait(base_class::impl.get());
+
+    detail::sampledImageConstructorNotification(
+        detail::getSyclObjImpl(ImageRef).get(), base_class::impl.get(),
+        std::nullopt, (const void *)typeid(DataT).name(), sizeof(DataT),
+        CodeLoc);
   }
 
   /* -- common interface members -- */

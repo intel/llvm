@@ -15,9 +15,10 @@ XPTI_CALLBACK_API void memCallback(uint16_t, xpti::trace_event_data_t *,
                                    xpti::trace_event_data_t *, uint64_t,
                                    const void *);
 
-XPTI_CALLBACK_API void syclBufferCallback(uint16_t, xpti::trace_event_data_t *,
-                                          xpti::trace_event_data_t *, uint64_t,
-                                          const void *);
+XPTI_CALLBACK_API void syclMemoryObjectCallback(uint16_t,
+                                                xpti::trace_event_data_t *,
+                                                xpti::trace_event_data_t *,
+                                                uint64_t, const void *);
 
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
                                      unsigned int MinorVersion,
@@ -48,26 +49,93 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
 
   if (NameView == "sycl.experimental.buffer") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(StreamID,
-                         static_cast<uint16_t>(
-                             xpti::trace_point_type_t::offload_alloc_construct),
-                         syclBufferCallback);
-    xptiRegisterCallback(StreamID,
-                         static_cast<uint16_t>(
-                             xpti::trace_point_type_t::offload_alloc_associate),
-                         syclBufferCallback);
     xptiRegisterCallback(
         StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_release),
-        syclBufferCallback);
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_buffer_construct),
+        syclMemoryObjectCallback);
     xptiRegisterCallback(
         StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_destruct),
-        syclBufferCallback);
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_buffer_associate),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_buffer_release),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_buffer_destruct),
+        syclMemoryObjectCallback);
     xptiRegisterCallback(
         StreamID,
         static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor),
-        syclBufferCallback);
+        syclMemoryObjectCallback);
+  }
+  if (NameView == "sycl.experimental.image") {
+    uint8_t StreamID = xptiRegisterStream(StreamName);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_sampled_image_construct),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_sampled_image_associate),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_sampled_image_release),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_sampled_image_destruct),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_unsampled_image_construct),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_unsampled_image_associate),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_unsampled_image_release),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_unsampled_image_destruct),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_sampled_image_accessor),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::
+                                  offload_alloc_host_sampled_image_accessor),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(
+            xpti::trace_point_type_t::offload_alloc_unsampled_image_accessor),
+        syclMemoryObjectCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::
+                                  offload_alloc_host_unsampled_image_accessor),
+        syclMemoryObjectCallback);
   }
   if (NameView == "sycl") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
@@ -133,14 +201,14 @@ XPTI_CALLBACK_API void memCallback(uint16_t TraceType,
   std::cout << "|alloc_size:" << std::dec << Data->alloc_size << std::endl;
 }
 
-XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
-                                          xpti::trace_event_data_t *Parent,
-                                          xpti::trace_event_data_t *Event,
-                                          uint64_t IId, const void *UserData) {
+XPTI_CALLBACK_API void
+syclMemoryObjectCallback(uint16_t TraceType, xpti::trace_event_data_t *Parent,
+                         xpti::trace_event_data_t *Event, uint64_t IId,
+                         const void *UserData) {
   std::lock_guard Lock{GMutex};
   auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
   switch (Type) {
-  case xpti::trace_point_type_t::offload_alloc_construct: {
+  case xpti::trace_point_type_t::offload_alloc_buffer_construct: {
     auto BufConstr = (xpti::offload_buffer_data_t *)UserData;
     std::cout << IId << "|Create buffer|0x" << std::hex
               << BufConstr->user_object_handle << "|0x"
@@ -155,21 +223,21 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
 
     break;
   }
-  case xpti::trace_point_type_t::offload_alloc_associate: {
-    auto BufAssoc = (xpti::offload_buffer_association_data_t *)UserData;
+  case xpti::trace_point_type_t::offload_alloc_buffer_associate: {
+    auto BufAssoc = (xpti::offload_association_data_t *)UserData;
     std::cout << IId << "|Associate buffer|0x" << std::hex
               << BufAssoc->user_object_handle << "|0x"
               << BufAssoc->mem_object_handle << std::dec << std::endl;
     break;
   }
-  case xpti::trace_point_type_t::offload_alloc_release: {
-    auto BufRelease = (xpti::offload_buffer_association_data_t *)UserData;
+  case xpti::trace_point_type_t::offload_alloc_buffer_release: {
+    auto BufRelease = (xpti::offload_association_data_t *)UserData;
     std::cout << IId << "|Release buffer|0x" << std::hex
               << BufRelease->user_object_handle << "|0x"
               << BufRelease->mem_object_handle << std::dec << std::endl;
     break;
   }
-  case xpti::trace_point_type_t::offload_alloc_destruct: {
+  case xpti::trace_point_type_t::offload_alloc_buffer_destruct: {
     auto BufDestr = (xpti::offload_buffer_data_t *)UserData;
     std::cout << IId << "|Destruct buffer|0x" << std::hex
               << BufDestr->user_object_handle << std::dec << std::endl;
@@ -181,6 +249,127 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
               << BufAccessor->buffer_handle << "|0x"
               << BufAccessor->accessor_handle << std::dec << "|"
               << BufAccessor->target << "|" << BufAccessor->mode << "|"
+              << Event->reserved.payload->source_file << ":"
+              << Event->reserved.payload->line_no << ":"
+              << Event->reserved.payload->column_no << "\n";
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_sampled_image_construct: {
+    auto ImgConstr = (xpti::offload_sampled_image_data_t *)UserData;
+    std::cout << IId << "|Create sampled image|0x" << std::hex
+              << ImgConstr->user_object_handle << "|0x"
+              << ImgConstr->host_object_handle << "|" << std::dec
+              << ImgConstr->dim << "|"
+              << "{" << ImgConstr->range[0] << "," << ImgConstr->range[1] << ","
+              << ImgConstr->range[2] << "}|" << ImgConstr->format << "|"
+              << ImgConstr->addressing << "|"
+              << ImgConstr->coordinate_normalization << "|"
+              << ImgConstr->filtering << "|"
+              << Event->reserved.payload->source_file << ":"
+              << Event->reserved.payload->line_no << ":"
+              << Event->reserved.payload->column_no << "\n";
+
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_sampled_image_associate: {
+    auto ImgAssoc = (xpti::offload_association_data_t *)UserData;
+    std::cout << IId << "|Associate sampled image|0x" << std::hex
+              << ImgAssoc->user_object_handle << "|0x"
+              << ImgAssoc->mem_object_handle << std::dec << std::endl;
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_sampled_image_release: {
+    auto ImgRelease = (xpti::offload_association_data_t *)UserData;
+    std::cout << IId << "|Release sampled image|0x" << std::hex
+              << ImgRelease->user_object_handle << "|0x"
+              << ImgRelease->mem_object_handle << std::dec << std::endl;
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_sampled_image_destruct: {
+    auto ImgDestr = (xpti::offload_sampled_image_data_t *)UserData;
+    std::cout << IId << "|Destruct sampled image|0x" << std::hex
+              << ImgDestr->user_object_handle << std::dec << std::endl;
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_unsampled_image_construct: {
+    auto ImgConstr = (xpti::offload_unsampled_image_data_t *)UserData;
+    std::cout << IId << "|Create unsampled image|0x" << std::hex
+              << ImgConstr->user_object_handle << "|0x"
+              << ImgConstr->host_object_handle << "|" << std::dec
+              << ImgConstr->dim << "|"
+              << "{" << ImgConstr->range[0] << "," << ImgConstr->range[1] << ","
+              << ImgConstr->range[2] << "}|" << ImgConstr->format << "|"
+              << Event->reserved.payload->source_file << ":"
+              << Event->reserved.payload->line_no << ":"
+              << Event->reserved.payload->column_no << "\n";
+
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_unsampled_image_associate: {
+    auto ImgAssoc = (xpti::offload_association_data_t *)UserData;
+    std::cout << IId << "|Associate unsampled image|0x" << std::hex
+              << ImgAssoc->user_object_handle << "|0x"
+              << ImgAssoc->mem_object_handle << std::dec << std::endl;
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_unsampled_image_release: {
+    auto ImgRelease = (xpti::offload_association_data_t *)UserData;
+    std::cout << IId << "|Release unsampled image|0x" << std::hex
+              << ImgRelease->user_object_handle << "|0x"
+              << ImgRelease->mem_object_handle << std::dec << std::endl;
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_unsampled_image_destruct: {
+    auto ImgDestr = (xpti::offload_unsampled_image_data_t *)UserData;
+    std::cout << IId << "|Destruct unsampled image|0x" << std::hex
+              << ImgDestr->user_object_handle << std::dec << std::endl;
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_sampled_image_accessor: {
+    auto ImgAccessor = (xpti::offload_sampled_image_accessor_data_t *)UserData;
+    std::cout << IId << "|Construct sampled image accessor|0x" << std::hex
+              << ImgAccessor->image_handle << "|0x"
+              << ImgAccessor->accessor_handle << std::dec << "|"
+              << ImgAccessor->target << "|" << ImgAccessor->element_type << "|"
+              << ImgAccessor->element_size << "|"
+              << Event->reserved.payload->source_file << ":"
+              << Event->reserved.payload->line_no << ":"
+              << Event->reserved.payload->column_no << "\n";
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_host_sampled_image_accessor: {
+    auto ImgAccessor =
+        (xpti::offload_host_sampled_image_accessor_data_t *)UserData;
+    std::cout << IId << "|Construct sampled image host accessor|0x" << std::hex
+              << ImgAccessor->image_handle << "|0x"
+              << ImgAccessor->accessor_handle << std::dec << "|"
+              << ImgAccessor->element_type << "|" << ImgAccessor->element_size
+              << "|" << Event->reserved.payload->source_file << ":"
+              << Event->reserved.payload->line_no << ":"
+              << Event->reserved.payload->column_no << "\n";
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_unsampled_image_accessor: {
+    auto ImgAccessor =
+        (xpti::offload_unsampled_image_accessor_data_t *)UserData;
+    std::cout << IId << "|Construct unsampled image accessor|0x" << std::hex
+              << ImgAccessor->image_handle << "|0x"
+              << ImgAccessor->accessor_handle << std::dec << "|"
+              << ImgAccessor->target << "|" << ImgAccessor->mode << "|"
+              << ImgAccessor->element_type << "|" << ImgAccessor->element_size
+              << "|" << Event->reserved.payload->source_file << ":"
+              << Event->reserved.payload->line_no << ":"
+              << Event->reserved.payload->column_no << "\n";
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_host_unsampled_image_accessor: {
+    auto ImgAccessor =
+        (xpti::offload_host_unsampled_image_accessor_data_t *)UserData;
+    std::cout << IId << "|Construct unsampled image host accessor|0x"
+              << std::hex << ImgAccessor->image_handle << "|0x"
+              << ImgAccessor->accessor_handle << std::dec << "|"
+              << ImgAccessor->mode << "|" << ImgAccessor->element_type << "|"
+              << ImgAccessor->element_size << "|"
               << Event->reserved.payload->source_file << ":"
               << Event->reserved.payload->line_no << ":"
               << Event->reserved.payload->column_no << "\n";
