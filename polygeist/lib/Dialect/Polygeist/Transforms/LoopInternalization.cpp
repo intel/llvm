@@ -439,15 +439,14 @@ void LoopInternalization::runOnOperation() {
                         MemorySelector::MemorySpace::Shared);
               });
 
-      // No need to transform if no accesses need to be promoted to shared
-      // local memory.
+      // No need to transform if no accesses need to be promoted to shared local
+      // memory.
       if (loopToSharedMemref.at(entry.first).empty())
         loopToSharedMemref.erase(entry.first);
     }
 
     // Now that we have the ideal memory space for all analyzable memref
-    // accesses in each loop nest's innermost loop, perform the
-    // transformation.
+    // accesses in each loop nest's innermost loop, perform the transformation.
     for (auto &entry : loopToSharedMemref) {
       TypeSwitch<Operation *>(entry.first)
           .Case<affine::AffineForOp, scf::ForOp>(

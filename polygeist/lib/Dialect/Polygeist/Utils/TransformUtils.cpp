@@ -197,8 +197,11 @@ std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
 
   auto *inferredRange =
       solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
-  if (!inferredRange || inferredRange->getValue().isUninitialized())
+  if (!inferredRange || inferredRange->getValue().isUninitialized()) {
+    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp()))
+      return APInt(/*numBits=*/64, constVal.value());
     return std::nullopt;
+  }
 
   const ConstantIntRanges &range = inferredRange->getValue().getValue();
   return range.getConstantValue();
