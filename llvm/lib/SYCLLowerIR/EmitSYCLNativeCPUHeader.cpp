@@ -194,7 +194,7 @@ void emitSYCLRegisterLib(const Function *F, raw_ostream &O) {
     << "0, "                                             // Version
     << "4, "                                             // Kind
     << "0, "                                             // Format
-    << "__SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN, "        // Device target spec
+    << "__SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU, "        // Device target spec
     << "nullptr, "                                       // Compile options
     << "nullptr, "                                       // Link options
     << "nullptr, "                                       // Manifest start

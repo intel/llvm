@@ -1198,7 +1198,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                 C.getSingleOffloadToolChain<Action::OFK_Host>();
             llvm::Triple HostTriple = HostTC->getTriple();
             UniqueSYCLTriplesVec.push_back(HostTriple);
-            addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
             continue;
           }
 
@@ -6066,16 +6065,7 @@ class OffloadingActionBuilder final {
       bool GpuInitHasErrors = false;
       bool HasSYCLTargetsOption =
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
-      bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
 
-      // check if multiple targets are passed along with native_cpu:
-      // currently native_cpu overrides all the other targets, so we emit a
-      // warning
-      if (IsSYCLNativeCPU) {
-        auto *SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ);
-        if (SYCLTargets->getNumValues() > 1)
-          C.getDriver().Diag(clang::diag::warn_drv_sycl_native_cpu_and_targets);
-      }
       if (HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {
           Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
