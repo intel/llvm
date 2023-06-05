@@ -1340,6 +1340,8 @@ public:
             /*IsPlaceH=*/true,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
+  template <typename, int, access_mode> friend class host_accessor;
+
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -1451,7 +1453,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
@@ -1487,7 +1489,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
@@ -1519,7 +1521,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1552,7 +1554,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1584,7 +1586,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
@@ -1619,7 +1621,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
@@ -1681,7 +1683,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1715,7 +1717,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1890,7 +1892,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
@@ -1932,7 +1934,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
@@ -2003,7 +2005,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
       throw sycl::invalid_object_error(
@@ -2045,7 +2047,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    preScreenAccessor(BufferRef.size(), PropertyList);
+    preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
       throw sycl::invalid_object_error(
@@ -2378,15 +2380,7 @@ private:
 #endif
   }
 
-  void preScreenAccessor(const size_t elemInBuffer,
-                         const PropertyListT &PropertyList) {
-    // check device accessor buffer size
-    if (!IsHostBuf && elemInBuffer == 0)
-      throw sycl::invalid_object_error(
-          "SYCL buffer size is zero. To create a device accessor, SYCL "
-          "buffer size must be greater than zero.",
-          PI_ERROR_INVALID_VALUE);
-
+  void preScreenAccessor(const PropertyListT &PropertyList) {
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
@@ -2948,6 +2942,9 @@ public:
                 std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
   local_accessor(const local_accessor<DataT_, Dimensions> &other) {
     local_acc::impl = other.impl;
+#ifdef __SYCL_DEVICE_ONLY__
+    local_acc::MData = other.MData;
+#endif
   }
 
   using value_type = DataT;
@@ -3417,9 +3414,11 @@ public:
                                std::remove_const_t<DataT>>>>
   host_accessor(const host_accessor<DataT_, Dimensions, AccessMode> &other)
 #ifndef __SYCL_DEVICE_ONLY__
-      : host_accessor(other.impl)
-#endif // __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl) {
+    AccessorT::MAccData = other.MAccData;
+#else
   {
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   // implicit conversion from read_write T accessor to read only T (const)
@@ -3430,9 +3429,11 @@ public:
                 std::is_same_v<DataT_, std::remove_const_t<DataT>>>>
   host_accessor(const host_accessor<DataT_, Dimensions, AccessMode_> &other)
 #ifndef __SYCL_DEVICE_ONLY__
-      : host_accessor(other.impl)
-#endif // __SYCL_DEVICE_ONLY__
+      : host_accessor(other.impl) {
+    AccessorT::MAccData = other.MAccData;
+#else
   {
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   // host_accessor needs to explicitly define the owner_before member functions

@@ -1,7 +1,7 @@
-project(win_proxy_loader)
-add_library(win_proxy_loader SHARED  win_proxy_loader.cpp)
-install(TARGETS win_proxy_loader
-        RUNTIME DESTINATION "bin" COMPONENT win_proxy_loader
+project(pi_win_proxy_loader)
+add_library(pi_win_proxy_loader SHARED  pi_win_proxy_loader.cpp)
+install(TARGETS pi_win_proxy_loader
+        RUNTIME DESTINATION "bin" COMPONENT pi_win_proxy_loader
 )
 
 if (MSVC)
@@ -41,13 +41,13 @@ if (MSVC)
 # Handle the debug version for the Microsoft compiler as a special case by
 # creating a debug version of the static library that uses the flags used by
 # the SYCL runtime
-  add_library(win_proxy_loaderd SHARED win_proxy_loader.cpp)
-  target_compile_options(win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
-  target_compile_options(win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
-  target_link_libraries(win_proxy_loaderd PRIVATE shlwapi)
-  target_link_libraries(win_proxy_loader PRIVATE shlwapi)
-  install(TARGETS win_proxy_loaderd
-          RUNTIME DESTINATION "bin" COMPONENT win_proxy_loader)
+  add_library(pi_win_proxy_loaderd SHARED pi_win_proxy_loader.cpp)
+  target_compile_options(pi_win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
+  target_compile_options(pi_win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
+  target_link_libraries(pi_win_proxy_loaderd PRIVATE shlwapi)
+  target_link_libraries(pi_win_proxy_loader PRIVATE shlwapi)
+  install(TARGETS pi_win_proxy_loaderd
+          RUNTIME DESTINATION "bin" COMPONENT pi_win_proxy_loader)
 endif()
 
 
