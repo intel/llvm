@@ -49,7 +49,7 @@ is something we are interested in expanding on.
 | Empty node                                                         | Implemented           |
 | Queue `ext_oneapi_get_state()` query                               | Implemented           |
 | Vendor test macro                                                  | Implemented           |
-| Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented           |
+| Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented, with the limitations that a subgraph can only be added as a node to any parent graph once, and will not correctly execute by itself after being added as a sub-graph. |
 | Using all capabilities of USM in a graph node                      | Implemented           |
 | Extending lifetime of buffers used in a graph                      | Not implemented       |
 | Buffer taking a copy of host data when buffer is used in a graph   | Not implemented       |
