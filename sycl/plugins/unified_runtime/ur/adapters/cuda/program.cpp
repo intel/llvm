@@ -418,27 +418,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pBinary != nullptr && size != 0, UR_RESULT_ERROR_INVALID_BINARY);
+  UR_ASSERT(pBinary != nullptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext->get_device()->get() == hDevice->get(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t retError = UR_RESULT_SUCCESS;
 
   std::unique_ptr<ur_program_handle_t_> retProgram{
       new ur_program_handle_t_{hContext}};
 
-  if (pProperties && pProperties->pMetadatas) {
+  if (pProperties) {
+    if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
     retError =
         retProgram->set_metadata(pProperties->pMetadatas, pProperties->count);
   }
   UR_ASSERT(retError == UR_RESULT_SUCCESS, retError);
 
   auto pBinary_string = reinterpret_cast<const char *>(pBinary);
-  if (size == 0) {
-    size = strlen(pBinary_string) + 1;
-  }
-
-  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
 
   retError = retProgram->set_binary(pBinary_string, size);
   UR_ASSERT(retError == UR_RESULT_SUCCESS, retError);
@@ -463,6 +464,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice == hProgram->get_context()->get_device(),
             UR_RESULT_ERROR_INVALID_DEVICE);
+  UR_ASSERT(pFunctionName, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(ppFunctionPointer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   CUfunction func;

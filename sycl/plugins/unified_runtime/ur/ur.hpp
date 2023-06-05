@@ -205,11 +205,14 @@ template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,
                         size_t value_size, Assign &&assign_func) {
+  if (!param_value && !param_value_size_ret) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
 
   if (param_value != nullptr) {
 
     if (param_value_size < value_size) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
+      return UR_RESULT_ERROR_INVALID_SIZE;
     }
 
     assign_func(param_value, value, value_size);

@@ -15,6 +15,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
   UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phKernel, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pKernelName, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ur_result_t retErr = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_kernel_handle_t_> retKernel{nullptr};
@@ -23,8 +24,16 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     ScopedContext active(hProgram->get_context());
 
     CUfunction cuFunc;
-    retErr = UR_CHECK_ERROR(
-        cuModuleGetFunction(&cuFunc, hProgram->get(), pKernelName));
+    CUresult functionResult =
+        cuModuleGetFunction(&cuFunc, hProgram->get(), pKernelName);
+
+    // We can't add this as a generic mapping in UR_CHECK_ERROR since cuda's
+    // NOT_FOUND error applies to more than just functions.
+    if (functionResult == CUDA_ERROR_NOT_FOUND) {
+      throw UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+    } else {
+      retErr = UR_CHECK_ERROR(functionResult);
+    }
 
     std::string kernel_name_woffset = std::string(pKernelName) + "_with_offset";
     CUfunction cuFuncWithOffsetParam;
@@ -187,6 +196,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgValue(ur_kernel_handle_t hKernel, uint32_t argIndex,
                     size_t argSize, const void *pArgValue) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
   ur_result_t retErr = UR_RESULT_SUCCESS;
   try {
@@ -335,7 +345,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
                     size_t propSize, const void *pPropValue) {
-  return UR_RESULT_SUCCESS;
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pPropValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  switch (propName) {
+  case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS:
+  case UR_KERNEL_EXEC_INFO_USM_PTRS:
+  case UR_KERNEL_EXEC_INFO_CACHE_CONFIG:
+    return UR_RESULT_SUCCESS;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(

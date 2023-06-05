@@ -175,7 +175,7 @@ struct ur_kernel_handle_t_ {
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
   /// the CUDA Driver API
-  uint32_t get_num_args() const noexcept { return args_.indices_.size() - 1; }
+  size_t get_num_args() const noexcept { return args_.indices_.size() - 1; }
 
   void set_kernel_arg(int index, size_t size, const void *arg) {
     args_.add_arg(index, size, arg);
