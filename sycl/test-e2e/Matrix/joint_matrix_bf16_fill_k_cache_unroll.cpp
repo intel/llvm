@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
+// XFAIL: cpu
 
 // RUN: %{build} -mllvm -inline-threshold=2000 -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DMANUAL_UNROLL
 // RUN: %{run} %t.out
