@@ -1886,6 +1886,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
             pProperties->count == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (length == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
     ur_result_t result =
