@@ -194,7 +194,7 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
 }
 
 /// Returns an absolute path where the object was found.
-//  win_proxy_loader.dll uses this same logic. If it is changed
+//  pi_win_proxy_loader.dll uses this same logic. If it is changed
 //  significantly, it might be wise to change it there too.
 std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
