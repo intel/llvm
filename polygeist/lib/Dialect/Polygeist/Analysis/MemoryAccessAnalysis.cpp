@@ -36,13 +36,6 @@ using namespace mlir::polygeist;
 /// Determine whether a value is equal to a given integer constant.
 static bool isEqualTo(Value val, int64_t constant, DataFlowSolver &solver) {
   std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
-  if (!optConstVal.has_value()) {
-    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp());
-        constVal.value() == constant)
-      return true;
-    return false;
-  }
-
   APInt constVal = *optConstVal;
   APInt c(constVal.getBitWidth(), constant, true /*signed*/);
   return (constVal == c);
@@ -864,8 +857,12 @@ bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
         return false;
 
       if (isOnDiagonal) {
+        bool isFirstDiagonalElem = (row == 0 && col == 0);
+        if (isFirstDiagonalElem && !isOne(val, solver))
+          return false;
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(val, solver) &&
+            !::isZero(val, solver))
           return false;
         if (isLastDiagonalElem && !isGreaterThanOne(val, solver) &&
             !::isZero(val, solver))
@@ -921,8 +918,12 @@ bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
         return false;
 
       if (!isAboveDiagonal) {
+        bool isFirstDiagonalElem = (row == 0 && col == 0);
+        if (isFirstDiagonalElem && !isOne(val, solver))
+          return false;
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(val, solver) &&
+            !::isZero(val, solver))
           return false;
         if (isLastDiagonalElem && !isStrictlyPositive(val, solver) &&
             !::isZero(val, solver))
@@ -1092,8 +1093,8 @@ MemoryAccess::getIntraThreadAccessMatrix(unsigned numGridDimensions) const {
   if (numGridDimensions == 0)
     return matrix;
 
-  std::vector<size_t> v(numGridDimensions);
-  std::iota(v.begin(), v.end(), 0);
+  std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
+  std::iota(v.begin(), v.end(), numGridDimensions);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }
@@ -1106,8 +1107,8 @@ MemoryAccess::getInterThreadAccessMatrix(unsigned numGridDimensions) const {
   if (numGridDimensions == 0)
     return {};
 
-  std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
-  std::iota(v.begin(), v.end(), numGridDimensions);
+  std::vector<size_t> v(numGridDimensions);
+  std::iota(v.begin(), v.end(), 0);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }

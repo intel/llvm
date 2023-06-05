@@ -63,24 +63,17 @@ bool isCandidateFunction(FunctionOpInterface func) {
 /// A loop nest is a candidate iff is perfect and contains only affine or scf
 /// for loops.
 bool isCandidateLoopNest(LoopLikeOpInterface loop) {
-  if (!LoopTools::isOutermostLoop(loop)) {
-    LLVM_DEBUG(llvm::dbgs() << "not candidate: not outermost loop\n");
+  if (!LoopTools::isOutermostLoop(loop))
     return false;
-  }
 
-  if (!LoopTools::isPerfectLoopNest(loop)) {
-    LLVM_DEBUG(llvm::dbgs() << "not candidate: not perfect loop nest\n");
+  if (!LoopTools::isPerfectLoopNest(loop))
     return false;
-  }
 
   std::optional<LoopLikeOpInterface> innermostLoop =
       LoopTools::getInnermostLoop(loop);
   assert(innermostLoop.has_value() && "Failed to get the innermost loop");
-
-  if (!isa<affine::AffineForOp, scf::ForOp>(*innermostLoop)) {
-    LLVM_DEBUG(llvm::dbgs() << "not candidate: not affine or scf for loop\n");
+  if (!isa<affine::AffineForOp, scf::ForOp>(*innermostLoop))
     return false;
-  }
 
   // TODO: check uniformity.
 
@@ -164,8 +157,8 @@ private:
   /// Collects all memory accesses for a given memref value.
   DenseMap<Value, SmallVector<affine::MemRefAccess>> accesses;
 
-  /// The preferred memory space for each memref access;
-  DenseMap<const affine::MemRefAccess *, MemorySpace> accessToMemSpace;
+  /// The preferred memory space for each memref access.
+  DenseMap<const Operation *, MemorySpace> accessToMemSpace;
 };
 
 std::optional<MemorySelector::MemorySpace>
@@ -178,7 +171,7 @@ MemorySelector::selectMemorySpace(Value memref) const {
 
   auto numShared = [this](ArrayRef<affine::MemRefAccess> accesses) {
     return llvm::count_if(accesses, [this](affine::MemRefAccess access) {
-      auto it = accessToMemSpace.find(&access);
+      auto it = accessToMemSpace.find(access.opInst);
       if (it == accessToMemSpace.end())
         return false;
       return (it->second == MemorySpace::Shared);
@@ -245,7 +238,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       case Reverse:
       case ReverseLinear:
         // These patterns imply fully coalesced memory accesses.
-        accessToMemSpace[&access] = MemorySpace::Global;
+        accessToMemSpace[access.opInst] = MemorySpace::Global;
         break;
       case Shifted:
       case LinearShifted:
@@ -253,7 +246,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       case LinearOverlapped:
       case ReverseLinearOverlapped:
         // These patterns imply partially coalesced memory accesses.
-        accessToMemSpace[&access] = MemorySpace::Global;
+        accessToMemSpace[access.opInst] = MemorySpace::Global;
         break;
       case Strided:
       case ReverseStrided:
@@ -284,12 +277,20 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
                             (stride->isZero() || strideIsLargeEnough);
         }
 
-        accessToMemSpace[&access] =
+        accessToMemSpace[access.opInst] =
             useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
       } break;
       default:
-        accessToMemSpace[&access] = MemorySpace::Global;
+        accessToMemSpace[access.opInst] = MemorySpace::Global;
       }
+      LLVM_DEBUG({
+        if (accessToMemSpace.at(access.opInst) == MemorySpace::Shared)
+          llvm::dbgs().indent(2) << "shared memory space\n";
+        else {
+          assert(accessToMemSpace.at(access.opInst) == MemorySpace::Global);
+          llvm::dbgs().indent(2) << "global memory space\n";
+        }
+      });
     }
   }
 }
@@ -425,9 +426,23 @@ void LoopInternalization::runOnOperation() {
       // prioritize(memAccessAnalysis, solver);
     });
 
+    DenseMap<LoopLikeOpInterface, SmallVector<Value>> loopToSharedMemref;
+    for (auto &entry : loopToMemref) {
+      copy_if(entry.second, std::back_inserter(loopToSharedMemref[entry.first]),
+              [&](Value memref) {
+                return (memrefToMemorySpace.at(memref) ==
+                        MemorySelector::MemorySpace::Shared);
+              });
+
+      // No need to transform if no accesses need to be promoted to shared local
+      // memory.
+      if (loopToSharedMemref.at(entry.first).empty())
+        loopToSharedMemref.erase(entry.first);
+    }
+
     // Now that we have the ideal memory space for all analyzable memref
     // accesses in each loop nest's innermost loop, perform the transformation.
-    for (auto &entry : loopToMemref) {
+    for (auto &entry : loopToSharedMemref) {
       TypeSwitch<Operation *>(entry.first)
           .Case<affine::AffineForOp, scf::ForOp>(
               [&](auto loop) { transform(loop, memAccessAnalysis, solver); });
