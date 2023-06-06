@@ -135,12 +135,16 @@ def LoopInternalization : Pass<"loop-internalization"> {
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
            /*default=*/"false", 
            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
-    Option<"tileSize", "tile-size", "unsigned", /*default=*/"1", "Tile size">
+    Option<"tileSize", "tile-size", "unsigned", /*default=*/"1", "Tile size">,
+    Option<"localMemorySize", "local-memory-size", "unsigned",
+           /*default=*/"32000", "The size of local memory arena in bytes">
   ];
   let statistics = [
     Statistic<"numTiled", "num-tiled", "Number of loops tiled">,
   ];
-  let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect", "spirv::SPIRVDialect"];
+  let dependentDialects =
+      ["affine::AffineDialect", "memref::MemRefDialect", "scf::SCFDialect", 
+       "spirv::SPIRVDialect"];
 }
 
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
