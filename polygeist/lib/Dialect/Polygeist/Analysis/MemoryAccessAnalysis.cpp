@@ -34,7 +34,20 @@ using namespace mlir::polygeist;
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Determine whether a value is equal to a given integer constant.
+/// Determine whether a value \p val is equal to \p constant.
+static bool isEqualTo(Value val, int64_t constant, DataFlowSolver &solver) {
+  if (!val)
+    return false;
+
+  std::optional<APInt> constVal = getConstIntegerValue(val, solver);
+  if (!constVal)
+    return false;
+
+  APInt c(constVal->getBitWidth(), constant, true /*signed*/);
+  return (constVal == c);
+}
+
+/// Determine whether an integer range \p range is equal to \p constant.
 static bool isEqualTo(IntegerValueRange range, int64_t constant) {
   if (range.isUninitialized())
     return false;
@@ -138,41 +151,57 @@ namespace {
 /// Example:
 ///   k1*i + k2
 /// Here the multiplier is 'k1'.
-class Multiplier : public Value {
+class Multiplier : public IntegerValueRange {
   friend raw_ostream &operator<<(raw_ostream &, const Multiplier &);
 
 public:
-  Multiplier(Value val) : Value(val) {}
+  Multiplier(IntegerValueRange range) : IntegerValueRange(range) {}
 
-  static Multiplier one(MLIRContext *ctx) {
-    OpBuilder b(ctx);
-    return Multiplier(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1));
+  static Multiplier one() {
+    auto one = ConstantIntRanges::constant(APInt(32, 1));
+    return Multiplier(IntegerValueRange(one));
+  }
+
+  static Multiplier create(Value val, DataFlowSolver &solver) {
+    if (auto *range =
+            solver.lookupState<dataflow::IntegerValueRangeLattice>(val))
+      return Multiplier(range->getValue());
+    return Multiplier(IntegerValueRange());
   }
 };
 
 [[maybe_unused]] raw_ostream &operator<<(raw_ostream &os,
                                          const Multiplier &mul) {
-  return os << "Multiplier: " << static_cast<Value>(mul);
+  os << "Multiplier: ";
+  return printRange(os, static_cast<IntegerValueRange>(mul));
 }
 
 /// Represents an offset in an affine expression.
 /// Example:
 ///   k1*i + k2
 /// Here the offset is 'k2'.
-class Offset : public Value {
+class Offset : public IntegerValueRange {
   friend raw_ostream &operator<<(raw_ostream &, const Offset &);
 
 public:
-  Offset(Value val) : Value(val) {}
+  Offset(IntegerValueRange range) : IntegerValueRange(range) {}
 
-  static Offset zero(MLIRContext *ctx) {
-    OpBuilder b(ctx);
-    return Offset(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0));
+  static Offset zero() {
+    auto zero = ConstantIntRanges::constant(APInt(32, 0));
+    return Offset(IntegerValueRange(zero));
+  }
+
+  static Offset create(Value val, DataFlowSolver &solver) {
+    if (auto *range =
+            solver.lookupState<dataflow::IntegerValueRangeLattice>(val))
+      return Offset(range->getValue());
+    return Offset(IntegerValueRange());
   }
 };
 
 [[maybe_unused]] raw_ostream &operator<<(raw_ostream &os, const Offset &off) {
-  return os << "Offset: " << static_cast<Value>(off);
+  os << "Offset: ";
+  return printRange(os, static_cast<IntegerValueRange>(off));
 }
 
 /// Represent a generic value or a value of type \tparam T.
@@ -205,16 +234,9 @@ public:
 
   /// Determine whether this class holds the value \p constant.
   bool isEqualTo(int64_t constant, DataFlowSolver &solver) const {
-    Value val = is<T>() ? get<T>() : get<Value>();
-    if (!val)
-      return false;
-
-    std::optional<APInt> constVal = getConstIntegerValue(val, solver);
-    if (!constVal)
-      return false;
-
-    APInt c(constVal->getBitWidth(), constant, true /*signed*/);
-    return (constVal == c);
+    if (is<T>())
+      return ::isEqualTo(get<T>(), constant);
+    return ::isEqualTo(get<Value>(), constant, solver);
   }
 
 private:
@@ -272,7 +294,7 @@ static ValueOr<Multiplier> visitBinaryOp(T binOp, const Value factor,
 static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
                                          DataFlowSolver &solver) {
   if (expr == factor)
-    return Multiplier::one(expr.getContext());
+    return Multiplier::one();
 
   Operation *op = expr.getDefiningOp();
   if (!op)
@@ -307,7 +329,7 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
           if (!lhsIsMul && !rhsIsMul &&
               getOperandThatMatchesFactor(lhs.get<Value>(), rhs.get<Value>()) !=
                   nullptr)
-            return Multiplier::one(expr.getContext());
+            return Multiplier::one();
           return Value();
         };
 
@@ -327,9 +349,9 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
           if (!lhsIsMul && !rhsIsMul) {
             Value lhsVal = lhs.get<Value>(), rhsVal = rhs.get<Value>();
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == lhsVal)
-              return Multiplier(rhsVal);
+              return Multiplier::create(lhsVal, solver);
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == rhsVal)
-              return Multiplier(lhsVal);
+              return Multiplier::create(rhsVal, solver);
             return Value();
           }
 
@@ -342,14 +364,14 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
             if (rhs.isEqualTo(1, solver))
               return lhs;
             if (lhs.isEqualTo(1, solver) && rhs.get<Value>() != factor)
-              return Multiplier(rhs.get<Value>());
+              return Multiplier::create(rhs.get<Value>(), solver);
             return Value();
           }
           if (rhsIsMul && !lhsIsMul) {
             if (lhs.isEqualTo(1, solver))
               return rhs;
             if (rhs.isEqualTo(1, solver) && lhs.get<Value>() != factor)
-              return Multiplier(lhs.get<Value>());
+              return Multiplier::create(lhs.get<Value>(), solver);
             return Value();
           }
 
@@ -403,7 +425,7 @@ static ValueOr<Offset>
 getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           DataFlowSolver &solver) {
   if (llvm::any_of(loopAndThreadVars, [&](Value var) { return expr == var; }))
-    return Offset::zero(expr.getContext());
+    return Offset::zero();
 
   Operation *op = expr.getDefiningOp();
   if (!op)
@@ -441,7 +463,7 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           if (lhsIsOff && !rhsIsOff) {
             if (lhs.isEqualTo(0, solver) &&
                 !usesAny(rhs.get<Value>(), loopAndThreadVars))
-              return Offset(rhs.get<Value>());
+              return Offset::create(rhs.get<Value>(), solver);
             if (usesAny(rhs.get<Value>(), loopAndThreadVars) ||
                 rhs.isEqualTo(0, solver))
               return lhs;
@@ -449,7 +471,7 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           if (rhsIsOff && !lhsIsOff) {
             if (rhs.isEqualTo(0, solver) &&
                 !usesAny(lhs.get<Value>(), loopAndThreadVars))
-              return Offset(lhs.get<Value>());
+              return Offset::create(lhs.get<Value>(), solver);
             if (usesAny(lhs.get<Value>(), loopAndThreadVars) ||
                 lhs.isEqualTo(0, solver))
               return rhs;
@@ -461,10 +483,10 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           if (!lhsIsOff && !rhsIsOff) {
             if (usesAny(lhs.get<Value>(), loopAndThreadVars) &&
                 !usesAny(rhs.get<Value>(), loopAndThreadVars))
-              return Offset(rhs.get<Value>());
+              return Offset::create(rhs.get<Value>(), solver);
             if (usesAny(rhs.get<Value>(), loopAndThreadVars) &&
                 !usesAny(lhs.get<Value>(), loopAndThreadVars))
-              return Offset(lhs.get<Value>());
+              return Offset::create(lhs.get<Value>(), solver);
           }
 
           return Value();
@@ -497,20 +519,20 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
             if (lhs.isEqualTo(0, solver) || rhs.isEqualTo(1, solver))
               return lhs;
             if (lhs.isEqualTo(1, solver))
-              return Offset(rhs.get<Value>());
+              return Offset::create(rhs.get<Value>(), solver);
           }
           if (rhsIsOff && !lhsIsOff) {
             if (rhs.isEqualTo(0, solver) || lhs.isEqualTo(1, solver))
               return rhs;
             if (rhs.isEqualTo(1, solver))
-              return Offset(lhs.get<Value>());
+              return Offset::create(lhs.get<Value>(), solver);
           }
 
           // Otherwise, if neither the LHS nor the RHS subtrees passed up an
           // offset, and the multiplication uses a loop IV or thread id, the
           // offset is zero.
           if (!lhsIsOff && !rhsIsOff && usesAny(mulOp, loopAndThreadVars))
-            return Offset::zero(expr.getContext());
+            return Offset::zero();
 
           return Value();
         };
@@ -1353,11 +1375,7 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
         return std::nullopt;
       }
 
-      std::optional<APInt> constVal =
-          getConstIntegerValue(valOrMultiplier.get<Multiplier>(), solver);
-      accessMatrix(row, col) =
-          constVal ? IntegerValueRange(ConstantIntRanges::constant(*constVal))
-                   : IntegerValueRange();
+      accessMatrix(row, col) = valOrMultiplier.get<Multiplier>();
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
@@ -1384,11 +1402,7 @@ std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
       return std::nullopt;
     }
 
-    std::optional<APInt> constVal =
-        getConstIntegerValue(valOrOffset.get<Offset>(), solver);
-    offsets(row) =
-        constVal ? IntegerValueRange(ConstantIntRanges::constant(*constVal))
-                 : IntegerValueRange();
+    offsets(row) = valOrOffset.get<Offset>();
   }
   LLVM_DEBUG(llvm::dbgs() << "offset vector:\n" << offsets << "\n");
 
