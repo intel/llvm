@@ -60,6 +60,13 @@ following command (or suitable build system equivalent):
 .. _YAML syntax:
    https://github.com/oneapi-src/unified-runtime/blob/main/scripts/YaML.md
 
+.. note::
+
+    The generated source and header files are placed into ``/source`` and 
+    ``/include`` directories respectively. You *should* make no attempt to 
+    modify them directly. When the generator is run all your changes will be 
+    overwritten.
+
 Writing YAML
 ============
 
@@ -169,6 +176,15 @@ disaster cases like ${X}_RESULT_ERROR_OUT_OF_HOST_MEMORY or similar.
 Conformance tests *must* not make assumptions about the adapter under test.
 Tests fixtures or cases *must* query for support of optional features and skip
 testing if unsupported by the adapter.
+
+All tests in the Unified Runtime project are configured to use CTest to run. 
+All conformance tests have the ``conformance`` label attached to them which 
+allows them to be run independently. To run all the conformance tests, execute 
+the following command from the build directory.
+
+.. code-block:: console
+     
+    ctest -L "conformance"
 
 Experimental Features
 =====================
