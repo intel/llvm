@@ -10484,7 +10484,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".pProperties = ";
 
-    os << *(params->ppProperties);
+    ur_params::serializePtr(os, *(params->ppProperties));
 
     return os;
 }

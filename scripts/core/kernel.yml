@@ -385,7 +385,7 @@ params:
     - type: "$x_mem_handle_t"
       name: hArgValue
       desc: "[in][optional] handle of Memory object."
-    - type: "$x_mem_obj_properties_t"
+    - type: "const $x_mem_obj_properties_t*"
       name: pProperties
       desc: "[in][optional] pointer to Memory object properties."
 returns:
