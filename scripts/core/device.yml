@@ -383,8 +383,6 @@ etors:
       desc: "[$x_bool_t] Return true if the device supports enqueing commands to read and write pipes from the host."
     - name: MAX_REGISTERS_PER_WORK_GROUP
       desc: "[uint32_t] The maximum number of registers available per block."
-    - name: EXP_COMMAND_BUFFER_SUPPORT
-      desc: "[$x_exp_command_buffer_support_level_t] Level of experimental command-buffer support."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

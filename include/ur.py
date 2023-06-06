@@ -273,18 +273,6 @@ class ur_rect_region_t(Structure):
     ]
 
 ###############################################################################
-## @brief Command buffer support level for device info queries.
-class ur_exp_command_buffer_support_level_v(IntEnum):
-    UNSUPPORTED = 0                                 ## No support for command-buffers.
-    EMULATED = 1                                    ## Emulated support for command-buffers.
-    NATIVE = 2                                      ## Native support for command-buffers.
-
-class ur_exp_command_buffer_support_level_t(c_int):
-    def __str__(self):
-        return str(ur_exp_command_buffer_support_level_v(self.value))
-
-
-###############################################################################
 ## @brief Command-Buffer Descriptor Type
 class ur_exp_command_buffer_desc_t(Structure):
     _fields_ = [
@@ -601,8 +589,6 @@ class ur_device_info_v(IntEnum):
     HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueing commands to
                                                     ## read and write pipes from the host.
     MAX_REGISTERS_PER_WORK_GROUP = 112              ## [uint32_t] The maximum number of registers available per block.
-    EXP_COMMAND_BUFFER_SUPPORT = 113                ## [::ur_exp_command_buffer_support_level_t] Level of experimental
-                                                    ## command-buffer support.
 
 class ur_device_info_t(c_int):
     def __str__(self):
