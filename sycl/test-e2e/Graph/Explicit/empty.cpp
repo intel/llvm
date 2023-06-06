@@ -30,6 +30,8 @@ int main() {
 
   auto Empty = Graph.add({exp_ext::property::node::depends_on(Init)});
   auto Empty2 = Graph.add({exp_ext::property::node::depends_on(Empty)});
+  auto Empty3 = Graph.add([&](handler &) {},
+                          {exp_ext::property::node::depends_on(Empty2)});
 
   Graph.add(
       [&](handler &CGH) {
