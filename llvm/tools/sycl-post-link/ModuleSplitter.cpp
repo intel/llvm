@@ -351,7 +351,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
   return SplitM;
 }
 
-// The function is simlar to 'extracCallGraph', but it produces a coupe of
+// The function is similar to 'extractCallGraph', but it produces a copy of
 // input LLVM IR module M with _all_ ESIMD functions and kernels included,
 // regardless of whether or not they are listed in ModuleEntryPoints.
 ModuleDesc extractESIMDCallGraph(const ModuleDesc &MD,
