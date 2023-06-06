@@ -5597,9 +5597,6 @@ ExprResult Sema::BuildTypeTrait(TypeTrait Kind, SourceLocation KWLoc,
     return TypeTraitExpr::Create(Context, Context.getLogicalOperationType(),
                                  KWLoc, Kind, Args, RParenLoc, Result);
   }
-  default:
-    llvm_unreachable("reached the end of BuildTypeTrait because the type "
-                     "trait's type is unaccounted for");
   }
 }
 
