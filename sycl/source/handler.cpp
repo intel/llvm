@@ -211,26 +211,24 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs,
-                                      KernelBundleImpPtr, MKernel, MKernelName,
-                                      MOSModuleHandle, RawEvents, OutEvent,
-                                      nullptr, MImpl->MKernelCacheConfig);
+            Result =
+                enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                 MKernel, MKernelName, RawEvents, OutEvent,
+                                 nullptr, MImpl->MKernelCacheConfig);
           }
         }
         return Result;
       };
 
       emitKernelInstrumentationData(MKernel, MCodeLoc, MKernelName, MQueue,
-                                    MNDRDesc, KernelBundleImpPtr,
-                                    MOSModuleHandle, MArgs);
+                                    MNDRDesc, KernelBundleImpPtr, MArgs);
 
       bool DiscardEvent = false;
       if (MQueue->has_discard_events_support()) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
-            detail::ProgramManager::getInstance().kernelUsesAssert(
-                MOSModuleHandle, MKernelName);
+            detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -268,7 +266,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
-        MKernelName, MOSModuleHandle, std::move(MStreamStorage),
+        MKernelName, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MCodeLoc));
     break;
@@ -337,13 +335,13 @@ event handler::finalize() {
   case detail::CG::CopyToDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
-        std::move(CGData), MOSModuleHandle, MCodeLoc));
+        std::move(CGData), MCodeLoc));
     break;
   }
   case detail::CG::CopyFromDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
-        std::move(CGData), MOSModuleHandle, MCodeLoc));
+        std::move(CGData), MCodeLoc));
     break;
   }
   case detail::CG::ReadWriteHostPipe: {
