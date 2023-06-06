@@ -199,11 +199,11 @@ public:
   DependencyGraph(const Module &M) {
     // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
-        FuncTypeToFuncMap;
+        FuncTypeToFuncsMap;
     for (const auto &F : M.functions()) {
       // Kernels can't be called (either directly or indirectly) in SYCL
       if (!isKernel(F))
-        FuncTypeToFuncMap[F.getFunctionType()].insert(&F);
+        FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
     // We add every function into the graph
@@ -229,7 +229,7 @@ public:
         //   signatures the same in that case
         // - all virtual functions are referenced from vtable and therefore will
         //   anyway be preserved in a module
-        const auto &PotentialCallees = FuncTypeToFuncMap[Signature];
+        const auto &PotentialCallees = FuncTypeToFuncsMap[Signature];
         Graph[&F].insert(PotentialCallees.begin(), PotentialCallees.end());
       }
     }
