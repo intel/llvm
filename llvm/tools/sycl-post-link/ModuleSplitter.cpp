@@ -299,11 +299,11 @@ void collectFunctionsAndGlobalVariablesToExtract(
     const auto *Obj = GVs[Idx++];
 
     for (const GlobalValue *Dep : Deps.dependencies(Obj)) {
-      // Functions can be additionally filtered
       if (const auto *Func = dyn_cast<const Function>(Dep)) {
         if (Func->isDeclaration())
           continue;
 
+        // Functions can be additionally filtered
         if (!IncludeFunctionPredicate || IncludeFunctionPredicate(Func))
           GVs.insert(Func);
       } else {
