@@ -48,18 +48,299 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
 namespace __sycl_std = __host_std;
 #endif
 
+#define COMMA ,
+
+#define DEF_BUILTIN_VEC(TYPE)                                                  \
+  BUILTIN_DEF(TYPE##2)                                                         \
+  BUILTIN_DEF(TYPE##3)                                                         \
+  BUILTIN_DEF(TYPE##4)                                                         \
+  BUILTIN_DEF(TYPE##8)                                                         \
+  BUILTIN_DEF(TYPE##16)
+
+#define DEF_BUILTIN_GEOVEC(TYPE)                                               \
+  BUILTIN_DEF(TYPE##2)                                                         \
+  BUILTIN_DEF(TYPE##3)                                                         \
+  BUILTIN_DEF(TYPE##4)
+
+#define DEF_BUILTIN_MARRAY(TYPE)                                               \
+  template <size_t NElems> BUILTIN_DEF(marray<TYPE COMMA NElems>)
+
+#define DEF_BUILTIN_CHAR_SCALAR BUILTIN_DEF(char)
+#define DEF_BUILTIN_CHAR_VEC DEF_BUILTIN_VEC(char)
+#define DEF_BUILTIN_CHAR_MARRAY DEF_BUILTIN_MARRAY(char)
+#define DEF_BUILTIN_CHARN                                                      \
+  DEF_BUILTIN_CHAR_VEC                                                         \
+  DEF_BUILTIN_CHAR_MARRAY
+#define DEF_BUILTIN_SCHAR_SCALAR BUILTIN_DEF(signed char)
+#define DEF_BUILTIN_SCHAR_VEC DEF_BUILTIN_VEC(schar)
+#define DEF_BUILTIN_SCHAR_MARRAY DEF_BUILTIN_MARRAY(signed char)
+#define DEF_BUILTIN_SCHARN                                                     \
+  DEF_BUILTIN_SCHAR_VEC                                                        \
+  DEF_BUILTIN_SCHAR_MARRAY
+#define DEF_BUILTIN_IGENCHAR                                                   \
+  DEF_BUILTIN_SCHAR_SCALAR                                                     \
+  DEF_BUILTIN_SCHARN
+#define DEF_BUILTIN_UCHAR_SCALAR BUILTIN_DEF(unsigned char)
+#define DEF_BUILTIN_UCHAR_VEC DEF_BUILTIN_VEC(uchar)
+#define DEF_BUILTIN_UCHAR_MARRAY DEF_BUILTIN_MARRAY(unsigned char)
+#define DEF_BUILTIN_UCHARN                                                     \
+  DEF_BUILTIN_UCHAR_VEC                                                        \
+  DEF_BUILTIN_UCHAR_MARRAY
+#define DEF_BUILTIN_UGENCHAR                                                   \
+  DEF_BUILTIN_UCHAR_SCALAR                                                     \
+  DEF_BUILTIN_UCHARN
+// schar{n} and char{n} have the same type, so we skip the char{n} variants.
+#define DEF_BUILTIN_GENCHAR                                                    \
+  DEF_BUILTIN_CHAR_SCALAR                                                      \
+  DEF_BUILTIN_CHAR_MARRAY                                                      \
+  DEF_BUILTIN_IGENCHAR                                                         \
+  DEF_BUILTIN_UGENCHAR
+
+#define DEF_BUILTIN_SHORT_SCALAR BUILTIN_DEF(short)
+#define DEF_BUILTIN_SHORT_VEC DEF_BUILTIN_VEC(short)
+#define DEF_BUILTIN_SHORT_MARRAY DEF_BUILTIN_MARRAY(short)
+#define DEF_BUILTIN_SHORTN                                                     \
+  DEF_BUILTIN_SHORT_VEC                                                        \
+  DEF_BUILTIN_SHORT_MARRAY
+#define DEF_BUILTIN_GENSHORT                                                   \
+  DEF_BUILTIN_SHORT_SCALAR                                                     \
+  DEF_BUILTIN_SHORTN
+#define DEF_BUILTIN_USHORT_SCALAR BUILTIN_DEF(unsigned short)
+#define DEF_BUILTIN_USHORT_VEC DEF_BUILTIN_VEC(ushort)
+#define DEF_BUILTIN_USHORT_MARRAY DEF_BUILTIN_MARRAY(unsigned short)
+#define DEF_BUILTIN_USHORTN                                                    \
+  DEF_BUILTIN_USHORT_VEC                                                       \
+  DEF_BUILTIN_USHORT_MARRAY
+#define DEF_BUILTIN_UGENSHORT                                                  \
+  DEF_BUILTIN_USHORT_SCALAR                                                    \
+  DEF_BUILTIN_USHORTN
+
+#define DEF_BUILTIN_INT_SCALAR BUILTIN_DEF(int)
+#define DEF_BUILTIN_INT_VEC DEF_BUILTIN_VEC(int)
+#define DEF_BUILTIN_INT_MARRAY DEF_BUILTIN_MARRAY(int)
+#define DEF_BUILTIN_INTN                                                       \
+  DEF_BUILTIN_INT_VEC                                                          \
+  DEF_BUILTIN_INT_MARRAY
+#define DEF_BUILTIN_GENINT                                                     \
+  DEF_BUILTIN_INT_SCALAR                                                       \
+  DEF_BUILTIN_INTN
+#define DEF_BUILTIN_UINT_SCALAR BUILTIN_DEF(unsigned int)
+#define DEF_BUILTIN_UINT_VEC DEF_BUILTIN_VEC(uint)
+#define DEF_BUILTIN_UINT_MARRAY DEF_BUILTIN_MARRAY(unsigned int)
+#define DEF_BUILTIN_UINTN                                                      \
+  DEF_BUILTIN_UINT_VEC                                                         \
+  DEF_BUILTIN_UINT_MARRAY
+#define DEF_BUILTIN_UGENINT                                                    \
+  DEF_BUILTIN_UINT_SCALAR                                                      \
+  DEF_BUILTIN_UINTN
+
+#define DEF_BUILTIN_LONG_SCALAR BUILTIN_DEF(long)
+#define DEF_BUILTIN_LONG_VEC DEF_BUILTIN_VEC(long)
+#define DEF_BUILTIN_LONG_MARRAY DEF_BUILTIN_MARRAY(long)
+#define DEF_BUILTIN_LONGN                                                      \
+  DEF_BUILTIN_LONG_VEC                                                         \
+  DEF_BUILTIN_LONG_MARRAY
+#define DEF_BUILTIN_GENLONG                                                    \
+  DEF_BUILTIN_LONG_SCALAR                                                      \
+  DEF_BUILTIN_LONGN
+#define DEF_BUILTIN_ULONG_SCALAR BUILTIN_DEF(unsigned long)
+#define DEF_BUILTIN_ULONG_VEC DEF_BUILTIN_VEC(ulong)
+#define DEF_BUILTIN_ULONG_MARRAY DEF_BUILTIN_MARRAY(unsigned long)
+#define DEF_BUILTIN_ULONGN                                                     \
+  DEF_BUILTIN_ULONG_VEC                                                        \
+  DEF_BUILTIN_ULONG_MARRAY
+#define DEF_BUILTIN_UGENLONG                                                   \
+  DEF_BUILTIN_ULONG_SCALAR                                                     \
+  DEF_BUILTIN_ULONGN
+
+#define DEF_BUILTIN_LONGLONG_SCALAR BUILTIN_DEF(long long)
+#define DEF_BUILTIN_LONGLONG_VEC DEF_BUILTIN_VEC(longlong)
+#define DEF_BUILTIN_LONGLONG_MARRAY DEF_BUILTIN_MARRAY(long long)
+#define DEF_BUILTIN_LONGLONGN                                                  \
+  DEF_BUILTIN_LONGLONG_VEC                                                     \
+  DEF_BUILTIN_LONGLONG_MARRAY
+#define DEF_BUILTIN_GENLONGLONG                                                \
+  DEF_BUILTIN_LONGLONG_SCALAR                                                  \
+  DEF_BUILTIN_LONGLONGN
+#define DEF_BUILTIN_ULONGLONG_SCALAR BUILTIN_DEF(unsigned long long)
+#define DEF_BUILTIN_ULONGLONG_VEC DEF_BUILTIN_VEC(ulonglong)
+#define DEF_BUILTIN_ULONGLONG_MARRAY DEF_BUILTIN_MARRAY(unsigned long long)
+#define DEF_BUILTIN_ULONGLONGN                                                 \
+  DEF_BUILTIN_ULONGLONG_VEC                                                    \
+  DEF_BUILTIN_ULONGLONG_MARRAY
+#define DEF_BUILTIN_UGENLONGLONG                                               \
+  DEF_BUILTIN_ULONGLONG_SCALAR                                                 \
+  DEF_BUILTIN_ULONGLONGN
+
+// longlongn and long{n} have the same types, so we only include one here.
+#define DEF_BUILTIN_IGENLONGINTEGER                                            \
+  DEF_BUILTIN_LONG_SCALAR                                                      \
+  DEF_BUILTIN_LONG_MARRAY                                                      \
+  DEF_BUILTIN_LONGLONG_SCALAR                                                  \
+  DEF_BUILTIN_LONGLONG_MARRAY                                                  \
+  DEF_BUILTIN_LONG_VEC
+
+// longlong{n} and long{n} have the same types, so we only include one here.
+#define DEF_BUILTIN_UGENLONGINTEGER                                            \
+  DEF_BUILTIN_ULONG_SCALAR                                                     \
+  DEF_BUILTIN_ULONG_MARRAY                                                     \
+  DEF_BUILTIN_ULONGLONG_SCALAR                                                 \
+  DEF_BUILTIN_ULONGLONG_MARRAY                                                 \
+  DEF_BUILTIN_ULONG_VEC
+
+#define DEF_BUILTIN_SIGENINTEGER                                               \
+  DEF_BUILTIN_SCHAR_SCALAR                                                     \
+  DEF_BUILTIN_SHORT_SCALAR                                                     \
+  DEF_BUILTIN_INT_SCALAR                                                       \
+  DEF_BUILTIN_LONG_SCALAR                                                      \
+  DEF_BUILTIN_LONGLONG_SCALAR
+
+// longlongn and longn have the same types, so we only include one here.
+#define DEF_BUILTIN_VIGENINTEGER                                               \
+  DEF_BUILTIN_CHAR_VEC                                                         \
+  DEF_BUILTIN_SHORT_VEC                                                        \
+  DEF_BUILTIN_INT_VEC                                                          \
+  DEF_BUILTIN_LONG_VEC
+
+#define DEF_BUILTIN_IGENINTEGER                                                \
+  DEF_BUILTIN_IGENCHAR                                                         \
+  DEF_BUILTIN_GENSHORT                                                         \
+  DEF_BUILTIN_GENINT                                                           \
+  DEF_BUILTIN_IGENLONGINTEGER
+
+#define DEF_BUILTIN_SUGENINTEGER                                               \
+  DEF_BUILTIN_UCHAR_SCALAR                                                     \
+  DEF_BUILTIN_USHORT_SCALAR                                                    \
+  DEF_BUILTIN_UINT_SCALAR                                                      \
+  DEF_BUILTIN_ULONG_SCALAR                                                     \
+  DEF_BUILTIN_ULONGLONG_SCALAR
+
+// longlongn and longn have the same types, so we only include one here.
+#define DEF_BUILTIN_VUGENINTEGER                                               \
+  DEF_BUILTIN_UCHAR_VEC                                                        \
+  DEF_BUILTIN_USHORT_VEC                                                       \
+  DEF_BUILTIN_UINT_VEC                                                         \
+  DEF_BUILTIN_ULONG_VEC
+
+#define DEF_BUILTIN_UGENINTEGER                                                \
+  DEF_BUILTIN_UGENCHAR                                                         \
+  DEF_BUILTIN_UGENSHORT                                                        \
+  DEF_BUILTIN_UGENINT                                                          \
+  DEF_BUILTIN_UGENLONGINTEGER
+
+#define DEF_BUILTIN_SGENINTEGER                                                \
+  DEF_BUILTIN_CHAR_SCALAR                                                      \
+  DEF_BUILTIN_SIGENINTEGER                                                     \
+  DEF_BUILTIN_SUGENINTEGER
+
+// longlongn and long{n} have the same types, so we only include one here.
+#define DEF_BUILTIN_VGENINTEGER                                                \
+  DEF_BUILTIN_CHAR_VEC                                                         \
+  DEF_BUILTIN_SHORT_VEC                                                        \
+  DEF_BUILTIN_USHORT_VEC                                                       \
+  DEF_BUILTIN_INT_VEC                                                          \
+  DEF_BUILTIN_UINT_VEC                                                         \
+  DEF_BUILTIN_LONG_VEC                                                         \
+  DEF_BUILTIN_ULONG_VEC
+
+#define DEF_BUILTIN_GENINTEGER                                                 \
+  DEF_BUILTIN_GENCHAR                                                          \
+  DEF_BUILTIN_GENSHORT                                                         \
+  DEF_BUILTIN_UGENSHORT                                                        \
+  DEF_BUILTIN_GENINT                                                           \
+  DEF_BUILTIN_UGENINT                                                          \
+  DEF_BUILTIN_UGENLONGINTEGER                                                  \
+  DEF_BUILTIN_IGENLONGINTEGER
+
+#define DEF_BUILTIN_FLOAT_SCALAR BUILTIN_DEF(float)
+#define DEF_BUILTIN_FLOAT_VEC DEF_BUILTIN_VEC(float)
+#define DEF_BUILTIN_FLOAT_GEOVEC DEF_BUILTIN_GEOVEC(float)
+#define DEF_BUILTIN_FLOAT_MARRAY DEF_BUILTIN_MARRAY(float)
+#define DEF_BUILTIN_FLOATN                                                     \
+  DEF_BUILTIN_FLOAT_VEC                                                        \
+  DEF_BUILTIN_FLOAT_MARRAY
+#define DEF_BUILTIN_GENFLOATF                                                  \
+  DEF_BUILTIN_FLOAT_SCALAR                                                     \
+  DEF_BUILTIN_FLOATN
+#define DEF_BUILTIN_GENGEOFLOATF                                               \
+  DEF_BUILTIN_FLOAT_SCALAR                                                     \
+  DEF_BUILTIN_FLOAT_GEOVEC
+
+#define DEF_BUILTIN_DOUBLE_SCALAR BUILTIN_DEF(double)
+#define DEF_BUILTIN_DOUBLE_VEC DEF_BUILTIN_VEC(double)
+#define DEF_BUILTIN_DOUBLE_GEOVEC DEF_BUILTIN_GEOVEC(double)
+#define DEF_BUILTIN_DOUBLE_MARRAY DEF_BUILTIN_MARRAY(double)
+#define DEF_BUILTIN_DOUBLEN                                                    \
+  DEF_BUILTIN_DOUBLE_VEC                                                       \
+  DEF_BUILTIN_DOUBLE_MARRAY
+#define DEF_BUILTIN_GENFLOATD                                                  \
+  DEF_BUILTIN_DOUBLE_SCALAR                                                    \
+  DEF_BUILTIN_DOUBLEN
+#define DEF_BUILTIN_GENGEOFLOATD                                               \
+  DEF_BUILTIN_DOUBLE_SCALAR                                                    \
+  DEF_BUILTIN_DOUBLE_GEOVEC
+
+#define DEF_BUILTIN_HALF_SCALAR BUILTIN_DEF(half)
+#define DEF_BUILTIN_HALF_VEC DEF_BUILTIN_VEC(half)
+#define DEF_BUILTIN_HALF_GEOVEC DEF_BUILTIN_GEOVEC(half)
+#define DEF_BUILTIN_HALF_MARRAY DEF_BUILTIN_MARRAY(half)
+#define DEF_BUILTIN_HALFN                                                      \
+  DEF_BUILTIN_HALF_VEC                                                         \
+  DEF_BUILTIN_HALF_MARRAY
+#define DEF_BUILTIN_GENFLOATH                                                  \
+  DEF_BUILTIN_HALF_SCALAR                                                      \
+  DEF_BUILTIN_HALFN
+#define DEF_BUILTIN_GENGEOFLOATH                                               \
+  DEF_BUILTIN_HALF_SCALAR                                                      \
+  DEF_BUILTIN_HALF_GEOVEC
+
+#define DEF_BUILTIN_SGENFLOAT                                                  \
+  DEF_BUILTIN_FLOAT_SCALAR                                                     \
+  DEF_BUILTIN_DOUBLE_SCALAR                                                    \
+  DEF_BUILTIN_HALF_SCALAR
+
+#define DEF_BUILTIN_VGENFLOAT                                                  \
+  DEF_BUILTIN_FLOAT_VEC                                                        \
+  DEF_BUILTIN_DOUBLE_VEC                                                       \
+  DEF_BUILTIN_HALF_VEC
+
+#define DEF_BUILTIN_GENFLOAT                                                   \
+  DEF_BUILTIN_GENFLOATF                                                        \
+  DEF_BUILTIN_GENFLOATD                                                        \
+  DEF_BUILTIN_GENFLOATH
+
+#define DEF_BUILTIN_GENGEOFLOAT                                                \
+  DEF_BUILTIN_GENGEOFLOATF                                                     \
+  DEF_BUILTIN_GENGEOFLOATD                                                     \
+  DEF_BUILTIN_GENGEOFLOATH
+
+// TODO: Replace with overloads.
 #ifdef __FAST_MATH__
-#define __FAST_MATH_GENFLOAT(T)                                                \
-  (detail::is_svgenfloatd<T>::value || detail::is_svgenfloath<T>::value)
 #define __FAST_MATH_SGENFLOAT(T)                                               \
   (std::is_same_v<T, double> || std::is_same_v<T, half>)
 #else
-#define __FAST_MATH_GENFLOAT(T) (detail::is_svgenfloat<T>::value)
 #define __FAST_MATH_SGENFLOAT(T) (detail::is_sgenfloat<T>::value)
 #endif
 
+#ifdef __FAST_MATH__
+#define DEF_BUILTIN_FAST_MATH_GENFLOAT                                         \
+  DEF_BUILTIN_GENFLOATD                                                        \
+  DEF_BUILTIN_GENFLOATH
+#else
+#define DEF_BUILTIN_FAST_MATH_GENFLOAT DEF_BUILTIN_GENFLOAT
+#endif
+
+#define DEF_BUILTIN_SGENTYPE                                                   \
+  DEF_BUILTIN_SGENINTEGER                                                      \
+  DEF_BUILTIN_SGENFLOAT
+
+#define DEF_BUILTIN_GENTYPE                                                    \
+  DEF_BUILTIN_GENINTEGER                                                       \
+  DEF_BUILTIN_GENFLOAT
+
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 
+// TODO: Replace with overloads.
 // These macros for marray math function implementations use vectorizations of
 // size two as a simple general optimization. A more complex implementation
 // using larger vectorizations for large marray sizes is possible; however more
@@ -318,207 +599,261 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
-    // svgenfloat acos (svgenfloat x)
-    template <typename T>
-    std::enable_if_t<detail::is_svgenfloat<T>::value, T> acos(T x) __NOEXC {
-  return __sycl_std::__invoke_acos<T>(x);
-}
+// genfloat acos (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE acos(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_acos<TYPE>(x);                                 \
+  }
+        DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat acosh (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> acosh(T x) __NOEXC {
-  return __sycl_std::__invoke_acosh<T>(x);
-}
+// genfloat acosh (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE acosh(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_acosh<TYPE>(x);                                \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat acospi (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> acospi(T x) __NOEXC {
-  return __sycl_std::__invoke_acospi<T>(x);
-}
+// genfloat acospi (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE acospi(TYPE x) __NOEXC {                                         \
+    return __sycl_std::__invoke_acospi<TYPE>(x);                               \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat asin (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> asin(T x) __NOEXC {
-  return __sycl_std::__invoke_asin<T>(x);
-}
+// genfloat asin (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE asin(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_asin<TYPE>(x);                                 \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat asinh (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> asinh(T x) __NOEXC {
-  return __sycl_std::__invoke_asinh<T>(x);
-}
+// genfloat asinh (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE asinh(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_asinh<TYPE>(x);                                \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat asinpi (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> asinpi(T x) __NOEXC {
-  return __sycl_std::__invoke_asinpi<T>(x);
-}
+// genfloat asinpi (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE asinpi(TYPE x) __NOEXC {                                         \
+    return __sycl_std::__invoke_asinpi<TYPE>(x);                               \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat atan (svgenfloat y_over_x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atan(T y_over_x) __NOEXC {
-  return __sycl_std::__invoke_atan<T>(y_over_x);
-}
+// genfloat atan (genfloat y_over_x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE atan(TYPE y_over_x) __NOEXC {                                    \
+    return __sycl_std::__invoke_atan<TYPE>(y_over_x);                          \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat atan2 (svgenfloat y, svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atan2(T y, T x) __NOEXC {
-  return __sycl_std::__invoke_atan2<T>(y, x);
-}
+// genfloat atan2 (genfloat y, genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE atan2(TYPE y, TYPE x) __NOEXC {                                  \
+    return __sycl_std::__invoke_atan2<TYPE>(y, x);                             \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat atanh (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atanh(T x) __NOEXC {
-  return __sycl_std::__invoke_atanh<T>(x);
-}
+// genfloat atanh (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE atanh(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_atanh<TYPE>(x);                                \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat atanpi (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atanpi(T x) __NOEXC {
-  return __sycl_std::__invoke_atanpi<T>(x);
-}
+// genfloat atanpi (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE atanpi(TYPE x) __NOEXC {                                         \
+    return __sycl_std::__invoke_atanpi<TYPE>(x);                               \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat atan2pi (svgenfloat y, svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> atan2pi(T y, T x) __NOEXC {
-  return __sycl_std::__invoke_atan2pi<T>(y, x);
-}
+// genfloat atan2pi (genfloat y, genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE atan2pi(TYPE y, TYPE x) __NOEXC {                                \
+    return __sycl_std::__invoke_atan2pi<TYPE>(y, x);                           \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat cbrt (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> cbrt(T x) __NOEXC {
-  return __sycl_std::__invoke_cbrt<T>(x);
-}
+// genfloat cbrt (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE cbrt(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_cbrt<TYPE>(x);                                 \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat ceil (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> ceil(T x) __NOEXC {
-  return __sycl_std::__invoke_ceil<T>(x);
-}
+// genfloat ceil (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE ceil(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_ceil<TYPE>(x);                                 \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat copysign (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> copysign(T x,
-                                                              T y) __NOEXC {
-  return __sycl_std::__invoke_copysign<T>(x, y);
-}
+// genfloat copysign (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE copysign(TYPE y, TYPE x) __NOEXC {                               \
+    return __sycl_std::__invoke_copysign<TYPE>(y, x);                          \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat cos (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> cos(T x) __NOEXC {
-  return __sycl_std::__invoke_cos<T>(x);
-}
+// genfloat cos (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE cos(TYPE x) __NOEXC { return __sycl_std::__invoke_cos<TYPE>(x); }
+    DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat cosh (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> cosh(T x) __NOEXC {
-  return __sycl_std::__invoke_cosh<T>(x);
-}
+// genfloat cosh (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE cosh(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_cosh<TYPE>(x);                                 \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat cospi (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> cospi(T x) __NOEXC {
-  return __sycl_std::__invoke_cospi<T>(x);
-}
+// genfloat cospi (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE cospi(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_cospi<TYPE>(x);                                \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat erfc (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> erfc(T x) __NOEXC {
-  return __sycl_std::__invoke_erfc<T>(x);
-}
+// genfloat erfc (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE erfc(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_erfc<TYPE>(x);                                 \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat erf (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> erf(T x) __NOEXC {
-  return __sycl_std::__invoke_erf<T>(x);
-}
+// genfloat erf (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE erf(TYPE x) __NOEXC { return __sycl_std::__invoke_erf<TYPE>(x); }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat exp (svgenfloat x )
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp(T x) __NOEXC {
-  return __sycl_std::__invoke_exp<T>(x);
-}
+// genfloat exp (genfloat x )
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp(TYPE x) __NOEXC { return __sycl_std::__invoke_exp<TYPE>(x); }
+    DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat exp2 (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp2(T x) __NOEXC {
-  return __sycl_std::__invoke_exp2<T>(x);
-}
+// genfloat exp2 (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp2(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_exp2<TYPE>(x);                                 \
+  }
+    DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat exp10 (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp10(T x) __NOEXC {
-  return __sycl_std::__invoke_exp10<T>(x);
-}
+// genfloat exp10 (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp10(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_exp10<TYPE>(x);                                \
+  }
+    DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat expm1 (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> expm1(T x) __NOEXC {
-  return __sycl_std::__invoke_expm1<T>(x);
-}
+// genfloat expm1 (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE expm1(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_expm1<TYPE>(x);                                \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fabs (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fabs(T x) __NOEXC {
-  return __sycl_std::__invoke_fabs<T>(x);
-}
+// genfloat fabs (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fabs(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_fabs<TYPE>(x);                                 \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fdim (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fdim(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fdim<T>(x, y);
-}
+// genfloat fdim (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fdim(TYPE x, TYPE y) __NOEXC {                                   \
+    return __sycl_std::__invoke_fdim<TYPE>(x, y);                              \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat floor (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> floor(T x) __NOEXC {
-  return __sycl_std::__invoke_floor<T>(x);
-}
+// genfloat floor (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE floor(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_floor<TYPE>(x);                                \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fma (svgenfloat a, svgenfloat b, svgenfloat c)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fma(T a, T b,
-                                                         T c) __NOEXC {
-  return __sycl_std::__invoke_fma<T>(a, b, c);
-}
+// genfloat fma (genfloat a, genfloat b, genfloat c)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fma(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
+    return __sycl_std::__invoke_fma<TYPE>(a, b, c);                            \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fmax (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fmax(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmax<T>(x, y);
-}
+// genfloat fmax (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fmax(TYPE x, TYPE y) __NOEXC {                                   \
+    return __sycl_std::__invoke_fmax<TYPE>(x, y);                              \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fmax (svgenfloat x, sgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_vgenfloat<T>::value, T>
-fmax(T x, typename T::element_type y) __NOEXC {
-  return __sycl_std::__invoke_fmax<T>(x, T(y));
-}
+// genfloat fmax (genfloat x, sgenfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fmax(TYPE x, TYPE::element_type y) __NOEXC {                     \
+    return __sycl_std::__invoke_fmax<TYPE>(x, TYPE(y));                        \
+  }
+    DEF_BUILTIN_VGENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fmin (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fmin(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmin<T>(x, y);
-}
+// genfloat fmin (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fmin(TYPE x, TYPE y) __NOEXC {                                   \
+    return __sycl_std::__invoke_fmin<TYPE>(x, y);                              \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fmin (svgenfloat x, sgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_vgenfloat<T>::value, T>
-fmin(T x, typename T::element_type y) __NOEXC {
-  return __sycl_std::__invoke_fmin<T>(x, T(y));
-}
+// genfloat fmin (genfloat x, sgenfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fmin(TYPE x, TYPE::element_type y) __NOEXC {                     \
+    return __sycl_std::__invoke_fmin<TYPE>(x, TYPE(y));                        \
+  }
+    DEF_BUILTIN_VGENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fmod (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> fmod(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_fmod<T>(x, y);
-}
+// genfloat fmod (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE fmod(TYPE x, TYPE y) __NOEXC {                                   \
+    return __sycl_std::__invoke_fmod<TYPE>(x, y);                              \
+  }
+    DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat fract (svgenfloat x, genfloatptr iptr)
-template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
-fract(T x, T2 iptr) __NOEXC {
+    // svgenfloat fract (svgenfloat x, genfloatptr iptr)
+    template <typename T, typename T2>
+    std::enable_if_t<detail::is_svgenfloat<T>::value &&
+                         detail::is_genfloatptr<T2>::value,
+                     T> fract(T x, T2 iptr) __NOEXC {
   detail::check_vector_size<T, T2>();
   return __sycl_std::__invoke_fract<T>(x, iptr);
 }
@@ -532,32 +867,40 @@ frexp(T x, T2 exp) __NOEXC {
   return __sycl_std::__invoke_frexp<T>(x, exp);
 }
 
-// svgenfloat hypot (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> hypot(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_hypot<T>(x, y);
-}
+// genfloat hypot (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE hypot(TYPE x, TYPE y) __NOEXC {                                  \
+    return __sycl_std::__invoke_hypot<TYPE>(x, y);                             \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// genint ilogb (svgenfloat x)
-template <typename T,
-          typename = std::enable_if_t<detail::is_svgenfloat<T>::value, T>>
-detail::change_base_type_t<T, int> ilogb(T x) __NOEXC {
-  return __sycl_std::__invoke_ilogb<detail::change_base_type_t<T, int>>(x);
-}
+// genint ilogb (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline detail::change_base_type_t<TYPE, int> ilogb(TYPE x) __NOEXC {         \
+    return __sycl_std::__invoke_ilogb<detail::change_base_type_t<TYPE, int>>(  \
+        x);                                                                    \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
 // float ldexp (float x, int k)
 // double ldexp (double x, int k)
 // half ldexp (half x, int k)
-template <typename T>
-std::enable_if_t<detail::is_sgenfloat<T>::value, T> ldexp(T x, int k) __NOEXC {
-  return __sycl_std::__invoke_ldexp<T>(x, k);
-}
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE ldexp(TYPE x, int k) __NOEXC {                                   \
+    return __sycl_std::__invoke_ldexp<TYPE>(x, k);                             \
+  }
+DEF_BUILTIN_SGENFLOAT
+#undef BUILTIN_DEF
 
 // vgenfloat ldexp (vgenfloat x, int k)
-template <typename T>
-std::enable_if_t<detail::is_vgenfloat<T>::value, T> ldexp(T x, int k) __NOEXC {
-  return __sycl_std::__invoke_ldexp<T>(x, vec<int, T::size()>(k));
-}
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE ldexp(TYPE x, int k) __NOEXC {                                   \
+    return __sycl_std::__invoke_ldexp<TYPE>(x, vec<int, TYPE::size()>(k));     \
+  }
+DEF_BUILTIN_VGENFLOAT
+#undef BUILTIN_DEF
 
 // vgenfloat ldexp (vgenfloat x, genint k)
 template <typename T, typename T2>
@@ -568,11 +911,13 @@ ldexp(T x, T2 k) __NOEXC {
   return __sycl_std::__invoke_ldexp<T>(x, k);
 }
 
-// svgenfloat lgamma (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> lgamma(T x) __NOEXC {
-  return __sycl_std::__invoke_lgamma<T>(x);
-}
+// genfloat lgamma (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE lgamma(TYPE x) __NOEXC {                                         \
+    return __sycl_std::__invoke_lgamma<TYPE>(x);                               \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
 // svgenfloat lgamma_r (svgenfloat x, genintptr signp)
 template <typename T, typename T2>
@@ -583,54 +928,67 @@ lgamma_r(T x, T2 signp) __NOEXC {
   return __sycl_std::__invoke_lgamma_r<T>(x, signp);
 }
 
-// svgenfloat log (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log(T x) __NOEXC {
-  return __sycl_std::__invoke_log<T>(x);
-}
+// genfloat log (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log(TYPE x) __NOEXC { return __sycl_std::__invoke_log<TYPE>(x); }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat log2 (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log2(T x) __NOEXC {
-  return __sycl_std::__invoke_log2<T>(x);
-}
+// genfloat log2 (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log2(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_log2<TYPE>(x);                                 \
+  }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat log10 (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log10(T x) __NOEXC {
-  return __sycl_std::__invoke_log10<T>(x);
-}
+// genfloat log10 (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log10(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_log10<TYPE>(x);                                \
+  }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat log1p (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> log1p(T x) __NOEXC {
-  return __sycl_std::__invoke_log1p<T>(x);
-}
+// genfloat log1p (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log1p(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_log1p<TYPE>(x);                                \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat logb (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> logb(T x) __NOEXC {
-  return __sycl_std::__invoke_logb<T>(x);
-}
+// genfloat logb (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE logb(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_logb<TYPE>(x);                                 \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat mad (svgenfloat a, svgenfloat b, svgenfloat c)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> mad(T a, T b,
-                                                         T c) __NOEXC {
-  return __sycl_std::__invoke_mad<T>(a, b, c);
-}
+// genfloat mad (genfloat a, genfloat b, genfloat c)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE mad(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
+    return __sycl_std::__invoke_mad<TYPE>(a, b, c);                            \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat maxmag (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> maxmag(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_maxmag<T>(x, y);
-}
+// genfloat maxmag (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE maxmag(TYPE x, TYPE y) __NOEXC {                                 \
+    return __sycl_std::__invoke_maxmag<TYPE>(x, y);                            \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat minmag (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> minmag(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_minmag<T>(x, y);
-}
+// genfloat minmag (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE minmag(TYPE x, TYPE y) __NOEXC {                                 \
+    return __sycl_std::__invoke_minmag<TYPE>(x, y);                            \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
 // svgenfloat modf (svgenfloat x, genfloatptr iptr)
 template <typename T, typename T2>
@@ -648,18 +1006,21 @@ detail::nan_return_t<T> nan(T nancode) __NOEXC {
       detail::convert_data_type<T, detail::nan_argument_base_t<T>>()(nancode));
 }
 
-// svgenfloat nextafter (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> nextafter(T x,
-                                                               T y) __NOEXC {
-  return __sycl_std::__invoke_nextafter<T>(x, y);
-}
+// genfloat nextafter (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE nextafter(TYPE x, TYPE y) __NOEXC {                              \
+    return __sycl_std::__invoke_nextafter<TYPE>(x, y);                         \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat pow (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> pow(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_pow<T>(x, y);
-}
+// genfloat pow (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE pow(TYPE x, TYPE y) __NOEXC {                                    \
+    return __sycl_std::__invoke_pow<TYPE>(x, y);                               \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
 // svgenfloat pown (svgenfloat x, genint y)
 template <typename T, typename T2>
@@ -670,18 +1031,21 @@ pown(T x, T2 y) __NOEXC {
   return __sycl_std::__invoke_pown<T>(x, y);
 }
 
-// svgenfloat powr (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> powr(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_powr<T>(x, y);
-}
+// genfloat powr (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
+    return __sycl_std::__invoke_powr<TYPE>(x, y);                              \
+  }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat remainder (svgenfloat x, svgenfloat y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> remainder(T x,
-                                                               T y) __NOEXC {
-  return __sycl_std::__invoke_remainder<T>(x, y);
-}
+// genfloat remainder (genfloat x, genfloat y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE remainder(TYPE x, TYPE y) __NOEXC {                              \
+    return __sycl_std::__invoke_remainder<TYPE>(x, y);                         \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
 // svgenfloat remquo (svgenfloat x, svgenfloat y, genintptr quo)
 template <typename T, typename T2>
@@ -692,11 +1056,13 @@ remquo(T x, T y, T2 quo) __NOEXC {
   return __sycl_std::__invoke_remquo<T>(x, y, quo);
 }
 
-// svgenfloat rint (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> rint(T x) __NOEXC {
-  return __sycl_std::__invoke_rint<T>(x);
-}
+// genfloat rint (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE rint(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_rint<TYPE>(x);                                 \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
 // svgenfloat rootn (svgenfloat x, genint y)
 template <typename T, typename T2>
@@ -707,23 +1073,27 @@ rootn(T x, T2 y) __NOEXC {
   return __sycl_std::__invoke_rootn<T>(x, y);
 }
 
-// svgenfloat round (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> round(T x) __NOEXC {
-  return __sycl_std::__invoke_round<T>(x);
-}
+// genfloat round (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE round(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_round<TYPE>(x);                                \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat rsqrt (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> rsqrt(T x) __NOEXC {
-  return __sycl_std::__invoke_rsqrt<T>(x);
-}
+// genfloat rsqrt (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_rsqrt<TYPE>(x);                                \
+  }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat sin (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sin(T x) __NOEXC {
-  return __sycl_std::__invoke_sin<T>(x);
-}
+// genfloat sin (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sin(TYPE x) __NOEXC { return __sycl_std::__invoke_sin<TYPE>(x); }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
 // svgenfloat sincos (svgenfloat x, genfloatptr cosval)
 template <typename T, typename T2>
@@ -734,53 +1104,67 @@ sincos(T x, T2 cosval) __NOEXC {
   return __sycl_std::__invoke_sincos<T>(x, cosval);
 }
 
-// svgenfloat sinh (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> sinh(T x) __NOEXC {
-  return __sycl_std::__invoke_sinh<T>(x);
-}
+// genfloat sinh (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sinh(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_sinh<TYPE>(x);                                 \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat sinpi (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> sinpi(T x) __NOEXC {
-  return __sycl_std::__invoke_sinpi<T>(x);
-}
+// genfloat sinpi (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sinpi(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_sinpi<TYPE>(x);                                \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat sqrt (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sqrt(T x) __NOEXC {
-  return __sycl_std::__invoke_sqrt<T>(x);
-}
+// genfloat sqrt (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sqrt(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_sqrt<TYPE>(x);                                 \
+  }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat tan (svgenfloat x)
-template <typename T>
-std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> tan(T x) __NOEXC {
-  return __sycl_std::__invoke_tan<T>(x);
-}
+// genfloat tan (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE tan(TYPE x) __NOEXC { return __sycl_std::__invoke_tan<TYPE>(x); }
+DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat tanh (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> tanh(T x) __NOEXC {
-  return __sycl_std::__invoke_tanh<T>(x);
-}
+// genfloat tanh (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE tanh(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_tanh<TYPE>(x);                                 \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat tanpi (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> tanpi(T x) __NOEXC {
-  return __sycl_std::__invoke_tanpi<T>(x);
-}
+// genfloat tanpi (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE tanpi(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_tanpi<TYPE>(x);                                \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat tgamma (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> tgamma(T x) __NOEXC {
-  return __sycl_std::__invoke_tgamma<T>(x);
-}
+// genfloat tgamma (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE tgamma(TYPE x) __NOEXC {                                         \
+    return __sycl_std::__invoke_tgamma<TYPE>(x);                               \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
-// svgenfloat trunc (svgenfloat x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> trunc(T x) __NOEXC {
-  return __sycl_std::__invoke_trunc<T>(x);
-}
+// genfloat trunc (genfloat x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE trunc(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_trunc<TYPE>(x);                                \
+  }
+DEF_BUILTIN_GENFLOAT
+#undef BUILTIN_DEF
 
 // other marray math functions
 
@@ -2230,89 +2614,145 @@ __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(powr)
 
 #undef __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD
 
-// svgenfloatf cos (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
-  return __sycl_std::__invoke_native_cos<T>(x);
-}
+// genfloatf cos (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE cos(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_native_cos<TYPE>(x);                           \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf divide (svgenfloatf x, svgenfloatf y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> divide(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_native_divide<T>(x, y);
-}
+// genfloatf divide (genfloatf x, genfloatf y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE divide(TYPE x, TYPE y) __NOEXC {                                 \
+    return __sycl_std::__invoke_native_divide<TYPE>(x, y);                     \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf exp (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp(T x) __NOEXC {
-  return __sycl_std::__invoke_native_exp<T>(x);
-}
+// genfloatf exp (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_native_exp<TYPE>(x);                           \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf exp2 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp2(T x) __NOEXC {
-  return __sycl_std::__invoke_native_exp2<T>(x);
-}
+// genfloatf exp2 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp2(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_native_exp2<TYPE>(x);                          \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf exp10 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp10(T x) __NOEXC {
-  return __sycl_std::__invoke_native_exp10<T>(x);
-}
+// genfloatf exp10 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp10(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_native_exp10<TYPE>(x);                         \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf log (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log(T x) __NOEXC {
-  return __sycl_std::__invoke_native_log<T>(x);
-}
+// genfloatf log (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_native_log<TYPE>(x);                           \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf log2 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log2(T x) __NOEXC {
-  return __sycl_std::__invoke_native_log2<T>(x);
-}
+// genfloatf log2 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log2(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_native_log2<TYPE>(x);                          \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf log10 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log10(T x) __NOEXC {
-  return __sycl_std::__invoke_native_log10<T>(x);
-}
+// genfloatf log10 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log10(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_native_log10<TYPE>(x);                         \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf powr (svgenfloatf x, svgenfloatf y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_native_powr<T>(x, y);
-}
+// genfloatf powr (genfloatf x, genfloatf y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
+    return __sycl_std::__invoke_native_powr<TYPE>(x, y);                       \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf recip (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> recip(T x) __NOEXC {
-  return __sycl_std::__invoke_native_recip<T>(x);
-}
+// genfloatf recip (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE recip(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_native_recip<TYPE>(x);                         \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf rsqrt (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> rsqrt(T x) __NOEXC {
-  return __sycl_std::__invoke_native_rsqrt<T>(x);
-}
+// genfloatf rsqrt (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_native_rsqrt<TYPE>(x);                         \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf sin (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> sin(T x) __NOEXC {
-  return __sycl_std::__invoke_native_sin<T>(x);
-}
+// genfloatf sin (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sin(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_native_sin<TYPE>(x);                           \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf sqrt (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> sqrt(T x) __NOEXC {
-  return __sycl_std::__invoke_native_sqrt<T>(x);
-}
+// genfloatf sqrt (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sqrt(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_native_sqrt<TYPE>(x);                          \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
-// svgenfloatf tan (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
-  return __sycl_std::__invoke_native_tan<T>(x);
-}
+// genfloatf tan (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE tan(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_native_tan<TYPE>(x);                           \
+  }
+// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
+DEF_BUILTIN_FLOAT_SCALAR
+DEF_BUILTIN_FLOAT_VEC
+#undef BUILTIN_DEF
 
 } // namespace native
 namespace half_precision {
@@ -2370,89 +2810,117 @@ __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(powr)
 
 #undef __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD
 
-// svgenfloatf cos (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
-  return __sycl_std::__invoke_half_cos<T>(x);
-}
+// genfloatf cos (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE cos(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_half_cos<TYPE>(x);                             \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf divide (svgenfloatf x, svgenfloatf y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> divide(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_half_divide<T>(x, y);
-}
+// genfloatf divide (genfloatf x, genfloatf y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE divide(TYPE x, TYPE y) __NOEXC {                                 \
+    return __sycl_std::__invoke_half_divide<TYPE>(x, y);                       \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf exp (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp(T x) __NOEXC {
-  return __sycl_std::__invoke_half_exp<T>(x);
-}
+// genfloatf exp (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_half_exp<TYPE>(x);                             \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf exp2 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp2(T x) __NOEXC {
-  return __sycl_std::__invoke_half_exp2<T>(x);
-}
+// genfloatf exp2 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp2(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_half_exp2<TYPE>(x);                            \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf exp10 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp10(T x) __NOEXC {
-  return __sycl_std::__invoke_half_exp10<T>(x);
-}
+// genfloatf exp10 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp10(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_half_exp10<TYPE>(x);                           \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf log (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log(T x) __NOEXC {
-  return __sycl_std::__invoke_half_log<T>(x);
-}
+// genfloatf log (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_half_log<TYPE>(x);                             \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf log2 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log2(T x) __NOEXC {
-  return __sycl_std::__invoke_half_log2<T>(x);
-}
+// genfloatf log2 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log2(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_half_log2<TYPE>(x);                            \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf log10 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log10(T x) __NOEXC {
-  return __sycl_std::__invoke_half_log10<T>(x);
-}
+// genfloatf log10 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log10(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_half_log10<TYPE>(x);                           \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf powr (svgenfloatf x, svgenfloatf y)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x, T y) __NOEXC {
-  return __sycl_std::__invoke_half_powr<T>(x, y);
-}
+// genfloatf powr (genfloatf x, genfloatf y)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
+    return __sycl_std::__invoke_half_powr<TYPE>(x, y);                         \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf recip (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> recip(T x) __NOEXC {
-  return __sycl_std::__invoke_half_recip<T>(x);
-}
+// genfloatf recip (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE recip(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_half_recip<TYPE>(x);                           \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf rsqrt (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> rsqrt(T x) __NOEXC {
-  return __sycl_std::__invoke_half_rsqrt<T>(x);
-}
+// genfloatf rsqrt (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
+    return __sycl_std::__invoke_half_rsqrt<TYPE>(x);                           \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf sin (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> sin(T x) __NOEXC {
-  return __sycl_std::__invoke_half_sin<T>(x);
-}
+// genfloatf sin (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sin(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_half_sin<TYPE>(x);                             \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf sqrt (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> sqrt(T x) __NOEXC {
-  return __sycl_std::__invoke_half_sqrt<T>(x);
-}
+// genfloatf sqrt (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sqrt(TYPE x) __NOEXC {                                           \
+    return __sycl_std::__invoke_half_sqrt<TYPE>(x);                            \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
-// svgenfloatf tan (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
-  return __sycl_std::__invoke_half_tan<T>(x);
-}
+// genfloatf tan (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE tan(TYPE x) __NOEXC {                                            \
+    return __sycl_std::__invoke_half_tan<TYPE>(x);                             \
+  }
+DEF_BUILTIN_FLOAT_SCALAR
+#undef BUILTIN_DEF
 
 } // namespace half_precision
 
@@ -2480,84 +2948,77 @@ __SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
 __SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
 #undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
 
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>
-    powr(marray<T, N> x, marray<T, N> y) __NOEXC {
-  return native::powr(x, y);
-}
+// genfloatf cos (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE cos(TYPE x) __NOEXC { return native::cos(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf cos (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
-  return native::cos(x);
-}
+// genfloatf exp (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp(TYPE x) __NOEXC { return native::exp(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf exp (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp(T x) __NOEXC {
-  return native::exp(x);
-}
+// genfloatf exp2 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp2(TYPE x) __NOEXC { return native::exp2(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf exp2 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp2(T x) __NOEXC {
-  return native::exp2(x);
-}
+// genfloatf exp10 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE exp10(TYPE x) __NOEXC { return native::exp10(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf exp10 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> exp10(T x) __NOEXC {
-  return native::exp10(x);
-}
+// genfloatf log(genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log(TYPE x) __NOEXC { return native::log(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf log(svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log(T x) __NOEXC {
-  return native::log(x);
-}
+// genfloatf log2 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log2(TYPE x) __NOEXC { return native::log2(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf log2 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log2(T x) __NOEXC {
-  return native::log2(x);
-}
+// genfloatf log10 (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE log10(TYPE x) __NOEXC { return native::log10(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf log10 (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> log10(T x) __NOEXC {
-  return native::log10(x);
-}
+// genfloatf powr (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE powr(TYPE x, TYPE y) __NOEXC { return native::powr(x, y); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf powr (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> powr(T x, T y) __NOEXC {
-  return native::powr(x, y);
-}
+// genfloatf rsqrt (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE rsqrt(TYPE x) __NOEXC { return native::rsqrt(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf rsqrt (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> rsqrt(T x) __NOEXC {
-  return native::rsqrt(x);
-}
+// genfloatf sin (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sin(TYPE x) __NOEXC { return native::sin(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf sin (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> sin(T x) __NOEXC {
-  return native::sin(x);
-}
+// genfloatf sqrt (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE sqrt(TYPE x) __NOEXC { return native::sqrt(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
-// svgenfloatf sqrt (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> sqrt(T x) __NOEXC {
-  return native::sqrt(x);
-}
-
-// svgenfloatf tan (svgenfloatf x)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
-  return native::tan(x);
-}
+// genfloatf tan (genfloatf x)
+#define BUILTIN_DEF(TYPE)                                                      \
+  inline TYPE tan(TYPE x) __NOEXC { return native::tan(x); }
+DEF_BUILTIN_GENFLOATF
+#undef BUILTIN_DEF
 
 #endif // __FAST_MATH__
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
