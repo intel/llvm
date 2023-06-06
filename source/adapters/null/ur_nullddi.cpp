@@ -119,7 +119,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
     ) try {
@@ -132,7 +132,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
         result = pfnAppendKernelExp(hCommandBuffer, hKernel, WorkDim,
                                     pGlobalWorkOffset, pGlobalWorkSize,
                                     pLocalWorkSize, numSyncPointsInWaitList,
-                                    pDependencies, pSyncPoint);
+                                    pSyncPointWaitList, pSyncPoint);
     } else {
         // generic implementation
     }
@@ -143,8 +143,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferMemcpyUSMExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferMemcpyUSMExp(
+/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer, ///< [in] handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
@@ -153,19 +153,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMemcpyUSMExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMemcpyUSMExp =
-        d_context.urDdiTable.CommandBufferExp.pfnMemcpyUSMExp;
-    if (nullptr != pfnMemcpyUSMExp) {
-        result =
-            pfnMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
-                            numSyncPointsInWaitList, pDependencies, pSyncPoint);
+    auto pfnAppendMemcpyUSMExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
+    if (nullptr != pfnAppendMemcpyUSMExp) {
+        result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+                                       numSyncPointsInWaitList,
+                                       pSyncPointWaitList, pSyncPoint);
     } else {
         // generic implementation
     }
@@ -176,8 +176,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMemcpyUSMExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferMembufferCopyExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyExp(
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -188,19 +188,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMembufferCopyExp =
-        d_context.urDdiTable.CommandBufferExp.pfnMembufferCopyExp;
-    if (nullptr != pfnMembufferCopyExp) {
-        result = pfnMembufferCopyExp(
+    auto pfnAppendMembufferCopyExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
+    if (nullptr != pfnAppendMembufferCopyExp) {
+        result = pfnAppendMembufferCopyExp(
             hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
-            numSyncPointsInWaitList, pDependencies, pSyncPoint);
+            numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
     } else {
         // generic implementation
     }
@@ -211,8 +211,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferMembufferCopyRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyRectExp(
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -230,20 +230,20 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnMembufferCopyRectExp =
-        d_context.urDdiTable.CommandBufferExp.pfnMembufferCopyRectExp;
-    if (nullptr != pfnMembufferCopyRectExp) {
-        result = pfnMembufferCopyRectExp(
+    auto pfnAppendMembufferCopyRectExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
+    if (nullptr != pfnAppendMembufferCopyRectExp) {
+        result = pfnAppendMembufferCopyRectExp(
             hCommandBuffer, hSrcMem, hDstMem, SrcOrigin, DstOrigin, Region,
             SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
-            numSyncPointsInWaitList, pDependencies, pSyncPoint);
+            numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
     } else {
         // generic implementation
     }
@@ -3839,12 +3839,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
     pDdiTable->pfnAppendKernelExp = driver::urCommandBufferAppendKernelExp;
 
-    pDdiTable->pfnMemcpyUSMExp = driver::urCommandBufferMemcpyUSMExp;
+    pDdiTable->pfnAppendMemcpyUSMExp =
+        driver::urCommandBufferAppendMemcpyUSMExp;
 
-    pDdiTable->pfnMembufferCopyExp = driver::urCommandBufferMembufferCopyExp;
+    pDdiTable->pfnAppendMembufferCopyExp =
+        driver::urCommandBufferAppendMembufferCopyExp;
 
-    pDdiTable->pfnMembufferCopyRectExp =
-        driver::urCommandBufferMembufferCopyRectExp;
+    pDdiTable->pfnAppendMembufferCopyRectExp =
+        driver::urCommandBufferAppendMembufferCopyRectExp;
 
     pDdiTable->pfnEnqueueExp = driver::urCommandBufferEnqueueExp;
 

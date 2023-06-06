@@ -253,6 +253,10 @@ etors:
       desc: "Invalid USM size"
     - name: ERROR_INVALID_COMMAND_BUFFER_EXP
       desc: "Invalid Command-Buffer"
+    - name: ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+      desc: "Sync point is not valid for the command-buffer"
+    - name: ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+      desc: "Sync point wait list is invalid"
     - name: ERROR_OBJECT_ALLOCATION_FAILURE
       desc: "Objection allocation failure"
     - name: ERROR_ADAPTER_SPECIFIC
