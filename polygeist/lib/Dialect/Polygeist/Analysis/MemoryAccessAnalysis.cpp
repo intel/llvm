@@ -121,6 +121,17 @@ static bool usesValue(Operation *op, Value val) {
   });
 }
 
+/// Print the given integer value range \p range.
+static raw_ostream &printRange(raw_ostream &os,
+                               const IntegerValueRange &range) {
+  if (range.isUninitialized())
+    return os << "?";
+  if (auto constVal = range.getValue().getConstantValue())
+    return os << *constVal;
+  range.print(os);
+  return os;
+}
+
 namespace {
 
 /// Represents a multiplication factor in an affine expression.
@@ -526,22 +537,7 @@ mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccessMatrix &matrix) {
   for (size_t row = 0; row < matrix.getNumRows(); ++row) {
     llvm::interleave(
         matrix.getRow(row), os,
-        [&os](const IntegerValueRange &elem) {
-          auto getConstValue =
-              [](const IntegerValueRange &elem) -> std::optional<APInt> {
-            if (elem.isUninitialized())
-              return std::nullopt;
-            if (auto constVal = elem.getValue().getConstantValue())
-              return constVal;
-            return std::nullopt;
-          };
-
-          if (auto constVal = getConstValue(elem))
-            os << *constVal;
-          else
-            os << "?";
-        },
-        " ");
+        [&os](const IntegerValueRange &elem) { printRange(os, elem); }, " ");
     if (row != (matrix.getNumRows() - 1))
       os << '\n';
   }
@@ -979,22 +975,7 @@ MemoryAccessMatrix::getConstIntegerValue(size_t row, size_t column) const {
 mlir::polygeist::operator<<(raw_ostream &os, const OffsetVector &vector) {
   llvm::interleave(
       vector.getOffsets(), os,
-      [&os](const IntegerValueRange &elem) {
-        auto getConstValue =
-            [](const IntegerValueRange &elem) -> std::optional<APInt> {
-          if (elem.isUninitialized())
-            return std::nullopt;
-          if (auto constVal = elem.getValue().getConstantValue())
-            return constVal;
-          return std::nullopt;
-        };
-
-        if (auto constVal = getConstValue(elem))
-          os << *constVal;
-        else
-          os << "?";
-      },
-      " ");
+      [&os](const IntegerValueRange &elem) { printRange(os, elem); }, " ");
   return os << "\n";
 }
 
