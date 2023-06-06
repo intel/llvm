@@ -929,6 +929,25 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
   return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
+// Splits input module into two:
+// - one containing _all_ ESIMD kernels, ESIMD functions and everything they use
+// - another one which contains everything else
+//
+// The most interesting part here is that if a regular SYCL kernel uses a ESIMD
+// function (through invoke_simd), it won't be included in non-ESIMD module.
+//
+// The reason for that is because ESIMD functions should undergo special
+// handling and therefore we isolate them all into a separate module completely
+// to do so. Due to design choices in passes provided by vc-intrinsics repo, we
+// can't handle ESIMD functions _only_ in a mixed module.
+//
+// Functions, which are used from both ESIMD and non-ESIMD code will be
+// duplicated into each module.
+//
+// If there are dependenceis between ESIMD and non-ESIMD code (produced by
+// inoke_simd, for example), the modules has to be linked back together to avoid
+// undefined behavior at later stages. That is done at higher level, outside of
+// this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
                                         bool EmitOnlyKernelsAsEntryPoints) {
 
