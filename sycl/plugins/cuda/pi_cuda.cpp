@@ -325,9 +325,16 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
       std::min(maxThreadsPerBlock[0],
                std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
+  static auto isPowerOf2 = [](size_t value) -> bool {
+    return value && !(value & (value - 1));
+  };
+
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
+  // Additionally, for best compute utilisation, the local size has
+  // to be a power of two.
+  while (0u != (global_work_size[0] % threadsPerBlock[0]) ||
+         !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
 }
