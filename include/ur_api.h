@@ -2984,6 +2984,7 @@ typedef struct ur_program_properties_t {
 ///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
+///         + `length == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_BINARY
 ///         + If `pIL` is not a valid IL binary for devices in `hContext`.
 ///     - ::UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE

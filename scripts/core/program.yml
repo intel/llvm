@@ -109,6 +109,8 @@ returns:
         - "If `pIL` is not a valid IL binary for devices in `hContext`."
     - $X_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
         - "If devices in `hContext` don't have the capability to compile an IL binary at runtime."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`length == 0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a program object from device native binary."
