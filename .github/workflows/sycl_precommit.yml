@@ -61,12 +61,17 @@ jobs:
               - *llvm_spirv
               - *clang
               - 'libclc/**'
+            libdevice: &libdevice
+              - *llvm_spirv
+              - *clang
+              - 'libdevice/**'
             sycl:
               - *clang
               - *sycl-fusion
               - *llvm_spirv
               - *xptifw
               - *libclc
+              - *libdevice
               - 'sycl/*'
               - 'sycl/!(test-e2e)/**'
 

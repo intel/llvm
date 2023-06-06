@@ -88,6 +88,10 @@ on:
         type: string
         required: false
         default: 'true'
+      check_libdevice:
+        type: string
+        required: false
+        default: 'true'
 
 jobs:
   build:
@@ -160,6 +164,10 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_libclc == 'true' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
+    - name: check-libdevice
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_libdevice == 'true' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Install
       # TODO replace utility installation with a single CMake target
       run: |
