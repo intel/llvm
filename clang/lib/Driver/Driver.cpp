@@ -5449,11 +5449,8 @@ class OffloadingActionBuilder final {
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-        // Todo: currently we assume that if none of the above is true, we are
-        // handling actions for Native CPU. This is a very strong assumption
-        // and we should find a better way to identify it, e.g. if the device
-        // triple is the same as the host.
-        bool isSYCLNativeCPU = !isNVPTX && !isAMDGCN && !isSPIR && !isSpirvAOT;
+        const bool isSYCLNativeCPU =
+            TC->getAuxTriple() && TT == *TC->getAuxTriple();
         for (const auto &Input : LI) {
           if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
               types::isFPGA(Input->getType())) {

@@ -3,8 +3,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu,spir64 -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:cpu" %t
-// Todo: currently this test fails on Native CPU because depending on the ordering of the -fsycl-targets, the 
-// integration footer gets overwritten and the Native CPU integration header is not included
+// Todo: currently this test fails on Native CPU because depending on the
+// ordering of the -fsycl-targets, the integration footer gets overwritten and
+// the Native CPU integration header is not included
 // XFAIL: native_cpu_be
 
 #include <sycl/sycl.hpp>
