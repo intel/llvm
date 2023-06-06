@@ -775,6 +775,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   SplitOccurred |= Result.size() > 1;
 
   for (auto &MD : Result) {
+    DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
     Modified |= processSpecConstants(MD);
     if (LowerEsimd && MD.isESIMD())
       Modified |= lowerEsimdConstructs(MD);
@@ -800,6 +801,8 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
     Linked.rebuildEntryPoints(Names);
     Result.clear();
     Result.emplace_back(std::move(Linked));
+    DUMP_ENTRY_POINTS(Result.back().entries(), Result.back().Name.c_str(), 3);
+    Modified = true;
   }
 
   return Result;
