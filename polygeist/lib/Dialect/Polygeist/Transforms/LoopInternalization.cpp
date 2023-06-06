@@ -280,8 +280,8 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     // Get the inter-thread access pattern and classify the memory access.
     MemoryAccessMatrix interThreadMatrix =
         memAccess->getInterThreadAccessMatrix(threadVars.size());
-    MemoryAccessPattern interThreadAccessPattern = MemoryAccess::classify(
-        interThreadMatrix, memAccess->getOffsetVector(), solver);
+    MemoryAccessPattern interThreadAccessPattern =
+        MemoryAccess::classify(interThreadMatrix, memAccess->getOffsetVector());
 
     switch (interThreadAccessPattern) {
     case Linear:
@@ -305,9 +305,14 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     case Overlapped:
     case StridedOverlapped:
     case ReverseStridedOverlapped: {
-      Value strideVal =
+      dataflow::IntegerValueRange strideRange =
           interThreadMatrix(interThreadMatrix.getNumRows() - 1,
                             interThreadMatrix.getNumColumns() - 1);
+
+      if (strideRange.isUninitialized()) {
+        memRefAccessToMemSpace[memRef] = MemorySpace::Global;
+        break;
+      }
 
       // Use shared memory iff:
       //   - the memory access exhibits temporal reuse, and
@@ -321,7 +326,8 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       //   1 0
       //   0 C <- where C == 0 (C is the stride).
       bool useSharedMemory = false;
-      if (auto stride = getConstIntegerValue(strideVal, solver)) {
+      ConstantIntRanges range = strideRange.getValue();
+      if (std::optional<APInt> stride = range.getConstantValue()) {
         bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
         useSharedMemory = hasTemporalReuse(memRefAccess, threadVars) &&
                           (stride->isZero() || strideIsLargeEnough);
@@ -362,9 +368,9 @@ bool MemorySelector::hasTemporalReuse(
   if (!access)
     return false;
 
-  // A non-zero intra-thread access matrix implies that multiple threads
-  // access the same array element (in a loop).
-  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero(solver);
+  // A non-zero intra-thread access matrix implies that multiple threads access
+  // the same array element (in a loop).
+  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero();
 }
 
 //===----------------------------------------------------------------------===//
