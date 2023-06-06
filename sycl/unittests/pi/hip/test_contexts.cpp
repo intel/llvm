@@ -227,7 +227,8 @@ TEST_F(HipContextsTest, ContextThread) {
     plugin->call<detail::PiApiKind::piQueueRelease>(queue);
   });
 
-  // wait for the thread to be done with the first queue to release the first context
+  // wait for the thread to be done with the first queue to release the first
+  // context
   std::unique_lock<std::mutex> lock(m);
   cv.wait(lock, [&] { return thread_done; });
   plugin->call<detail::PiApiKind::piContextRelease>(context1);
