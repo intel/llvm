@@ -6062,15 +6062,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   std::string FpAccuracyAttr;
-  auto RenderFPAccuracyOptions = [&FpAccuracyAttr](const Twine &optStr) {
+  auto RenderFPAccuracyOptions = [&FpAccuracyAttr](const Twine &OptStr) {
     // In case the value is 'default' don't add the -ffp-builtin-accuracy
     // attribute.
-    if (optStr.str() != "default") {
+    if (OptStr.str() != "default") {
       if (FpAccuracyAttr.empty())
-        FpAccuracyAttr = std::move(std::string("-ffp-builtin-accuracy="));
+        FpAccuracyAttr = "-ffp-builtin-accuracy=";
       else
         FpAccuracyAttr += " ";
-      FpAccuracyAttr += optStr.str();
+      FpAccuracyAttr += OptStr.str();
     }
   };
   for (StringRef A : Args.getAllArgValues(options::OPT_ffp_accuracy_EQ))

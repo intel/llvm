@@ -511,13 +511,11 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
                                            unsigned ID) {
   llvm::CallInst *CI = CGF.Builder.CreateCall(FPBuiltinF, Args);
   llvm::AttributeList AttrList;
-  // sincos() doesn 't return a value, but it still has a type associated with
+  // sincos() doesn't return a value, but it still has a type associated with
   // it that corresponds to the operand type.
-  if (Name == "sincos")
-    CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID, Args[0]->getType());
-  else
-    CGF.CGM.getFPAccuracyFuncAttributes(Name, AttrList, ID,
-                                        FPBuiltinF->getReturnType());
+  CGF.CGM.getFPAccuracyFuncAttributes(
+      Name, AttrList, ID,
+      Name == "sincos" ? Args[0]->getType() : FPBuiltinF->getReturnType());
   CI->setAttributes(AttrList);
   return CI;
 }
@@ -533,12 +531,8 @@ static Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
 static bool hasAccuracyRequirement(CodeGenFunction &CGF, StringRef Name) {
   if (!CGF.getLangOpts().FPAccuracyVal.empty())
     return true;
-  if (!CGF.getLangOpts().FPAccuracyFuncMap.empty()) {
-    auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
-    if (FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end())
-      return true;
-  }
-  return false;
+  auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
+  return FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end();
 }
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
@@ -554,8 +548,8 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
       if (CGF.getLangOpts().MathErrno) {
         DiagnosticsEngine &Diags = CGF.CGM.getDiags();
         Diags.Report(E->getBeginLoc(), diag::err_drv_incompatible_options)
-            << "ffp-accuracy"
-            << "fmath-errno";
+            << "-ffp-accuracy"
+            << "-fmath-errno";
       } else {
         StringRef Name =
             CGF.CGM.getContext().BuiltinInfo.getName(CGF.getCurrentBuiltinID());
@@ -21954,9 +21948,7 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
               .Case("frem", llvm::Intrinsic::fpbuiltin_frem)
               .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
               .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
-              .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
-              .Default(-1);
-      assert(FPAccuracyIntrinsicID != -1 && "unexpected fpbuiltin ID");
+              .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt);
     } else {
       return nullptr;
     }

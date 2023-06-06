@@ -56,9 +56,9 @@
 // CUDA: "-ffp-builtin-accuracy=cuda"
 // FUNC-1: "-ffp-builtin-accuracy=low:sin,cos"
 // FUNC-2: "-ffp-builtin-accuracy=low:sin,cos high:tan"
-// ERR: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'
-// ERR-1: (frontend): unsupported argument 'foo' to option 'ffp-accuracy'
-// ERR-2: (frontend): unsupported argument 'high=[sin]' to option 'ffp-accuracy'
+// ERR: (frontend): unsupported argument 'foo' to option '-ffp-accuracy'
+// ERR-1: (frontend): unsupported argument 'foo' to option '-ffp-accuracy'
+// ERR-2: (frontend): unsupported argument 'high=[sin]' to option '-ffp-accuracy'
 // WARN: (frontend): floating point accuracy value of 'high' has already been assigned to function 'cos'
 // WARN: (frontend): floating point accuracy value of 'high' has already been assigned to function 'sin'
 // ERR-3: (frontend): floating point accuracy requirements cannot be guaranteed when '-fmath-errno' is enabled; use '-fno-math-errno' to enable floating point accuracy control

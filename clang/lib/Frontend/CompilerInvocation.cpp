@@ -3580,6 +3580,20 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Args, OPT_fno_gpu_rdc, SA);
 }
 
+static void checkFPAccuracyIsValid(StringRef ValElement,
+                                   DiagnosticsEngine &Diags) {
+  if (!llvm::StringSwitch<bool>(ValElement)
+           .Case("default", true)
+           .Case("high", true)
+           .Case("low", true)
+           .Case("medium", true)
+           .Case("sycl", true)
+           .Case("cuda", true)
+           .Default(false))
+    Diags.Report(diag::err_drv_unsupported_option_argument)
+        << "-ffp-accuracy" << ValElement;
+}
+
 void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
                                              DiagnosticsEngine &Diags) {
   for (StringRef Values : Args.getAllArgValues(OPT_ffp_builtin_accuracy_EQ)) {
@@ -3593,17 +3607,7 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
         Val.split(ValElement, ':');
         // The option is of the form -ffp-accuracy=value.
         if (ValElement.size() == 1) {
-          StringRef FPAccuracy = ValElement[0];
-          if (!llvm::StringSwitch<bool>(FPAccuracy)
-                   .Case("default", true)
-                   .Case("high", true)
-                   .Case("low", true)
-                   .Case("medium", true)
-                   .Case("sycl", true)
-                   .Case("cuda", true)
-                   .Default(false))
-            Diags.Report(diag::err_drv_unsupported_option_argument)
-                << "ffp-accuracy" << FPAccuracy;
+          checkFPAccuracyIsValid(ValElement[0], Diags);
           Opts.FPAccuracyVal = ValElement[0].str();
         }
         // The option is of the form -ffp-accuracy=value:[f1, ... fn].
@@ -3622,25 +3626,15 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
                     << FuncMap->second << FuncName.str();
               }
             } else {
-              StringRef FPAccuracy = ValElement[0];
-              if (!llvm::StringSwitch<bool>(FPAccuracy)
-                       .Case("default", true)
-                       .Case("high", true)
-                       .Case("low", true)
-                       .Case("medium", true)
-                       .Case("sycl", true)
-                       .Case("cuda", true)
-                       .Default(false))
-                Diags.Report(diag::err_drv_unsupported_option_argument)
-                    << "ffp-accuracy" << FPAccuracy;
+              checkFPAccuracyIsValid(ValElement[0], Diags);
               if (!Opts.FPAccuracyVal.empty())
                 Diags.Report(diag::warn_function_fp_accuracy_already_set)
                     << Opts.FPAccuracyVal << FuncName.str();
               // No need to fill the map if the FPaccuracy is 'default'.
               // The default builtin will be generated.
-              if (!FPAccuracy.equals("default"))
+              if (!ValElement[0].equals("default"))
                 Opts.FPAccuracyFuncMap.insert(
-                    {FuncName.str(), FPAccuracy.str()});
+                    {FuncName.str(), ValElement[0].str()});
             }
           }
         }

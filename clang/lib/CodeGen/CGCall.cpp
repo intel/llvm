@@ -5621,7 +5621,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   llvm::CallBase *CI;
   if (!InvokeDest) {
     if (CGM.getCodeGenOpts().FPAccuracy) {
-      const auto *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl);
+      const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
       assert(FD && "expecting a function");
       CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
       if (CI)
