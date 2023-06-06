@@ -295,14 +295,6 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 }
 /// \endcond
 
-template <typename T,
-          typename = std::enable_if_t<std::numeric_limits<
-              std::remove_reference_t<std::remove_cv_t<T>>>::is_integer>>
-constexpr inline bool isPowerOf2(T value) noexcept {
-  assert(value >= 0);
-  return value && !(value & (value - 1));
-}
-
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
@@ -333,20 +325,15 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
       std::min(maxThreadsPerBlock[0],
                std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
-  // Query the warp-size to use as preferred work-group size multiple.
-  int warpSize{0};
-  PI_CHECK_ERROR(cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                                      device->get()));
-  const size_t preferredMultiple = warpSize;
+  static auto isPowerOf2 = [](size_t value) -> bool {
+    return value && !(value & (value - 1));
+  };
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  // Additionally, the best produced local size:
-  // - has to be multiple of the Cuda warp size
-  // - or any power of 2, if still not evenly distributed.
+  // Additionally, for best compute utilisation, the local size has
+  // to be a power of two.
   while (0u != (global_work_size[0] % threadsPerBlock[0]) ||
-         (threadsPerBlock[0] > preferredMultiple &&
-          0u != (threadsPerBlock[0] % preferredMultiple)) ||
          !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
