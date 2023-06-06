@@ -217,7 +217,6 @@ public:
   }
 
 protected:
-  detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   unittest::PiMock Mock;
   platform Plt;
   device Dev;
@@ -236,7 +235,7 @@ protected:
                                     /*PropertySetsBegin*/ nullptr,
                                     /*PropertySetsEnd*/ nullptr};
   pi_device_binary Bin = &BinStruct;
-  detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
+  detail::RTDeviceBinaryImage Img{Bin};
   RT::PiProgram NativeProg;
 };
 
