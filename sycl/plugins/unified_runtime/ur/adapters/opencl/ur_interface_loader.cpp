@@ -66,14 +66,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  //  pDdiTable->pfnCreateWithNativeHandle = urEventCreateWithNativeHandle;
-  //  pDdiTable->pfnGetInfo = urEventGetInfo;
-  //  pDdiTable->pfnGetNativeHandle = urEventGetNativeHandle;
-  //  pDdiTable->pfnGetProfilingInfo = urEventGetProfilingInfo;
-  //  pDdiTable->pfnRelease = urEventRelease;
-  //  pDdiTable->pfnRetain = urEventRetain;
-  //  pDdiTable->pfnSetCallback = urEventSetCallback;
-  //  pDdiTable->pfnWait = urEventWait;
+  pDdiTable->pfnCreateWithNativeHandle = urEventCreateWithNativeHandle;
+  pDdiTable->pfnGetInfo = urEventGetInfo;
+  pDdiTable->pfnGetNativeHandle = urEventGetNativeHandle;
+  pDdiTable->pfnGetProfilingInfo = urEventGetProfilingInfo;
+  pDdiTable->pfnRelease = urEventRelease;
+  pDdiTable->pfnRetain = urEventRetain;
+  pDdiTable->pfnSetCallback = urEventSetCallback;
+  pDdiTable->pfnWait = urEventWait;
   return UR_RESULT_SUCCESS;
 }
 
@@ -208,14 +208,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  //  pDdiTable->pfnCreate = urQueueCreate;
-  //  pDdiTable->pfnCreateWithNativeHandle = urQueueCreateWithNativeHandle;
-  //  pDdiTable->pfnFinish = urQueueFinish;
-  //  pDdiTable->pfnFlush = urQueueFlush;
-  //  pDdiTable->pfnGetInfo = urQueueGetInfo;
-  //  pDdiTable->pfnGetNativeHandle = urQueueGetNativeHandle;
-  //  pDdiTable->pfnRelease = urQueueRelease;
-  //  pDdiTable->pfnRetain = urQueueRetain;
+  pDdiTable->pfnCreate = urQueueCreate;
+  pDdiTable->pfnCreateWithNativeHandle = urQueueCreateWithNativeHandle;
+  pDdiTable->pfnFinish = urQueueFinish;
+  pDdiTable->pfnFlush = urQueueFlush;
+  pDdiTable->pfnGetInfo = urQueueGetInfo;
+  pDdiTable->pfnGetNativeHandle = urQueueGetNativeHandle;
+  pDdiTable->pfnRelease = urQueueRelease;
+  pDdiTable->pfnRetain = urQueueRetain;
   return UR_RESULT_SUCCESS;
 }
 
