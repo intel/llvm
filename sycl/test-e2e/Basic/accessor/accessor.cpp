@@ -840,34 +840,6 @@ int main() {
     }
   }
 
-  // Accessor with buffer size 0.
-  {
-    try {
-      int data[10] = {0};
-      {
-        sycl::buffer<int, 1> b{&data[0], 10};
-        sycl::buffer<int, 1> b1{0};
-
-        sycl::queue queue;
-        queue.submit([&](sycl::handler &cgh) {
-          sycl::accessor<int, 1, sycl::access::mode::read_write,
-                         sycl::target::device>
-              B(b, cgh);
-          auto B1 = b1.template get_access<sycl::access::mode::read_write>(cgh);
-
-          cgh.single_task<class acc_with_zero_sized_buffer>(
-              [=]() { B[0] = 1; });
-        });
-      }
-      assert(!"invalid device accessor buffer size exception wasn't caught");
-    } catch (const sycl::invalid_object_error &e) {
-      assert(e.get_cl_code() == CL_INVALID_VALUE);
-    } catch (sycl::exception e) {
-      std::cout << "SYCL exception caught: " << e.what();
-      return 1;
-    }
-  }
-
   // Accessor to fixed size array type.
   {
     try {
@@ -1433,6 +1405,29 @@ int main() {
     }
     assert(results[0] == 123 && "Unexpected value!");
     assert(results[1] == 6 && "Unexpected value!");
+  }
+
+  // accessor with buffer size 0.
+  {
+    sycl::buffer<int, 1> Buf{0};
+    sycl::buffer<int, 1> Buf2{200};
+
+    {
+      sycl::queue queue;
+      for (auto IBuf : {Buf, Buf2}) {
+        queue
+            .submit([&](sycl::handler &cgh) {
+              auto B =
+                  IBuf.template get_access<sycl::access::mode::read_write>(cgh);
+
+              cgh.single_task<class fill_with_potentially_zero_size>([=]() {
+                for (size_t I = 0; I < B.size(); ++I)
+                  B[I] = 1;
+              });
+            })
+            .wait();
+      }
+    }
   }
 
   std::cout << "Test passed" << std::endl;
