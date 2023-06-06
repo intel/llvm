@@ -177,12 +177,12 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
 
     - name: Pack toolchain
-      run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
+      run: tar -I 'zstd -9' -cf llvm_sycl.tar.zst -C $GITHUB_WORKSPACE/build/install .
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
-        path: llvm_sycl.tar.xz
+        path: llvm_sycl.tar.zst
 
   aws-start:
     name: Start AWS
@@ -250,7 +250,7 @@ jobs:
       name: Run SYCL End-to-End tests
       with:
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
+        sycl_archive: llvm_sycl.tar.zst
         targets: ${{ matrix.targets }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
@@ -296,7 +296,7 @@ jobs:
       with:
         test_ref: ${{ inputs.cts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
+        sycl_archive: llvm_sycl.tar.zst
         sycl_device_filter: ${{ matrix.sycl_device_filter }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.cts_cmake_extra_args }}'
 
