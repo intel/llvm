@@ -1,4 +1,4 @@
-//==------- test_interop_get_native.cpp - SYCL CUDA get_native tests -------==//
+//==------- test_interop_get_native.cpp - SYCL HIP get_native tests --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -47,21 +47,6 @@ TEST_P(HipInteropGetNativeTests, getNativeContext) {
       get_native<backend::ext_oneapi_hip>(syclQueue_->get_context());
   ASSERT_NE(hipContext, nullptr);
 }
-
-/* hipStreamGetCtx not supported by HIP runtime
-TEST_P(HipInteropGetNativeTests, getNativeQueue) {
-  hipStream_t hipStream = get_native<backend::ext_oneapi_hip>(*syclQueue_);
-  ASSERT_NE(hipStream, nullptr);
-
-  hipCtx_t streamContext = nullptr;
-  CUresult result = hipStreamGetCtx(hipStream, &streamContext);
-  ASSERT_EQ(result, PI_SUCCESS);
-
-  hipCtx_t hipContext =
-      get_native<backend::ext_oneapi_hip>(syclQueue_->get_context());
-  ASSERT_EQ(streamContext, hipContext);
-}
-*/
 
 TEST_P(HipInteropGetNativeTests, interopTaskGetMem) {
   buffer<int, 1> syclBuffer(range<1>{1});

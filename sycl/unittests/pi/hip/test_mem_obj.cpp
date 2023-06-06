@@ -106,7 +106,7 @@ TEST_F(HipTestMemObj, piMemBufferCreateNoActiveContext) {
     auto hipErr = hipCtxPopCurrent(&oldContext);
     EXPECT_EQ(hipErr, PI_SUCCESS);
 
-    // There should not be any active CUDA context
+    // There should not be any active HIP context
     hipErr = hipCtxGetCurrent(&current);
     ASSERT_EQ(hipErr, PI_SUCCESS);
   } while (current != nullptr);

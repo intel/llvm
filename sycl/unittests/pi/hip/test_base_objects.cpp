@@ -30,7 +30,7 @@ protected:
       pi::initializeAndGet(backend::ext_oneapi_hip);
 
   void SetUp() override {
-    // skip the tests if the CUDA backend is not available
+    // skip the tests if the HIP backend is not available
     if (!plugin.has_value()) {
       GTEST_SKIP();
     }
