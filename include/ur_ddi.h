@@ -509,7 +509,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgSampler_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgMemObj_t)(
     ur_kernel_handle_t,
     uint32_t,
-    ur_mem_handle_t);
+    ur_mem_handle_t,
+    const ur_mem_obj_properties_t*);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelSetSpecializationConstants
