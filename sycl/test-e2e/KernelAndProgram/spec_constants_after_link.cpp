@@ -7,6 +7,9 @@
 // HIP backend does not currently implement linking.
 // UNSUPPORTED: hip
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
 
