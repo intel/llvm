@@ -252,7 +252,6 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
     UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
     UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
-    UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES = 27,              ///< ::ur_mem_obj_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3839,15 +3838,6 @@ urKernelSetArgSampler(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Memory object properties
-typedef struct ur_mem_obj_properties_t {
-    ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES
-    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
-    ur_mem_flags_t memory_access;    ///< [in] Memory access flag. Allowed values are: UR_MEM_FLAG_READ_WRITE, UR_MEM_FLAG_WRITE_ONLY, UR_MEM_FLAG_READ_ONLY.
-} ur_mem_obj_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Set a Memory object as the argument value of a Kernel.
 ///
 /// @details
@@ -3866,8 +3856,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t hArgValue,   ///< [in][optional] handle of Memory object.
-    const ur_mem_obj_properties_t* pProperties ///< [in][optional] pointer to memory object usage properties.
+    ur_mem_handle_t hArgValue   ///< [in][optional] handle of Memory object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6472,7 +6461,6 @@ typedef struct ur_kernel_set_arg_mem_obj_params_t {
     ur_kernel_handle_t *phKernel;
     uint32_t *pargIndex;
     ur_mem_handle_t *phArgValue;
-    const ur_mem_obj_properties_t* pProperties;
 } ur_kernel_set_arg_mem_obj_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
