@@ -9,3 +9,4 @@ add_sycl_unittest(ExtensionsTests OBJECT
   OneAPISubGroupMask.cpp
 )
 
+add_subdirectory(compat)
