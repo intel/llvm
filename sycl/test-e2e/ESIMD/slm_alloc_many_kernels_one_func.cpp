@@ -89,5 +89,6 @@ int main(void) {
     std::cout << test << " == " << gold << "(gold)\n";
   }
   std::cout << (err_cnt ? "FAILED\n" : "Passed\n");
+  free(arr, ctxt);
   return err_cnt ? 1 : 0;
 }

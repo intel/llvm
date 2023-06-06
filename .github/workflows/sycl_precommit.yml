@@ -27,6 +27,49 @@ permissions:
   contents: read
 
 jobs:
+  need_check:
+    name: Decide which tests could be affected by the changes
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    outputs:
+      llvm: ${{ steps.changes.outputs.llvm == 'true' }}
+      llvm_spirv: ${{ steps.changes.outputs.llvm_spirv == 'true' }}
+      clang: ${{ steps.changes.outputs.clang == 'true' }}
+      xptifw: ${{ steps.changes.outputs.xptifw == 'true' }}
+      libclc: ${{ steps.changes.outputs.libclc == 'true' }}
+      sycl: ${{ steps.changes.outputs.sycl == 'true' }}
+    steps:
+      - name: Check file changes
+        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
+        id: changes
+        with:
+          filters: |
+            llvm: &llvm
+              - 'llvm/**'
+            llvm_spirv: &llvm_spirv
+              - *llvm
+              - 'llvm-spirv/**'
+            clang: &clang
+              - *llvm
+              - 'clang/**'
+            sycl_fusion: &sycl-fusion
+              - *llvm
+              - 'sycl-fusion/**'
+            xptifw: &xptifw
+              - 'xptifw/**'
+            libclc: &libclc
+              - *llvm_spirv
+              - *clang
+              - 'libclc/**'
+            sycl:
+              - *clang
+              - *sycl-fusion
+              - *llvm_spirv
+              - *xptifw
+              - *libclc
+              - 'sycl/*'
+              - 'sycl/!(test-e2e)/**'
+
   lint:
     runs-on: ubuntu-22.04
     container:
@@ -54,7 +97,7 @@ jobs:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, need_check]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -66,12 +109,24 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      check_llvm: ${{ needs.need_check.outputs.llvm }}
+      check_llvm_spirv: ${{ needs.need_check.outputs.llvm_spirv }}
+      check_clang: ${{ needs.need_check.outputs.clang }}
+      check_xptifw: ${{ needs.need_check.outputs.xptifw }}
+      check_libclc: ${{ needs.need_check.outputs.libclc }}
+      check_sycl: ${{ needs.need_check.outputs.sycl }}
 
   windows_default:
     name: Windows
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, need_check]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
       build_ref: ${{ github.event.pull_request.head.sha }}
+      check_llvm: ${{ needs.need_check.outputs.llvm }}
+      check_llvm_spirv: ${{ needs.need_check.outputs.llvm_spirv }}
+      check_clang: ${{ needs.need_check.outputs.clang }}
+      check_xptifw: ${{ needs.need_check.outputs.xptifw }}
+      check_libclc: ${{ needs.need_check.outputs.libclc }}
+      check_sycl: ${{ needs.need_check.outputs.sycl }}

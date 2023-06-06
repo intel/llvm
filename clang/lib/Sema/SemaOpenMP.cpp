@@ -7264,7 +7264,7 @@ ExprResult Sema::ActOnOpenMPCall(ExprResult Call, Scope *Scope,
     return Call;
 
   if (LangOpts.OpenMP >= 51 && CalleeFnDecl->getIdentifier() &&
-      CalleeFnDecl->getName().startswith_insensitive("omp_")) {
+      CalleeFnDecl->getName().starts_with_insensitive("omp_")) {
     // checking for any calls inside an Order region
     if (Scope && Scope->isOpenMPOrderClauseScope())
       Diag(LParenLoc, diag::err_omp_unexpected_call_to_omp_runtime_api);
@@ -19115,7 +19115,13 @@ static bool actOnOMPReductionKindClause(
   switch (OOK) {
   case OO_Plus:
   case OO_Minus:
-    BOK = BO_Add;
+    // Minus(-) operator is not supported in TR11 (OpenMP 6.0). Setting BOK to
+    // BO_Comma will automatically diagnose it for OpenMP > 52 as not allowed
+    // reduction identifier.
+    if (S.LangOpts.OpenMP > 52)
+      BOK = BO_Comma;
+    else
+      BOK = BO_Add;
     break;
   case OO_Star:
     BOK = BO_Mul;
@@ -19183,6 +19189,12 @@ static bool actOnOMPReductionKindClause(
     }
     break;
   }
+
+  // OpenMP 5.2, 5.5.5 (see page 627, line 18) reduction Clause, Restrictions
+  // A reduction clause with the minus (-) operator was deprecated
+  if (OOK == OO_Minus && S.LangOpts.OpenMP == 52)
+    S.Diag(ReductionId.getLoc(), diag::warn_omp_minus_in_reduction_deprecated);
+
   SourceRange ReductionIdRange;
   if (ReductionIdScopeSpec.isValid())
     ReductionIdRange.setBegin(ReductionIdScopeSpec.getBeginLoc());

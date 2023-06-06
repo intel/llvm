@@ -90,14 +90,14 @@ defvar HDINXmin = [HDmin, HD_INXmin, HD_INX32min];
 // Instructions
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtZfhOrZfhmin] in {
+let Predicates = [HasHalfFPLoadStoreMove] in {
 def FLH : FPLoad_r<0b001, "flh", FPR16, WriteFLD16>;
 
 // Operands for stores are in the order srcreg, base, offset rather than
 // reflecting the order these fields are specified in the instruction
 // encoding.
 def FSH : FPStore_r<0b001, "fsh", FPR16, WriteFST16>;
-} // Predicates = [HasStdExtZfhOrZfhmin]
+} // Predicates = [HasHalfFPLoadStoreMove]
 
 let SchedRW = [WriteFMA16, ReadFMA16, ReadFMA16, ReadFMA16] in {
 defm FMADD_H  : FPFMA_rrr_frm_m<OPC_MADD,  0b10, "fmadd.h",  HINX>;
@@ -151,7 +151,7 @@ defm FCVT_H_S : FPUnaryOp_r_frm_m<0b0100010, 0b00000, HFINXmin, "fcvt.h.s">,
 defm FCVT_S_H : FPUnaryOp_r_m<0b0100000, 0b00010, 0b000, FHINXmin, "fcvt.s.h">,
                Sched<[WriteFCvtF16ToF32, ReadFCvtF16ToF32]>;
 
-let Predicates = [HasStdExtZfhOrZfhmin] in {
+let Predicates = [HasHalfFPLoadStoreMove] in {
 let mayRaiseFPException = 0, IsSignExtendingOpW = 1 in
 def FMV_X_H : FPUnaryOp_r<0b1110010, 0b00000, 0b000, GPR, FPR16, "fmv.x.h">,
               Sched<[WriteFMovF16ToI16, ReadFMovF16ToI16]>;
@@ -159,7 +159,7 @@ def FMV_X_H : FPUnaryOp_r<0b1110010, 0b00000, 0b000, GPR, FPR16, "fmv.x.h">,
 let mayRaiseFPException = 0 in
 def FMV_H_X : FPUnaryOp_r<0b1111010, 0b00000, 0b000, FPR16, GPR, "fmv.h.x">,
               Sched<[WriteFMovI16ToF16, ReadFMovI16ToF16]>;
-} // Predicates = [HasStdExtZfhOrZfhmin]
+} // Predicates = [HasHalfFPLoadStoreMove]
 
 let SchedRW = [WriteFCmp16, ReadFCmp16, ReadFCmp16] in {
 defm FEQ_H : FPCmp_rr_m<0b1010010, 0b010, "feq.h", HINX, /*Commutable*/1>;
@@ -558,6 +558,18 @@ def : Pat<(fcopysign FPR16:$rs1, FPR64:$rs2),
           (FSGNJ_H $rs1, (FCVT_H_D $rs2, FRM_DYN))>;
 def : Pat<(fcopysign FPR64:$rs1, FPR16:$rs2), (FSGNJ_D $rs1, (FCVT_D_H $rs2))>;
 } // Predicates = [HasStdExtZfhOrZfhmin, HasStdExtD]
+
+let Predicates = [HasStdExtZhinxOrZhinxmin, HasStdExtZdinx, IsRV32] in {
+/// Float conversion operations
+// f64 -> f16, f16 -> f64
+def : Pat<(any_fpround FPR64IN32X:$rs1), (FCVT_H_D_IN32X FPR64IN32X:$rs1, FRM_DYN)>;
+def : Pat<(any_fpextend FPR16INX:$rs1), (FCVT_D_H_IN32X FPR16INX:$rs1)>;
+
+/// Float arithmetic operations
+def : Pat<(fcopysign FPR16INX:$rs1, FPR64IN32X:$rs2),
+          (FSGNJ_H_INX $rs1, (FCVT_H_D_IN32X $rs2, 0b111))>;
+def : Pat<(fcopysign FPR64IN32X:$rs1, FPR16INX:$rs2), (FSGNJ_D_IN32X $rs1, (FCVT_D_H_IN32X $rs2))>;
+} // Predicates = [HasStdExtZhinxOrZhinxmin, HasStdExtZdinx, IsRV32]
 
 let Predicates = [HasStdExtZhinxOrZhinxmin, HasStdExtZdinx, IsRV64] in {
 /// Float conversion operations

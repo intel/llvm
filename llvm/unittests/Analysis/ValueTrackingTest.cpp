@@ -694,7 +694,7 @@ TEST_F(ValueTrackingTest, ComputeNumSignBits_PR32045) {
       "  %A = ashr i32 %a, -1\n"
       "  ret i32 %A\n"
       "}\n");
-  EXPECT_EQ(ComputeNumSignBits(A, M->getDataLayout()), 1u);
+  EXPECT_EQ(ComputeNumSignBits(A, M->getDataLayout()), 32u);
 }
 
 // No guarantees for canonical IR in this analysis, so this just bails out.
@@ -1512,10 +1512,10 @@ TEST_F(ComputeKnownFPClassTest, CopySignNNanSrc0) {
 
 TEST_F(ComputeKnownFPClassTest, CopySignNInfSrc0_NegSign) {
   parseAssembly(
-      "declare float @llvm.sqrt.f32(float)\n"
+      "declare float @llvm.log.f32(float)\n"
       "declare float @llvm.copysign.f32(float, float)\n"
       "define float @test(float %arg0, float %arg1) {\n"
-      "  %ninf = call ninf float @llvm.sqrt.f32(float %arg0)"
+      "  %ninf = call ninf float @llvm.log.f32(float %arg0)"
       "  %A = call float @llvm.copysign.f32(float %ninf, float -1.0)"
       "  ret float %A\n"
       "}\n");
@@ -1628,6 +1628,114 @@ TEST_F(ComputeKnownFPClassTest, FMulNoZero) {
   expectKnownFPClass(fcAllFlags, std::nullopt, A5);
   expectKnownFPClass(fcAllFlags, std::nullopt, A6);
   expectKnownFPClass(fcAllFlags, std::nullopt, A7);
+}
+
+TEST_F(ComputeKnownFPClassTest, Phi) {
+  parseAssembly(
+      "define float @test(i1 %cond, float nofpclass(nan inf) %arg0, float nofpclass(nan) %arg1) {\n"
+      "entry:\n"
+      "  br i1 %cond, label %bb0, label %bb1\n"
+      "bb0:\n"
+      "  br label %ret\n"
+      "bb1:\n"
+      "  br label %ret\n"
+      "ret:\n"
+      "  %A = phi float [ %arg0, %bb0 ],  [ %arg1, %bb1 ]\n"
+      "  ret float %A\n"
+      "}\n");
+  expectKnownFPClass(~fcNan, std::nullopt);
+}
+
+TEST_F(ComputeKnownFPClassTest, PhiKnownSignFalse) {
+  parseAssembly(
+      "declare float @llvm.fabs.f32(float)"
+      "define float @test(i1 %cond, float nofpclass(nan) %arg0, float nofpclass(nan) %arg1) {\n"
+      "entry:\n"
+      "  br i1 %cond, label %bb0, label %bb1\n"
+      "bb0:\n"
+      "  %fabs.arg0 = call float @llvm.fabs.f32(float %arg0)\n"
+      "  br label %ret\n"
+      "bb1:\n"
+      "  %fabs.arg1 = call float @llvm.fabs.f32(float %arg1)\n"
+      "  br label %ret\n"
+      "ret:\n"
+      "  %A = phi float [ %fabs.arg0, %bb0 ],  [ %fabs.arg1, %bb1 ]\n"
+      "  ret float %A\n"
+      "}\n");
+  expectKnownFPClass(fcPositive, false);
+}
+
+TEST_F(ComputeKnownFPClassTest, PhiKnownSignTrue) {
+  parseAssembly(
+      "declare float @llvm.fabs.f32(float)"
+      "define float @test(i1 %cond, float nofpclass(nan) %arg0, float %arg1) {\n"
+      "entry:\n"
+      "  br i1 %cond, label %bb0, label %bb1\n"
+      "bb0:\n"
+      "  %fabs.arg0 = call float @llvm.fabs.f32(float %arg0)\n"
+      "  %fneg.fabs.arg0 = fneg float %fabs.arg0\n"
+      "  br label %ret\n"
+      "bb1:\n"
+      "  %fabs.arg1 = call float @llvm.fabs.f32(float %arg1)\n"
+      "  %fneg.fabs.arg1 = fneg float %fabs.arg1\n"
+      "  br label %ret\n"
+      "ret:\n"
+      "  %A = phi float [ %fneg.fabs.arg0, %bb0 ],  [ %fneg.fabs.arg1, %bb1 ]\n"
+      "  ret float %A\n"
+      "}\n");
+  expectKnownFPClass(fcNegative | fcNan, true);
+}
+
+TEST_F(ComputeKnownFPClassTest, UnreachablePhi) {
+  parseAssembly(
+      "define float @test(float %arg) {\n"
+      "entry:\n"
+      "  ret float 0.0\n"
+      "unreachable:\n"
+      "  %A = phi float\n"
+      "  ret float %A\n"
+      "}\n");
+  expectKnownFPClass(fcAllFlags, std::nullopt);
+}
+
+TEST_F(ComputeKnownFPClassTest, SelfPhiOnly) {
+  parseAssembly(
+      "define float @test(float %arg) {\n"
+      "entry:\n"
+      "  ret float 0.0\n"
+      "loop:\n"
+      "  %A = phi float [ %A, %loop ]\n"
+      "  br label %loop\n"
+      "}\n");
+  expectKnownFPClass(fcAllFlags, std::nullopt);
+}
+
+TEST_F(ComputeKnownFPClassTest, SelfPhiFirstArg) {
+  parseAssembly(
+      "define float @test(i1 %cond, float nofpclass(inf) %arg) {\n"
+      "entry:\n"
+      "  br i1 %cond, label %loop, label %ret\n"
+      "loop:\n"
+      "  %A = phi float [ %arg, %entry ], [ %A, %loop ]\n"
+      "  br label %loop\n"
+      "ret:\n"
+      "  ret float %A"
+      "}\n");
+  expectKnownFPClass(~fcInf, std::nullopt);
+}
+
+TEST_F(ComputeKnownFPClassTest, SelfPhiSecondArg) {
+  parseAssembly(
+      "define float @test(i1 %cond, float nofpclass(inf) %arg) {\n"
+      "entry:\n"
+      "  br i1 %cond, label %loop, label %ret\n"
+      "loop:\n"
+      "  %A = phi float [ %A, %loop ], [ %arg, %entry ]\n"
+      "  br label %loop\n"
+      "ret:\n"
+      "  ret float %A"
+      "}\n");
+  expectKnownFPClass(~fcInf, std::nullopt);
 }
 
 TEST_F(ComputeKnownFPClassTest, CannotBeOrderedLessThanZero) {

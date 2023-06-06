@@ -91,14 +91,15 @@ static std::optional<StringRef> findLibrary(StringRef name) {
 
   auto doFind = [&] {
     if (config->searchDylibsFirst) {
-      if (std::optional<StringRef> path = findPathCombination(
-              "lib" + name, config->librarySearchPaths, {".tbd", ".dylib"}))
+      if (std::optional<StringRef> path =
+              findPathCombination("lib" + name, config->librarySearchPaths,
+                                  {".tbd", ".dylib", ".so"}))
         return path;
       return findPathCombination("lib" + name, config->librarySearchPaths,
                                  {".a"});
     }
     return findPathCombination("lib" + name, config->librarySearchPaths,
-                               {".tbd", ".dylib", ".a"});
+                               {".tbd", ".dylib", ".so", ".a"});
   };
 
   std::optional<StringRef> path = doFind();
@@ -596,8 +597,8 @@ static void replaceCommonSymbols() {
     replaceSymbol<Defined>(
         sym, sym->getName(), common->getFile(), isec, /*value=*/0, common->size,
         /*isWeakDef=*/false, /*isExternal=*/true, common->privateExtern,
-        /*includeInSymtab=*/true, /*isThumb=*/false,
-        /*isReferencedDynamically=*/false, /*noDeadStrip=*/false);
+        /*includeInSymtab=*/true, /*isReferencedDynamically=*/false,
+        /*noDeadStrip=*/false);
   }
 }
 
@@ -752,8 +753,6 @@ static TargetInfo *createTargetInfo(InputArgList &args) {
     return createARM64TargetInfo();
   case CPU_TYPE_ARM64_32:
     return createARM64_32TargetInfo();
-  case CPU_TYPE_ARM:
-    return createARMTargetInfo(cpuSubtype);
   default:
     error("missing or unsupported -arch " + archName);
     return nullptr;

@@ -4,6 +4,7 @@
 %struct.S = type { i8, i8, i8, i8 }
 %struct1.S = type { i32, i32, i32, i8 }
 %"struct.media::WebrtcVideoStatsDB::VideoDescKey" = type { i8, i32, i8, i32 }
+%"c" = type { i32, i32, i32, float}
 
 define noundef i1 @full_sequent_ne(ptr nocapture readonly align 1 dereferenceable(4) %s0, ptr nocapture readonly align 1 dereferenceable(4) %s1) {
 ; CHECK-LABEL: @full_sequent_ne(
@@ -235,4 +236,47 @@ bb3:                                               ; preds = %bb2
 bb4:                                               ; preds = %bb3, %bb2, %bb1, %bb0
   %result = phi i1 [ %Cmp3, %bb3 ], [ true, %bb2 ], [ true, %bb1 ], [ true, %bb0 ]
   ret i1 %result
+}
+
+; the comparison link sequence will be reordered according the memory offset,
+; and the unconditionla comparison will not at the end of the chain.
+define i1 @full_revert_order_ne(ptr nocapture noundef nonnull readonly dereferenceable(24) %0,
+; CHECK-LABEL: @full_revert_order_ne(
+; CHECK-NEXT:  "bb2+bb1+bb0":
+; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds [[C:%.*]], ptr [[TMP0:%.*]], i64 0, i32 0
+; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds [[C]], ptr [[TMP1:%.*]], i64 0, i32 0
+; CHECK-NEXT:    [[MEMCMP:%.*]] = call i32 @memcmp(ptr [[TMP2]], ptr [[TMP3]], i64 12)
+; CHECK-NEXT:    [[TMP4:%.*]] = icmp ne i32 [[MEMCMP]], 0
+; CHECK-NEXT:    br label [[BB3:%.*]]
+; CHECK:       bb3:
+; CHECK-NEXT:    ret i1 [[TMP4]]
+;
+  ptr nocapture noundef nonnull readonly dereferenceable(24) %1) {
+bb0:
+  %s0 = getelementptr inbounds %"c", ptr %0, i64 0, i32 2
+  %v0 = load i32, ptr %s0, align 4
+  %s1 = getelementptr inbounds %"c", ptr %1, i64 0, i32 2
+  %v1 = load i32, ptr %s1, align 4
+  %cmp0 = icmp eq i32 %v0, %v1
+  br i1 %cmp0, label %bb1, label %bb3
+
+bb1:                                                ; preds = %bb0
+  %s2 = getelementptr inbounds %"c", ptr %0, i64 0, i32 1
+  %v2 = load i32, ptr %s2, align 4
+  %s3 = getelementptr inbounds %"c", ptr %1, i64 0, i32 1
+  %v3 = load i32, ptr %s3, align 4
+  %cmp1 = icmp eq i32 %v2, %v3
+  br i1 %cmp1, label %bb2, label %bb3
+
+bb2:                                               ; preds = %bb1
+  %s4 = getelementptr inbounds %"c", ptr %0, i64 0, i32 0
+  %v4 = load i32, ptr %s4, align 4
+  %s5 = getelementptr inbounds %"c", ptr %1, i64 0, i32 0
+  %v5 = load i32, ptr %s5, align 4
+  %cmp2 = icmp ne i32 %v4, %v5
+  br label %bb3
+
+bb3:                                               ; preds = %bb2, %bb1, %bb0
+  %cmp3 = phi i1 [ true, %bb1 ], [ true, %bb0 ], [ %cmp2, %bb2 ]
+  ret i1 %cmp3
 }

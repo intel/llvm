@@ -121,9 +121,7 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(MImpl->MKernelBundle),
-          std::move(CGH->MArgsStorage), std::move(CGH->MAccStorage),
-          std::move(CGH->MSharedPtrStorage), std::move(CGH->MRequirements),
-          std::move(CGH->MEvents), std::move(CGH->MArgs),
+          std::move(CGH->CGData), std::move(CGH->MArgs),
           std::move(CGH->MKernelName), std::move(CGH->MOSModuleHandle),
           std::move(CGH->MStreamStorage), std::move(MImpl->MAuxiliaryResources),
           CGH->MCGType, {}, CGH->MCodeLoc));

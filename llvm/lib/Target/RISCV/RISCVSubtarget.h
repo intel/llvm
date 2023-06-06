@@ -123,6 +123,10 @@ public:
   bool hasStdExtZfhOrZfhminOrZhinxOrZhinxmin() const {
     return hasStdExtZfhOrZfhmin() || hasStdExtZhinxOrZhinxmin();
   }
+  bool hasHalfFPLoadStoreMove() const {
+    return HasStdExtZfh || HasStdExtZfhmin || HasStdExtZfbfmin ||
+           HasStdExtZvfbfwma;
+  }
   bool is64Bit() const { return IsRV64; }
   MVT getXLenVT() const { return XLenVT; }
   unsigned getXLen() const { return XLen; }
@@ -165,6 +169,7 @@ public:
   bool hasVInstructionsF64() const { return HasStdExtZve64d && HasStdExtD; }
   // F16 and F64 both require F32.
   bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
+  bool hasVInstructionsFullMultiply() const { return HasStdExtV; }
   unsigned getMaxInterleaveFactor() const {
     return hasVInstructions() ? MaxInterleaveFactor : 1;
   }

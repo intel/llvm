@@ -63,7 +63,7 @@ enum TraceLevel {
 bool trace(TraceLevel level);
 
 #ifdef __SYCL_RT_OS_WINDOWS
-// these same constants are used by win_proxy_loader.dll
+// these same constants are used by pi_win_proxy_loader.dll
 // if a plugin is added here, add it there as well.
 #ifdef _MSC_VER
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"

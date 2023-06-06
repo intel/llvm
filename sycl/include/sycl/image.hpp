@@ -388,6 +388,18 @@ class image_accessor;
 
 } // namespace detail
 
+template <typename DataT, int Dimensions, access_mode AccessMode,
+          image_target AccessTarget>
+class unsampled_image_accessor;
+
+template <typename DataT, int Dimensions, access_mode AccessMode>
+class host_unsampled_image_accessor;
+
+template <typename DataT, int Dimensions, image_target AccessTarget>
+class sampled_image_accessor;
+
+template <typename DataT, int Dimensions> class host_sampled_image_accessor;
+
 /// Defines a shared image data.
 ///
 /// Images can be 1-, 2-, and 3-dimensional. They have to be accessed using the
@@ -860,12 +872,39 @@ public:
 
   using common_base::size;
 
+  template <typename DataT,
+            access_mode AccessMode = (std::is_const_v<DataT>
+                                          ? access_mode::read
+                                          : access_mode::read_write),
+            image_target AccessTarget = image_target::device>
+  unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>
+  get_access(handler &CommandGroupHandlerRef,
+             const property_list &PropList = {}) {
+    return {*this, CommandGroupHandlerRef, PropList};
+  }
+
+  template <typename DataT,
+            access_mode AccessMode = (std::is_const_v<DataT>
+                                          ? access_mode::read
+                                          : access_mode::read_write)>
+  host_unsampled_image_accessor<DataT, Dimensions, AccessMode>
+  get_host_access(const property_list &PropList = {}) {
+    return {*this, PropList};
+  }
+
 private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <typename DataT, int Dims, access_mode AccessMode>
+  friend class host_unsampled_image_accessor;
+
+  template <typename DataT, int Dims, access_mode AccessMode,
+            image_target AccessTarget>
+  friend class unsampled_image_accessor;
 };
 
 template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
@@ -947,12 +986,30 @@ public:
 
   size_t byte_size() const noexcept { return common_base::get_size(); }
 
+  template <typename DataT, image_target AccessTarget = image_target::device>
+  sampled_image_accessor<DataT, Dimensions, AccessTarget>
+  get_access(handler &CommandGroupHandlerRef,
+             const property_list &PropList = {}) {
+    return {*this, CommandGroupHandlerRef, PropList};
+  }
+
+  template <typename DataT>
+  host_sampled_image_accessor<DataT, Dimensions>
+  get_host_access(const property_list &PropList = {}) {
+    return {*this, PropList};
+  }
+
 private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <typename DataT, int Dims> friend class host_sampled_image_accessor;
+
+  template <typename DataT, int Dims, image_target AccessTarget>
+  friend class sampled_image_accessor;
 };
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
