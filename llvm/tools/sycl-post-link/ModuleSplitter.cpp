@@ -176,15 +176,14 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
 // should be included into a split module.
 //
 // Nodes of the graph represent LLVM's GlobalObjects, edges "A" -> "B" represent
-// the fact that if "A" is include into a module, then "B" should be included
+// the fact that if "A" is included into a module, then "B" should be included
 // as well.
 //
 // Examples of dependencies which are represented in this graph:
 // - Function FA calls function FB
 // - Function FA uses global variable GA
-// - Global variable GA references (intiialized with) function FB
+// - Global variable GA references (initialized with) function FB
 // - Function FA stores address of a function FB somewhere
-// - Function FA uses global variable GB
 //
 // The following cases are treated as dependencies between global objects:
 // 1. Global object A is used within by a global object B in any way (store,
