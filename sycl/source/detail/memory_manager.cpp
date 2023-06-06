@@ -149,8 +149,9 @@ void memBufferCreateHelper(const PluginPtr &Plugin, pi_context Ctx,
                            CorrID);
     }};
 #endif
-    Plugin->call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr,
-                                               RetMem, Props);
+    if (Size)
+      Plugin->call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr,
+                                                 RetMem, Props);
   }
 }
 

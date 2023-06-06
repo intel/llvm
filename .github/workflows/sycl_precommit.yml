@@ -26,10 +26,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   need_check:
     name: Decide which tests could be affected by the changes
@@ -122,7 +118,7 @@ jobs:
 
   windows_default:
     name: Windows
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, need_check]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
