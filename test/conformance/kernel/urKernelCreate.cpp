@@ -47,7 +47,7 @@ TEST_P(urKernelCreateTest, InvalidNullPointerKernel) {
 }
 
 TEST_P(urKernelCreateTest, InvalidKernelName) {
-    std::string invalid_name = "";
+    std::string invalid_name = "incorrect_kernel_name";
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME,
                      urKernelCreate(program, invalid_name.data(), &kernel));
 }

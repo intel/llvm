@@ -28,7 +28,7 @@ TEST_P(urKernelSetArgValueTest, InvalidNullHandleKernel) {
 
 TEST_P(urKernelSetArgValueTest, InvalidNullPointerArgValue) {
     ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
         urKernelSetArgValue(kernel, 2, sizeof(arg_value), nullptr));
 }
 
@@ -44,6 +44,6 @@ TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentIndex) {
 }
 
 TEST_P(urKernelSetArgValueTest, InvalidKernelArgumentSize) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
                      urKernelSetArgValue(kernel, 2, 0, &arg_value));
 }
