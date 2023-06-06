@@ -304,18 +304,6 @@ typedef struct ur_rect_region_t {
 #pragma region exp -command-buffer
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Command buffer support level for device info queries.
-typedef enum ur_exp_command_buffer_support_level_t {
-    UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_UNSUPPORTED = 0, ///< No support for command-buffers.
-    UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_EMULATED = 1,    ///< Emulated support for command-buffers.
-    UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_NATIVE = 2,      ///< Native support for command-buffers.
-    /// @cond
-    UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_exp_command_buffer_support_level_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-Buffer Descriptor Type
 typedef struct ur_exp_command_buffer_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
@@ -1220,8 +1208,6 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,        ///< [::ur_bool_t] Return true if the device supports enqueing commands to
                                                                 ///< read and write pipes from the host.
     UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,          ///< [uint32_t] The maximum number of registers available per block.
-    UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT = 113,            ///< [::ur_exp_command_buffer_support_level_t] Level of experimental
-                                                                ///< command-buffer support.
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1246,7 +1232,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT < propName`
+///         + `::UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE

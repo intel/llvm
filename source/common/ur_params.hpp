@@ -168,8 +168,6 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_rect_region_t params);
 inline std::ostream &
-operator<<(std::ostream &os, enum ur_exp_command_buffer_support_level_t value);
-inline std::ostream &
 operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
@@ -1002,27 +1000,6 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 inline std::ostream &
-operator<<(std::ostream &os, enum ur_exp_command_buffer_support_level_t value) {
-    switch (value) {
-
-    case UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_UNSUPPORTED:
-        os << "UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_UNSUPPORTED";
-        break;
-
-    case UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_EMULATED:
-        os << "UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_EMULATED";
-        break;
-
-    case UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_NATIVE:
-        os << "UR_EXP_COMMAND_BUFFER_SUPPORT_LEVEL_NATIVE";
-        break;
-    default:
-        os << "unknown enumerator";
-        break;
-    }
-    return os;
-}
-inline std::ostream &
 operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params) {
     os << "(struct ur_exp_command_buffer_desc_t){";
 
@@ -1794,10 +1771,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
 
     case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
         os << "UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP";
-        break;
-
-    case UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT:
-        os << "UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT";
         break;
     default:
         os << "unknown enumerator";
@@ -3337,21 +3310,6 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size
                << ", expected: >=" << sizeof(uint32_t) << ")";
-            return;
-        }
-        os << (void *)(tptr) << " (";
-
-        os << *tptr;
-
-        os << ")";
-    } break;
-
-    case UR_DEVICE_INFO_EXP_COMMAND_BUFFER_SUPPORT: {
-        const ur_exp_command_buffer_support_level_t *tptr =
-            (const ur_exp_command_buffer_support_level_t *)ptr;
-        if (sizeof(ur_exp_command_buffer_support_level_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >="
-               << sizeof(ur_exp_command_buffer_support_level_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";

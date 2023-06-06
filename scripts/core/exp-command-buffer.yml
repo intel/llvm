@@ -3,19 +3,6 @@ type: header
 desc: "Intel $OneApi Command-Buffer Extension APIs"
 ordinal: "0"
 --- #--------------------------------------------------------------------------
-type: enum
-desc: "Command buffer support level for device info queries."
-class: $xCommandBuffer
-name: $x_exp_command_buffer_support_level_t
-etors:
-    - name: UNSUPPORTED
-      desc: "No support for command-buffers."
-      value: "0"
-    - name: EMULATED
-      desc: "Emulated support for command-buffers."
-    - name: NATIVE
-      desc: "Native support for command-buffers."
---- #--------------------------------------------------------------------------
 type: struct
 desc: "Command-Buffer Descriptor Type"
 name: $x_exp_command_buffer_desc_t
