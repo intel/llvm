@@ -325,9 +325,16 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
       std::min(maxThreadsPerBlock[0],
                std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
+  static auto isPowerOf2 = [](size_t value) -> bool {
+    return value && !(value & (value - 1));
+  };
+
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
+  // Additionally, for best compute utilisation, the local size has
+  // to be a power of two.
+  while (0u != (global_work_size[0] % threadsPerBlock[0]) ||
+         !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
 }
@@ -3039,6 +3046,13 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);
+
+  // Below sets kernel arg when zero-sized buffers are handled.
+  // In such case the corresponding memory is null.
+  if (*arg_value == nullptr) {
+    kernel->set_kernel_arg(arg_index, 0, nullptr);
+    return PI_SUCCESS;
+  }
 
   pi_result retErr = PI_SUCCESS;
   try {

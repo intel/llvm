@@ -13,7 +13,7 @@
 #include <windows.h>
 #include <winreg.h>
 
-#include "win_proxy_loader.hpp"
+#include "pi_win_proxy_loader.hpp"
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -21,7 +21,7 @@ namespace detail {
 namespace pi {
 
 void *loadOsPluginLibrary(const std::string &PluginPath) {
-  // We fetch the preloaded plugin from the win_proxy_loader.
+  // We fetch the preloaded plugin from the pi_win_proxy_loader.
   // The proxy_loader handles any required error suppression.
   auto Result = getPreloadedPlugin(PluginPath);
 

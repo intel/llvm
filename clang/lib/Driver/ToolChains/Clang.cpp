@@ -5060,6 +5060,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
 
   if (IsSYCLOffloadDevice) {
+    if (Triple.isNVPTX()) {
+      StringRef GPUArchName = JA.getOffloadingArch();
+      // TODO: Once default arch is moved to at least SM_53, empty arch should
+      // also result in the flag added.
+      if (!GPUArchName.empty() &&
+          StringToCudaArch(GPUArchName) >= CudaArch::SM_53)
+        CmdArgs.push_back("-fnative-half-type");
+    }
     // Pass the triple of host when doing SYCL
     llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
     std::string NormalizedTriple = AuxT.normalize();
@@ -9159,7 +9167,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // the objects from the archive that do not have AOCO associated in that
   // specific object.  Only do this when in hardware mode.
   if (InputType == types::TY_Archive && HasFPGATarget && !IsFPGADepUnbundle &&
-      !IsFPGADepLibUnbundle && !C.getDriver().isFPGAEmulationMode()) {
+      !IsFPGADepLibUnbundle && C.getDriver().IsFPGAHWMode()) {
     llvm::Triple TT;
     TT.setArchName(types::getTypeName(types::TY_FPGA_AOCO));
     TT.setVendorName("intel");
@@ -9336,7 +9344,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
       bool Early = (A->getValue() == StringRef("early"));
       FPGAArch += Early ? "aocr" : "aocx";
-      if (C.getDriver().isFPGAEmulationMode() && Early)
+      if (C.getDriver().IsFPGAEmulationMode() && Early)
         FPGAArch += "_emu";
       TT.setArchName(FPGAArch);
       TT.setVendorName("intel");
@@ -9705,7 +9713,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_fpga_argument_interfaces"
         ",+SPV_INTEL_fpga_invocation_pipelining_attributes";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-    if (!C.getDriver().isFPGAEmulationMode())
+    if (C.getDriver().IsFPGAHWMode())
       // Enable several extensions on FPGA H/W exclusively
       ExtArg += ",+SPV_INTEL_usm_storage_classes,+SPV_INTEL_runtime_aligned"
                 ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"

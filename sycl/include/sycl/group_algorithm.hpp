@@ -92,7 +92,7 @@ template <typename T>
 using native_op_list =
     type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
               sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
-              sycl::multiplies<T>>;
+              sycl::multiplies<T>, sycl::logical_or<T>, sycl::logical_and<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
