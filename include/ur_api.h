@@ -137,86 +137,88 @@ typedef struct ur_mem_handle_t_ *ur_mem_handle_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines Return/Error codes
 typedef enum ur_result_t {
-    UR_RESULT_SUCCESS = 0,                                ///< Success
-    UR_RESULT_ERROR_INVALID_OPERATION = 1,                ///< Invalid operation
-    UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES = 2,         ///< Invalid queue properties
-    UR_RESULT_ERROR_INVALID_QUEUE = 3,                    ///< Invalid queue
-    UR_RESULT_ERROR_INVALID_VALUE = 4,                    ///< Invalid Value
-    UR_RESULT_ERROR_INVALID_CONTEXT = 5,                  ///< Invalid context
-    UR_RESULT_ERROR_INVALID_PLATFORM = 6,                 ///< Invalid platform
-    UR_RESULT_ERROR_INVALID_BINARY = 7,                   ///< Invalid binary
-    UR_RESULT_ERROR_INVALID_PROGRAM = 8,                  ///< Invalid program
-    UR_RESULT_ERROR_INVALID_SAMPLER = 9,                  ///< Invalid sampler
-    UR_RESULT_ERROR_INVALID_BUFFER_SIZE = 10,             ///< Invalid buffer size
-    UR_RESULT_ERROR_INVALID_MEM_OBJECT = 11,              ///< Invalid memory object
-    UR_RESULT_ERROR_INVALID_EVENT = 12,                   ///< Invalid event
-    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST = 13,         ///< Returned when the event wait list or the events in the wait list are
-                                                          ///< invalid.
-    UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = 14,    ///< Misaligned sub buffer offset
-    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE = 15,         ///< Invalid work group size
-    UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE = 16,          ///< Compiler not available
-    UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE = 17,    ///< Profiling info not available
-    UR_RESULT_ERROR_DEVICE_NOT_FOUND = 18,                ///< Device not found
-    UR_RESULT_ERROR_INVALID_DEVICE = 19,                  ///< Invalid device
-    UR_RESULT_ERROR_DEVICE_LOST = 20,                     ///< Device hung, reset, was removed, or adapter update occurred
-    UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,           ///< Device requires a reset
-    UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,       ///< Device currently in low power state
-    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,         ///< Device paritioning failed
-    UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 24,  ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
-    UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,          ///< Invalid work item size
-    UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,          ///< Invalid work dimension
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGS = 27,             ///< Invalid kernel args
-    UR_RESULT_ERROR_INVALID_KERNEL = 28,                  ///< Invalid kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_NAME = 29,             ///< [Validation] kernel name is not found in the program
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 30,   ///< [Validation] kernel argument index is not valid for kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 31,    ///< [Validation] kernel argument size does not match kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 32,  ///< [Validation] value of kernel attribute is not valid for the kernel or
-                                                          ///< device
-    UR_RESULT_ERROR_INVALID_IMAGE_SIZE = 33,              ///< Invalid image size
-    UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 34, ///< Invalid image format descriptor
-    UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,      ///< Image format not supported
-    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,   ///< Memory object allocation failure
-    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,      ///< Program object parameter is invalid.
-    UR_RESULT_ERROR_UNINITIALIZED = 38,                   ///< [Validation] adapter is not initialized
-    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,              ///< Insufficient host memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,            ///< Insufficient device memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                ///< Out of resources
-    UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE = 42,           ///< Error occurred when building program, see build log for details
-    UR_RESULT_ERROR_PROGRAM_LINK_FAILURE = 43,            ///< Error occurred when linking programs, see build log for details
-    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 44,             ///< [Validation] generic error code for unsupported versions
-    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 45,             ///< [Validation] generic error code for unsupported features
-    UR_RESULT_ERROR_INVALID_ARGUMENT = 46,                ///< [Validation] generic error code for invalid arguments
-    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 47,             ///< [Validation] handle argument is not valid
-    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 48,            ///< [Validation] object pointed to by handle still in-use by device
-    UR_RESULT_ERROR_INVALID_NULL_POINTER = 49,            ///< [Validation] pointer argument may not be nullptr
-    UR_RESULT_ERROR_INVALID_SIZE = 50,                    ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
-                                                          ///< out of bounds)
-    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 51,                ///< [Validation] size argument is not supported by the device (e.g., too
-                                                          ///< large)
-    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 52,           ///< [Validation] alignment argument is not supported by the device (e.g.,
-                                                          ///< too small)
-    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 53,  ///< [Validation] synchronization object in invalid state
-    UR_RESULT_ERROR_INVALID_ENUMERATION = 54,             ///< [Validation] enumerator argument is not valid
-    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 55,         ///< [Validation] enumerator argument is not supported by the device
-    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 56,        ///< [Validation] image format is not supported by the device
-    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 57,           ///< [Validation] native binary is not supported by the device
-    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 58,             ///< [Validation] global variable is not found in the program
-    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 59,           ///< [Validation] function name is not found in the program
-    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 60,    ///< [Validation] group size dimension is not valid for the kernel or
-                                                          ///< device
-    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 61,  ///< [Validation] global width dimension is not valid for the kernel or
-                                                          ///< device
-    UR_RESULT_ERROR_PROGRAM_UNLINKED = 62,                ///< [Validation] compiled program or program with imports needs to be
-                                                          ///< linked before kernels can be created from it.
-    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 63,             ///< [Validation] copy operations do not support overlapping regions of
-                                                          ///< memory
-    UR_RESULT_ERROR_INVALID_HOST_PTR = 64,                ///< Invalid host pointer
-    UR_RESULT_ERROR_INVALID_USM_SIZE = 65,                ///< Invalid USM size
-    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 66,      ///< Invalid Command-Buffer
-    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 67,       ///< Objection allocation failure
-    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 68,                ///< An adapter specific warning/error has been reported and can be
-                                                          ///< retrieved via the urGetLastResult entry point.
-    UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                 ///< Unknown or internal error
+    UR_RESULT_SUCCESS = 0,                                                ///< Success
+    UR_RESULT_ERROR_INVALID_OPERATION = 1,                                ///< Invalid operation
+    UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES = 2,                         ///< Invalid queue properties
+    UR_RESULT_ERROR_INVALID_QUEUE = 3,                                    ///< Invalid queue
+    UR_RESULT_ERROR_INVALID_VALUE = 4,                                    ///< Invalid Value
+    UR_RESULT_ERROR_INVALID_CONTEXT = 5,                                  ///< Invalid context
+    UR_RESULT_ERROR_INVALID_PLATFORM = 6,                                 ///< Invalid platform
+    UR_RESULT_ERROR_INVALID_BINARY = 7,                                   ///< Invalid binary
+    UR_RESULT_ERROR_INVALID_PROGRAM = 8,                                  ///< Invalid program
+    UR_RESULT_ERROR_INVALID_SAMPLER = 9,                                  ///< Invalid sampler
+    UR_RESULT_ERROR_INVALID_BUFFER_SIZE = 10,                             ///< Invalid buffer size
+    UR_RESULT_ERROR_INVALID_MEM_OBJECT = 11,                              ///< Invalid memory object
+    UR_RESULT_ERROR_INVALID_EVENT = 12,                                   ///< Invalid event
+    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST = 13,                         ///< Returned when the event wait list or the events in the wait list are
+                                                                          ///< invalid.
+    UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = 14,                    ///< Misaligned sub buffer offset
+    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE = 15,                         ///< Invalid work group size
+    UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE = 16,                          ///< Compiler not available
+    UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE = 17,                    ///< Profiling info not available
+    UR_RESULT_ERROR_DEVICE_NOT_FOUND = 18,                                ///< Device not found
+    UR_RESULT_ERROR_INVALID_DEVICE = 19,                                  ///< Invalid device
+    UR_RESULT_ERROR_DEVICE_LOST = 20,                                     ///< Device hung, reset, was removed, or adapter update occurred
+    UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,                           ///< Device requires a reset
+    UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,                       ///< Device currently in low power state
+    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,                         ///< Device paritioning failed
+    UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 24,                  ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
+    UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,                          ///< Invalid work item size
+    UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,                          ///< Invalid work dimension
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGS = 27,                             ///< Invalid kernel args
+    UR_RESULT_ERROR_INVALID_KERNEL = 28,                                  ///< Invalid kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_NAME = 29,                             ///< [Validation] kernel name is not found in the program
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 30,                   ///< [Validation] kernel argument index is not valid for kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 31,                    ///< [Validation] kernel argument size does not match kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 32,                  ///< [Validation] value of kernel attribute is not valid for the kernel or
+                                                                          ///< device
+    UR_RESULT_ERROR_INVALID_IMAGE_SIZE = 33,                              ///< Invalid image size
+    UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 34,                 ///< Invalid image format descriptor
+    UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,                      ///< Image format not supported
+    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,                   ///< Memory object allocation failure
+    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,                      ///< Program object parameter is invalid.
+    UR_RESULT_ERROR_UNINITIALIZED = 38,                                   ///< [Validation] adapter is not initialized
+    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,                              ///< Insufficient host memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,                            ///< Insufficient device memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                                ///< Out of resources
+    UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE = 42,                           ///< Error occurred when building program, see build log for details
+    UR_RESULT_ERROR_PROGRAM_LINK_FAILURE = 43,                            ///< Error occurred when linking programs, see build log for details
+    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 44,                             ///< [Validation] generic error code for unsupported versions
+    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 45,                             ///< [Validation] generic error code for unsupported features
+    UR_RESULT_ERROR_INVALID_ARGUMENT = 46,                                ///< [Validation] generic error code for invalid arguments
+    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 47,                             ///< [Validation] handle argument is not valid
+    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 48,                            ///< [Validation] object pointed to by handle still in-use by device
+    UR_RESULT_ERROR_INVALID_NULL_POINTER = 49,                            ///< [Validation] pointer argument may not be nullptr
+    UR_RESULT_ERROR_INVALID_SIZE = 50,                                    ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
+                                                                          ///< out of bounds)
+    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 51,                                ///< [Validation] size argument is not supported by the device (e.g., too
+                                                                          ///< large)
+    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 52,                           ///< [Validation] alignment argument is not supported by the device (e.g.,
+                                                                          ///< too small)
+    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 53,                  ///< [Validation] synchronization object in invalid state
+    UR_RESULT_ERROR_INVALID_ENUMERATION = 54,                             ///< [Validation] enumerator argument is not valid
+    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 55,                         ///< [Validation] enumerator argument is not supported by the device
+    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 56,                        ///< [Validation] image format is not supported by the device
+    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 57,                           ///< [Validation] native binary is not supported by the device
+    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 58,                             ///< [Validation] global variable is not found in the program
+    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 59,                           ///< [Validation] function name is not found in the program
+    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 60,                    ///< [Validation] group size dimension is not valid for the kernel or
+                                                                          ///< device
+    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 61,                  ///< [Validation] global width dimension is not valid for the kernel or
+                                                                          ///< device
+    UR_RESULT_ERROR_PROGRAM_UNLINKED = 62,                                ///< [Validation] compiled program or program with imports needs to be
+                                                                          ///< linked before kernels can be created from it.
+    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 63,                             ///< [Validation] copy operations do not support overlapping regions of
+                                                                          ///< memory
+    UR_RESULT_ERROR_INVALID_HOST_PTR = 64,                                ///< Invalid host pointer
+    UR_RESULT_ERROR_INVALID_USM_SIZE = 65,                                ///< Invalid USM size
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 66,                      ///< Invalid Command-Buffer
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 67,           ///< Sync point is not valid for the command-buffer
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 68, ///< Sync point wait list is invalid
+    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 69,                       ///< Objection allocation failure
+    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 70,                                ///< An adapter specific warning/error has been reported and can be
+                                                                          ///< retrieved via the urGetLastResult entry point.
+    UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                                 ///< Unknown or internal error
     /// @cond
     UR_RESULT_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -346,6 +348,10 @@ typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferCreateExp(
     ur_context_handle_t hContext,                           ///< [in] handle of the context object
@@ -363,6 +369,7 @@ urCommandBufferCreateExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -380,6 +387,7 @@ urCommandBufferRetainExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -397,8 +405,9 @@ urCommandBufferReleaseExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(
     ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
@@ -418,19 +427,28 @@ urCommandBufferFinalizeExp(
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == pLocalWorkSize`
-///         + `NULL == pDependencies`
+///         + `NULL == pSyncPointWaitList`
 ///         + `NULL == pSyncPoint`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendKernelExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,           ///< [in] handle of the command-buffer object
-    ur_kernel_handle_t hKernel,                              ///< [in] kernel to append
-    uint32_t WorkDim,                                        ///< [in] dimension of the kernel execution
-    const size_t *pGlobalWorkOffset,                         ///< [in] Offset to use when executing kernel.
-    const size_t *pGlobalWorkSize,                           ///< [in] Global work size to use when executing kernel.
-    const size_t *pLocalWorkSize,                            ///< [in] Local work size to use when executing kernel.
-    uint32_t numSyncPointsInWaitList,                        ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pDependencies, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint           ///< [out] sync point associated with this command
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object
+    ur_kernel_handle_t hKernel,                                   ///< [in] kernel to append
+    uint32_t WorkDim,                                             ///< [in] dimension of the kernel execution
+    const size_t *pGlobalWorkOffset,                              ///< [in] Offset to use when executing kernel.
+    const size_t *pGlobalWorkSize,                                ///< [in] Global work size to use when executing kernel.
+    const size_t *pLocalWorkSize,                                 ///< [in] Local work size to use when executing kernel.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -445,17 +463,26 @@ urCommandBufferAppendKernelExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == pSrc`
-///         + `NULL == pDependencies`
+///         + `NULL == pSyncPointWaitList`
 ///         + `NULL == pSyncPoint`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferMemcpyUSMExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,           ///< [in] handle of the command-buffer object.
-    void *pDst,                                              ///< [in] Location the data will be copied to.
-    const void *pSrc,                                        ///< [in] The data to be copied.
-    size_t size,                                             ///< [in] The number of bytes to copy
-    uint32_t numSyncPointsInWaitList,                        ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pDependencies, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint           ///< [out] sync point associated with this command
+urCommandBufferAppendMemcpyUSMExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    void *pDst,                                                   ///< [in] Location the data will be copied to.
+    const void *pSrc,                                             ///< [in] The data to be copied.
+    size_t size,                                                  ///< [in] The number of bytes to copy
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -470,19 +497,25 @@ urCommandBufferMemcpyUSMExp(
 ///         + `NULL == hSrcMem`
 ///         + `NULL == hDstMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pDependencies`
+///         + `NULL == pSyncPointWaitList`
 ///         + `NULL == pSyncPoint`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferMembufferCopyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,           ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem,                                 ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem,                                 ///< [in] The location the data will be copied to.
-    size_t srcOffset,                                        ///< [in] Offset into the source memory.
-    size_t dstOffset,                                        ///< [in] Offset into the destination memory
-    size_t size,                                             ///< [in] The number of bytes to be copied.
-    uint32_t numSyncPointsInWaitList,                        ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pDependencies, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint           ///< [out] sync point associated with this command
+urCommandBufferAppendMembufferCopyExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
+    size_t srcOffset,                                             ///< [in] Offset into the source memory.
+    size_t dstOffset,                                             ///< [in] Offset into the destination memory
+    size_t size,                                                  ///< [in] The number of bytes to be copied.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -497,23 +530,29 @@ urCommandBufferMembufferCopyExp(
 ///         + `NULL == hSrcMem`
 ///         + `NULL == hDstMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pDependencies`
+///         + `NULL == pSyncPointWaitList`
 ///         + `NULL == pSyncPoint`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferMembufferCopyRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,           ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem,                                 ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem,                                 ///< [in] The location the data will be copied to.
-    ur_rect_offset_t SrcOrigin,                              ///< [in] Origin for the region of data to be copied from the source.
-    ur_rect_offset_t DstOrigin,                              ///< [in] Origin for the region of data to be copied to in the destination.
-    ur_rect_region_t Region,                                 ///< [in] The extents describing the region to be copied.
-    size_t SrcRowPitch,                                      ///< [in] Row pitch of the source memory.
-    size_t SrcSlicePitch,                                    ///< [in] Slice pitch of the source memory.
-    size_t DstRowPitch,                                      ///< [in] Row pitch of the destination memory.
-    size_t DstSlicePitch,                                    ///< [in] Slice pitch of the destination memory.
-    uint32_t numSyncPointsInWaitList,                        ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pDependencies, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint           ///< [out] sync point associated with this command
+urCommandBufferAppendMembufferCopyRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
+    ur_rect_offset_t SrcOrigin,                                   ///< [in] Origin for the region of data to be copied from the source.
+    ur_rect_offset_t DstOrigin,                                   ///< [in] Origin for the region of data to be copied to in the destination.
+    ur_rect_region_t Region,                                      ///< [in] The extents describing the region to be copied.
+    size_t SrcRowPitch,                                           ///< [in] Row pitch of the source memory.
+    size_t SrcSlicePitch,                                         ///< [in] Slice pitch of the source memory.
+    size_t DstRowPitch,                                           ///< [in] Row pitch of the destination memory.
+    size_t DstSlicePitch,                                         ///< [in] Slice pitch of the destination memory.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -526,6 +565,15 @@ urCommandBufferMembufferCopyRectExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
 ///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ///< [in] handle of the command-buffer object.
@@ -4900,134 +4948,134 @@ urEventSetCallback(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines unique stable identifiers for all functions
 typedef enum ur_function_t {
-    UR_FUNCTION_CONTEXT_CREATE = 1,                           ///< Enumerator for ::urContextCreate
-    UR_FUNCTION_CONTEXT_RETAIN = 2,                           ///< Enumerator for ::urContextRetain
-    UR_FUNCTION_CONTEXT_RELEASE = 3,                          ///< Enumerator for ::urContextRelease
-    UR_FUNCTION_CONTEXT_GET_INFO = 4,                         ///< Enumerator for ::urContextGetInfo
-    UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE = 5,                ///< Enumerator for ::urContextGetNativeHandle
-    UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6,        ///< Enumerator for ::urContextCreateWithNativeHandle
-    UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER = 7,             ///< Enumerator for ::urContextSetExtendedDeleter
-    UR_FUNCTION_DEVICE_GET = 8,                               ///< Enumerator for ::urDeviceGet
-    UR_FUNCTION_DEVICE_GET_INFO = 9,                          ///< Enumerator for ::urDeviceGetInfo
-    UR_FUNCTION_DEVICE_RETAIN = 10,                           ///< Enumerator for ::urDeviceRetain
-    UR_FUNCTION_DEVICE_RELEASE = 11,                          ///< Enumerator for ::urDeviceRelease
-    UR_FUNCTION_DEVICE_PARTITION = 12,                        ///< Enumerator for ::urDevicePartition
-    UR_FUNCTION_DEVICE_SELECT_BINARY = 13,                    ///< Enumerator for ::urDeviceSelectBinary
-    UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE = 14,                ///< Enumerator for ::urDeviceGetNativeHandle
-    UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,        ///< Enumerator for ::urDeviceCreateWithNativeHandle
-    UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,            ///< Enumerator for ::urDeviceGetGlobalTimestamps
-    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,                   ///< Enumerator for ::urEnqueueKernelLaunch
-    UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,                     ///< Enumerator for ::urEnqueueEventsWait
-    UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19,        ///< Enumerator for ::urEnqueueEventsWaitWithBarrier
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ = 20,                 ///< Enumerator for ::urEnqueueMemBufferRead
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE = 21,                ///< Enumerator for ::urEnqueueMemBufferWrite
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT = 22,            ///< Enumerator for ::urEnqueueMemBufferReadRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT = 23,           ///< Enumerator for ::urEnqueueMemBufferWriteRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY = 24,                 ///< Enumerator for ::urEnqueueMemBufferCopy
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT = 25,            ///< Enumerator for ::urEnqueueMemBufferCopyRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL = 26,                 ///< Enumerator for ::urEnqueueMemBufferFill
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ = 27,                  ///< Enumerator for ::urEnqueueMemImageRead
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE = 28,                 ///< Enumerator for ::urEnqueueMemImageWrite
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY = 29,                  ///< Enumerator for ::urEnqueueMemImageCopy
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP = 30,                  ///< Enumerator for ::urEnqueueMemBufferMap
-    UR_FUNCTION_ENQUEUE_MEM_UNMAP = 31,                       ///< Enumerator for ::urEnqueueMemUnmap
-    UR_FUNCTION_ENQUEUE_USM_FILL = 32,                        ///< Enumerator for ::urEnqueueUSMFill
-    UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                      ///< Enumerator for ::urEnqueueUSMMemcpy
-    UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                    ///< Enumerator for ::urEnqueueUSMPrefetch
-    UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                      ///< Enumerator for ::urEnqueueUSMAdvise
-    UR_FUNCTION_ENQUEUE_USM_FILL2_D = 36,                     ///< Enumerator for ::urEnqueueUSMFill2D
-    UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D = 37,                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
-    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38,    ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
-    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39,     ///< Enumerator for ::urEnqueueDeviceGlobalVariableRead
-    UR_FUNCTION_EVENT_GET_INFO = 40,                          ///< Enumerator for ::urEventGetInfo
-    UR_FUNCTION_EVENT_GET_PROFILING_INFO = 41,                ///< Enumerator for ::urEventGetProfilingInfo
-    UR_FUNCTION_EVENT_WAIT = 42,                              ///< Enumerator for ::urEventWait
-    UR_FUNCTION_EVENT_RETAIN = 43,                            ///< Enumerator for ::urEventRetain
-    UR_FUNCTION_EVENT_RELEASE = 44,                           ///< Enumerator for ::urEventRelease
-    UR_FUNCTION_EVENT_GET_NATIVE_HANDLE = 45,                 ///< Enumerator for ::urEventGetNativeHandle
-    UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE = 46,         ///< Enumerator for ::urEventCreateWithNativeHandle
-    UR_FUNCTION_EVENT_SET_CALLBACK = 47,                      ///< Enumerator for ::urEventSetCallback
-    UR_FUNCTION_KERNEL_CREATE = 48,                           ///< Enumerator for ::urKernelCreate
-    UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,                    ///< Enumerator for ::urKernelSetArgValue
-    UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,                    ///< Enumerator for ::urKernelSetArgLocal
-    UR_FUNCTION_KERNEL_GET_INFO = 51,                         ///< Enumerator for ::urKernelGetInfo
-    UR_FUNCTION_KERNEL_GET_GROUP_INFO = 52,                   ///< Enumerator for ::urKernelGetGroupInfo
-    UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO = 53,               ///< Enumerator for ::urKernelGetSubGroupInfo
-    UR_FUNCTION_KERNEL_RETAIN = 54,                           ///< Enumerator for ::urKernelRetain
-    UR_FUNCTION_KERNEL_RELEASE = 55,                          ///< Enumerator for ::urKernelRelease
-    UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,                  ///< Enumerator for ::urKernelSetArgPointer
-    UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,                    ///< Enumerator for ::urKernelSetExecInfo
-    UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,                  ///< Enumerator for ::urKernelSetArgSampler
-    UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,                  ///< Enumerator for ::urKernelSetArgMemObj
-    UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,     ///< Enumerator for ::urKernelSetSpecializationConstants
-    UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE = 61,                ///< Enumerator for ::urKernelGetNativeHandle
-    UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE = 62,        ///< Enumerator for ::urKernelCreateWithNativeHandle
-    UR_FUNCTION_MEM_IMAGE_CREATE = 63,                        ///< Enumerator for ::urMemImageCreate
-    UR_FUNCTION_MEM_BUFFER_CREATE = 64,                       ///< Enumerator for ::urMemBufferCreate
-    UR_FUNCTION_MEM_RETAIN = 65,                              ///< Enumerator for ::urMemRetain
-    UR_FUNCTION_MEM_RELEASE = 66,                             ///< Enumerator for ::urMemRelease
-    UR_FUNCTION_MEM_BUFFER_PARTITION = 67,                    ///< Enumerator for ::urMemBufferPartition
-    UR_FUNCTION_MEM_GET_NATIVE_HANDLE = 68,                   ///< Enumerator for ::urMemGetNativeHandle
-    UR_FUNCTION_ENQUEUE_READ_HOST_PIPE = 69,                  ///< Enumerator for ::urEnqueueReadHostPipe
-    UR_FUNCTION_MEM_GET_INFO = 70,                            ///< Enumerator for ::urMemGetInfo
-    UR_FUNCTION_MEM_IMAGE_GET_INFO = 71,                      ///< Enumerator for ::urMemImageGetInfo
-    UR_FUNCTION_PLATFORM_GET = 72,                            ///< Enumerator for ::urPlatformGet
-    UR_FUNCTION_PLATFORM_GET_INFO = 73,                       ///< Enumerator for ::urPlatformGetInfo
-    UR_FUNCTION_PLATFORM_GET_API_VERSION = 74,                ///< Enumerator for ::urPlatformGetApiVersion
-    UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE = 75,              ///< Enumerator for ::urPlatformGetNativeHandle
-    UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76,      ///< Enumerator for ::urPlatformCreateWithNativeHandle
-    UR_FUNCTION_GET_LAST_RESULT = 77,                         ///< Enumerator for ::urGetLastResult
-    UR_FUNCTION_PROGRAM_CREATE_WITH_IL = 78,                  ///< Enumerator for ::urProgramCreateWithIL
-    UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY = 79,              ///< Enumerator for ::urProgramCreateWithBinary
-    UR_FUNCTION_PROGRAM_BUILD = 80,                           ///< Enumerator for ::urProgramBuild
-    UR_FUNCTION_PROGRAM_COMPILE = 81,                         ///< Enumerator for ::urProgramCompile
-    UR_FUNCTION_PROGRAM_LINK = 82,                            ///< Enumerator for ::urProgramLink
-    UR_FUNCTION_PROGRAM_RETAIN = 83,                          ///< Enumerator for ::urProgramRetain
-    UR_FUNCTION_PROGRAM_RELEASE = 84,                         ///< Enumerator for ::urProgramRelease
-    UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER = 85,            ///< Enumerator for ::urProgramGetFunctionPointer
-    UR_FUNCTION_PROGRAM_GET_INFO = 86,                        ///< Enumerator for ::urProgramGetInfo
-    UR_FUNCTION_PROGRAM_GET_BUILD_INFO = 87,                  ///< Enumerator for ::urProgramGetBuildInfo
-    UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88,    ///< Enumerator for ::urProgramSetSpecializationConstants
-    UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE = 89,               ///< Enumerator for ::urProgramGetNativeHandle
-    UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90,       ///< Enumerator for ::urProgramCreateWithNativeHandle
-    UR_FUNCTION_QUEUE_GET_INFO = 91,                          ///< Enumerator for ::urQueueGetInfo
-    UR_FUNCTION_QUEUE_CREATE = 92,                            ///< Enumerator for ::urQueueCreate
-    UR_FUNCTION_QUEUE_RETAIN = 93,                            ///< Enumerator for ::urQueueRetain
-    UR_FUNCTION_QUEUE_RELEASE = 94,                           ///< Enumerator for ::urQueueRelease
-    UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE = 95,                 ///< Enumerator for ::urQueueGetNativeHandle
-    UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE = 96,         ///< Enumerator for ::urQueueCreateWithNativeHandle
-    UR_FUNCTION_QUEUE_FINISH = 97,                            ///< Enumerator for ::urQueueFinish
-    UR_FUNCTION_QUEUE_FLUSH = 98,                             ///< Enumerator for ::urQueueFlush
-    UR_FUNCTION_INIT = 99,                                    ///< Enumerator for ::urInit
-    UR_FUNCTION_TEAR_DOWN = 100,                              ///< Enumerator for ::urTearDown
-    UR_FUNCTION_SAMPLER_CREATE = 101,                         ///< Enumerator for ::urSamplerCreate
-    UR_FUNCTION_SAMPLER_RETAIN = 102,                         ///< Enumerator for ::urSamplerRetain
-    UR_FUNCTION_SAMPLER_RELEASE = 103,                        ///< Enumerator for ::urSamplerRelease
-    UR_FUNCTION_SAMPLER_GET_INFO = 104,                       ///< Enumerator for ::urSamplerGetInfo
-    UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE = 105,              ///< Enumerator for ::urSamplerGetNativeHandle
-    UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106,      ///< Enumerator for ::urSamplerCreateWithNativeHandle
-    UR_FUNCTION_USM_HOST_ALLOC = 107,                         ///< Enumerator for ::urUSMHostAlloc
-    UR_FUNCTION_USM_DEVICE_ALLOC = 108,                       ///< Enumerator for ::urUSMDeviceAlloc
-    UR_FUNCTION_USM_SHARED_ALLOC = 109,                       ///< Enumerator for ::urUSMSharedAlloc
-    UR_FUNCTION_USM_FREE = 110,                               ///< Enumerator for ::urUSMFree
-    UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,                 ///< Enumerator for ::urUSMGetMemAllocInfo
-    UR_FUNCTION_USM_POOL_CREATE = 112,                        ///< Enumerator for ::urUSMPoolCreate
-    UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP = 113,              ///< Enumerator for ::urCommandBufferCreateExp
-    UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,            ///< Enumerator for ::urPlatformGetBackendOption
-    UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115,   ///< Enumerator for ::urMemBufferCreateWithNativeHandle
-    UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,    ///< Enumerator for ::urMemImageCreateWithNativeHandle
-    UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,                ///< Enumerator for ::urEnqueueWriteHostPipe
-    UR_FUNCTION_USM_POOL_RETAIN = 118,                        ///< Enumerator for ::urUSMPoolRetain
-    UR_FUNCTION_USM_POOL_RELEASE = 119,                       ///< Enumerator for ::urUSMPoolRelease
-    UR_FUNCTION_USM_POOL_GET_INFO = 120,                      ///< Enumerator for ::urUSMPoolGetInfo
-    UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP = 121,              ///< Enumerator for ::urCommandBufferRetainExp
-    UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,             ///< Enumerator for ::urCommandBufferReleaseExp
-    UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,            ///< Enumerator for ::urCommandBufferFinalizeExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_EXP = 124,       ///< Enumerator for ::urCommandBufferAppendKernelExp
-    UR_FUNCTION_COMMAND_BUFFER_MEMCPY_USM_EXP = 125,          ///< Enumerator for ::urCommandBufferMemcpyUSMExp
-    UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_EXP = 126,      ///< Enumerator for ::urCommandBufferMembufferCopyExp
-    UR_FUNCTION_COMMAND_BUFFER_MEMBUFFER_COPY_RECT_EXP = 127, ///< Enumerator for ::urCommandBufferMembufferCopyRectExp
-    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,             ///< Enumerator for ::urCommandBufferEnqueueExp
+    UR_FUNCTION_CONTEXT_CREATE = 1,                                  ///< Enumerator for ::urContextCreate
+    UR_FUNCTION_CONTEXT_RETAIN = 2,                                  ///< Enumerator for ::urContextRetain
+    UR_FUNCTION_CONTEXT_RELEASE = 3,                                 ///< Enumerator for ::urContextRelease
+    UR_FUNCTION_CONTEXT_GET_INFO = 4,                                ///< Enumerator for ::urContextGetInfo
+    UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE = 5,                       ///< Enumerator for ::urContextGetNativeHandle
+    UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6,               ///< Enumerator for ::urContextCreateWithNativeHandle
+    UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER = 7,                    ///< Enumerator for ::urContextSetExtendedDeleter
+    UR_FUNCTION_DEVICE_GET = 8,                                      ///< Enumerator for ::urDeviceGet
+    UR_FUNCTION_DEVICE_GET_INFO = 9,                                 ///< Enumerator for ::urDeviceGetInfo
+    UR_FUNCTION_DEVICE_RETAIN = 10,                                  ///< Enumerator for ::urDeviceRetain
+    UR_FUNCTION_DEVICE_RELEASE = 11,                                 ///< Enumerator for ::urDeviceRelease
+    UR_FUNCTION_DEVICE_PARTITION = 12,                               ///< Enumerator for ::urDevicePartition
+    UR_FUNCTION_DEVICE_SELECT_BINARY = 13,                           ///< Enumerator for ::urDeviceSelectBinary
+    UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE = 14,                       ///< Enumerator for ::urDeviceGetNativeHandle
+    UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,               ///< Enumerator for ::urDeviceCreateWithNativeHandle
+    UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,                   ///< Enumerator for ::urDeviceGetGlobalTimestamps
+    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,                          ///< Enumerator for ::urEnqueueKernelLaunch
+    UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,                            ///< Enumerator for ::urEnqueueEventsWait
+    UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19,               ///< Enumerator for ::urEnqueueEventsWaitWithBarrier
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ = 20,                        ///< Enumerator for ::urEnqueueMemBufferRead
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE = 21,                       ///< Enumerator for ::urEnqueueMemBufferWrite
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT = 22,                   ///< Enumerator for ::urEnqueueMemBufferReadRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT = 23,                  ///< Enumerator for ::urEnqueueMemBufferWriteRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY = 24,                        ///< Enumerator for ::urEnqueueMemBufferCopy
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT = 25,                   ///< Enumerator for ::urEnqueueMemBufferCopyRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL = 26,                        ///< Enumerator for ::urEnqueueMemBufferFill
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ = 27,                         ///< Enumerator for ::urEnqueueMemImageRead
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE = 28,                        ///< Enumerator for ::urEnqueueMemImageWrite
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY = 29,                         ///< Enumerator for ::urEnqueueMemImageCopy
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP = 30,                         ///< Enumerator for ::urEnqueueMemBufferMap
+    UR_FUNCTION_ENQUEUE_MEM_UNMAP = 31,                              ///< Enumerator for ::urEnqueueMemUnmap
+    UR_FUNCTION_ENQUEUE_USM_FILL = 32,                               ///< Enumerator for ::urEnqueueUSMFill
+    UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                             ///< Enumerator for ::urEnqueueUSMMemcpy
+    UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                           ///< Enumerator for ::urEnqueueUSMPrefetch
+    UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                             ///< Enumerator for ::urEnqueueUSMAdvise
+    UR_FUNCTION_ENQUEUE_USM_FILL2_D = 36,                            ///< Enumerator for ::urEnqueueUSMFill2D
+    UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D = 37,                          ///< Enumerator for ::urEnqueueUSMMemcpy2D
+    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38,           ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
+    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39,            ///< Enumerator for ::urEnqueueDeviceGlobalVariableRead
+    UR_FUNCTION_EVENT_GET_INFO = 40,                                 ///< Enumerator for ::urEventGetInfo
+    UR_FUNCTION_EVENT_GET_PROFILING_INFO = 41,                       ///< Enumerator for ::urEventGetProfilingInfo
+    UR_FUNCTION_EVENT_WAIT = 42,                                     ///< Enumerator for ::urEventWait
+    UR_FUNCTION_EVENT_RETAIN = 43,                                   ///< Enumerator for ::urEventRetain
+    UR_FUNCTION_EVENT_RELEASE = 44,                                  ///< Enumerator for ::urEventRelease
+    UR_FUNCTION_EVENT_GET_NATIVE_HANDLE = 45,                        ///< Enumerator for ::urEventGetNativeHandle
+    UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE = 46,                ///< Enumerator for ::urEventCreateWithNativeHandle
+    UR_FUNCTION_EVENT_SET_CALLBACK = 47,                             ///< Enumerator for ::urEventSetCallback
+    UR_FUNCTION_KERNEL_CREATE = 48,                                  ///< Enumerator for ::urKernelCreate
+    UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,                           ///< Enumerator for ::urKernelSetArgValue
+    UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,                           ///< Enumerator for ::urKernelSetArgLocal
+    UR_FUNCTION_KERNEL_GET_INFO = 51,                                ///< Enumerator for ::urKernelGetInfo
+    UR_FUNCTION_KERNEL_GET_GROUP_INFO = 52,                          ///< Enumerator for ::urKernelGetGroupInfo
+    UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO = 53,                      ///< Enumerator for ::urKernelGetSubGroupInfo
+    UR_FUNCTION_KERNEL_RETAIN = 54,                                  ///< Enumerator for ::urKernelRetain
+    UR_FUNCTION_KERNEL_RELEASE = 55,                                 ///< Enumerator for ::urKernelRelease
+    UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,                         ///< Enumerator for ::urKernelSetArgPointer
+    UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,                           ///< Enumerator for ::urKernelSetExecInfo
+    UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,                         ///< Enumerator for ::urKernelSetArgSampler
+    UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,                         ///< Enumerator for ::urKernelSetArgMemObj
+    UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,            ///< Enumerator for ::urKernelSetSpecializationConstants
+    UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE = 61,                       ///< Enumerator for ::urKernelGetNativeHandle
+    UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE = 62,               ///< Enumerator for ::urKernelCreateWithNativeHandle
+    UR_FUNCTION_MEM_IMAGE_CREATE = 63,                               ///< Enumerator for ::urMemImageCreate
+    UR_FUNCTION_MEM_BUFFER_CREATE = 64,                              ///< Enumerator for ::urMemBufferCreate
+    UR_FUNCTION_MEM_RETAIN = 65,                                     ///< Enumerator for ::urMemRetain
+    UR_FUNCTION_MEM_RELEASE = 66,                                    ///< Enumerator for ::urMemRelease
+    UR_FUNCTION_MEM_BUFFER_PARTITION = 67,                           ///< Enumerator for ::urMemBufferPartition
+    UR_FUNCTION_MEM_GET_NATIVE_HANDLE = 68,                          ///< Enumerator for ::urMemGetNativeHandle
+    UR_FUNCTION_ENQUEUE_READ_HOST_PIPE = 69,                         ///< Enumerator for ::urEnqueueReadHostPipe
+    UR_FUNCTION_MEM_GET_INFO = 70,                                   ///< Enumerator for ::urMemGetInfo
+    UR_FUNCTION_MEM_IMAGE_GET_INFO = 71,                             ///< Enumerator for ::urMemImageGetInfo
+    UR_FUNCTION_PLATFORM_GET = 72,                                   ///< Enumerator for ::urPlatformGet
+    UR_FUNCTION_PLATFORM_GET_INFO = 73,                              ///< Enumerator for ::urPlatformGetInfo
+    UR_FUNCTION_PLATFORM_GET_API_VERSION = 74,                       ///< Enumerator for ::urPlatformGetApiVersion
+    UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE = 75,                     ///< Enumerator for ::urPlatformGetNativeHandle
+    UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76,             ///< Enumerator for ::urPlatformCreateWithNativeHandle
+    UR_FUNCTION_GET_LAST_RESULT = 77,                                ///< Enumerator for ::urGetLastResult
+    UR_FUNCTION_PROGRAM_CREATE_WITH_IL = 78,                         ///< Enumerator for ::urProgramCreateWithIL
+    UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY = 79,                     ///< Enumerator for ::urProgramCreateWithBinary
+    UR_FUNCTION_PROGRAM_BUILD = 80,                                  ///< Enumerator for ::urProgramBuild
+    UR_FUNCTION_PROGRAM_COMPILE = 81,                                ///< Enumerator for ::urProgramCompile
+    UR_FUNCTION_PROGRAM_LINK = 82,                                   ///< Enumerator for ::urProgramLink
+    UR_FUNCTION_PROGRAM_RETAIN = 83,                                 ///< Enumerator for ::urProgramRetain
+    UR_FUNCTION_PROGRAM_RELEASE = 84,                                ///< Enumerator for ::urProgramRelease
+    UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER = 85,                   ///< Enumerator for ::urProgramGetFunctionPointer
+    UR_FUNCTION_PROGRAM_GET_INFO = 86,                               ///< Enumerator for ::urProgramGetInfo
+    UR_FUNCTION_PROGRAM_GET_BUILD_INFO = 87,                         ///< Enumerator for ::urProgramGetBuildInfo
+    UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88,           ///< Enumerator for ::urProgramSetSpecializationConstants
+    UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE = 89,                      ///< Enumerator for ::urProgramGetNativeHandle
+    UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90,              ///< Enumerator for ::urProgramCreateWithNativeHandle
+    UR_FUNCTION_QUEUE_GET_INFO = 91,                                 ///< Enumerator for ::urQueueGetInfo
+    UR_FUNCTION_QUEUE_CREATE = 92,                                   ///< Enumerator for ::urQueueCreate
+    UR_FUNCTION_QUEUE_RETAIN = 93,                                   ///< Enumerator for ::urQueueRetain
+    UR_FUNCTION_QUEUE_RELEASE = 94,                                  ///< Enumerator for ::urQueueRelease
+    UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE = 95,                        ///< Enumerator for ::urQueueGetNativeHandle
+    UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE = 96,                ///< Enumerator for ::urQueueCreateWithNativeHandle
+    UR_FUNCTION_QUEUE_FINISH = 97,                                   ///< Enumerator for ::urQueueFinish
+    UR_FUNCTION_QUEUE_FLUSH = 98,                                    ///< Enumerator for ::urQueueFlush
+    UR_FUNCTION_INIT = 99,                                           ///< Enumerator for ::urInit
+    UR_FUNCTION_TEAR_DOWN = 100,                                     ///< Enumerator for ::urTearDown
+    UR_FUNCTION_SAMPLER_CREATE = 101,                                ///< Enumerator for ::urSamplerCreate
+    UR_FUNCTION_SAMPLER_RETAIN = 102,                                ///< Enumerator for ::urSamplerRetain
+    UR_FUNCTION_SAMPLER_RELEASE = 103,                               ///< Enumerator for ::urSamplerRelease
+    UR_FUNCTION_SAMPLER_GET_INFO = 104,                              ///< Enumerator for ::urSamplerGetInfo
+    UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE = 105,                     ///< Enumerator for ::urSamplerGetNativeHandle
+    UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106,             ///< Enumerator for ::urSamplerCreateWithNativeHandle
+    UR_FUNCTION_USM_HOST_ALLOC = 107,                                ///< Enumerator for ::urUSMHostAlloc
+    UR_FUNCTION_USM_DEVICE_ALLOC = 108,                              ///< Enumerator for ::urUSMDeviceAlloc
+    UR_FUNCTION_USM_SHARED_ALLOC = 109,                              ///< Enumerator for ::urUSMSharedAlloc
+    UR_FUNCTION_USM_FREE = 110,                                      ///< Enumerator for ::urUSMFree
+    UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,                        ///< Enumerator for ::urUSMGetMemAllocInfo
+    UR_FUNCTION_USM_POOL_CREATE = 112,                               ///< Enumerator for ::urUSMPoolCreate
+    UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP = 113,                     ///< Enumerator for ::urCommandBufferCreateExp
+    UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,                   ///< Enumerator for ::urPlatformGetBackendOption
+    UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115,          ///< Enumerator for ::urMemBufferCreateWithNativeHandle
+    UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,           ///< Enumerator for ::urMemImageCreateWithNativeHandle
+    UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,                       ///< Enumerator for ::urEnqueueWriteHostPipe
+    UR_FUNCTION_USM_POOL_RETAIN = 118,                               ///< Enumerator for ::urUSMPoolRetain
+    UR_FUNCTION_USM_POOL_RELEASE = 119,                              ///< Enumerator for ::urUSMPoolRelease
+    UR_FUNCTION_USM_POOL_GET_INFO = 120,                             ///< Enumerator for ::urUSMPoolGetInfo
+    UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP = 121,                     ///< Enumerator for ::urCommandBufferRetainExp
+    UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,                    ///< Enumerator for ::urCommandBufferReleaseExp
+    UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                   ///< Enumerator for ::urCommandBufferFinalizeExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_EXP = 124,              ///< Enumerator for ::urCommandBufferAppendKernelExp
+    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                    ///< Enumerator for ::urCommandBufferEnqueueExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129,          ///< Enumerator for ::urCommandBufferAppendMemcpyUSMExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130,      ///< Enumerator for ::urCommandBufferAppendMembufferCopyExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131, ///< Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7427,29 +7475,29 @@ typedef struct ur_command_buffer_append_kernel_exp_params_t {
     const size_t **ppGlobalWorkSize;
     const size_t **ppLocalWorkSize;
     uint32_t *pnumSyncPointsInWaitList;
-    const ur_exp_command_buffer_sync_point_t **ppDependencies;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
 } ur_command_buffer_append_kernel_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferMemcpyUSMExp
+/// @brief Function parameters for urCommandBufferAppendMemcpyUSMExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_memcpy_usm_exp_params_t {
+typedef struct ur_command_buffer_append_memcpy_usm_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     void **ppDst;
     const void **ppSrc;
     size_t *psize;
     uint32_t *pnumSyncPointsInWaitList;
-    const ur_exp_command_buffer_sync_point_t **ppDependencies;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_memcpy_usm_exp_params_t;
+} ur_command_buffer_append_memcpy_usm_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferMembufferCopyExp
+/// @brief Function parameters for urCommandBufferAppendMembufferCopyExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_membuffer_copy_exp_params_t {
+typedef struct ur_command_buffer_append_membuffer_copy_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phSrcMem;
     ur_mem_handle_t *phDstMem;
@@ -7457,15 +7505,15 @@ typedef struct ur_command_buffer_membuffer_copy_exp_params_t {
     size_t *pdstOffset;
     size_t *psize;
     uint32_t *pnumSyncPointsInWaitList;
-    const ur_exp_command_buffer_sync_point_t **ppDependencies;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_membuffer_copy_exp_params_t;
+} ur_command_buffer_append_membuffer_copy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferMembufferCopyRectExp
+/// @brief Function parameters for urCommandBufferAppendMembufferCopyRectExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_membuffer_copy_rect_exp_params_t {
+typedef struct ur_command_buffer_append_membuffer_copy_rect_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phSrcMem;
     ur_mem_handle_t *phDstMem;
@@ -7477,9 +7525,9 @@ typedef struct ur_command_buffer_membuffer_copy_rect_exp_params_t {
     size_t *pDstRowPitch;
     size_t *pDstSlicePitch;
     uint32_t *pnumSyncPointsInWaitList;
-    const ur_exp_command_buffer_sync_point_t **ppDependencies;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_membuffer_copy_rect_exp_params_t;
+} ur_command_buffer_append_membuffer_copy_rect_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferEnqueueExp

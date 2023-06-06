@@ -1250,8 +1250,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferMemcpyUSMExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferMemcpyUSMExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemcpyUSMExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemcpyUSMExp_t)(
     ur_exp_command_buffer_handle_t,
     void *,
     const void *,
@@ -1261,8 +1261,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferMemcpyUSMExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferMembufferCopyExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferMembufferCopyExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMembufferCopyExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_mem_handle_t,
@@ -1274,8 +1274,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferMembufferCopyExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferMembufferCopyRectExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferMembufferCopyRectExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMembufferCopyRectExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyRectExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_mem_handle_t,
@@ -1307,9 +1307,9 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferReleaseExp_t pfnReleaseExp;
     ur_pfnCommandBufferFinalizeExp_t pfnFinalizeExp;
     ur_pfnCommandBufferAppendKernelExp_t pfnAppendKernelExp;
-    ur_pfnCommandBufferMemcpyUSMExp_t pfnMemcpyUSMExp;
-    ur_pfnCommandBufferMembufferCopyExp_t pfnMembufferCopyExp;
-    ur_pfnCommandBufferMembufferCopyRectExp_t pfnMembufferCopyRectExp;
+    ur_pfnCommandBufferAppendMemcpyUSMExp_t pfnAppendMemcpyUSMExp;
+    ur_pfnCommandBufferAppendMembufferCopyExp_t pfnAppendMembufferCopyExp;
+    ur_pfnCommandBufferAppendMembufferCopyRectExp_t pfnAppendMembufferCopyRectExp;
     ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
 } ur_command_buffer_exp_dditable_t;
 

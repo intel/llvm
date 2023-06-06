@@ -143,7 +143,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
 ) {
@@ -175,7 +175,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == pDependencies) {
+        if (NULL == pSyncPointWaitList) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -186,14 +186,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
 
     ur_result_t result = pfnAppendKernelExp(
         hCommandBuffer, hKernel, WorkDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numSyncPointsInWaitList, pDependencies, pSyncPoint);
+        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList,
+        pSyncPoint);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferMemcpyUSMExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferMemcpyUSMExp(
+/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer, ///< [in] handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
@@ -202,13 +203,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMemcpyUSMExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
 ) {
-    auto pfnMemcpyUSMExp = context.urDdiTable.CommandBufferExp.pfnMemcpyUSMExp;
+    auto pfnAppendMemcpyUSMExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
 
-    if (nullptr == pfnMemcpyUSMExp) {
+    if (nullptr == pfnAppendMemcpyUSMExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -225,25 +227,29 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMemcpyUSMExp(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == pDependencies) {
+        if (NULL == pSyncPointWaitList) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (NULL == pSyncPoint) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
-    ur_result_t result =
-        pfnMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
-                        numSyncPointsInWaitList, pDependencies, pSyncPoint);
+    ur_result_t result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+                                               numSyncPointsInWaitList,
+                                               pSyncPointWaitList, pSyncPoint);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferMembufferCopyExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyExp(
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -254,14 +260,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
 ) {
-    auto pfnMembufferCopyExp =
-        context.urDdiTable.CommandBufferExp.pfnMembufferCopyExp;
+    auto pfnAppendMembufferCopyExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
 
-    if (nullptr == pfnMembufferCopyExp) {
+    if (nullptr == pfnAppendMembufferCopyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -278,7 +284,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == pDependencies) {
+        if (NULL == pSyncPointWaitList) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -287,16 +293,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyExp(
         }
     }
 
-    ur_result_t result = pfnMembufferCopyExp(
+    ur_result_t result = pfnAppendMembufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
-        numSyncPointsInWaitList, pDependencies, pSyncPoint);
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferMembufferCopyRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyRectExp(
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -314,14 +320,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyRectExp(
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
-        pDependencies, ///< [in] A list of sync points that this command depends on.
+        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out] sync point associated with this command
 ) {
-    auto pfnMembufferCopyRectExp =
-        context.urDdiTable.CommandBufferExp.pfnMembufferCopyRectExp;
+    auto pfnAppendMembufferCopyRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
 
-    if (nullptr == pfnMembufferCopyRectExp) {
+    if (nullptr == pfnAppendMembufferCopyRectExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -338,7 +344,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyRectExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == pDependencies) {
+        if (NULL == pSyncPointWaitList) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -347,10 +353,10 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferMembufferCopyRectExp(
         }
     }
 
-    ur_result_t result = pfnMembufferCopyRectExp(
+    ur_result_t result = pfnAppendMembufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, SrcOrigin, DstOrigin, Region,
         SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
-        numSyncPointsInWaitList, pDependencies, pSyncPoint);
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
     return result;
 }
@@ -385,6 +391,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 
         if (NULL == hQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
     }
 
@@ -5493,17 +5507,18 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     pDdiTable->pfnAppendKernelExp =
         ur_validation_layer::urCommandBufferAppendKernelExp;
 
-    dditable.pfnMemcpyUSMExp = pDdiTable->pfnMemcpyUSMExp;
-    pDdiTable->pfnMemcpyUSMExp =
-        ur_validation_layer::urCommandBufferMemcpyUSMExp;
+    dditable.pfnAppendMemcpyUSMExp = pDdiTable->pfnAppendMemcpyUSMExp;
+    pDdiTable->pfnAppendMemcpyUSMExp =
+        ur_validation_layer::urCommandBufferAppendMemcpyUSMExp;
 
-    dditable.pfnMembufferCopyExp = pDdiTable->pfnMembufferCopyExp;
-    pDdiTable->pfnMembufferCopyExp =
-        ur_validation_layer::urCommandBufferMembufferCopyExp;
+    dditable.pfnAppendMembufferCopyExp = pDdiTable->pfnAppendMembufferCopyExp;
+    pDdiTable->pfnAppendMembufferCopyExp =
+        ur_validation_layer::urCommandBufferAppendMembufferCopyExp;
 
-    dditable.pfnMembufferCopyRectExp = pDdiTable->pfnMembufferCopyRectExp;
-    pDdiTable->pfnMembufferCopyRectExp =
-        ur_validation_layer::urCommandBufferMembufferCopyRectExp;
+    dditable.pfnAppendMembufferCopyRectExp =
+        pDdiTable->pfnAppendMembufferCopyRectExp;
+    pDdiTable->pfnAppendMembufferCopyRectExp =
+        ur_validation_layer::urCommandBufferAppendMembufferCopyRectExp;
 
     dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
     pDdiTable->pfnEnqueueExp = ur_validation_layer::urCommandBufferEnqueueExp;
