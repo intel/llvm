@@ -124,23 +124,26 @@ unsigned getLocalMemoryRemain(gpu::GPUModuleOp &module,
   return localMemoryRemain;
 }
 
-/// Get the require local memory for \p accTy.
+/// Get the required local memory for \p accTy.
 unsigned getReqdLocalMemory(sycl::AccessorType accTy,
-                            sycl::ReqdWorkGroupSize reqdWGSize) {
-  assert(!reqdWGSize.empty() && "Expecting non-empty reqdWGSize");
+                            sycl::ReqdWorkGroupSize reqdWorkGroupSize) {
+  assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth();
   unsigned memrefReqdLocalMemory = elemSize;
   for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
-    memrefReqdLocalMemory *= reqdWGSize[dim];
+    memrefReqdLocalMemory *= reqdWorkGroupSize[dim];
   }
   return memrefReqdLocalMemory;
 }
 
-/// Get the require local memory for memrefs in \p loopToSharedMemref.
-Optional<unsigned> getReqdLocalMemory(
-    DenseMap<LoopLikeOpInterface, std::set<Operation *>> &loopToSharedMemref,
-    sycl::ReqdWorkGroupSize reqdWGSize) {
-  if (reqdWGSize.empty())
+/// Get the require local memory for memrefs in \p loopToSharedMemref, i.e, for
+/// each kernel. If there are multiple loops in the kernel that require local
+/// memory, it returns the maximum amount required by any of them.
+Optional<unsigned>
+getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, std::set<Operation *>>
+                       &loopToSharedMemref,
+                   const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
+  if (reqdWorkGroupSize.empty())
     return std::nullopt;
 
   unsigned reqdLocalMemory = 0;
@@ -149,7 +152,7 @@ Optional<unsigned> getReqdLocalMemory(
     for (Operation *memref : entry.second) {
       sycl::AccessorType accTy =
           getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
-      loopReqdLocalMemory += getReqdLocalMemory(accTy, reqdWGSize);
+      loopReqdLocalMemory += getReqdLocalMemory(accTy, reqdWorkGroupSize);
     }
     // Memref in one loop can reuse local memory allocated for another loop.
     reqdLocalMemory = std::max(reqdLocalMemory, loopReqdLocalMemory);
@@ -158,9 +161,10 @@ Optional<unsigned> getReqdLocalMemory(
 }
 
 /// Create a GlobalOp for workgroup local memory.
-memref::GlobalOp getWGLocalMem(Operation *module, unsigned size) {
-  assert(size != 0 && "Expecting local memory");
-  std::string name = "WGLocalMem";
+memref::GlobalOp getworkGroupLocalMemory(gpu::GPUModuleOp module,
+                                         unsigned size) {
+  assert(size != 0 && "Expecting non-zero size");
+  std::string name("WGLocalMem");
   polygeist::getUniqueSymbolName(name, module);
   OpBuilder globalBuilder(module->getRegion(0));
   auto memRefTy = MemRefType::get(
@@ -178,12 +182,12 @@ memref::GlobalOp getWGLocalMem(Operation *module, unsigned size) {
 /// \p accTy.
 memref::ViewOp createViewOp(sycl::AccessorType accTy, unsigned offset,
                             memref::GetGlobalOp source,
-                            const sycl::ReqdWorkGroupSize &reqdWGSize,
+                            const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                             OpBuilder builder, Location loc) {
-  assert(!reqdWGSize.empty() && "Expecting non-empty reqdWGSize");
+  assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
   SmallVector<int64_t> shape;
   for (int dim = accTy.getDimension() - 1; dim >= 0; --dim)
-    shape.push_back(reqdWGSize[dim]);
+    shape.push_back(reqdWorkGroupSize[dim]);
   auto resTy = MemRefType::get(
       shape, accTy.getType(), MemRefLayoutAttrInterface(),
       sycl::AccessAddrSpaceAttr::get(builder.getContext(),
@@ -468,8 +472,8 @@ private:
 
   /// Transform a candidate loop.
   template <typename T>
-  void transform(T loop, memref::GlobalOp WGLocalMem,
-                 const sycl::ReqdWorkGroupSize &reqdWGSize);
+  void transform(T loop, memref::GlobalOp workGroupLocalMemory,
+                 const sycl::ReqdWorkGroupSize &reqdWorkGroupSize);
 
 private:
   /// A map from a candidate loop to shared memref values used in the loop.
@@ -488,10 +492,12 @@ void LoopInternalization::runOnOperation() {
       module->getRegion(0).front().getOperations().front());
   if (!gpuModule)
     return;
+
   FunctionKernelInfo funcKernelInfo(gpuModule);
 
-  // Collect kernel body functions called from candidate kernels.
+  // Collect kernel body functions of candidate kernels.
   std::set<FunctionOpInterface> kernelBodyFuncs;
+  std::set<FunctionOpInterface> toRemove;
   gpuModule->walk([&](gpu::GPUFuncOp kernel) {
     if (!kernel.isKernel())
       return;
@@ -499,8 +505,12 @@ void LoopInternalization::runOnOperation() {
     if (isCandidateKernel(kernel))
       kernelBodyFuncs.insert(func);
     else
-      kernelBodyFuncs.erase(func);
+      toRemove.insert(func);
   });
+  // If func is a kernel body function of a non-candidate kernel, then remove it
+  // from the set.
+  for (FunctionOpInterface func : toRemove)
+    kernelBodyFuncs.erase(func);
 
   // Walk each kernel body functions.
   for (FunctionOpInterface func : kernelBodyFuncs) {
@@ -552,16 +562,19 @@ void LoopInternalization::runOnOperation() {
       // prioritize(memAccessAnalysis, solver);
     });
 
+    // Calculate the required local memory for all accesses in
+    // loopToSharedMemref to be promoted.
     SmallVector<gpu::GPUFuncOp> kernels;
     funcKernelInfo.getKernelCallers(func, kernels);
-    sycl::ReqdWorkGroupSize reqdWGSize(kernels);
+    sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
     Optional<unsigned> reqdLocalMemory =
-        getReqdLocalMemory(loopToSharedMemref, reqdWGSize);
+        getReqdLocalMemory(loopToSharedMemref, reqdWorkGroupSize);
     if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemain) {
       LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
       return;
     }
-    memref::GlobalOp WGLocalMem = getWGLocalMem(
+
+    memref::GlobalOp workGroupLocalMemory = getworkGroupLocalMemory(
         gpuModule,
         reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemain);
 
@@ -569,8 +582,9 @@ void LoopInternalization::runOnOperation() {
     // loop nest's innermost loop, perform the transformation.
     for (auto &entry : loopToSharedMemref) {
       TypeSwitch<Operation *>(entry.first)
-          .Case<affine::AffineForOp, scf::ForOp>(
-              [&](auto loop) { transform(loop, WGLocalMem, reqdWGSize); });
+          .Case<affine::AffineForOp, scf::ForOp>([&](auto loop) {
+            transform(loop, workGroupLocalMemory, reqdWorkGroupSize);
+          });
     }
     loopToSharedMemref.clear();
   }
@@ -593,17 +607,11 @@ void LoopInternalization::selectMemorySpace(
     if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
       return;
 
-    affine::MemRefAccess memRefAccess(op);
-
     // Limitation: cannot calculate element size for non int or float type.
-    Type elemTy =
-        sycl::AccessorPtrValue(cast<sycl::SYCLAccessorSubscriptOp>(
-                                   memRefAccess.memref.getDefiningOp())
-                                   .getAcc())
-            .getAccessorType()
-            .getType();
-    if (!elemTy.isIntOrFloat())
+    if (!op->getResultTypes()[0].isIntOrFloat())
       return;
+
+    affine::MemRefAccess memRefAccess(op);
 
     // Compute the ideal memory space if possible.
     std::optional<MemorySelector::MemorySpace> memSpace =
@@ -624,8 +632,9 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
 }
 
 template <typename T>
-void LoopInternalization::transform(T loop, memref::GlobalOp WGLocalMem,
-                                    const sycl::ReqdWorkGroupSize &reqdWGSize) {
+void LoopInternalization::transform(
+    T loop, memref::GlobalOp workGroupLocalMemory,
+    const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
   assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
   assert(loopToSharedMemref.find(loop) != loopToSharedMemref.end() &&
@@ -633,7 +642,8 @@ void LoopInternalization::transform(T loop, memref::GlobalOp WGLocalMem,
 
   OpBuilder builder(loop);
   auto getGlobalOp = builder.create<memref::GetGlobalOp>(
-      loop.getLoc(), WGLocalMem.getType(), WGLocalMem.getName());
+      loop.getLoc(), workGroupLocalMemory.getType(),
+      workGroupLocalMemory.getName());
   const std::set<Operation *> &memrefs = loopToSharedMemref.at(loop);
 
   SmallVector<T> tiledNest;
@@ -646,17 +656,20 @@ void LoopInternalization::transform(T loop, memref::GlobalOp WGLocalMem,
   builder.setInsertionPointToStart(loop->getBlock());
 
   // Get pointer to the local memory portion for each memref.
-  if (!reqdWGSize.empty()) {
+  if (!reqdWorkGroupSize.empty()) {
     unsigned offset = 0;
     for (Operation *memref : memrefs) {
       sycl::AccessorType accTy =
           getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
-      createViewOp(accTy, offset, getGlobalOp, reqdWGSize, builder,
+      createViewOp(accTy, offset, getGlobalOp, reqdWorkGroupSize, builder,
                    memref->getLoc());
-      offset += getReqdLocalMemory(accTy, reqdWGSize);
+      offset += getReqdLocalMemory(accTy, reqdWorkGroupSize);
     }
-  } else
-    llvm::errs() << "TODO\n";
+  } else {
+    LLVM_DEBUG(
+        llvm::dbgs()
+        << "TODO: loop internalization without reqd_work_group_size support\n");
+  }
 
   // TODO: promote loop accesses to local memory.
   createLocalBarrier(builder);

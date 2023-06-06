@@ -136,7 +136,9 @@ public:
   void getKernelCallers(FunctionOpInterface func,
                         SmallVectorImpl<gpu::GPUFuncOp> &kernels) const;
 
-  /// Returns the kernel body function of \p kernel.
+  /// Returns the kernel body function of \p kernel. The kernel body function is
+  /// the lambda/functor associated with the SYCL kernel construct (e.g.,
+  /// parallel_for).
   FunctionOpInterface getKernelBodyFunc(gpu::GPUFuncOp kernel) const;
 
 private:
@@ -144,7 +146,10 @@ private:
   /// \p func and their associated depth.
   void populateGPUKernelInfo(FunctionOpInterface func);
 
+  /// Map from a function to all kernels that can reach it and their
+  /// corresponding depths.
   DenseMap<FunctionOpInterface, SmallVector<KernelInfo>> funcKernelInfosMap;
+  /// Map from a kernel to all functions that can be reached from it.
   DenseMap<gpu::GPUFuncOp, std::set<FunctionOpInterface>> kernelFuncsMap;
 };
 

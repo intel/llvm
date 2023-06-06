@@ -35,33 +35,16 @@ inline unsigned targetToAddressSpace(Target target) {
   }
 }
 
+/// Class to represent the sycl reqd_work_group_size attribute.
 class ReqdWorkGroupSize {
 public:
-  ReqdWorkGroupSize(ArrayRef<gpu::GPUFuncOp> kernels) {
-    init(kernels.front(), wgSizes);
-    for (gpu::GPUFuncOp kernel : drop_begin(kernels)) {
-      SmallVector<unsigned> wgSizes2;
-      init(kernel, wgSizes2);
-      assert(wgSizes == wgSizes2 && "Expecting same reqd_work_group_size");
-    }
-  }
-  bool empty() const { return wgSizes.empty(); }
-  unsigned operator[](unsigned dim) const {
-    assert(dim < wgSizes.size() && "Expecting valid dim");
-    return wgSizes[wgSizes.size() - 1 - dim];
-  }
+  ReqdWorkGroupSize(ArrayRef<gpu::GPUFuncOp> kernels);
+  bool empty() const;
+  unsigned operator[](unsigned dim) const;
 
 private:
   /// Populate \p wgSizes from kernel \p kernel.
-  static void init(gpu::GPUFuncOp kernel, SmallVector<unsigned> &wgSizes) {
-    if (ArrayAttr wgSizesAttr = dyn_cast_or_null<ArrayAttr>(
-            kernel->getAttr("reqd_work_group_size"))) {
-      for (IntegerAttr wgSizeAttr : wgSizesAttr.getAsRange<IntegerAttr>())
-        wgSizes.push_back(wgSizeAttr.getInt());
-      assert(!wgSizes.empty() && wgSizes.size() <= 3 &&
-             "Expecting non-empty wgSizes of size less than 3");
-    }
-  }
+  static void init(gpu::GPUFuncOp kernel, SmallVectorImpl<unsigned> &wgSizes);
 
   SmallVector<unsigned> wgSizes;
 };
