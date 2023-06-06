@@ -1611,17 +1611,20 @@ inline pi_result piProgramCreateWithBinary(
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(DeviceList[0]);
 
-  std::unique_ptr<ur_program_metadata_t[]> pMetadatas(
-      new ur_program_metadata_t[NumMetadataEntries]);
-  for (unsigned i = 0; i < NumMetadataEntries; i++) {
-    HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
-  }
-
-  ur_program_properties_t Properties;
+  ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
   Properties.count = NumMetadataEntries;
-  Properties.pMetadatas = pMetadatas.get();
+
+  std::unique_ptr<ur_program_metadata_t[]> pMetadatas;
+  if (NumMetadataEntries) {
+    pMetadatas.reset(new ur_program_metadata_t[NumMetadataEntries]);
+    for (unsigned i = 0; i < NumMetadataEntries; i++) {
+      HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
+    }
+
+    Properties.pMetadatas = pMetadatas.get();
+  }
 
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(Program);
