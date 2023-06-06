@@ -11,7 +11,6 @@ from lldbsuite.test import lldbutil
 
 
 class CppDataFormatterTestCase(TestBase):
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -102,17 +101,17 @@ class CppDataFormatterTestCase(TestBase):
 
         # check that rdar://problem/10011145 (Standard summary format for
         # char[] doesn't work as the result of "expr".) is solved
-        self.expect("p strarr",
+        self.expect("expression strarr",
                     substrs=['arr = "Hello world!'])
 
         self.expect("frame variable strptr",
                     substrs=['ptr = "Hello world!"'])
 
-        self.expect("p strptr",
+        self.expect("expression strptr",
                     substrs=['ptr = "Hello world!"'])
 
         self.expect(
-            "p (char*)\"1234567890123456789012345678901234567890123456789012345678901234ABC\"",
+            "expression (char*)\"1234567890123456789012345678901234567890123456789012345678901234ABC\"",
             substrs=[
                 '(char *) $',
                 ' = ptr = ',
@@ -285,3 +284,24 @@ class CppDataFormatterTestCase(TestBase):
             matching=False,
             substrs=['(int) iAmInt = 0x00000001'])
         self.expect("frame variable iAmInt", substrs=['(int) iAmInt = 1'])
+
+    @skipIfWindows
+    def test_mem_func_ptr_formats(self):
+        self.build()
+
+        lldbutil.run_to_source_breakpoint(self, "Break in has_local_mem_func_pointers", lldb.SBFileSpec("main.cpp"))
+
+        self.expect(
+            "frame variable member_ptr",
+            patterns=['member_ptr = 0x[0-9a-z]+'])
+        self.expect(
+            "frame variable member_func_ptr",
+            patterns=['member_func_ptr = 0x[0-9a-z]+'],
+            substrs=['(a.out`IUseCharStar::member_func(int) at main.cpp:61)'])
+        self.expect(
+            "frame variable ref_to_member_func_ptr",
+            patterns=['ref_to_member_func_ptr = 0x[0-9a-z]+'],
+            substrs=['(a.out`IUseCharStar::member_func(int) at main.cpp:61)'])
+        self.expect(
+            "frame variable virt_member_func_ptr",
+            patterns=['virt_member_func_ptr = 0x[0-9a-z]+$'])

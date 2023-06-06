@@ -18,7 +18,6 @@ enum class architecture {
   intel_gpu_aml,
   intel_gpu_cml,
   intel_gpu_icllp,
-  intel_gpu_ehl,
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
@@ -79,7 +78,6 @@ enum class architecture {
   intel_gpu_9_6_0 = intel_gpu_aml,
   intel_gpu_9_7_0 = intel_gpu_cml,
   intel_gpu_11_0_0 = intel_gpu_icllp,
-  intel_gpu_11_2_0 = intel_gpu_ehl,
   intel_gpu_12_0_0 = intel_gpu_tgllp,
   intel_gpu_12_10_0 = intel_gpu_dg1,
 };
@@ -123,9 +121,6 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_ICLLP__
 #define __SYCL_TARGET_INTEL_GPU_ICLLP__ 0
-#endif
-#ifndef __SYCL_TARGET_INTEL_GPU_EHL__
-#define __SYCL_TARGET_INTEL_GPU_EHL__ 0
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_TGLLP__
 #define __SYCL_TARGET_INTEL_GPU_TGLLP__ 0
@@ -286,7 +281,6 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_AML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_CML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ICLLP__ == 1) ||
-    (__SYCL_TARGET_INTEL_GPU_EHL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_TGLLP__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_RKL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_S__ == 1) ||
@@ -364,8 +358,6 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_CML__ == 1;
     arr[static_cast<int>(arch::intel_gpu_icllp)] =
         __SYCL_TARGET_INTEL_GPU_ICLLP__ == 1;
-    arr[static_cast<int>(arch::intel_gpu_ehl)] =
-        __SYCL_TARGET_INTEL_GPU_EHL__ == 1;
     arr[static_cast<int>(arch::intel_gpu_tgllp)] =
         __SYCL_TARGET_INTEL_GPU_TGLLP__ == 1;
     arr[static_cast<int>(arch::intel_gpu_rkl)] =
@@ -487,11 +479,10 @@ constexpr static bool device_architecture_is() {
 // user's function.
 template <bool MakeCall> class if_architecture_helper {
 public:
-  template <ext::oneapi::experimental::architecture... Archs, typename T,
-            typename... Args>
-  constexpr auto else_if_architecture_is(T fnTrue, Args... args) {
+  template <ext::oneapi::experimental::architecture... Archs, typename T>
+  constexpr auto else_if_architecture_is(T fnTrue) {
     if constexpr (MakeCall && device_architecture_is<Archs...>()) {
-      fnTrue(args...);
+      fnTrue();
       return if_architecture_helper<false>{};
     } else {
       (void)fnTrue;
@@ -499,10 +490,9 @@ public:
     }
   }
 
-  template <typename T, typename... Args>
-  constexpr void otherwise(T fn, Args... args) {
+  template <typename T> constexpr void otherwise(T fn) {
     if constexpr (MakeCall) {
-      fn(args...);
+      fn();
     }
   }
 };
@@ -510,14 +500,14 @@ public:
 
 namespace ext::oneapi::experimental {
 
-template <architecture... Archs, typename T, typename... Args>
-constexpr static auto if_architecture_is(T fnTrue, Args... args) {
+template <architecture... Archs, typename T>
+constexpr static auto if_architecture_is(T fnTrue) {
   static_assert(sycl::detail::allowable_aot_mode<Archs...>(),
                 "The if_architecture_is function may only be used when AOT "
                 "compiling with '-fsycl-targets=spir64_x86_64' or "
                 "'-fsycl-targets=*_gpu_*'");
   if constexpr (sycl::detail::device_architecture_is<Archs...>()) {
-    fnTrue(args...);
+    fnTrue();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
     (void)fnTrue;

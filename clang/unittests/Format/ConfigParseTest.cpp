@@ -174,7 +174,6 @@ TEST(ConfigParseTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(ReflowComments);
   CHECK_PARSE_BOOL(RemoveBracesLLVM);
   CHECK_PARSE_BOOL(RemoveSemicolon);
-  CHECK_PARSE_BOOL(SortUsingDeclarations);
   CHECK_PARSE_BOOL(SpacesInParentheses);
   CHECK_PARSE_BOOL(SpacesInSquareBrackets);
   CHECK_PARSE_BOOL(SpacesInConditionalStatement);
@@ -190,8 +189,10 @@ TEST(ConfigParseTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(SpaceBeforeCpp11BracedList);
   CHECK_PARSE_BOOL(SpaceBeforeCtorInitializerColon);
   CHECK_PARSE_BOOL(SpaceBeforeInheritanceColon);
+  CHECK_PARSE_BOOL(SpaceBeforeJsonColon);
   CHECK_PARSE_BOOL(SpaceBeforeRangeBasedForLoopColon);
   CHECK_PARSE_BOOL(SpaceBeforeSquareBrackets);
+  CHECK_PARSE_BOOL(VerilogBreakBetweenInstancePorts);
 
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterCaseLabel);
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterClass);
@@ -246,6 +247,8 @@ TEST(ConfigParseTest, ParsesConfiguration) {
               SpacesBeforeTrailingComments, 1234u);
   CHECK_PARSE("IndentWidth: 32", IndentWidth, 32u);
   CHECK_PARSE("ContinuationIndentWidth: 11", ContinuationIndentWidth, 11u);
+  CHECK_PARSE("BracedInitializerIndentWidth: 34", BracedInitializerIndentWidth,
+              34);
   CHECK_PARSE("CommentPragmas: '// abc$'", CommentPragmas, "// abc$");
 
   Style.QualifierAlignment = FormatStyle::QAS_Right;
@@ -401,6 +404,8 @@ TEST(ConfigParseTest, ParsesConfiguration) {
               PackConstructorInitializers, FormatStyle::PCIS_CurrentLine);
   CHECK_PARSE("PackConstructorInitializers: NextLine",
               PackConstructorInitializers, FormatStyle::PCIS_NextLine);
+  CHECK_PARSE("PackConstructorInitializers: NextLineOnly",
+              PackConstructorInitializers, FormatStyle::PCIS_NextLineOnly);
   // For backward compatibility:
   CHECK_PARSE("BasedOnStyle: Google\n"
               "ConstructorInitializerAllOnOneLineOrOnePerLine: true\n"
@@ -469,20 +474,20 @@ TEST(ConfigParseTest, ParsesConfiguration) {
 
   CHECK_PARSE("AlignTrailingComments: Leave", AlignTrailingComments,
               FormatStyle::TrailingCommentsAlignmentStyle(
-                  {FormatStyle::TCAS_Leave, 1}));
+                  {FormatStyle::TCAS_Leave, 0}));
   CHECK_PARSE("AlignTrailingComments: Always", AlignTrailingComments,
               FormatStyle::TrailingCommentsAlignmentStyle(
-                  {FormatStyle::TCAS_Always, 1}));
+                  {FormatStyle::TCAS_Always, 0}));
   CHECK_PARSE("AlignTrailingComments: Never", AlignTrailingComments,
               FormatStyle::TrailingCommentsAlignmentStyle(
-                  {FormatStyle::TCAS_Never, 1}));
+                  {FormatStyle::TCAS_Never, 0}));
   // For backwards compatibility
   CHECK_PARSE("AlignTrailingComments: true", AlignTrailingComments,
               FormatStyle::TrailingCommentsAlignmentStyle(
-                  {FormatStyle::TCAS_Always, 1}));
+                  {FormatStyle::TCAS_Always, 0}));
   CHECK_PARSE("AlignTrailingComments: false", AlignTrailingComments,
               FormatStyle::TrailingCommentsAlignmentStyle(
-                  {FormatStyle::TCAS_Never, 1}));
+                  {FormatStyle::TCAS_Never, 0}));
   CHECK_PARSE_NESTED_VALUE("Kind: Always", AlignTrailingComments, Kind,
                            FormatStyle::TCAS_Always);
   CHECK_PARSE_NESTED_VALUE("Kind: Never", AlignTrailingComments, Kind,
@@ -713,6 +718,19 @@ TEST(ConfigParseTest, ParsesConfiguration) {
               FormatStyle::SJSIO_After);
   CHECK_PARSE("SortJavaStaticImport: Before", SortJavaStaticImport,
               FormatStyle::SJSIO_Before);
+
+  Style.SortUsingDeclarations = FormatStyle::SUD_LexicographicNumeric;
+  CHECK_PARSE("SortUsingDeclarations: Never", SortUsingDeclarations,
+              FormatStyle::SUD_Never);
+  CHECK_PARSE("SortUsingDeclarations: Lexicographic", SortUsingDeclarations,
+              FormatStyle::SUD_Lexicographic);
+  CHECK_PARSE("SortUsingDeclarations: LexicographicNumeric",
+              SortUsingDeclarations, FormatStyle::SUD_LexicographicNumeric);
+  // For backward compatibility:
+  CHECK_PARSE("SortUsingDeclarations: false", SortUsingDeclarations,
+              FormatStyle::SUD_Never);
+  CHECK_PARSE("SortUsingDeclarations: true", SortUsingDeclarations,
+              FormatStyle::SUD_LexicographicNumeric);
 
   // FIXME: This is required because parsing a configuration simply overwrites
   // the first N elements of the list instead of resetting it.

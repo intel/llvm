@@ -2,7 +2,7 @@
 // RUN: mlir-opt %s --mlir-print-op-generic | mlir-opt | FileCheck %s
 
 #CSR = #sparse_tensor.encoding<{
-  dimLevelType = ["dense", "compressed"]
+  lvlTypes = ["dense", "compressed"]
 }>
 
 // CHECK-LABEL: func @test_clone
@@ -23,7 +23,7 @@ func.func @test_to_memref(%arg0: tensor<?xi64>, %arg1: tensor<*xi64>)
 
 // CHECK-LABEL: func @test_to_tensor
 func.func @test_to_tensor(%buf : memref<2xf32>) -> tensor<2xf32> {
-  %tensor = bufferization.to_tensor %buf : memref<2xf32>
+  %tensor = bufferization.to_tensor %buf restrict writable : memref<2xf32>
   return %tensor : tensor<2xf32>
 }
 

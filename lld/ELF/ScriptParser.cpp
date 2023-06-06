@@ -419,6 +419,7 @@ static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
       .Case("elf32-avr", {ELF32LEKind, EM_AVR})
       .Case("elf32-iamcu", {ELF32LEKind, EM_IAMCU})
       .Case("elf32-littlearm", {ELF32LEKind, EM_ARM})
+      .Case("elf32-bigarm", {ELF32BEKind, EM_ARM})
       .Case("elf32-x86-64", {ELF32LEKind, EM_X86_64})
       .Case("elf64-aarch64", {ELF64LEKind, EM_AARCH64})
       .Case("elf64-littleaarch64", {ELF64LEKind, EM_AARCH64})
@@ -660,6 +661,7 @@ StringMatcher ScriptParser::readFilePatterns() {
 
 SortSectionPolicy ScriptParser::peekSortKind() {
   return StringSwitch<SortSectionPolicy>(peek())
+      .Case("REVERSE", SortSectionPolicy::Reverse)
       .Cases("SORT", "SORT_BY_NAME", SortSectionPolicy::Name)
       .Case("SORT_BY_ALIGNMENT", SortSectionPolicy::Alignment)
       .Case("SORT_BY_INIT_PRIORITY", SortSectionPolicy::Priority)
@@ -896,11 +898,13 @@ OutputDesc *ScriptParser::readOverlaySectionDescription() {
     osd->osec.commands.push_back(
         readInputSectionRules(next(), withFlags, withoutFlags));
   }
+  osd->osec.phdrs = readOutputSectionPhdrs();
   return osd;
 }
 
 OutputDesc *ScriptParser::readOutputSectionDescription(StringRef outSec) {
-  OutputDesc *cmd = script->createOutputSection(outSec, getCurrentLocation());
+  OutputDesc *cmd =
+      script->createOutputSection(unquote(outSec), getCurrentLocation());
   OutputSection *osec = &cmd->osec;
   // Maybe relro. Will reset to false if DATA_SEGMENT_RELRO_END is absent.
   osec->relro = seenDataAlign && !seenRelroEnd;
@@ -1224,24 +1228,24 @@ Expr ScriptParser::readConstant() {
 static std::optional<uint64_t> parseInt(StringRef tok) {
   // Hexadecimal
   uint64_t val;
-  if (tok.startswith_insensitive("0x")) {
+  if (tok.starts_with_insensitive("0x")) {
     if (!to_integer(tok.substr(2), val, 16))
       return std::nullopt;
     return val;
   }
-  if (tok.endswith_insensitive("H")) {
+  if (tok.ends_with_insensitive("H")) {
     if (!to_integer(tok.drop_back(), val, 16))
       return std::nullopt;
     return val;
   }
 
   // Decimal
-  if (tok.endswith_insensitive("K")) {
+  if (tok.ends_with_insensitive("K")) {
     if (!to_integer(tok.drop_back(), val, 10))
       return std::nullopt;
     return val * 1024;
   }
-  if (tok.endswith_insensitive("M")) {
+  if (tok.ends_with_insensitive("M")) {
     if (!to_integer(tok.drop_back(), val, 10))
       return std::nullopt;
     return val * 1024 * 1024;

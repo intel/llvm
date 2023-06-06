@@ -548,16 +548,28 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -march=atom -mamx-fp16 -x c \
 // RUN: -E -dM -o - %s | FileCheck  -check-prefix=AMX-FP16 %s
 
-// AMX-FP16: #define __AMXFP16__ 1
-// AMX-FP16: #define __AMXTILE__ 1
+// AMX-FP16: #define __AMX_FP16__ 1
+// AMX-FP16: #define __AMX_TILE__ 1
 
 // RUN: %clang -target x86_64-unknown-linux-gnu -march=atom -mno-amx-fp16 \
 // RUN: -x c -E -dM -o - %s | FileCheck  -check-prefix=NO-AMX-FP16 %s
 // RUN: %clang -target x86_64-unknown-linux-gnu -march=atom -mamx-fp16 \
 // RUN: -mno-amx-tile -x c -E -dM -o - %s | FileCheck  -check-prefix=NO-AMX-FP16 %s
 
-// NO-AMX-FP16-NOT: #define __AMXFP16__ 1
-// NO-AMX-FP16-NOT: #define __AMXTILE__ 1
+// NO-AMX-FP16-NOT: #define __AMX_FP16__ 1
+// NO-AMX-FP16-NOT: #define __AMX_TILE__ 1
+
+// RUN: %clang -target x86_64-unknown-linux-gnu -march=x86-64 -mamx-complex -x c \
+// RUN: -E -dM -o - %s | FileCheck  -check-prefix=AMX-COMPLEX %s
+
+// AMX-COMPLEX: #define __AMX_COMPLEX__ 1
+
+// RUN: %clang -target x86_64-unknown-linux-gnu -march=x86-64 -mno-amx-complex -x c \
+// RUN: -E -dM -o - %s | FileCheck  -check-prefix=NO-AMX-COMPLEX %s
+// RUN: %clang -target x86_64-unknown-linux-gnu -march=x86-64 -mamx-complex -mno-amx-tile \
+// RUN: -x c -E -dM -o - %s | FileCheck  -check-prefix=NO-AMX-COMPLEX %s
+
+// NO-AMX-COMPLEX-NOT: #define __AMX_COMPLEX__ 1
 
 // RUN: %clang -target i386-unknown-unknown -march=atom -mavxvnni -x c -E -dM -o - %s | FileCheck -match-full-lines --check-prefix=AVXVNNI %s
 

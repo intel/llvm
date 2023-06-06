@@ -1,0 +1,162 @@
+= sycl_ext_oneapi_peer_access
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension adds support for mechanisms to query and enable support for
+memory access between peer devices in a system.
+In particular, this allows one device to access USM Device allocations
+for a peer device. This extension does not apply to USM Shared allocations.
+Peer to peer capabilities are useful as they can provide
+access to a peer device's memory inside a compute kernel and optimized memory
+copies between peer devices.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_PEER_ACCESS` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== Peer to Peer (P2P) Memory Access APIs
+
+This extension adds support for mechanisms to query and enable support for
+direct memory access between peer devices in a system.
+In particular, this allows one device to directly access USM Device
+allocations for a peer device in the same context.
+Peer to peer capabilities are useful as they can provide access to a peer
+device's memory inside a compute kernel and also optimized memory copies between
+peer devices.
+
+This extension adds the following new member functions to the device class, as described
+below.
+
+[source,c++]
+----
+namespace sycl   {
+namespace ext    {
+namespace oneapi {
+enum class peer_access {
+  access_supported,
+  atomics_supported,
+};
+} // namespace oneapi
+} // namespace ext
+
+class device {
+public:
+  bool ext_oneapi_can_access_peer(const device &peer,
+                                  ext::oneapi::peer_access value =
+                                    ext::oneapi::peer_access::access_supported);
+  void ext_oneapi_enable_peer_access(const device &peer);
+  void ext_oneapi_disable_peer_access(const device &peer);
+};
+
+} // namespace sycl
+----
+
+The semantics of the new functions are:
+
+|===
+|Member Function |Description
+
+|bool ext_oneapi_can_access_peer(const device &peer,
+                                  ext::oneapi::peer_access value =
+                                  ext::oneapi::peer_access::access_supported)
+a|Queries the peer access status between this device and `peer` according to
+the query `value`:
+
+* `ext::oneapi::peer_access::access_supported`: Returns true only if it is
+possible for this device to enable peer access to USM device memory allocations
+located on the `peer` device.
+
+* `ext::oneapi::peer_access::atomics_supported`: When this query returns true,
+it indicates that this device may concurrently access and atomically modify USM
+device memory allocations located on the `peer` device when peer access is enabled
+to that device. Atomics performed on a peer device's memory must have
+`memory_scope::system` scope.
+If the query returns false, attempting to concurrently access or atomically 
+modify USM device memory located on the `peer` device results in undefined 
+behavior.
+
+|void enable_peer_access(const device &peer)
+|Enables this device to access USM device allocations located on the peer
+device. This does not permit the peer device to access this device's memory.
+Once this access is enabled, SYCL kernel functions and the explicit memory
+functions may access USM device allocations on the peer device subject to the
+normal rules about context as described in the core SYCL specification.
+If this device does not support peer access (as defined by
+`peer_access::access_supported`), throws an `exception` with the
+`errc::feature_not_supported` error code. If access is already enabled,
+throws an exception with the `errc::invalid` error code.
+
+
+|void disable_peer_access(const device &peer)
+|Disables access to the peer device's memory from this device. If peer access
+is not enabled, throws an `exception` with the `errc::invalid` error code.
+
+|===
+

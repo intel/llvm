@@ -24,8 +24,8 @@ LogicalResult mlir::verifyListOfOperandsOrIntegers(Operation *op,
                                                    ValueRange values) {
   // Check static and dynamic offsets/sizes/strides does not overflow type.
   if (staticVals.size() != numElements)
-    return op->emitError("expected ")
-           << numElements << " " << name << " values";
+    return op->emitError("expected ") << numElements << " " << name
+                                      << " values, got " << staticVals.size();
   unsigned expectedNumDynamicEntries =
       llvm::count_if(staticVals, [&](int64_t staticVal) {
         return ShapedType::isDynamic(staticVal);
@@ -69,28 +69,67 @@ mlir::detail::verifyOffsetSizeAndStrideOp(OffsetSizeAndStrideOpInterface op) {
   return success();
 }
 
+static char getLeftDelimiter(AsmParser::Delimiter delimiter) {
+  switch (delimiter) {
+  case AsmParser::Delimiter::Paren:
+    return '(';
+  case AsmParser::Delimiter::LessGreater:
+    return '<';
+  case AsmParser::Delimiter::Square:
+    return '[';
+  case AsmParser::Delimiter::Braces:
+    return '{';
+  default:
+    llvm_unreachable("unsupported delimiter");
+  }
+}
+
+static char getRightDelimiter(AsmParser::Delimiter delimiter) {
+  switch (delimiter) {
+  case AsmParser::Delimiter::Paren:
+    return ')';
+  case AsmParser::Delimiter::LessGreater:
+    return '>';
+  case AsmParser::Delimiter::Square:
+    return ']';
+  case AsmParser::Delimiter::Braces:
+    return '}';
+  default:
+    llvm_unreachable("unsupported delimiter");
+  }
+}
+
 void mlir::printDynamicIndexList(OpAsmPrinter &printer, Operation *op,
                                  OperandRange values,
-                                 ArrayRef<int64_t> integers) {
-  printer << '[';
+                                 ArrayRef<int64_t> integers,
+                                 TypeRange valueTypes,
+                                 AsmParser::Delimiter delimiter) {
+  char leftDelimiter = getLeftDelimiter(delimiter);
+  char rightDelimiter = getRightDelimiter(delimiter);
+  printer << leftDelimiter;
   if (integers.empty()) {
-    printer << "]";
+    printer << rightDelimiter;
     return;
   }
   unsigned idx = 0;
   llvm::interleaveComma(integers, printer, [&](int64_t integer) {
-    if (ShapedType::isDynamic(integer))
-      printer << values[idx++];
-    else
+    if (ShapedType::isDynamic(integer)) {
+      printer << values[idx];
+      if (!valueTypes.empty())
+        printer << " : " << valueTypes[idx];
+      ++idx;
+    } else {
       printer << integer;
+    }
   });
-  printer << ']';
+  printer << rightDelimiter;
 }
 
 ParseResult mlir::parseDynamicIndexList(
     OpAsmParser &parser,
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-    DenseI64ArrayAttr &integers) {
+    DenseI64ArrayAttr &integers, SmallVectorImpl<Type> *valueTypes,
+    AsmParser::Delimiter delimiter) {
 
   SmallVector<int64_t, 4> integerVals;
   auto parseIntegerOrValue = [&]() {
@@ -99,6 +138,8 @@ ParseResult mlir::parseDynamicIndexList(
     if (res.has_value() && succeeded(res.value())) {
       values.push_back(operand);
       integerVals.push_back(ShapedType::kDynamic);
+      if (valueTypes && parser.parseColonType(valueTypes->emplace_back()))
+        return failure();
     } else {
       int64_t integer;
       if (failed(parser.parseInteger(integer)))
@@ -107,8 +148,7 @@ ParseResult mlir::parseDynamicIndexList(
     }
     return success();
   };
-  if (parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Square,
-                                     parseIntegerOrValue,
+  if (parser.parseCommaSeparatedList(delimiter, parseIntegerOrValue,
                                      " in dynamic index list"))
     return parser.emitError(parser.getNameLoc())
            << "expected SSA value or integer";

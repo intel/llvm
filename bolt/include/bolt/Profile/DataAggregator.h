@@ -315,8 +315,17 @@ private:
   /// consume it (peek only).
   bool checkNewLine();
 
+  using PerfProcessErrorCallbackTy = std::function<void(int, StringRef)>;
+  /// Prepare to parse data from a given perf script invocation.
+  /// Returns an invocation exit code.
+  int prepareToParse(StringRef Name, PerfProcessInfo &Process,
+                     PerfProcessErrorCallbackTy Callback);
+
   /// Parse a single LBR entry as output by perf script -Fbrstack
   ErrorOr<LBREntry> parseLBREntry();
+
+  /// Parse LBR sample, returns the number of traces.
+  uint64_t parseLBRSample(const PerfBranchSample &Sample, bool NeedsSkylakeFix);
 
   /// Parse and pre-aggregate branch events.
   std::error_code parseBranchEvents();

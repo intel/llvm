@@ -333,8 +333,16 @@ optimizeFunction(Function *OldF,
     Align Al = DL.getPrefTypeAlign(T);
     unsigned AddrSpace = DL.getAllocaAddrSpace();
     AllocaInst *Alloca = new AllocaInst(T, AddrSpace, 0 /*array size*/, Al);
-    VMap[OldF->getArg(PI.getFormalParam().getArgNo())] = Alloca;
     NewInsts.push_back(Alloca);
+    Instruction *ReplaceInst = Alloca;
+    if (auto *ArgPtrType = dyn_cast<PointerType>(PI.getFormalParam().getType());
+        ArgPtrType && ArgPtrType->getAddressSpace() != AddrSpace) {
+      // If the alloca addrspace and arg addrspace are different,
+      // insert a cast.
+      ReplaceInst = new AddrSpaceCastInst(Alloca, ArgPtrType);
+      NewInsts.push_back(ReplaceInst);
+    }
+    VMap[OldF->getArg(PI.getFormalParam().getArgNo())] = ReplaceInst;
 
     if (!PI.isSret()) {
       // Create a store of the new optimized parameter into the alloca to
@@ -365,7 +373,11 @@ optimizeFunction(Function *OldF,
       IRBuilder<> Bld(RI);
       const FormalParamInfo &PI = OptimizeableParams[SretInd];
       Argument *OldP = OldF->getArg(PI.getFormalParam().getArgNo());
-      auto *SretPtr = cast<AllocaInst>(VMap[OldP]);
+      auto *SretPtr = cast<Instruction>(VMap[OldP]);
+      if (!isa<AllocaInst>(SretPtr)) {
+        auto *AddrSpaceCast = cast<AddrSpaceCastInst>(SretPtr);
+        SretPtr = cast<AllocaInst>(AddrSpaceCast->getPointerOperand());
+      }
       LoadInst *Ld = Bld.CreateLoad(PI.getOptimizedType(), SretPtr);
       Bld.CreateRet(Ld);
     }

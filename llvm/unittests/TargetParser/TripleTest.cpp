@@ -876,6 +876,18 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::UnknownOS, T.getOS());
   EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
 
+  T = Triple("arm-unknown-linux-ohos");
+  EXPECT_EQ(Triple::arm, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::OpenHOS, T.getEnvironment());
+
+  T = Triple("arm-unknown-liteos");
+  EXPECT_EQ(Triple::arm, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::LiteOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
   T = Triple("huh");
   EXPECT_EQ(Triple::UnknownArch, T.getArch());
 }
@@ -1867,18 +1879,23 @@ TEST(TripleTest, FileFormat) {
   Triple T = Triple("");
   T.setObjectFormat(Triple::ELF);
   EXPECT_EQ(Triple::ELF, T.getObjectFormat());
+  EXPECT_EQ("elf", Triple::getObjectFormatTypeName(T.getObjectFormat()));
 
   T.setObjectFormat(Triple::MachO);
   EXPECT_EQ(Triple::MachO, T.getObjectFormat());
+  EXPECT_EQ("macho", Triple::getObjectFormatTypeName(T.getObjectFormat()));
 
   T.setObjectFormat(Triple::XCOFF);
   EXPECT_EQ(Triple::XCOFF, T.getObjectFormat());
+  EXPECT_EQ("xcoff", Triple::getObjectFormatTypeName(T.getObjectFormat()));
 
   T.setObjectFormat(Triple::GOFF);
   EXPECT_EQ(Triple::GOFF, T.getObjectFormat());
+  EXPECT_EQ("goff", Triple::getObjectFormatTypeName(T.getObjectFormat()));
 
   T.setObjectFormat(Triple::SPIRV);
   EXPECT_EQ(Triple::SPIRV, T.getObjectFormat());
+  EXPECT_EQ("spirv", Triple::getObjectFormatTypeName(T.getObjectFormat()));
 }
 
 TEST(TripleTest, NormalizeWindows) {

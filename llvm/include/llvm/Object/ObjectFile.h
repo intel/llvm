@@ -16,7 +16,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/BinaryFormat/Swift.h"
@@ -26,6 +25,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cassert>
 #include <cstdint>
 #include <memory>
@@ -391,6 +391,9 @@ public:
   createMachOObjectFile(MemoryBufferRef Object,
                         uint32_t UniversalCputype = 0,
                         uint32_t UniversalIndex = 0);
+
+  static Expected<std::unique_ptr<ObjectFile>>
+  createGOFFObjectFile(MemoryBufferRef Object);
 
   static Expected<std::unique_ptr<WasmObjectFile>>
   createWasmObjectFile(MemoryBufferRef Object);

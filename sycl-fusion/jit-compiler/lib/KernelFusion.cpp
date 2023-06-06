@@ -15,6 +15,7 @@
 #include "fusion/FusionPipeline.h"
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHandling.h"
+#include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
 #include <llvm/Support/Error.h>
 #include <sstream>
@@ -47,6 +48,22 @@ gatherNDRanges(llvm::ArrayRef<SYCLKernelInfo> KernelInformation) {
   return NDRanges;
 }
 
+static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
+  switch (TargetFormat) {
+  case BinaryFormat::SPIRV:
+    return true;
+  case BinaryFormat::PTX: {
+#ifdef FUSION_JIT_SUPPORT_PTX
+    return true;
+#else  // FUSION_JIT_SUPPORT_PTX
+    return false;
+#endif // FUSION_JIT_SUPPORT_PTX
+  }
+  default:
+    return false;
+  }
+}
+
 FusionResult KernelFusion::fuseKernels(
     JITContext &JITCtx, Config &&JITConfig,
     const std::vector<SYCLKernelInfo> &KernelInformation,
@@ -55,16 +72,30 @@ FusionResult KernelFusion::fuseKernels(
     int BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
+  // Initialize the configuration helper to make the options for this invocation
+  // available (on a per-thread basis).
+  ConfigHelper::setConfig(std::move(JITConfig));
+
   const auto NDRanges = gatherNDRanges(KernelInformation);
 
   if (!isValidCombination(NDRanges)) {
     return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes"};
+        "Cannot fuse kernels with different offsets or local sizes or "
+        "different global sizes in dimensions [2, N) and non-zero offsets"};
   }
 
-  // Initialize the configuration helper to make the options for this invocation
-  // available (on a per-thread basis).
-  ConfigHelper::setConfig(std::move(JITConfig));
+  bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
+
+  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+
+  if (!isTargetFormatSupported(TargetFormat)) {
+    return FusionResult(
+        "Fusion output target format not supported by this build");
+  }
+
+  if (TargetFormat == BinaryFormat::PTX && IsHeterogeneousList) {
+    return FusionResult{"Heterogeneous ND ranges not supported for CUDA"};
+  }
 
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
   CacheKeyT CacheKey{KernelsToFuse,
@@ -96,8 +127,8 @@ FusionResult KernelFusion::fuseKernels(
   // Load all input kernels from their respective SPIR-V modules into a single
   // LLVM IR module.
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      translation::SPIRVLLVMTranslator::loadSPIRVKernels(
-          *JITCtx.getLLVMContext(), ModuleInfo.kernels());
+      translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
+                                                 ModuleInfo.kernels());
   if (auto Error = ModOrError.takeError()) {
     return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
   }
@@ -123,6 +154,10 @@ FusionResult KernelFusion::fuseKernels(
       fusion::FusionPipeline::runFusionPasses(*NewMod, ModuleInfo,
                                               BarriersFlags);
 
+  if (!NewMod->getFunction(FusedKernelName)) {
+    return FusionResult{"Kernel fusion failed"};
+  }
+
   // Get the updated kernel info for the fused kernel and add the information to
   // the existing KernelInfo.
   if (!NewModInfo->hasKernelFor(FusedKernelName)) {
@@ -131,28 +166,13 @@ FusionResult KernelFusion::fuseKernels(
 
   SYCLKernelInfo &FusedKernelInfo = *NewModInfo->getKernelFor(FusedKernelName);
 
-  // Translate the LLVM IR module resulting from the fusion pass into SPIR-V.
-  llvm::Expected<jit_compiler::SPIRVBinary *> BinaryOrError =
-      translation::SPIRVLLVMTranslator::translateLLVMtoSPIRV(*NewMod, JITCtx);
-  if (auto Error = BinaryOrError.takeError()) {
+  if (auto Error = translation::KernelTranslator::translateKernel(
+          FusedKernelInfo, *NewMod, JITCtx, TargetFormat)) {
     return errorToFusionResult(std::move(Error),
-                               "Translation to SPIR-V failed");
+                               "Translation to output format failed");
   }
-  jit_compiler::SPIRVBinary *SPIRVBin = *BinaryOrError;
 
   FusedKernelInfo.NDR = FusedKernel.FusedNDRange;
-
-  // Update the KernelInfo for the fused kernel with the address and size of the
-  // SPIR-V binary resulting from translation.
-  SYCLKernelBinaryInfo &FusedBinaryInfo = FusedKernelInfo.BinaryInfo;
-  FusedBinaryInfo.Format = BinaryFormat::SPIRV;
-  // Output SPIR-V should use the same number of address bits as the input
-  // SPIR-V. SPIR-V translation requires all modules to use the same number of
-  // address bits, so it's safe to take the value from the first one.
-  FusedBinaryInfo.AddressBits =
-      ModuleInfo.kernels().front().BinaryInfo.AddressBits;
-  FusedBinaryInfo.BinaryStart = SPIRVBin->address();
-  FusedBinaryInfo.BinarySize = SPIRVBin->size();
 
   if (CachingEnabled) {
     JITCtx.addCacheEntry(CacheKey, FusedKernelInfo);

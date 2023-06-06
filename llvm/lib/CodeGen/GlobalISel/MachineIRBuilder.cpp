@@ -80,11 +80,11 @@ MachineInstrBuilder MachineIRBuilder::buildFIDbgValue(int FI,
   assert(
       cast<DILocalVariable>(Variable)->isValidLocationForIntrinsic(getDL()) &&
       "Expected inlined-at fields to agree");
-  return buildInstr(TargetOpcode::DBG_VALUE)
-      .addFrameIndex(FI)
-      .addImm(0)
-      .addMetadata(Variable)
-      .addMetadata(Expr);
+  return insertInstr(buildInstrNoInsert(TargetOpcode::DBG_VALUE)
+                         .addFrameIndex(FI)
+                         .addImm(0)
+                         .addMetadata(Variable)
+                         .addMetadata(Expr));
 }
 
 MachineInstrBuilder MachineIRBuilder::buildConstDbgValue(const Constant &C,
@@ -161,6 +161,15 @@ MachineInstrBuilder MachineIRBuilder::buildGlobalValue(const DstOp &Res,
   auto MIB = buildInstr(TargetOpcode::G_GLOBAL_VALUE);
   Res.addDefToMIB(*getMRI(), MIB);
   MIB.addGlobalAddress(GV);
+  return MIB;
+}
+
+MachineInstrBuilder MachineIRBuilder::buildConstantPool(const DstOp &Res,
+                                                        unsigned Idx) {
+  assert(Res.getLLTTy(*getMRI()).isPointer() && "invalid operand type");
+  auto MIB = buildInstr(TargetOpcode::G_CONSTANT_POOL);
+  Res.addDefToMIB(*getMRI(), MIB);
+  MIB.addConstantPoolIndex(Idx);
   return MIB;
 }
 

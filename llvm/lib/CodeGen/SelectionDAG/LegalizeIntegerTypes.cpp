@@ -20,6 +20,7 @@
 #include "LegalizeTypes.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/CodeGen/StackMaps.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
@@ -115,6 +116,12 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
                          Res = PromoteIntRes_VECTOR_SHUFFLE(N); break;
   case ISD::VECTOR_SPLICE:
                          Res = PromoteIntRes_VECTOR_SPLICE(N); break;
+  case ISD::VECTOR_DEINTERLEAVE:
+    Res = PromoteIntRes_VECTOR_DEINTERLEAVE(N);
+    return;
+  case ISD::VECTOR_INTERLEAVE:
+    Res = PromoteIntRes_VECTOR_INTERLEAVE(N);
+    return;
   case ISD::INSERT_VECTOR_ELT:
                          Res = PromoteIntRes_INSERT_VECTOR_ELT(N); break;
   case ISD::BUILD_VECTOR:
@@ -191,8 +198,8 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
 
   case ISD::ADDE:
   case ISD::SUBE:
-  case ISD::ADDCARRY:
-  case ISD::SUBCARRY:    Res = PromoteIntRes_ADDSUBCARRY(N, ResNo); break;
+  case ISD::UADDO_CARRY:
+  case ISD::USUBO_CARRY: Res = PromoteIntRes_UADDSUBO_CARRY(N, ResNo); break;
 
   case ISD::SADDO_CARRY:
   case ISD::SSUBO_CARRY: Res = PromoteIntRes_SADDSUBO_CARRY(N, ResNo); break;
@@ -1445,23 +1452,24 @@ SDValue DAGTypeLegalizer::PromoteIntRes_UADDSUBO(SDNode *N, unsigned ResNo) {
   return Res;
 }
 
-// Handle promotion for the ADDE/SUBE/ADDCARRY/SUBCARRY nodes. Notice that
+// Handle promotion for the ADDE/SUBE/UADDO_CARRY/USUBO_CARRY nodes. Notice that
 // the third operand of ADDE/SUBE nodes is carry flag, which differs from
-// the ADDCARRY/SUBCARRY nodes in that the third operand is carry Boolean.
-SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBCARRY(SDNode *N, unsigned ResNo) {
+// the UADDO_CARRY/USUBO_CARRY nodes in that the third operand is carry Boolean.
+SDValue DAGTypeLegalizer::PromoteIntRes_UADDSUBO_CARRY(SDNode *N,
+                                                       unsigned ResNo) {
   if (ResNo == 1)
     return PromoteIntRes_Overflow(N);
 
   // We need to sign-extend the operands so the carry value computed by the
   // wide operation will be equivalent to the carry value computed by the
   // narrow operation.
-  // An ADDCARRY can generate carry only if any of the operands has its
+  // An UADDO_CARRY can generate carry only if any of the operands has its
   // most significant bit set. Sign extension propagates the most significant
   // bit into the higher bits which means the extra bit that the narrow
   // addition would need (i.e. the carry) will be propagated through the higher
   // bits of the wide addition.
-  // A SUBCARRY can generate borrow only if LHS < RHS and this property will be
-  // preserved by sign extension.
+  // A USUBO_CARRY can generate borrow only if LHS < RHS and this property will
+  // be preserved by sign extension.
   SDValue LHS = SExtPromotedInteger(N->getOperand(0));
   SDValue RHS = SExtPromotedInteger(N->getOperand(1));
 
@@ -1690,8 +1698,8 @@ bool DAGTypeLegalizer::PromoteIntegerOperand(SDNode *N, unsigned OpNo) {
 
   case ISD::SADDO_CARRY:
   case ISD::SSUBO_CARRY:
-  case ISD::ADDCARRY:
-  case ISD::SUBCARRY: Res = PromoteIntOp_ADDSUBCARRY(N, OpNo); break;
+  case ISD::UADDO_CARRY:
+  case ISD::USUBO_CARRY: Res = PromoteIntOp_ADDSUBO_CARRY(N, OpNo); break;
 
   case ISD::FRAMEADDR:
   case ISD::RETURNADDR: Res = PromoteIntOp_FRAMERETURNADDR(N); break;
@@ -2156,7 +2164,7 @@ SDValue DAGTypeLegalizer::PromoteIntOp_ZERO_EXTEND(SDNode *N) {
   return DAG.getZeroExtendInReg(Op, dl, N->getOperand(0).getValueType());
 }
 
-SDValue DAGTypeLegalizer::PromoteIntOp_ADDSUBCARRY(SDNode *N, unsigned OpNo) {
+SDValue DAGTypeLegalizer::PromoteIntOp_ADDSUBO_CARRY(SDNode *N, unsigned OpNo) {
   assert(OpNo == 2 && "Don't know how to promote this operand!");
 
   SDValue LHS = N->getOperand(0);
@@ -2290,16 +2298,40 @@ SDValue DAGTypeLegalizer::PromoteIntOp_VECREDUCE(SDNode *N) {
   // An i1 vecreduce_or is equivalent to vecreduce_umax, use that instead if
   // vecreduce_or is not legal
   else if (Opcode == ISD::VECREDUCE_OR && OrigEltVT == MVT::i1 &&
-      !TLI.isOperationLegalOrCustom(ISD::VECREDUCE_OR, InVT) &&
-      TLI.isOperationLegalOrCustom(ISD::VECREDUCE_UMAX, InVT))
+           !TLI.isOperationLegalOrCustom(ISD::VECREDUCE_OR, InVT) &&
+           TLI.isOperationLegalOrCustom(ISD::VECREDUCE_UMAX, InVT)) {
     Opcode = ISD::VECREDUCE_UMAX;
+    // Can't use promoteTargetBoolean here because we still need
+    // to either sign_ext or zero_ext in the undefined case.
+    switch (TLI.getBooleanContents(InVT)) {
+    case TargetLoweringBase::UndefinedBooleanContent:
+    case TargetLoweringBase::ZeroOrOneBooleanContent:
+      Op = ZExtPromotedInteger(N->getOperand(0));
+      break;
+    case TargetLoweringBase::ZeroOrNegativeOneBooleanContent:
+      Op = SExtPromotedInteger(N->getOperand(0));
+      break;
+    }
+  }
 
   // An i1 vecreduce_and is equivalent to vecreduce_umin, use that instead if
   // vecreduce_and is not legal
   else if (Opcode == ISD::VECREDUCE_AND && OrigEltVT == MVT::i1 &&
-      !TLI.isOperationLegalOrCustom(ISD::VECREDUCE_AND, InVT) &&
-      TLI.isOperationLegalOrCustom(ISD::VECREDUCE_UMIN, InVT))
+           !TLI.isOperationLegalOrCustom(ISD::VECREDUCE_AND, InVT) &&
+           TLI.isOperationLegalOrCustom(ISD::VECREDUCE_UMIN, InVT)) {
     Opcode = ISD::VECREDUCE_UMIN;
+    // Can't use promoteTargetBoolean here because we still need
+    // to either sign_ext or zero_ext in the undefined case.
+    switch (TLI.getBooleanContents(InVT)) {
+    case TargetLoweringBase::UndefinedBooleanContent:
+    case TargetLoweringBase::ZeroOrOneBooleanContent:
+      Op = ZExtPromotedInteger(N->getOperand(0));
+      break;
+    case TargetLoweringBase::ZeroOrNegativeOneBooleanContent:
+      Op = SExtPromotedInteger(N->getOperand(0));
+      break;
+    }
+  }
 
   if (ResVT.bitsGE(EltVT))
     return DAG.getNode(Opcode, SDLoc(N), ResVT, Op);
@@ -2512,8 +2544,8 @@ void DAGTypeLegalizer::ExpandIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::ADDE:
   case ISD::SUBE: ExpandIntRes_ADDSUBE(N, Lo, Hi); break;
 
-  case ISD::ADDCARRY:
-  case ISD::SUBCARRY: ExpandIntRes_ADDSUBCARRY(N, Lo, Hi); break;
+  case ISD::UADDO_CARRY:
+  case ISD::USUBO_CARRY: ExpandIntRes_UADDSUBO_CARRY(N, Lo, Hi); break;
 
   case ISD::SADDO_CARRY:
   case ISD::SSUBO_CARRY: ExpandIntRes_SADDSUBO_CARRY(N, Lo, Hi); break;
@@ -2904,6 +2936,22 @@ void DAGTypeLegalizer::ExpandIntRes_MINMAX(SDNode *N,
   // Hi part is always the same op
   Hi = DAG.getNode(N->getOpcode(), DL, NVT, {LHSH, RHSH});
 
+  // The Lo of smin(X, -1) is LHSL if X is negative. Otherwise it's -1.
+  if (N->getOpcode() == ISD::SMIN && isAllOnesConstant(RHS)) {
+    SDValue HiNeg =
+        DAG.getSetCC(DL, CCT, LHSH, DAG.getConstant(0, DL, NVT), ISD::SETLT);
+    Lo = DAG.getSelect(DL, NVT, HiNeg, LHSL, DAG.getConstant(-1, DL, NVT));
+    return;
+  }
+
+  // The Lo of smax(X, 0) is 0 if X is negative. Otherwise it's LHSL.
+  if (N->getOpcode() == ISD::SMAX && isNullConstant(RHS)) {
+    SDValue HiNeg =
+        DAG.getSetCC(DL, CCT, LHSH, DAG.getConstant(0, DL, NVT), ISD::SETLT);
+    Lo = DAG.getSelect(DL, NVT, HiNeg, DAG.getConstant(0, DL, NVT), LHSL);
+    return;
+  }
+
   // We need to know whether to select Lo part that corresponds to 'winning'
   // Hi part or if Hi parts are equal.
   SDValue IsHiLeft = DAG.getSetCC(DL, CCT, LHSH, RHSH, CondC);
@@ -2931,7 +2979,7 @@ void DAGTypeLegalizer::ExpandIntRes_ADDSUB(SDNode *N,
   SDValue HiOps[3] = { LHSH, RHSH };
 
   bool HasOpCarry = TLI.isOperationLegalOrCustom(
-      N->getOpcode() == ISD::ADD ? ISD::ADDCARRY : ISD::SUBCARRY,
+      N->getOpcode() == ISD::ADD ? ISD::UADDO_CARRY : ISD::USUBO_CARRY,
       TLI.getTypeToExpandTo(*DAG.getContext(), NVT));
   if (HasOpCarry) {
     SDVTList VTList = DAG.getVTList(NVT, getSetCCResultType(NVT));
@@ -2940,13 +2988,13 @@ void DAGTypeLegalizer::ExpandIntRes_ADDSUB(SDNode *N,
       HiOps[2] = Lo.getValue(1);
       Hi = DAG.computeKnownBits(HiOps[2]).isZero()
                ? DAG.getNode(ISD::UADDO, dl, VTList, ArrayRef(HiOps, 2))
-               : DAG.getNode(ISD::ADDCARRY, dl, VTList, HiOps);
+               : DAG.getNode(ISD::UADDO_CARRY, dl, VTList, HiOps);
     } else {
       Lo = DAG.getNode(ISD::USUBO, dl, VTList, LoOps);
       HiOps[2] = Lo.getValue(1);
       Hi = DAG.computeKnownBits(HiOps[2]).isZero()
                ? DAG.getNode(ISD::USUBO, dl, VTList, ArrayRef(HiOps, 2))
-               : DAG.getNode(ISD::SUBCARRY, dl, VTList, HiOps);
+               : DAG.getNode(ISD::USUBO_CARRY, dl, VTList, HiOps);
     }
     return;
   }
@@ -3014,8 +3062,22 @@ void DAGTypeLegalizer::ExpandIntRes_ADDSUB(SDNode *N,
   if (N->getOpcode() == ISD::ADD) {
     Lo = DAG.getNode(ISD::ADD, dl, NVT, LoOps);
     Hi = DAG.getNode(ISD::ADD, dl, NVT, ArrayRef(HiOps, 2));
-    SDValue Cmp = DAG.getSetCC(dl, getSetCCResultType(NVT), Lo, LoOps[0],
-                               ISD::SETULT);
+    SDValue Cmp;
+    // Special case: X+1 has a carry out if X+1==0. This may reduce the live
+    // range of X. We assume comparing with 0 is cheap.
+    if (isOneConstant(LoOps[1]))
+      Cmp = DAG.getSetCC(dl, getSetCCResultType(NVT), Lo,
+                         DAG.getConstant(0, dl, NVT), ISD::SETEQ);
+    else if (isAllOnesConstant(LoOps[1])) {
+      if (isAllOnesConstant(HiOps[1]))
+        Cmp = DAG.getSetCC(dl, getSetCCResultType(NVT), LoOps[0],
+                           DAG.getConstant(0, dl, NVT), ISD::SETEQ);
+      else
+        Cmp = DAG.getSetCC(dl, getSetCCResultType(NVT), LoOps[0],
+                           DAG.getConstant(0, dl, NVT), ISD::SETNE);
+    } else
+      Cmp = DAG.getSetCC(dl, getSetCCResultType(NVT), Lo, LoOps[0],
+                         ISD::SETULT);
 
     SDValue Carry;
     if (BoolType == TargetLoweringBase::ZeroOrOneBooleanContent)
@@ -3024,7 +3086,10 @@ void DAGTypeLegalizer::ExpandIntRes_ADDSUB(SDNode *N,
       Carry = DAG.getSelect(dl, NVT, Cmp, DAG.getConstant(1, dl, NVT),
                              DAG.getConstant(0, dl, NVT));
 
-    Hi = DAG.getNode(ISD::ADD, dl, NVT, Hi, Carry);
+    if (isAllOnesConstant(LoOps[1]) && isAllOnesConstant(HiOps[1]))
+      Hi = DAG.getNode(ISD::SUB, dl, NVT, HiOps[0], Carry);
+    else
+      Hi = DAG.getNode(ISD::ADD, dl, NVT, Hi, Carry);
   } else {
     Lo = DAG.getNode(ISD::SUB, dl, NVT, LoOps);
     Hi = DAG.getNode(ISD::SUB, dl, NVT, ArrayRef(HiOps, 2));
@@ -3101,12 +3166,12 @@ void DAGTypeLegalizer::ExpandIntRes_UADDSUBO(SDNode *N,
   ISD::CondCode Cond;
   switch(N->getOpcode()) {
     case ISD::UADDO:
-      CarryOp = ISD::ADDCARRY;
+      CarryOp = ISD::UADDO_CARRY;
       NoCarryOp = ISD::ADD;
       Cond = ISD::SETULT;
       break;
     case ISD::USUBO:
-      CarryOp = ISD::SUBCARRY;
+      CarryOp = ISD::USUBO_CARRY;
       NoCarryOp = ISD::SUB;
       Cond = ISD::SETUGT;
       break;
@@ -3137,9 +3202,22 @@ void DAGTypeLegalizer::ExpandIntRes_UADDSUBO(SDNode *N,
     SDValue Sum = DAG.getNode(NoCarryOp, dl, LHS.getValueType(), LHS, RHS);
     SplitInteger(Sum, Lo, Hi);
 
-    // Calculate the overflow: addition overflows iff a + b < a, and subtraction
-    // overflows iff a - b > a.
-    Ovf = DAG.getSetCC(dl, N->getValueType(1), Sum, LHS, Cond);
+    if (N->getOpcode() == ISD::UADDO && isOneConstant(RHS)) {
+      // Special case: uaddo X, 1 overflowed if X+1 == 0. We can detect this
+      // with (Lo | Hi) == 0.
+      SDValue Or = DAG.getNode(ISD::OR, dl, Lo.getValueType(), Lo, Hi);
+      Ovf = DAG.getSetCC(dl, N->getValueType(1), Or,
+                         DAG.getConstant(0, dl, Lo.getValueType()), ISD::SETEQ);
+    } else if (N->getOpcode() == ISD::UADDO && isAllOnesConstant(RHS)) {
+      // Special case: uaddo X, -1 overflows if X == 0.
+      Ovf =
+          DAG.getSetCC(dl, N->getValueType(1), LHS,
+                       DAG.getConstant(0, dl, LHS.getValueType()), ISD::SETNE);
+    } else {
+      // Calculate the overflow: addition overflows iff a + b < a, and
+      // subtraction overflows iff a - b > a.
+      Ovf = DAG.getSetCC(dl, N->getValueType(1), Sum, LHS, Cond);
+    }
   }
 
   // Legalized the flag result - switch anything that used the old flag to
@@ -3147,8 +3225,8 @@ void DAGTypeLegalizer::ExpandIntRes_UADDSUBO(SDNode *N,
   ReplaceValueWith(SDValue(N, 1), Ovf);
 }
 
-void DAGTypeLegalizer::ExpandIntRes_ADDSUBCARRY(SDNode *N,
-                                                SDValue &Lo, SDValue &Hi) {
+void DAGTypeLegalizer::ExpandIntRes_UADDSUBO_CARRY(SDNode *N, SDValue &Lo,
+                                                   SDValue &Hi) {
   // Expand the subcomponents.
   SDValue LHSL, LHSH, RHSL, RHSH;
   SDLoc dl(N);
@@ -3177,8 +3255,8 @@ void DAGTypeLegalizer::ExpandIntRes_SADDSUBO_CARRY(SDNode *N,
   SDVTList VTList = DAG.getVTList(LHSL.getValueType(), N->getValueType(1));
 
   // We need to use an unsigned carry op for the lo part.
-  unsigned CarryOp = N->getOpcode() == ISD::SADDO_CARRY ? ISD::ADDCARRY
-                                                        : ISD::SUBCARRY;
+  unsigned CarryOp =
+      N->getOpcode() == ISD::SADDO_CARRY ? ISD::UADDO_CARRY : ISD::USUBO_CARRY;
   Lo = DAG.getNode(CarryOp, dl, VTList, { LHSL, RHSL, N->getOperand(2) });
   Hi = DAG.getNode(N->getOpcode(), dl, VTList, { LHSH, RHSH, Lo.getValue(1) });
 
@@ -3308,14 +3386,14 @@ void DAGTypeLegalizer::ExpandIntRes_ABS(SDNode *N, SDValue &Lo, SDValue &Hi) {
     return;
   }
 
-  // If we have SUBCARRY, use the expanded form of the sra+xor+sub sequence we
-  // use in LegalizeDAG. The SUB part of the expansion is based on
-  // ExpandIntRes_ADDSUB which also uses SUBCARRY/USUBO after checking that
-  // SUBCARRY is LegalOrCustom. Each of the pieces here can be further expanded
-  // if needed. Shift expansion has a special case for filling with sign bits
-  // so that we will only end up with one SRA.
+  // If we have USUBO_CARRY, use the expanded form of the sra+xor+sub sequence
+  // we use in LegalizeDAG. The SUB part of the expansion is based on
+  // ExpandIntRes_ADDSUB which also uses USUBO_CARRY/USUBO after checking that
+  // USUBO_CARRY is LegalOrCustom. Each of the pieces here can be further
+  // expanded if needed. Shift expansion has a special case for filling with
+  // sign bits so that we will only end up with one SRA.
   bool HasSubCarry = TLI.isOperationLegalOrCustom(
-      ISD::SUBCARRY, TLI.getTypeToExpandTo(*DAG.getContext(), NVT));
+      ISD::USUBO_CARRY, TLI.getTypeToExpandTo(*DAG.getContext(), NVT));
   if (HasSubCarry) {
     SDValue Sign = DAG.getNode(
         ISD::SRA, dl, NVT, Hi,
@@ -3324,7 +3402,7 @@ void DAGTypeLegalizer::ExpandIntRes_ABS(SDNode *N, SDValue &Lo, SDValue &Hi) {
     Lo = DAG.getNode(ISD::XOR, dl, NVT, Lo, Sign);
     Hi = DAG.getNode(ISD::XOR, dl, NVT, Hi, Sign);
     Lo = DAG.getNode(ISD::USUBO, dl, VTList, Lo, Sign);
-    Hi = DAG.getNode(ISD::SUBCARRY, dl, VTList, Hi, Sign, Lo.getValue(1));
+    Hi = DAG.getNode(ISD::USUBO_CARRY, dl, VTList, Hi, Sign, Lo.getValue(1));
     return;
   }
 
@@ -4956,8 +5034,7 @@ void DAGTypeLegalizer::IntegerExpandSetCCOperands(SDValue &NewLHS,
   ConstantSDNode *LoCmpC = dyn_cast<ConstantSDNode>(LoCmp.getNode());
   ConstantSDNode *HiCmpC = dyn_cast<ConstantSDNode>(HiCmp.getNode());
 
-  bool EqAllowed = (CCCode == ISD::SETLE || CCCode == ISD::SETGE ||
-                    CCCode == ISD::SETUGE || CCCode == ISD::SETULE);
+  bool EqAllowed = ISD::isTrueWhenEqual(CCCode);
 
   // FIXME: Is the HiCmpC->isOne() here correct for
   // ZeroOrNegativeOneBooleanContent.
@@ -5088,9 +5165,10 @@ SDValue DAGTypeLegalizer::ExpandIntOp_SETCCCARRY(SDNode *N) {
   GetExpandedInteger(LHS, LHSLo, LHSHi);
   GetExpandedInteger(RHS, RHSLo, RHSHi);
 
-  // Expand to a SUBE for the low part and a smaller SETCCCARRY for the high.
+  // Expand to a USUBO_CARRY for the low part and a SETCCCARRY for the high.
   SDVTList VTList = DAG.getVTList(LHSLo.getValueType(), Carry.getValueType());
-  SDValue LowCmp = DAG.getNode(ISD::SUBCARRY, dl, VTList, LHSLo, RHSLo, Carry);
+  SDValue LowCmp =
+      DAG.getNode(ISD::USUBO_CARRY, dl, VTList, LHSLo, RHSLo, Carry);
   return DAG.getNode(ISD::SETCCCARRY, dl, N->getValueType(0), LHSHi, RHSHi,
                      LowCmp.getValue(1), Cond);
 }
@@ -5291,6 +5369,33 @@ SDValue DAGTypeLegalizer::PromoteIntRes_VECTOR_SPLICE(SDNode *N) {
   EVT OutVT = V0.getValueType();
 
   return DAG.getNode(ISD::VECTOR_SPLICE, dl, OutVT, V0, V1, N->getOperand(2));
+}
+
+SDValue DAGTypeLegalizer::PromoteIntRes_VECTOR_DEINTERLEAVE(SDNode *N) {
+  SDLoc dl(N);
+
+  SDValue V0 = GetPromotedInteger(N->getOperand(0));
+  SDValue V1 = GetPromotedInteger(N->getOperand(1));
+  EVT ResVT = V0.getValueType();
+  SDValue Res = DAG.getNode(ISD::VECTOR_DEINTERLEAVE, dl,
+                            DAG.getVTList(ResVT, ResVT), V0, V1);
+  SetPromotedInteger(SDValue(N, 0), Res.getValue(0));
+  SetPromotedInteger(SDValue(N, 1), Res.getValue(1));
+  return SDValue();
+}
+
+SDValue DAGTypeLegalizer::PromoteIntRes_VECTOR_INTERLEAVE(SDNode *N) {
+  SDLoc dl(N);
+
+  SDValue V0 = GetPromotedInteger(N->getOperand(0));
+  SDValue V1 = GetPromotedInteger(N->getOperand(1));
+
+  EVT ResVT = V0.getValueType();
+  SDValue Res = DAG.getNode(ISD::VECTOR_INTERLEAVE, dl,
+                            DAG.getVTList(ResVT, ResVT), V0, V1);
+  SetPromotedInteger(SDValue(N, 0), Res.getValue(0));
+  SetPromotedInteger(SDValue(N, 1), Res.getValue(1));
+  return SDValue();
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_EXTRACT_SUBVECTOR(SDNode *N) {

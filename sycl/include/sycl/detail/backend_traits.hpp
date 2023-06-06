@@ -29,6 +29,8 @@ template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakeEvent = false;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
+  static constexpr bool MakeKernelBundle = false;
+  static constexpr bool MakeImage = false;
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

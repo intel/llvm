@@ -139,7 +139,7 @@ partitioning one of the fixed topology groups). This extension introduces the
 following user-constructed groups:
 
 - `ballot_group`
-- `cluster_group`
+- `fixed_size_group`
 - `tangle_group`
 - `opportunistic_group`
 
@@ -173,10 +173,10 @@ namespace sycl::ext::oneapi::experimental {
 `root_group`, `group` or `sub_group`.
 
 `is_user_constructed_group<T>::value` is `std::true_type` if `T` is one of:
-`ballot_group`, `cluster_group`, `tangle_group`, or `opportunisic_group`.
+`ballot_group`, `fixed_size_group`, `tangle_group`, or `opportunisic_group`.
 
 Additionally, the `is_group<T>::value` trait from SYCL 2020 is `std::true_type`
-if `T` is one of: `ballot_group`, `cluster_group`, `tangle_group`, or
+if `T` is one of: `ballot_group`, `fixed_size_group`, `tangle_group`, or
 `opportunistic_group`.
 
 
@@ -195,13 +195,13 @@ groups is discouraged, since it is highly likely that such code would have to
 make assumptions regarding work-item scheduling and forward progress
 guarantees.
 
-The following group functions support the `ballot_group`, `cluster_group`,
+The following group functions support the `ballot_group`, `fixed_size_group`,
 `tangle_group`, and `opportunistic_group` group types:
 
 * `group_barrier`
 * `group_broadcast`
 
-The following group algorithms support `ballot_group`, `cluster_group`,
+The following group algorithms support `ballot_group`, `fixed_size_group`,
 `tangle_group`, and `opportunistic_group` group types:
 
 * `joint_any_of` and `any_of_group`
@@ -387,53 +387,53 @@ if (will_branch)
 ----
 
 
-=== Cluster-Groups
+=== Fixed-Size-Groups
 
-A cluster-group is a contiguous collection of work-items created by subdividing
+A fixed-size-group is a contiguous collection of work-items created by subdividing
 a group into equally sized parts, such that each work-item is a member of
-exactly one cluster. The size of a cluster-group is a static (compile-time)
+exactly one partition. The size of a fixed-size-group is a static (compile-time)
 property.
 
 
 ==== Creation
 
-New cluster-groups are created by partitioning an existing group, using the
-`get_cluster_group` free-function.
+New fixed-size-groups are created by partitioning an existing group, using the
+`get_fixed_size_group` free-function.
 
-NOTE: Creating a cluster-group does not require a barrier across all work-items
-in the parent group, since work-items can independently identify cluster
-members given a fixed cluster size.
+NOTE: Creating a fixed-size-group does not require a barrier across all work-items
+in the parent group, since work-items can independently identify partition
+members given a fixed partition size.
 
 [source, c++]
 ----
 namespace ext::oneapi::experimental {
 
-template <size_t ClusterSize, typename Group> 
-cluster_group<ClusterSize, Group> get_cluster_group(Group group);
+template <size_t PartitionSize, typename Group>
+fixed_size_group<PartitionSize, Group> get_fixed_size_group(Group group);
 
 } // namespace ext::oneapi::experimental
 ----
 
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
-std::is_same_v<Group, sycl::sub_group>` is true. `ClusterSize` must be positive
+std::is_same_v<Group, sycl::sub_group>` is true. `PartitionSize` must be positive
 and a power of 2.
 
-_Preconditions_: `ClusterSize` must be less than or equal to the result of
+_Preconditions_: `PartitionSize` must be less than or equal to the result of
 `group.get_max_local_range()`. `group.get_local_linear_range()` must be evenly
-divisible by `ClusterSize`.
+divisible by `PartitionSize`.
 
-_Returns_: A `cluster_group<ClusterSize>` consisting of all work-items in
-`group` that are in the same cluster as the calling work-item.
+_Returns_: A `fixed_size_group<PartitionSize>` consisting of all work-items in
+`group` that are in the same partition as the calling work-item.
 
 
-==== `cluster_group` Class
+==== `fixed_size_group` Class
 
 [source, c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <std::size_t ClusterSize, typename ParentGroup>
-class cluster_group {
+template <std::size_t PartitionSize, typename ParentGroup>
+class fixed_size_group {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
@@ -463,35 +463,35 @@ public:
 }
 ----
 
-NOTE: `cluster_group` is templated on a `ParentGroup` because it is expected
-that it will eventually be possible to construct a cluster-group from more
+NOTE: `fixed_size_group` is templated on a `ParentGroup` because it is expected
+that it will eventually be possible to construct a fixed-size-group from more
 than only sub-groups.
 
 [source,c++]
 ----
 id_type get_group_id() const;
 ----
-_Returns_: An `id` representing the index of the cluster-group.
+_Returns_: An `id` representing the index of the fixed-size-group.
 
 [source,c++]
 ----
 id_type get_local_id() const;
 ----
 _Returns_: An `id` representing the calling work-item's position within
-the cluster-group.
+the fixed-size-group.
 
 [source,c++]
 ----
 range_type get_group_range() const;
 ----
-_Returns_: A `range` representing the number of cluster-groups.
+_Returns_: A `range` representing the number of fixed-size-groups.
 
 [source,c++]
 ----
 range_type get_local_range() const;
 ----
 _Returns_: A `range` representing the number of work-items in the
-cluster-group, which is always equal to `ClusterSize`.
+fixed-size-group, which is always equal to `PartitionSize`.
 
 [source,c++]
 ----
@@ -521,36 +521,36 @@ _Returns_: A linearized version of the `id` returned by `get_local_range()`.
 ----
 bool leader() const;
 ----
-_Returns_: `true` for exactly one work-item in the cluster-group, if the calling
-work-item is the leader of the cluster-group, and `false` for all other
-work-items in the cluster-group. The leader of the cluster-group is guaranteed
+_Returns_: `true` for exactly one work-item in the fixed-size-group, if the calling
+work-item is the leader of the fixed-size-group, and `false` for all other
+work-items in the fixed-size-group. The leader of the fixed-size-group is guaranteed
 to be the work-item for which `get_local_id()` returns 0.
 
 
 ==== Usage Examples
 
-A `cluster_group` can be used to apply group algorithms to subsets of data:
+A `fixed_size_group` can be used to apply group algorithms to subsets of data:
 
 [source, c++]
 ----
 auto sg = it.get_sub_group();
 
 // reduce over contiguous groups of 8 elements
-auto cluster = sycl::ext::oneapi::experimental::get_cluster_group<8>(sg);
-auto result = sycl::reduce_over_group(cluster, buf[it.get_local_linear_id()], sycl::plus<>());
+auto partition = sycl::ext::oneapi::experimental::get_fixed_size_group<8>(sg);
+auto result = sycl::reduce_over_group(partition, buf[it.get_local_linear_id()], sycl::plus<>());
 
 // write result out once per group
-if (cluster.leader()){
-  buf[cluster.get_group_id()] = result;
+if (partition.leader()){
+  buf[partition.get_group_id()] = result;
 }
 ----
 
-A `cluster_group` can be used to provide an interface accepting a specific
+A `fixed_size_group` can be used to provide an interface accepting a specific
 number of work-items:
 
 [source, c++]
 ----
-void func_that_needs_4_work_items(sycl::ext::oneapi::experimental::cluster_group<4> group);
+void func_that_needs_4_work_items(sycl::ext::oneapi::experimental::fixed_size_group<4> group);
 ----
 
 
@@ -904,8 +904,8 @@ extension's API.
 For SPIR-V backends, all user-constructed group types are expected to be
 implemented using SPIR-V's
 link:https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_non_uniform_instructions[non-uniform
-instructions]. `cluster_group` functionality is expected to leverage the
-optional `ClusterSize` argument of those instructions. Each group type will
+instructions]. `fixed_size_group` functionality is expected to leverage the
+optional `PartitionSize` argument of those instructions. Each group type will
 require slightly different usage of those instructions to ensure that distinct
 groups encounter unique control flow when appropriate.
 

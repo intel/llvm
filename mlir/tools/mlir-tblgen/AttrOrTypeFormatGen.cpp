@@ -612,7 +612,8 @@ void DefFormat::genCustomParser(CustomDirective *el, FmtContext &ctx,
   for (FormatElement *arg : el->getArguments()) {
     os << ",\n";
     if (auto *param = dyn_cast<ParameterElement>(arg))
-      os << "_result_" << param->getName();
+      os << "::mlir::detail::unwrapForCustomParse(_result_" << param->getName()
+         << ")";
     else if (auto *ref = dyn_cast<RefDirective>(arg))
       os << "*_result_" << cast<ParameterElement>(ref->getArg())->getName();
     else
@@ -950,16 +951,16 @@ private:
 LogicalResult DefFormatParser::verify(SMLoc loc,
                                       ArrayRef<FormatElement *> elements) {
   // Check that all parameters are referenced in the format.
-  for (auto &it : llvm::enumerate(def.getParameters())) {
-    if (it.value().isOptional())
+  for (auto [index, param] : llvm::enumerate(def.getParameters())) {
+    if (param.isOptional())
       continue;
-    if (!seenParams.test(it.index())) {
-      if (isa<AttributeSelfTypeParameter>(it.value()))
+    if (!seenParams.test(index)) {
+      if (isa<AttributeSelfTypeParameter>(param))
         continue;
       return emitError(loc, "format is missing reference to parameter: " +
-                                it.value().getName());
+                                param.getName());
     }
-    if (isa<AttributeSelfTypeParameter>(it.value())) {
+    if (isa<AttributeSelfTypeParameter>(param)) {
       return emitError(loc,
                        "unexpected self type parameter in assembly format");
     }

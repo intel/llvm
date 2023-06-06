@@ -4,6 +4,7 @@ import gc
 import io
 import itertools
 from mlir.ir import *
+from mlir.dialects.builtin import ModuleOp
 
 
 def run(f):
@@ -47,11 +48,9 @@ def testTraverseOpRegionBlockIterators():
   # CHECK: .verify = True
   print(f".verify = {module.operation.verify()}")
 
-  # Get the regions and blocks from the default collections.
-  default_regions = list(op.regions)
-  default_blocks = list(default_regions[0])
+  # Get the blocks from the default collection.
+  default_blocks = list(regions[0])
   # They should compare equal regardless of how obtained.
-  assert default_regions == regions
   assert default_blocks == blocks
 
   # Should be able to get the operations from either the named collection
@@ -77,6 +76,13 @@ def testTraverseOpRegionBlockIterators():
   # CHECK:           OP 0: %0 = "custom.addi"
   # CHECK:           OP 1: func.return
   walk_operations("", op)
+
+  # CHECK:    Region iter: <mlir.{{.+}}.RegionIterator
+  # CHECK:     Block iter: <mlir.{{.+}}.BlockIterator
+  # CHECK: Operation iter: <mlir.{{.+}}.OperationIterator
+  print("   Region iter:", iter(op.regions))
+  print("    Block iter:", iter(op.regions[0]))
+  print("Operation iter:", iter(op.regions[0].blocks[0]))
 
 
 # Verify index based traversal of the op/region/block hierarchy.
@@ -515,6 +521,8 @@ def testOperationAttributes():
   print(f"Attribute type {fattr.type}, value {fattr.value}")
   # CHECK: Attribute value text
   print(f"Attribute value {sattr.value}")
+  # CHECK: Attribute value b'text'
+  print(f"Attribute value {sattr.value_bytes}")
 
   # We don't know in which order the attributes are stored.
   # CHECK-DAG: NamedAttribute(dependent="text")
@@ -568,7 +576,7 @@ def testOperationPrint():
 
   # Test roundtrip to bytecode.
   bytecode_stream = io.BytesIO()
-  module.operation.write_bytecode(bytecode_stream)
+  module.operation.write_bytecode(bytecode_stream, desired_version=1)
   bytecode = bytecode_stream.getvalue()
   assert bytecode.startswith(b'ML\xefR'), "Expected bytecode to start with MLïR"
   module_roundtrip = Module.parse(bytecode, ctx)
@@ -619,7 +627,7 @@ def testKnownOpView():
     # addf should map to a known OpView class in the arithmetic dialect.
     # We know the OpView for it defines an 'lhs' attribute.
     addf = module.body.operations[2]
-    # CHECK: <mlir.dialects._arith_ops_gen._AddFOp object
+    # CHECK: <mlir.dialects._arith_ops_gen.AddFOp object
     print(repr(addf))
     # CHECK: "custom.f32"()
     print(addf.lhs)
@@ -681,12 +689,22 @@ def testInvalidOperationStrSoftFails():
   with Location.unknown(ctx):
     invalid_op = create_invalid_operation()
     # Verify that we fallback to the generic printer for safety.
-    # CHECK: // Verification failed, printing generic form
     # CHECK: "builtin.module"() ({
     # CHECK: }) : () -> ()
     print(invalid_op)
-    # CHECK: .verify = False
-    print(f".verify = {invalid_op.operation.verify()}")
+    try:
+      invalid_op.verify()
+    except MLIRError as e:
+      # CHECK: Exception: <
+      # CHECK:   Verification failed:
+      # CHECK:   error: unknown: 'builtin.module' op requires one region
+      # CHECK:    note: unknown: see current operation:
+      # CHECK:     "builtin.module"() ({
+      # CHECK:     ^bb0:
+      # CHECK:     }, {
+      # CHECK:     }) : () -> ()
+      # CHECK: >
+      print(f"Exception: <{e}>")
 
 
 # CHECK-LABEL: TEST: testInvalidModuleStrSoftFails
@@ -698,7 +716,8 @@ def testInvalidModuleStrSoftFails():
     with InsertionPoint(module.body):
       invalid_op = create_invalid_operation()
     # Verify that we fallback to the generic printer for safety.
-    # CHECK: // Verification failed, printing generic form
+    # CHECK: "builtin.module"() ({
+    # CHECK: }) : () -> ()
     print(module)
 
 
@@ -709,7 +728,7 @@ def testInvalidOperationGetAsmBinarySoftFails():
   with Location.unknown(ctx):
     invalid_op = create_invalid_operation()
     # Verify that we fallback to the generic printer for safety.
-    # CHECK: b'// Verification failed, printing generic form\n
+    # CHECK: b'"builtin.module"() ({\n^bb0:\n}, {\n}) : () -> ()\n'
     print(invalid_op.get_asm(binary=True))
 
 
@@ -900,3 +919,31 @@ def testOperationHash():
   with ctx, Location.unknown():
     op = Operation.create("custom.op1")
     assert hash(op) == hash(op.operation)
+
+
+# CHECK-LABEL: TEST: testOperationParse
+@run
+def testOperationParse():
+  with Context() as ctx:
+    ctx.allow_unregistered_dialects = True
+
+    # Generic operation parsing.
+    m = Operation.parse('module {}')
+    o = Operation.parse('"test.foo"() : () -> ()')
+    assert isinstance(m, ModuleOp)
+    assert type(o) is OpView
+
+    # Parsing specific operation.
+    m = ModuleOp.parse('module {}')
+    assert isinstance(m, ModuleOp)
+    try:
+      ModuleOp.parse('"test.foo"() : () -> ()')
+    except MLIRError as e:
+      # CHECK: error: Expected a 'builtin.module' op, got: 'test.foo'
+      print(f"error: {e}")
+    else:
+      assert False, "expected error"
+
+    o = Operation.parse('"test.foo"() : () -> ()', source_name="my-source-string")
+    # CHECK: op_with_source_name: "test.foo"() : () -> () loc("my-source-string":1:1)
+    print(f"op_with_source_name: {o.get_asm(enable_debug_info=True, use_local_scope=True)}")

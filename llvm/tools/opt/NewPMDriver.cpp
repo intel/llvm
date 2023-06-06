@@ -31,6 +31,7 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
@@ -333,41 +334,50 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
                            bool EnableDebugify, bool VerifyDIPreserve) {
   bool VerifyEachPass = VK == VK_VerifyEachPass;
 
+  auto FS = vfs::getRealFileSystem();
   std::optional<PGOOptions> P;
   switch (PGOKindFlag) {
   case InstrGen:
-    P = PGOOptions(ProfileFile, "", "", PGOOptions::IRInstr);
+    P = PGOOptions(ProfileFile, "", "", FS, PGOOptions::IRInstr);
     break;
   case InstrUse:
-    P = PGOOptions(ProfileFile, "", ProfileRemappingFile, PGOOptions::IRUse);
+    P = PGOOptions(ProfileFile, "", ProfileRemappingFile, FS,
+                   PGOOptions::IRUse);
     break;
   case SampleUse:
-    P = PGOOptions(ProfileFile, "", ProfileRemappingFile,
+    P = PGOOptions(ProfileFile, "", ProfileRemappingFile, FS,
                    PGOOptions::SampleUse);
     break;
   case NoPGO:
     if (DebugInfoForProfiling || PseudoProbeForProfiling)
-      P = PGOOptions("", "", "", PGOOptions::NoAction, PGOOptions::NoCSAction,
-                     DebugInfoForProfiling, PseudoProbeForProfiling);
+      P = PGOOptions("", "", "", nullptr, PGOOptions::NoAction,
+                     PGOOptions::NoCSAction, DebugInfoForProfiling,
+                     PseudoProbeForProfiling);
     else
       P = std::nullopt;
   }
   if (CSPGOKindFlag != NoCSPGO) {
     if (P && (P->Action == PGOOptions::IRInstr ||
-              P->Action == PGOOptions::SampleUse))
+              P->Action == PGOOptions::SampleUse)) {
       errs() << "CSPGOKind cannot be used with IRInstr or SampleUse";
+      return false;
+    }
     if (CSPGOKindFlag == CSInstrGen) {
-      if (CSProfileGenFile.empty())
+      if (CSProfileGenFile.empty()) {
         errs() << "CSInstrGen needs to specify CSProfileGenFile";
+        return false;
+      }
       if (P) {
         P->CSAction = PGOOptions::CSIRInstr;
         P->CSProfileGenFile = CSProfileGenFile;
       } else
-        P = PGOOptions("", CSProfileGenFile, ProfileRemappingFile,
+        P = PGOOptions("", CSProfileGenFile, ProfileRemappingFile, FS,
                        PGOOptions::NoAction, PGOOptions::CSIRInstr);
     } else /* CSPGOKindFlag == CSInstrUse */ {
-      if (!P)
+      if (!P) {
         errs() << "CSInstrUse needs to be together with InstrUse";
+        return false;
+      }
       P->CSAction = PGOOptions::CSIRUse;
     }
   }
@@ -385,20 +395,20 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
   PrintPassOpts.SkipAnalyses = DebugPM == DebugLogging::Quiet;
   StandardInstrumentations SI(M.getContext(), DebugPM != DebugLogging::None,
                               VerifyEachPass, PrintPassOpts);
-  SI.registerCallbacks(PIC, &FAM);
+  SI.registerCallbacks(PIC, &MAM);
   DebugifyEachInstrumentation Debugify;
   DebugifyStatsMap DIStatsMap;
   DebugInfoPerPass DebugInfoBeforePass;
   if (DebugifyEach) {
     Debugify.setDIStatsMap(DIStatsMap);
     Debugify.setDebugifyMode(DebugifyMode::SyntheticDebugInfo);
-    Debugify.registerCallbacks(PIC);
+    Debugify.registerCallbacks(PIC, MAM);
   } else if (VerifyEachDebugInfoPreserve) {
     Debugify.setDebugInfoBeforePass(DebugInfoBeforePass);
     Debugify.setDebugifyMode(DebugifyMode::OriginalDebugInfo);
     Debugify.setOrigDIVerifyBugsReportFilePath(
       VerifyDIPreserveExport);
-    Debugify.registerCallbacks(PIC);
+    Debugify.registerCallbacks(PIC, MAM);
   }
 
   PipelineTuningOptions PTO;

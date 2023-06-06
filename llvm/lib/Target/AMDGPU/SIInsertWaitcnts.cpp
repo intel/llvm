@@ -35,7 +35,7 @@
 #include "llvm/CodeGen/MachinePostDominators.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/DebugCounter.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "si-insert-waitcnts"
@@ -1721,7 +1721,8 @@ bool SIInsertWaitcnts::shouldFlushVmCnt(MachineLoop *ML,
 
   for (MachineBasicBlock *MBB : ML->blocks()) {
     for (MachineInstr &MI : *MBB) {
-      if (SIInstrInfo::isVMEM(MI)) {
+      if (SIInstrInfo::isVMEM(MI) ||
+          (SIInstrInfo::isFLAT(MI) && mayAccessVMEMThroughFlat(MI))) {
         if (MI.mayLoad())
           HasVMemLoad = true;
         if (MI.mayStore())

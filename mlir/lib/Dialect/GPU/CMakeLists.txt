@@ -20,7 +20,7 @@ if (MLIR_ENABLE_ROCM_CONVERSIONS)
   )
 endif()
 
-add_mlir_dialect_library(MLIRGPUOps
+add_mlir_dialect_library(MLIRGPUDialect
   IR/GPUDialect.cpp
   IR/InferIntRangeInterfaceImpls.cpp
 
@@ -52,7 +52,6 @@ add_mlir_dialect_library(MLIRGPUTransforms
   Transforms/SerializeToBlob.cpp
   Transforms/SerializeToCubin.cpp
   Transforms/SerializeToHsaco.cpp
-  Transforms/LowerMemorySpaceAttributes.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/GPU
@@ -71,11 +70,13 @@ add_mlir_dialect_library(MLIRGPUTransforms
   MLIRAffineUtils
   MLIRArithDialect
   MLIRAsyncDialect
+  MLIRBuiltinToLLVMIRTranslation
   MLIRDataLayoutInterfaces
   MLIRExecutionEngineUtils
-  MLIRGPUOps
+  MLIRGPUDialect
   MLIRIR
   MLIRLLVMDialect
+  MLIRGPUToLLVMIRTranslation
   MLIRLLVMToLLVMIRTranslation
   MLIRMemRefDialect
   MLIRPass

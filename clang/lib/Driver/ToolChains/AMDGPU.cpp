@@ -11,17 +11,16 @@
 #include "clang/Basic/TargetID.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Compilation.h"
-#include "clang/Driver/Distro.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Host.h"
 #include <optional>
 #include <system_error>
 
@@ -309,13 +308,10 @@ RocmInstallationDetector::getInstallationPathCandidates() {
     ROCmSearchDirs.emplace_back(D.SysRoot + "/opt/" + LatestROCm,
                                 /*StrictChecking=*/true);
 
-  Distro Dist(D.getVFS(), llvm::Triple(llvm::sys::getProcessTriple()));
-  if (Dist.IsDebian() || Dist.IsRedhat()) {
-    ROCmSearchDirs.emplace_back(D.SysRoot + "/usr/local",
-                                /*StrictChecking=*/true);
-    ROCmSearchDirs.emplace_back(D.SysRoot + "/usr",
-                                /*StrictChecking=*/true);
-  }
+  ROCmSearchDirs.emplace_back(D.SysRoot + "/usr/local",
+                              /*StrictChecking=*/true);
+  ROCmSearchDirs.emplace_back(D.SysRoot + "/usr",
+                              /*StrictChecking=*/true);
 
   DoPrintROCmSearchDirs();
   return ROCmSearchDirs;
@@ -437,7 +433,11 @@ void RocmInstallationDetector::detectHIPRuntime() {
   SmallVector<Candidate, 4> HIPSearchDirs;
   if (!HIPPathArg.empty())
     HIPSearchDirs.emplace_back(HIPPathArg.str(), /*StrictChecking=*/true);
-  else
+  else if (std::optional<std::string> HIPPathEnv =
+               llvm::sys::Process::GetEnv("HIP_PATH")) {
+    if (!HIPPathEnv->empty())
+      HIPSearchDirs.emplace_back(std::move(*HIPPathEnv));
+  } else
     HIPSearchDirs.append(getInstallationPathCandidates());
   auto &FS = D.getVFS();
 
@@ -540,6 +540,10 @@ void amdgpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
   addLinkerCompressDebugSectionsOption(getToolChain(), Args, CmdArgs);
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  if (C.getDriver().isUsingLTO())
+    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs[0],
+                  C.getDriver().getLTOMode() == LTOK_Thin);
+  CmdArgs.push_back("--no-undefined");
   CmdArgs.push_back("-shared");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
@@ -578,8 +582,8 @@ void amdgpu::getAMDGPUTargetFeatures(const Driver &D,
                    options::OPT_mno_wavefrontsize64, false))
     Features.push_back("+wavefrontsize64");
 
-  handleTargetFeaturesGroup(
-    Args, Features, options::OPT_m_amdgpu_Features_Group);
+  handleTargetFeaturesGroup(D, Triple, Args, Features,
+                            options::OPT_m_amdgpu_Features_Group);
 }
 
 /// AMDGPU Toolchain
@@ -611,10 +615,8 @@ AMDGPUToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
   if (!DAL)
     DAL = new DerivedArgList(Args.getBaseArgs());
 
-  for (Arg *A : Args) {
-    if (!shouldSkipArgument(A))
-      DAL->append(A);
-  }
+  for (Arg *A : Args)
+    DAL->append(A);
 
   checkTargetID(*DAL);
 
@@ -703,7 +705,7 @@ bool AMDGPUToolChain::isWave64(const llvm::opt::ArgList &DriverArgs,
 ROCMToolChain::ROCMToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
     : AMDGPUToolChain(D, Triple, Args) {
-  RocmInstallation.detectDeviceLibrary();
+  RocmInstallation->detectDeviceLibrary();
 }
 
 void AMDGPUToolChain::addClangTargetOptions(
@@ -792,11 +794,11 @@ void ROCMToolChain::addClangTargetOptions(
   const StringRef GpuArch = getGPUArch(DriverArgs);
   auto Kind = llvm::AMDGPU::parseArchAMDGCN(GpuArch);
   const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
-  StringRef LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
+  StringRef LibDeviceFile = RocmInstallation->getLibDeviceFile(CanonArch);
   auto ABIVer = DeviceLibABIVersion::fromCodeObjectVersion(
       getAMDGPUCodeObjectVersion(getDriver(), DriverArgs));
-  if (!RocmInstallation.checkCommonBitcodeLibs(CanonArch, LibDeviceFile,
-                                               ABIVer))
+  if (!RocmInstallation->checkCommonBitcodeLibs(CanonArch, LibDeviceFile,
+                                                ABIVer))
     return;
 
   bool Wave64 = isWave64(DriverArgs, Kind);
@@ -815,10 +817,10 @@ void ROCMToolChain::addClangTargetOptions(
 
   // Add the OpenCL specific bitcode library.
   llvm::SmallVector<std::string, 12> BCLibs;
-  BCLibs.push_back(RocmInstallation.getOpenCLPath().str());
+  BCLibs.push_back(RocmInstallation->getOpenCLPath().str());
 
   // Add the generic set of libraries.
-  BCLibs.append(RocmInstallation.getCommonBitcodeLibs(
+  BCLibs.append(RocmInstallation->getCommonBitcodeLibs(
       DriverArgs, LibDeviceFile, Wave64, DAZ, FiniteOnly, UnsafeMathOpt,
       FastRelaxedMath, CorrectSqrt, ABIVer, false));
 
@@ -870,24 +872,17 @@ RocmInstallationDetector::getCommonBitcodeLibs(
   return BCLibs;
 }
 
-bool AMDGPUToolChain::shouldSkipArgument(const llvm::opt::Arg *A) const {
-  Option O = A->getOption();
-  if (O.matches(options::OPT_fPIE) || O.matches(options::OPT_fpie))
-    return true;
-  return false;
-}
-
 llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
     const llvm::opt::ArgList &DriverArgs, const std::string &GPUArch,
     const Action::OffloadKind DeviceOffloadingKind, bool isOpenMP) const {
   auto Kind = llvm::AMDGPU::parseArchAMDGCN(GPUArch);
   const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
 
-  StringRef LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
+  StringRef LibDeviceFile = RocmInstallation->getLibDeviceFile(CanonArch);
   auto ABIVer = DeviceLibABIVersion::fromCodeObjectVersion(
       getAMDGPUCodeObjectVersion(getDriver(), DriverArgs));
-  if (!RocmInstallation.checkCommonBitcodeLibs(CanonArch, LibDeviceFile,
-                                               ABIVer))
+  if (!RocmInstallation->checkCommonBitcodeLibs(CanonArch, LibDeviceFile,
+                                                ABIVer))
     return {};
 
   // If --hip-device-lib is not set, add the default bitcode libraries.
@@ -913,7 +908,7 @@ llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
         options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt, true);
   bool Wave64 = isWave64(DriverArgs, Kind);
 
-  return RocmInstallation.getCommonBitcodeLibs(
+  return RocmInstallation->getCommonBitcodeLibs(
       DriverArgs, LibDeviceFile, Wave64, DAZ, FiniteOnly, UnsafeMathOpt,
       FastRelaxedMath, CorrectSqrt, ABIVer, isOpenMP);
 }

@@ -4,7 +4,6 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DefaultContext.cpp
   FPGADeviceSelectors.cpp
   DeviceArchitecture.cpp
-  WeakObject.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
   OneAPISubGroupMask.cpp

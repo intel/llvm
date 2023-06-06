@@ -10,9 +10,7 @@
 
 #include "src/__support/CPP/new.h"
 #include "src/__support/error_or.h"
-
-#include <errno.h>
-#include <stdlib.h>
+#include "src/errno/libc_errno.h" // For error macros
 
 namespace __llvm_libc {
 

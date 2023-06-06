@@ -1,12 +1,12 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %debug_option
-// RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out %GPU_CHECK_PLACEHOLDER
 // REQUIRES: gpu
+// RUN: %{build} -o %t.out %debug_option
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s
 // UNSUPPORTED: hip
 
 // Debug option -g is not passed to device code compiler when CL-style driver
 // is used and /DEBUG options is passed.
 // XFAIL: cl_options
-// UNSUPPORTED: ze_debug-1,ze_debug4
+
 #include "kernel-bundle-merge-options.hpp"
 
 // CHECK: piProgramBuild

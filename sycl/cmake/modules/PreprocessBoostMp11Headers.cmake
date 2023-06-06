@@ -37,12 +37,12 @@ function(preprocess_mp11_header)
   # `namespace sycl { namespace detail { namespace boost { ... } } }`
   string(REGEX REPLACE
     "(\n[ \t]*namespace[ \t\n\r]+boost)"
-    "namespace sycl\n{\nnamespace detail\n{\\1"
+    "namespace sycl\n{\ninline namespace _V1\n{\nnamespace detail\n{\\1"
     FILE_CONTENTS "${FILE_CONTENTS}")
   # ... use '} // namespace boost' as a marker for end-of-scope '}' replacement
   string(REGEX REPLACE
     "(\n[ \t]*}[ \t]*//[ \t]*namespace[ \t]+boost[ \t]*\n)"
-    "\\1} // namespace detail\n} // namespace sycl\n"
+    "\\1} // namespace detail\n} // namespace _V1\n} // namespace sycl\n"
     FILE_CONTENTS "${FILE_CONTENTS}")
   # 3) replace `boost` in `#include <boost/...>` or `#include "boost/..."` with
   # `sycl/detail/boost`

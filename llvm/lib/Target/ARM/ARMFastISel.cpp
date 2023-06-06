@@ -40,6 +40,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -72,7 +73,6 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -310,7 +310,7 @@ unsigned ARMFastISel::fastEmitInst_r(unsigned MachineInstOpcode,
                    .addReg(Op0));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -337,7 +337,7 @@ unsigned ARMFastISel::fastEmitInst_rr(unsigned MachineInstOpcode,
                    .addReg(Op1));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -362,7 +362,7 @@ unsigned ARMFastISel::fastEmitInst_ri(unsigned MachineInstOpcode,
                    .addImm(Imm));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -381,7 +381,7 @@ unsigned ARMFastISel::fastEmitInst_i(unsigned MachineInstOpcode,
                    .addImm(Imm));
     AddOptionalDefs(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
                             TII.get(TargetOpcode::COPY), ResultReg)
-                        .addReg(II.getImplicitDefs()[0]));
+                        .addReg(II.implicit_defs()[0]));
   }
   return ResultReg;
 }
@@ -1842,7 +1842,7 @@ CCAssignFn *ARMFastISel::CCAssignFnForCall(CallingConv::ID CC,
   case CallingConv::CXX_FAST_TLS:
     // Use target triple & subtarget features to do actual dispatch.
     if (Subtarget->isAAPCS_ABI()) {
-      if (Subtarget->hasVFP2Base() &&
+      if (Subtarget->hasFPRegs() &&
           TM.Options.FloatABIType == FloatABI::Hard && !isVarArg)
         return (Return ? RetCC_ARM_AAPCS_VFP: CC_ARM_AAPCS_VFP);
       else
@@ -1928,7 +1928,7 @@ bool ARMFastISel::ProcessCallArgs(SmallVectorImpl<Value*> &Args,
   // At the point, we are able to handle the call's arguments in fast isel.
 
   // Get a count of how many bytes are to be pushed on the stack.
-  NumBytes = CCInfo.getNextStackOffset();
+  NumBytes = CCInfo.getStackSize();
 
   // Issue CALLSEQ_START
   unsigned AdjStackDown = TII.getCallFrameSetupOpcode();

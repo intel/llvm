@@ -9,10 +9,13 @@
 #pragma once
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
+#include <detail/host_pipe_map_entry.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/host_pipe_map.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/util.hpp>
@@ -80,9 +83,6 @@ enum class DeviceLibExt : std::uint32_t {
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
 public:
-  // TODO use a custom dynamic bitset instead to make initialization simpler.
-  using KernelArgMask = std::vector<bool>;
-
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
@@ -146,7 +146,7 @@ public:
                                   const property_list &PropList,
                                   bool JITCompilationIsRequired = false);
 
-  std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
+  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *, RT::PiProgram>
   getOrCreateKernel(OSModuleHandle M, const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
                     const std::string &KernelName, const program_impl *Prg);
@@ -177,13 +177,21 @@ public:
 
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
+  /// \param NativePrg the PI program associated with the kernel.
+  /// \param KernelName the name of the kernel.
+  const KernelArgMask *
+  getEliminatedKernelArgMask(pi::PiProgram NativePrg,
+                             const std::string &KernelName);
+
+  /// Returns the mask for eliminated kernel arguments for the requested kernel
+  /// within the native program.
   /// \param M identifies the OS module the kernel comes from (multiple OS
   ///        modules may have kernels with the same name).
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
-  KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
-                                           pi::PiProgram NativePrg,
-                                           const std::string &KernelName);
+  const KernelArgMask *
+  getEliminatedKernelArgMask(OSModuleHandle M, pi::PiProgram NativePrg,
+                             const std::string &KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name.
@@ -214,6 +222,17 @@ public:
   std::vector<DeviceGlobalMapEntry *>
   getDeviceGlobalEntries(const std::vector<std::string> &UniqueIds,
                          bool ExcludeDeviceImageScopeDecorated = false);
+  // The function inserts or initializes a host_pipe entry into the
+  // host_pipe map.
+  void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);
+
+  // The function gets a host_pipe entry identified by the unique ID from
+  // the host_pipe map.
+  HostPipeMapEntry *getHostPipeEntry(const std::string &UniqueId);
+
+  // The function gets a host_pipe entry identified by the pointer to the
+  // host_pipe object from the host_pipe map.
+  HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
 
   device_image_plain
   getDeviceImageFromBinaryImage(RTDeviceBinaryImage *BinImage,
@@ -260,9 +279,9 @@ public:
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &DeviceImages,
-       const std::vector<device> &Devs, const property_list &PropList);
+  std::vector<device_image_plain> link(const device_image_plain &DeviceImages,
+                                       const std::vector<device> &Devs,
+                                       const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
@@ -270,7 +289,7 @@ public:
                            const std::vector<device> &Devs,
                            const property_list &PropList);
 
-  std::pair<RT::PiKernel, std::mutex *>
+  std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, const std::string &KernelName,
                     const property_list &PropList, RT::PiProgram Program);
 
@@ -299,7 +318,8 @@ private:
   KernelSetId getKernelSetId(OSModuleHandle M,
                              const std::string &KernelName) const;
   /// Dumps image to current directory
-  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
+  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
+                 uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(OSModuleHandle M, RTDeviceBinaryImage &Img);
@@ -424,6 +444,14 @@ private:
 
   /// Protects m_DeviceGlobals and m_Ptr2DeviceGlobal.
   std::mutex m_DeviceGlobalsMutex;
+
+  // Maps between host_pipe identifiers and associated information.
+  std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
+      m_HostPipes;
+  std::unordered_map<const void *, HostPipeMapEntry *> m_Ptr2HostPipe;
+
+  /// Protects m_HostPipes and m_Ptr2HostPipe.
+  std::mutex m_HostPipesMutex;
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

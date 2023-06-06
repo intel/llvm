@@ -5,17 +5,18 @@ add_flang_library(FortranLower
   Bridge.cpp
   CallInterface.cpp
   Coarray.cpp
+  ConvertArrayConstructor.cpp
   ConvertCall.cpp
   ConvertConstant.cpp
   ConvertExpr.cpp
   ConvertExprToHLFIR.cpp
+  ConvertProcedureDesignator.cpp
   ConvertType.cpp
   ConvertVariable.cpp
   ComponentPath.cpp
   CustomIntrinsicCall.cpp
   DumpEvaluateExpr.cpp
   HostAssociations.cpp
-  IntrinsicCall.cpp
   IO.cpp
   IterationSpace.cpp
   LoweringOptions.cpp
@@ -26,17 +27,16 @@ add_flang_library(FortranLower
   Runtime.cpp
   SymbolMap.cpp
   VectorSubscripts.cpp
-
+  
   DEPENDS
   FIRDialect
-  FIRBuilder
-  FIRSupport
   FIRTransforms
   HLFIRDialect
   ${dialect_libs}
 
   LINK_LIBS
   FIRDialect
+  FIRDialectSupport
   FIRBuilder
   FIRSupport
   FIRTransforms

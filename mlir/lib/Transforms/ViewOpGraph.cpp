@@ -13,11 +13,11 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/IndentedOstream.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/GraphWriter.h"
-#include <utility>
+#include <map>
 #include <optional>
+#include <utility>
 
 namespace mlir {
 #define GEN_PASS_DEF_VIEWOPGRAPH
@@ -58,7 +58,7 @@ static std::string quoteString(const std::string &str) {
   return "\"" + str + "\"";
 }
 
-using AttributeMap = llvm::StringMap<std::string>;
+using AttributeMap = std::map<std::string, std::string>;
 
 namespace {
 
@@ -134,7 +134,7 @@ private:
   void emitAttrList(raw_ostream &os, const AttributeMap &map) {
     os << "[";
     interleaveComma(map, os, [&](const auto &it) {
-      os << this->attrStmt(it.getKey(), it.getValue());
+      os << this->attrStmt(it.first, it.second);
     });
     os << "]";
   }
@@ -145,21 +145,21 @@ private:
     int64_t largeAttrLimit = getLargeAttributeSizeLimit();
 
     // Always emit splat attributes.
-    if (attr.isa<SplatElementsAttr>()) {
+    if (isa<SplatElementsAttr>(attr)) {
       attr.print(os);
       return;
     }
 
     // Elide "big" elements attributes.
-    auto elements = attr.dyn_cast<ElementsAttr>();
+    auto elements = dyn_cast<ElementsAttr>(attr);
     if (elements && elements.getNumElements() > largeAttrLimit) {
-      os << std::string(elements.getType().getRank(), '[') << "..."
-         << std::string(elements.getType().getRank(), ']') << " : "
+      os << std::string(elements.getShapedType().getRank(), '[') << "..."
+         << std::string(elements.getShapedType().getRank(), ']') << " : "
          << elements.getType();
       return;
     }
 
-    auto array = attr.dyn_cast<ArrayAttr>();
+    auto array = dyn_cast<ArrayAttr>(attr);
     if (array && static_cast<int64_t>(array.size()) > largeAttrLimit) {
       os << "[...]";
       return;

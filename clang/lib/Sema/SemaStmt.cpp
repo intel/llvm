@@ -3364,7 +3364,7 @@ Sema::ActOnBreakStmt(SourceLocation BreakLoc, Scope *CurScope) {
 /// might be modified by the implementation.
 ///
 /// \param Mode Overrides detection of current language mode
-/// and uses the rules for C++2b.
+/// and uses the rules for C++23.
 ///
 /// \returns An aggregate which contains the Candidate and isMoveEligible
 /// and isCopyElidable methods. If Candidate is non-null, it means
@@ -3385,7 +3385,7 @@ Sema::NamedReturnInfo Sema::getNamedReturnInfo(Expr *&E,
   if (Res.Candidate && !E->isXValue() &&
       (Mode == SimplerImplicitMoveMode::ForceOn ||
        (Mode != SimplerImplicitMoveMode::ForceOff &&
-        getLangOpts().CPlusPlus2b))) {
+        getLangOpts().CPlusPlus23))) {
     E = ImplicitCastExpr::Create(Context, VD->getType().getNonReferenceType(),
                                  CK_NoOp, E, nullptr, VK_XValue,
                                  FPOptionsOverride());
@@ -3529,7 +3529,7 @@ ExprResult Sema::PerformMoveOrCopyInitialization(
     const InitializedEntity &Entity, const NamedReturnInfo &NRInfo, Expr *Value,
     bool SupressSimplerImplicitMoves) {
   if (getLangOpts().CPlusPlus &&
-      (!getLangOpts().CPlusPlus2b || SupressSimplerImplicitMoves) &&
+      (!getLangOpts().CPlusPlus23 || SupressSimplerImplicitMoves) &&
       NRInfo.isMoveEligible()) {
     ImplicitCastExpr AsRvalue(ImplicitCastExpr::OnStack, Value->getType(),
                               CK_NoOp, Value, VK_XValue, FPOptionsOverride());
@@ -3902,7 +3902,7 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
 
 static bool CheckSimplerImplicitMovesMSVCWorkaround(const Sema &S,
                                                     const Expr *E) {
-  if (!E || !S.getLangOpts().CPlusPlus2b || !S.getLangOpts().MSVCCompat)
+  if (!E || !S.getLangOpts().CPlusPlus23 || !S.getLangOpts().MSVCCompat)
     return false;
   const Decl *D = E->getReferencedDeclOfCallee();
   if (!D || !S.SourceMgr.isInSystemHeader(D->getLocation()))
@@ -4351,9 +4351,9 @@ public:
     if (QT->isPointerType())
       IsPointer = true;
 
+    QT = QT.getUnqualifiedType();
     if (IsPointer || QT->isReferenceType())
       QT = QT->getPointeeType();
-    QT = QT.getUnqualifiedType();
   }
 
   /// Used when creating a CatchHandlerType from a base class type; pretends the
@@ -4401,32 +4401,42 @@ template <> struct DenseMapInfo<CatchHandlerType> {
 
 namespace {
 class CatchTypePublicBases {
-  ASTContext &Ctx;
-  const llvm::DenseMap<CatchHandlerType, CXXCatchStmt *> &TypesToCheck;
-  const bool CheckAgainstPointer;
+  const llvm::DenseMap<QualType, CXXCatchStmt *> &TypesToCheck;
 
   CXXCatchStmt *FoundHandler;
-  CanQualType FoundHandlerType;
+  QualType FoundHandlerType;
+  QualType TestAgainstType;
 
 public:
-  CatchTypePublicBases(
-      ASTContext &Ctx,
-      const llvm::DenseMap<CatchHandlerType, CXXCatchStmt *> &T, bool C)
-      : Ctx(Ctx), TypesToCheck(T), CheckAgainstPointer(C),
-        FoundHandler(nullptr) {}
+  CatchTypePublicBases(const llvm::DenseMap<QualType, CXXCatchStmt *> &T,
+                       QualType QT)
+      : TypesToCheck(T), FoundHandler(nullptr), TestAgainstType(QT) {}
 
   CXXCatchStmt *getFoundHandler() const { return FoundHandler; }
-  CanQualType getFoundHandlerType() const { return FoundHandlerType; }
+  QualType getFoundHandlerType() const { return FoundHandlerType; }
 
   bool operator()(const CXXBaseSpecifier *S, CXXBasePath &) {
     if (S->getAccessSpecifier() == AccessSpecifier::AS_public) {
-      CatchHandlerType Check(S->getType(), CheckAgainstPointer);
+      QualType Check = S->getType().getCanonicalType();
       const auto &M = TypesToCheck;
       auto I = M.find(Check);
       if (I != M.end()) {
-        FoundHandler = I->second;
-        FoundHandlerType = Ctx.getCanonicalType(S->getType());
-        return true;
+        // We're pretty sure we found what we need to find. However, we still
+        // need to make sure that we properly compare for pointers and
+        // references, to handle cases like:
+        //
+        // } catch (Base *b) {
+        // } catch (Derived &d) {
+        // }
+        //
+        // where there is a qualification mismatch that disqualifies this
+        // handler as a potential problem.
+        if (I->second->getCaughtType()->isPointerType() ==
+                TestAgainstType->isPointerType()) {
+          FoundHandler = I->second;
+          FoundHandlerType = Check;
+          return true;
+        }
       }
     }
     return false;
@@ -4470,6 +4480,7 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
   assert(!Handlers.empty() &&
          "The parser shouldn't call this if there are no handlers.");
 
+  llvm::DenseMap<QualType, CXXCatchStmt *> HandledBaseTypes;
   llvm::DenseMap<CatchHandlerType, CXXCatchStmt *> HandledTypes;
   for (unsigned i = 0; i < NumHandlers; ++i) {
     CXXCatchStmt *H = cast<CXXCatchStmt>(Handlers[i]);
@@ -4487,8 +4498,7 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
     // Walk the type hierarchy to diagnose when this type has already been
     // handled (duplication), or cannot be handled (derivation inversion). We
     // ignore top-level cv-qualifiers, per [except.handle]p3
-    CatchHandlerType HandlerCHT =
-        (QualType)Context.getCanonicalType(H->getCaughtType());
+    CatchHandlerType HandlerCHT = H->getCaughtType().getCanonicalType();
 
     // We can ignore whether the type is a reference or a pointer; we need the
     // underlying declaration type in order to get at the underlying record
@@ -4504,10 +4514,12 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
       // as the original type.
       CXXBasePaths Paths;
       Paths.setOrigin(RD);
-      CatchTypePublicBases CTPB(Context, HandledTypes, HandlerCHT.isPointer());
+      CatchTypePublicBases CTPB(HandledBaseTypes,
+                                H->getCaughtType().getCanonicalType());
       if (RD->lookupInBases(CTPB, Paths)) {
         const CXXCatchStmt *Problem = CTPB.getFoundHandler();
-        if (!Paths.isAmbiguous(CTPB.getFoundHandlerType())) {
+        if (!Paths.isAmbiguous(
+                CanQualType::CreateUnsafe(CTPB.getFoundHandlerType()))) {
           Diag(H->getExceptionDecl()->getTypeSpecStartLoc(),
                diag::warn_exception_caught_by_earlier_handler)
               << H->getCaughtType();
@@ -4516,11 +4528,16 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
               << Problem->getCaughtType();
         }
       }
+      // Strip the qualifiers here because we're going to be comparing this
+      // type to the base type specifiers of a class, which are ignored in a
+      // base specifier per [class.derived.general]p2.
+      HandledBaseTypes[Underlying.getUnqualifiedType()] = H;
     }
 
     // Add the type the list of ones we have handled; diagnose if we've already
     // handled it.
-    auto R = HandledTypes.insert(std::make_pair(H->getCaughtType(), H));
+    auto R = HandledTypes.insert(
+        std::make_pair(H->getCaughtType().getCanonicalType(), H));
     if (!R.second) {
       const CXXCatchStmt *Problem = R.first->second;
       Diag(H->getExceptionDecl()->getTypeSpecStartLoc(),
@@ -4534,7 +4551,8 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
 
   FSI->setHasCXXTry(TryLoc);
 
-  return CXXTryStmt::Create(Context, TryLoc, TryBlock, Handlers);
+  return CXXTryStmt::Create(Context, TryLoc, cast<CompoundStmt>(TryBlock),
+                            Handlers);
 }
 
 StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,

@@ -145,8 +145,13 @@ AllocatorCache *GetAllocatorCache(MsanThreadLocalMallocStorage *ms) {
   return reinterpret_cast<AllocatorCache *>(ms->allocator_cache);
 }
 
+void MsanThreadLocalMallocStorage::Init() {
+  allocator.InitCache(GetAllocatorCache(this));
+}
+
 void MsanThreadLocalMallocStorage::CommitBack() {
   allocator.SwallowCache(GetAllocatorCache(this));
+  allocator.DestroyCache(GetAllocatorCache(this));
 }
 
 static void *MsanAllocate(StackTrace *stack, uptr size, uptr alignment,
@@ -258,6 +263,21 @@ static void *MsanCalloc(StackTrace *stack, uptr nmemb, uptr size) {
     ReportCallocOverflow(nmemb, size, stack);
   }
   return MsanAllocate(stack, nmemb * size, sizeof(u64), true);
+}
+
+static const void *AllocationBegin(const void *p) {
+  if (!p)
+    return nullptr;
+  void *beg = allocator.GetBlockBegin(p);
+  if (!beg)
+    return nullptr;
+  Metadata *b = (Metadata *)allocator.GetMetaData(beg);
+  if (!b)
+    return nullptr;
+  if (b->requested_size == 0)
+    return nullptr;
+
+  return (const void *)beg;
 }
 
 static uptr AllocationSize(const void *p) {
@@ -373,4 +393,10 @@ uptr __sanitizer_get_estimated_allocated_size(uptr size) { return size; }
 
 int __sanitizer_get_ownership(const void *p) { return AllocationSize(p) != 0; }
 
+const void *__sanitizer_get_allocated_begin(const void *p) {
+  return AllocationBegin(p);
+}
+
 uptr __sanitizer_get_allocated_size(const void *p) { return AllocationSize(p); }
+
+void __sanitizer_purge_allocator() { allocator.ForceReleaseToOS(); }

@@ -167,7 +167,7 @@ struct Fragment {
     /// etc). Valid values are:
     /// - A single path to a directory (absolute, or relative to the fragment)
     /// - Ancestors: search all parent directories (the default)
-    /// - None: do not use a compilation database, just default flags.
+    /// - std::nullopt: do not use a compilation database, just default flags.
     std::optional<Located<std::string>> CompilationDatabase;
   };
   CompileFlagsBlock CompileFlags;
@@ -221,7 +221,7 @@ struct Fragment {
     /// This often has other advantages, such as skipping some analysis.
     std::vector<Located<std::string>> Suppress;
 
-    /// Controls how clangd will correct "unnecessary #include directives.
+    /// Controls how clangd will correct "unnecessary" #include directives.
     /// clangd can warn if a header is `#include`d but not used, and suggest
     /// removing it.
     //
@@ -232,8 +232,25 @@ struct Fragment {
     ///
     /// Valid values are:
     /// - Strict
-    /// - None
+    /// - std::nullopt
     std::optional<Located<std::string>> UnusedIncludes;
+
+
+    /// Enable emitting diagnostics using stale preambles.
+    std::optional<Located<bool>> AllowStalePreamble;
+
+    /// Controls if clangd should analyze missing #include directives.
+    /// clangd will warn if no header providing a symbol is `#include`d
+    /// (missing) directly, and suggest adding it.
+    ///
+    /// Strict means a header providing a symbol is missing if it is not
+    /// *directly #include'd. The file might still compile if the header is
+    /// included transitively.
+    ///
+    /// Valid values are:
+    /// - Strict
+    /// - std::nullopt
+    std::optional<Located<std::string>> MissingIncludes;
 
     /// Controls IncludeCleaner diagnostics.
     struct IncludesBlock {
@@ -305,6 +322,8 @@ struct Fragment {
     std::optional<Located<bool>> DeducedTypes;
     /// Show designators in aggregate initialization.
     std::optional<Located<bool>> Designators;
+    /// Limit the length of type name hints. (0 means no limit)
+    std::optional<Located<uint32_t>> TypeNameLimit;
   };
   InlayHintsBlock InlayHints;
 };

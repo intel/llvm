@@ -258,7 +258,7 @@ def fir_FreeMemOp : fir_Op<"freemem", [MemoryEffects<[MemFree]>]> {
   let assemblyFormat = "$heapref attr-dict `:` qualified(type($heapref))";
 }
 
-def fir_LoadOp : fir_OneResultOp<"load", [MemoryEffects<[MemRead]>]> {
+def fir_LoadOp : fir_OneResultOp<"load", []> {
   let summary = "load a value from a memory reference";
   let description = [{
     Load a value from a memory reference into an ssa-value (virtual register).
@@ -285,7 +285,7 @@ def fir_LoadOp : fir_OneResultOp<"load", [MemoryEffects<[MemRead]>]> {
   }];
 }
 
-def fir_StoreOp : fir_Op<"store", [MemoryEffects<[MemWrite]>]> {
+def fir_StoreOp : fir_Op<"store", []> {
   let summary = "store an SSA-value to a memory location";
 
   let description = [{
@@ -693,7 +693,7 @@ def fir_UnreachableOp : fir_Op<"unreachable", [Terminator]> {
 
 }
 
-def fir_FirEndOp : fir_Op<"end", [Terminator]> {
+def fir_FirEndOp : fir_Op<"end", [Terminator, NoMemoryEffect]> {
   let summary = "the end instruction";
 
   let description = [{
@@ -979,6 +979,8 @@ def fir_BoxAddrOp : fir_SimpleOneResultOp<"box_addr", [NoMemoryEffect]> {
   let results = (outs AnyCodeOrDataRefLike);
 
   let hasFolder = 1;
+
+  let builders = [OpBuilder<(ins "mlir::Value":$val)>];
 }
 
 def fir_BoxCharLenOp : fir_SimpleOp<"boxchar_len", [NoMemoryEffect]> {
@@ -2144,7 +2146,9 @@ def fir_DoLoopOp : region_Op<"do_loop",
   }];
 }
 
-def fir_IfOp : region_Op<"if", [NoRegionArguments]> {
+def fir_IfOp : region_Op<"if", [DeclareOpInterfaceMethods<RegionBranchOpInterface, [
+    "getRegionInvocationBounds"]>, RecursiveMemoryEffects,
+    NoRegionArguments]> {
   let summary = "if-then-else conditional operation";
   let description = [{
     Used to conditionally execute operations. This operation is the FIR
@@ -2166,7 +2170,7 @@ def fir_IfOp : region_Op<"if", [NoRegionArguments]> {
 
   let regions = (region
     SizedRegion<1>:$thenRegion,
-    AnyRegion:$elseRegion
+    MaxSizedRegion<1>:$elseRegion
   );
 
   let skipDefaultBuilders = 1;
@@ -2352,6 +2356,14 @@ def fir_CallOp : fir_Op<"call",
           (*this)->getAttrOfType<mlir::SymbolRefAttr>(getCalleeAttrName()))
         return calling;
       return getOperand(0);
+    }
+
+    /// Set the callee for this operation.
+    void setCalleeFromCallable(mlir::CallInterfaceCallable callee) {
+      if (auto calling =
+          (*this)->getAttrOfType<mlir::SymbolRefAttr>(getCalleeAttrName()))
+        (*this)->setAttr(getCalleeAttrName(), callee.get<mlir::SymbolRefAttr>());
+      setOperand(0, callee.get<mlir::Value>());
     }
   }];
 }
@@ -2597,6 +2609,7 @@ def fir_ConvertOp : fir_OneResultOp<"convert", [NoMemoryEffect]> {
     static bool isIntegerCompatible(mlir::Type ty);
     static bool isFloatCompatible(mlir::Type ty);
     static bool isPointerCompatible(mlir::Type ty);
+    static bool canBeConverted(mlir::Type inType, mlir::Type outType);
   }];
   let hasCanonicalizer = 1;
 }
@@ -2611,16 +2624,15 @@ def FortranTypeAttr : Attr<And<[CPred<"$_self.isa<mlir::TypeAttr>()">,
   let convertFromStorage = "$_self.getValue().cast<mlir::Type>()";
 }
 
-def fir_GenTypeDescOp : fir_OneResultOp<"gentypedesc", [NoMemoryEffect]> {
-  let summary = "generate a type descriptor for a given type";
+def fir_TypeDescOp : fir_OneResultOp<"type_desc", [NoMemoryEffect]> {
+  let summary = "get type descriptor for a given type";
   let description = [{
     Generates a constant object that is an abstract type descriptor of the
     specified type.  The meta-type of a type descriptor for the type `T`
     is `!fir.tdesc<T>`.
 
     ```mlir
-      !T = !fir.type<T{...}>
-      %t = fir.gentypedesc !T  // returns value of !fir.tdesc<!T>
+      %t = fir.type_desc !fir.type<> // returns value of !fir.tdesc<!T>
     ```
   }];
 

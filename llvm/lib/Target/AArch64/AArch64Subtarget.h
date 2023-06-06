@@ -41,6 +41,7 @@ public:
     Others,
     A64FX,
     Ampere1,
+    Ampere1A,
     AppleA7,
     AppleA10,
     AppleA11,
@@ -107,8 +108,8 @@ protected:
   uint16_t PrefetchDistance = 0;
   uint16_t MinPrefetchStride = 1;
   unsigned MaxPrefetchIterationsAhead = UINT_MAX;
-  unsigned PrefFunctionLogAlignment = 0;
-  unsigned PrefLoopLogAlignment = 0;
+  Align PrefFunctionAlignment;
+  Align PrefLoopAlignment;
   unsigned MaxBytesForLoopAlignment = 0;
   unsigned MaxJumpTableSize = 0;
 
@@ -127,6 +128,7 @@ protected:
   unsigned MinSVEVectorSizeInBits;
   unsigned MaxSVEVectorSizeInBits;
   unsigned VScaleForTuning = 2;
+  TailFoldingOpts DefaultSVETFOpts = TailFoldingOpts::Disabled;
 
   /// TargetTriple - What processor and OS we're targeting.
   Triple TargetTriple;
@@ -240,10 +242,10 @@ public:
   unsigned getMaxPrefetchIterationsAhead() const override {
     return MaxPrefetchIterationsAhead;
   }
-  unsigned getPrefFunctionLogAlignment() const {
-    return PrefFunctionLogAlignment;
+  Align getPrefFunctionAlignment() const {
+    return PrefFunctionAlignment;
   }
-  unsigned getPrefLoopLogAlignment() const { return PrefLoopLogAlignment; }
+  Align getPrefLoopAlignment() const { return PrefLoopAlignment; }
 
   unsigned getMaxBytesForLoopAlignment() const {
     return MaxBytesForLoopAlignment;
@@ -385,9 +387,20 @@ public:
     return hasSVE() && getMinSVEVectorSizeInBits() >= 256;
   }
 
+  bool useSVEForFixedLengthVectors(EVT VT) const {
+    if (!useSVEForFixedLengthVectors() || !VT.isFixedLengthVector())
+      return false;
+    return VT.getFixedSizeInBits() > AArch64::SVEBitsPerBlock ||
+           forceStreamingCompatibleSVE();
+  }
+
   bool forceStreamingCompatibleSVE() const;
 
   unsigned getVScaleForTuning() const { return VScaleForTuning; }
+
+  TailFoldingOpts getSVETailFoldingDefaultOpts() const {
+    return DefaultSVETFOpts;
+  }
 
   const char* getChkStkName() const {
     if (isWindowsArm64EC())

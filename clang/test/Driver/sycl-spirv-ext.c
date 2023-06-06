@@ -46,6 +46,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_buffer_location
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_argument_interfaces
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
@@ -77,7 +78,6 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_usm_storage_classes
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_runtime_aligned
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_dsp_control
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_accesses
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_attributes"

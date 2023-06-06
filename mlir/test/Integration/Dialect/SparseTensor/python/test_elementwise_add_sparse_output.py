@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_lib_dir/libmlir_c_runner_utils%shlibext %PYTHON %s | FileCheck %s
+# RUN: env SUPPORT_LIB=%mlir_c_runner_utils %PYTHON %s | FileCheck %s
 
 import ctypes
 import numpy as np
@@ -20,7 +20,7 @@ from tools import sparse_compiler
 # handle sparse tensor outputs.
 _KERNEL_STR = """
 #DCSR = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ]
+  lvlTypes = [ "compressed", "compressed" ]
 }>
 
 #trait_add_elt = {

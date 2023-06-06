@@ -57,7 +57,9 @@ static bool compatibleRanges(const NDRange &LHS, const NDRange &RHS) {
   };
   return (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
           EqualIndices(LHS.getLocalSize(), RHS.getLocalSize())) &&
-         EqualIndices(LHS.getOffset(), RHS.getOffset());
+         EqualIndices(LHS.getOffset(), RHS.getOffset()) &&
+         (!requireIDRemapping(LHS, RHS) ||
+          LHS.getOffset() == NDRange::AllZeros);
 }
 
 NDRange jit_compiler::combineNDRanges(ArrayRef<NDRange> NDRanges) {
@@ -96,4 +98,13 @@ bool jit_compiler::isValidCombination(llvm::ArrayRef<NDRange> NDRanges) {
   return llvm::all_of(NDRanges, [&ND](const auto &Other) {
     return compatibleRanges(ND, Other);
   });
+}
+
+bool jit_compiler::requireIDRemapping(const NDRange &LHS, const NDRange &RHS) {
+  // No need to remap when all but the dimensions and the left-most components
+  // of the global size range are equal.
+  const auto &GS0 = LHS.getGlobalSize();
+  const auto &GS1 = RHS.getGlobalSize();
+  return LHS.getDimensions() != RHS.getDimensions() ||
+         !std::equal(GS0.begin() + 1, GS0.end(), GS1.begin() + 1);
 }

@@ -31,7 +31,7 @@ __ESIMD_INTRIN void __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag)
 __ESIMD_INTRIN void __esimd_wait(uint16_t value);
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw sends load.
+// \brief Raw sends.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -80,7 +80,7 @@ __esimd_raw_sends2(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw send load.
+// \brief Raw send.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -121,7 +121,7 @@ __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw sends store.
+// \brief Raw sends.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -161,7 +161,7 @@ __esimd_raw_sends2_noresult(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// \brief Raw send store.
+// \brief Raw send.
 //
 // @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
 //
@@ -341,16 +341,17 @@ constexpr unsigned loadstoreAlignMask() {
 template <typename Ty, uint16_t AddressScale, int ImmOffset,
           __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
-auto __esimd_emu_lsc_offset_read(
+auto __esimd_emu_lsc_offset_read_merge(
     __ESIMD_DNS::simd_mask_storage_t<N> Pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, char *ReadBase,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> OldValues,
     int BufByteWidth = INT_MAX) {
   // TODO : Support AddressScale, ImmOffset
   static_assert(AddressScale == 1);
   static_assert(ImmOffset == 0);
   static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
 
-  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+  auto Output = OldValues;
 
   constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
 
@@ -372,6 +373,10 @@ auto __esimd_emu_lsc_offset_read(
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
         Output[VecIdx] = *((Ty *)(ReadBase + ByteDistance));
+        if constexpr (DS == __ESIMD_ENS::lsc_data_size::u8u32)
+          Output[VecIdx] &= 0xff;
+        else if constexpr (DS == __ESIMD_ENS::lsc_data_size::u16u32)
+          Output[VecIdx] &= 0xffff;
       }
     }
   }
@@ -752,12 +757,8 @@ auto __esimd_emu_lsc_xatomic_offset_access_2(
              VecIdx += vectorIndexIncrement<N, _Transposed>()) {
 
       if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
-        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
-          Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
-              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
-        } else if constexpr (Op ==
-                             __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-          static_assert(__ESIMD_DNS::is_fp_type<Ty>::value);
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg ||
+                      Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
           Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
               (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
         }
@@ -788,7 +789,36 @@ auto __esimd_emu_lsc_xatomic_offset_access_2(
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
+/// @param OldValues contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
 /// @return is a vector of type T and size N * to_int<VS>()
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_load_merge_slm(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> OldValues =
+        0)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_offset_read_merge<Ty, AddressScale, ImmOffset, DS, VS,
+                                           _Transposed, N,
+                                           loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, I->__cm_emu_get_slm_ptr(), OldValues);
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+/// Similar to __esimd_lsc_load_merge_slm(), but the argument OldValues is not
+/// explicitly specified, which results into random values in those elements of
+/// the returned result for which the corresponding element in \p pred is 0.
 template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
@@ -800,13 +830,8 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
-                                     _Transposed, N,
-                                     loadstoreAlignMask<Ty, VS, DS, N>()>(
-      pred, offsets, I->__cm_emu_get_slm_ptr());
+  return __esimd_lsc_load_merge_slm<Ty, L1H, L3H, AddressScale, ImmOffset, DS,
+                                    VS, _Transposed, N>(pred, offsets);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -829,6 +854,8 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param surf_ind is the surface index.
+/// @param OldValues contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
 /// @return is a vector of type T and N * to_int<VS>()
 template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
@@ -836,9 +863,11 @@ template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N,
           typename SurfIndAliasTy>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-                     SurfIndAliasTy surf_ind)
+__esimd_lsc_load_merge_bti(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> OldValues =
+        0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
@@ -854,10 +883,32 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
   std::lock_guard<std::mutex> lock(*mutexLock);
 
-  return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
-                                     _Transposed, N,
-                                     loadstoreAlignMask<Ty, VS, DS, N>()>(
-      pred, offsets, readBase, width);
+  return __esimd_emu_lsc_offset_read_merge<Ty, AddressScale, ImmOffset, DS, VS,
+                                           _Transposed, N,
+                                           loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, readBase, OldValues, width);
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+/// Similar to __esimd_lsc_load_merge_bti(), but the argument OldValues is not
+/// explicitly specified, which results into random values in those elements of
+/// the returned result for which the corresponding element in \p pred is 0.
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+                     SurfIndAliasTy surf_ind)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  return __esimd_lsc_load_merge_bti<Ty, L1H, L3H, AddressScale, ImmOffset, DS,
+                                    VS, _Transposed, N, SurfIndAliasTy>(
+      pred, offsets, surf_ind);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -889,7 +940,8 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_load_merge_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
-    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> old_values)
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> old_values =
+        0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
@@ -957,10 +1009,8 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> OldValues = 0;
   return __esimd_lsc_load_merge_stateless<Ty, L1H, L3H, AddressScale, ImmOffset,
-                                          DS, VS, _Transposed, N>(pred, addrs,
-                                                                  OldValues);
+                                          DS, VS, _Transposed, N>(pred, addrs);
 }
 #endif // __SYCL_DEVICE_ONLY__
 

@@ -37,15 +37,6 @@
 # define SANITIZER_WEAK_ATTRIBUTE  __attribute__((weak))
 #endif
 
-// TLS is handled differently on different platforms
-#if SANITIZER_LINUX || SANITIZER_NETBSD || \
-  SANITIZER_FREEBSD
-# define SANITIZER_TLS_INITIAL_EXEC_ATTRIBUTE \
-    __attribute__((tls_model("initial-exec"))) thread_local
-#else
-# define SANITIZER_TLS_INITIAL_EXEC_ATTRIBUTE
-#endif
-
 //--------------------------- WEAK FUNCTIONS ---------------------------------//
 // When working with weak functions, to simplify the code and make it more
 // portable, when possible define a default implementation using this macro:
@@ -226,7 +217,7 @@ typedef u64 tid_t;
 # define WARN_UNUSED_RESULT
 #else  // _MSC_VER
 # define ALWAYS_INLINE inline __attribute__((always_inline))
-# define ALIAS(x) __attribute__((alias(x)))
+# define ALIAS(x) __attribute__((alias(SANITIZER_STRINGIFY(x))))
 // Please only use the ALIGNED macro before the type.
 // Using ALIGNED after the variable declaration is not portable!
 # define ALIGNED(x) __attribute__((aligned(x)))

@@ -111,7 +111,7 @@ set(complex_obj_deps device_complex.h device.h sycl-compiler)
 set(cmath_obj_deps device_math.h device.h sycl-compiler)
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp device.h sycl-compiler)
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
-set(bfloat16_obj_deps sycl-compiler)
+set(bfloat16_obj_deps sycl-headers sycl-compiler)
 
 add_devicelib_obj(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib_obj(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
@@ -147,7 +147,8 @@ set(imf_fallback_fp32_deps device.h device_imf.hpp imf_half.hpp
                            imf_utils/float_convert.cpp
                            imf_utils/half_convert.cpp
                            imf_utils/simd_emulate.cpp
-                           imf/imf_inline_fp32.cpp)
+                           imf/imf_inline_fp32.cpp
+                           imf/imf_fp32_dl.cpp)
 set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp
                            imf_utils/double_convert.cpp
                            imf/imf_inline_fp64.cpp)

@@ -588,6 +588,18 @@ class DebugCommunication(object):
         # Caller must still call wait_for_stopped.
         return response
 
+    def request_restart(self, restartArguments=None):
+        command_dict = {
+            'command': 'restart',
+            'type': 'request',
+        }
+        if restartArguments:
+          command_dict['arguments'] = restartArguments
+
+        response = self.send_recv(command_dict)
+        # Caller must still call wait_for_stopped.
+        return response
+
     def request_disconnect(self, terminateDebuggee=None):
         args_dict = {}
         if terminateDebuggee is not None:
@@ -649,8 +661,7 @@ class DebugCommunication(object):
                        stopCommands=None, exitCommands=None,
                        terminateCommands=None ,sourcePath=None,
                        debuggerRoot=None, launchCommands=None, sourceMap=None,
-                       runInTerminal=False, expectFailure=False,
-                       postRunCommands=None):
+                       runInTerminal=False, postRunCommands=None):
         args_dict = {
             'program': program
         }
@@ -700,7 +711,7 @@ class DebugCommunication(object):
         }
         response = self.send_recv(command_dict)
 
-        if not expectFailure:
+        if response['success']:
             # Wait for a 'process' and 'initialized' event in any order
             self.wait_for_event(filter=['process', 'initialized'])
             self.wait_for_event(filter=['process', 'initialized'])

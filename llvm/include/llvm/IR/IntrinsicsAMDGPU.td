@@ -232,7 +232,7 @@ def int_amdgcn_wave_barrier : ClangBuiltin<"__builtin_amdgcn_wave_barrier">,
 //                         scheduled across SCHED_BARRIER, i.e. allow ALU instructions to pass.
 //     MASK = 0x0000 0002: VALU instructions may be scheduled across SCHED_BARRIER.
 //     MASK = 0x0000 0004: SALU instructions may be scheduled across SCHED_BARRIER.
-//     MASK = 0x0000 0008: MFMA instructions may be scheduled across SCHED_BARRIER.
+//     MASK = 0x0000 0008: MFMA/WMMA instructions may be scheduled across SCHED_BARRIER.
 //     MASK = 0x0000 0010: ALL VMEM instructions may be scheduled across SCHED_BARRIER.
 //     MASK = 0x0000 0020: VMEM read instructions may be scheduled across SCHED_BARRIER.
 //     MASK = 0x0000 0040: VMEM write instructions may be scheduled across SCHED_BARRIER.
@@ -400,7 +400,7 @@ def int_amdgcn_class : DefaultAttrsIntrinsic<
   [IntrNoMem, IntrSpeculatable]
 >;
 
-def int_amdgcn_fmed3 : ClangBuiltin<"__builtin_amdgcn_fmed3">,
+def int_amdgcn_fmed3 :
   DefaultAttrsIntrinsic<[llvm_anyfloat_ty],
     [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
     [IntrNoMem, IntrSpeculatable]
@@ -1570,12 +1570,12 @@ def int_amdgcn_live_mask : DefaultAttrsIntrinsic <[llvm_i1_ty],
 def int_amdgcn_mbcnt_lo :
   ClangBuiltin<"__builtin_amdgcn_mbcnt_lo">,
   DefaultAttrsIntrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty],
-   [IntrNoMem]>;
+   [IntrNoMem, IntrConvergent]>;
 
 def int_amdgcn_mbcnt_hi :
   ClangBuiltin<"__builtin_amdgcn_mbcnt_hi">,
   DefaultAttrsIntrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty],
-            [IntrNoMem]>;
+            [IntrNoMem, IntrConvergent]>;
 
 // llvm.amdgcn.ds.swizzle src offset
 def int_amdgcn_ds_swizzle :
@@ -1660,6 +1660,10 @@ def int_amdgcn_fcmp :
 
 def int_amdgcn_ballot :
   Intrinsic<[llvm_anyint_ty], [llvm_i1_ty],
+            [IntrNoMem, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+def int_amdgcn_inverse_ballot :
+  Intrinsic<[llvm_i1_ty], [llvm_anyint_ty],
             [IntrNoMem, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
 
 def int_amdgcn_readfirstlane :
@@ -1996,12 +2000,14 @@ def int_amdgcn_permlane64 :
 def int_amdgcn_ds_add_gs_reg_rtn :
   ClangBuiltin<"__builtin_amdgcn_ds_add_gs_reg_rtn">,
   Intrinsic<[llvm_anyint_ty], [llvm_i32_ty, llvm_i32_ty],
-            [ImmArg<ArgIndex<1>>, IntrHasSideEffects, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+            [ImmArg<ArgIndex<1>>, IntrHasSideEffects, IntrWillReturn, IntrNoCallback, IntrNoFree],
+            "", [SDNPMemOperand]>;
 
 def int_amdgcn_ds_sub_gs_reg_rtn :
   ClangBuiltin<"__builtin_amdgcn_ds_sub_gs_reg_rtn">,
   Intrinsic<[llvm_anyint_ty], [llvm_i32_ty, llvm_i32_ty],
-            [ImmArg<ArgIndex<1>>, IntrHasSideEffects, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+            [ImmArg<ArgIndex<1>>, IntrHasSideEffects, IntrWillReturn, IntrNoCallback, IntrNoFree],
+            "", [SDNPMemOperand]>;
 
 def int_amdgcn_ds_bvh_stack_rtn :
   Intrinsic<

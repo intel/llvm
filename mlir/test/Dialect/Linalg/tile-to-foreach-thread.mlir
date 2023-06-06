@@ -13,16 +13,14 @@ module {
 //  CHECK-SAME:   %[[B:[0-9a-z]+]]: tensor<?x?xf32>
 //  CHECK-SAME:   %[[C:[0-9a-z]+]]: tensor<?x?xf32>
   func.func @matmul(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C: tensor<?x?xf32>) -> tensor<?x?xf32> {
-  //  CHECK-DAG: %[[C10:.*]] = arith.constant 10 : index
-  //  CHECK-DAG: %[[C20:.*]] = arith.constant 20 : index
-  //      CHECK: scf.foreach_thread ({{.*}}) in (%[[C10]], %[[C20]]) shared_outs(%[[C_BLK:.*]] = %[[C]]) -> (tensor<?x?xf32>) {
+  //      CHECK: scf.forall ({{.*}}) in (10, 20) shared_outs(%[[C_BLK:.*]] = %[[C]]) -> (tensor<?x?xf32>) {
   //      CHECK:   %[[tA:.*]] = tensor.extract_slice %[[A]]{{.*}} : tensor<?x?xf32> to tensor<?x?xf32>
   //      CHECK:   %[[tB:.*]] = tensor.extract_slice %[[B]]{{.*}} : tensor<?x?xf32> to tensor<?x?xf32>
   //      CHECK:   %[[tC:.*]] = tensor.extract_slice %[[C_BLK]]{{.*}} : tensor<?x?xf32> to tensor<?x?xf32>
   //      CHECK:   %[[RES:.*]] = linalg.matmul
   // CHECK-SAME:      ins(%[[tA]], %[[tB]] : tensor<?x?xf32>, tensor<?x?xf32>)
   // CHECK-SAME:     outs(%[[tC]] : tensor<?x?xf32>) -> tensor<?x?xf32>
-  //      CHECK:   scf.foreach_thread.perform_concurrently {
+  //      CHECK:   scf.forall.in_parallel {
   // CHECK-NEXT:     tensor.parallel_insert_slice %[[RES]] into %[[C_BLK]]{{.*}} :
   // CHECK-SAME:       tensor<?x?xf32> into tensor<?x?xf32>
   // CHECK-NEXT:   }
@@ -33,9 +31,10 @@ module {
   }
 
   transform.sequence failures(propagate) {
-  ^bb1(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-    %1:2 = transform.structured.tile_to_foreach_thread_op %0 num_threads [10, 20] (mapping = [ #gpu.thread<y>, #gpu.thread<x> ] )
+  ^bb1(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:2 = transform.structured.tile_to_forall_op %0 num_threads [10, 20] (mapping = [ #gpu.thread<y>, #gpu.thread<x> ] )
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
   }
 }
 
@@ -60,12 +59,12 @@ func.func @matmul_tile_size_dynamic_dynamic(%A: tensor<?x?xf32>, %B: tensor<?x?x
   //  CHECK-DAG: %[[N:.+]] = tensor.dim %[[B]], %c1 :
   //  CHECK-DAG: %[[NT0:.+]] = affine.apply #[[$map0]]()[%[[M]], %[[tile_size_1]]]
   //  CHECK-DAG: %[[NT1:.+]] = affine.apply #[[$map0]]()[%[[N]], %[[tile_size_2]]]
-  //      CHECK: scf.foreach_thread (%[[IV0:.+]], %[[IV1:.+]]) in (%[[NT0]], %[[NT1]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
+  //      CHECK: scf.forall (%[[IV0:.+]], %[[IV1:.+]]) in (%[[NT0]], %[[NT1]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
   //      CHECK:   tensor.extract_slice %[[A]]
   //      CHECK:   tensor.extract_slice %[[B]]
   //      CHECK:   tensor.extract_slice %[[C_BLK]]
   //      CHECK:   linalg.matmul
-  //      CHECK:   scf.foreach_thread.perform_concurrently
+  //      CHECK:   scf.forall.in_parallel
   // CHECK-NEXT:    tensor.parallel_insert_slice
   %tile_size_1 = "test.dummy"() : () -> (index)
   %tile_size_2 = "test.dummy"() : () -> (index)
@@ -75,10 +74,11 @@ func.func @matmul_tile_size_dynamic_dynamic(%A: tensor<?x?xf32>, %B: tensor<?x?x
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-  %sz = transform.structured.match ops{["test.dummy"]} in %arg1
-  %1:2 = transform.structured.tile_to_foreach_thread_op %0 tile_sizes %sz
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  %sz = transform.structured.match ops{["test.dummy"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  %1:2 = transform.structured.tile_to_forall_op %0 tile_sizes *(%sz : !transform.any_op)
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -95,9 +95,7 @@ transform.sequence failures(propagate) {
 //  CHECK-SAME:   %[[B:[0-9a-z]+]]: tensor
 //  CHECK-SAME:   %[[C:[0-9a-z]+]]: tensor
 func.func @matmul_static(%A: tensor<100x200xf32>, %B: tensor<200x300xf32>, %C: tensor<100x300xf32>) -> tensor<100x300xf32> {
-  //  CHECK-DAG: %[[c10:.+]] = arith.constant 10 : index
-  //  CHECK-DAG: %[[c21:.+]] = arith.constant 21 : index
-  //      CHECK: scf.foreach_thread (%[[IV0:.+]], %[[IV1:.+]]) in (%[[c10]], %[[c21]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
+  //      CHECK: scf.forall (%[[IV0:.+]], %[[IV1:.+]]) in (10, 21) shared_outs(%[[C_BLK:.*]] = %[[C]])
   //      CHECK:   %[[TSMIN:.+]] = affine.min #[[$map0]](%[[IV1]])
   //      CHECK:   %[[TS:.+]] = affine.max #[[$map1]](%[[TSMIN]])
   //  CHECK-NOT:   affine.min
@@ -108,7 +106,7 @@ func.func @matmul_static(%A: tensor<100x200xf32>, %B: tensor<200x300xf32>, %C: t
   //      CHECK:   %[[tB:.+]] = tensor.extract_slice %[[B]][0, %[[LB1]]] [200, %[[TS]]] [1, 1] :
   //      CHECK:   %[[tC:.+]] = tensor.extract_slice %[[C_BLK]][%[[LB0]], %[[LB1]]] [10, %[[TS]]] [1, 1] :
   //      CHECK:   linalg.matmul
-  //      CHECK:   scf.foreach_thread.perform_concurrently
+  //      CHECK:   scf.forall.in_parallel
   // CHECK-NEXT:    tensor.parallel_insert_slice
   %0 = linalg.matmul ins(%A, %B : tensor<100x200xf32>, tensor<200x300xf32>)
                     outs(%C : tensor<100x300xf32>) -> (tensor<100x300xf32>)
@@ -116,9 +114,10 @@ func.func @matmul_static(%A: tensor<100x200xf32>, %B: tensor<200x300xf32>, %C: t
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-  %1:2 = transform.structured.tile_to_foreach_thread_op %0 num_threads [10, 21]
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  %1:2 = transform.structured.tile_to_forall_op %0 num_threads [10, 21]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 
@@ -140,7 +139,7 @@ func.func @matmul_tile_size_dynamic(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C
   //      CHECK: %[[N:.+]] = tensor.dim %[[B]], %c1 :
   //      CHECK: %[[NT0:.+]] = affine.apply #map()[%[[M]]]
   //      CHECK: %[[NT1:.+]] = affine.apply #map1()[%[[N]]]
-  //      CHECK: scf.foreach_thread (%[[IV0:.+]], %[[IV1:.+]]) in (%[[NT0]], %[[NT1]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
+  //      CHECK: scf.forall (%[[IV0:.+]], %[[IV1:.+]]) in (%[[NT0]], %[[NT1]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
   //      CHECK:   %[[TS0:.+]] = affine.min #[[$map2]](%[[IV0]])[%[[M]]]
   //      CHECK:   %[[TS1:.+]] = affine.min #[[$map4]](%[[IV1]])[%[[N]]]
   //      CHECK:   %[[LB0:.+]] = affine.apply #[[$map5]](%[[IV0]])
@@ -149,7 +148,7 @@ func.func @matmul_tile_size_dynamic(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C
   //      CHECK:   tensor.extract_slice %[[B]]
   //      CHECK:   tensor.extract_slice %[[C_BLK]]
   //      CHECK:   linalg.matmul
-  //      CHECK:   scf.foreach_thread.perform_concurrently
+  //      CHECK:   scf.forall.in_parallel
   // CHECK-NEXT:    tensor.parallel_insert_slice
   %0 = linalg.matmul ins(%A, %B : tensor<?x?xf32>, tensor<?x?xf32>)
                     outs(%C : tensor<?x?xf32>) -> (tensor<?x?xf32>)
@@ -157,9 +156,10 @@ func.func @matmul_tile_size_dynamic(%A: tensor<?x?xf32>, %B: tensor<?x?xf32>, %C
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-  %1:2 = transform.structured.tile_to_foreach_thread_op %0 tile_sizes [10, 20]
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  %1:2 = transform.structured.tile_to_forall_op %0 tile_sizes [10, 20]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -175,9 +175,7 @@ transform.sequence failures(propagate) {
 //  CHECK-SAME:   %[[B:[0-9a-z]+]]: tensor
 //  CHECK-SAME:   %[[C:[0-9a-z]+]]: tensor
 func.func @matmul_tile_size_static(%A: tensor<100x200xf32>, %B: tensor<200x300xf32>, %C: tensor<100x300xf32>) -> tensor<100x300xf32> {
-  //  CHECK-DAG: %[[c10:.+]] = arith.constant 10 :
-  //  CHECK-DAG: %[[c15:.+]] = arith.constant 15 :
-  //      CHECK: scf.foreach_thread (%[[IV0:.+]], %[[IV1:.+]]) in (%[[c10]], %[[c15]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
+  //      CHECK: scf.forall (%[[IV0:.+]], %[[IV1:.+]]) in (10, 15) shared_outs(%[[C_BLK:.*]] = %[[C]])
   //      CHECK:   %[[TS:.+]] = affine.min #[[$map0]](%[[IV1]])
   //  CHECK-NOT:   affine.max
   //  CHECK-NOT:   affine.min
@@ -187,7 +185,7 @@ func.func @matmul_tile_size_static(%A: tensor<100x200xf32>, %B: tensor<200x300xf
   //      CHECK:   %[[tB:.+]] = tensor.extract_slice %[[B]][0, %[[LB1]]] [200, %[[TS]]] [1, 1] :
   //      CHECK:   %[[tC:.+]] = tensor.extract_slice %[[C_BLK]][%[[LB0]], %[[LB1]]] [10, %[[TS]]] [1, 1] :
   //      CHECK:   linalg.matmul
-  //      CHECK:   scf.foreach_thread.perform_concurrently
+  //      CHECK:   scf.forall.in_parallel
   // CHECK-NEXT:    tensor.parallel_insert_slice
   %0 = linalg.matmul ins(%A, %B : tensor<100x200xf32>, tensor<200x300xf32>)
                     outs(%C : tensor<100x300xf32>) -> (tensor<100x300xf32>)
@@ -195,9 +193,10 @@ func.func @matmul_tile_size_static(%A: tensor<100x200xf32>, %B: tensor<200x300xf
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-  %1:2 = transform.structured.tile_to_foreach_thread_op %0 tile_sizes [10, 21]
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  %1:2 = transform.structured.tile_to_forall_op %0 tile_sizes [10, 21]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -217,18 +216,18 @@ module {
   }
 
   transform.sequence failures(propagate) {
-  ^bb1(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1
-    %1:2 = transform.structured.tile_to_foreach_thread_op %0 num_threads [2] ( mapping = [#gpu.thread<x>])
+  ^bb1(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %1:2 = transform.structured.tile_to_forall_op %0 num_threads [2] ( mapping = [#gpu.thread<x>])
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
   }
 }
 // CHECK-DAG: #[[$map0:.+]] = affine_map<(d0) -> (d0 * 2)>
 
 // CHECK-LABEL: extract_source(
-//       CHECK:  %[[C2:.*]] = arith.constant 2 : index
-//       CHECK:  scf.foreach_thread (%[[ARG:.*]]) in (%[[C2]]) shared_outs(%{{.*}} = %{{.*}}) -> (tensor<4xf32>) {
+//       CHECK:  scf.forall (%[[ARG:.*]]) in (2) shared_outs(%{{.*}} = %{{.*}}) -> (tensor<4xf32>) {
 //       CHECK:    %[[OFF:.*]] = affine.apply #[[$map0]](%[[ARG]])
-//       CHECK:    scf.foreach_thread.perform_concurrently {
+//       CHECK:    scf.forall.in_parallel {
 //       CHECK:      tensor.parallel_insert_slice %{{.*}} into %{{.*}}[%[[OFF]]] [2] [1] : tensor<2xf32> into tensor<4xf32>
 
 // -----
@@ -254,12 +253,12 @@ func.func @matmul_tile_size_dynamic_dynamic(%A: tensor<?x?xf32>, %B: tensor<?x?x
   //  CHECK-DAG: %[[N:.+]] = tensor.dim %[[B]], %c1 :
   //  CHECK-DAG: %[[NT0:.+]] = affine.apply #[[$map0]]()[%[[M]], %[[tile_size]]]
   //  CHECK-DAG: %[[NT1:.+]] = affine.apply #[[$map1]]()[%[[N]]]
-  //      CHECK: scf.foreach_thread (%[[IV0:.+]], %[[IV1:.+]]) in (%[[NT0]], %[[NT1]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
+  //      CHECK: scf.forall (%[[IV0:.+]], %[[IV1:.+]]) in (%[[NT0]], %[[NT1]]) shared_outs(%[[C_BLK:.*]] = %[[C]])
   //      CHECK:   tensor.extract_slice %[[A]]
   //      CHECK:   tensor.extract_slice %[[B]]
   //      CHECK:   tensor.extract_slice %[[C_BLK]]
   //      CHECK:   linalg.matmul
-  //      CHECK:   scf.foreach_thread.perform_concurrently
+  //      CHECK:   scf.forall.in_parallel
   // CHECK-NEXT:    tensor.parallel_insert_slice
   %tile_size = "test.dummy"() : () -> (index)
   %0 = linalg.matmul ins(%A, %B : tensor<?x?xf32>, tensor<?x?xf32>)
@@ -268,10 +267,11 @@ func.func @matmul_tile_size_dynamic_dynamic(%A: tensor<?x?xf32>, %B: tensor<?x?x
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1
-  %sz = transform.structured.match ops{["test.dummy"]} in %arg1
-  %1:2 = transform.structured.tile_to_foreach_thread_op %0 tile_sizes [%sz, 20]
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  %sz = transform.structured.match ops{["test.dummy"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  %1:2 = transform.structured.tile_to_forall_op %0 tile_sizes [%sz : !transform.any_op, 20]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 }
 
 // -----
@@ -289,8 +289,7 @@ transform.sequence failures(propagate) {
   func.func @tile_output_multi_1d_static(%IN1: tensor<100xf32>, %IN2: tensor<100xf32>,
                                          %OUT1: tensor<100xf32>, %OUT2: tensor<100xf32>)
                                          -> (tensor<100xf32>, tensor<100xf32>) {
-//  CHECK-DAG: %[[c0:.+]] = arith.constant 7 :
-//      CHECK: scf.foreach_thread (%[[IV0:.+]]) in (%[[c0]]) shared_outs(%[[OUT1:[0-9a-z]+]] = %[[ORGOUT1]], %[[OUT2:[0-9a-z]+]] = %[[ORGOUT2]])
+//      CHECK: scf.forall (%[[IV0:.+]]) in (7) shared_outs(%[[OUT1:[0-9a-z]+]] = %[[ORGOUT1]], %[[OUT2:[0-9a-z]+]] = %[[ORGOUT2]])
 //      CHECK:   %[[TSMIN:.+]] = affine.min #[[$map0]](%[[IV0]])
 //      CHECK:   %[[TS:.+]] = affine.max #[[$map1]](%[[TSMIN]])
 //  CHECK-NOT:   affine.min
@@ -301,7 +300,7 @@ transform.sequence failures(propagate) {
 //      CHECK:   %[[tOUT1:.+]] = tensor.extract_slice %[[OUT1]][%[[LB]]] [%[[TS]]] [1] :
 //      CHECK:   %[[tOUT2:.+]] = tensor.extract_slice %[[OUT2]][%[[LB]]] [%[[TS]]] [1] :
 //      CHECK:   %[[RES1:[0-9]+]]:[[RES2:[0-9]+]] = linalg.generic
-//      CHECK:   scf.foreach_thread.perform_concurrently
+//      CHECK:   scf.forall.in_parallel
 // CHECK-NEXT:    tensor.parallel_insert_slice %[[RES1]]#0 into %[[OUT1]][%[[LB]]] [%[[TS]]] [1] :
 // CHECK-NEXT:    tensor.parallel_insert_slice %[[RES1]]#1 into %[[OUT2]][%[[LB]]] [%[[TS]]] [1] :
     %res1, %res2 = linalg.generic
@@ -323,9 +322,10 @@ transform.sequence failures(propagate) {
   }
 
   transform.sequence failures(propagate) {
-  ^bb1(%arg1: !pdl.operation):
-    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1
-    %foreach_thread, %tiled_generic = transform.structured.tile_to_foreach_thread_op %0 num_threads [7]
+  ^bb1(%arg1: !transform.any_op):
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %forall, %tiled_generic = transform.structured.tile_to_forall_op %0 num_threads [7]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
   }
 
 // -----
@@ -345,15 +345,14 @@ transform.sequence failures(propagate) {
   func.func @tile_output_multi_1d2d_static(%IN1: tensor<100xf32>, %IN2: tensor<100x300xf32>, %IN3: tensor<300xf32>,
                      %OUT1: tensor<300x100xf32>, %OUT2: tensor<300xf32>)
                      -> (tensor<300x100xf32>, tensor<300xf32>) {
-//  CHECK-DAG: %[[c0:.+]] = arith.constant 4 :
-//      CHECK: scf.foreach_thread (%[[IV0:.+]]) in (%[[c0]]) shared_outs(%[[OUT1:[0-9a-z]+]] = %[[ORGOUT1]], %[[OUT2:[0-9a-z]+]] = %[[ORGOUT2]])
+//      CHECK: scf.forall (%[[IV0:.+]]) in (4) shared_outs(%[[OUT1:[0-9a-z]+]] = %[[ORGOUT1]], %[[OUT2:[0-9a-z]+]] = %[[ORGOUT2]])
 //      CHECK:   %[[LB:.+]] = affine.apply #[[$map0]](%[[IV0]])
 //      CHECK:   %[[tIN1:.+]] = tensor.extract_slice %[[IN2]][0, %[[LB]]] [100, 75]
 //      CHECK:   %[[tIN2:.+]] = tensor.extract_slice %[[IN3]][%[[LB]]] [75]
 //      CHECK:   %[[tOUT1:.+]] = tensor.extract_slice %[[OUT1]][%[[LB]], 0] [75, 100]
 //      CHECK:   %[[tOUT2:.+]] = tensor.extract_slice %[[OUT2]][%[[LB]]] [75]
 //      CHECK:   %[[RES1:[0-9]+]]:[[RES2:[0-9]+]] = linalg.generic
-//      CHECK:   scf.foreach_thread.perform_concurrently
+//      CHECK:   scf.forall.in_parallel
 // CHECK-NEXT:    tensor.parallel_insert_slice %[[RES1]]#0 into %[[OUT1]][%[[LB]], 0] [75, 100]
 // CHECK-NEXT:    tensor.parallel_insert_slice %[[RES1]]#1 into %[[OUT2]][%[[LB]]] [75]
     %res2, %res3 = linalg.generic {
@@ -377,8 +376,9 @@ transform.sequence failures(propagate) {
   }
 
   transform.sequence failures(propagate) {
-  ^bb1(%IN_MAT2: !pdl.operation):
-    %0 = transform.structured.match ops{["linalg.generic"]} in %IN_MAT2
-    %foreach_thread, %tiled_generic = transform.structured.tile_to_foreach_thread_op %0 num_threads [4]
+  ^bb1(%IN_MAT2: !transform.any_op):
+    %0 = transform.structured.match ops{["linalg.generic"]} in %IN_MAT2 : (!transform.any_op) -> !transform.any_op
+    %forall, %tiled_generic = transform.structured.tile_to_forall_op %0 num_threads [4]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
   }
 

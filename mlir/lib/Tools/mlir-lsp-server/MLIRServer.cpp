@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "MLIRServer.h"
-#include "../lsp-server-support/Logging.h"
-#include "../lsp-server-support/SourceMgrUtils.h"
 #include "Protocol.h"
 #include "mlir/AsmParser/AsmParser.h"
 #include "mlir/AsmParser/AsmParserState.h"
@@ -17,11 +15,20 @@
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Tools/lsp-server-support/Logging.h"
+#include "mlir/Tools/lsp-server-support/SourceMgrUtils.h"
 #include "llvm/Support/Base64.h"
 #include "llvm/Support/SourceMgr.h"
 #include <optional>
 
 using namespace mlir;
+
+/// Returns the range of a lexical token given a SMLoc corresponding to the
+/// start of an token location. The range is computed heuristically, and
+/// supports identifier-like tokens, strings, etc.
+static SMRange convertTokenLocToRange(SMLoc loc) {
+  return lsp::convertTokenLocToRange(loc, "$-.");
+}
 
 /// Returns a language server location from the given MLIR file location.
 /// `uriScheme` is the scheme to use when building new uris.
@@ -51,7 +58,7 @@ getLocationFromLoc(llvm::SourceMgr &sourceMgr, Location loc,
                    StringRef uriScheme, const lsp::URIForFile *uri = nullptr) {
   std::optional<lsp::Location> location;
   loc->walk([&](Location nestedLoc) {
-    FileLineColLoc fileLoc = nestedLoc.dyn_cast<FileLineColLoc>();
+    FileLineColLoc fileLoc = dyn_cast<FileLineColLoc>(nestedLoc);
     if (!fileLoc)
       return WalkResult::advance();
 
@@ -65,7 +72,7 @@ getLocationFromLoc(llvm::SourceMgr &sourceMgr, Location loc,
       // Use range of potential identifier starting at location, else length 1
       // range.
       location->range.end.character += 1;
-      if (std::optional<SMRange> range = lsp::convertTokenLocToRange(loc)) {
+      if (std::optional<SMRange> range = convertTokenLocToRange(loc)) {
         auto lineCol = sourceMgr.getLineAndColumn(range->End);
         location->range.end.character =
             std::max(fileLoc.getColumn() + 1, lineCol.second - 1);
@@ -84,7 +91,7 @@ static void collectLocationsFromLoc(Location loc,
                                     const lsp::URIForFile &uri) {
   SetVector<Location> visitedLocs;
   loc->walk([&](Location nestedLoc) {
-    FileLineColLoc fileLoc = nestedLoc.dyn_cast<FileLineColLoc>();
+    FileLineColLoc fileLoc = dyn_cast<FileLineColLoc>(nestedLoc);
     if (!fileLoc || !visitedLocs.insert(nestedLoc))
       return WalkResult::advance();
 
@@ -509,22 +516,11 @@ std::optional<lsp::Hover> MLIRDocument::buildHoverForOperation(
 
   os << "Generic Form:\n\n```mlir\n";
 
-  // Temporary drop the regions of this operation so that they don't get
-  // printed in the output. This helps keeps the size of the output hover
-  // small.
-  SmallVector<std::unique_ptr<Region>> regions;
-  for (Region &region : op.op->getRegions()) {
-    regions.emplace_back(std::make_unique<Region>());
-    regions.back()->takeBody(region);
-  }
-
-  op.op->print(
-      os, OpPrintingFlags().printGenericOpForm().elideLargeElementsAttrs());
+  op.op->print(os, OpPrintingFlags()
+                       .printGenericOpForm()
+                       .elideLargeElementsAttrs()
+                       .skipRegions());
   os << "\n```\n";
-
-  // Move the regions back to the current operation.
-  for (Region &region : op.op->getRegions())
-    region.takeBody(*regions.back());
 
   return hover;
 }
@@ -889,7 +885,8 @@ MLIRDocument::convertToBytecode() {
 
     std::string rawBytecodeBuffer;
     llvm::raw_string_ostream os(rawBytecodeBuffer);
-    writeBytecodeToFile(&parsedIR.front(), os, writerConfig);
+    // No desired bytecode version set, so no need to check for error.
+    (void)writeBytecodeToFile(&parsedIR.front(), os, writerConfig);
     result.output = llvm::encodeBase64(rawBytecodeBuffer);
   }
   return result;
@@ -1325,13 +1322,13 @@ lsp::MLIRServer::convertFromBytecode(const URIForFile &uri) {
     // Extract the top-level op so that aliases get printed.
     // FIXME: We should be able to enable aliases without having to do this!
     OwningOpRef<Operation *> topOp = &parsedBlock.front();
-    (*topOp)->remove();
+    topOp->remove();
 
     AsmState state(*topOp, OpPrintingFlags().enableDebugInfo().assumeVerified(),
                    /*locationMap=*/nullptr, &fallbackResourceMap);
 
     llvm::raw_string_ostream os(result.output);
-    (*topOp)->print(os, state);
+    topOp->print(os, state);
   }
   return std::move(result);
 }

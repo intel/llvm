@@ -7,16 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -83,11 +84,11 @@ static std::string demangle(const std::string &Mangled) {
   char *Undecorated = nullptr;
 
   if (Types)
-    Undecorated = itaniumDemangle(DecoratedStr, nullptr, nullptr, nullptr);
+    Undecorated = itaniumDemangle(DecoratedStr);
 
   if (!Undecorated && strncmp(DecoratedStr, "__imp_", 6) == 0) {
     Prefix = "import thunk for ";
-    Undecorated = itaniumDemangle(DecoratedStr + 6, nullptr, nullptr, nullptr);
+    Undecorated = itaniumDemangle(DecoratedStr + 6);
   }
 
   Result = Undecorated ? Prefix + Undecorated : Mangled;
@@ -145,7 +146,7 @@ static void demangleLine(llvm::raw_ostream &OS, StringRef Mangled, bool Split) {
   OS.flush();
 }
 
-int llvm_cxxfilt_main(int argc, char **argv) {
+int llvm_cxxfilt_main(int argc, char **argv, const llvm::ToolContext &) {
   InitLLVM X(argc, argv);
   BumpPtrAllocator A;
   StringSaver Saver(A);

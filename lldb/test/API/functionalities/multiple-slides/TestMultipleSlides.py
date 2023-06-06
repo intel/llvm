@@ -31,11 +31,10 @@ class MultipleSlidesTestCase(TestBase):
 
         # View the first element of `first` and `second` while
         # they have no load address set.
-        self.expect("p/d ((int*)&first)[0]", substrs=['= 5'])
-        self.expect("p/d ((int*)&second)[0]", substrs=['= 6'])
+        self.expect("expression/d ((int*)&first)[0]", substrs=['= 5'])
+        self.expect("expression/d ((int*)&second)[0]", substrs=['= 6'])
         self.assertEqual(first_sym.GetStartAddress().GetLoadAddress(target), lldb.LLDB_INVALID_ADDRESS)
         self.assertEqual(second_sym.GetStartAddress().GetLoadAddress(target), lldb.LLDB_INVALID_ADDRESS)
-
 
         # View the first element of `first` and `second` with
         # no slide applied, but with load address set.
@@ -43,9 +42,10 @@ class MultipleSlidesTestCase(TestBase):
         # In memory, we have something like
         #    0x1000 - 0x17ff  first[]
         #    0x1800 - 0x1fff  second[]
-        target.SetModuleLoadAddress(module, 0)
-        self.expect("p/d ((int*)&first)[0]", substrs=['= 5'])
-        self.expect("p/d ((int*)&second)[0]", substrs=['= 6'])
+        error = target.SetModuleLoadAddress(module, 0)
+        self.assertSuccess(error)
+        self.expect("expression/d ((int*)&first)[0]", substrs=['= 5'])
+        self.expect("expression/d ((int*)&second)[0]", substrs=['= 6'])
         self.assertEqual(first_sym.GetStartAddress().GetLoadAddress(target), 
                          first_sym.GetStartAddress().GetFileAddress())
         self.assertEqual(second_sym.GetStartAddress().GetLoadAddress(target),
@@ -60,20 +60,25 @@ class MultipleSlidesTestCase(TestBase):
         # but if the original entries are still present in lldb, 
         # the beginning address of second[] will get a load address
         # of 0x1800, instead of 0x17c0 (0x1800-64) as we need to get.
-        target.SetModuleLoadAddress(module, first_size - 64)
-        self.expect("p/d ((int*)&first)[0]", substrs=['= 5'])
-        self.expect("p/d ((int*)&second)[0]", substrs=['= 6'])
+        error = target.SetModuleLoadAddress(module, first_size - 64)
+        self.assertSuccess(error)
+        self.expect("expression/d ((int*)&first)[0]", substrs=['= 5'])
+        self.expect("expression/d ((int*)&second)[0]", substrs=['= 6'])
         self.assertNotEqual(first_sym.GetStartAddress().GetLoadAddress(target), 
                          first_sym.GetStartAddress().GetFileAddress())
         self.assertNotEqual(second_sym.GetStartAddress().GetLoadAddress(target),
                          second_sym.GetStartAddress().GetFileAddress())
 
         # Slide it back to the original vmaddr.
-        target.SetModuleLoadAddress(module, 0)
-        self.expect("p/d ((int*)&first)[0]", substrs=['= 5'])
-        self.expect("p/d ((int*)&second)[0]", substrs=['= 6'])
+        error = target.SetModuleLoadAddress(module, 0)
+        self.assertSuccess(error)
+        self.expect("expression/d ((int*)&first)[0]", substrs=['= 5'])
+        self.expect("expression/d ((int*)&second)[0]", substrs=['= 6'])
         self.assertEqual(first_sym.GetStartAddress().GetLoadAddress(target), 
                          first_sym.GetStartAddress().GetFileAddress())
         self.assertEqual(second_sym.GetStartAddress().GetLoadAddress(target),
                          second_sym.GetStartAddress().GetFileAddress())
 
+        # Make sure we can use a slide > INT64_MAX.
+        error = target.SetModuleLoadAddress(module, 0xffffffff12345678)
+        self.assertSuccess(error)

@@ -257,10 +257,12 @@ public:
   }
 
   /// \return the Plugin associated with the context of this program.
-  const plugin &getPlugin() const {
+  const PluginPtr &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
   }
+
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
   /// \return a vector of devices that are associated with this program.
   std::vector<device> get_devices() const { return MDevices; }
@@ -405,7 +407,8 @@ private:
   /// \param KernelName is a string containing PI kernel name.
   /// \return an instance of PI kernel with specific name. If kernel is
   /// unavailable, an invalid_object_error exception is thrown.
-  RT::PiKernel get_pi_kernel(const std::string &KernelName) const;
+  std::pair<RT::PiKernel, const KernelArgMask *>
+  get_pi_kernel_arg_mask_pair(const std::string &KernelName) const;
 
   /// \return a vector of sorted in ascending order SYCL devices.
   std::vector<device> sort_devices_by_cl_device_id(std::vector<device> Devices);

@@ -34,7 +34,7 @@ enum class ParameterKind : uint32_t {
 };
 
 /// Different binary formats supported as input to the JIT compiler.
-enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV };
+enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX };
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
@@ -157,6 +157,43 @@ public:
 
   friend constexpr bool operator!=(const NDRange &LHS, const NDRange &RHS) {
     return !(LHS == RHS);
+  }
+
+  friend bool operator<(const NDRange &LHS, const NDRange &RHS) {
+    if (LHS.Dimensions < RHS.Dimensions) {
+      return true;
+    }
+    if (LHS.Dimensions > RHS.Dimensions) {
+      return false;
+    }
+
+    if (LHS.GlobalSize < RHS.GlobalSize) {
+      return true;
+    }
+    if (LHS.GlobalSize > RHS.GlobalSize) {
+      return false;
+    }
+
+    if (!LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+      return true;
+    }
+    if (LHS.hasSpecificLocalSize() && !RHS.hasSpecificLocalSize()) {
+      return false;
+    }
+    if (LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+      if (LHS.LocalSize < RHS.LocalSize) {
+        return true;
+      }
+      if (LHS.LocalSize > RHS.LocalSize) {
+        return false;
+      }
+    }
+
+    return LHS.Offset < RHS.Offset;
+  }
+
+  friend bool operator>(const NDRange &LHS, const NDRange &RHS) {
+    return RHS < LHS;
   }
 
 private:

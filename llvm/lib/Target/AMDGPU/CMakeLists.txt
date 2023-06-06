@@ -87,9 +87,10 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUPropagateAttributes.cpp
   AMDGPUPromoteKernelArguments.cpp
   AMDGPURegBankCombiner.cpp
+  AMDGPURegBankSelect.cpp
   AMDGPURegisterBankInfo.cpp
   AMDGPUReleaseVGPRs.cpp
-  AMDGPUReplaceLDSUseWithPointer.cpp
+  AMDGPURemoveIncompatibleFunctions.cpp
   AMDGPUResourceUsageAnalysis.cpp
   AMDGPURewriteOutArguments.cpp
   AMDGPURewriteUndefForPHI.cpp
@@ -150,6 +151,7 @@ add_llvm_target(AMDGPUCodeGen
   SIMachineScheduler.cpp
   SIMemoryLegalizer.cpp
   SIModeRegister.cpp
+  SIModeRegisterDefaults.cpp
   SIOptimizeExecMasking.cpp
   SIOptimizeExecMaskingPreRA.cpp
   SIOptimizeVGPRLiveRange.cpp
@@ -163,16 +165,20 @@ add_llvm_target(AMDGPUCodeGen
   SIWholeQuadMode.cpp
 
   LINK_COMPONENTS
-  Analysis
-  AsmPrinter
-  CodeGen
-  Core
-  IPO
-  MC
-  Passes
   AMDGPUDesc
   AMDGPUInfo
   AMDGPUUtils
+  Analysis
+  AsmPrinter
+  BinaryFormat
+  CodeGen
+  CodeGenTypes
+  Core
+  GlobalISel
+  IPO
+  MC
+  MIRParser
+  Passes
   Scalar
   SelectionDAG
   Support
@@ -180,9 +186,6 @@ add_llvm_target(AMDGPUCodeGen
   TargetParser
   TransformUtils
   Vectorize
-  GlobalISel
-  BinaryFormat
-  MIRParser
   SYCLLowerIR
 
   ADD_TO_COMPONENT

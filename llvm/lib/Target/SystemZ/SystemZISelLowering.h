@@ -1,3 +1,4 @@
+
 //===-- SystemZISelLowering.h - SystemZ DAG lowering interface --*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -26,8 +27,8 @@ namespace SystemZISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
 
-  // Return with a flag operand.  Operand 0 is the chain operand.
-  RET_FLAG,
+  // Return with a glue operand.  Operand 0 is the chain operand.
+  RET_GLUE,
 
   // Calls a function.  Operand 0 is the chain operand and operand 1
   // is the target address.  The arguments start at operand 2.
@@ -423,10 +424,6 @@ public:
   }
   bool isCheapToSpeculateCtlz(Type *) const override { return true; }
   bool preferZeroCompareBranch() const override { return true; }
-  bool hasBitPreservingFPLogic(EVT VT) const override {
-    EVT ScVT = VT.getScalarType();
-    return ScVT == MVT::f32 || ScVT == MVT::f64 || ScVT == MVT::f128;
-  }
   bool isMaskAndCmp0FoldingBeneficial(const Instruction &AndI) const override {
     ConstantInt* Mask = dyn_cast<ConstantInt>(AndI.getOperand(1));
     return Mask && Mask->getValue().isIntN(16);
@@ -600,6 +597,10 @@ public:
                                            const SelectionDAG &DAG,
                                            unsigned Depth) const override;
 
+  bool isGuaranteedNotToBeUndefOrPoisonForTargetNode(
+      SDValue Op, const APInt &DemandedElts, const SelectionDAG &DAG,
+      bool PoisonOnly, unsigned Depth) const override;
+
   ISD::NodeType getExtendForAtomicOps() const override {
     return ISD::ANY_EXTEND;
   }
@@ -657,7 +658,7 @@ private:
   SDValue lowerSDIVREM(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerUDIVREM(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerXALUO(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerADDSUBCARRY(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerUADDSUBO_CARRY(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerBITCAST(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerCTPOP(SDValue Op, SelectionDAG &DAG) const;

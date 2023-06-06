@@ -90,8 +90,7 @@ define i32 @t5(i1 %x, i1 %y, i32 %V) {
 
 define i32 @t6(i32 %x, i32 %z) {
 ; CHECK-LABEL: @t6(
-; CHECK-NEXT:    [[X_IS_ZERO:%.*]] = icmp eq i32 [[X:%.*]], 0
-; CHECK-NEXT:    [[DIVISOR:%.*]] = select i1 [[X_IS_ZERO]], i32 1, i32 [[X]]
+; CHECK-NEXT:    [[DIVISOR:%.*]] = call i32 @llvm.umax.i32(i32 [[X:%.*]], i32 1)
 ; CHECK-NEXT:    [[Y:%.*]] = udiv i32 [[Z:%.*]], [[DIVISOR]]
 ; CHECK-NEXT:    ret i32 [[Y]]
 ;
@@ -1000,4 +999,29 @@ define i8 @udiv_shl_nuw_divisor(i8 %x, i8 %y, i8 %z) {
   %s = shl nuw i8 %y, %z
   %d = udiv i8 %x, %s
   ret i8 %d
+}
+
+define i8 @udiv_fail_shl_overflow(i8 %x, i8 %y) {
+; CHECK-LABEL: @udiv_fail_shl_overflow(
+; CHECK-NEXT:    [[SHL:%.*]] = shl i8 2, [[Y:%.*]]
+; CHECK-NEXT:    [[MIN:%.*]] = call i8 @llvm.umax.i8(i8 [[SHL]], i8 1)
+; CHECK-NEXT:    [[MUL:%.*]] = udiv i8 [[X:%.*]], [[MIN]]
+; CHECK-NEXT:    ret i8 [[MUL]]
+;
+  %shl = shl i8 2, %y
+  %min = call i8 @llvm.umax.i8(i8 %shl, i8 1)
+  %mul = udiv i8 %x, %min
+  ret i8 %mul
+}
+
+define i8 @udiv_shl_no_overflow(i8 %x, i8 %y) {
+; CHECK-LABEL: @udiv_shl_no_overflow(
+; CHECK-NEXT:    [[TMP1:%.*]] = add i8 [[Y:%.*]], 1
+; CHECK-NEXT:    [[MUL1:%.*]] = lshr i8 [[X:%.*]], [[TMP1]]
+; CHECK-NEXT:    ret i8 [[MUL1]]
+;
+  %shl = shl nuw i8 2, %y
+  %min = call i8 @llvm.umax.i8(i8 %shl, i8 1)
+  %mul = udiv i8 %x, %min
+  ret i8 %mul
 }

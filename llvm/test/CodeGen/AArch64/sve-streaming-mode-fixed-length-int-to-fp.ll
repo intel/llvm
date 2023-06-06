@@ -182,8 +182,8 @@ define void @ucvtf_v8i16_v8f64(ptr %a, ptr %b) #0 {
 ; CHECK-NEXT:    uunpklo z3.d, z0.s
 ; CHECK-NEXT:    ext z0.b, z0.b, z0.b, #8
 ; CHECK-NEXT:    uunpklo z0.d, z0.s
-; CHECK-NEXT:    ucvtf z3.d, p0/m, z3.d
 ; CHECK-NEXT:    ext z1.b, z1.b, z1.b, #8
+; CHECK-NEXT:    ucvtf z3.d, p0/m, z3.d
 ; CHECK-NEXT:    ucvtf z0.d, p0/m, z0.d
 ; CHECK-NEXT:    ucvtf z2.d, p0/m, z2.d
 ; CHECK-NEXT:    uunpklo z1.d, z1.s
@@ -642,8 +642,7 @@ define <2 x float> @scvtf_v2i16_v2f32(<2 x i16> %op1) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 def $z0
 ; CHECK-NEXT:    ptrue p0.s, vl2
-; CHECK-NEXT:    lsl z0.s, p0/m, z0.s, #16
-; CHECK-NEXT:    asr z0.s, p0/m, z0.s, #16
+; CHECK-NEXT:    sxth z0.s, p0/m, z0.s
 ; CHECK-NEXT:    scvtf z0.s, p0/m, z0.s
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $z0
 ; CHECK-NEXT:    ret
@@ -716,8 +715,7 @@ define <2 x double> @scvtf_v2i16_v2f64(<2 x i16> %op1) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    // kill: def $d0 killed $d0 def $z0
 ; CHECK-NEXT:    ptrue p0.s, vl2
-; CHECK-NEXT:    lsl z0.s, p0/m, z0.s, #16
-; CHECK-NEXT:    asr z0.s, p0/m, z0.s, #16
+; CHECK-NEXT:    sxth z0.s, p0/m, z0.s
 ; CHECK-NEXT:    ptrue p0.d, vl2
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
 ; CHECK-NEXT:    scvtf z0.d, p0/m, z0.d
@@ -758,8 +756,8 @@ define void @scvtf_v8i16_v8f64(ptr %a, ptr %b) #0 {
 ; CHECK-NEXT:    sunpklo z3.d, z0.s
 ; CHECK-NEXT:    ext z0.b, z0.b, z0.b, #8
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
-; CHECK-NEXT:    scvtf z3.d, p0/m, z3.d
 ; CHECK-NEXT:    ext z1.b, z1.b, z1.b, #8
+; CHECK-NEXT:    scvtf z3.d, p0/m, z3.d
 ; CHECK-NEXT:    scvtf z0.d, p0/m, z0.d
 ; CHECK-NEXT:    scvtf z2.d, p0/m, z2.d
 ; CHECK-NEXT:    sunpklo z1.d, z1.s

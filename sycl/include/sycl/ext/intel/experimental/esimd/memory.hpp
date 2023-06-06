@@ -43,7 +43,7 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 /// @addtogroup sycl_esimd_raw_send
 /// @{
 
-/// Raw sends load.  "s" suffix designates "split" variant - i.e. two sources.
+/// Raw sends.  "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @param msgDst is the old value of the destination operand.
 /// @param msgSrc0 is the first source operand of send message.
@@ -69,12 +69,12 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 /// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
           int N = 16>
-__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
-    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
-    uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
-    uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
-    __ESIMD_NS::simd_mask<N> mask = 1) {
+__ESIMD_API __ESIMD_NS::simd<T1, n1>
+raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+          __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+          uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+          uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+          __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -82,13 +82,30 @@ __ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
   constexpr unsigned _Width3 = n3 * sizeof(T3);
   static_assert(_Width3 % 32 == 0, "Invalid size for raw send msgSrc1");
 
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+  using ElemT3 = __ESIMD_DNS::__raw_t<T3>;
+
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_sends2<T1, n1, T2, n2, T3, n3, N>(
+  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, N>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
 
-/// Raw send load.
+template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
+          int N = 16>
+__SYCL_DEPRECATED("raw_sends_load is deprecated. Use raw_sends")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+    uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+    uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+    __ESIMD_NS::simd_mask<N> mask = 1) {
+  return raw_sends(msgDst, msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid,
+                   numSrc0, numSrc1, numDst, isEOT, isSendc);
+}
+
+/// Raw send.
 ///
 /// @param msgDst is the old value of the destination operand.
 /// @param msgSrc0 is the first source operand of send message.
@@ -111,22 +128,36 @@ __ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
 /// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API __ESIMD_NS::simd<T1, n1>
-raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-              uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-              uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
-              uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
+raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+         uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+         uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
+         uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
   static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
 
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_send2<T1, n1, T2, n2, N>(
+  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, N>(
       modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgDst.data());
 }
 
-/// Raw sends store. "s" suffix designates "split" variant - i.e. two sources.
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+__SYCL_DEPRECATED("raw_send_load is deprecated. Use raw_send")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_send_load(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+    uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+    __ESIMD_NS::simd_mask<N> mask = 1) {
+  return raw_send(msgDst, msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0,
+                  numDst, isEOT, isSendc, mask);
+}
+
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @param msgSrc0 is the first source operand of send message.
 /// @param msgSrc1 is the second source operand of send message.
@@ -148,23 +179,38 @@ raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// to on).
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API void
-raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
-                uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-                uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
-                uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
+raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
+          uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+          uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
+          uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
   static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc1");
 
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_sends2_noresult<T1, n1, T2, n2, N>(
+  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, N>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgSrc1.data());
 }
 
-/// Raw send store. Generates a \c send or \c sendc instruction for the message
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+__SYCL_DEPRECATED("raw_sends_store is deprecated. Use raw_sends")
+__ESIMD_API
+    void raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
+                         __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
+                         uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+                         uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
+                         uint8_t isSendc = 0,
+                         __ESIMD_NS::simd_mask<N> mask = 1) {
+  raw_sends(msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid, numSrc0, numSrc1,
+            isEOT, isSendc, mask);
+}
+
+/// Raw send. Generates a \c send or \c sendc instruction for the message
 /// gateway.
 ///
 /// @param msgSrc0 is the first source operand of send message.
@@ -183,18 +229,28 @@ raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <typename T1, int n1, int N = 16>
-__ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                                uint32_t exDesc, uint32_t msgDesc,
-                                uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
-                                uint8_t isEOT = 0, uint8_t isSendc = 0,
-                                __ESIMD_NS::simd_mask<N> mask = 1) {
+__ESIMD_API void
+raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
+         uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t isEOT = 0,
+         uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
-
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_send2_noresult<T1, n1, N>(modifier, execSize, mask.data(),
-                                        numSrc0, sfid, exDesc, msgDesc,
-                                        msgSrc0.data());
+  __esimd_raw_send2_noresult<ElemT1, n1, N>(modifier, execSize, mask.data(),
+                                            numSrc0, sfid, exDesc, msgDesc,
+                                            msgSrc0.data());
+}
+
+template <typename T1, int n1, int N = 16>
+__SYCL_DEPRECATED("raw_send_store is deprecated. Use raw_send")
+__ESIMD_API
+    void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
+                        uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+                        uint8_t numSrc0, uint8_t isEOT = 0, uint8_t isSendc = 0,
+                        __ESIMD_NS::simd_mask<N> mask = 1) {
+  raw_send(msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0, isEOT, isSendc,
+           mask);
 }
 
 /// @} sycl_esimd_raw_send
@@ -297,13 +353,32 @@ constexpr int get_lsc_block_2d_data_size() {
   return Width * Height * NBlocks;
 }
 
+// Format u8 and u16 to u8u32 and u16u32 by doing garbage-extension.
+template <typename RT, typename T, int N>
+ESIMD_INLINE __ESIMD_NS::simd<RT, N>
+lsc_format_input(__ESIMD_NS::simd<T, N> Vals) {
+  if constexpr (sizeof(T) == 1) {
+    // Extend bytes to RT.
+    return Vals.template bit_cast_view<uint8_t>();
+  } else if constexpr (sizeof(T) == 2) {
+    // Extend words to RT.
+    return Vals.template bit_cast_view<uint16_t>();
+  } else {
+    return Vals.template bit_cast_view<RT>();
+  }
+}
+
 // Format u8u32 and u16u32 back to u8 and u16.
 template <typename T, typename T1, int N>
 ESIMD_INLINE __ESIMD_NS::simd<T, N>
 lsc_format_ret(__ESIMD_NS::simd<T1, N> Vals) {
   auto Formatted = Vals.template bit_cast_view<T>();
-  constexpr int Stride = Formatted.length / N;
-  return Formatted.template select<N, Stride>(0);
+  if constexpr (sizeof(T) == sizeof(T1)) {
+    return Formatted;
+  } else {
+    constexpr int Stride = Formatted.length / N;
+    return Formatted.template select<N, Stride>(0);
+  }
 }
 
 /// Check the legality of lsc atomic call in terms of size and type.
@@ -319,10 +394,8 @@ constexpr void check_lsc_atomic() {
                   "wrong number of operands");
   }
   if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-    if constexpr (!__ESIMD_DNS::is_type<T, float, sycl::half>()) {
-      static_assert((__ESIMD_DNS::is_type<T, float, sycl::half>()),
-                    "Type F or HF is expected");
-    }
+    static_assert(__ESIMD_DNS::is_type<T, float, sycl::half, double>(),
+                  "float, double or sycl::half type is expected");
   } else {
     __ESIMD_DNS::check_atomic<__ESIMD_DNS::to_atomic_op<Op>(), T, N, NumSrc>();
   }
@@ -411,14 +484,56 @@ lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr lsc_data_size _DS =
       detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<_MsgT, N *NElts> Tmp =
-      __esimd_lsc_load_slm<_MsgT, cache_hint::none, cache_hint::none,
+  constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
+      __esimd_lsc_load_slm<MsgT, cache_hint::none, cache_hint::none,
                            _AddressScale, _ImmOffset, _DS, _VS, _Transposed, N>(
           pred.data(), offsets.data());
   return detail::lsc_format_ret<T>(Tmp);
+}
+
+/// SLM gather.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.slm
+///
+/// Collects elements located at slm and returns them
+/// as a single \ref simd object.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam N is the number of channels (platform dependent).
+/// @param offsets is the zero-based offsets for SLM buffer in bytes.
+/// @param pred is predicates.
+/// @param old_values values copied to the result when the corresponding
+/// element of \p pred is zero..
+/// @return is a vector of type T and size N * NElts
+///
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size, int N>
+__ESIMD_API __ESIMD_NS::simd<T, N * NElts>
+lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
+               __ESIMD_NS::simd_mask<N> pred,
+               __ESIMD_NS::simd<T, N * NElts> old_values) {
+  detail::check_lsc_vector_size<NElts>();
+  detail::check_lsc_data_size<T, DS>();
+  constexpr uint16_t _AddressScale = 1;
+  constexpr int _ImmOffset = 0;
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_data_order _Transposed =
+      detail::lsc_data_order::nontranspose;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
+      detail::lsc_format_input<MsgT>(old_values);
+  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+      __esimd_lsc_load_merge_slm<MsgT, cache_hint::none, cache_hint::none,
+                                 _AddressScale, _ImmOffset, _DS, _VS,
+                                 _Transposed, N>(pred.data(), offsets.data(),
+                                                 OldValuesExpanded.data());
+  return detail::lsc_format_ret<T>(Result);
 }
 
 /// Transposed SLM gather with 1 channel.
@@ -432,26 +547,66 @@ lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
 /// @param offset is the zero-based offset for SLM buffer in bytes.
+/// @param pred is the predicate; if it contains 0, then the actual load
+/// is not performed and the returned value is undefined.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
-__ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_slm_block_load(uint32_t offset) {
+__ESIMD_API __ESIMD_NS::simd<T, NElts>
+lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
                 "Transposed load is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
+  constexpr detail::lsc_vector_size VS = detail::to_lsc_vector_size<NElts>();
+
+  constexpr auto Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
   __ESIMD_NS::simd<uint32_t, N> offsets = offset;
   return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
-                              _AddressScale, _ImmOffset, _DS, _VS, _Transposed,
-                              N>(pred.data(), offsets.data());
+                              AddressScale, ImmOffset, FDS, VS, Transposed, N>(
+      pred.data(), offsets.data());
+}
+
+/// Transposed SLM gather with 1 channel.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.slm
+///
+/// Collects elements located at slm and returns them
+/// as a single \ref simd object.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @param offset is the zero-based offset for SLM buffer in bytes.
+/// @param pred is the predicate; if it contains 0, then the actual load
+/// is not performed and \p old_values is returned.
+/// @param old_values contains the vector that is returned if
+/// the parameter \p pred contains 0.
+/// @return is a vector of type T and size NElts.
+///
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
+__ESIMD_API __ESIMD_NS::simd<T, NElts>
+lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
+                   __ESIMD_NS::simd<T, NElts> old_values) {
+  detail::check_lsc_vector_size<NElts>();
+  detail::check_lsc_data_size<T, DS>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
+  static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Transposed load is supported only for data size u32 or u64");
+  constexpr detail::lsc_vector_size VS = detail::to_lsc_vector_size<NElts>();
+  constexpr auto Transposed = detail::lsc_data_order::transpose;
+  constexpr int N = 1;
+  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
+  return __esimd_lsc_load_merge_slm<T, cache_hint::none, cache_hint::none,
+                                    AddressScale, ImmOffset, FDS, VS,
+                                    Transposed, N>(pred.data(), offsets.data(),
+                                                   old_values.data());
 }
 
 /// USM pointer gather.
@@ -488,16 +643,65 @@ lsc_gather(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr lsc_data_size _DS =
       detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<_MsgT, N *NElts> Tmp =
-      __esimd_lsc_load_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset,
-                                 _DS, _VS, _Transposed, N>(pred.data(),
-                                                           addrs.data());
+  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
+      __esimd_lsc_load_stateless<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                                 _VS, _Transposed, N>(pred.data(),
+                                                      addrs.data());
   return detail::lsc_format_ret<T>(Tmp);
+}
+
+/// USM pointer gather.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+///
+/// Collects elements located at specified address and returns them
+/// as a single \ref simd object.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @tparam N is the number of channels (platform dependent).
+/// @param p is the base pointer.
+/// @param offsets is the zero-based offsets in bytes.
+/// @param pred is predicates.
+/// @param old_values contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
+/// @return is a vector of type T and size N * NElts
+///
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
+__ESIMD_API __ESIMD_NS::simd<T, N * NElts>
+lsc_gather(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
+           __ESIMD_NS::simd_mask<N> pred,
+           __ESIMD_NS::simd<T, N * NElts> old_values) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  detail::check_lsc_vector_size<NElts>();
+  detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  constexpr uint16_t _AddressScale = 1;
+  constexpr int _ImmOffset = 0;
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
+  Addrs += convert<uintptr_t>(offsets);
+  __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
+      detail::lsc_format_input<MsgT>(old_values);
+  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+      __esimd_lsc_load_merge_stateless<MsgT, L1H, L3H, _AddressScale,
+                                       _ImmOffset, _DS, _VS, _Transposed, N>(
+          pred.data(), Addrs.data(), OldValuesExpanded.data());
+  return detail::lsc_format_ret<T>(Result);
 }
 
 template <
@@ -507,9 +711,19 @@ template <
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
 lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_gather<T, NElts, DS, L1H, L3H, N>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
+  return lsc_gather<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), pred);
+}
+
+template <
+    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
+    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API __ESIMD_NS::simd<T, N * NElts>
+lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
+           __ESIMD_NS::simd_mask<N> pred,
+           __ESIMD_NS::simd<T, N * NElts> old_values) {
+  return lsc_gather<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), pred,
+                                               old_values);
 }
 
 template <typename T, int NElts = 1,
@@ -521,6 +735,18 @@ __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>,
 lsc_gather(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_gather<T, NElts, DS, L1H, L3H, N>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
+}
+
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>,
+                             __ESIMD_NS::simd<T, N * NElts>>
+lsc_gather(const T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred,
+           __ESIMD_NS::simd<T, N * NElts> old_values) {
+  return lsc_gather<T, NElts, DS, L1H, L3H, N>(
+      p, __ESIMD_NS::simd<Toffset, N>(offset), pred, old_values);
 }
 
 /// Accessor-based gather.
@@ -546,13 +772,12 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy>,
                              __ESIMD_NS::simd<T, N * NElts>>
 lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer().get(), offsets,
-                                            pred);
+  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -564,12 +789,67 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<_MsgT, N *NElts> Tmp =
-      __esimd_lsc_load_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
+  __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
+      __esimd_lsc_load_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), offsets.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
+#endif
+}
+
+/// Accessor-based gather.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+///
+/// Collects elements located at surface and returns them
+/// as a single \ref simd object.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @tparam N is the number of channels (platform dependent).
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offsets is the zero-based offsets in bytes.
+/// @param pred is predicates.
+/// @param old_values contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
+/// @return is a vector of type T and size N * NElts
+///
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename AccessorTy>
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy>,
+                             __ESIMD_NS::simd<T, N * NElts>>
+lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+           __ESIMD_NS::simd_mask<N> pred,
+           __ESIMD_NS::simd<T, N * NElts> old_values) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred,
+                                            old_values);
+#else
+  detail::check_lsc_vector_size<NElts>();
+  detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  constexpr uint16_t _AddressScale = 1;
+  constexpr int _ImmOffset = 0;
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  auto SI = __ESIMD_NS::get_surface_index(acc);
+  __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
+      detail::lsc_format_input<MsgT>(old_values);
+  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+      __esimd_lsc_load_merge_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                                 _VS, _Transposed, N>(
+          pred.data(), offsets.data(), SI, OldValuesExpanded.data());
+  return detail::lsc_format_ret<T>(Result);
 #endif
 }
 
@@ -581,12 +861,20 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// given address, where S is a byte size of an "element" defined by the \c DS
 /// template parameter. The maximum size of accessed block is 512 bytes for PVC
 /// and 256 bytes for ACM (DG2).
-/// When \c DS equals \c lsc_data_size::u64, the address must be 8-byte aligned,
-/// otherwise - 4-bytes aligned. Allowed values for the data size are
-/// \c lsc_data_size::u32 and \c lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 3, 4, 8, 16, 32, 64.
-/// Note that to access 512 bytes, DS must be \c lsc_data_size::u64 and \c NElts
-/// must be 64.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -595,42 +883,121 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
-/// entirely, non-zero - operation is performed. The default is '1' - perform
-/// the operation.
-/// @return is a vector of type T and size NElts. The elements of the returned
-/// vector for which the corresponding element in \p pred is 0 are undefined.
+/// entirely, non-zero - operation is performed. The default is '1' -
+/// perform the operation.
+/// @param flags is the alignment specifier type tag.
+/// @return is a vector of type T and size NElts. The elements of the
+/// returned vector for which the corresponding element in \p pred is 0
+/// are undefined.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API __ESIMD_NS::simd<T, NElts>
-lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
+                             __ESIMD_NS::simd<T, NElts>>
+lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
+               FlagsT flags = FlagsT{}) {
   // Verify input template arguments.
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  constexpr int SmallIntFactor =
+
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
-  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
+
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (sizeof(T) == 8 ||
+       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+        (NElts * sizeof(T)) % 8 == 0));
+  constexpr int SmallIntFactor64Bit =
+      (FDS == lsc_data_size::u16)
+          ? 4
+          : (FDS == lsc_data_size::u8 ? 8
+                                      : (FDS == lsc_data_size::u32 ? 2 : 1));
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT = std::conditional_t<
-      std::is_floating_point<T>::value, T,
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
+  constexpr lsc_data_size ActualDS = Use64BitData
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  constexpr detail::lsc_vector_size _VS =
+      detail::to_lsc_vector_size<FactoredNElts>();
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
-  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+
   constexpr auto _Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
 
   __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
-  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
+
+  __ESIMD_NS::simd<LoadElemT, FactoredNElts> Result =
       __esimd_lsc_load_stateless<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset,
-                                 _DS, _VS, _Transposed, N>(pred.data(),
-                                                           Addrs.data());
+                                 ActualDS, _VS, _Transposed, N>(pred.data(),
+                                                                Addrs.data());
   return Result.template bit_cast_view<T>();
+}
+
+/// A variation of lsc_block_load without predicate parameter to simplify use
+/// of alignment parameter
+///
+/// Accesses contiguous block of memory of `NElts * S` bytes  starting from
+/// given address, where S is a byte size of an "element" defined by the \c DS
+/// template parameter. The maximum size of accessed block is 512 bytes for PVC
+/// and 256 bytes for ACM (DG2).
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c NElts
+/// equal to 512. Otherwise 4 bytes alignment is required.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @param p is the base pointer.
+/// @param flags is the alignment specifier type tag.
+/// @return is a vector of type T and size NElts. The elements of the
+/// returned vector for which the corresponding element in \p pred is 0
+/// are undefined.
+///
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
+                             __ESIMD_NS::simd<T, NElts>>
+lsc_block_load(const T *p, FlagsT flags) {
+  return lsc_block_load<T, NElts, DS, L1H, L3H>(p, __ESIMD_NS::simd_mask<1>(1),
+                                                flags);
 }
 
 /// USM pointer transposed gather with 1 channel.
@@ -641,12 +1008,20 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// given address, where S is a byte size of an "element" defined by the \c DS
 /// template parameter. The maximum size of accessed block is 512 bytes for PVC
 /// and 256 bytes for ACM (DG2).
-/// When \c DS equals \c lsc_data_size::u64, the address must be 8-byte aligned,
-/// otherwise - 4-bytes aligned. Allowed values for the data size are
-/// \c lsc_data_size::u32 and \c lsc_data_size::u64. Allowed NElts values are
-/// 1, 2, 3, 4, 8, 16, 32, 64.
-/// Note that to access 512 bytes, DS must be \c lsc_data_size::u64 and \c NElts
-/// must be 64.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -658,41 +1033,74 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// entirely, non-zero - operation is performed.
 /// @param old_values contains the vector which elements are copied
 /// to the returned result when the corresponding element of \p pred is 0.
+/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API __ESIMD_NS::simd<T, NElts>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
+                             __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
-               __ESIMD_NS::simd<T, NElts> old_values) {
+               __ESIMD_NS::simd<T, NElts> old_values, FlagsT flags = FlagsT{}) {
   // Verify input template arguments.
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  constexpr int SmallIntFactor =
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
+  constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
-  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
+
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (sizeof(T) == 8 ||
+       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+        (NElts * sizeof(T)) % 8 == 0));
+  constexpr int SmallIntFactor64Bit =
+      (FDS == lsc_data_size::u16)
+          ? 4
+          : (FDS == lsc_data_size::u8 ? 8
+                                      : (FDS == lsc_data_size::u32 ? 2 : 1));
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT = std::conditional_t<
-      std::is_floating_point<T>::value, T,
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
+  constexpr lsc_data_size ActualDS = Use64BitData
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  constexpr detail::lsc_vector_size _VS =
+      detail::to_lsc_vector_size<FactoredNElts>();
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
-  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+
   constexpr auto _Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
 
   __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
-  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> OldVals =
+  __ESIMD_NS::simd<LoadElemT, FactoredNElts> OldVals =
       old_values.template bit_cast_view<LoadElemT>();
-  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
+  __ESIMD_NS::simd<LoadElemT, FactoredNElts> Result =
       __esimd_lsc_load_merge_stateless<LoadElemT, L1H, L3H, _AddressScale,
-                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), Addrs.data(), OldVals.data());
+                                       _ImmOffset, ActualDS, _VS, _Transposed,
+                                       N>(pred.data(), Addrs.data(),
+                                          OldVals.data());
   return Result.template bit_cast_view<T>();
 }
 
@@ -702,8 +1110,20 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -716,49 +1136,124 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
+/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts. The elements of the returned
 /// vector for which the corresponding element in \p pred is 0 are undefined.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+                                 __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset,
-               __ESIMD_NS::simd_mask<1> pred = 1) {
+               __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred);
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred, flags);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
   // Verify input template arguments.
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  constexpr int SmallIntFactor =
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
+  constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
-  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (sizeof(T) == 8 ||
+       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+        (NElts * sizeof(T)) % 8 == 0));
+  constexpr int SmallIntFactor64Bit =
+      (FDS == lsc_data_size::u16)
+          ? 4
+          : (FDS == lsc_data_size::u8 ? 8
+                                      : (FDS == lsc_data_size::u32 ? 2 : 1));
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  constexpr lsc_data_size ActualDS = Use64BitData
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT = std::conditional_t<
-      std::is_floating_point<T>::value, T,
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
-  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr auto _VS = detail::to_lsc_vector_size<FactoredNElts>();
   constexpr auto _Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
 
   __ESIMD_NS::simd<uint32_t, N> Offsets = offset;
   auto SI = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
-      __esimd_lsc_load_bti<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                           _VS, _Transposed, N>(pred.data(), Offsets.data(),
-                                                SI);
+  __ESIMD_NS::simd<LoadElemT, FactoredNElts> Result =
+      __esimd_lsc_load_bti<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset,
+                           ActualDS, _VS, _Transposed, N>(pred.data(),
+                                                          Offsets.data(), SI);
   return Result.template bit_cast_view<T>();
 #endif // !__ESIMD_FORCE_STATELESS_MEM
+}
+
+/// A variation of lsc_block_load without predicate parameter to simplify use
+/// of alignment parameter
+///
+/// Collects elements located at surface and returns them
+/// as a single \ref simd object.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offset is the zero-based offset in bytes.
+/// @param flags is the alignment specifier type tag.
+/// @return is a vector of type T and size NElts. The elements of the returned
+/// vector for which the corresponding element in \p pred is 0 are undefined.
+///
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+                                 __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
+                             __ESIMD_NS::simd<T, NElts>>
+lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
+  return lsc_block_load<T, NElts, DS, L1H, L3H>(
+      acc, offset, __ESIMD_NS::simd_mask<1>(1), flags);
 }
 
 /// Accessor-based transposed gather with 1 channel.
@@ -767,8 +1262,20 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
@@ -783,47 +1290,75 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 /// Otherwise, the operation is performed.
 /// @param old_values contains the values copied to the result when
 /// the corresponding element from \p pred is zero.
+/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+                                 __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
-               __ESIMD_NS::simd<T, NElts> old_values) {
+               __ESIMD_NS::simd<T, NElts> old_values, FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_block_load<T, NElts, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred, old_values);
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), pred, old_values, flags);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
   // Verify input template arguments.
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  constexpr int SmallIntFactor =
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
+                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+                "Conversion data types are not supported");
+  constexpr int SmallIntFactor32Bit =
       (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
-  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (sizeof(T) == 8 ||
+       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+        (NElts * sizeof(T)) % 8 == 0));
+  constexpr int SmallIntFactor64Bit =
+      (FDS == lsc_data_size::u16)
+          ? 4
+          : (FDS == lsc_data_size::u8 ? 8
+                                      : (FDS == lsc_data_size::u32 ? 2 : 1));
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  constexpr lsc_data_size ActualDS = Use64BitData
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  detail::check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  using LoadElemT = std::conditional_t<
-      std::is_floating_point<T>::value, T,
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
-  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr auto _VS = detail::to_lsc_vector_size<FactoredNElts>();
   constexpr auto _Transposed = detail::lsc_data_order::transpose;
   constexpr int N = 1;
 
   __ESIMD_NS::simd<uint32_t, N> Offsets = offset;
   auto SI = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> OldVals =
+  __ESIMD_NS::simd<LoadElemT, FactoredNElts> OldVals =
       old_values.template bit_cast_view<LoadElemT>();
-  __ESIMD_NS::simd<LoadElemT, NElts / SmallIntFactor> Result =
+  __ESIMD_NS::simd<LoadElemT, FactoredNElts> Result =
       __esimd_lsc_load_merge_bti<LoadElemT, L1H, L3H, _AddressScale, _ImmOffset,
-                                 _DS, _VS, _Transposed, N>(
+                                 ActualDS, _VS, _Transposed, N>(
           pred.data(), Offsets.data(), SI, OldVals.data());
   return Result.template bit_cast_view<T>();
 #endif // !__ESIMD_FORCE_STATELESS_MEM
@@ -862,12 +1397,12 @@ __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __esimd_lsc_prefetch_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset,
-                                 _DS, _VS, _Transposed, N>(pred.data(),
-                                                           addrs.data());
+  __esimd_lsc_prefetch_stateless<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                                 _VS, _Transposed, N>(pred.data(),
+                                                      addrs.data());
 }
 
 template <
@@ -877,9 +1412,7 @@ template <
 __ESIMD_API void lsc_prefetch(const T *p,
                               __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                               __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  lsc_prefetch<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
-                                          pred);
+  lsc_prefetch<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), pred);
 }
 
 template <typename T, int NElts = 1,
@@ -969,9 +1502,9 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __esimd_lsc_prefetch_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
+  __esimd_lsc_prefetch_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), offsets.data(), si);
 #endif
 }
@@ -1050,11 +1583,11 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
-  using _CstT = typename detail::lsc_bitcast_type<T>::type;
-  __ESIMD_NS::simd<_MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
-  __esimd_lsc_store_slm<_MsgT, cache_hint::none, cache_hint::none,
-                        _AddressScale, _ImmOffset, _DS, _VS, _Transposed, N>(
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  using CstT = typename detail::lsc_bitcast_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<CstT>();
+  __esimd_lsc_store_slm<MsgT, cache_hint::none, cache_hint::none, _AddressScale,
+                        _ImmOffset, _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), Tmp.data());
 }
 
@@ -1126,12 +1659,12 @@ __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   using _CstT = typename detail::lsc_bitcast_type<T>::type;
-  __ESIMD_NS::simd<_MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __esimd_lsc_store_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+  __esimd_lsc_store_stateless<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
                               _VS, _Transposed, N>(pred.data(), addrs.data(),
                                                    Tmp.data());
 }
@@ -1144,9 +1677,7 @@ __ESIMD_API void lsc_scatter(T *p,
                              __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                              __ESIMD_NS::simd<T, N * NElts> vals,
                              __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  lsc_scatter<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
-                                         vals, pred);
+  lsc_scatter<T, NElts, DS, L1H, L3H, N>(p, offsets.read(), vals, pred);
 }
 
 template <typename T, int NElts = 1,
@@ -1200,11 +1731,11 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   using _CstT = typename detail::lsc_bitcast_type<T>::type;
-  __ESIMD_NS::simd<_MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __esimd_lsc_store_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
+  __esimd_lsc_store_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                         _Transposed, N>(pred.data(), offsets.data(), Tmp.data(),
                                         si);
 #endif
@@ -1215,8 +1746,20 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to specific address.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
@@ -1228,39 +1771,107 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
+/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-__ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
-                                 __ESIMD_NS::simd_mask<1> pred = 1) {
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
+                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
-  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  constexpr int SmallIntFactor =
-      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
-                "Number of elements is not supported by Transposed store");
-  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
 
   // Prepare template arguments for the call of intrinsic.
-  using StoreElemT = std::conditional_t<
-      std::is_floating_point<T>::value, T,
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
-  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
-  constexpr auto _Transposed = detail::lsc_data_order::transpose;
+  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u16 || _DS == lsc_data_size::u8 ||
+                    _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Conversion data types are not supported");
+  constexpr detail::lsc_data_order _Transposed =
+      detail::lsc_data_order::transpose;
   constexpr int N = 1;
-
   __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
 
-  __esimd_lsc_store_stateless<StoreElemT, L1H, L3H, _AddressScale, _ImmOffset,
-                              _DS, _VS, _Transposed, N>(
+  constexpr int SmallIntFactor32Bit =
+      (_DS == lsc_data_size::u16) ? 2 : (_DS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed store");
+
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (sizeof(T) == 8 ||
+       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+        (NElts * sizeof(T)) % 8 == 0));
+  constexpr int SmallIntFactor64Bit =
+      (_DS == lsc_data_size::u16)
+          ? 4
+          : (_DS == lsc_data_size::u8 ? 8
+                                      : (_DS == lsc_data_size::u32 ? 2 : 1));
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  constexpr lsc_data_size ActualDS = Use64BitData
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  detail::check_lsc_vector_size<FactoredNElts>();
+  constexpr detail::lsc_vector_size _VS =
+      detail::to_lsc_vector_size<FactoredNElts>();
+
+  using StoreType = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
+  __esimd_lsc_store_stateless<StoreType, L1H, L3H, _AddressScale, _ImmOffset,
+                              ActualDS, _VS, _Transposed, N>(
       pred.data(), Addrs.data(),
-      sycl::bit_cast<
-          __ESIMD_DNS::vector_type_t<StoreElemT, NElts / SmallIntFactor>>(
+      sycl::bit_cast<__ESIMD_DNS::vector_type_t<StoreType, FactoredNElts>>(
           vals.data()));
+}
+
+/// A variation of lsc_block_store without predicate parameter to simplify
+/// use of alignment parameter
+///
+/// Scatters elements to specific address.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to store per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @param p is the base pointer.
+/// @param vals is values to store.
+/// @param flags is the alignment specifier type tag.
+///
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
+  lsc_block_store<T, NElts, DS, L1H, L3H>(p, vals, __ESIMD_NS::simd_mask<1>(1),
+                                          flags);
 }
 
 /// Accessor-based transposed scatter with 1 channel.
@@ -1268,8 +1879,20 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to surface.
-/// See comments in the  \ref lsc_block_load API for description and parameter
-/// constraints.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
@@ -1283,48 +1906,122 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
+/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+                             __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals,
-                __ESIMD_NS::simd_mask<1> pred = 1) {
+                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   lsc_block_store<T, NElts, DS, L1H, L3H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals, pred);
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals, pred, flags);
 #else
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
-  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  constexpr int SmallIntFactor =
-      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
-  static_assert(NElts > 0 && NElts % SmallIntFactor == 0,
-                "Number of elements is not supported by Transposed store");
-  detail::check_lsc_vector_size<NElts / SmallIntFactor>();
-
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
   // Prepare template arguments for the call of intrinsic.
-  using StoreElemT = std::conditional_t<
-      std::is_floating_point<T>::value, T,
-      std::conditional_t<FDS == lsc_data_size::u64, uint64_t, uint32_t>>;
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr auto _DS = FDS == lsc_data_size::u64 ? FDS : lsc_data_size::u32;
-  constexpr auto _VS = detail::to_lsc_vector_size<NElts / SmallIntFactor>();
-  constexpr auto _Transposed = detail::lsc_data_order::transpose;
+  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u16 || _DS == lsc_data_size::u8 ||
+                    _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Conversion data types are not supported");
+  constexpr detail::lsc_data_order _Transposed =
+      detail::lsc_data_order::transpose;
   constexpr int N = 1;
 
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
+  __ESIMD_NS::simd<uint32_t, N> Offsets = offset;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __esimd_lsc_store_bti<StoreElemT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                        _VS, _Transposed, N>(
-      pred.data(), offsets.data(),
-      sycl::bit_cast<
-          __ESIMD_DNS::vector_type_t<StoreElemT, NElts / SmallIntFactor>>(
+
+  constexpr int SmallIntFactor32Bit =
+      (_DS == lsc_data_size::u16) ? 2 : (_DS == lsc_data_size::u8 ? 4 : 1);
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed store");
+
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (sizeof(T) == 8 ||
+       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+        (NElts * sizeof(T)) % 8 == 0));
+  constexpr int SmallIntFactor64Bit =
+      (_DS == lsc_data_size::u16)
+          ? 4
+          : (_DS == lsc_data_size::u8 ? 8
+                                      : (_DS == lsc_data_size::u32 ? 2 : 1));
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  constexpr lsc_data_size ActualDS = Use64BitData
+                                         ? __ESIMD_ENS::lsc_data_size::u64
+                                         : __ESIMD_ENS::lsc_data_size::u32;
+
+  detail::check_lsc_vector_size<FactoredNElts>();
+  constexpr detail::lsc_vector_size _VS =
+      detail::to_lsc_vector_size<FactoredNElts>();
+
+  using StoreType = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
+  __esimd_lsc_store_bti<StoreType, L1H, L3H, _AddressScale, _ImmOffset,
+                        ActualDS, _VS, _Transposed, N>(
+      pred.data(), Offsets.data(),
+      sycl::bit_cast<__ESIMD_DNS::vector_type_t<StoreType, FactoredNElts>>(
           vals.data()),
       si);
 #endif
+}
+
+/// A variation of lsc_block_store without predicate parameter to simplify
+/// use of alignment parameter
+///
+/// Scatters elements to surface.
+/// When \c DS equals \c lsc_data_size::u64 or \c sizeof(T) equal to 8 the
+/// address must be 8-byte aligned, otherwise - 4-bytes aligned. Allowed values
+/// for the data size are \c lsc_data_size::u32, \c lsc_data_size::u64,
+/// \c lsc_data_size::u8, \c lsc_data_size::u16.
+/// When data size is either  \c lsc_data_size::u8 or \c lsc_data_size::u16
+/// the data is treated as 32 bit data.
+/// Allowed \c NElts values for 64 bit data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 32 bit data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 16 bit data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 8 bit data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8 bytes alignment is required for 64 bit data, 32 bit data and \c NElts
+/// equal to 128, 16 bit data and \c NElts equal to 256, 8 bit data and \c
+/// NElts equal to 512. Otherwise 4 bytes alignment is required.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to store per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offset is the zero-based offset in bytes.
+/// @param vals is values to store.
+/// @param flags is the alignment specifier type tag.
+///
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename AccessorTy,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+                             __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
+lsc_block_store(AccessorTy acc, uint32_t offset,
+                __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
+  lsc_block_store<T, NElts, DS, L1H, L3H>(acc, offset, vals,
+                                          __ESIMD_NS::simd_mask<1>(1), flags);
 }
 
 namespace detail {
@@ -1333,21 +2030,26 @@ template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
           bool Transposed, bool Transformed, bool IsStore = false>
 constexpr void check_lsc_block_2d_restrictions() {
   constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
+  static_assert(BlockWidth > 0, "Block width must be positive");
+  static_assert(BlockHeight > 0, "Block height must be positive");
+  // Restrictions based on documentation.
   static_assert(!IsStore || GRFByteSize <= 512,
                 "2D store supports 512 bytes max");
   static_assert(IsStore || GRFByteSize <= 2048,
                 "2D load supports 2048 bytes max");
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
+  static_assert((sizeof(T) * BlockWidth) % 4 == 0,
+                "Block width must be aligned by DW");
   if constexpr (Transposed) {
     static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
     static_assert(sizeof(T) == 4 || sizeof(T) == 8,
                   "Transposed load is supported only for data size u32 or u64");
-    static_assert(sizeof(T) == 64 ? BlockHeight == 8
-                                  : BlockHeight >= 1 && BlockHeight <= 32,
+    static_assert(sizeof(T) == 8 ? BlockHeight == 8
+                                 : BlockHeight >= 1 && BlockHeight <= 32,
                   "Unsupported block height");
-    static_assert(sizeof(T) == 64 ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
-                                  : BlockWidth >= 1 && BlockWidth <= 8,
+    static_assert(sizeof(T) == 8 ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
+                                 : BlockWidth >= 1 && BlockWidth <= 8,
                   "Unsupported block width");
   } else if constexpr (Transformed) {
     static_assert(sizeof(T) == 1 || sizeof(T) == 2,
@@ -1356,15 +2058,17 @@ constexpr void check_lsc_block_2d_restrictions() {
                   "Unsupported number of blocks");
     static_assert(BlockHeight * sizeof(T) >= 4 && BlockHeight <= 32,
                   "Unsupported block height");
-    static_assert(BlockWidth * sizeof(T) >= 4 &&
+    static_assert(BlockWidth * sizeof(T) >= 4 && BlockWidth <= 16 &&
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
   } else {
     static_assert(
         __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
         "Unsupported number of blocks");
-    static_assert(BlockHeight >= 1 && BlockHeight <= 32,
-                  "Unsupported block height");
+    if constexpr (IsStore)
+      static_assert(BlockHeight <= 8, "Unsupported block height for store");
+    else
+      static_assert(BlockHeight <= 32, "Unsupported block height for load");
     static_assert(BlockWidth * sizeof(T) >= 4 &&
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
@@ -1414,27 +2118,79 @@ lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
                                           Transposed, Transformed>();
+  // For Load BlockWidth is padded up to the next power-of-two value.
+  // For Load with Transpose the pre-operation BlockHeight is padded up
+  // to the next power-of-two value.
+  // For Load with Transform pre-operation BlockHeight is padded up to
+  // multiple of K, where K = 4B / sizeof(T).
   constexpr int ElemsPerDword = 4 / sizeof(T);
-  constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
+  constexpr int GRFRowSize = Transposed    ? BlockHeight
+                             : Transformed ? BlockWidth * ElemsPerDword
+                                           : BlockWidth;
   constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
-  constexpr int GRFBlockSize =
-      GRFRowPitch * (Transposed ? BlockWidth : BlockHeight);
+  constexpr int GRFColSize =
+      Transposed
+          ? BlockWidth
+          : (Transformed ? (BlockHeight + ElemsPerDword - 1) / ElemsPerDword
+                         : BlockHeight);
+  constexpr int GRFBlockSize = GRFRowPitch * GRFColSize;
   constexpr int GRFBlockPitch =
       detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
   constexpr int ActualN = NBlocks * GRFBlockPitch;
-  static_assert(
-      ActualN == N,
-      "These parameters require unpadding. It is not implemented yet");
+
+  constexpr int DstBlockElements = GRFColSize * GRFRowSize;
+  constexpr int DstElements = DstBlockElements * NBlocks;
+
+  static_assert(N == ActualN || N == DstElements, "Incorrect element count");
+
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
-  __ESIMD_NS::simd_mask<N> pred = 1;
+  __ESIMD_NS::simd_mask<ActualN> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
       Transposed ? detail::lsc_data_order::transpose
                  : detail::lsc_data_order::nontranspose;
-  return __esimd_lsc_load2d_stateless<T, L1H, L3H, DS, _Transposed, NBlocks,
-                                      BlockWidth, BlockHeight, Transformed, N>(
-      pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+  __ESIMD_NS::simd<T, ActualN> Raw =
+      __esimd_lsc_load2d_stateless<T, L1H, L3H, DS, _Transposed, NBlocks,
+                                   BlockWidth, BlockHeight, Transformed,
+                                   ActualN>(pred.data(), surf_addr,
+                                            SurfaceWidth, SurfaceHeight,
+                                            SurfacePitch, X, Y);
+
+  if constexpr (ActualN == N) {
+    return Raw;
+  } else {
+    // HW restrictions force data which is read to contain padding filled with
+    // zeros for 2d lsc loads. This code eliminates such padding.
+
+    // For example, 2D block load of 5 elements of 1 byte data type will
+    // take 8 bytes per row for each block.
+    //
+    // +----+----+----+----+----+----+-----+-----+
+    // | 00 | 01 | 02 | 03 | 04 | 05 | 06* | 07* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 10 | 11 | 12 | 13 | 14 | 15 | 16* | 17* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 20 | 21 | 22 | 23 | 24 | 25 | 26* | 27* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 30 | 31 | 32 | 33 | 34 | 35 | 36* | 37* |
+    // +----+----+----+----+----+----+-----+-----+
+    // * signifies the padded element.
+
+    __ESIMD_NS::simd<T, DstElements> Dst;
+
+    for (auto i = 0; i < NBlocks; i++) {
+      auto DstBlock =
+          Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
+
+      auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
+      DstBlock = RawBlock.template bit_cast_view<T, GRFColSize, GRFRowPitch>()
+                     .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
+                     .template bit_cast_view<T>();
+    }
+
+    return Dst;
+  }
 }
 
 template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
@@ -1543,14 +2299,28 @@ __ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
                                           false, true /*IsStore*/>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
-  __ESIMD_NS::simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
+
+  constexpr int Pitch = __ESIMD_DNS::getNextPowerOf2<BlockWidth>();
+  __ESIMD_NS::simd<T, BlockHeight * Pitch> Raw;
+
+  if constexpr (BlockHeight * Pitch == N) {
+    Raw = Vals;
+  } else {
+    // For store with padding, allocate the block with padding, and place
+    // original data there.
+    auto Data2D = Vals.template bit_cast_view<T, BlockHeight, BlockWidth>();
+    auto Raw2D = Raw.template bit_cast_view<T, BlockHeight, Pitch>();
+    Raw2D.template select<BlockHeight, 1, BlockWidth, 1>(0, 0) = Data2D;
+  }
+
+  __ESIMD_NS::simd_mask<BlockHeight * Pitch> pred = 1;
   __esimd_lsc_store2d_stateless<T, L1H, L3H, DS, _Transposed, 1u, BlockWidth,
-                                BlockHeight, false, N>(
+                                BlockHeight, false, BlockHeight * Pitch>(
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
-      Vals.data());
+      Raw.data());
 }
 
 template <typename T, int BlockWidth, int BlockHeight = 1,
@@ -1618,9 +2388,9 @@ public:
   /// </summary>
   /// <returns>surface base address</returns>
   T *get_data_pointer() const {
-    return (T *)(const_cast<config_2d_mem_access>(this)
-                     ->payload_data.template bit_cast_view<uint64_t>()
-                     .template select<1, 1>(0));
+    return (T *)((
+        uint64_t)(const_cast<config_2d_mem_access *>(this)
+                      ->payload_data.template bit_cast_view<uint64_t>()[0]));
   }
 
   /// <summary>
@@ -1628,7 +2398,7 @@ public:
   /// </summary>
   /// <returns>Surface Width</returns>
   uint32_t get_surface_width() const {
-    return const_cast<config_2d_mem_access>(this)
+    return const_cast<config_2d_mem_access *>(this)
         ->payload_data.template select<1, 1>(2);
   }
 
@@ -1637,7 +2407,7 @@ public:
   /// </summary>
   /// <returns>Surface Height</returns>
   uint32_t get_surface_height() const {
-    return const_cast<config_2d_mem_access>(this)
+    return const_cast<config_2d_mem_access *>(this)
         ->payload_data.template select<1, 1>(3);
   }
 
@@ -1646,7 +2416,7 @@ public:
   /// </summary>
   /// <returns>Surface Pitch</returns>
   uint32_t get_surface_pitch() const {
-    return const_cast<config_2d_mem_access>(this)
+    return const_cast<config_2d_mem_access *>(this)
         ->payload_data.template select<1, 1>(4);
   }
 
@@ -1655,7 +2425,7 @@ public:
   /// </summary>
   /// <returns>Top left corner X coordinate of the block</returns>
   int32_t get_x() const {
-    return const_cast<config_2d_mem_access>(this)
+    return const_cast<config_2d_mem_access *>(this)
         ->payload_data.template select<1, 1>(5);
   }
 
@@ -1664,7 +2434,7 @@ public:
   /// </summary>
   /// <returns>Top left corner Y coordinate of the block</returns>
   int32_t get_y() const {
-    return const_cast<config_2d_mem_access>(this)
+    return const_cast<config_2d_mem_access *>(this)
         ->payload_data.template select<1, 1>(6);
   }
 
@@ -1800,18 +2570,25 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
                                           Transposed, Transformed, false>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr int ElemsPerDword = 4 / sizeof(T);
-  constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
+  constexpr int GRFRowSize = Transposed    ? BlockHeight
+                             : Transformed ? BlockWidth * ElemsPerDword
+                                           : BlockWidth;
   constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
-  constexpr int GRFBlockSize =
-      GRFRowPitch * (Transposed ? BlockWidth : BlockHeight);
+  constexpr int GRFColSize =
+      Transposed
+          ? BlockWidth
+          : (Transformed ? (BlockHeight + ElemsPerDword - 1) / ElemsPerDword
+                         : BlockHeight);
+  constexpr int GRFBlockSize = GRFRowPitch * GRFColSize;
   constexpr int GRFBlockPitch =
       detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
   constexpr int ActualN = NBlocks * GRFBlockPitch;
-  static_assert(
-      ActualN == N,
-      "These parameters require unpadding. It is not implemented yet");
-  static_assert(!Transposed || !Transformed,
-                "Transposed and transformed is not supported");
+
+  constexpr int DstBlockElements = GRFColSize * GRFRowSize;
+  constexpr int DstElements = DstBlockElements * NBlocks;
+
+  static_assert(N == ActualN || N == DstElements, "Incorrect element count");
+
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
                                   << 17;
   constexpr uint32_t base_desc = 0x2800403;
@@ -1824,10 +2601,31 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
-  constexpr uint8_t numSrc1 = 0x0;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  return raw_send_load(oldDst, payload.get_raw_data(), exDesc, desc, execSize,
-                       sfid, numSrc0, numDst);
+  __ESIMD_NS::simd<T, ActualN> Raw =
+      raw_send(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
+               numSrc0, numDst);
+
+  if constexpr (ActualN == N) {
+    return Raw;
+  } else {
+    // HW restrictions force data which is read to contain padding filled with
+    // zeros for 2d lsc loads. This code eliminates such padding.
+
+    __ESIMD_NS::simd<T, DstElements> Dst;
+
+    for (auto i = 0; i < NBlocks; i++) {
+      auto DstBlock =
+          Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
+
+      auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
+      DstBlock = RawBlock.template bit_cast_view<T, GRFColSize, GRFRowPitch>()
+                     .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
+                     .template bit_cast_view<T>();
+    }
+
+    return Dst;
+  }
 }
 
 /// A variation of \c 2D stateless block prefetch \c with parameters passed as
@@ -1863,17 +2661,13 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint32_t base_desc = 0x2000403;
   constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
   constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
-  __ESIMD_NS::simd<T, N> oldDst;
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc =
       base_desc | cache_mask | transformMask | transposeMask;
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
-  constexpr uint8_t numSrc0 = 0x1;
-  constexpr uint8_t numSrc1 = 0x0;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_sends_store(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
-                  numSrc0, numDst);
+  raw_send(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -1912,9 +2706,9 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
-  constexpr uint8_t numDst = 0x0;
-  raw_sends_store(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid,
-                  numSrc0, numSrc1);
+
+  raw_sends(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid, numSrc0,
+            numSrc1);
 }
 
 /// SLM atomic.
@@ -1935,6 +2729,7 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
 __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4, "Unsupported data type");
   __ESIMD_EDNS::check_lsc_vector_size<1>();
   __ESIMD_EDNS::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -1947,9 +2742,9 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_slm_0<_MsgT, _Op, cache_hint::none, cache_hint::none,
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_slm_0<MsgT, _Op, cache_hint::none, cache_hint::none,
                                 _AddressScale, _ImmOffset, _DS, _VS,
                                 _Transposed, N>(pred.data(), offsets.data());
   return detail::lsc_format_ret<T>(Tmp);
@@ -1975,6 +2770,10 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd<T, N> src0,
                       __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(Op != __ESIMD_NS::atomic_op::fadd &&
+                    Op != __ESIMD_NS::atomic_op::fsub,
+                "fadd and fsub are not supported for slm.");
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -1987,12 +2786,13 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_slm_1<_MsgT, _Op, cache_hint::none, cache_hint::none,
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data = detail::lsc_format_input<MsgT>(src0);
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_slm_1<MsgT, _Op, cache_hint::none, cache_hint::none,
                                 _AddressScale, _ImmOffset, _DS, _VS,
                                 _Transposed, N>(pred.data(), offsets.data(),
-                                                src0.data());
+                                                Msg_data.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2017,6 +2817,9 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
                       __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                       __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(sizeof(T) == 2 || sizeof(T) == 4 ||
+                    (Op == __ESIMD_NS::atomic_op::cmpxchg && sizeof(T) == 8),
+                "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2029,12 +2832,14 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_slm_2<_MsgT, _Op, cache_hint::none, cache_hint::none,
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data0 = detail::lsc_format_input<MsgT>(src0);
+  __ESIMD_NS::simd<MsgT, N> Msg_data1 = detail::lsc_format_input<MsgT>(src1);
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_slm_2<MsgT, _Op, cache_hint::none, cache_hint::none,
                                 _AddressScale, _ImmOffset, _DS, _VS,
-                                _Transposed, N>(pred.data(), offsets.data(),
-                                                src0.data(), src1.data());
+                                _Transposed, N>(
+          pred.data(), offsets.data(), Msg_data0.data(), Msg_data1.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2056,10 +2861,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2073,11 +2881,11 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_0<_MsgT, _Op, L1H, L3H, _AddressScale,
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_stateless_0<MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
           pred.data(), addrs.data());
   return detail::lsc_format_ret<T>(Tmp);
@@ -2088,21 +2896,23 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(p, offsets.read(), pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
+    __ESIMD_NS::simd<T, N>>
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
 }
@@ -2126,10 +2936,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 1,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2143,14 +2956,14 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data = detail::lsc_format_input<MsgT>(src0);
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_1<_MsgT, _Op, L1H, L3H, _AddressScale,
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_stateless_1<MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(),
-          src0.template bit_cast_view<_MsgT>().data());
+          pred.data(), addrs.data(), Msg_data.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2159,24 +2972,27 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 1,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd<T, N> src0,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), src0, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(p, offsets.read(), src0,
+                                                   pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 ((Op != __ESIMD_NS::atomic_op::store &&
-                                   Op != __ESIMD_NS::atomic_op::xchg) ||
-                                  N == 1),
-                             __ESIMD_NS::simd<T, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 1 &&
+        ((Op != __ESIMD_NS::atomic_op::store &&
+          Op != __ESIMD_NS::atomic_op::xchg) ||
+         N == 1),
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
@@ -2202,11 +3018,14 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(sizeof(T) > 1, "Unsupported data type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2220,15 +3039,15 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data0 = detail::lsc_format_input<MsgT>(src0);
+  __ESIMD_NS::simd<MsgT, N> Msg_data1 = detail::lsc_format_input<MsgT>(src1);
   __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_2<_MsgT, _Op, L1H, L3H, _AddressScale,
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_stateless_2<MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(),
-          src0.template bit_cast_view<_MsgT>().data(),
-          src1.template bit_cast_view<_MsgT>().data());
+          pred.data(), addrs.data(), Msg_data0.data(), Msg_data1.data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -2237,24 +3056,27 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
-  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
-      p, __ESIMD_NS::simd<Ty, N>(offsets), src0, src1, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(p, offsets.read(), src0,
+                                                   src1, pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
-                      __ESIMD_NS::simd<T, N> src1,
-                      __ESIMD_NS::simd_mask<N> pred = 1) {
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
+    __ESIMD_NS::simd<T, N>>
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
+                  __ESIMD_NS::simd<T, N> src1,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), src0, src1, pred);
 }
@@ -2279,15 +3101,18 @@ __ESIMD_API
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
+  static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+                "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2301,10 +3126,10 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_0<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_bti_0<MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
                                 _DS, _VS, _Transposed, N>(pred.data(),
                                                           offsets.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
@@ -2332,15 +3157,18 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
 #else
+  static_assert(sizeof(T) > 1, "Unsupported data type");
+  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+                "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2354,12 +3182,13 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data = detail::lsc_format_input<MsgT>(src0);
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_1<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_bti_1<MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
                                 _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data(), src0.data(), si);
+          pred.data(), offsets.data(), Msg_data.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
 #endif
 }
@@ -2386,16 +3215,18 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename AccessorTy>
+          typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, src1, pred);
 #else
+  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
+                "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -2409,12 +3240,14 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using MsgT = typename detail::lsc_expand_type<T>::type;
+  __ESIMD_NS::simd<MsgT, N> Msg_data0 = detail::lsc_format_input<MsgT>(src0);
+  __ESIMD_NS::simd<MsgT, N> Msg_data1 = detail::lsc_format_input<MsgT>(src1);
   auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<_MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_2<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+  __ESIMD_NS::simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_bti_2<MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
                                 _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data(), src0.data(), src1.data(), si);
+          pred.data(), offsets.data(), Msg_data0.data(), Msg_data1.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
 #endif
 }
@@ -2440,6 +3273,31 @@ __ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
 
 /// @} sycl_esimd_memory_lsc
 
+/// @defgroup sycl_esimd_hw_thread_queries HW thread .
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_hw_thread_queries
+/// @{
+
+/// Get HW Thread ID
+__ESIMD_API int32_t get_hw_thread_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_BuiltInGlobalHWThreadIDINTEL();
+#else
+  return std::rand();
+#endif // __SYCL_DEVICE_ONLY__
+}
+/// Get subdevice ID
+__ESIMD_API int32_t get_subdevice_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return __spirv_BuiltInSubDeviceIDINTEL();
+#else
+  return 0;
+#endif
+}
+
+/// @} sycl_esimd_hw_thread_queries
+
 } // namespace experimental::esimd
 
 namespace esimd {
@@ -2448,58 +3306,74 @@ namespace esimd {
 /// <tt>native::lsc::atomic_op</tt> instead of <tt>atomic_op</tt> as atomic
 /// operation template argument.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
-                                     simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0,
+                             simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
-                                     simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0,
+                             simd<T, N>>
+atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
+              simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    atomic_update(T *p, Toffset offset, simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0,
+                             simd<T, N>>
+atomic_update(T *p, Toffset offset, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, mask);
 }
 
 /// LSC version of the single-argument atomic update.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
-                                     simd<T, N> src0, simd_mask<N> mask) {
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1,
+                                 simd<T, N>>
+    atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0,
+                  simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src0, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
-                                     simd<T, N> src0, simd_mask<N> mask = 1) {
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1,
+                                 simd<T, N>>
+    atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
+                  simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, src0, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    atomic_update(T *p, Toffset offset, simd<T, N> src0,
-                  simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 1,
+                             simd<T, N>>
+atomic_update(T *p, Toffset offset, simd<T, N> src0, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src0, mask);
 }
 
 /// LSC version of the two-argument atomic update.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
-                                     simd<T, N> src0, simd<T, N> src1,
-                                     simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2,
+                             simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0, simd<T, N> src1,
+              simd_mask<N> mask) {
   // 2-argument lsc_atomic_update arguments order matches the standard one -
   // expected value first, then new value. But atomic_update uses reverse
   // order, hence the src1/src0 swap.
@@ -2509,20 +3383,139 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
-                                     simd<T, N> src0, simd<T, N> src1,
-                                     simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2,
+                             simd<T, N>>
+atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
+              simd<T, N> src1, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, src1, src0, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    atomic_update(T *p, Toffset offset, simd<T, N> src0, simd<T, N> src1,
-                  simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2,
+                             __ESIMD_NS::simd<T, N>>
+atomic_update(T *p, Toffset offset, simd<T, N> src0, simd<T, N> src1,
+              simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src1, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+              simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offsets, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, mask);
+}
+
+/// LSC version of the single-argument atomic update.
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                     !std::is_pointer<AccessorTy>::value,
+                                 simd<T, N>>
+    atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
+                  simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
+          typename AccessorTy>
+__ESIMD_API
+    __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                     __ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                     !std::is_pointer<AccessorTy>::value,
+                                 simd<T, N>>
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+                  simd<T, N> src0, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offsets, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 1 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0,
+              simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src0, mask);
+}
+
+/// LSC version of the two-argument atomic update.
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
+              simd<T, N> src1, simd_mask<N> mask) {
+  // 2-argument lsc_atomic_update arguments order matches the standard one -
+  // expected value first, then new value. But atomic_update uses reverse
+  // order, hence the src1/src0 swap.
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src1, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+              simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offsets, src1, src0, mask);
+}
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename AccessorTy>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2 &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             __ESIMD_NS::simd<T, N>>
+atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0, simd<T, N> src1,
+              simd_mask<N> mask) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      acc, offset, src1, src0, mask);
 }
 
 /// RAII-style class used to implement "semi-dynamic" SLM allocation.
@@ -2550,7 +3543,7 @@ public:
   slm_allocator() { offset = __esimd_slm_alloc(SLMAmount); }
 
   /// @return The allocated chunk's offset in bytes.
-  int get_offset() const { return offset; }
+  ESIMD_INLINE int get_offset() const { return offset; }
 
   /// Releases the SLM chunk allocated in the constructor.
   ~slm_allocator() { __esimd_slm_free(offset); }

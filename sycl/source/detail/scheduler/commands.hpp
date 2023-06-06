@@ -27,6 +27,10 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+bool CurrentCodeLocationValid();
+#endif
+
 class queue_impl;
 class event_impl;
 class context_impl;
@@ -225,6 +229,11 @@ public:
   /// in order queue
   std::vector<RT::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// in order queue. Does blocking enqueue if event is expected to produce pi
+  /// event but has empty native handle.
+  std::vector<RT::PiEvent>
+  getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
 
@@ -277,6 +286,21 @@ public:
     return MPreparedDepsEvents;
   }
 
+  // XPTI instrumentation. Copy code location details to the internal struct.
+  // Memory is allocated in this method and released in destructor.
+  void copySubmissionCodeLocation();
+
+  /// Clear all dependency events This should only be used if a command is about
+  /// to be deleted without being executed before that. As of now, the only
+  /// valid use case for this function is in kernel fusion, where the fused
+  /// kernel commands are replaced by the fused command without ever being
+  /// executed.
+  void clearAllDependencies() {
+    MPreparedDepsEvents.clear();
+    MPreparedHostDepsEvents.clear();
+    MDeps.clear();
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -303,7 +327,7 @@ public:
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
-  // All member variable defined here  are needed for the SYCL instrumentation
+  // All member variables defined here are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
@@ -329,6 +353,14 @@ public:
   bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
+  /// Represents code location of command submission to SYCL API, assigned with
+  /// the valid value only if command execution is async (host task) or delayed
+  /// (blocked by host task).
+  code_location MSubmissionCodeLocation;
+  /// Introduces string to handle memory management since code_location struct
+  /// works with raw char arrays.
+  std::string MSubmissionFileName;
+  std::string MSubmissionFunctionName;
 
   // This flag allows to control whether host event should be set complete
   // after successfull enqueue of command. Event is considered as host event if
@@ -564,13 +596,20 @@ private:
   void **MDstPtr = nullptr;
 };
 
+pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
+                                  const std::string &PipeName, bool blocking,
+                                  void *ptr, size_t size,
+                                  std::vector<RT::PiEvent> &RawEvents,
+                                  RT::PiEvent *OutEvent, bool read);
+
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    RT::PiKernelCacheConfig KernelCacheConfig);
 
 class KernelFusionCommand;
 
@@ -615,6 +654,16 @@ private:
 
   friend class Command;
 };
+
+// For XPTI instrumentation only.
+// Method used to emit data in cases when we do not create node in graph.
+// Very close to ExecCGCommand::emitInstrumentationData content.
+void emitKernelInstrumentationData(
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const detail::OSModuleHandle &OSModHandle, std::vector<ArgDesc> &CGArgs);
 
 class UpdateHostRequirementCommand : public Command {
 public:

@@ -434,7 +434,8 @@ lldb::SBProcess SBTarget::Attach(SBAttachInfo &sb_attach_info, SBError &error) {
 
   if (target_sp) {
     ProcessAttachInfo &attach_info = sb_attach_info.ref();
-    if (attach_info.ProcessIDIsValid() && !attach_info.UserIDIsValid()) {
+    if (attach_info.ProcessIDIsValid() && !attach_info.UserIDIsValid() &&
+        !attach_info.IsScriptedProcess()) {
       PlatformSP platform_sp = target_sp->GetPlatform();
       // See if we can pre-verify if a process exists or not
       if (platform_sp && platform_sp->IsConnected()) {
@@ -1577,27 +1578,27 @@ const char *SBTarget::GetTriple() {
   LLDB_INSTRUMENT_VA(this);
 
   TargetSP target_sp(GetSP());
-  if (target_sp) {
-    std::string triple(target_sp->GetArchitecture().GetTriple().str());
-    // Unique the string so we don't run into ownership issues since the const
-    // strings put the string into the string pool once and the strings never
-    // comes out
-    ConstString const_triple(triple.c_str());
-    return const_triple.GetCString();
-  }
-  return nullptr;
+  if (!target_sp)
+    return nullptr;
+
+  std::string triple(target_sp->GetArchitecture().GetTriple().str());
+  // Unique the string so we don't run into ownership issues since the const
+  // strings put the string into the string pool once and the strings never
+  // comes out
+  ConstString const_triple(triple.c_str());
+  return const_triple.GetCString();
 }
 
 const char *SBTarget::GetABIName() {
   LLDB_INSTRUMENT_VA(this);
   
   TargetSP target_sp(GetSP());
-  if (target_sp) {
-    std::string abi_name(target_sp->GetABIName().str());
-    ConstString const_name(abi_name.c_str());
-    return const_name.GetCString();
-  }
-  return nullptr;
+  if (!target_sp)
+    return nullptr;
+
+  std::string abi_name(target_sp->GetABIName().str());
+  ConstString const_name(abi_name.c_str());
+  return const_name.GetCString();
 }
 
 uint32_t SBTarget::GetDataByteSize() {
@@ -2092,6 +2093,18 @@ SBError SBTarget::SetModuleLoadAddress(lldb::SBModule module,
                                        int64_t slide_offset) {
   LLDB_INSTRUMENT_VA(this, module, slide_offset);
 
+  if (slide_offset < 0) {
+    SBError sb_error;
+    sb_error.SetErrorStringWithFormat("slide must be positive");
+    return sb_error;
+  }
+
+  return SetModuleLoadAddress(module, static_cast<uint64_t>(slide_offset));
+}
+
+SBError SBTarget::SetModuleLoadAddress(lldb::SBModule module,
+                                               uint64_t slide_offset) {
+
   SBError sb_error;
 
   TargetSP target_sp(GetSP());
@@ -2219,12 +2232,25 @@ lldb::SBValue SBTarget::EvaluateExpression(const char *expr,
     std::lock_guard<std::recursive_mutex> guard(target_sp->GetAPIMutex());
     ExecutionContext exe_ctx(m_opaque_sp.get());
 
-
     frame = exe_ctx.GetFramePtr();
     Target *target = exe_ctx.GetTargetPtr();
+    Process *process = exe_ctx.GetProcessPtr();
 
     if (target) {
-      target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());
+      // If we have a process, make sure to lock the runlock:
+      if (process) {
+        Process::StopLocker stop_locker;
+        if (stop_locker.TryLock(&process->GetRunLock())) {
+          target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());
+        } else {
+          Status error;
+          error.SetErrorString("can't evaluate expressions when the "
+                               "process is running.");
+          expr_value_sp = ValueObjectConstResult::Create(nullptr, error);
+        }
+      } else {
+        target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());
+      }
 
       expr_result.SetSP(expr_value_sp, options.GetFetchDynamicValue());
     }

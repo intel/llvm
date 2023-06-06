@@ -23,8 +23,8 @@ def Test_Dialect : Dialect {
   let hasNonDefaultDestructor = 1;
   let useDefaultTypePrinterParser = 0;
   let useDefaultAttributePrinterParser = 1;
-  let useFoldAPI = kEmitFoldAdaptorFolder;
   let isExtensible = 1;
+  let usePropertiesForAttributes = 1;
   let dependentDialects = ["::mlir::DLTIDialect"];
 
   let extraClassDeclaration = [{

@@ -26,8 +26,15 @@
 #endif
 #endif // __SYCL_ALWAYS_INLINE
 
-#ifndef SYCL_EXTERNAL
+#ifdef SYCL_EXTERNAL
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#else
+#ifdef __SYCL_DEVICE_ONLY__
+#define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
+#else
+#define __DPCPP_SYCL_EXTERNAL
 #define SYCL_EXTERNAL
+#endif
 #endif
 
 #ifndef __SYCL_ID_QUERIES_FIT_IN_INT__
@@ -50,6 +57,20 @@
 #define __SYCL2020_DEPRECATED(message)
 #endif
 #endif // __SYCL2020_DEPRECATED
+
+#ifndef __SYCL_WARN_IMAGE_ASPECT
+#if !defined(SYCL_DISABLE_IMAGE_ASPECT_WARNING) && __has_attribute(diagnose_if)
+#define __SYCL_WARN_IMAGE_ASPECT(aspect_param)                                   \
+  __attribute__((diagnose_if(                                                    \
+      aspect_param == aspect::image,                                             \
+      "SYCL 2020 images are not supported on any devices. Consider using "       \
+      "‘aspect::ext_intel_legacy_image’ instead. Disable this warning with " \
+      "by defining SYCL_DISABLE_IMAGE_ASPECT_WARNING.",                          \
+      "warning")))
+#else
+#define __SYCL_WARN_IMAGE_ASPECT(aspect)
+#endif
+#endif // __SYCL_WARN_IMAGE_ASPECT
 
 #ifndef __SYCL_HAS_CPP_ATTRIBUTE
 #if defined(__cplusplus) && defined(__has_cpp_attribute)

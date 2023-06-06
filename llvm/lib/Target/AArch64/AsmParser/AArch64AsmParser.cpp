@@ -48,9 +48,8 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
-#include "llvm/Support/AArch64TargetParser.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/AArch64TargetParser.h"
 #include <cassert>
 #include <cctype>
 #include <cstdint>
@@ -3408,8 +3407,7 @@ AArch64AsmParser::parseCondCodeString(StringRef Cond, std::string &Suggestion) {
                     .Case("nv", AArch64CC::NV)
                     .Default(AArch64CC::Invalid);
 
-  if (CC == AArch64CC::Invalid &&
-      getSTI().getFeatureBits()[AArch64::FeatureSVE]) {
+  if (CC == AArch64CC::Invalid && getSTI().hasFeature(AArch64::FeatureSVE)) {
     CC = StringSwitch<AArch64CC::CondCode>(Cond.lower())
                     .Case("none",  AArch64CC::EQ)
                     .Case("any",   AArch64CC::NE)
@@ -3488,7 +3486,7 @@ AArch64AsmParser::tryParseMatrixRegister(OperandVector &Operands) {
 
   StringRef Name = Tok.getString();
 
-  if (Name.equals_insensitive("za") || Name.startswith_insensitive("za.")) {
+  if (Name.equals_insensitive("za") || Name.starts_with_insensitive("za.")) {
     Lex(); // eat "za[.(b|h|s|d)]"
     unsigned ElementWidth = 0;
     auto DotPosition = Name.find('.');
@@ -3676,6 +3674,10 @@ static const struct Extension {
     {"the", {AArch64::FeatureTHE}},
     {"d128", {AArch64::FeatureD128}},
     {"lse128", {AArch64::FeatureLSE128}},
+    {"ite", {AArch64::FeatureITE}},
+    {"cssc", {AArch64::FeatureCSSC}},
+    {"rcpc3", {AArch64::FeatureRCPC3}},
+    {"gcs", {AArch64::FeatureGCS}},
     // FIXME: Unsupported extensions
     {"lor", {}},
     {"rdma", {}},
@@ -3866,7 +3868,7 @@ bool AArch64AsmParser::parseSyspAlias(StringRef Name, SMLoc NameLoc,
   SMLoc S = Tok.getLoc();
 
   if (Mnemonic == "tlbip") {
-    bool HasnXSQualifier = Op.endswith_insensitive("nXS");
+    bool HasnXSQualifier = Op.ends_with_insensitive("nXS");
     if (HasnXSQualifier) {
       Op = Op.drop_back(3);
     }
@@ -4461,7 +4463,7 @@ AArch64AsmParser::tryParseVectorList(OperandVector &Operands,
     if (RegTok.isNot(AsmToken::Identifier) ||
         ParseRes == MatchOperand_ParseFail ||
         (ParseRes == MatchOperand_NoMatch && NoMatchIsError &&
-         !RegTok.getString().startswith_insensitive("za"))) {
+         !RegTok.getString().starts_with_insensitive("za"))) {
       Error(Loc, "vector register expected");
       return MatchOperand_ParseFail;
     }
@@ -4840,11 +4842,6 @@ bool AArch64AsmParser::parseOperand(OperandVector &Operands, bool isCondCode,
     if (!parseOptionalMulOperand(Operands))
       return false;
 
-    // If this is an "smstart" or "smstop" instruction, parse its special
-    // keyword operand as an identifier.
-    if (Mnemonic == "smstart" || Mnemonic == "smstop")
-      return parseKeywordOperand(Operands);
-
     // This could be an optional "shift" or "extend" operand.
     OperandMatchResultTy GotShift = tryParseOptionalShiftExtend(Operands);
     // We can only continue if no tokens were eaten.
@@ -4853,7 +4850,8 @@ bool AArch64AsmParser::parseOperand(OperandVector &Operands, bool isCondCode,
 
     // If this is a two-word mnemonic, parse its special keyword
     // operand as an identifier.
-    if (Mnemonic == "brb")
+    if (Mnemonic == "brb" || Mnemonic == "smstart" || Mnemonic == "smstop" ||
+        Mnemonic == "gcsb")
       return parseKeywordOperand(Operands);
 
     // This was not a register so parse other operands that start with an
@@ -4935,7 +4933,7 @@ bool AArch64AsmParser::parseOperand(OperandVector &Operands, bool isCondCode,
     if (isa<MCConstantExpr>(SubExprVal)) {
       uint64_t Imm = (cast<MCConstantExpr>(SubExprVal))->getValue();
       uint32_t ShiftAmt = 0, MaxShiftAmt = IsXReg ? 48 : 16;
-      while(Imm > 0xFFFF && countTrailingZeros(Imm) >= 16) {
+      while (Imm > 0xFFFF && llvm::countr_zero(Imm) >= 16) {
         ShiftAmt += 16;
         Imm >>= 16;
       }
@@ -5305,6 +5303,14 @@ bool AArch64AsmParser::validateInstruction(MCInst &Inst, SMLoc &IDLoc,
       return Error(Loc[1], "unpredictable LDP instruction, writeback base "
                            "is also a destination");
     [[fallthrough]];
+  }
+  case AArch64::LDR_ZA:
+  case AArch64::STR_ZA: {
+    if (Inst.getOperand(2).isImm() && Inst.getOperand(4).isImm() &&
+        Inst.getOperand(2).getImm() != Inst.getOperand(4).getImm())
+      return Error(Loc[1],
+                   "unpredictable instruction, immediate and offset mismatch.");
+    break;
   }
   case AArch64::LDPDi:
   case AArch64::LDPQi:
@@ -6352,7 +6358,7 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   // instruction for FP registers correctly in some rare circumstances. Convert
   // it to a safe instruction and warn (because silently changing someone's
   // assembly is rude).
-  if (getSTI().getFeatureBits()[AArch64::FeatureZCZeroingFPWorkaround] &&
+  if (getSTI().hasFeature(AArch64::FeatureZCZeroingFPWorkaround) &&
       NumOperands == 4 && Tok == "movi") {
     AArch64Operand &Op1 = static_cast<AArch64Operand &>(*Operands[1]);
     AArch64Operand &Op2 = static_cast<AArch64Operand &>(*Operands[2]);
@@ -6877,8 +6883,8 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
   std::tie(Arch, ExtensionString) =
       getParser().parseStringToEndOfStatement().trim().split('+');
 
-  const AArch64::ArchInfo &ArchInfo = AArch64::parseArch(Arch);
-  if (ArchInfo == AArch64::INVALID)
+  std::optional<AArch64::ArchInfo> ArchInfo = AArch64::parseArch(Arch);
+  if (!ArchInfo)
     return Error(ArchLoc, "unknown arch name");
 
   if (parseToken(AsmToken::EndOfStatement))
@@ -6886,9 +6892,8 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
 
   // Get the architecture and extension features.
   std::vector<StringRef> AArch64Features;
-  AArch64Features.push_back(ArchInfo.ArchFeature);
-  AArch64::getExtensionFeatures(
-      AArch64::getDefaultExtensions("generic", ArchInfo), AArch64Features);
+  AArch64Features.push_back(ArchInfo->ArchFeature);
+  AArch64::getExtensionFeatures(ArchInfo->DefaultExts, AArch64Features);
 
   MCSubtargetInfo &STI = copySTI();
   std::vector<std::string> ArchFeatures(AArch64Features.begin(), AArch64Features.end());
@@ -6899,13 +6904,13 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
   if (!ExtensionString.empty())
     ExtensionString.split(RequestedExtensions, '+');
 
-  ExpandCryptoAEK(ArchInfo, RequestedExtensions);
+  ExpandCryptoAEK(*ArchInfo, RequestedExtensions);
 
   FeatureBitset Features = STI.getFeatureBits();
   for (auto Name : RequestedExtensions) {
     bool EnableFeature = true;
 
-    if (Name.startswith_insensitive("no")) {
+    if (Name.starts_with_insensitive("no")) {
       EnableFeature = false;
       Name = Name.substr(2);
     }
@@ -6939,7 +6944,7 @@ bool AArch64AsmParser::parseDirectiveArchExtension(SMLoc L) {
     return true;
 
   bool EnableFeature = true;
-  if (Name.startswith_insensitive("no")) {
+  if (Name.starts_with_insensitive("no")) {
     EnableFeature = false;
     Name = Name.substr(2);
   }
@@ -6984,18 +6989,16 @@ bool AArch64AsmParser::parseDirectiveCPU(SMLoc L) {
   if (!ExtensionString.empty())
     ExtensionString.split(RequestedExtensions, '+');
 
-  // FIXME This is using tablegen data, but should be moved to ARMTargetParser
-  // once that is tablegen'ed
-  if (!getSTI().isCPUStringValid(CPU)) {
+  const std::optional<llvm::AArch64::ArchInfo> CpuArch = llvm::AArch64::getArchForCpu(CPU);
+  if (!CpuArch) {
     Error(CurLoc, "unknown CPU name");
     return false;
   }
+  ExpandCryptoAEK(*CpuArch, RequestedExtensions);
 
   MCSubtargetInfo &STI = copySTI();
   STI.setDefaultFeatures(CPU, /*TuneCPU*/ CPU, "");
   CurLoc = incrementLoc(CurLoc, CPU.size());
-
-  ExpandCryptoAEK(llvm::AArch64::getArchForCpu(CPU), RequestedExtensions);
 
   for (auto Name : RequestedExtensions) {
     // Advance source location past '+'.
@@ -7003,7 +7006,7 @@ bool AArch64AsmParser::parseDirectiveCPU(SMLoc L) {
 
     bool EnableFeature = true;
 
-    if (Name.startswith_insensitive("no")) {
+    if (Name.starts_with_insensitive("no")) {
       EnableFeature = false;
       Name = Name.substr(2);
     }
@@ -7623,61 +7626,21 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64AsmParser() {
 unsigned AArch64AsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
                                                       unsigned Kind) {
   AArch64Operand &Op = static_cast<AArch64Operand &>(AsmOp);
-  // If the kind is a token for a literal immediate, check if our asm
-  // operand matches. This is for InstAliases which have a fixed-value
-  // immediate in the syntax.
-  int64_t ExpectedVal;
+
+  auto MatchesOpImmediate = [&](int64_t ExpectedVal) -> MatchResultTy {
+    if (!Op.isImm())
+      return Match_InvalidOperand;
+    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(Op.getImm());
+    if (!CE)
+      return Match_InvalidOperand;
+    if (CE->getValue() == ExpectedVal)
+      return Match_Success;
+    return Match_InvalidOperand;
+  };
+
   switch (Kind) {
   default:
     return Match_InvalidOperand;
-  case MCK__HASH_0:
-    ExpectedVal = 0;
-    break;
-  case MCK__HASH_1:
-    ExpectedVal = 1;
-    break;
-  case MCK__HASH_12:
-    ExpectedVal = 12;
-    break;
-  case MCK__HASH_16:
-    ExpectedVal = 16;
-    break;
-  case MCK__HASH_2:
-    ExpectedVal = 2;
-    break;
-  case MCK__HASH_24:
-    ExpectedVal = 24;
-    break;
-  case MCK__HASH_3:
-    ExpectedVal = 3;
-    break;
-  case MCK__HASH_32:
-    ExpectedVal = 32;
-    break;
-  case MCK__HASH_4:
-    ExpectedVal = 4;
-    break;
-  case MCK__HASH_48:
-    ExpectedVal = 48;
-    break;
-  case MCK__HASH_6:
-    ExpectedVal = 6;
-    break;
-  case MCK__HASH_64:
-    ExpectedVal = 64;
-    break;
-  case MCK__HASH_8:
-    ExpectedVal = 8;
-    break;
-  case MCK__HASH__MINUS_4:
-    ExpectedVal = -4;
-    break;
-  case MCK__HASH__MINUS_8:
-    ExpectedVal = -8;
-    break;
-  case MCK__HASH__MINUS_16:
-    ExpectedVal = -16;
-    break;
   case MCK_MPR:
     // If the Kind is a token for the MPR register class which has the "za"
     // register (SME accumulator array), check if the asm is a literal "za"
@@ -7686,15 +7649,47 @@ unsigned AArch64AsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
     if (Op.isTokenEqual("za"))
       return Match_Success;
     return Match_InvalidOperand;
+
+    // If the kind is a token for a literal immediate, check if our asm operand
+    // matches. This is for InstAliases which have a fixed-value immediate in
+    // the asm string, such as hints which are parsed into a specific
+    // instruction definition.
+#define MATCH_HASH(N)                                                          \
+  case MCK__HASH_##N:                                                          \
+    return MatchesOpImmediate(N);
+    MATCH_HASH(0)
+    MATCH_HASH(1)
+    MATCH_HASH(2)
+    MATCH_HASH(3)
+    MATCH_HASH(4)
+    MATCH_HASH(6)
+    MATCH_HASH(7)
+    MATCH_HASH(8)
+    MATCH_HASH(10)
+    MATCH_HASH(12)
+    MATCH_HASH(14)
+    MATCH_HASH(16)
+    MATCH_HASH(24)
+    MATCH_HASH(25)
+    MATCH_HASH(26)
+    MATCH_HASH(27)
+    MATCH_HASH(28)
+    MATCH_HASH(29)
+    MATCH_HASH(30)
+    MATCH_HASH(31)
+    MATCH_HASH(32)
+    MATCH_HASH(40)
+    MATCH_HASH(48)
+    MATCH_HASH(64)
+#undef MATCH_HASH
+#define MATCH_HASH_MINUS(N)                                                    \
+  case MCK__HASH__MINUS_##N:                                                   \
+    return MatchesOpImmediate(-N);
+    MATCH_HASH_MINUS(4)
+    MATCH_HASH_MINUS(8)
+    MATCH_HASH_MINUS(16)
+#undef MATCH_HASH_MINUS
   }
-  if (!Op.isImm())
-    return Match_InvalidOperand;
-  const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(Op.getImm());
-  if (!CE)
-    return Match_InvalidOperand;
-  if (CE->getValue() == ExpectedVal)
-    return Match_Success;
-  return Match_InvalidOperand;
 }
 
 OperandMatchResultTy

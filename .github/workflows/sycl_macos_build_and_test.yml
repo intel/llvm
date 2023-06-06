@@ -18,10 +18,6 @@ on:
         type: string
         required: false
         default: ""
-      build_artifact_suffix:
-        type: string
-        required: false
-        default: "default"
 
 jobs:
   build:
@@ -57,17 +53,4 @@ jobs:
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
-      id: build
-      run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
-    - name: Install
-      run: |
-        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
-
-    - name: Pack toolchain
-      run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
-    - name: Upload toolchain
-      uses: actions/upload-artifact@v3
-      with:
-        name: sycl_macos_${{ inputs.build_artifact_suffix }}
-        path: llvm_sycl.tar.xz
-
+      run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain

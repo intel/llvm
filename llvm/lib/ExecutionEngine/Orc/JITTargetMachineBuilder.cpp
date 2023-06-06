@@ -9,8 +9,8 @@
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 
 namespace llvm {
 namespace orc {
@@ -18,7 +18,6 @@ namespace orc {
 JITTargetMachineBuilder::JITTargetMachineBuilder(Triple TT)
     : TT(std::move(TT)) {
   Options.EmulatedTLS = true;
-  Options.ExplicitEmulatedTLS = true;
   Options.UseInitArray = true;
 }
 

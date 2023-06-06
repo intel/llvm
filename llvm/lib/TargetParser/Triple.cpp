@@ -247,6 +247,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case Win32: return "windows";
   case ZOS: return "zos";
   case ShaderModel: return "shadermodel";
+  case LiteOS: return "liteos";
   }
 
   llvm_unreachable("Invalid OSType");
@@ -294,9 +295,25 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case Callable: return "callable";
   case Mesh: return "mesh";
   case Amplification: return "amplification";
+  case OpenHOS: return "ohos";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
+}
+
+StringRef Triple::getObjectFormatTypeName(ObjectFormatType Kind) {
+  switch (Kind) {
+  case UnknownObjectFormat: return "";
+  case COFF: return "coff";
+  case ELF: return "elf";
+  case GOFF: return "goff";
+  case MachO: return "macho";
+  case Wasm: return "wasm";
+  case XCOFF: return "xcoff";
+  case DXContainer: return "dxcontainer";
+  case SPIRV: return "spirv";
+  }
+  llvm_unreachable("unknown object format type");
 }
 
 static Triple::ArchType parseBPFArch(StringRef ArchName) {
@@ -603,6 +620,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("wasi", Triple::WASI)
     .StartsWith("emscripten", Triple::Emscripten)
     .StartsWith("shadermodel", Triple::ShaderModel)
+    .StartsWith("liteos", Triple::LiteOS)
     .Default(Triple::UnknownOS);
 }
 
@@ -647,6 +665,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("callable", Triple::Callable)
       .StartsWith("mesh", Triple::Mesh)
       .StartsWith("amplification", Triple::Amplification)
+      .StartsWith("ohos", Triple::OpenHOS)
       .Default(Triple::UnknownEnvironment);
 }
 
@@ -787,30 +806,6 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
   default:
     return Triple::NoSubArch;
   }
-}
-
-static StringRef getObjectFormatTypeName(Triple::ObjectFormatType Kind) {
-  switch (Kind) {
-  case Triple::UnknownObjectFormat:
-    return "";
-  case Triple::COFF:
-    return "coff";
-  case Triple::ELF:
-    return "elf";
-  case Triple::GOFF:
-    return "goff";
-  case Triple::MachO:
-    return "macho";
-  case Triple::Wasm:
-    return "wasm";
-  case Triple::XCOFF:
-    return "xcoff";
-  case Triple::DXContainer:
-    return "dxcontainer";
-  case Triple::SPIRV:
-    return "spirv";
-  }
-  llvm_unreachable("unknown object format type");
 }
 
 static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {

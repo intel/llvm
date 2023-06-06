@@ -89,23 +89,21 @@ static llvm::hash_code test::hash_value(const FieldInfo &fi) { // NOLINT
 // TestCustomType
 //===----------------------------------------------------------------------===//
 
-static LogicalResult parseCustomTypeA(AsmParser &parser,
-                                      FailureOr<int> &aResult) {
-  aResult.emplace();
-  return parser.parseInteger(*aResult);
+static LogicalResult parseCustomTypeA(AsmParser &parser, int &aResult) {
+  return parser.parseInteger(aResult);
 }
 
 static void printCustomTypeA(AsmPrinter &printer, int a) { printer << a; }
 
 static LogicalResult parseCustomTypeB(AsmParser &parser, int a,
-                                      FailureOr<std::optional<int>> &bResult) {
+                                      std::optional<int> &bResult) {
   if (a < 0)
     return success();
   for (int i : llvm::seq(0, a))
     if (failed(parser.parseInteger(i)))
       return failure();
   bResult.emplace(0);
-  return parser.parseInteger(**bResult);
+  return parser.parseInteger(*bResult);
 }
 
 static void printCustomTypeB(AsmPrinter &printer, int a, std::optional<int> b) {
@@ -117,8 +115,7 @@ static void printCustomTypeB(AsmPrinter &printer, int a, std::optional<int> b) {
   printer << *b;
 }
 
-static LogicalResult parseFooString(AsmParser &parser,
-                                    FailureOr<std::string> &foo) {
+static LogicalResult parseFooString(AsmParser &parser, std::string &foo) {
   std::string result;
   if (parser.parseString(&result))
     return failure();
@@ -290,18 +287,18 @@ TestTypeWithLayoutType::verifyEntries(DataLayoutEntryListRef params,
   for (DataLayoutEntryInterface entry : params) {
     // This is for testing purposes only, so assert well-formedness.
     assert(entry.isTypeEntry() && "unexpected identifier entry");
-    assert(entry.getKey().get<Type>().isa<TestTypeWithLayoutType>() &&
+    assert(llvm::isa<TestTypeWithLayoutType>(entry.getKey().get<Type>()) &&
            "wrong type passed in");
-    auto array = entry.getValue().dyn_cast<ArrayAttr>();
+    auto array = llvm::dyn_cast<ArrayAttr>(entry.getValue());
     assert(array && array.getValue().size() == 2 &&
            "expected array of two elements");
-    auto kind = array.getValue().front().dyn_cast<StringAttr>();
+    auto kind = llvm::dyn_cast<StringAttr>(array.getValue().front());
     (void)kind;
     assert(kind &&
            (kind.getValue() == "size" || kind.getValue() == "alignment" ||
             kind.getValue() == "preferred") &&
            "unexpected kind");
-    assert(array.getValue().back().isa<IntegerAttr>());
+    assert(llvm::isa<IntegerAttr>(array.getValue().back()));
   }
   return success();
 }
@@ -309,10 +306,11 @@ TestTypeWithLayoutType::verifyEntries(DataLayoutEntryListRef params,
 unsigned TestTypeWithLayoutType::extractKind(DataLayoutEntryListRef params,
                                              StringRef expectedKind) const {
   for (DataLayoutEntryInterface entry : params) {
-    ArrayRef<Attribute> pair = entry.getValue().cast<ArrayAttr>().getValue();
-    StringRef kind = pair.front().cast<StringAttr>().getValue();
+    ArrayRef<Attribute> pair =
+        llvm::cast<ArrayAttr>(entry.getValue()).getValue();
+    StringRef kind = llvm::cast<StringAttr>(pair.front()).getValue();
     if (kind == expectedKind)
-      return pair.back().cast<IntegerAttr>().getValue().getZExtValue();
+      return llvm::cast<IntegerAttr>(pair.back()).getValue().getZExtValue();
   }
   return 1;
 }
@@ -469,7 +467,7 @@ void TestDialect::printTestType(Type type, AsmPrinter &printer,
   if (succeeded(printIfDynamicType(type, printer)))
     return;
 
-  auto rec = type.cast<TestRecursiveType>();
+  auto rec = llvm::cast<TestRecursiveType>(type);
   printer << "test_rec<" << rec.getName();
   if (!stack.contains(rec)) {
     printer << ", ";

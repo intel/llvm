@@ -3,6 +3,7 @@
 import gc
 from mlir.ir import *
 
+
 def run(f):
   print("\nTEST:", f.__name__)
   f()
@@ -26,16 +27,17 @@ def testParsePrint():
 
 
 # CHECK-LABEL: TEST: testParseError
-# TODO: Hook the diagnostic manager to capture a more meaningful error
-# message.
 @run
 def testParseError():
   ctx = Context()
   try:
     t = Type.parse("BAD_TYPE_DOES_NOT_EXIST", ctx)
-  except ValueError as e:
-    # CHECK: Unable to parse type: 'BAD_TYPE_DOES_NOT_EXIST'
-    print("testParseError:", e)
+  except MLIRError as e:
+    # CHECK: testParseError: <
+    # CHECK:   Unable to parse type:
+    # CHECK:   error: "BAD_TYPE_DOES_NOT_EXIST":1:1: expected non-function type
+    # CHECK: >
+    print(f"testParseError: <{e}>")
   else:
     print("Exception not produced")
 
@@ -74,6 +76,7 @@ def testTypeHash():
   s.add(t3)
   # CHECK: len(s): 2
   print("len(s): ", len(s))
+
 
 # CHECK-LABEL: TEST: testTypeCast
 @run
@@ -181,6 +184,7 @@ def testIntegerType():
     # CHECK: unsigned: ui64
     print("unsigned:", IntegerType.get_unsigned(64))
 
+
 # CHECK-LABEL: TEST: testIndexType
 @run
 def testIndexType():
@@ -197,6 +201,12 @@ def testFloatType():
     print("float:", Float8E4M3FNType.get())
     # CHECK: float: f8E5M2
     print("float:", Float8E5M2Type.get())
+    # CHECK: float: f8E5M2FNUZ
+    print("float:", Float8E5M2FNUZType.get())
+    # CHECK: float: f8E4M3FNUZ
+    print("float:", Float8E4M3FNUZType.get())
+    # CHECK: float: f8E4M3B11FNUZ
+    print("float:", Float8E4M3B11FNUZType.get())
     # CHECK: float: bf16
     print("float:", BF16Type.get())
     # CHECK: float: f16
@@ -252,7 +262,8 @@ def testConcreteShapedType():
     # CHECK: rank: 2
     print("rank:", vector.rank)
     # CHECK: whether the shaped type has a static shape: True
-    print("whether the shaped type has a static shape:", vector.has_static_shape)
+    print("whether the shaped type has a static shape:",
+          vector.has_static_shape)
     # CHECK: whether the dim-th dimension is dynamic: False
     print("whether the dim-th dimension is dynamic:", vector.is_dynamic_dim(0))
     # CHECK: dim size: 3
@@ -288,8 +299,9 @@ def testVectorType():
     none = NoneType.get()
     try:
       vector_invalid = VectorType.get(shape, none)
-    except ValueError as e:
-      # CHECK: invalid 'Type(none)' and expected floating point or integer type.
+    except MLIRError as e:
+      # CHECK: Invalid type:
+      # CHECK: error: unknown: vector elements must be int/index/float type but got 'none'
       print(e)
     else:
       print("Exception not produced")
@@ -303,15 +315,14 @@ def testRankedTensorType():
     shape = [2, 3]
     loc = Location.unknown()
     # CHECK: ranked tensor type: tensor<2x3xf32>
-    print("ranked tensor type:",
-          RankedTensorType.get(shape, f32))
+    print("ranked tensor type:", RankedTensorType.get(shape, f32))
 
     none = NoneType.get()
     try:
       tensor_invalid = RankedTensorType.get(shape, none)
-    except ValueError as e:
-      # CHECK: invalid 'Type(none)' and expected floating point, integer, vector
-      # CHECK: or complex type.
+    except MLIRError as e:
+      # CHECK: Invalid type:
+      # CHECK: error: unknown: invalid tensor element type: 'none'
       print(e)
     else:
       print("Exception not produced")
@@ -357,9 +368,9 @@ def testUnrankedTensorType():
     none = NoneType.get()
     try:
       tensor_invalid = UnrankedTensorType.get(none)
-    except ValueError as e:
-      # CHECK: invalid 'Type(none)' and expected floating point, integer, vector
-      # CHECK: or complex type.
+    except MLIRError as e:
+      # CHECK: Invalid type:
+      # CHECK: error: unknown: invalid tensor element type: 'none'
       print(e)
     else:
       print("Exception not produced")
@@ -396,9 +407,9 @@ def testMemRefType():
     none = NoneType.get()
     try:
       memref_invalid = MemRefType.get(shape, none)
-    except ValueError as e:
-      # CHECK: invalid 'Type(none)' and expected floating point, integer, vector
-      # CHECK: or complex type.
+    except MLIRError as e:
+      # CHECK: Invalid type:
+      # CHECK: error: unknown: invalid memref element type
       print(e)
     else:
       print("Exception not produced")
@@ -440,9 +451,9 @@ def testUnrankedMemRefType():
     none = NoneType.get()
     try:
       memref_invalid = UnrankedMemRefType.get(none, Attribute.parse("2"))
-    except ValueError as e:
-      # CHECK: invalid 'Type(none)' and expected floating point, integer, vector
-      # CHECK: or complex type.
+    except MLIRError as e:
+      # CHECK: Invalid type:
+      # CHECK: error: unknown: invalid memref element type
       print(e)
     else:
       print("Exception not produced")
@@ -469,8 +480,7 @@ def testTupleType():
 @run
 def testFunctionType():
   with Context() as ctx:
-    input_types = [IntegerType.get_signless(32),
-                  IntegerType.get_signless(16)]
+    input_types = [IntegerType.get_signless(32), IntegerType.get_signless(16)]
     result_types = [IndexType.get()]
     func = FunctionType.get(input_types, result_types)
     # CHECK: INPUTS: [Type(i32), Type(i16)]
@@ -501,3 +511,91 @@ def testShapedTypeConstants():
   print(type(ShapedType.get_dynamic_size()))
   # CHECK: <class 'int'>
   print(type(ShapedType.get_dynamic_stride_or_offset()))
+
+
+# CHECK-LABEL: TEST: testTypeIDs
+@run
+def testTypeIDs():
+  with Context(), Location.unknown():
+    f32 = F32Type.get()
+
+    types = [
+      (IntegerType, IntegerType.get_signless(16)),
+      (IndexType, IndexType.get()),
+      (Float8E4M3FNType, Float8E4M3FNType.get()),
+      (Float8E5M2Type, Float8E5M2Type.get()),
+      (Float8E4M3FNUZType, Float8E4M3FNUZType.get()),
+      (Float8E4M3B11FNUZType, Float8E4M3B11FNUZType.get()),
+      (Float8E5M2FNUZType, Float8E5M2FNUZType.get()),
+      (BF16Type, BF16Type.get()),
+      (F16Type, F16Type.get()),
+      (F32Type, F32Type.get()),
+      (F64Type, F64Type.get()),
+      (NoneType, NoneType.get()),
+      (ComplexType, ComplexType.get(f32)),
+      (VectorType, VectorType.get([2, 3], f32)),
+      (RankedTensorType, RankedTensorType.get([2, 3], f32)),
+      (UnrankedTensorType, UnrankedTensorType.get(f32)),
+      (MemRefType, MemRefType.get([2, 3], f32)),
+      (UnrankedMemRefType, UnrankedMemRefType.get(f32, Attribute.parse("2"))),
+      (TupleType, TupleType.get_tuple([f32])),
+      (FunctionType, FunctionType.get([], [])),
+      (OpaqueType, OpaqueType.get("tensor", "bob")),
+    ]
+
+    # CHECK: IntegerType(i16)
+    # CHECK: IndexType(index)
+    # CHECK: Float8E4M3FNType(f8E4M3FN)
+    # CHECK: Float8E5M2Type(f8E5M2)
+    # CHECK: Float8E4M3FNUZType(f8E4M3FNUZ)
+    # CHECK: Float8E4M3B11FNUZType(f8E4M3B11FNUZ)
+    # CHECK: Float8E5M2FNUZType(f8E5M2FNUZ)
+    # CHECK: BF16Type(bf16)
+    # CHECK: F16Type(f16)
+    # CHECK: F32Type(f32)
+    # CHECK: F64Type(f64)
+    # CHECK: NoneType(none)
+    # CHECK: ComplexType(complex<f32>)
+    # CHECK: VectorType(vector<2x3xf32>)
+    # CHECK: RankedTensorType(tensor<2x3xf32>)
+    # CHECK: UnrankedTensorType(tensor<*xf32>)
+    # CHECK: MemRefType(memref<2x3xf32>)
+    # CHECK: UnrankedMemRefType(memref<*xf32, 2>)
+    # CHECK: TupleType(tuple<f32>)
+    # CHECK: FunctionType(() -> ())
+    # CHECK: OpaqueType(!tensor.bob)
+    for _, t in types:
+      print(repr(t))
+
+    # Test getTypeIdFunction agrees with
+    # mlirTypeGetTypeID(self) for an instance.
+    # CHECK: all equal
+    for t1, t2 in types:
+      tid1, tid2 = t1.static_typeid, Type(t2).typeid
+      assert tid1 == tid2 and hash(tid1) == hash(
+          tid2), f"expected hash and value equality {t1} {t2}"
+    else:
+      print("all equal")
+
+    # Test that storing PyTypeID in python dicts
+    # works as expected.
+    typeid_dict = dict(types)
+    assert len(typeid_dict)
+
+    # CHECK: all equal
+    for t1, t2 in typeid_dict.items():
+      assert t1.static_typeid == t2.typeid and hash(
+          t1.static_typeid) == hash(
+              t2.typeid), f"expected hash and value equality {t1} {t2}"
+    else:
+      print("all equal")
+
+    # CHECK: ShapedType has no typeid.
+    try:
+      print(ShapedType.static_typeid)
+    except AttributeError as e:
+      print(e)
+
+    vector_type = Type.parse("vector<2x3xf32>")
+    # CHECK: True
+    print(ShapedType(vector_type).typeid == vector_type.typeid)

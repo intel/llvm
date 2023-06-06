@@ -17,9 +17,9 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 namespace clang {
@@ -42,6 +42,9 @@ class LLVM_LIBRARY_VISIBILITY AMDGPUTargetInfo final : public TargetInfo {
   llvm::AMDGPU::GPUKind GPUKind;
   unsigned GPUFeatures;
   unsigned WavefrontSize;
+
+  /// Whether to use cumode or WGP mode. True for cumode. False for WGP mode.
+  bool CUMode;
 
   /// Target ID is device name followed by optional feature name postfixed
   /// by plus or minus sign delimitted by colon, e.g. gfx908:xnack+:sramecc-.
@@ -117,7 +120,7 @@ public:
   bool hasBFloat16Type() const override { return isAMDGCN(getTriple()); }
   const char *getBFloat16Mangling() const override { return "u6__bf16"; };
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
 
@@ -445,11 +448,15 @@ public:
       assert(F.front() == '+' || F.front() == '-');
       if (F == "+wavefrontsize64")
         WavefrontSize = 64;
+      else if (F == "+cumode")
+        CUMode = true;
+      else if (F == "-cumode")
+        CUMode = false;
       bool IsOn = F.front() == '+';
       StringRef Name = StringRef(F).drop_front();
       if (!llvm::is_contained(TargetIDFeatures, Name))
         continue;
-      assert(OffloadArchFeatures.find(Name) == OffloadArchFeatures.end());
+      assert(!OffloadArchFeatures.contains(Name));
       OffloadArchFeatures[Name] = IsOn;
     }
     return true;

@@ -15,6 +15,7 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
@@ -26,17 +27,9 @@ class InfoTestKernel;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<InfoTestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<InfoTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "InfoTestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
@@ -395,4 +388,59 @@ TEST(GetProfilingInfo, unsupported_device_host_time) {
     EXPECT_STREQ(e.what(), "Cannot enable profiling, the associated device "
                            "does not have the queue_profiling aspect");
   }
+}
+
+static pi_result redefinedDeviceGetInfoAcc(pi_device device,
+                                           pi_device_info param_name,
+                                           size_t param_value_size,
+                                           void *param_value,
+                                           size_t *param_value_size_ret) {
+  if (param_name == PI_DEVICE_INFO_TYPE) {
+    auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
+    *Result = PI_DEVICE_TYPE_ACC;
+  }
+  return PI_SUCCESS;
+}
+
+TEST(GetProfilingInfo, partial_profiling_workaround) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+
+  ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
+
+  static sycl::unittest::PiImage DevImage_1 =
+      generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
+  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Queue{
+      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID_1});
+
+  const int globalWIs{512};
+  auto event = Queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+  });
+  event.wait();
+  try {
+    event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+    FAIL() << "No exception was thrown";
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(
+        e.what(),
+        "Submit profiling information is temporarily unsupported on this "
+        "device. This is indicated by the lack of queue_profiling aspect, but, "
+        "as a temporary workaround, profiling can still be enabled to use "
+        "command_start and command_end profiling info.");
+  }
+  event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  event.get_profiling_info<sycl::info::event_profiling::command_end>();
 }

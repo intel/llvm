@@ -11,28 +11,23 @@
 
 using namespace jit_compiler;
 
-SPIRVBinary::SPIRVBinary(std::string Binary) : Blob{std::move(Binary)} {}
+KernelBinary::KernelBinary(std::string &&Binary, BinaryFormat Fmt)
+    : Blob{std::move(Binary)}, Format{Fmt} {}
 
-jit_compiler::BinaryAddress SPIRVBinary::address() const {
+jit_compiler::BinaryAddress KernelBinary::address() const {
   // FIXME: Verify it's a good idea to perform this reinterpret_cast here.
   return reinterpret_cast<jit_compiler::BinaryAddress>(Blob.c_str());
 }
 
-size_t SPIRVBinary::size() const { return Blob.size(); }
+size_t KernelBinary::size() const { return Blob.size(); }
+
+BinaryFormat KernelBinary::format() const { return Format; }
 
 JITContext::JITContext() : LLVMCtx{new llvm::LLVMContext}, Binaries{} {}
 
 JITContext::~JITContext() = default;
 
 llvm::LLVMContext *JITContext::getLLVMContext() { return LLVMCtx.get(); }
-
-SPIRVBinary &JITContext::emplaceSPIRVBinary(std::string Binary) {
-  WriteLockT WriteLock{BinariesMutex};
-  // NOTE: With C++17, which returns a reference from emplace_back, the
-  // following code would be even simpler.
-  Binaries.emplace_back(std::move(Binary));
-  return Binaries.back();
-}
 
 std::optional<SYCLKernelInfo>
 JITContext::getCacheEntry(CacheKeyT &Identifier) const {

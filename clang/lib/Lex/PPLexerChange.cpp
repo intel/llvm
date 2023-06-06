@@ -333,6 +333,15 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
   assert(!CurTokenLexer &&
          "Ending a file when currently in a macro!");
 
+  SourceLocation UnclosedSafeBufferOptOutLoc;
+
+  if (IncludeMacroStack.empty() &&
+      isPPInSafeBufferOptOutRegion(UnclosedSafeBufferOptOutLoc)) {
+    // To warn if a "-Wunsafe-buffer-usage" opt-out region is still open by the
+    // end of a file.
+    Diag(UnclosedSafeBufferOptOutLoc,
+         diag::err_pp_unclosed_pragma_unsafe_buffer_usage);
+  }
   // If we have an unclosed module region from a pragma at the end of a
   // module, complain and close it now.
   const bool LeavingSubmodule = CurLexer && CurLexerSubmodule;
@@ -526,13 +535,19 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
       return LeavingSubmodule;
     }
   }
-
   // If this is the end of the main file, form an EOF token.
   assert(CurLexer && "Got EOF but no current lexer set!");
   const char *EndPos = getCurLexerEndPos();
   Result.startToken();
   CurLexer->BufferPtr = EndPos;
-  CurLexer->FormTokenWithChars(Result, EndPos, tok::eof);
+
+  if (isIncrementalProcessingEnabled()) {
+    CurLexer->FormTokenWithChars(Result, EndPos, tok::annot_repl_input_end);
+    Result.setAnnotationEndLoc(Result.getLocation());
+    Result.setAnnotationValue(nullptr);
+  } else {
+    CurLexer->FormTokenWithChars(Result, EndPos, tok::eof);
+  }
 
   if (isCodeCompletionEnabled()) {
     // Inserting the code-completion point increases the source buffer by 1,

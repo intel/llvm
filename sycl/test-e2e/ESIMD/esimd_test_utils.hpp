@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/tfloat32.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 #define NOMINMAX
 
@@ -277,7 +277,7 @@ void display_timing_stats(double const *kernelTime,
   std::cout << "[OverallTime][Primary]: " << overallTime << "\n";
 }
 
-// Get signed integer of given byte size.
+// Get signed integer of given byte size or 'void'.
 template <int N>
 using int_type_t = std::conditional_t<
     N == 1, int8_t,
@@ -285,6 +285,15 @@ using int_type_t = std::conditional_t<
         N == 2, int16_t,
         std::conditional_t<N == 4, int32_t,
                            std::conditional_t<N == 8, int64_t, void>>>>;
+
+// Get unsigned integer type of given byte size or 'void'.
+template <int N>
+using uint_type_t = std::conditional_t<
+    N == 1, uint8_t,
+    std::conditional_t<
+        N == 2, uint16_t,
+        std::conditional_t<N == 4, uint32_t,
+                           std::conditional_t<N == 8, uint64_t, void>>>>;
 
 enum class BinaryOp {
   add,
@@ -559,7 +568,7 @@ std::unique_ptr<T, USMDeleter> usm_malloc_shared(queue q, int n) {
   return std::move(res);
 }
 
-template <class T> static const char *type_name();
+template <class T> const char *type_name() { return typeid(T).name(); }
 #define TID(T)                                                                 \
   template <> const char *type_name<T>() { return #T; }
 TID(char) // for some reason, 'char' does not match 'int8_t' during
@@ -577,5 +586,28 @@ TID(sycl::ext::oneapi::bfloat16)
 TID(sycl::ext::intel::experimental::esimd::tfloat32)
 TID(float)
 TID(double)
+
+std::string toString(sycl::ext::intel::experimental::esimd::lsc_data_size DS) {
+  switch (DS) {
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::default_size:
+    return "lsc_data_size::default";
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::u8:
+    return "lsc_data_size::u8";
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::u16:
+    return "lsc_data_size::u16";
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::u32:
+    return "lsc_data_size::u32";
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::u64:
+    return "lsc_data_size::u64";
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::u8u32:
+    return "lsc_data_size::u8u32";
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::u16u32:
+    return "lsc_data_size::u16u32";
+  case sycl::ext::intel::experimental::esimd::lsc_data_size::u16u32h:
+    return "lsc_data_size::u16u32h";
+  }
+  assert(false && "Unknown lsc_data_size");
+  return "INVALID lsc_data_size";
+}
 
 } // namespace esimd_test

@@ -163,7 +163,7 @@ TextEdit toTextEdit(const FixItHint &FixIt, const SourceManager &M,
 /// This function should be used when paths needs to be used outside the
 /// component that generate it, so that paths are normalized as much as
 /// possible.
-std::optional<std::string> getCanonicalPath(const FileEntry *F,
+std::optional<std::string> getCanonicalPath(const FileEntryRef F,
                                             const SourceManager &SourceMgr);
 
 /// Choose the clang-format style we should apply to a certain file.
@@ -333,6 +333,10 @@ inline bool isReservedName(llvm::StringRef Name) {
          (isUppercase(Name[1]) || Name[1] == '_');
 }
 
+/// Translates locations inside preamble patch to their main-file equivalent
+/// using presumed locations. Returns \p Loc if it isn't inside preamble patch.
+SourceLocation translatePreamblePatchLocation(SourceLocation Loc,
+                                              const SourceManager &SM);
 } // namespace clangd
 } // namespace clang
 #endif

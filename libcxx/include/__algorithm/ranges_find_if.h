@@ -24,14 +24,14 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace ranges {
 
 template <class _Ip, class _Sp, class _Pred, class _Proj>
-_LIBCPP_HIDE_FROM_ABI static constexpr
+_LIBCPP_HIDE_FROM_ABI constexpr
 _Ip __find_if_impl(_Ip __first, _Sp __last, _Pred& __pred, _Proj& __proj) {
   for (; __first != __last; ++__first) {
     if (std::invoke(__pred, std::invoke(__proj, *__first)))
@@ -66,6 +66,6 @@ inline namespace __cpo {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 #endif // _LIBCPP___ALGORITHM_RANGES_FIND_IF_H

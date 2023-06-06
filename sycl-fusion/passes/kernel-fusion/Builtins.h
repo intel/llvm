@@ -4,6 +4,9 @@
 #include "Kernel.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
+
+#include <map>
 
 namespace llvm {
 // Forward declarations
@@ -42,6 +45,12 @@ constexpr llvm::StringLiteral GetLocalIDName{
 /// get_global_id builtin name
 constexpr llvm::StringLiteral GetGlobalIDName{
     "_Z33__spirv_BuiltInGlobalInvocationIdi"};
+/// offload_wi_finish_wrapper name
+constexpr llvm::StringLiteral OffloadFinishWrapperName{
+    "__itt_offload_wi_finish_wrapper"};
+/// offload_wi_start_wrapper name
+constexpr llvm::StringLiteral OffloadStartWrapperName{
+    "__itt_offload_wi_start_wrapper"};
 
 ///
 /// @return The result of calling get_global_linear_id
@@ -52,19 +61,24 @@ llvm::Value *getGlobalLinearID(llvm::IRBuilderBase &Builder,
                                const NDRange &FusedNDRange);
 
 ///
-/// Creates a call to a barrier function.
-void barrierCall(llvm::IRBuilderBase &Builder, int Flags);
-
-///
 /// @return A call to a SPIRV function, which will be declared if not already in
 /// the module.
 llvm::Value *createSPIRVCall(llvm::IRBuilderBase &Builder, llvm::StringRef N,
                              llvm::ArrayRef<llvm::Value *> Args);
 
-///
-/// Remaps index space getters builtins.
-llvm::Function *remapBuiltins(llvm::Function *F, const NDRange &SrcNDRange,
-                              const NDRange &FusedNDRange);
+class Remapper {
+public:
+  ///
+  /// Remaps index space getters builtins.
+  llvm::Expected<llvm::Function *> remapBuiltins(llvm::Function *F,
+                                                 const NDRange &SrcNDRange,
+                                                 const NDRange &FusedNDRange);
+
+private:
+  std::map<std::tuple<llvm::Function *, const NDRange &, const NDRange &>,
+           llvm::Function *>
+      Cache;
+};
 } // namespace jit_compiler
 
 #endif // KERNEL_FUSION_PASS_SYCL_BUILTINS_H

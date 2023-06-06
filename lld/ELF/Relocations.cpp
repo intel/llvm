@@ -99,8 +99,12 @@ void elf::reportRangeError(uint8_t *loc, const Relocation &rel, const Twine &v,
                            int64_t min, uint64_t max) {
   ErrorPlace errPlace = getErrorPlace(loc);
   std::string hint;
-  if (rel.sym && !rel.sym->isSection())
-    hint = "; references " + lld::toString(*rel.sym);
+  if (rel.sym) {
+    if (!rel.sym->isSection())
+      hint = "; references '" + lld::toString(*rel.sym) + '\'';
+    else if (auto *d = dyn_cast<Defined>(rel.sym))
+      hint = ("; references section '" + d->section->name + "'").str();
+  }
   if (!errPlace.srcLoc.empty())
     hint += "\n>>> referenced by " + errPlace.srcLoc;
   if (rel.sym && !rel.sym->isSection())
@@ -120,7 +124,8 @@ void elf::reportRangeError(uint8_t *loc, int64_t v, int n, const Symbol &sym,
   ErrorPlace errPlace = getErrorPlace(loc);
   std::string hint;
   if (!sym.getName().empty())
-    hint = "; references " + lld::toString(sym) + getDefinedLocation(sym);
+    hint =
+        "; references '" + lld::toString(sym) + '\'' + getDefinedLocation(sym);
   errorOrWarn(errPlace.loc + msg + " is out of range: " + Twine(v) +
               " is not in [" + Twine(llvm::minIntN(n)) + ", " +
               Twine(llvm::maxIntN(n)) + "]" + hint);
@@ -1021,10 +1026,10 @@ void RelocationScanner::processAux(RelExpr expr, RelType type, uint64_t offset,
       // R_HEX_GD_PLT_B22_PCREL (call a@GDPLT) is transformed into
       // call __tls_get_addr even if the symbol is non-preemptible.
       if (!(config->emachine == EM_HEXAGON &&
-           (type == R_HEX_GD_PLT_B22_PCREL ||
-            type == R_HEX_GD_PLT_B22_PCREL_X ||
-            type == R_HEX_GD_PLT_B32_PCREL_X)))
-      expr = fromPlt(expr);
+            (type == R_HEX_GD_PLT_B22_PCREL ||
+             type == R_HEX_GD_PLT_B22_PCREL_X ||
+             type == R_HEX_GD_PLT_B32_PCREL_X)))
+        expr = fromPlt(expr);
     } else if (!isAbsoluteValue(sym)) {
       expr =
           target->adjustGotPcExpr(type, addend, sec->content().data() + offset);
@@ -1079,7 +1084,15 @@ void RelocationScanner::processAux(RelExpr expr, RelType type, uint64_t offset,
     return;
   }
 
-  bool canWrite = (sec->flags & SHF_WRITE) || !config->zText;
+  // Use a simple -z notext rule that treats all sections except .eh_frame as
+  // writable. GNU ld does not produce dynamic relocations in .eh_frame (and our
+  // SectionBase::getOffset would incorrectly adjust the offset).
+  //
+  // For MIPS, we don't implement GNU ld's DW_EH_PE_absptr to DW_EH_PE_pcrel
+  // conversion. We still emit a dynamic relocation.
+  bool canWrite = (sec->flags & SHF_WRITE) ||
+                  !(config->zText ||
+                    (isa<EhInputSection>(sec) && config->emachine != EM_MIPS));
   if (canWrite) {
     RelType rel = target->getDynRel(type);
     if (expr == R_GOT || (rel == target->symbolicRel && !sym.isPreemptible)) {
@@ -1521,16 +1534,10 @@ template <class ELFT> void elf::scanRelocations() {
           scanner.template scanSection<ELFT>(*s);
       }
     };
-    if (serial)
-      fn();
-    else
-      tg.execute(fn);
+    tg.spawn(fn, serial);
   }
 
-  // Both the main thread and thread pool index 0 use getThreadIndex()==0. Be
-  // careful that they don't concurrently run scanSections. When serial is
-  // true, fn() has finished at this point, so running execute is safe.
-  tg.execute([] {
+  tg.spawn([] {
     RelocationScanner scanner;
     for (Partition &part : partitions) {
       for (EhInputSection *sec : part.ehFrame->sections)

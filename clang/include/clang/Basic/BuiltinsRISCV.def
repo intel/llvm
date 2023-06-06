@@ -18,8 +18,8 @@
 // Zbb extension
 TARGET_BUILTIN(__builtin_riscv_orc_b_32, "ZiZi", "nc", "zbb")
 TARGET_BUILTIN(__builtin_riscv_orc_b_64, "WiWi", "nc", "zbb,64bit")
-TARGET_BUILTIN(__builtin_riscv_clz_32, "ZiZi", "nc", "zbb")
-TARGET_BUILTIN(__builtin_riscv_clz_64, "WiWi", "nc", "zbb,64bit")
+TARGET_BUILTIN(__builtin_riscv_clz_32, "ZiZi", "nc", "zbb|xtheadbb")
+TARGET_BUILTIN(__builtin_riscv_clz_64, "WiWi", "nc", "zbb|xtheadbb,64bit")
 TARGET_BUILTIN(__builtin_riscv_ctz_32, "ZiZi", "nc", "zbb")
 TARGET_BUILTIN(__builtin_riscv_ctz_64, "WiWi", "nc", "zbb,64bit")
 
@@ -78,6 +78,10 @@ TARGET_BUILTIN(__builtin_riscv_sm4ks, "LiLiLiIUc", "nc", "zksed")
 // Zksh extension
 TARGET_BUILTIN(__builtin_riscv_sm3p0, "LiLi", "nc", "zksh")
 TARGET_BUILTIN(__builtin_riscv_sm3p1, "LiLi", "nc", "zksh")
+
+// Zihintntl extension
+TARGET_BUILTIN(__builtin_riscv_ntl_load, "v.", "t", "experimental-zihintntl")
+TARGET_BUILTIN(__builtin_riscv_ntl_store, "v.", "t", "experimental-zihintntl")
 
 #undef BUILTIN
 #undef TARGET_BUILTIN

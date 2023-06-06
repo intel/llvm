@@ -194,9 +194,24 @@ struct language_name_pair language_names[] = {
     {"c++14", eLanguageTypeC_plus_plus_14},
     {"fortran03", eLanguageTypeFortran03},
     {"fortran08", eLanguageTypeFortran08},
+    {"renderscript", eLanguageTypeRenderScript},
+    {"bliss", eLanguageTypeBLISS},
+    {"kotlin", eLanguageTypeKotlin},
+    {"zig", eLanguageTypeZig},
+    {"crystal", eLanguageTypeCrystal},
+    {"<invalid language>",
+     static_cast<LanguageType>(
+         0x0029)}, // Not yet taken by any language in the DWARF spec
+                   // and thus has no entry in LanguageType
+    {"c++17", eLanguageTypeC_plus_plus_17},
+    {"c++20", eLanguageTypeC_plus_plus_20},
+    {"c17", eLanguageTypeC17},
+    {"fortran18", eLanguageTypeFortran18},
+    {"ada2005", eLanguageTypeAda2005},
+    {"ada2012", eLanguageTypeAda2012},
     // Vendor Extensions
     {"assembler", eLanguageTypeMipsAssembler},
-    {"renderscript", eLanguageTypeExtRenderScript},
+    {"mojo", eLanguageTypeMojo},
     // Now synonyms, in arbitrary order
     {"objc", eLanguageTypeObjC},
     {"objc++", eLanguageTypeObjC_plus_plus},
@@ -253,6 +268,8 @@ bool Language::LanguageIsCPlusPlus(LanguageType language) {
   case eLanguageTypeC_plus_plus_03:
   case eLanguageTypeC_plus_plus_11:
   case eLanguageTypeC_plus_plus_14:
+  case eLanguageTypeC_plus_plus_17:
+  case eLanguageTypeC_plus_plus_20:
   case eLanguageTypeObjC_plus_plus:
     return true;
   default:
@@ -292,6 +309,8 @@ bool Language::LanguageIsCFamily(LanguageType language) {
   case eLanguageTypeC_plus_plus_03:
   case eLanguageTypeC_plus_plus_11:
   case eLanguageTypeC_plus_plus_14:
+  case eLanguageTypeC_plus_plus_17:
+  case eLanguageTypeC_plus_plus_20:
   case eLanguageTypeObjC_plus_plus:
   case eLanguageTypeObjC:
     return true;
@@ -315,6 +334,8 @@ LanguageType Language::GetPrimaryLanguage(LanguageType language) {
   case eLanguageTypeC_plus_plus_03:
   case eLanguageTypeC_plus_plus_11:
   case eLanguageTypeC_plus_plus_14:
+  case eLanguageTypeC_plus_plus_17:
+  case eLanguageTypeC_plus_plus_20:
     return eLanguageTypeC_plus_plus;
   case eLanguageTypeC:
   case eLanguageTypeC89:
@@ -350,7 +371,6 @@ LanguageType Language::GetPrimaryLanguage(LanguageType language) {
   case eLanguageTypeJulia:
   case eLanguageTypeDylan:
   case eLanguageTypeMipsAssembler:
-  case eLanguageTypeExtRenderScript:
   case eLanguageTypeUnknown:
   default:
     return language;

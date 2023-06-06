@@ -483,6 +483,11 @@ public:
     return AttributeSets.getParamDereferenceableOrNullBytes(ArgNo);
   }
 
+  /// Extract the nofpclass attribute for a parameter.
+  FPClassTest getParamNoFPClass(unsigned ArgNo) const {
+    return AttributeSets.getParamNoFPClass(ArgNo);
+  }
+
   /// Determine if the function is presplit coroutine.
   bool isPresplitCoroutine() const {
     return hasFnAttribute(Attribute::PresplitCoroutine);
@@ -648,6 +653,15 @@ public:
   /// Returns the denormal handling type for the default rounding mode of the
   /// function.
   DenormalMode getDenormalMode(const fltSemantics &FPType) const;
+
+  /// Return the representational value of "denormal-fp-math". Code interested
+  /// in the semantics of the function should use getDenormalMode instead.
+  DenormalMode getDenormalModeRaw() const;
+
+  /// Return the representational value of "denormal-fp-math-f32". Code
+  /// interested in the semantics of the function should use getDenormalMode
+  /// instead.
+  DenormalMode getDenormalModeF32Raw() const;
 
   /// copyAttributesFrom - copy all additional attributes (those not needed to
   /// create a Function) from the Function Src to this one.

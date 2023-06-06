@@ -571,3 +571,16 @@ TEST_F(AccessorIteratorTest, IteratorInequalitiesOperators) {
   ASSERT_TRUE(a <= b);
   ASSERT_TRUE(a >= b);
 }
+
+TEST_F(AccessorIteratorTest, DefaultHostAccessorIterationMethonds) {
+  // Should not fail with segmentation fault
+  sycl::host_accessor<int, 1> acc;
+  acc.begin();
+  acc.end();
+  acc.cbegin();
+  acc.cend();
+  acc.rbegin();
+  acc.rend();
+  acc.crbegin();
+  acc.crend();
+}

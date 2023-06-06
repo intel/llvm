@@ -102,9 +102,17 @@ Value *IRBuilderBase::CreateVScale(Constant *Scaling, const Twine &Name) {
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::vscale, {Scaling->getType()});
   CallInst *CI = CreateCall(TheFn, {}, {}, Name);
-  return cast<ConstantInt>(Scaling)->getSExtValue() == 1
-             ? CI
-             : CreateMul(CI, Scaling);
+  return cast<ConstantInt>(Scaling)->isOne() ? CI : CreateMul(CI, Scaling);
+}
+
+Value *IRBuilderBase::CreateElementCount(Type *DstType, ElementCount EC) {
+  Constant *MinEC = ConstantInt::get(DstType, EC.getKnownMinValue());
+  return EC.isScalable() ? CreateVScale(MinEC) : MinEC;
+}
+
+Value *IRBuilderBase::CreateTypeSize(Type *DstType, TypeSize Size) {
+  Constant *MinSize = ConstantInt::get(DstType, Size.getKnownMinValue());
+  return Size.isScalable() ? CreateVScale(MinSize) : MinSize;
 }
 
 Value *IRBuilderBase::CreateStepVector(Type *DstType, const Twine &Name) {

@@ -191,13 +191,13 @@ void AbstractSparseDataFlowAnalysis::visitBlock(Block *block) {
             dyn_cast<BranchOpInterface>(predecessor->getTerminator())) {
       SuccessorOperands operands =
           branch.getSuccessorOperands(it.getSuccessorIndex());
-      for (auto &it : llvm::enumerate(argLattices)) {
-        if (Value operand = operands[it.index()]) {
-          join(it.value(), *getLatticeElementFor(block, operand));
+      for (auto [idx, lattice] : llvm::enumerate(argLattices)) {
+        if (Value operand = operands[idx]) {
+          join(lattice, *getLatticeElementFor(block, operand));
         } else {
           // Conservatively consider internally produced arguments as entry
           // points.
-          setAllToEntryStates(it.value());
+          setAllToEntryStates(lattice);
         }
       }
     } else {
@@ -240,7 +240,7 @@ void AbstractSparseDataFlowAnalysis::visitRegionSuccessors(
     if (inputs.size() != lattices.size()) {
       if (point.dyn_cast<Operation *>()) {
         if (!inputs.empty())
-          firstIndex = inputs.front().cast<OpResult>().getResultNumber();
+          firstIndex = cast<OpResult>(inputs.front()).getResultNumber();
         visitNonControlFlowArgumentsImpl(
             branch,
             RegionSuccessor(
@@ -248,7 +248,7 @@ void AbstractSparseDataFlowAnalysis::visitRegionSuccessors(
             lattices, firstIndex);
       } else {
         if (!inputs.empty())
-          firstIndex = inputs.front().cast<BlockArgument>().getArgNumber();
+          firstIndex = cast<BlockArgument>(inputs.front()).getArgNumber();
         Region *region = point.get<Block *>()->getParent();
         visitNonControlFlowArgumentsImpl(
             branch,
@@ -414,7 +414,7 @@ void AbstractSparseBackwardDataFlowAnalysis::visitOperation(Operation *op) {
     Operation *callableOp = call.resolveCallable(&symbolTable);
     if (auto callable = dyn_cast_or_null<CallableOpInterface>(callableOp)) {
       Region *region = callable.getCallableRegion();
-      if (!region->empty()) {
+      if (region && !region->empty()) {
         Block &block = region->front();
         for (auto [blockArg, operand] :
              llvm::zip(block.getArguments(), operandLattices)) {

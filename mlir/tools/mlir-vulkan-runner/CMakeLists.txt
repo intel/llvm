@@ -57,9 +57,10 @@ if (MLIR_ENABLE_VULKAN_RUNNER)
     ${conversion_libs}
     MLIRAnalysis
     MLIRArithDialect
+    MLIRBuiltinToLLVMIRTranslation
     MLIRExecutionEngine
     MLIRFuncDialect
-    MLIRGPUOps
+    MLIRGPUDialect
     MLIRIR
     MLIRJitRunner
     MLIRLLVMDialect

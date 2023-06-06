@@ -19,8 +19,7 @@ namespace ext::intel {
 // This function is intended for FPGA users to instruct the compiler to insert
 // at least one register stage between the input and the return value.
 template <typename _T>
-typename std::enable_if<std::is_trivially_copyable<_T>::value, _T>::type
-fpga_reg(_T t) {
+std::enable_if_t<std::is_trivially_copyable_v<_T>, _T> fpga_reg(_T t) {
 #if __has_builtin(__builtin_intel_fpga_reg)
   return __builtin_intel_fpga_reg(t);
 #else
@@ -31,10 +30,9 @@ fpga_reg(_T t) {
 template <typename _T>
 [[deprecated(
     "ext::intel::fpga_reg will only support trivially_copyable types in a "
-    "future release. The type used here will be disallowed.")]]
-typename std::enable_if<std::is_trivially_copyable<_T>::value == false,
-                        _T>::type
-fpga_reg(_T t) {
+    "future release. The type used here will be disallowed.")]] std::
+    enable_if_t<std::is_trivially_copyable_v<_T> == false, _T>
+    fpga_reg(_T t) {
 #if __has_builtin(__builtin_intel_fpga_reg)
   return __builtin_intel_fpga_reg(t);
 #else

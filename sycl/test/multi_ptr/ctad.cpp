@@ -9,6 +9,12 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/sycl.hpp>
 
+using constTypeMPtr =
+    sycl::multi_ptr<const int, sycl::access::address_space::global_space,
+                    sycl::access::decorated::no>;
+
+void implicit_conversion(const constTypeMPtr &cmptr) { auto v = cmptr.get(); }
+
 int main() {
   using sycl::access::address_space;
   using sycl::access::mode;
@@ -37,4 +43,8 @@ int main() {
   static_assert(std::is_same<constCTAD, constMPtr>::value);
   static_assert(std::is_same<localCTAD, localMPtr>::value);
   static_assert(std::is_same<localCTADDep, localMPtr>::value);
+
+  globlMPtr non_const_multi_ptr;
+  auto constTypeMultiPtr = constTypeMPtr(non_const_multi_ptr);
+  implicit_conversion(non_const_multi_ptr);
 }

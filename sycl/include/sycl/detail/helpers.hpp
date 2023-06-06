@@ -13,6 +13,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/memcpy.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/type_traits.hpp>
 
@@ -35,13 +36,6 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-inline void memcpy(void *Dst, const void *Src, size_t Size) {
-  char *Destination = reinterpret_cast<char *>(Dst);
-  const char *Source = reinterpret_cast<const char *>(Src);
-  for (size_t I = 0; I < Size; ++I) {
-    Destination[I] = Source[I];
-  }
-}
 
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
@@ -88,14 +82,14 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<WithOffset, item<Dims, WithOffset>>
+  static std::enable_if_t<WithOffset, item<Dims, WithOffset>>
   createItem(const range<Dims> &Extent, const id<Dims> &Index,
              const id<Dims> &Offset) {
     return item<Dims, WithOffset>(Extent, Index, Offset);
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<!WithOffset, item<Dims, WithOffset>>
+  static std::enable_if_t<!WithOffset, item<Dims, WithOffset>>
   createItem(const range<Dims> &Extent, const id<Dims> &Index) {
     return item<Dims, WithOffset>(Extent, Index);
   }
@@ -146,8 +140,7 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<WithOffset, const item<Dims, WithOffset>>
-  getItem() {
+  static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
@@ -156,8 +149,7 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static detail::enable_if_t<!WithOffset, const item<Dims, WithOffset>>
-  getItem() {
+  static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
@@ -247,12 +239,12 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
-void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
-  (f(Inds), ...);
+void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+  (f(std::integral_constant<size_t, Inds>{}), ...);
 }
 
-template <size_t count, class F> void dim_loop(F &&f) {
-  dim_loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
+template <size_t count, class F> void loop(F &&f) {
+  loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 
 } // namespace detail

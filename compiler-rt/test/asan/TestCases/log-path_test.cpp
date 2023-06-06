@@ -17,7 +17,8 @@
 // RUN: FileCheck %s --check-prefix=CHECK-ERROR < %t.log.*
 
 // Invalid log_path in existing directory.
-// RUN: %env_asan_opts=log_path=/INVALID not %run %t 2> %t.out
+// /proc is invalid even for root user. INVALID is not.
+// RUN: %env_asan_opts=log_path=/proc/ not %run %t 2> %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-INVALID < %t.out
 
 // Directory of log_path can't be created.
@@ -48,6 +49,6 @@ int main(int argc, char **argv) {
   return res;
 }
 // CHECK-ERROR: ERROR: AddressSanitizer
-// CHECK-INVALID: ERROR: Can't open file: /INVALID
+// CHECK-INVALID: ERROR: Can't open file: /proc/
 // CHECK-BAD-DIR: ERROR: Can't create directory: /dev/null
 // CHECK-LONG: ERROR: Path is too long: 01234

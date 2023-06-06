@@ -328,7 +328,8 @@ public:
   }
 
   uint32_t getSize() const override {
-    return alignTo(sizeof(dylib_command) + path.size() + 1, 8);
+    return alignToPowerOf2(sizeof(dylib_command) + path.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -362,7 +363,8 @@ uint32_t LCDylib::instanceCount = 0;
 class LCLoadDylinker final : public LoadCommand {
 public:
   uint32_t getSize() const override {
-    return alignTo(sizeof(dylinker_command) + path.size() + 1, 8);
+    return alignToPowerOf2(sizeof(dylinker_command) + path.size() + 1,
+                           target->wordSize);
   }
 
   void writeTo(uint8_t *buf) const override {
@@ -463,7 +465,7 @@ public:
       break;
     }
     c->cmdsize = getSize();
-    c->version = encodeVersion(platformInfo.minimum);
+    c->version = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
   }
 
@@ -488,7 +490,7 @@ public:
     c->cmdsize = getSize();
 
     c->platform = static_cast<uint32_t>(platformInfo.target.Platform);
-    c->minos = encodeVersion(platformInfo.minimum);
+    c->minos = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
 
     c->ntools = ntools;
@@ -762,7 +764,9 @@ static bool useLCBuildVersion(const PlatformInfo &platformInfo) {
   auto it = llvm::find_if(minVersion, [&](const auto &p) {
     return p.first == platformInfo.target.Platform;
   });
-  return it == minVersion.end() ? true : platformInfo.minimum >= it->second;
+  return it == minVersion.end()
+             ? true
+             : platformInfo.target.MinDeployment >= it->second;
 }
 
 template <class LP> void Writer::createLoadCommands() {
@@ -1056,7 +1060,7 @@ void Writer::finalizeAddresses() {
       if (!osec->isNeeded())
         continue;
       // Other kinds of OutputSections have already been finalized.
-      if (auto concatOsec = dyn_cast<ConcatOutputSection>(osec))
+      if (auto *concatOsec = dyn_cast<ConcatOutputSection>(osec))
         concatOsec->finalizeContents();
     }
   }
@@ -1073,9 +1077,10 @@ void Writer::finalizeAddresses() {
     seg->addr = addr;
     assignAddresses(seg);
     // codesign / libstuff checks for segment ordering by verifying that
-    // `fileOff + fileSize == next segment fileOff`. So we call alignTo() before
-    // (instead of after) computing fileSize to ensure that the segments are
-    // contiguous. We handle addr / vmSize similarly for the same reason.
+    // `fileOff + fileSize == next segment fileOff`. So we call
+    // alignToPowerOf2() before (instead of after) computing fileSize to ensure
+    // that the segments are contiguous. We handle addr / vmSize similarly for
+    // the same reason.
     fileOff = alignToPowerOf2(fileOff, pageSize);
     addr = alignToPowerOf2(addr, pageSize);
     seg->vmSize = addr - seg->addr;
@@ -1118,8 +1123,8 @@ void Writer::assignAddresses(OutputSegment *seg) {
   for (OutputSection *osec : seg->getSections()) {
     if (!osec->isNeeded())
       continue;
-    addr = alignTo(addr, osec->align);
-    fileOff = alignTo(fileOff, osec->align);
+    addr = alignToPowerOf2(addr, osec->align);
+    fileOff = alignToPowerOf2(fileOff, osec->align);
     osec->addr = addr;
     osec->fileOff = isZeroFill(osec->flags) ? 0 : fileOff;
     osec->finalize();

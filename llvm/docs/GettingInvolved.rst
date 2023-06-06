@@ -274,7 +274,7 @@ don't find anyone present, chances are they happen to be off that day.
     - English, Romanian
   * - Aaron Ballman (he/him)
     - Clang internals; frontend attributes; clang-tidy; clang-query; AST matchers
-    - Monthly, 2nd Monday of the month at 10:00am Eastern and again at 2:00pm Eastern, for 30 minutes (will run longer as needed).
+    - Monthly, 2nd Monday and 3rd Friday of the month at 10:00am Eastern and again at 2:00pm Eastern, for 60 minutes.
       `ics <https://calendar.google.com/calendar/ical/npgke5dug0uliud0qapptmps58%40group.calendar.google.com/public/basic.ics>`__
       `gcal <https://calendar.google.com/calendar/embed?src=npgke5dug0uliud0qapptmps58%40group.calendar.google.com>`__
     - `GoogleMeet <https://meet.google.com/xok-iqne-gmi>`__
@@ -292,7 +292,7 @@ don't find anyone present, chances are they happen to be off that day.
     - English, German, Spanish, French
   * - Anastasia Stulova
     - Clang internals for C/C++ language extensions and dialects, OpenCL, GPU, SPIR-V, how to contribute, women in compilers. 
-    - Monthly, 2nd Thursday of the month at 17:00 BST - London time (9:00am PT except for 2 weeks in spring), 1 hour slot.
+    - Monthly, 1st Tuesday of the month at 17:00 BST - London time (9:00am PT except for 2 weeks in spring), 30 mins slot.
     - `GoogleMeet <https://meet.google.com/kdy-fdbv-nuk>`__
     - English, Russian, German (not fluently)
   * - Alexey Bader
@@ -318,11 +318,6 @@ don't find anyone present, chances are they happen to be off that day.
       `gcal <https://calendar.google.com/calendar/embed?src=48c4ad60290a4df218e51e1ceec1106fe317b0ebc76938d9273592053f38204e%40group.calendar.google.com>`__
     - `Google meet <https://meet.google.com/cbz-grrp-obs>`__
     - English, French
-  * - Paulo Matos (he/him)
-    - WebAssembly backend; LLVM IR;
-    - Monthly, 1st Monday of the month at 11:00am Europe/Berlin, for 30 minutes.
-    - `Igalia Jitsi <https://meetings.igalia.com/PauloMatosLLVMOfficeHour>`__
-    - English, Portuguese, German
   * - Phoebe Wang (she/her)
     - X86 backend, General questions to X86, women in compilers.
     - Monthly, 3rd Wednesday of the month at 8:30am Beijing time, for 30 minutes.

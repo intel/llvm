@@ -79,8 +79,9 @@ add_unittest(ClangdUnitTests ClangdTests
   PrintASTTests.cpp
   ProjectAwareIndexTests.cpp
   QualityTests.cpp
-  RenameTests.cpp
   RIFFTests.cpp
+  RenameTests.cpp
+  ReplayPeambleTests.cpp
   SelectionTests.cpp
   SemanticHighlightingTests.cpp
   SemanticSelectionTests.cpp
@@ -104,12 +105,13 @@ add_unittest(ClangdUnitTests ClangdTests
 
   support/CancellationTests.cpp
   support/ContextTests.cpp
+  support/FileCacheTests.cpp
   support/FunctionTests.cpp
   support/MarkupTests.cpp
   support/MemoryTreeTests.cpp
   support/PathTests.cpp
-  support/ThreadingTests.cpp
   support/TestTracer.cpp
+  support/ThreadingTests.cpp
   support/TraceTests.cpp
 
   tweaks/AddUsingTests.cpp
@@ -130,6 +132,7 @@ add_unittest(ClangdUnitTests ClangdTests
   tweaks/RawStringLiteralTests.cpp
   tweaks/RemoveUsingNamespaceTests.cpp
   tweaks/ShowSelectionTreeTests.cpp
+  tweaks/SpecialMembersTests.cpp
   tweaks/SwapIfBranchesTests.cpp
   tweaks/TweakTesting.cpp
   tweaks/TweakTests.cpp
@@ -164,11 +167,14 @@ clang_target_link_libraries(ClangdTests
   )
 target_link_libraries(ClangdTests
   PRIVATE
-  clangDaemon
-  clangdSupport
-  clangTidy
   LLVMTestingAnnotations
   LLVMTestingSupport
+
+  clangDaemon
+  clangIncludeCleaner
+  clangTesting
+  clangTidy
+  clangdSupport
   )
 
 if (CLANGD_ENABLE_REMOTE)

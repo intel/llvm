@@ -17,6 +17,7 @@
 #include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/SourceMgr.h"
 
@@ -25,7 +26,7 @@ using namespace mlir;
 namespace mlir {
 void registerFromLLVMIRTranslation() {
   TranslateToMLIRRegistration registration(
-      "import-llvm", "translate llvmir to mlir",
+      "import-llvm", "Translate LLVMIR to MLIR",
       [](llvm::SourceMgr &sourceMgr,
          MLIRContext *context) -> OwningOpRef<Operation *> {
         llvm::SMDiagnostic err;
@@ -40,6 +41,8 @@ void registerFromLLVMIRTranslation() {
           emitError(UnknownLoc::get(context)) << errStream.str();
           return {};
         }
+        if (llvm::verifyModule(*llvmModule, &llvm::errs()))
+          return nullptr;
         return translateLLVMIRToModule(std::move(llvmModule), context);
       },
       [](DialectRegistry &registry) {

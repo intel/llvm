@@ -9,8 +9,8 @@
 #include "CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -228,8 +228,13 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    if (LinkSYCLDeviceLibs)
+    if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
+      // FIXME remove this when opaque pointers are supported for SPIR-V
+      if (!this->getToolChain().getTriple().isSPIR()) {
+        Opts.push_back("-opaque-pointers");
+      }
+    }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
@@ -270,8 +275,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // TODO: temporary workaround for a problem with warnings reported by
     // llvm-link when driver links LLVM modules with empty modules
     CmdArgs.push_back("--suppress-warnings");
-    C.addCommand(std::make_unique<Command>(
-        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, std::nullopt));
+    C.addCommand(std::make_unique<Command>(JA, *this,
+                                           ResponseFileSupport::AtFileUTF8(),
+                                           Exec, CmdArgs, std::nullopt));
   };
 
   // Add an intermediate output file.
@@ -312,8 +318,9 @@ void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
   SmallString<128> LlcPath(C.getDriver().Dir);
   llvm::sys::path::append(LlcPath, "llc");
   const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF8(), Llc, LlcArgs, std::nullopt));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileUTF8(), Llc,
+                                         LlcArgs, std::nullopt));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
@@ -438,7 +445,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
-  if (C.getDriver().isFPGAEmulationMode()) {
+  if (C.getDriver().IsFPGAEmulationMode()) {
     constructOpenCLAOTCommand(C, JA, Output, Inputs, Args);
     return;
   }
@@ -552,10 +559,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
-    // Output directory is based off of the first object name as captured
-    // above.
-    if (!CreatedReportName.empty())
-      ReportOptArg += CreatedReportName;
+    // Default output directory should match default output executable name
+    ReportOptArg += "a.prj";
   }
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(
@@ -646,7 +651,6 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
                .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
                .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
-               .Cases("intel_gpu_ehl", "intel_gpu_11_2_0", "ehl")
                .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
                .Case("intel_gpu_rkl", "rkl")
                .Case("intel_gpu_adl_s", "adl_s")
@@ -711,7 +715,6 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("aml", "INTEL_GPU_AML")
                       .Case("cml", "INTEL_GPU_CML")
                       .Case("icllp", "INTEL_GPU_ICLLP")
-                      .Case("ehl", "INTEL_GPU_EHL")
                       .Case("tgllp", "INTEL_GPU_TGLLP")
                       .Case("rkl", "INTEL_GPU_RKL")
                       .Case("adl_s", "INTEL_GPU_ADL_S")
@@ -847,7 +850,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     }
   }
   // Strip out -O0 for FPGA Hardware device compilation.
-  if (!getDriver().isFPGAEmulationMode() &&
+  if (getDriver().IsFPGAHWMode() &&
       getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
     DAL->eraseArg(options::OPT_O0);
 
@@ -950,8 +953,10 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
-  if (Args.getLastArg(options::OPT_O0))
-    BeArgs.push_back("-cl-opt-disable");
+  if (Arg *A = Args.getLastArg(options::OPT_O_Group))
+    if (A->getOption().matches(options::OPT_O0))
+      BeArgs.push_back("-cl-opt-disable");
+
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
@@ -978,6 +983,10 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       }
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
+    }
+    // -ftarget-compile-fast
+    if (Args.hasArg(options::OPT_ftarget_compile_fast)) {
+      BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
     }
   }
   if (BeArgs.empty())

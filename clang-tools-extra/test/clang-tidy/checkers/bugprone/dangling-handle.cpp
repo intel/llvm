@@ -2,7 +2,7 @@
 // RUN:   -config="{CheckOptions: \
 // RUN:             [{key: bugprone-dangling-handle.HandleClasses, \
 // RUN:               value: 'std::basic_string_view; ::llvm::StringRef;'}]}"
-// FIXME: Fix the checker to work in C++17 mode.
+// FIXME: Fix the checker to work in C++17 or later mode.
 
 namespace std {
 
@@ -52,7 +52,8 @@ class basic_string {
   basic_string();
   basic_string(const char*);
 
-  operator basic_string_view() const noexcept;
+  typedef basic_string_view str_view;
+  operator str_view() const noexcept;
 
   ~basic_string();
 };
@@ -193,3 +194,4 @@ void Negatives(std::string_view default_arg = ReturnsAString()) {
 
   TakesAStringView(std::string());
 }
+

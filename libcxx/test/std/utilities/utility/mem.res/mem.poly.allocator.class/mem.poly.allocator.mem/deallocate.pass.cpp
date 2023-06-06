@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{11.0|12.0}}
+// XFAIL: availability-pmr-missing
 
 // test_memory_resource requires RTTI for dynamic_cast
 // UNSUPPORTED: no-rtti
@@ -26,9 +25,11 @@
 #include "test_macros.h"
 #include "test_std_memory_resource.h"
 
-template <size_t S, size_t Align>
+template <std::size_t S, size_t Align>
 void testForSizeAndAlign() {
-  using T = typename std::aligned_storage<S, Align>::type;
+  struct T {
+    alignas(Align) std::byte buf[S];
+  };
 
   TestResource R;
   std::pmr::polymorphic_allocator<T> a(&R);

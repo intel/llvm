@@ -9,12 +9,14 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_OPTIONS_H
 #define SYCL_FUSION_JIT_COMPILER_OPTIONS_H
 
+#include "Kernel.h"
+
 #include <memory>
 #include <unordered_map>
 
 namespace jit_compiler {
 
-enum OptionID { VerboseOutput, EnableCaching };
+enum OptionID { VerboseOutput, EnableCaching, TargetFormat };
 
 class OptionPtrBase {};
 
@@ -77,6 +79,9 @@ namespace option {
 struct JITEnableVerbose : public OptionBase<OptionID::VerboseOutput, bool> {};
 
 struct JITEnableCaching : public OptionBase<OptionID::EnableCaching, bool> {};
+
+struct JITTargetFormat
+    : public OptionBase<OptionID::TargetFormat, BinaryFormat> {};
 
 } // namespace option
 } // namespace jit_compiler

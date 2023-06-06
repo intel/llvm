@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/error_handling/error_handling.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/common_info.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
@@ -25,33 +26,33 @@ template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, std::string>::value,
     std::string>::type
-get_kernel_info(RT::PiKernel Kernel, const plugin &Plugin) {
+get_kernel_info(RT::PiKernel Kernel, const PluginPtr &Plugin) {
   static_assert(detail::is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
   size_t ResultSize = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value, 0,
-                                          nullptr, &ResultSize);
+  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value, 0,
+                                           nullptr, &ResultSize);
   if (ResultSize == 0) {
     return "";
   }
   std::vector<char> Result(ResultSize);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value,
-                                          ResultSize, Result.data(), nullptr);
+  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value,
+                                           ResultSize, Result.data(), nullptr);
   return std::string(Result.data());
 }
 
 template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, uint32_t>::value, uint32_t>::type
-get_kernel_info(RT::PiKernel Kernel, const plugin &Plugin) {
+get_kernel_info(RT::PiKernel Kernel, const PluginPtr &Plugin) {
   uint32_t Result = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value,
-                                          sizeof(uint32_t), &Result, nullptr);
+  Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value,
+                                           sizeof(uint32_t), &Result, nullptr);
   return Result;
 }
 
@@ -59,9 +60,9 @@ get_kernel_info(RT::PiKernel Kernel, const plugin &Plugin) {
 template <typename Param>
 typename std::enable_if<IsSubGroupInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
-                                       const plugin &Plugin, void *Result,
+                                       const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
-  Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
+  Plugin->call<PiApiKind::piKernelGetSubGroupInfo>(
       Kernel, Device, PiInfoCode<Param>::value, 0, nullptr, Size, Result,
       nullptr);
 }
@@ -69,10 +70,13 @@ get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
 template <typename Param>
 typename std::enable_if<!IsSubGroupInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
-                                       const plugin &Plugin, void *Result,
+                                       const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
-  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+  RT::PiResult Error = Plugin->call_nocheck<PiApiKind::piKernelGetGroupInfo>(
       Kernel, Device, PiInfoCode<Param>::value, Size, Result, nullptr);
+  if (Error != PI_SUCCESS)
+    kernel_get_group_info::handleErrorOrWarning(Error, PiInfoCode<Param>::value,
+                                                Plugin);
 }
 
 template <typename Param>
@@ -80,7 +84,7 @@ typename std::enable_if<
     !std::is_same<typename Param::return_type, sycl::range<3>>::value,
     typename Param::return_type>::type
 get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
-                                const plugin &Plugin) {
+                                const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
   typename Param::return_type Result = {};
@@ -95,7 +99,7 @@ typename std::enable_if<
     std::is_same<typename Param::return_type, sycl::range<3>>::value,
     sycl::range<3>>::type
 get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
-                                const plugin &Plugin) {
+                                const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
   size_t Result[3] = {0, 0, 0};
@@ -112,7 +116,7 @@ template <typename Param>
 uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
                                                     RT::PiDevice Device,
                                                     sycl::range<3> In,
-                                                    const plugin &Plugin) {
+                                                    const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
   static_assert(std::is_same<typename Param::return_type, uint32_t>::value,
@@ -123,7 +127,7 @@ uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
   size_t Input[3] = {In[0], In[1], In[2]};
   uint32_t Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
+  Plugin->call<PiApiKind::piKernelGetSubGroupInfo>(
       Kernel, Device, PiInfoCode<Param>::value, sizeof(size_t) * 3, Input,
       sizeof(uint32_t), &Result, nullptr);
 

@@ -10,6 +10,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_info.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.h>
@@ -42,7 +43,8 @@ public:
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
-              KernelBundleImplPtr KernelBundleImpl);
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask = nullptr);
 
   /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
   ///
@@ -59,7 +61,8 @@ public:
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
-              KernelBundleImplPtr KernelBundleImpl);
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask);
 
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
   /// kernel_bundle and / PiKernel.
@@ -69,7 +72,8 @@ public:
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
-              KernelBundleImplPtr KernelBundleImpl);
+              KernelBundleImplPtr KernelBundleImpl,
+              const KernelArgMask *ArgMask);
 
   /// Constructs a SYCL kernel for host device
   ///
@@ -101,7 +105,7 @@ public:
           "This instance of kernel doesn't support OpenCL interoperability.",
           PI_ERROR_INVALID_KERNEL);
     }
-    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+    getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
     return pi::cast<cl_kernel>(MKernel);
   }
 
@@ -110,7 +114,7 @@ public:
   /// \return true if this SYCL kernel is a host kernel.
   bool is_host() const { return MContext->is_host(); }
 
-  const plugin &getPlugin() const { return MContext->getPlugin(); }
+  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -156,13 +160,13 @@ public:
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   pi_native_handle getNative() const {
-    const plugin &Plugin = MContext->getPlugin();
+    const PluginPtr &Plugin = MContext->getPlugin();
 
-    if (Plugin.getBackend() == backend::opencl)
-      Plugin.call<PiApiKind::piKernelRetain>(MKernel);
+    if (MContext->getBackend() == backend::opencl)
+      Plugin->call<PiApiKind::piKernelRetain>(MKernel);
 
     pi_native_handle NativeKernel = 0;
-    Plugin.call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
+    Plugin->call<PiApiKind::piextKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     return NativeKernel;
   }
@@ -172,10 +176,13 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+  ContextImplPtr getContextImplPtr() const { return MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() {
     return MNoncacheableEnqueueMutex;
   }
+
+  const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
 
 private:
   RT::PiKernel MKernel;
@@ -186,6 +193,10 @@ private:
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
   std::mutex MNoncacheableEnqueueMutex;
+  const KernelArgMask *MKernelArgMaskPtr;
+
+  bool isBuiltInKernel(const device &Device) const;
+  void checkIfValidForNumArgsInfoQuery() const;
 };
 
 template <typename Param>
@@ -196,6 +207,10 @@ inline typename Param::return_type kernel_impl::get_info() const {
     // TODO implement
     assert(0 && "Not implemented");
   }
+
+  if constexpr (std::is_same_v<Param, info::kernel::num_args>)
+    checkIfValidForNumArgsInfoQuery();
+
   return get_kernel_info<Param>(this->getHandleRef(), getPlugin());
 }
 
@@ -207,6 +222,18 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device) const {
+  if constexpr (std::is_same_v<
+                    Param, info::kernel_device_specific::global_work_size>) {
+    bool isDeviceCustom = Device.get_info<info::device::device_type>() ==
+                          info::device_type::custom;
+    if (!isDeviceCustom && !isBuiltInKernel(Device))
+      throw exception(
+          sycl::make_error_code(errc::invalid),
+          "info::kernel_device_specific::global_work_size descriptor may only "
+          "be used if the device type is device_type::custom or if the kernel "
+          "is a built-in kernel.");
+  }
+
   if (is_host()) {
     return get_kernel_device_specific_info_host<Param>(Device);
   }

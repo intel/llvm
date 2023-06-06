@@ -52,11 +52,25 @@ def Transform_ParamType : TypeDef<Transform_Dialect, "Param",
   let genVerifyDecl = 1;
 }
 
+def Transform_AnyValue : TypeDef<Transform_Dialect, "AnyValue",
+    [DeclareTypeInterfaceMethods<TransformValueHandleTypeInterface>]> {
+  let description = [{
+    Transform IR value that can be associated with a list of Payload IR values.
+  }];
+  let mnemonic = "any_value";
+  let assemblyFormat = "";
+}
+
 class Transform_ConcreteOpType<string opname>
   : Type<And<[Transform_OperationType.predicate,
-              CPred<"$_self.cast<::mlir::transform::OperationType>()"
+              CPred<"::llvm::cast<::mlir::transform::OperationType>($_self)"
                     ".getOperationName() == \"" # opname # "\"">]>,
          "Transform IR handle to " # opname # " operations",
          "::mlir::transform::OperationType">;
+
+def TransformAnyHandle : Type<
+    Or<[TransformHandleTypeInterface.predicate,
+        TransformValueHandleTypeInterface.predicate]>,
+    "transform operation or value handle">;
 
 #endif  // MLIR_DIALECT_TRANSFORM_IR_TRANSFORMTYPES

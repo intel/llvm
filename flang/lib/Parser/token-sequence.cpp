@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "token-sequence.h"
+#include "prescan.h"
 #include "flang/Parser/characters.h"
 #include "flang/Parser/message.h"
 #include "llvm/Support/raw_ostream.h"
@@ -244,11 +245,31 @@ TokenSequence &TokenSequence::RemoveRedundantBlanks(std::size_t firstChar) {
   return *this;
 }
 
-TokenSequence &TokenSequence::ClipComment(bool skipFirst) {
+TokenSequence &TokenSequence::ClipComment(
+    const Prescanner &prescanner, bool skipFirst) {
   std::size_t tokens{SizeInTokens()};
   for (std::size_t j{0}; j < tokens; ++j) {
-    if (TokenAt(j).FirstNonBlank() == '!') {
-      if (skipFirst) {
+    CharBlock tok{TokenAt(j)};
+    if (std::size_t blanks{tok.CountLeadingBlanks()};
+        blanks < tok.size() && tok[blanks] == '!') {
+      // Retain active compiler directive sentinels (e.g. "!dir$")
+      for (std::size_t k{j + 1}; k < tokens && tok.size() < blanks + 5; ++k) {
+        if (tok.begin() + tok.size() == TokenAt(k).begin()) {
+          tok.ExtendToCover(TokenAt(k));
+        } else {
+          break;
+        }
+      }
+      bool isSentinel{false};
+      if (tok.size() == blanks + 5) {
+        char sentinel[4];
+        for (int k{0}; k < 4; ++k) {
+          sentinel[k] = ToLowerCaseLetter(tok[blanks + k + 1]);
+        }
+        isSentinel = prescanner.IsCompilerDirectiveSentinel(sentinel, 4);
+      }
+      if (isSentinel) {
+      } else if (skipFirst) {
         skipFirst = false;
       } else {
         TokenSequence result;
@@ -264,8 +285,10 @@ TokenSequence &TokenSequence::ClipComment(bool skipFirst) {
 }
 
 void TokenSequence::Emit(CookedSource &cooked) const {
-  cooked.Put(&char_[0], char_.size());
-  cooked.PutProvenanceMappings(provenances_);
+  if (auto n{char_.size()}) {
+    cooked.Put(&char_[0], n);
+    cooked.PutProvenanceMappings(provenances_);
+  }
 }
 
 llvm::raw_ostream &TokenSequence::Dump(llvm::raw_ostream &o) const {
@@ -313,11 +336,12 @@ ProvenanceRange TokenSequence::GetProvenanceRange() const {
 const TokenSequence &TokenSequence::CheckBadFortranCharacters(
     Messages &messages) const {
   std::size_t tokens{SizeInTokens()};
+  bool isBangOk{true};
   for (std::size_t j{0}; j < tokens; ++j) {
     CharBlock token{TokenAt(j)};
     char ch{token.FirstNonBlank()};
     if (ch != ' ' && !IsValidFortranTokenCharacter(ch)) {
-      if (ch == '!' && j == 0) {
+      if (ch == '!' && isBangOk) {
         // allow in !dir$
       } else if (ch < ' ' || ch >= '\x7f') {
         messages.Say(GetTokenProvenanceRange(j),
@@ -326,6 +350,11 @@ const TokenSequence &TokenSequence::CheckBadFortranCharacters(
         messages.Say(GetTokenProvenanceRange(j),
             "bad character ('%c') in Fortran token"_err_en_US, ch);
       }
+    }
+    if (ch == ';') {
+      isBangOk = true;
+    } else if (ch != ' ') {
+      isBangOk = false;
     }
   }
   return *this;

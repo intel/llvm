@@ -12,6 +12,7 @@ set(LLVM_COMMON_CMAKE_UTILS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 list(INSERT CMAKE_MODULE_PATH 0
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../runtimes/cmake/Modules"
   "${LLVM_COMMON_CMAKE_UTILS}"
   "${LLVM_COMMON_CMAKE_UTILS}/Modules"
   )
@@ -23,6 +24,7 @@ set(LIBCXX_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
 set(LIBCXX_BINARY_INCLUDE_DIR "${LIBCXX_BINARY_DIR}/include/c++build")
 
 include(GNUInstallDirs)
+include(WarningFlags)
 
 # Require out of source build.
 include(MacroEnsureOutOfSourceBuild)
@@ -66,7 +68,6 @@ endif()
 option(LIBCXX_ENABLE_FILESYSTEM "Build filesystem as part of the main libc++ library"
     ${ENABLE_FILESYSTEM_DEFAULT})
 option(LIBCXX_INCLUDE_TESTS "Build the libc++ tests." ${LLVM_INCLUDE_TESTS})
-option(LIBCXX_ENABLE_PARALLEL_ALGORITHMS "Enable the parallel algorithms library. This requires the PSTL to be available." OFF)
 option(LIBCXX_ENABLE_DEBUG_MODE
   "Whether to build libc++ with the debug mode enabled.
    By default, this is turned off. Turning it on results in a different ABI (additional
@@ -286,6 +287,12 @@ option(LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY
     "Build libc++ with an externalized threading library.
      This option may only be set to ON when LIBCXX_ENABLE_THREADS=ON" OFF)
 
+if (LIBCXX_ENABLE_THREADS)
+  set(LIBCXX_PSTL_CPU_BACKEND "std_thread" CACHE STRING "Which PSTL CPU backend to use")
+else()
+  set(LIBCXX_PSTL_CPU_BACKEND "serial" CACHE STRING "Which PSTL CPU backend to use")
+endif()
+
 # Misc options ----------------------------------------------------------------
 # FIXME: Turn -pedantic back ON. It is currently off because it warns
 # about #include_next which is used everywhere.
@@ -464,7 +471,7 @@ include(HandleLibcxxFlags)
 # 'LIBCXX_COMPILE_FLAGS' and 'LIBCXX_LINK_FLAGS'
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-  add_target_flags_if_supported("-mdefault-visibility-export-mapping=explicit")
+  add_flags_if_supported("-mdefault-visibility-export-mapping=explicit")
   set(CMAKE_AIX_EXPORT_ALL_SYMBOLS OFF)
 endif()
 
@@ -538,14 +545,14 @@ function(cxx_add_basic_build_flags target)
     target_add_compile_flags_if_supported(${target} PRIVATE -fvisibility=hidden)
   endif()
 
-  if (LIBCXX_CONFIGURE_IDE)
-    # This simply allows IDE to process <experimental/coroutine>
-    target_add_compile_flags_if_supported(${target} PRIVATE -fcoroutines-ts)
-  endif()
-
   # Let the library headers know they are currently being used to build the
   # library.
   target_compile_definitions(${target} PRIVATE -D_LIBCPP_BUILDING_LIBRARY)
+
+  # Make sure the library can be build without transitive includes. This makes
+  # it easier to upgrade the library to a newer language standard without build
+  # errors.
+  target_compile_definitions(${target} PRIVATE -D_LIBCPP_REMOVE_TRANSITIVE_INCLUDES)
 
   if (NOT LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS)
     target_compile_definitions(${target} PRIVATE -D_LIBCPP_DISABLE_NEW_DELETE_DEFINITIONS)
@@ -560,65 +567,6 @@ function(cxx_add_basic_build_flags target)
     endif()
   endif()
   target_compile_options(${target} PUBLIC "${LIBCXX_ADDITIONAL_COMPILE_FLAGS}")
-endfunction()
-
-# Warning flags ===============================================================
-function(cxx_add_warning_flags target)
-  target_compile_definitions(${target} PUBLIC -D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-  if (MSVC)
-    # -W4 is the cl.exe/clang-cl equivalent of -Wall. (In cl.exe and clang-cl,
-    # -Wall is equivalent to -Weverything in GCC style compiler drivers.)
-    target_add_compile_flags_if_supported(${target} PRIVATE -W4)
-  else()
-    target_add_compile_flags_if_supported(${target} PRIVATE -Wall)
-  endif()
-  target_add_compile_flags_if_supported(${target} PRIVATE -Wextra -W -Wwrite-strings
-                                                          -Wno-unused-parameter -Wno-long-long
-                                                          -Werror=return-type -Wextra-semi -Wundef
-                                                          -Wformat-nonliteral)
-  if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-    target_add_compile_flags_if_supported(${target} PRIVATE
-      -Wno-user-defined-literals
-      -Wno-covered-switch-default
-      -Wno-suggest-override
-    )
-    if (LIBCXX_TARGETING_CLANG_CL)
-      target_add_compile_flags_if_supported(${target} PRIVATE
-        -Wno-c++98-compat
-        -Wno-c++98-compat-pedantic
-        -Wno-c++11-compat
-        -Wno-undef
-        -Wno-reserved-id-macro
-        -Wno-gnu-include-next
-        -Wno-gcc-compat # For ignoring "'diagnose_if' is a clang extension" warnings
-        -Wno-zero-as-null-pointer-constant # FIXME: Remove this and fix all occurrences.
-        -Wno-deprecated-dynamic-exception-spec # For auto_ptr
-        -Wno-sign-conversion
-        -Wno-old-style-cast
-        -Wno-deprecated # FIXME: Remove this and fix all occurrences.
-        -Wno-shift-sign-overflow # FIXME: Why do we need this with clang-cl but not clang?
-        -Wno-double-promotion # FIXME: remove me
-      )
-    endif()
-  elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
-    target_add_compile_flags_if_supported(${target} PRIVATE
-      -Wno-attributes
-      -Wno-literal-suffix
-      -Wno-c++14-compat
-      -Wno-noexcept-type
-      -Wno-suggest-override)
-  endif()
-  if (LIBCXX_ENABLE_WERROR)
-    target_add_compile_flags_if_supported(${target} PRIVATE -Werror)
-    target_add_compile_flags_if_supported(${target} PRIVATE -WX)
-  else()
-    # TODO(EricWF) Remove this. We shouldn't be suppressing errors when -Werror is
-    # added elsewhere.
-    target_add_compile_flags_if_supported(${target} PRIVATE -Wno-error)
-  endif()
-  if (LIBCXX_ENABLE_PEDANTIC)
-    target_add_compile_flags_if_supported(${target} PRIVATE -pedantic)
-  endif()
 endfunction()
 
 # Exception flags =============================================================
@@ -821,14 +769,6 @@ function(cxx_add_windows_flags target)
                                  # Use the ISO conforming behaviour for conversion
                                  # in printf, scanf.
                                  _CRT_STDIO_ISO_WIDE_SPECIFIERS)
-    # Clang-cl shared builds don't support the experimental library.
-    # To avoid linker errors the format_error destructor is inlined for the
-    # dylib. Users can never use format in this mode.
-    # TODO FMT Remove when format becomes mainline.
-    if (LIBCXX_ENABLE_SHARED)
-      target_compile_definitions(${target} PRIVATE
-                                 _LIBCPP_INLINE_FORMAT_ERROR_DTOR)
-    endif()
   endif()
 endfunction()
 
@@ -848,7 +788,6 @@ config_define_if(LIBCXX_HAS_WIN32_THREAD_API _LIBCPP_HAS_THREAD_API_WIN32)
 config_define_if(LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY _LIBCPP_HAS_THREAD_LIBRARY_EXTERNAL)
 config_define_if(LIBCXX_HAS_MUSL_LIBC _LIBCPP_HAS_MUSL_LIBC)
 config_define_if(LIBCXX_NO_VCRUNTIME _LIBCPP_NO_VCRUNTIME)
-config_define_if(LIBCXX_ENABLE_PARALLEL_ALGORITHMS _LIBCPP_HAS_PARALLEL_ALGORITHMS)
 config_define_if_not(LIBCXX_ENABLE_FILESYSTEM _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 config_define_if_not(LIBCXX_ENABLE_RANDOM_DEVICE _LIBCPP_HAS_NO_RANDOM_DEVICE)
 config_define_if_not(LIBCXX_ENABLE_LOCALIZATION _LIBCPP_HAS_NO_LOCALIZATION)
@@ -861,6 +800,15 @@ if (LIBCXX_ENABLE_ASSERTIONS)
   config_define(1 _LIBCPP_ENABLE_ASSERTIONS_DEFAULT)
 else()
   config_define(0 _LIBCPP_ENABLE_ASSERTIONS_DEFAULT)
+endif()
+
+if (LIBCXX_PSTL_CPU_BACKEND STREQUAL "serial")
+  config_define(1 _LIBCPP_PSTL_CPU_BACKEND_SERIAL)
+elseif(LIBCXX_PSTL_CPU_BACKEND STREQUAL "std_thread")
+  config_define(1 _LIBCPP_PSTL_CPU_BACKEND_THREAD)
+else()
+  message(FATAL_ERROR "LIBCXX_PSTL_CPU_BACKEND is set to ${LIBCXX_PSTL_CPU_BACKEND}, which is not a valid backend.
+                       Valid backends are: serial, std_thread")
 endif()
 
 if (LIBCXX_ABI_DEFINES)
@@ -903,7 +851,7 @@ endif()
 # Setup all common build flags =================================================
 function(cxx_add_common_build_flags target)
   cxx_add_basic_build_flags(${target})
-  cxx_add_warning_flags(${target})
+  cxx_add_warning_flags(${target} ${LIBCXX_ENABLE_WERROR} ${LIBCXX_ENABLE_PEDANTIC})
   cxx_add_windows_flags(${target})
   cxx_add_exception_flags(${target})
   cxx_add_rtti_flags(${target})

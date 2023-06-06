@@ -23,6 +23,7 @@ unittest("ClangdTests") {
     "//clang/lib/Lex",
     "//clang/lib/Sema",
     "//clang/lib/Serialization",
+    "//clang/lib/Testing",
     "//clang/lib/Tooling",
     "//clang/lib/Tooling/Core",
     "//clang/lib/Tooling/Inclusions",
@@ -35,6 +36,9 @@ unittest("ClangdTests") {
   include_dirs = [
     ".",
     "//clang-tools-extra/clangd",
+
+    # For "clang-include-cleaner/..." includes.
+    "//clang-tools-extra/include-cleaner/include",
 
     # To pick up the generated inc files.
     "$target_gen_dir/../../clangd/tool",
@@ -95,6 +99,7 @@ unittest("ClangdTests") {
     "QualityTests.cpp",
     "RIFFTests.cpp",
     "RenameTests.cpp",
+    "ReplayPeambleTests.cpp",
     "SelectionTests.cpp",
     "SemanticHighlightingTests.cpp",
     "SemanticSelectionTests.cpp",
@@ -116,6 +121,7 @@ unittest("ClangdTests") {
     "XRefsTests.cpp",
     "support/CancellationTests.cpp",
     "support/ContextTests.cpp",
+    "support/FileCacheTests.cpp",
     "support/FunctionTests.cpp",
     "support/MarkupTests.cpp",
     "support/MemoryTreeTests.cpp",
@@ -141,6 +147,7 @@ unittest("ClangdTests") {
     "tweaks/RawStringLiteralTests.cpp",
     "tweaks/RemoveUsingNamespaceTests.cpp",
     "tweaks/ShowSelectionTreeTests.cpp",
+    "tweaks/SpecialMembersTests.cpp",
     "tweaks/SwapIfBranchesTests.cpp",
     "tweaks/TweakTesting.cpp",
     "tweaks/TweakTests.cpp",

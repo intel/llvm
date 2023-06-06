@@ -326,6 +326,8 @@ public:
     return ConstString();
   }
 
+  virtual llvm::StringRef GetInstanceVariableName() { return {}; }
+
 protected:
   // Classes that inherit from Language can see and modify these
 

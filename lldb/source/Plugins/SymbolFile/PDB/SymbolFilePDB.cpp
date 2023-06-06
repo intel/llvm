@@ -80,6 +80,10 @@ lldb::LanguageType TranslateLanguage(PDB_Lang lang) {
     return lldb::LanguageType::eLanguageTypeSwift;
   case PDB_Lang::Rust:
     return lldb::LanguageType::eLanguageTypeRust;
+  case PDB_Lang::ObjC:
+    return lldb::LanguageType::eLanguageTypeObjC;
+  case PDB_Lang::ObjCpp:
+    return lldb::LanguageType::eLanguageTypeObjC_plus_plus;
   default:
     return lldb::LanguageType::eLanguageTypeUnknown;
   }
@@ -1693,7 +1697,7 @@ PDBASTParser *SymbolFilePDB::GetPDBAstParser() {
 
 lldb_private::CompilerDeclContext
 SymbolFilePDB::FindNamespace(lldb_private::ConstString name,
-                             const CompilerDeclContext &parent_decl_ctx) {
+                             const CompilerDeclContext &parent_decl_ctx, bool) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   auto type_system_or_err =
       GetTypeSystemForLanguage(lldb::eLanguageTypeC_plus_plus);
@@ -1976,7 +1980,7 @@ SymbolFilePDB::GetMangledForPDBFunc(const llvm::pdb::PDBSymbolFunc &pdb_func) {
   } else if (!func_undecorated_name.empty()) {
     mangled.SetDemangledName(ConstString(func_undecorated_name));
   } else if (!func_name.empty())
-    mangled.SetValue(ConstString(func_name), false);
+    mangled.SetValue(ConstString(func_name));
 
   return mangled;
 }

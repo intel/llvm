@@ -22,8 +22,7 @@
 #include <utility>
 #include <vector>
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 /// Contains a list of line ranges in a single file.
 struct FileFilter {
@@ -72,6 +71,14 @@ struct ClangTidyOptions {
   /// WarningsAsErrors filter.
   std::optional<std::string> WarningsAsErrors;
 
+  /// File extensions to consider to determine if a given diagnostic is located
+  /// in a header file.
+  std::optional<std::vector<std::string>> HeaderFileExtensions;
+
+  /// File extensions to consider to determine if a given diagnostic is located
+  /// is located in an implementation file.
+  std::optional<std::vector<std::string>> ImplementationFileExtensions;
+
   /// Output warnings from headers matching this filter. Warnings from
   /// main files will always be displayed.
   std::optional<std::string> HeaderFilterRegex;
@@ -101,15 +108,15 @@ struct ClangTidyOptions {
 
   /// Helper structure for storing option value with priority of the value.
   struct ClangTidyValue {
-    ClangTidyValue() : Value(), Priority(0) {}
-    ClangTidyValue(const char *Value) : Value(Value), Priority(0) {}
+    ClangTidyValue() = default;
+    ClangTidyValue(const char *Value) : Value(Value) {}
     ClangTidyValue(llvm::StringRef Value, unsigned Priority = 0)
         : Value(Value), Priority(Priority) {}
 
     std::string Value;
     /// Priority stores relative precedence of the value loaded from config
     /// files to disambiguate local vs global value from different levels.
-    unsigned Priority;
+    unsigned Priority = 0;
   };
   typedef std::pair<std::string, std::string> StringPair;
   typedef llvm::StringMap<ClangTidyValue> OptionMap;
@@ -320,7 +327,6 @@ parseConfigurationWithDiags(llvm::MemoryBufferRef Config, DiagCallback Handler);
 /// Serializes configuration to a YAML-encoded string.
 std::string configurationAsText(const ClangTidyOptions &Options);
 
-} // end namespace tidy
-} // end namespace clang
+} // namespace clang::tidy
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYOPTIONS_H

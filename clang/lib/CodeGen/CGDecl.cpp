@@ -422,13 +422,15 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
     OldGV->eraseFromParent();
   }
 
-  GV->setConstant(CGM.isTypeConstant(D.getType(), true));
+  bool NeedsDtor =
+      D.needsDestruction(getContext()) == QualType::DK_cxx_destructor;
+
+  GV->setConstant(CGM.isTypeConstant(D.getType(), true, !NeedsDtor));
   GV->setInitializer(Init);
 
   emitter.finalize(GV);
 
-  if (D.needsDestruction(getContext()) == QualType::DK_cxx_destructor &&
-      HaveInsertPoint()) {
+  if (NeedsDtor && HaveInsertPoint()) {
     // We have a constant initializer, but a nontrivial destructor. We still
     // need to perform a guarded "initialization" in order to register the
     // destructor.
@@ -1517,10 +1519,12 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       // emit it as a global instead.
       // Exception is if a variable is located in non-constant address space
       // in OpenCL.
+      bool NeedsDtor =
+          D.needsDestruction(getContext()) == QualType::DK_cxx_destructor;
       if ((!getLangOpts().OpenCL ||
            Ty.getAddressSpace() == LangAS::opencl_constant) &&
           (CGM.getCodeGenOpts().MergeAllConstants && !NRVO &&
-           !isEscapingByRef && CGM.isTypeConstant(Ty, true))) {
+           !isEscapingByRef && CGM.isTypeConstant(Ty, true, !NeedsDtor))) {
         EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage);
 
         // Signal this condition to later callbacks.
@@ -2530,6 +2534,8 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   Address AllocaPtr = Address::invalid();
   bool DoStore = false;
   bool IsScalar = hasScalarEvaluationKind(Ty);
+  bool UseIndirectDebugAddress = false;
+
   // If we already have a pointer to the argument, reuse the input pointer.
   if (Arg.isIndirect()) {
     // If we have a prettier pointer type at this point, bitcast to that.
@@ -2541,6 +2547,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     auto AllocaAS = CGM.getASTAllocaAddressSpace();
     auto *V = DeclPtr.getPointer();
     AllocaPtr = DeclPtr;
+
     auto SrcLangAS = getLangOpts().OpenCL ? LangAS::opencl_private : AllocaAS;
     auto DestLangAS =
         getLangOpts().OpenCL ? LangAS::opencl_private : LangAS::Default;
@@ -2549,8 +2556,23 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
              CGM.getDataLayout().getAllocaAddrSpace());
       auto DestAS = getContext().getTargetAddressSpace(DestLangAS);
       auto *T = DeclPtr.getElementType()->getPointerTo(DestAS);
-      DeclPtr = DeclPtr.withPointer(getTargetHooks().performAddrSpaceCast(
-          *this, V, SrcLangAS, DestLangAS, T, true));
+      DeclPtr =
+          DeclPtr.withPointer(getTargetHooks().performAddrSpaceCast(
+                                  *this, V, SrcLangAS, DestLangAS, T, true),
+                              DeclPtr.isKnownNonNull());
+    }
+
+    // For truly ABI indirect arguments -- those that are not `byval` -- store
+    // the address of the argument on the stack to preserve debug information.
+    ABIArgInfo ArgInfo = CurFnInfo->arguments()[ArgNo - 1].info;
+    if (ArgInfo.isIndirect())
+      UseIndirectDebugAddress = !ArgInfo.getIndirectByVal();
+    if (UseIndirectDebugAddress) {
+      auto PtrTy = getContext().getPointerType(Ty);
+      AllocaPtr = CreateMemTemp(PtrTy, getContext().getTypeAlignInChars(PtrTy),
+                                D.getName() + ".indirect_addr");
+      EmitStoreOfScalar(DeclPtr.getPointer(), AllocaPtr, /* Volatile */ false,
+                        PtrTy);
     }
 
     // Push a destructor cleanup for this parameter if the ABI requires it.
@@ -2657,7 +2679,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     if (CGM.getCodeGenOpts().hasReducedDebugInfo() && !CurFuncIsThunk &&
         !NoDebugInfo) {
       llvm::DILocalVariable *DILocalVar = DI->EmitDeclareOfArgVariable(
-          &D, AllocaPtr.getPointer(), ArgNo, Builder);
+          &D, AllocaPtr.getPointer(), ArgNo, Builder, UseIndirectDebugAddress);
       if (const auto *Var = dyn_cast_or_null<ParmVarDecl>(&D))
         DI->getParamDbgMappings().insert({Var, DILocalVar});
     }

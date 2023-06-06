@@ -24,7 +24,8 @@ using namespace mlir::LLVM;
 /// internal functions to avoid getting a verbose `!llvm` prefix. Otherwise
 /// prints it as usual.
 static void dispatchPrint(AsmPrinter &printer, Type type) {
-  if (isCompatibleType(type) && !type.isa<IntegerType, FloatType, VectorType>())
+  if (isCompatibleType(type) &&
+      !llvm::isa<IntegerType, FloatType, VectorType>(type))
     return mlir::LLVM::detail::printType(type, printer);
   printer.printType(type);
 }
@@ -356,9 +357,8 @@ Type mlir::LLVM::detail::parseType(DialectAsmParser &parser) {
   return type;
 }
 
-ParseResult LLVM::parsePrettyLLVMType(AsmParser &p, FailureOr<Type> &type) {
-  type.emplace();
-  return dispatchParse(p, *type);
+ParseResult LLVM::parsePrettyLLVMType(AsmParser &p, Type &type) {
+  return dispatchParse(p, type);
 }
 
 void LLVM::printPrettyLLVMType(AsmPrinter &p, Type type) {

@@ -36,11 +36,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <optional>
@@ -94,44 +91,8 @@ STATISTIC(NumSaturating,
     "Number of saturating arithmetics converted to normal arithmetics");
 STATISTIC(NumNonNull, "Number of function pointer arguments marked non-null");
 STATISTIC(NumMinMax, "Number of llvm.[us]{min,max} intrinsics removed");
-STATISTIC(NumURemExpanded, "Number of bound urem's expanded");
-
-namespace {
-
-  class CorrelatedValuePropagation : public FunctionPass {
-  public:
-    static char ID;
-
-    CorrelatedValuePropagation(): FunctionPass(ID) {
-     initializeCorrelatedValuePropagationPass(*PassRegistry::getPassRegistry());
-    }
-
-    bool runOnFunction(Function &F) override;
-
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<DominatorTreeWrapperPass>();
-      AU.addRequired<LazyValueInfoWrapperPass>();
-      AU.addPreserved<GlobalsAAWrapperPass>();
-      AU.addPreserved<DominatorTreeWrapperPass>();
-      AU.addPreserved<LazyValueInfoWrapperPass>();
-    }
-  };
-
-} // end anonymous namespace
-
-char CorrelatedValuePropagation::ID = 0;
-
-INITIALIZE_PASS_BEGIN(CorrelatedValuePropagation, "correlated-propagation",
-                "Value Propagation", false, false)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LazyValueInfoWrapperPass)
-INITIALIZE_PASS_END(CorrelatedValuePropagation, "correlated-propagation",
-                "Value Propagation", false, false)
-
-// Public interface to the Value Propagation pass
-Pass *llvm::createCorrelatedValuePropagationPass() {
-  return new CorrelatedValuePropagation();
-}
+STATISTIC(NumUDivURemsNarrowedExpanded,
+          "Number of bound udiv's/urem's expanded");
 
 static bool processSelect(SelectInst *S, LazyValueInfo *LVI) {
   if (S->getType()->isVectorTy()) return false;
@@ -697,7 +658,7 @@ enum class Domain { NonNegative, NonPositive, Unknown };
 static Domain getDomain(const ConstantRange &CR) {
   if (CR.isAllNonNegative())
     return Domain::NonNegative;
-  if (CR.icmp(ICmpInst::ICMP_SLE, APInt::getNullValue(CR.getBitWidth())))
+  if (CR.icmp(ICmpInst::ICMP_SLE, APInt::getZero(CR.getBitWidth())))
     return Domain::NonPositive;
   return Domain::Unknown;
 }
@@ -716,7 +677,6 @@ static bool narrowSDivOrSRem(BinaryOperator *Instr, const ConstantRange &LCR,
 
   // What is the smallest bit width that can accommodate the entire value ranges
   // of both of the operands?
-  std::array<std::optional<ConstantRange>, 2> CRs;
   unsigned MinSignedBits =
       std::max(LCR.getMinSignedBits(), RCR.getMinSignedBits());
 
@@ -752,19 +712,23 @@ static bool narrowSDivOrSRem(BinaryOperator *Instr, const ConstantRange &LCR,
   return true;
 }
 
-static bool processURem(BinaryOperator *Instr, const ConstantRange &XCR,
-                        const ConstantRange &YCR) {
-  assert(Instr->getOpcode() == Instruction::URem);
-  assert(!Instr->getType()->isVectorTy());
+static bool expandUDivOrURem(BinaryOperator *Instr, const ConstantRange &XCR,
+                             const ConstantRange &YCR) {
+  Type *Ty = Instr->getType();
+  assert(Instr->getOpcode() == Instruction::UDiv ||
+         Instr->getOpcode() == Instruction::URem);
+  assert(!Ty->isVectorTy());
+  bool IsRem = Instr->getOpcode() == Instruction::URem;
 
   Value *X = Instr->getOperand(0);
   Value *Y = Instr->getOperand(1);
 
+  // X u/ Y -> 0  iff X u< Y
   // X u% Y -> X  iff X u< Y
   if (XCR.icmp(ICmpInst::ICMP_ULT, YCR)) {
-    Instr->replaceAllUsesWith(X);
+    Instr->replaceAllUsesWith(IsRem ? X : Constant::getNullValue(Ty));
     Instr->eraseFromParent();
-    ++NumURemExpanded;
+    ++NumUDivURemsNarrowedExpanded;
     return true;
   }
 
@@ -798,17 +762,24 @@ static bool processURem(BinaryOperator *Instr, const ConstantRange &XCR,
     return false;
 
   IRBuilder<> B(Instr);
-  // NOTE: this transformation introduces two uses of X,
-  //       but it may be undef so we must freeze it first.
-  Value *FrozenX = B.CreateFreeze(X, X->getName() + ".frozen");
-  auto *AdjX = B.CreateNUWSub(FrozenX, Y, Instr->getName() + ".urem");
-  auto *Cmp =
-      B.CreateICmp(ICmpInst::ICMP_ULT, FrozenX, Y, Instr->getName() + ".cmp");
-  auto *ExpandedURem = B.CreateSelect(Cmp, FrozenX, AdjX);
-  ExpandedURem->takeName(Instr);
-  Instr->replaceAllUsesWith(ExpandedURem);
+  Value *ExpandedOp;
+  if (IsRem) {
+    // NOTE: this transformation introduces two uses of X,
+    //       but it may be undef so we must freeze it first.
+    Value *FrozenX = B.CreateFreeze(X, X->getName() + ".frozen");
+    auto *AdjX = B.CreateNUWSub(FrozenX, Y, Instr->getName() + ".urem");
+    auto *Cmp =
+        B.CreateICmp(ICmpInst::ICMP_ULT, FrozenX, Y, Instr->getName() + ".cmp");
+    ExpandedOp = B.CreateSelect(Cmp, FrozenX, AdjX);
+  } else {
+    auto *Cmp =
+        B.CreateICmp(ICmpInst::ICMP_UGE, X, Y, Instr->getName() + ".cmp");
+    ExpandedOp = B.CreateZExt(Cmp, Ty, Instr->getName() + ".udiv");
+  }
+  ExpandedOp->takeName(Instr);
+  Instr->replaceAllUsesWith(ExpandedOp);
   Instr->eraseFromParent();
-  ++NumURemExpanded;
+  ++NumUDivURemsNarrowedExpanded;
   return true;
 }
 
@@ -860,7 +831,7 @@ static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
 
   ConstantRange XCR = LVI->getConstantRangeAtUse(Instr->getOperandUse(0));
   ConstantRange YCR = LVI->getConstantRangeAtUse(Instr->getOperandUse(1));
-  if (Instr->getOpcode() == Instruction::URem && processURem(Instr, XCR, YCR))
+  if (expandUDivOrURem(Instr, XCR, YCR))
     return true;
 
   return narrowUDivOrURem(Instr, XCR, YCR);
@@ -1208,16 +1179,6 @@ static bool runImpl(Function &F, LazyValueInfo *LVI, DominatorTree *DT,
   }
 
   return FnChanged;
-}
-
-bool CorrelatedValuePropagation::runOnFunction(Function &F) {
-  if (skipFunction(F))
-    return false;
-
-  LazyValueInfo *LVI = &getAnalysis<LazyValueInfoWrapperPass>().getLVI();
-  DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-
-  return runImpl(F, LVI, DT, getBestSimplifyQuery(*this, F));
 }
 
 PreservedAnalyses

@@ -6,79 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Format/Format.h"
+#include "FormatTestBase.h"
 
-#include "../Tooling/ReplacementTest.h"
-#include "FormatTestUtils.h"
-
-#include "llvm/Support/Debug.h"
-#include "gtest/gtest.h"
-
-#define DEBUG_TYPE "format-test"
-
-using clang::tooling::ReplacementTest;
+#define DEBUG_TYPE "format-test-comments"
 
 namespace clang {
 namespace format {
+namespace test {
 namespace {
 
 FormatStyle getGoogleStyle() { return getGoogleStyle(FormatStyle::LK_Cpp); }
 
-class FormatTestComments : public ::testing::Test {
-protected:
-  enum StatusCheck { SC_ExpectComplete, SC_ExpectIncomplete, SC_DoNotCheck };
-
-  std::string format(llvm::StringRef Code,
-                     const FormatStyle &Style = getLLVMStyle(),
-                     StatusCheck CheckComplete = SC_ExpectComplete) {
-    LLVM_DEBUG(llvm::errs() << "---\n");
-    LLVM_DEBUG(llvm::errs() << Code << "\n\n");
-    std::vector<tooling::Range> Ranges(1, tooling::Range(0, Code.size()));
-    FormattingAttemptStatus Status;
-    tooling::Replacements Replaces =
-        reformat(Style, Code, Ranges, "<stdin>", &Status);
-    if (CheckComplete != SC_DoNotCheck) {
-      bool ExpectedCompleteFormat = CheckComplete == SC_ExpectComplete;
-      EXPECT_EQ(ExpectedCompleteFormat, Status.FormatComplete)
-          << Code << "\n\n";
-    }
-    ReplacementCount = Replaces.size();
-    auto Result = applyAllReplacements(Code, Replaces);
-    EXPECT_TRUE(static_cast<bool>(Result));
-    LLVM_DEBUG(llvm::errs() << "\n" << *Result << "\n\n");
-    return *Result;
-  }
-
-  FormatStyle getLLVMStyleWithColumns(unsigned ColumnLimit) {
-    FormatStyle Style = getLLVMStyle();
-    Style.ColumnLimit = ColumnLimit;
-    return Style;
-  }
-
-  FormatStyle getTextProtoStyleWithColumns(unsigned ColumnLimit) {
-    FormatStyle Style = getGoogleStyle(FormatStyle::FormatStyle::LK_TextProto);
-    Style.ColumnLimit = ColumnLimit;
-    return Style;
-  }
-
-  void verifyFormat(llvm::StringRef Code,
-                    const FormatStyle &Style = getLLVMStyle()) {
-    EXPECT_EQ(Code.str(), format(Code, Style)) << "Expected code is not stable";
-    EXPECT_EQ(Code.str(), format(test::messUp(Code), Style));
-  }
-
-  void verifyGoogleFormat(llvm::StringRef Code) {
-    verifyFormat(Code, getGoogleStyle());
-  }
-
-  /// \brief Verify that clang-format does not crash on the given input.
-  void verifyNoCrash(llvm::StringRef Code,
-                     const FormatStyle &Style = getLLVMStyle()) {
-    format(Code, Style, SC_DoNotCheck);
-  }
-
-  int ReplacementCount;
-};
+class FormatTestComments : public FormatTestBase {};
 
 //===----------------------------------------------------------------------===//
 // Tests for comments.
@@ -1120,6 +1059,13 @@ TEST_F(FormatTestComments, KeepsLevelOfCommentBeforePPDirective) {
                    "#endif\n"
                    "  }\n"
                    "}"));
+
+  const StringRef Code("void func() {\n"
+                       "  // clang-format off\n"
+                       "  #define KV(value) #value, value\n"
+                       "  // clang-format on\n"
+                       "}");
+  EXPECT_EQ(Code, format(Code));
 }
 
 TEST_F(FormatTestComments, SplitsLongLinesInComments) {
@@ -2813,7 +2759,7 @@ TEST_F(FormatTestComments, AlignTrailingComments) {
 
   // Checks an edge case in preprocessor handling.
   // These comments should *not* be aligned
-  EXPECT_NE( // change for EQ when fixed
+  EXPECT_EQ(
       "#if FOO\n"
       "#else\n"
       "long a; // Line about a\n"
@@ -4376,5 +4322,6 @@ TEST_F(FormatTestComments, SplitCommentIntroducers) {
 }
 
 } // end namespace
+} // namespace test
 } // end namespace format
 } // end namespace clang

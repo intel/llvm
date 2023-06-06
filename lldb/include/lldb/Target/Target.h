@@ -204,6 +204,12 @@ public:
 
   uint64_t GetExprErrorLimit() const;
 
+  uint64_t GetExprAllocAddress() const;
+
+  uint64_t GetExprAllocSize() const;
+
+  uint64_t GetExprAllocAlign() const;
+
   bool GetUseHexImmediates() const;
 
   bool GetUseFastStepping() const;
@@ -413,9 +419,11 @@ public:
 
   uint32_t GetPoundLineLine() const { return m_pound_line_line; }
 
-  void SetResultIsInternal(bool b) { m_result_is_internal = b; }
+  void SetSuppressPersistentResult(bool b) { m_suppress_persistent_result = b; }
 
-  bool GetResultIsInternal() const { return m_result_is_internal; }
+  bool GetSuppressPersistentResult() const {
+    return m_suppress_persistent_result;
+  }
 
   void SetAutoApplyFixIts(bool b) { m_auto_apply_fixits = b; }
 
@@ -446,7 +454,7 @@ private:
   bool m_repl = false;
   bool m_generate_debug_info = false;
   bool m_ansi_color_errors = false;
-  bool m_result_is_internal = false;
+  bool m_suppress_persistent_result = false;
   bool m_auto_apply_fixits = true;
   uint64_t m_retries_with_fixits = 1;
   /// True if the executed code should be treated as utility code that is only
@@ -504,9 +512,9 @@ public:
 
     ~TargetEventData() override;
 
-    static ConstString GetFlavorString();
+    static llvm::StringRef GetFlavorString();
 
-    ConstString GetFlavor() const override {
+    llvm::StringRef GetFlavor() const override {
       return TargetEventData::GetFlavorString();
     }
 
@@ -1241,6 +1249,10 @@ public:
   ///     if none can be found.
   llvm::Expected<lldb_private::Address> GetEntryPointAddress();
 
+  CompilerType GetRegisterType(const std::string &name,
+                               const lldb_private::RegisterFlags &flags,
+                               uint32_t byte_size);
+
   // Target Stop Hooks
   class StopHook : public UserID {
   public:
@@ -1427,6 +1439,8 @@ public:
   StackFrameRecognizerManager &GetFrameRecognizerManager() {
     return *m_frame_recognizer_manager_up;
   }
+
+  void SaveScriptedLaunchInfo(lldb_private::ProcessInfo &process_info);
 
   /// Add a signal for the target.  This will get copied over to the process
   /// if the signal exists on that target.  Only the values with Yes and No are

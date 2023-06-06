@@ -12,6 +12,7 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -42,31 +43,17 @@ sycl::ext::oneapi::experimental::device_global<
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<DeviceGlobalTestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<DeviceGlobalTestKernel>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return DeviceGlobalTestKernelName; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
-template <> struct KernelInfo<DeviceGlobalImgScopeTestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<DeviceGlobalImgScopeTestKernel>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return DeviceGlobalImgScopeTestKernelName;
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
@@ -325,6 +312,7 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
     MockRef.REDEFINE_AFTER(piEventGetInfo);
     MockRef.REDEFINE_AFTER(piEnqueueKernelLaunch);
   });
+  std::ignore = Mock;
 
   // Kernel call 1.
   // First launch should create both init events.
@@ -355,6 +343,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobal).wait();
@@ -384,6 +373,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobal, Vals).wait();
@@ -413,6 +403,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Val = 42;
   Q.copy(&Val, DeviceGlobal, 1).wait();
@@ -441,6 +432,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Val = 42;
   Q.memcpy(DeviceGlobal, &Val, sizeof(int)).wait();
@@ -469,6 +461,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Val = 42;
   Q.copy(&Val, DeviceGlobal, 1, 1).wait();
@@ -497,6 +490,7 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Val = 42;
   Q.memcpy(DeviceGlobal, &Val, sizeof(int), sizeof(int)).wait();
@@ -525,6 +519,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.copy(DeviceGlobal, Vals).wait();
@@ -546,6 +541,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.memcpy(Vals, DeviceGlobal).wait();
@@ -567,6 +563,7 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
@@ -593,6 +590,7 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
   });
+  std::ignore = Mock;
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
@@ -618,6 +616,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyToBeforeUse) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobalImgScope).wait();
@@ -638,6 +637,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyToBeforeUse) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobalImgScope, Vals).wait();
@@ -658,6 +658,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyFromBeforeUse) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.copy(DeviceGlobalImgScope, Vals).wait();
@@ -678,6 +679,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyFromBeforeUse) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   int Vals[2] = {42, 1234};
   Q.memcpy(Vals, DeviceGlobalImgScope).wait();
@@ -698,6 +700,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
@@ -730,6 +733,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
@@ -762,6 +766,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
@@ -794,6 +799,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
                                      false);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
+  std::ignore = Mock;
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 

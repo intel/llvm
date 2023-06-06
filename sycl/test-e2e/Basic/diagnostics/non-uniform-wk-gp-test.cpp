@@ -1,7 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: level_zero
-// UNSUPPORTED: ze_debug-1,ze_debug4
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: ze_debug
 //==------- non-uniform-wk-gp-test.cpp -------==//
 // This is a diagnostic test which verifies that
 // for loops with non-uniform work groups size
@@ -52,12 +54,10 @@ int test() {
 int main() {
   int pltCount = 0, ret = 0;
   for (const auto &plt : platform::get_platforms()) {
-    if (!plt.has(aspect::host)) {
-      std::cout << "Platform #" << pltCount++ << ":" << std::endl;
-      if (plt.get_backend() == backend::ext_oneapi_level_zero) {
-        std::cout << "Backend: Level Zero" << std::endl;
-        ret += test();
-      }
+    std::cout << "Platform #" << pltCount++ << ":" << std::endl;
+    if (plt.get_backend() == backend::ext_oneapi_level_zero) {
+      std::cout << "Backend: Level Zero" << std::endl;
+      ret += test();
     }
     std::cout << std::endl;
   }

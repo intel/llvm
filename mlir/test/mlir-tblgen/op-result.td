@@ -100,7 +100,7 @@ def OpI : NS_Op<"mix_variadic_and_normal_results_op", [SameVariadicResultSize]> 
 // CHECK-NEXT:    return getODSResults(0);
 
 // CHECK-LABEL: ::mlir::TypedValue<::mlir::TensorType> OpI::getOutput2
-// CHECK-NEXT:    return *getODSResults(1).begin();
+// CHECK-NEXT:    return ::llvm::cast<::mlir::TypedValue<::mlir::TensorType>>(*getODSResults(1).begin());
 
 // CHECK-LABEL: OpI::build
 // CHECK-NEXT:    odsState.addTypes(output1);
@@ -152,7 +152,7 @@ def OpL3 : NS_Op<"op_with_all_types_constraint",
 
 // CHECK-LABEL: LogicalResult OpL3::inferReturnTypes
 // CHECK-NOT: }
-// CHECK: ::mlir::Type odsInferredType0 = attributes.get("a").cast<::mlir::TypedAttr>().getType();
+// CHECK: ::mlir::Type odsInferredType0 = odsInferredTypeAttr0.getType();
 // CHECK: inferredReturnTypes[0] = odsInferredType0;
 
 def OpL4 : NS_Op<"two_inference_edges", [

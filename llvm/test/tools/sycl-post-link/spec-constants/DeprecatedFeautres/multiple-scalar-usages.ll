@@ -2,7 +2,7 @@
 ; spec constant is accessed twice, then metadata for both accesses should point
 ; to the same ID
 
-; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -o - \
+; RUN: sycl-post-link -spec-const=rt --ir-output-only < %s -S -o - \
 ; RUN: | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

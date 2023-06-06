@@ -182,6 +182,7 @@ cc_library(
         "//llvm:Object",
         "//llvm:Support",
         "//llvm:Target",
+        "//llvm:TransformUtils",
     ],
 )
 
@@ -266,6 +267,7 @@ cc_library(
         "//llvm:MCParser",
         "//llvm:Object",
         "//llvm:Support",
+        "//llvm:TargetParser",
         "//llvm:ir_headers",
     ],
 )
