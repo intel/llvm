@@ -4000,6 +4000,12 @@ typedef enum ur_queue_flag_t {
     UR_QUEUE_FLAG_DISCARD_EVENTS = UR_BIT(4),                ///< Events will be discarded
     UR_QUEUE_FLAG_PRIORITY_LOW = UR_BIT(5),                  ///< Low priority queue
     UR_QUEUE_FLAG_PRIORITY_HIGH = UR_BIT(6),                 ///< High priority queue
+    UR_QUEUE_FLAG_SUBMISSION_BATCHED = UR_BIT(7),            ///< Do not necessarily submit the operation as
+                                                             ///< soon as enqueue completes. Collect operations
+                                                             ///< and then submit at a later time in a batch.
+                                                             ///< Batch size will be determined automatically.
+    UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE = UR_BIT(8),          ///< Submit immediately after the enqueue operation
+                                                             ///< completes.
     /// @cond
     UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
