@@ -31,7 +31,7 @@ elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
   # Set HIP define to select NVIDIA platform
   target_compile_definitions(PiHipTests PRIVATE __HIP_PLATFORM_NVIDIA__)
 else()
-  message(FATAL_ERROR "Unspecified PI HIP platform please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
+  message(FATAL_ERROR "Unspecified PI HIP platform, please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
 endif()
 
 target_link_libraries(PiHipTests
