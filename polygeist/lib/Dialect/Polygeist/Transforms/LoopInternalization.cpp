@@ -231,7 +231,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       MemoryAccessMatrix interThreadMatrix =
           memAccess->getInterThreadAccessMatrix(threadVars.size());
       MemoryAccessPattern interThreadAccessPattern = MemoryAccess::classify(
-          interThreadMatrix, memAccess->getOffsetVector(), solver);
+          interThreadMatrix, memAccess->getOffsetVector());
 
       switch (interThreadAccessPattern) {
       case Linear:
@@ -255,9 +255,14 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       case Overlapped:
       case StridedOverlapped:
       case ReverseStridedOverlapped: {
-        Value strideVal =
+        dataflow::IntegerValueRange strideRange =
             interThreadMatrix(interThreadMatrix.getNumRows() - 1,
                               interThreadMatrix.getNumColumns() - 1);
+
+        if (strideRange.isUninitialized()) {
+          accessToMemSpace[access.opInst] = MemorySpace::Global;
+          break;
+        }
 
         // Use shared memory iff:
         //   - the memory access exhibits temporal reuse, and
@@ -271,7 +276,8 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
         //   1 0
         //   0 C <- where C == 0 (C is the stride).
         bool useSharedMemory = false;
-        if (auto stride = getConstIntegerValue(strideVal, solver)) {
+        ConstantIntRanges range = strideRange.getValue();
+        if (std::optional<APInt> stride = range.getConstantValue()) {
           bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
           useSharedMemory = hasTemporalReuse(access, threadVars) &&
                             (stride->isZero() || strideIsLargeEnough);
@@ -283,6 +289,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       default:
         accessToMemSpace[access.opInst] = MemorySpace::Global;
       }
+
       LLVM_DEBUG({
         if (accessToMemSpace.at(access.opInst) == MemorySpace::Shared)
           llvm::dbgs().indent(2) << "shared memory space\n";
@@ -340,7 +347,7 @@ bool MemorySelector::hasTemporalReuse(
 
   // A non-zero intra-thread access matrix implies that multiple threads access
   // the same array element (in a loop).
-  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero(solver);
+  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero();
 }
 
 //===----------------------------------------------------------------------===//
