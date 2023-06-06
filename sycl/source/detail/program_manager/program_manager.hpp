@@ -320,7 +320,7 @@ private:
   /// (m_DeviceImages). An exception is made for device images with no entry
   /// information: a special kernel set ID is used for them which is assigned
   /// to just the OS module. These kernel set ids are stored in
-  /// m_OSModuleKernelSets and device images associated with them are assumed
+  /// m_UniversalKernelSet and device images associated with them are assumed
   /// to contain all kernels coming from that OS module.
 
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
@@ -340,7 +340,7 @@ private:
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   // TODO: Treat default-constructed as None and get rid of std::optional?
-  std::optional<KernelSetId> m_OSModuleKernelSet;
+  std::optional<KernelSetId> m_UniversalKernelSet;
 
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions

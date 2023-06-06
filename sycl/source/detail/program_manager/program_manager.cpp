@@ -1396,9 +1396,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     }
     // Otherwise assume that the image contains all kernels associated with the
     // module
-    if (!m_OSModuleKernelSet)
-      m_OSModuleKernelSet = KernelSetId{};
-    KernelSetId &KSId = *m_OSModuleKernelSet;
+    if (!m_UniversalKernelSet)
+      m_UniversalKernelSet = KernelSetId{};
+    KernelSetId &KSId = *m_UniversalKernelSet;
     if (KSId == 0)
       KSId = getNextKernelSetId();
 
@@ -1443,8 +1443,8 @@ ProgramManager::getKernelSetId(const std::string &KernelName) const {
   }
   // If no kernel set was found check if there is a kernel set containing
   // all kernels in the given module
-  if (m_OSModuleKernelSet)
-    return *m_OSModuleKernelSet;
+  if (m_UniversalKernelSet)
+    return *m_UniversalKernelSet;
 
   throw runtime_error("No kernel named " + KernelName + " was found",
                       PI_ERROR_INVALID_KERNEL_NAME);
