@@ -225,14 +225,12 @@ cl_program program_impl::get() const {
 }
 
 void program_impl::compile_with_kernel_name(std::string KernelName,
-                                            std::string CompileOptions,
-                                            OSModuleHandle M) {
+                                            std::string CompileOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
-  MProgramModuleHandle = M;
   if (!is_host()) {
     create_pi_program_with_kernel_name(
-        M, KernelName,
+        KernelName,
         /*JITCompilationIsRequired=*/(!CompileOptions.empty()));
     compile(CompileOptions);
   }
@@ -253,16 +251,14 @@ void program_impl::compile_with_source(std::string KernelSource,
 }
 
 void program_impl::build_with_kernel_name(std::string KernelName,
-                                          std::string BuildOptions,
-                                          OSModuleHandle Module) {
+                                          std::string BuildOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
-  MProgramModuleHandle = Module;
   if (!is_host()) {
     MProgramAndKernelCachingAllowed = true;
     MBuildOptions = BuildOptions;
     MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-        Module, detail::getSyclObjImpl(get_context()),
+        detail::getSyclObjImpl(get_context()),
         detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
         /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
     const PluginPtr &Plugin = getPlugin();
@@ -455,7 +451,7 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
   if (is_cacheable()) {
     std::tie(Result.first, std::ignore, Result.second, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
-            MProgramModuleHandle, detail::getSyclObjImpl(get_context()),
+            detail::getSyclObjImpl(get_context()),
             detail::getSyclObjImpl(get_devices()[0]), KernelName, this);
     getPlugin()->call<PiApiKind::piKernelRetain>(Result.first);
   } else {
@@ -503,13 +499,12 @@ void program_impl::throw_if_state_is_not(program_state State) const {
 }
 
 void program_impl::create_pi_program_with_kernel_name(
-    OSModuleHandle Module, const std::string &KernelName,
-    bool JITCompilationIsRequired) {
+    const std::string &KernelName, bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
   const device FirstDevice = get_devices()[0];
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
-      Module, KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
+      KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
   MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
 }
 
