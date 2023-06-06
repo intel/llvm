@@ -3035,7 +3035,8 @@ pi_result cuda_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
 }
 
 pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                       const pi_mem *arg_value) {
+                                       const pi_mem *arg_value, const pi_mem_obj_property* arg_properties) {
+  std::ignore = arg_properties;
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);

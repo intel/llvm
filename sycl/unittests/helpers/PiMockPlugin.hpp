@@ -1000,7 +1000,8 @@ inline pi_result mock_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
 inline pi_result mock_piextKernelSetArgMemObj(pi_kernel kernel,
                                               pi_uint32 arg_index,
-                                              const pi_mem *arg_value) {
+                                              const pi_mem *arg_value,
+                                              const pi_mem_obj_property* ArgProperties) {
   return PI_SUCCESS;
 }
 

@@ -670,7 +670,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex,       ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t ArgValue ///< [in][optional] handle of Memory object.
+    ur_mem_handle_t ArgValue, ///< [in][optional] handle of Memory object.
+    const ur_mem_obj_properties_t* ArgProperties  ///< [in][optional] properties of Memory object
 ) {
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   // The ArgValue may be a NULL pointer in which case a NULL value is used for
@@ -678,9 +679,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 
   ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
 
+  ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
+  if (ArgProperties)
+  {
+    assert(ArgProperties->stype == UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES);
+    switch(ArgProperties->memory_access)
+    {
+      case 0:
+        break;
+      case UR_MEM_FLAG_READ_WRITE:
+        UrAccessMode = ur_mem_handle_t_::read_write;
+        break;
+      case UR_MEM_FLAG_WRITE_ONLY:
+        UrAccessMode = ur_mem_handle_t_::write_only;
+        break;
+      case UR_MEM_FLAG_READ_ONLY:
+        UrAccessMode = ur_mem_handle_t_::read_only;
+        break;
+      default:
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+  }
   auto Arg = UrMem ? UrMem : nullptr;
   Kernel->PendingArguments.push_back(
-      {ArgIndex, sizeof(void *), Arg, ur_mem_handle_t_::read_write});
+      {ArgIndex, sizeof(void *), Arg, UrAccessMode});
 
   return UR_RESULT_SUCCESS;
 }

@@ -347,7 +347,7 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-                kern, 0, &memObj)),
+                kern, 0, &memObj, nullptr)),
             PI_SUCCESS);
 
   size_t workDim = 1;
@@ -397,11 +397,11 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-                kern, 0, &memObj)),
+                kern, 0, &memObj, nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
-                kern, 1, &memObj2)),
+                kern, 1, &memObj2, nullptr)),
             PI_SUCCESS);
 
   size_t workDim = 1;
