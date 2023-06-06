@@ -55,43 +55,43 @@ int main() {
 
 
 
-// CHECK:extern "C" void _Z6init_aIiE(void *, void *, int, __nativecpu_state *);
-// CHECK:inline static void _Z6init_aIiEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
+// CHECK:extern "C" void _ZTS6init_aIiE(void *, void *, int, __nativecpu_state *);
+// CHECK:inline static void _ZTS6init_aIiEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
 // CHECK-NEXT:  void* arg0 = MArgs[0].getPtr();
 // CHECK-NEXT:  void* arg3 = MArgs[3].getPtr();
 // CHECK-NEXT:  int arg4 = *(int*)MArgs[4].getPtr();
-// CHECK-NEXT:  _Z6init_aIiE(arg0, arg3, arg4, state);
+// CHECK-NEXT:  _ZTS6init_aIiE(arg0, arg3, arg4, state);
 // CHECK-NEXT:};
 
-// CHECK:extern "C" void _Z6init_aIjE(void *, void *, unsigned int, __nativecpu_state *);
-// CHECK:inline static void _Z6init_aIjEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
+// CHECK:extern "C" void _ZTS6init_aIjE(void *, void *, unsigned int, __nativecpu_state *);
+// CHECK:inline static void _ZTS6init_aIjEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
 // CHECK-NEXT:  void* arg0 = MArgs[0].getPtr();
 // CHECK-NEXT:  void* arg3 = MArgs[3].getPtr();
 // CHECK-NEXT:  unsigned int arg4 = *(unsigned int*)MArgs[4].getPtr();
-// CHECK-NEXT:  _Z6init_aIjE(arg0, arg3, arg4, state);
+// CHECK-NEXT:  _ZTS6init_aIjE(arg0, arg3, arg4, state);
 // CHECK-NEXT:};
 
-// CHECK:extern "C" void _Z6init_aIfE(void *, void *, float, __nativecpu_state *);
-// CHECK:inline static void _Z6init_aIfEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
+// CHECK:extern "C" void _ZTS6init_aIfE(void *, void *, float, __nativecpu_state *);
+// CHECK:inline static void _ZTS6init_aIfEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
 // CHECK-NEXT:  void* arg0 = MArgs[0].getPtr();
 // CHECK-NEXT:  void* arg3 = MArgs[3].getPtr();
 // CHECK-NEXT:  float arg4 = *(float*)MArgs[4].getPtr();
-// CHECK-NEXT:  _Z6init_aIfE(arg0, arg3, arg4, state);
+// CHECK-NEXT:  _ZTS6init_aIfE(arg0, arg3, arg4, state);
 // CHECK-NEXT:};
 
-// CHECK:extern "C" void _Z6init_aIdE(void *, void *, double, __nativecpu_state *);
-// CHECK:inline static void _Z6init_aIdEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
+// CHECK:extern "C" void _ZTS6init_aIdE(void *, void *, double, __nativecpu_state *);
+// CHECK:inline static void _ZTS6init_aIdEsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
 // CHECK-NEXT:  void* arg0 = MArgs[0].getPtr();
 // CHECK-NEXT:  void* arg3 = MArgs[3].getPtr();
 // CHECK-NEXT:  double arg4 = *(double*)MArgs[4].getPtr();
-// CHECK-NEXT:  _Z6init_aIdE(arg0, arg3, arg4, state);
+// CHECK-NEXT:  _ZTS6init_aIdE(arg0, arg3, arg4, state);
 // CHECK-NEXT:};
 
 
-// CHECK-LL-DAG: @_Z6init_aIiE(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE1:[0-9]*]]
-// CHECK-LL-DAG: @_Z6init_aIjE(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE2:[0-9]*]]
-// CHECK-LL-DAG: @_Z6init_aIfE(ptr {{.*}}%0, ptr {{.*}}%1, float {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE3:[0-9]*]]
-// CHECK-LL-DAG: @_Z6init_aIdE(ptr {{.*}}%0, ptr {{.*}}%1, double {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE4:[0-9]*]]
+// CHECK-LL-DAG: @_ZTS6init_aIiE(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE1:[0-9]*]]
+// CHECK-LL-DAG: @_ZTS6init_aIjE(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE2:[0-9]*]]
+// CHECK-LL-DAG: @_ZTS6init_aIfE(ptr {{.*}}%0, ptr {{.*}}%1, float {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE3:[0-9]*]]
+// CHECK-LL-DAG: @_ZTS6init_aIdE(ptr {{.*}}%0, ptr {{.*}}%1, double {{.*}}%2, ptr {{.*}}%3){{.*}}!kernel_arg_type ![[TYPE4:[0-9]*]]
 // CHECK-LL-DAG: ![[TYPE1]] = !{!"int*", !"sycl::range<>", !"sycl::range<>", !"sycl::id<>", !"int"}
 // CHECK-LL-DAG: ![[TYPE2]] = !{!"uint*", !"sycl::range<>", !"sycl::range<>", !"sycl::id<>", !"unsigned int"}
 // CHECK-LL-DAG: ![[TYPE3]] = !{!"float*", !"sycl::range<>", !"sycl::range<>", !"sycl::id<>", !"float"}
