@@ -4400,6 +4400,18 @@ static SDValue lowerConstant(SDValue Op, SelectionDAG &DAG,
   if (Seq.size() <= Subtarget.getMaxBuildIntsCost())
     return Op;
 
+  // Special case. See if we can build the constant as (ADD (SLLI X, 32), X) do
+  // that if it will avoid a constant pool.
+  // It will require an extra temporary register though.
+  int64_t LoVal = SignExtend64<32>(Imm);
+  int64_t HiVal = SignExtend64<32>((Imm - LoVal) >> 32);
+  if (LoVal == HiVal) {
+    RISCVMatInt::InstSeq SeqLo =
+        RISCVMatInt::generateInstSeq(LoVal, Subtarget.getFeatureBits());
+    if ((SeqLo.size() + 2) <= Subtarget.getMaxBuildIntsCost())
+      return Op;
+  }
+
   // Expand to a constant pool using the default expansion code.
   return SDValue();
 }
@@ -4462,6 +4474,8 @@ SDValue RISCVTargetLowering::LowerIS_FPCLASS(SDValue Op,
   if (Check & fcNegZero)
     TDCMask |= RISCV::FPMASK_Negative_Zero;
 
+  bool IsOneBitMask = isPowerOf2_32(TDCMask);
+
   SDValue TDCMaskV = DAG.getConstant(TDCMask, DL, XLenVT);
 
   if (VT.isVector()) {
@@ -4473,6 +4487,10 @@ SDValue RISCVTargetLowering::LowerIS_FPCLASS(SDValue Op,
       auto [Mask, VL] = getDefaultScalableVLOps(VT0, DL, DAG, Subtarget);
       SDValue FPCLASS = DAG.getNode(RISCVISD::FCLASS_VL, DL, DstVT, Op0, Mask,
                                     VL, Op->getFlags());
+      if (IsOneBitMask)
+        return DAG.getSetCC(DL, VT, FPCLASS,
+                            DAG.getConstant(TDCMask, DL, DstVT),
+                            ISD::CondCode::SETEQ);
       SDValue AND = DAG.getNode(ISD::AND, DL, DstVT, FPCLASS,
                                 DAG.getConstant(TDCMask, DL, DstVT));
       return DAG.getSetCC(DL, VT, AND, DAG.getConstant(0, DL, DstVT),
@@ -4491,6 +4509,13 @@ SDValue RISCVTargetLowering::LowerIS_FPCLASS(SDValue Op,
 
     TDCMaskV = DAG.getNode(RISCVISD::VMV_V_X_VL, DL, ContainerDstVT,
                            DAG.getUNDEF(ContainerDstVT), TDCMaskV, VL);
+    if (IsOneBitMask) {
+      SDValue VMSEQ =
+          DAG.getNode(RISCVISD::SETCC_VL, DL, ContainerVT,
+                      {FPCLASS, TDCMaskV, DAG.getCondCode(ISD::SETEQ),
+                       DAG.getUNDEF(ContainerVT), Mask, VL});
+      return convertFromScalableVector(VT, VMSEQ, DAG, Subtarget);
+    }
     SDValue AND = DAG.getNode(RISCVISD::AND_VL, DL, ContainerDstVT, FPCLASS,
                               TDCMaskV, DAG.getUNDEF(ContainerDstVT), Mask, VL);
 
@@ -6675,6 +6700,7 @@ static SDValue lowerGetVectorLength(SDNode *N, SelectionDAG &DAG,
   unsigned VF = N->getConstantOperandVal(2);
   assert(VF >= MinVF && VF <= (LMul1VF * 8) && isPowerOf2_32(VF) &&
          "Unexpected VF");
+  (void)MinVF;
 
   bool Fractional = VF < LMul1VF;
   unsigned LMulVal = Fractional ? LMul1VF / VF : VF / LMul1VF;

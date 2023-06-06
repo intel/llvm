@@ -62,6 +62,7 @@ X86LegalizerInfo::X86LegalizerInfo(const X86Subtarget &STI,
     : Subtarget(STI), TM(TM) {
 
   bool Is64Bit = Subtarget.is64Bit();
+  bool HasSSE1 = Subtarget.hasSSE1();
   bool HasSSE2 = Subtarget.hasSSE2();
   bool HasSSE41 = Subtarget.hasSSE41();
   bool HasAVX = Subtarget.hasAVX();
@@ -77,6 +78,7 @@ X86LegalizerInfo::X86LegalizerInfo(const X86Subtarget &STI,
   const LLT s16 = LLT::scalar(16);
   const LLT s32 = LLT::scalar(32);
   const LLT s64 = LLT::scalar(64);
+  const LLT s128 = LLT::scalar(128);
   const LLT sMaxScalar = Subtarget.is64Bit() ? s64 : s32;
 
   const LLT v16s8 = LLT::fixed_vector(16, 8);
@@ -93,6 +95,24 @@ X86LegalizerInfo::X86LegalizerInfo(const X86Subtarget &STI,
   const LLT v32s16 = LLT::fixed_vector(32, 16);
   const LLT v16s32 = LLT::fixed_vector(16, 32);
   const LLT v8s64 = LLT::fixed_vector(8, 64);
+
+  // implicit/constants
+  getActionDefinitionsBuilder(G_IMPLICIT_DEF)
+      .legalIf([=](const LegalityQuery &Query) -> bool {
+        // 32/64-bits needs support for s64/s128 to handle cases:
+        // s64 = EXTEND (G_IMPLICIT_DEF s32) -> s64 = G_IMPLICIT_DEF
+        // s128 = EXTEND (G_IMPLICIT_DEF s32/s64) -> s128 = G_IMPLICIT_DEF
+        return typeInSet(0, {p0, s1, s8, s16, s32, s64})(Query) ||
+               (Is64Bit && typeInSet(0, {s128})(Query));
+      });
+
+  getActionDefinitionsBuilder(G_CONSTANT)
+      .legalIf([=](const LegalityQuery &Query) -> bool {
+        return typeInSet(0, {p0, s8, s16, s32})(Query) ||
+               (Is64Bit && typeInSet(0, {s64})(Query));
+      })
+      .widenScalarToNextPow2(0, /*Min=*/8)
+      .clampScalar(0, s8, sMaxScalar);
 
   // integer addition/subtraction
   getActionDefinitionsBuilder({G_ADD, G_SUB})
@@ -258,6 +278,36 @@ X86LegalizerInfo::X86LegalizerInfo(const X86Subtarget &STI,
 
   getActionDefinitionsBuilder(G_INTTOPTR).legalFor({{p0, sMaxScalar}});
 
+  // sext, zext, and anyext
+  getActionDefinitionsBuilder({G_SEXT, G_ZEXT, G_ANYEXT})
+      .legalIf([=](const LegalityQuery &Query) {
+        return typeInSet(0, {s8, s16, s32})(Query) ||
+          (Query.Opcode == G_ANYEXT && Query.Types[0] == s128) ||
+          (Is64Bit && Query.Types[0] == s64);
+      })
+    .widenScalarToNextPow2(0, /*Min=*/8)
+    .clampScalar(0, s8, sMaxScalar)
+    .widenScalarToNextPow2(1, /*Min=*/8)
+    .clampScalar(1, s8, sMaxScalar);
+
+  getActionDefinitionsBuilder(G_SEXT_INREG).lower();
+
+  // fp constants
+  getActionDefinitionsBuilder(G_FCONSTANT)
+      .legalIf([=](const LegalityQuery &Query) -> bool {
+        return (HasSSE1 && typeInSet(0, {s32})(Query)) ||
+               (HasSSE2 && typeInSet(0, {s64})(Query));
+      });
+
+  // fp arithmetic
+  getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV})
+      .legalIf([=](const LegalityQuery &Query) {
+        return (HasSSE1 && typeInSet(0, {s32, v4s32})(Query)) ||
+               (HasSSE2 && typeInSet(0, {s64, v2s64})(Query)) ||
+               (HasAVX && typeInSet(0, {v8s32, v4s64})(Query)) ||
+               (HasAVX512 && typeInSet(0, {v16s32, v8s64})(Query));
+      });
+
   setLegalizerInfo32bit();
   setLegalizerInfo64bit();
   setLegalizerInfoSSE1();
@@ -279,9 +329,6 @@ X86LegalizerInfo::X86LegalizerInfo(const X86Subtarget &STI,
   LegacyInfo.setLegalizeScalarToDifferentSizeStrategy(
       G_PTR_ADD, 1,
       LegacyLegalizerInfo::widenToLargerTypesUnsupportedOtherwise);
-  LegacyInfo.setLegalizeScalarToDifferentSizeStrategy(
-      G_CONSTANT, 0,
-      LegacyLegalizerInfo::widenToLargerTypesAndNarrowToLargest);
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
 
@@ -302,12 +349,8 @@ void X86LegalizerInfo::setLegalizerInfo32bit() {
   const LLT s16 = LLT::scalar(16);
   const LLT s32 = LLT::scalar(32);
   const LLT s64 = LLT::scalar(64);
-  const LLT s128 = LLT::scalar(128);
 
   auto &LegacyInfo = getLegacyLegalizerInfo();
-
-  for (auto Ty : {p0, s1, s8, s16, s32})
-    LegacyInfo.setAction({G_IMPLICIT_DEF, Ty}, LegacyLegalizeActions::Legal);
 
   for (auto Ty : {s8, s16, s32, p0})
     LegacyInfo.setAction({G_PHI, Ty}, LegacyLegalizeActions::Legal);
@@ -335,20 +378,6 @@ void X86LegalizerInfo::setLegalizerInfo32bit() {
   // Control-flow
   LegacyInfo.setAction({G_BRCOND, s1}, LegacyLegalizeActions::Legal);
 
-  // Constants
-  for (auto Ty : {s8, s16, s32, p0})
-    LegacyInfo.setAction({TargetOpcode::G_CONSTANT, Ty},
-                         LegacyLegalizeActions::Legal);
-
-  // Extensions
-  for (auto Ty : {s8, s16, s32}) {
-    LegacyInfo.setAction({G_ZEXT, Ty}, LegacyLegalizeActions::Legal);
-    LegacyInfo.setAction({G_SEXT, Ty}, LegacyLegalizeActions::Legal);
-    LegacyInfo.setAction({G_ANYEXT, Ty}, LegacyLegalizeActions::Legal);
-  }
-  LegacyInfo.setAction({G_ANYEXT, s128}, LegacyLegalizeActions::Legal);
-  getActionDefinitionsBuilder(G_SEXT_INREG).lower();
-
   // Merge/Unmerge
   for (const auto &Ty : {s16, s32, s64}) {
     LegacyInfo.setAction({G_MERGE_VALUES, Ty}, LegacyLegalizeActions::Legal);
@@ -373,11 +402,6 @@ void X86LegalizerInfo::setLegalizerInfo64bit() {
 
   auto &LegacyInfo = getLegacyLegalizerInfo();
 
-  LegacyInfo.setAction({G_IMPLICIT_DEF, s64}, LegacyLegalizeActions::Legal);
-  // Need to have that, as tryFoldImplicitDef will create this pattern:
-  // s128 = EXTEND (G_IMPLICIT_DEF s32/s64) -> s128 = G_IMPLICIT_DEF
-  LegacyInfo.setAction({G_IMPLICIT_DEF, s128}, LegacyLegalizeActions::Legal);
-
   LegacyInfo.setAction({G_PHI, s64}, LegacyLegalizeActions::Legal);
 
   for (unsigned MemOp : {G_LOAD, G_STORE})
@@ -385,15 +409,6 @@ void X86LegalizerInfo::setLegalizerInfo64bit() {
 
   // Pointer-handling
   LegacyInfo.setAction({G_PTR_ADD, 1, s64}, LegacyLegalizeActions::Legal);
-
-  // Constants
-  LegacyInfo.setAction({TargetOpcode::G_CONSTANT, s64},
-                       LegacyLegalizeActions::Legal);
-
-  // Extensions
-  for (unsigned extOp : {G_ZEXT, G_SEXT, G_ANYEXT}) {
-    LegacyInfo.setAction({extOp, s64}, LegacyLegalizeActions::Legal);
-  }
 
   getActionDefinitionsBuilder(G_SITOFP)
     .legalForCartesianProduct({s32, s64})
@@ -427,24 +442,15 @@ void X86LegalizerInfo::setLegalizerInfoSSE1() {
   if (!Subtarget.hasSSE1())
     return;
 
-  const LLT s32 = LLT::scalar(32);
   const LLT s64 = LLT::scalar(64);
   const LLT v4s32 = LLT::fixed_vector(4, 32);
   const LLT v2s64 = LLT::fixed_vector(2, 64);
 
   auto &LegacyInfo = getLegacyLegalizerInfo();
 
-  for (unsigned BinOp : {G_FADD, G_FSUB, G_FMUL, G_FDIV})
-    for (auto Ty : {s32, v4s32})
-      LegacyInfo.setAction({BinOp, Ty}, LegacyLegalizeActions::Legal);
-
   for (unsigned MemOp : {G_LOAD, G_STORE})
     for (auto Ty : {v4s32, v2s64})
       LegacyInfo.setAction({MemOp, Ty}, LegacyLegalizeActions::Legal);
-
-  // Constants
-  LegacyInfo.setAction({TargetOpcode::G_FCONSTANT, s32},
-                       LegacyLegalizeActions::Legal);
 
   // Merge/Unmerge
   for (const auto &Ty : {v4s32, v2s64}) {
@@ -474,19 +480,11 @@ void X86LegalizerInfo::setLegalizerInfoSSE2() {
 
   auto &LegacyInfo = getLegacyLegalizerInfo();
 
-  for (unsigned BinOp : {G_FADD, G_FSUB, G_FMUL, G_FDIV})
-    for (auto Ty : {s64, v2s64})
-      LegacyInfo.setAction({BinOp, Ty}, LegacyLegalizeActions::Legal);
-
   LegacyInfo.setAction({G_FPEXT, s64}, LegacyLegalizeActions::Legal);
   LegacyInfo.setAction({G_FPEXT, 1, s32}, LegacyLegalizeActions::Legal);
 
   LegacyInfo.setAction({G_FPTRUNC, s32}, LegacyLegalizeActions::Legal);
   LegacyInfo.setAction({G_FPTRUNC, 1, s64}, LegacyLegalizeActions::Legal);
-
-  // Constants
-  LegacyInfo.setAction({TargetOpcode::G_FCONSTANT, s64},
-                       LegacyLegalizeActions::Legal);
 
   // Merge/Unmerge
   for (const auto &Ty :
