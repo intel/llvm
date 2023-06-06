@@ -292,9 +292,36 @@ std::vector<kernel_id> get_kernel_ids() {
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   std::set<detail::RTDeviceBinaryImage *> BinImages =
       detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs);
+
+  auto imageTargetMatchDevice = [](const device &Dev,
+                                   const detail::RTDeviceBinaryImage &Img) {
+    const char *Target = Img.getRawData().DeviceTargetSpec;
+    auto BE = Dev.get_backend();
+    if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+      return (BE == sycl::backend::opencl ||
+              BE == sycl::backend::ext_oneapi_level_zero);
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+               0) {
+      return Dev.is_cpu();
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+               0) {
+      return Dev.is_gpu() && (BE == sycl::backend::opencl ||
+                              BE == sycl::backend::ext_oneapi_level_zero);
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
+               0) {
+      return Dev.is_accelerator();
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+      return BE == sycl::backend::ext_oneapi_cuda;
+    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+      return BE == sycl::backend::ext_oneapi_hip;
+    }
+
+    return false;
+  };
   return std::all_of(BinImages.begin(), BinImages.end(),
-                     [&Dev](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportDeviceRequirements(Dev, *Img);
+                     [&](const detail::RTDeviceBinaryImage *Img) {
+                       return doesDevSupportDeviceRequirements(Dev, *Img) &&
+                              imageTargetMatchDevice(Dev, *Img);
                      });
 }
 
