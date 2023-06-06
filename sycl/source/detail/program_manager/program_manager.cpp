@@ -1461,7 +1461,8 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
 
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
                                uint32_t SequenceID) const {
-  std::string Fname("sycl_");
+  const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
+  std::string Fname(Prefix ? Prefix : "sycl_");
   const pi_device_binary_struct &RawImg = Img.getRawData();
   Fname += RawImg.DeviceTargetSpec;
   Fname += std::to_string(KSId);
