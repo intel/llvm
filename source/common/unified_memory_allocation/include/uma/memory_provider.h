@@ -132,6 +132,13 @@ enum uma_result_t
 umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
                             size_t size);
 
+///
+/// \brief Retrive name of a given memory provider.
+/// \param hProvider handle to the memory provider
+/// \param ppName [out] pointer to a string containing name of the provider
+void umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider,
+                              const char **ppName);
+
 #ifdef __cplusplus
 }
 #endif
