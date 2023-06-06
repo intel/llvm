@@ -23,12 +23,10 @@ int main() {
   sycl::queue q{};
   auto int_sync = malloc_shared<uint32_t>(16, q);
   auto fp_sync = malloc_shared<float>(16, q);
-  auto int_sync_out = malloc_shared<uint32_t>(16, q);
-  auto fp_sync_out = malloc_shared<float>(16, q);
   int_sync[0] = 5;
-  int_sync_out[0] = 0;
+  int_sync[1] = 0;
   fp_sync[0] = 6;
-  fp_sync_out[0] = 0;
+  fp_sync[1] = 0;
   q.submit([&](sycl::handler &cgh) {
     cgh.single_task<class reproducer>([=]() [[intel::sycl_explicit_simd]] {
       uint32_t int_result =
@@ -37,13 +35,13 @@ int main() {
                                                                      0, 1)[0];
       sycl::ext::intel::experimental::esimd::lsc_atomic_update<
           sycl::ext::intel::esimd::atomic_op::store, uint32_t, 1>(
-          int_sync_out, 0, int_result, 1);
+          int_sync, 1, int_result, 1);
       float fp_result =
           sycl::ext::intel::experimental::esimd::lsc_atomic_update<
               sycl::ext::intel::esimd::atomic_op::load, float, 1>(fp_sync, 0,
                                                                   1)[0];
       sycl::ext::intel::experimental::esimd::lsc_atomic_update<
-          sycl::ext::intel::esimd::atomic_op::store, float, 1>(fp_sync_out, 0,
+          sycl::ext::intel::esimd::atomic_op::store, float, 1>(fp_sync, 1,
                                                                fp_result, 1);
     });
   });
@@ -51,14 +49,12 @@ int main() {
 
   bool passed = true;
 
-  passed &= int_sync[0] == int_sync_out[0];
-  passed &= fp_sync[0] == fp_sync_out[0];
+  passed &= int_sync[0] == int_sync[1];
+  passed &= fp_sync[0] == fp_sync[1];
 
   std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
 
   free(int_sync, q);
   free(fp_sync, q);
-  free(int_sync_out, q);
-  free(fp_sync_out, q);
   return passed ? 0 : 1;
 }
