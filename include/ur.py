@@ -2254,9 +2254,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgMemObj
 if __use_win_types:
-    _urKernelSetArgMemObj_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t, ur_mem_obj_properties_t )
+    _urKernelSetArgMemObj_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t, POINTER(ur_mem_obj_properties_t) )
 else:
-    _urKernelSetArgMemObj_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t, ur_mem_obj_properties_t )
+    _urKernelSetArgMemObj_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t, POINTER(ur_mem_obj_properties_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetSpecializationConstants
