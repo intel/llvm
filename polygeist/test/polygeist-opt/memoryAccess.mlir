@@ -69,16 +69,24 @@ func.func @test1(%acc : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
 // CHECK-NEXT: matrix:
 // CHECK-NEXT: 1
 // CHECK-NEXT: offsets:
-// CHECK-NEXT: 4
+// CHECK-NEXT: 5
 // CHECK-LABEL: test_tag: test1a_load7
 // CHECK-NEXT: matrix:
 // CHECK-NEXT: -1
 // CHECK-NEXT: offsets:
 // CHECK-NEXT: 0
 // CHECK-LABEL: test_tag: test1a_load8
-// CHECK-NEXT: memoryAccess: <none>
+// CHECK-NEXT: matrix:
+// CHECK-NEXT: 6
+// CHECK-NEXT: offsets:
+// CHECK-NEXT: 0
 // CHECK-LABEL: test_tag: test1a_load9
 // CHECK-NEXT: memoryAccess: <none>
+// CHECK-LABEL: test_tag: test1a_load10
+// CHECK-NEXT: matrix:
+// CHECK-NEXT: 1
+// CHECK-NEXT: offsets:
+// CHECK-NEXT: 5
 func.func @test1a(%acc : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>
@@ -131,9 +139,9 @@ func.func @test1a(%acc : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
     %subscr5 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
     %load5 = affine.load %subscr5[0] {tag = "test1a_load5"} : memref<?xf32, 4>
 
-    // (i+4)+0
+    // (i+4)+1
     %add6a = arith.addi %index_cast, %c4_i64 : i64
-    %add6b = arith.addi %add6a, %c0_i64 : i64
+    %add6b = arith.addi %add6a, %c1_i64 : i64
     sycl.constructor @id(%id, %add6b) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1, 4>, i64)
     %subscr6 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
     %load6 = affine.load %subscr6[0] {tag = "test1a_load6"} : memref<?xf32, 4>
@@ -156,6 +164,14 @@ func.func @test1a(%acc : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
     sycl.constructor @id1(%id, %div9) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1, 4>, i64)
     %subscr9 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
     %load9 = affine.load %subscr9[0] {tag = "test1a_load9"} : memref<?xf32, 4>
+
+    // (3+2)+i
+    %add10a = arith.addi %c3_i64, %c2_i64 : i64
+    %add10b = arith.addi %add10a, %index_cast : i64
+    sycl.constructor @id1(%id, %add10b) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1, 4>, i64)
+    %subscr10 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
+    %load10 = affine.load %subscr10[0] {tag = "test1a_load10"} : memref<?xf32, 4>
+
   }
   return
 }
