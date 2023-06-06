@@ -354,7 +354,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
 // The function is similar to 'extractCallGraph', but it produces a copy of
 // input LLVM IR module M with _all_ ESIMD functions and kernels included,
 // regardless of whether or not they are listed in ModuleEntryPoints.
-ModuleDesc extractESIMDCallGraph(const ModuleDesc &MD,
+ModuleDesc extractESIMDSubModule(const ModuleDesc &MD,
                                  EntryPointGroup &&ModuleEntryPoints,
                                  const DependencyGraph &CG,
                                  const std::function<bool(const Function *)>
@@ -968,7 +968,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
       Result.emplace_back(
-          std::move(extractESIMDCallGraph(MD, std::move(Group), CG)));
+          std::move(extractESIMDSubModule(MD, std::move(Group), CG)));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
