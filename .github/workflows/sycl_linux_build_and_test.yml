@@ -113,6 +113,11 @@ jobs:
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build
+    - name: Debug print
+      run: |
+        pwd
+        ls
+        ls *
     - name: LIT tests
       uses: ./src/devops/actions/lit-tests
       with:
