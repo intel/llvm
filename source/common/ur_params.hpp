@@ -305,6 +305,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_cache_config_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_exec_info_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_mem_obj_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os, const struct ur_kernel_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value);
@@ -726,6 +728,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -893,6 +899,12 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES: {
         const ur_device_partition_properties_t *pstruct =
             (const ur_device_partition_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES: {
+        const ur_mem_obj_properties_t *pstruct =
+            (const ur_mem_obj_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -6891,6 +6903,27 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     }
 }
 } // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_mem_obj_properties_t params) {
+    os << "(struct ur_mem_obj_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".memoryAccess = ";
+
+    ur_params::serializeFlag<ur_mem_flag_t>(os, (params.memoryAccess));
+
+    os << "}";
+    return os;
+}
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_kernel_native_properties_t params) {
@@ -10447,6 +10480,11 @@ operator<<(std::ostream &os,
     os << ".hArgValue = ";
 
     ur_params::serializePtr(os, *(params->phArgValue));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    os << *(params->ppProperties);
 
     return os;
 }

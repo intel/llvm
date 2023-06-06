@@ -2223,7 +2223,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue, ///< [in][optional] handle of Memory object.
+    ur_mem_obj_properties_t
+        pProperties ///< [in][optional] pointer to Memory object properties.
 ) {
     auto pfnSetArgMemObj = context.urDdiTable.Kernel.pfnSetArgMemObj;
 
@@ -2232,11 +2234,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     }
 
     ur_kernel_set_arg_mem_obj_params_t params = {&hKernel, &argIndex,
-                                                 &hArgValue};
+                                                 &hArgValue, &pProperties};
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
                                              "urKernelSetArgMemObj", &params);
 
-    ur_result_t result = pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+    ur_result_t result =
+        pfnSetArgMemObj(hKernel, argIndex, hArgValue, pProperties);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
                        "urKernelSetArgMemObj", &params, &result, instance);
