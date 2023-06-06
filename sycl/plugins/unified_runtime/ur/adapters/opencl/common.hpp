@@ -217,8 +217,9 @@ cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
 
 using clEnqueueWriteHostPipeINTEL_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
-                      const char *pipe_symbol, cl_bool blocking, void *ptr,
-                      size_t size, cl_uint num_events_in_waitlist,
+                      const char *pipe_symbol, cl_bool blocking,
+                      const void *ptr, size_t size,
+                      cl_uint num_events_in_waitlist,
                       const cl_event *events_waitlist, cl_event *event);
 
 template <typename T> struct FuncPtrCache {
