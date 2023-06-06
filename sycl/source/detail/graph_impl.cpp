@@ -146,7 +146,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
     return Handler.MSubgraphNode;
   }
   if (Handler.MCGType == sycl::detail::CG::None) {
-      return this->add(Dep);
+    return this->add(Dep);
   }
   return this->add(Handler.MCGType, std::move(Handler.MGraphNodeCG), Dep);
 }
