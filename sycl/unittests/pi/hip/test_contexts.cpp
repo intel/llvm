@@ -9,8 +9,8 @@
 #include "gtest/gtest.h"
 
 #include <condition_variable>
-#include <thread>
 #include <mutex>
+#include <thread>
 
 #include <hip/hip_runtime.h>
 
