@@ -197,7 +197,7 @@ public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
   DependencyGraph(const Module &M) {
-    // Group functions by their signature to handle case (2)
+    // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncMap;
     for (const auto &F : M.functions()) {
@@ -208,11 +208,11 @@ public:
 
     // We add every function into the graph
     for (const auto &F : M.functions()) {
-      // case (1)
+      // case (1), see comment above the class definition
       for (const Value *U : F.users())
         addUserToGraphRecursively(cast<const User>(U), &F);
 
-      // case (2)
+      // case (2), see comment above the class definition
       for (const auto &I : instructions(F)) {
         const auto *CI = dyn_cast<CallInst>(&I);
         if (!CI || !CI->isIndirectCall()) // Direct calls were handled above
