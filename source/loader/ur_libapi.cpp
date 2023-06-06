@@ -3021,14 +3021,16 @@ ur_result_t UR_APICALL urKernelSetArgSampler(
 ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue, ///< [in][optional] handle of Memory object.
+    ur_mem_obj_properties_t
+        pProperties ///< [in][optional] pointer to Memory object properties.
     ) try {
     auto pfnSetArgMemObj = ur_lib::context->urDdiTable.Kernel.pfnSetArgMemObj;
     if (nullptr == pfnSetArgMemObj) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+    return pfnSetArgMemObj(hKernel, argIndex, hArgValue, pProperties);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

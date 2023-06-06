@@ -228,6 +228,7 @@ class ur_structure_type_v(IntEnum):
     SAMPLER_NATIVE_PROPERTIES = 24                  ## ::ur_sampler_native_properties_t
     QUEUE_NATIVE_DESC = 25                          ## ::ur_queue_native_desc_t
     DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
+    MEM_OBJ_PROPERTIES = 27                         ## ::ur_mem_obj_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1475,6 +1476,17 @@ class ur_kernel_exec_info_t(c_int):
 
 
 ###############################################################################
+## @brief Properties for for ::urKernelSetArgMemObj.
+class ur_mem_obj_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("memoryAccess", ur_mem_flags_t)                                ## [in] Memory access flag. Allowed values are: ::UR_MEM_FLAG_READ_WRITE,
+                                                                        ## ::UR_MEM_FLAG_WRITE_ONLY, ::UR_MEM_FLAG_READ_ONLY.
+    ]
+
+###############################################################################
 ## @brief Properties for for ::urKernelCreateWithNativeHandle.
 class ur_kernel_native_properties_t(Structure):
     _fields_ = [
@@ -2242,9 +2254,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgMemObj
 if __use_win_types:
-    _urKernelSetArgMemObj_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t )
+    _urKernelSetArgMemObj_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t, ur_mem_obj_properties_t )
 else:
-    _urKernelSetArgMemObj_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t )
+    _urKernelSetArgMemObj_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, ur_mem_handle_t, ur_mem_obj_properties_t )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetSpecializationConstants
