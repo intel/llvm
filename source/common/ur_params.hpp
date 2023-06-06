@@ -7093,6 +7093,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
     case UR_QUEUE_FLAG_PRIORITY_HIGH:
         os << "UR_QUEUE_FLAG_PRIORITY_HIGH";
         break;
+
+    case UR_QUEUE_FLAG_SUBMISSION_BATCHED:
+      os << "UR_QUEUE_FLAG_SUBMISSION_BATCHED";
+      break;
+
+    case UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE:
+      os << "UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE";
+      break;
     default:
         os << "unknown enumerator";
         break;
@@ -7106,81 +7114,28 @@ inline void serializeFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
 
-    if ((val & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
-        (uint32_t)UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-        val ^= (uint32_t)UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    auto showFlag = [&](ur_queue_flag_t flag) {
+      if ((val & flag) == (uint32_t)flag) {
+        val ^= (uint32_t)flag;
         if (!first) {
-            os << " | ";
+          os << " | ";
         } else {
-            first = false;
+          first = false;
         }
-        os << UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    }
+        os << flag;
+      }
+    };
 
-    if ((val & UR_QUEUE_FLAG_PROFILING_ENABLE) ==
-        (uint32_t)UR_QUEUE_FLAG_PROFILING_ENABLE) {
-        val ^= (uint32_t)UR_QUEUE_FLAG_PROFILING_ENABLE;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_QUEUE_FLAG_PROFILING_ENABLE;
-    }
+    showFlag(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE);
+    showFlag(UR_QUEUE_FLAG_PROFILING_ENABLE);
+    showFlag(UR_QUEUE_FLAG_ON_DEVICE);
+    showFlag(UR_QUEUE_FLAG_ON_DEVICE_DEFAULT);
+    showFlag(UR_QUEUE_FLAG_DISCARD_EVENTS);
+    showFlag(UR_QUEUE_FLAG_PRIORITY_LOW);
+    showFlag(UR_QUEUE_FLAG_PRIORITY_HIGH);
+    showFlag(UR_QUEUE_FLAG_SUBMISSION_BATCHED);
+    showFlag(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE);
 
-    if ((val & UR_QUEUE_FLAG_ON_DEVICE) == (uint32_t)UR_QUEUE_FLAG_ON_DEVICE) {
-        val ^= (uint32_t)UR_QUEUE_FLAG_ON_DEVICE;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_QUEUE_FLAG_ON_DEVICE;
-    }
-
-    if ((val & UR_QUEUE_FLAG_ON_DEVICE_DEFAULT) ==
-        (uint32_t)UR_QUEUE_FLAG_ON_DEVICE_DEFAULT) {
-        val ^= (uint32_t)UR_QUEUE_FLAG_ON_DEVICE_DEFAULT;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_QUEUE_FLAG_ON_DEVICE_DEFAULT;
-    }
-
-    if ((val & UR_QUEUE_FLAG_DISCARD_EVENTS) ==
-        (uint32_t)UR_QUEUE_FLAG_DISCARD_EVENTS) {
-        val ^= (uint32_t)UR_QUEUE_FLAG_DISCARD_EVENTS;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_QUEUE_FLAG_DISCARD_EVENTS;
-    }
-
-    if ((val & UR_QUEUE_FLAG_PRIORITY_LOW) ==
-        (uint32_t)UR_QUEUE_FLAG_PRIORITY_LOW) {
-        val ^= (uint32_t)UR_QUEUE_FLAG_PRIORITY_LOW;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_QUEUE_FLAG_PRIORITY_LOW;
-    }
-
-    if ((val & UR_QUEUE_FLAG_PRIORITY_HIGH) ==
-        (uint32_t)UR_QUEUE_FLAG_PRIORITY_HIGH) {
-        val ^= (uint32_t)UR_QUEUE_FLAG_PRIORITY_HIGH;
-        if (!first) {
-            os << " | ";
-        } else {
-            first = false;
-        }
-        os << UR_QUEUE_FLAG_PRIORITY_HIGH;
-    }
     if (val != 0) {
         std::bitset<32> bits(val);
         if (!first) {
