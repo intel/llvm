@@ -83,8 +83,8 @@ static SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
 
   // Return the index value of an operation.
   auto getIndexValue = [&](T &op) -> std::optional<APInt> {
-    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
-    return idx ? getConstIntegerValue(*idx, solver) : APInt();
+    TypedValue<IntegerType> idx = op.getIndex();
+    return idx ? getConstIntegerValue(idx, solver) : APInt();
   };
 
   // Ensure that all operations collected have known index values.

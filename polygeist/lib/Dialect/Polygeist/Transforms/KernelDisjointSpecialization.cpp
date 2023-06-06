@@ -116,7 +116,9 @@ public:
 
 private:
   /// Returns true if \p func is a candidate.
-  bool isCandidateFunction(FunctionOpInterface func) const;
+  bool isCandidateFunction(
+      FunctionOpInterface func,
+      const polygeist::FunctionKernelInfo &funcKernelInfo) const;
   /// Returns true if \p acc1 and \p acc2 need to be checked for no overlap. For
   /// example, under strict aliasing rule, accessors with different element
   /// types are not alias, so return false.
@@ -138,11 +140,17 @@ private:
 //===----------------------------------------------------------------------===//
 
 void KernelDisjointSpecializationPass::runOnOperation() {
+  auto gpuModule = dyn_cast<gpu::GPUModuleOp>(
+      getOperation()->getRegion(0).front().getOperations().front());
+  if (!gpuModule)
+    return;
+  polygeist::FunctionKernelInfo funcKernelInfo(gpuModule);
+
   SmallVector<FunctionOpInterface> candidates;
-  getOperation()->walk([&](FunctionOpInterface func) {
+  gpuModule->walk([&](FunctionOpInterface func) {
     LLVM_DEBUG(llvm::dbgs()
                << "Processing function \"" << func.getName() << "\"\n");
-    if (isCandidateFunction(func))
+    if (isCandidateFunction(func, funcKernelInfo))
       candidates.push_back(func);
   });
 
@@ -167,8 +175,9 @@ void KernelDisjointSpecializationPass::runOnOperation() {
 }
 
 bool KernelDisjointSpecializationPass::isCandidateFunction(
-    FunctionOpInterface func) const {
-  if (!polygeist::isPotentialKernelBodyFunc(func)) {
+    FunctionOpInterface func,
+    const polygeist::FunctionKernelInfo &funcKernelInfo) const {
+  if (!funcKernelInfo.isPotentialKernelBodyFunc(func)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: not a potential kernel body function\n");
     return false;

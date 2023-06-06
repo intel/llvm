@@ -137,6 +137,9 @@ def LoopInternalization : Pass<"loop-internalization"> {
            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
     Option<"tileSize", "tile-size", "unsigned", /*default=*/"1", "Tile size">
   ];
+  let statistics = [
+    Statistic<"numTiled", "num-tiled", "Number of loops tiled">,
+  ];
   let dependentDialects = ["affine::AffineDialect", "scf::SCFDialect", "spirv::SPIRVDialect"];
 }
 
