@@ -1,0 +1,81 @@
+name: Device-agnostic LIT tests
+inputs:
+  filters:
+    description: 'Filter matches for the changed files in the PR'
+    # TODO: If that is used by a re-usable workflow, then the caller has to
+    # provide the same defaults explicitly in its inputs. Make sure those are
+    # modified whenever changes are being made here.
+    default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+    required: false
+  skip_targets:
+    description: 'Checks to skip'
+    default: '[]'
+    required: false
+  build_path:
+    description: 'Path to the build directory'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: check-llvm
+      shell: bash
+      if: |
+        always() && !cancelled()
+        && contains(inputs.filters, 'llvm')
+        && !contains(inputs.skip_targets, 'llvm')
+      run: |
+        cmake --build ${{ inputs.build_path }} --target check-llvm
+    - name: check-clang
+      shell: bash
+      if: |
+        always() && !cancelled()
+        && contains(inputs.filters, 'clang')
+        && !contains(inputs.skip_targets, 'clang')
+      run: |
+        # Can we move this to Dockerfile? Hopefully, noop on Windows.
+        export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
+        cmake --build ${{ inputs.build_path }} --target check-clang
+    - name: check-sycl
+      shell: bash
+      if: |
+        always() && !cancelled()
+        && contains(inputs.filters, 'sycl')
+        && !contains(inputs.skip_targets, 'sycl')
+      run: |
+        # TODO consider moving this to Dockerfile.
+        # Will be ignored on Windows even when executed.
+        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+        cmake --build ${{ inputs.build_path }} --target check-sycl
+    - name: check-llvm-spirv
+      shell: bash
+      if: |
+        always() && !cancelled()
+        && contains(inputs.filters, 'llvm_spirv')
+        && !contains(inputs.skip_targets, 'llvm_spirv')
+      run: |
+        cmake --build ${{ inputs.build_path }} --target check-llvm-spirv
+    - name: check-xptifw
+      shell: bash
+      if: |
+        always() && !cancelled()
+        && contains(inputs.filters, 'xptifw')
+        && !contains(inputs.skip_targets, 'xptifw')
+      run: |
+        cmake --build ${{ inputs.build_path }} --target check-xptifw
+    - name: check-libclc
+      shell: bash
+      if: |
+        always() && !cancelled()
+        && contains(inputs.filters, 'libclc')
+        && !contains(inputs.skip_targets, 'libclc')
+      run: |
+        cmake --build ${{ inputs.build_path }} --target check-libclc
+    - name: check-libdevice
+      shell: bash
+      if: |
+        always() && !cancelled()
+        && contains(inputs.filters, 'libdevice')
+        && !contains(inputs.skip_targets, 'libdevice')
+      run: |
+        cmake --build ${{ inputs.build_path }} --target check-libdevice
