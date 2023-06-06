@@ -77,4 +77,3 @@ protected:
 
   ~HipKernelsTest() = default;
 };
-
