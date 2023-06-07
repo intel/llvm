@@ -168,7 +168,7 @@ def makoWrite(inpath, outpath, **args):
         line = "%s: %s" % (str(traceback.error.__class__.__name__), traceback.error)
         makoErrorList.append(line)
         print(line)
-        return 0
+        raise
 
 def makoFileListWrite(outpath):
     jsonWrite(outpath, makoFileList)
