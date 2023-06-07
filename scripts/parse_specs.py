@@ -430,7 +430,7 @@ def _validate_doc(f, d, tags, line_num):
         print("%s(%s): %s!"%(os.path.abspath(f), line_num, msg))
         print("-- Function Info --")
         print(d)
-        return False
+        raise
 
 """
     filters object by version
