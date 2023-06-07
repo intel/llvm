@@ -126,13 +126,13 @@ void emitSubKernelHandler(const Function *F, const SmallVector<bool> &argMask,
     usedArgIdx.push_back(Index);
     if (isa<PointerType>(Arg->getType())) {
       OS << "  void* arg" << Index << " = ";
-      OS << "MArgs[" << Index << "].getPtr();\n";
+      OS << "MArgs[" << Index << "].MPtr;\n";
       return OS.str();
     }
     auto TN = ArgTypeNames[Index].str();
     OS << "  " << TN << " arg" << Index << " = ";
     OS << "*(" << TN << "*)"
-       << "MArgs[" << Index << "].getPtr();\n";
+       << "MArgs[" << Index << "].MPtr;\n";
     return OS.str();
   };
 
