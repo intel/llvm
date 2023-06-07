@@ -2,6 +2,12 @@
 
 [![GHA build status](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml/badge.svg?branch=main)](https://github.com/oneapi-src/unified-runtime/actions)
 
+> **Note**
+>
+> For those who intend to make a contribution to the project please read our
+> [Contribution Guide](https://oneapi-src.github.io/unified-runtime/core/CONTRIB.html)
+> for more information.
+
 ## Contents
 
 This repo contains the following:
