@@ -215,7 +215,8 @@ private:
   bool isCandidateCall(CallOpInterface callOp) const;
 
   /// Return true is the callee is a candidate, and false otherwise.
-  bool isCandidateCallable(CallableOpInterface callableOp);
+  bool isCandidateCallable(CallableOpInterface callableOp,
+                           const polygeist::FunctionKernelInfo &funcKernelInfo);
 
   /// Return true if the call \p callOp operand at position \p pos is a
   /// candidate for peeling, and false otherwise.
@@ -438,9 +439,14 @@ void ArgumentPromotionPass::collectCandidates(
   ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
+  auto gpuModule = dyn_cast<gpu::GPUModuleOp>(
+      module->getRegion(0).front().getOperations().front());
+  if (!gpuModule)
+    return;
+  polygeist::FunctionKernelInfo funcKernelInfo(gpuModule);
 
   // Search for candidate call operations in GPU kernels.
-  module->walk([&](gpu::GPUFuncOp gpuFuncOp) {
+  gpuModule->walk([&](gpu::GPUFuncOp gpuFuncOp) {
     assert(gpuFuncOp.isKernel() && "Expecting a kernel");
     LLVM_DEBUG(llvm::dbgs() << "\nAnalyzing GPU kernel "
                             << gpuFuncOp.getNameAttr() << ":\n");
@@ -462,7 +468,7 @@ void ArgumentPromotionPass::collectCandidates(
       });
 
       // Perform basic checks to ensure the callable is OK.
-      if (!isCandidateCallable(callableOp))
+      if (!isCandidateCallable(callableOp, funcKernelInfo))
         return;
 
       // Perform basic checks to ensure all calls to the callable are OK.
@@ -569,7 +575,8 @@ bool ArgumentPromotionPass::isCandidateOperand(
 }
 
 bool ArgumentPromotionPass::isCandidateCallable(
-    CallableOpInterface callableOp) {
+    CallableOpInterface callableOp,
+    const polygeist::FunctionKernelInfo &funcKernelInfo) {
   Operation *op = callableOp;
   auto funcOp = cast<FunctionOpInterface>(op);
   // The function must be defined, and private or with linkonce_odr linkage.
@@ -591,7 +598,8 @@ bool ArgumentPromotionPass::isCandidateCallable(
   // in a function that is called directly by a GPU kernel.
   // TODO: Could generalize by checking that the call chain from the GPU kernel
   // are all candidates.
-  Optional<unsigned> maxDepth = polygeist::getMaxDepthFromAnyGPUKernel(funcOp);
+  Optional<unsigned> maxDepth =
+      funcKernelInfo.getMaxDepthFromAnyGPUKernel(funcOp);
   assert(maxDepth.has_value() &&
          "Expecting func to be called from a GPU kernel");
   assert(maxDepth.value() != 0 && "Expecting func is not itself a GPU kernel");

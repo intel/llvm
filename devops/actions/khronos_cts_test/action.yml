@@ -11,7 +11,7 @@ inputs:
   sycl_archive:
     description: 'Name of SYCL toolchain archive file'
     required: false
-    default: 'llvm_sycl.tar.xz'
+    default: 'llvm_sycl.tar.zst'
   sycl_device_filter:
     description: 'List of SYCL backends with set of target devices per each to be tested iteratively'
     required: true
@@ -49,7 +49,7 @@ runs:
     shell: bash
     run: |
       mkdir toolchain
-      tar -xf ${{ inputs.sycl_archive }} -C toolchain
+      tar -I 'zstd -d' -xf ${{ inputs.sycl_archive }} -C toolchain
       rm -f ${{ inputs.sycl_archive }}
   - name: Build SYCL-CTS
     shell: bash

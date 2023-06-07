@@ -34,4 +34,15 @@ inline bool isSYCLOperation(Operation *op) {
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
 
+namespace mlir {
+namespace sycl {
+
+/// Return type of the accessor of \p op.
+inline AccessorType getAccessorType(SYCLAccessorSubscriptOp op) {
+  return sycl::AccessorPtrValue(op.getAcc()).getAccessorType();
+}
+
+} // namespace sycl
+} // namespace mlir
+
 #endif // MLIR_DIALECT_SYCL_IR_SYCLOPS_H

@@ -27,52 +27,60 @@
 
 using namespace mlir;
 using namespace mlir::affine;
+using namespace mlir::dataflow;
 using namespace mlir::polygeist;
 
 //===----------------------------------------------------------------------===//
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Determine whether a value is equal to a given integer constant.
+/// Determine whether a value \p val is equal to \p constant.
 static bool isEqualTo(Value val, int64_t constant, DataFlowSolver &solver) {
-  std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
-  if (!optConstVal.has_value()) {
-    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp());
-        constVal.value() == constant)
-      return true;
+  if (!val)
     return false;
-  }
 
-  APInt constVal = *optConstVal;
-  APInt c(constVal.getBitWidth(), constant, true /*signed*/);
+  std::optional<APInt> constVal = getConstIntegerValue(val, solver);
+  if (!constVal)
+    return false;
+
+  APInt c(constVal->getBitWidth(), constant, true /*signed*/);
   return (constVal == c);
 }
 
-static bool isZero(Value val, DataFlowSolver &solver) {
-  return isEqualTo(val, 0, solver);
+/// Determine whether an integer range \p range is equal to \p constant.
+static bool isEqualTo(IntegerValueRange range, int64_t constant) {
+  if (range.isUninitialized())
+    return false;
+
+  std::optional<APInt> constVal = range.getValue().getConstantValue();
+  if (!constVal)
+    return false;
+
+  APInt c(constVal->getBitWidth(), constant, true /*signed*/);
+  return (constVal == c);
 }
 
-static bool isOne(Value val, DataFlowSolver &solver) {
-  return isEqualTo(val, 1, solver);
+static bool isZero(IntegerValueRange range) { return isEqualTo(range, 0); }
+
+static bool isOne(IntegerValueRange range) { return isEqualTo(range, 1); }
+
+static bool isNegativeOne(IntegerValueRange range) {
+  return isEqualTo(range, -1);
 }
 
-static bool isNegativeOne(Value val, DataFlowSolver &solver) {
-  return isEqualTo(val, -1, solver);
+static bool isStrictlyPositive(IntegerValueRange range) {
+  std::optional<APInt> constVal = range.getValue().getConstantValue();
+  return (constVal && constVal->isStrictlyPositive());
 }
 
-static bool isStrictlyPositive(Value val, DataFlowSolver &solver) {
-  std::optional<APInt> constValue = getConstIntegerValue(val, solver);
-  return (constValue.has_value() && constValue->isStrictlyPositive());
+static bool isGreaterThanOne(IntegerValueRange range) {
+  std::optional<APInt> constVal = range.getValue().getConstantValue();
+  return (constVal && constVal->sgt(1));
 }
 
-static bool isGreaterThanOne(Value val, DataFlowSolver &solver) {
-  std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
-  return (optConstVal.has_value() && optConstVal->sgt(1));
-}
-
-static bool isSmallerThanNegativeOne(Value val, DataFlowSolver &solver) {
-  std::optional<APInt> optConstVal = getConstIntegerValue(val, solver);
-  return (optConstVal.has_value() && optConstVal->slt(-1));
+static bool isSmallerThanNegativeOne(IntegerValueRange range) {
+  std::optional<APInt> constVal = range.getValue().getConstantValue();
+  return (constVal && constVal->slt(-1));
 }
 
 /// Return a vector containing the thread values used in \p funcOp.
@@ -88,8 +96,8 @@ static SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
 
   // Return the index value of an operation.
   auto getIndexValue = [&](T &op) -> std::optional<APInt> {
-    std::optional<TypedValue<IntegerType>> idx = op.getIndex();
-    return idx.has_value() ? getConstIntegerValue(*idx, solver) : APInt();
+    TypedValue<IntegerType> idx = op.getIndex();
+    return idx ? getConstIntegerValue(idx, solver) : APInt();
   };
 
   // Ensure that all operations collected have known index values.
@@ -126,47 +134,74 @@ static bool usesValue(Operation *op, Value val) {
   });
 }
 
+/// Print the given integer value range \p range.
+static raw_ostream &printRange(raw_ostream &os,
+                               const IntegerValueRange &range) {
+  if (range.isUninitialized())
+    return os << "?";
+  if (auto constVal = range.getValue().getConstantValue())
+    return os << *constVal;
+  range.print(os);
+  return os;
+}
+
 namespace {
 
 /// Represents a multiplication factor in an affine expression.
 /// Example:
 ///   k1*i + k2
 /// Here the multiplier is 'k1'.
-class Multiplier : public Value {
+class Multiplier : public IntegerValueRange {
   friend raw_ostream &operator<<(raw_ostream &, const Multiplier &);
 
 public:
-  Multiplier(Value val) : Value(val) {}
+  Multiplier(IntegerValueRange range) : IntegerValueRange(range) {}
 
-  static Multiplier one(MLIRContext *ctx) {
-    OpBuilder b(ctx);
-    return Multiplier(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 1));
+  static Multiplier one() {
+    auto one = ConstantIntRanges::constant(APInt(32, 1));
+    return Multiplier(IntegerValueRange(one));
+  }
+
+  static Multiplier create(Value val, DataFlowSolver &solver) {
+    if (auto *range =
+            solver.lookupState<dataflow::IntegerValueRangeLattice>(val))
+      return Multiplier(range->getValue());
+    return Multiplier(IntegerValueRange());
   }
 };
 
 [[maybe_unused]] raw_ostream &operator<<(raw_ostream &os,
                                          const Multiplier &mul) {
-  return os << "Multiplier: " << static_cast<Value>(mul);
+  os << "Multiplier: ";
+  return printRange(os, static_cast<IntegerValueRange>(mul));
 }
 
 /// Represents an offset in an affine expression.
 /// Example:
 ///   k1*i + k2
 /// Here the offset is 'k2'.
-class Offset : public Value {
+class Offset : public IntegerValueRange {
   friend raw_ostream &operator<<(raw_ostream &, const Offset &);
 
 public:
-  Offset(Value val) : Value(val) {}
+  Offset(IntegerValueRange range) : IntegerValueRange(range) {}
 
-  static Offset zero(MLIRContext *ctx) {
-    OpBuilder b(ctx);
-    return Offset(b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0));
+  static Offset zero() {
+    auto zero = ConstantIntRanges::constant(APInt(32, 0));
+    return Offset(IntegerValueRange(zero));
+  }
+
+  static Offset create(Value val, DataFlowSolver &solver) {
+    if (auto *range =
+            solver.lookupState<dataflow::IntegerValueRangeLattice>(val))
+      return Offset(range->getValue());
+    return Offset(IntegerValueRange());
   }
 };
 
 [[maybe_unused]] raw_ostream &operator<<(raw_ostream &os, const Offset &off) {
-  return os << "Offset: " << static_cast<Value>(off);
+  os << "Offset: ";
+  return printRange(os, static_cast<IntegerValueRange>(off));
 }
 
 /// Represent a generic value or a value of type \tparam T.
@@ -199,10 +234,9 @@ public:
 
   /// Determine whether this class holds the value \p constant.
   bool isEqualTo(int64_t constant, DataFlowSolver &solver) const {
-    Value val = is<T>() ? get<T>() : get<Value>();
-    if (!val)
-      return false;
-    return ::isEqualTo(val, constant, solver);
+    if (is<T>())
+      return ::isEqualTo(get<T>(), constant);
+    return ::isEqualTo(get<Value>(), constant, solver);
   }
 
 private:
@@ -260,7 +294,7 @@ static ValueOr<Multiplier> visitBinaryOp(T binOp, const Value factor,
 static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
                                          DataFlowSolver &solver) {
   if (expr == factor)
-    return Multiplier::one(expr.getContext());
+    return Multiplier::one();
 
   Operation *op = expr.getDefiningOp();
   if (!op)
@@ -295,7 +329,7 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
           if (!lhsIsMul && !rhsIsMul &&
               getOperandThatMatchesFactor(lhs.get<Value>(), rhs.get<Value>()) !=
                   nullptr)
-            return Multiplier::one(expr.getContext());
+            return Multiplier::one();
           return Value();
         };
 
@@ -315,9 +349,9 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
           if (!lhsIsMul && !rhsIsMul) {
             Value lhsVal = lhs.get<Value>(), rhsVal = rhs.get<Value>();
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == lhsVal)
-              return Multiplier(rhsVal);
+              return Multiplier::create(lhsVal, solver);
             if (getOperandThatMatchesFactor(lhsVal, rhsVal) == rhsVal)
-              return Multiplier(lhsVal);
+              return Multiplier::create(rhsVal, solver);
             return Value();
           }
 
@@ -330,14 +364,14 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
             if (rhs.isEqualTo(1, solver))
               return lhs;
             if (lhs.isEqualTo(1, solver) && rhs.get<Value>() != factor)
-              return Multiplier(rhs.get<Value>());
+              return Multiplier::create(rhs.get<Value>(), solver);
             return Value();
           }
           if (rhsIsMul && !lhsIsMul) {
             if (lhs.isEqualTo(1, solver))
               return rhs;
             if (rhs.isEqualTo(1, solver) && lhs.get<Value>() != factor)
-              return Multiplier(lhs.get<Value>());
+              return Multiplier::create(lhs.get<Value>(), solver);
             return Value();
           }
 
@@ -391,7 +425,7 @@ static ValueOr<Offset>
 getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           DataFlowSolver &solver) {
   if (llvm::any_of(loopAndThreadVars, [&](Value var) { return expr == var; }))
-    return Offset::zero(expr.getContext());
+    return Offset::zero();
 
   Operation *op = expr.getDefiningOp();
   if (!op)
@@ -429,17 +463,17 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           if (lhsIsOff && !rhsIsOff) {
             if (lhs.isEqualTo(0, solver) &&
                 !usesAny(rhs.get<Value>(), loopAndThreadVars))
-              return Offset(rhs.get<Value>());
+              return Offset::create(rhs.get<Value>(), solver);
             if (usesAny(rhs.get<Value>(), loopAndThreadVars) ||
-                isZero(rhs.get<Value>(), solver))
+                rhs.isEqualTo(0, solver))
               return lhs;
           }
           if (rhsIsOff && !lhsIsOff) {
             if (rhs.isEqualTo(0, solver) &&
                 !usesAny(lhs.get<Value>(), loopAndThreadVars))
-              return Offset(lhs.get<Value>());
+              return Offset::create(lhs.get<Value>(), solver);
             if (usesAny(lhs.get<Value>(), loopAndThreadVars) ||
-                isZero(lhs.get<Value>(), solver))
+                lhs.isEqualTo(0, solver))
               return rhs;
           }
 
@@ -449,10 +483,10 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           if (!lhsIsOff && !rhsIsOff) {
             if (usesAny(lhs.get<Value>(), loopAndThreadVars) &&
                 !usesAny(rhs.get<Value>(), loopAndThreadVars))
-              return Offset(rhs.get<Value>());
+              return Offset::create(rhs.get<Value>(), solver);
             if (usesAny(rhs.get<Value>(), loopAndThreadVars) &&
                 !usesAny(lhs.get<Value>(), loopAndThreadVars))
-              return Offset(lhs.get<Value>());
+              return Offset::create(lhs.get<Value>(), solver);
           }
 
           return Value();
@@ -482,25 +516,23 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
           //   - a new offset with value equal to the other operand if the
           //     offset is one
           if (lhsIsOff && !rhsIsOff) {
-            if (lhs.isEqualTo(0, solver) ||
-                isEqualTo(rhs.get<Value>(), 1, solver))
+            if (lhs.isEqualTo(0, solver) || rhs.isEqualTo(1, solver))
               return lhs;
             if (lhs.isEqualTo(1, solver))
-              return Offset(rhs.get<Value>());
+              return Offset::create(rhs.get<Value>(), solver);
           }
           if (rhsIsOff && !lhsIsOff) {
-            if (rhs.isEqualTo(0, solver) ||
-                isEqualTo(lhs.get<Value>(), 1, solver))
+            if (rhs.isEqualTo(0, solver) || lhs.isEqualTo(1, solver))
               return rhs;
             if (rhs.isEqualTo(1, solver))
-              return Offset(lhs.get<Value>());
+              return Offset::create(lhs.get<Value>(), solver);
           }
 
           // Otherwise, if neither the LHS nor the RHS subtrees passed up an
           // offset, and the multiplication uses a loop IV or thread id, the
           // offset is zero.
           if (!lhsIsOff && !rhsIsOff && usesAny(mulOp, loopAndThreadVars))
-            return Offset::zero(expr.getContext());
+            return Offset::zero();
 
           return Value();
         };
@@ -524,24 +556,10 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
 
 [[maybe_unused]] raw_ostream &
 mlir::polygeist::operator<<(raw_ostream &os, const MemoryAccessMatrix &matrix) {
-  auto getConstant = [](Value val) -> Optional<int64_t> {
-    return TypeSwitch<Operation *, Optional<int64_t>>(val.getDefiningOp())
-        .Case<arith::ConstantIndexOp, arith::ConstantIntOp>(
-            [](auto op) { return op.value(); })
-        .Default([](auto) { return std::nullopt; });
-  };
-
   for (size_t row = 0; row < matrix.getNumRows(); ++row) {
     llvm::interleave(
         matrix.getRow(row), os,
-        [&](Value elem) {
-          std::optional<int64_t> constant = getConstant(elem);
-          if (constant.has_value())
-            os << constant;
-          else
-            os << elem;
-        },
-        " ");
+        [&os](const IntegerValueRange &elem) { printRange(os, elem); }, " ");
     if (row != (matrix.getNumRows() - 1))
       os << '\n';
   }
@@ -552,20 +570,21 @@ MemoryAccessMatrix::MemoryAccessMatrix(size_t nRows, size_t nColumns)
     : nRows(nRows), nColumns(nColumns), data(nRows * nColumns) {}
 
 MemoryAccessMatrix::MemoryAccessMatrix(
-    std::initializer_list<std::initializer_list<Value>> initList) {
+    std::initializer_list<std::initializer_list<IntegerValueRange>> initList) {
   assert(initList.size() != 0 && initList.begin()->size() != 0 &&
          "Expecting a non-empty initializer list");
   nRows = initList.size();
   nColumns = initList.begin()->size();
 
-  assert(llvm::all_of(initList,
-                      [this](const std::initializer_list<Value> &initRow) {
-                        return initRow.size() == nColumns;
-                      }) &&
+  assert(llvm::all_of(
+             initList,
+             [this](const std::initializer_list<IntegerValueRange> &initRow) {
+               return initRow.size() == nColumns;
+             }) &&
          "Rows should all have the same size");
 
   data.reserve(nRows * nColumns);
-  for (const std::initializer_list<Value> &initRow : initList)
+  for (const std::initializer_list<IntegerValueRange> &initRow : initList)
     data.append(initRow);
 }
 
@@ -585,23 +604,23 @@ void MemoryAccessMatrix::swapColumns(size_t column, size_t otherColumn) {
     std::swap(at(row, column), at(row, otherColumn));
 }
 
-SmallVector<Value> MemoryAccessMatrix::getRow(size_t row) const {
+SmallVector<IntegerValueRange> MemoryAccessMatrix::getRow(size_t row) const {
   assert(row < nRows && "the matrix must contain the given row");
-  SmallVector<Value> rowCopy;
+  SmallVector<IntegerValueRange> rowCopy;
   rowCopy.reserve(nColumns);
   for (size_t col = 0; col < nColumns; ++col)
     rowCopy.emplace_back(at(row, col));
   return rowCopy;
 }
 
-void MemoryAccessMatrix::setRow(size_t row, ArrayRef<Value> elems) {
+void MemoryAccessMatrix::setRow(size_t row, ArrayRef<IntegerValueRange> elems) {
   assert(row < nRows && "the matrix must contain the given row");
   assert(elems.size() == nColumns && "elems size must match row length!");
   for (size_t col = 0; col < nColumns; ++col)
     at(row, col) = elems[col];
 }
 
-void MemoryAccessMatrix::fillRow(size_t row, Value val) {
+void MemoryAccessMatrix::fillRow(size_t row, IntegerValueRange val) {
   assert(row < nRows && "the matrix must contain the given row");
   for (size_t col = 0; col < nColumns; ++col)
     at(row, col) = val;
@@ -613,38 +632,40 @@ size_t MemoryAccessMatrix::appendRow() {
   return nRows - 1;
 }
 
-size_t MemoryAccessMatrix::appendRow(ArrayRef<Value> elems) {
+size_t MemoryAccessMatrix::appendRow(ArrayRef<IntegerValueRange> elems) {
   size_t row = appendRow();
   setRow(row, elems);
   return row;
 }
 
-SmallVector<Value> MemoryAccessMatrix::getColumn(size_t column) const {
+SmallVector<IntegerValueRange>
+MemoryAccessMatrix::getColumn(size_t column) const {
   assert(column < nColumns && "the matrix must contain the given column");
-  SmallVector<Value> columnCopy;
+  SmallVector<IntegerValueRange> columnCopy;
   columnCopy.reserve(nRows);
   for (size_t row = 0; row < nRows; ++row)
     columnCopy.emplace_back(at(row, column));
   return columnCopy;
 }
 
-void MemoryAccessMatrix::setColumn(size_t col, ArrayRef<Value> elems) {
+void MemoryAccessMatrix::setColumn(size_t col,
+                                   ArrayRef<IntegerValueRange> elems) {
   assert(col < nColumns && "the matrix must contain the given column");
   assert(elems.size() == nRows && "elems size must match column length!");
   for (size_t row = 0; row < nRows; ++row)
     at(row, col) = elems[row];
 }
 
-void MemoryAccessMatrix::fillColumn(size_t col, Value val) {
+void MemoryAccessMatrix::fillColumn(size_t col, IntegerValueRange range) {
   assert(col < nColumns && "the matrix must contain the given column");
   for (size_t row = 0; row < nRows; ++row)
-    at(row, col) = val;
+    at(row, col) = range;
 }
 
-void MemoryAccessMatrix::fill(Value val) {
+void MemoryAccessMatrix::fill(IntegerValueRange range) {
   for (size_t row = 0; row < nRows; ++row)
     for (size_t col = 0; col < nColumns; ++col)
-      at(row, col) = val;
+      at(row, col) = range;
 }
 
 MemoryAccessMatrix MemoryAccessMatrix::getRows(std::set<size_t> rows) const {
@@ -677,25 +698,25 @@ MemoryAccessMatrix::getSubMatrix(std::set<size_t> rows,
 
 bool MemoryAccessMatrix::isSquare() const { return (nRows == nColumns); }
 
-bool MemoryAccessMatrix::isZero(DataFlowSolver &solver) const {
-  return (llvm::all_of(data,
-                       [&solver](Value val) { return ::isZero(val, solver); }));
+bool MemoryAccessMatrix::isZero() const {
+  return (llvm::all_of(
+      data, [](IntegerValueRange range) { return ::isZero(range); }));
 }
 
-bool MemoryAccessMatrix::isDiagonal(DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::isDiagonal() const {
   if (!isSquare())
     return false;
 
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isOnDiagonal = (row == col);
 
       // All values on the diagonal must be non-zero.
-      if (isOnDiagonal && ::isZero(val, solver))
+      if (isOnDiagonal && ::isZero(range))
         return false;
       // All other values must be zero.
-      if (!isOnDiagonal && !::isZero(val, solver))
+      if (!isOnDiagonal && !::isZero(range))
         return false;
     }
   }
@@ -703,20 +724,20 @@ bool MemoryAccessMatrix::isDiagonal(DataFlowSolver &solver) const {
   return true;
 }
 
-bool MemoryAccessMatrix::isIdentity(DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::isIdentity() const {
   if (!isSquare())
     return false;
 
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isOnDiagonal = (row == col);
 
       // All values on the diagonal must be one.
-      if (isOnDiagonal && !isOne(val, solver))
+      if (isOnDiagonal && !isOne(range))
         return false;
       // All other values must be zero.
-      if (!isOnDiagonal && !::isZero(val, solver))
+      if (!isOnDiagonal && !::isZero(range))
         return false;
     }
   }
@@ -724,20 +745,20 @@ bool MemoryAccessMatrix::isIdentity(DataFlowSolver &solver) const {
   return true;
 }
 
-bool MemoryAccessMatrix::isLowerTriangular(DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::isLowerTriangular() const {
   if (!isSquare())
     return false;
 
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isAboveDiagonal = (col > row);
 
       // All values above the diagonal must be zero.
-      if (isAboveDiagonal && !::isZero(val, solver))
+      if (isAboveDiagonal && !::isZero(range))
         return false;
       // All other values must be non-zero.
-      if (!isAboveDiagonal && ::isZero(val, solver))
+      if (!isAboveDiagonal && ::isZero(range))
         return false;
     }
   }
@@ -745,20 +766,20 @@ bool MemoryAccessMatrix::isLowerTriangular(DataFlowSolver &solver) const {
   return true;
 }
 
-bool MemoryAccessMatrix::isUpperTriangular(DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::isUpperTriangular() const {
   if (!isSquare())
     return false;
 
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isBelowDiagonal = (col < row);
 
       // All values below the diagonal must be zero.
-      if (isBelowDiagonal && !::isZero(val, solver))
+      if (isBelowDiagonal && !::isZero(range))
         return false;
       // All other values must be non-zero.
-      if (!isBelowDiagonal && ::isZero(val, solver))
+      if (!isBelowDiagonal && ::isZero(range))
         return false;
     }
   }
@@ -766,12 +787,9 @@ bool MemoryAccessMatrix::isUpperTriangular(DataFlowSolver &solver) const {
   return true;
 }
 
-bool MemoryAccessMatrix::hasLinearAccessPattern(DataFlowSolver &solver) const {
-  return isIdentity(solver);
-}
+bool MemoryAccessMatrix::hasLinearAccessPattern() const { return isIdentity(); }
 
-bool MemoryAccessMatrix::hasReverseLinearAccessPattern(
-    DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::hasReverseLinearAccessPattern() const {
   if (!isSquare())
     return false;
 
@@ -779,17 +797,17 @@ bool MemoryAccessMatrix::hasReverseLinearAccessPattern(
   // except the last one which must be equal to negative one.
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isOnDiagonal = (col == row);
 
-      if (!isOnDiagonal && !::isZero(val, solver))
+      if (!isOnDiagonal && !::isZero(range))
         return false;
 
       if (isOnDiagonal) {
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(range))
           return false;
-        if (isLastDiagonalElem && !isNegativeOne(val, solver))
+        if (isLastDiagonalElem && !isNegativeOne(range))
           return false;
       }
     }
@@ -798,8 +816,7 @@ bool MemoryAccessMatrix::hasReverseLinearAccessPattern(
   return true;
 }
 
-bool MemoryAccessMatrix::hasLinearOverlappedAccessPattern(
-    DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::hasLinearOverlappedAccessPattern() const {
   if (!isSquare())
     return false;
 
@@ -807,12 +824,12 @@ bool MemoryAccessMatrix::hasLinearOverlappedAccessPattern(
   // one.
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isAboveDiagonal = (col > row);
 
-      if (isAboveDiagonal && !::isZero(val, solver))
+      if (isAboveDiagonal && !::isZero(range))
         return false;
-      if (!isAboveDiagonal && !isOne(val, solver))
+      if (!isAboveDiagonal && !isOne(range))
         return false;
     }
   }
@@ -820,8 +837,7 @@ bool MemoryAccessMatrix::hasLinearOverlappedAccessPattern(
   return true;
 }
 
-bool MemoryAccessMatrix::hasReverseLinearOverlappedAccessPattern(
-    DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::hasReverseLinearOverlappedAccessPattern() const {
   if (!isSquare())
     return false;
 
@@ -830,17 +846,17 @@ bool MemoryAccessMatrix::hasReverseLinearOverlappedAccessPattern(
   // one.
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isAboveDiagonal = (col > row);
 
-      if (isAboveDiagonal && !::isZero(val, solver))
+      if (isAboveDiagonal && !::isZero(range))
         return false;
 
       if (!isAboveDiagonal) {
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(range))
           return false;
-        if (isLastDiagonalElem && !isNegativeOne(val, solver))
+        if (isLastDiagonalElem && !isNegativeOne(range))
           return false;
       }
     }
@@ -849,7 +865,7 @@ bool MemoryAccessMatrix::hasReverseLinearOverlappedAccessPattern(
   return true;
 }
 
-bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::hasStridedAccessPattern() const {
   if (!isSquare())
     return false;
 
@@ -857,18 +873,20 @@ bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
   // last one which must be greater than one.
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isOnDiagonal = (col == row);
 
-      if (!isOnDiagonal && !::isZero(val, solver))
+      if (!isOnDiagonal && !::isZero(range))
         return false;
 
       if (isOnDiagonal) {
-        bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        bool isFirstDiagonalElem = (row == 0 && col == 0);
+        if (isFirstDiagonalElem && !isOne(range))
           return false;
-        if (isLastDiagonalElem && !isGreaterThanOne(val, solver) &&
-            !::isZero(val, solver))
+        bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
+        if (!isLastDiagonalElem && !isOne(range) && !::isZero(range))
+          return false;
+        if (isLastDiagonalElem && !isGreaterThanOne(range) && !::isZero(range))
           return false;
       }
     }
@@ -877,8 +895,7 @@ bool MemoryAccessMatrix::hasStridedAccessPattern(DataFlowSolver &solver) const {
   return true;
 }
 
-bool MemoryAccessMatrix::hasReverseStridedAccessPattern(
-    DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::hasReverseStridedAccessPattern() const {
   if (!isSquare())
     return false;
 
@@ -886,17 +903,17 @@ bool MemoryAccessMatrix::hasReverseStridedAccessPattern(
   // last one which must be smaller than negative one.
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isOnDiagonal = (col == row);
 
-      if (!isOnDiagonal && !::isZero(val, solver))
+      if (!isOnDiagonal && !::isZero(range))
         return false;
 
       if (isOnDiagonal) {
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(range))
           return false;
-        if (isLastDiagonalElem && !isSmallerThanNegativeOne(val, solver))
+        if (isLastDiagonalElem && !isSmallerThanNegativeOne(range))
           return false;
       }
     }
@@ -905,8 +922,7 @@ bool MemoryAccessMatrix::hasReverseStridedAccessPattern(
   return true;
 }
 
-bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
-    DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern() const {
   if (!isSquare())
     return false;
 
@@ -914,18 +930,21 @@ bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
   // one except the last one on the diagonal which must be strictly positive.
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isAboveDiagonal = (col > row);
 
-      if (isAboveDiagonal && !::isZero(val, solver))
+      if (isAboveDiagonal && !::isZero(range))
         return false;
 
       if (!isAboveDiagonal) {
-        bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        bool isFirstDiagonalElem = (row == 0 && col == 0);
+        if (isFirstDiagonalElem && !isOne(range))
           return false;
-        if (isLastDiagonalElem && !isStrictlyPositive(val, solver) &&
-            !::isZero(val, solver))
+        bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
+        if (!isLastDiagonalElem && !isOne(range) && !::isZero(range))
+          return false;
+        if (isLastDiagonalElem && !isStrictlyPositive(range) &&
+            !::isZero(range))
           return false;
       }
     }
@@ -934,8 +953,7 @@ bool MemoryAccessMatrix::hasStridedOverlappedAccessPattern(
   return true;
 }
 
-bool MemoryAccessMatrix::hasReverseStridedOverlappedAccessPattern(
-    DataFlowSolver &solver) const {
+bool MemoryAccessMatrix::hasReverseStridedOverlappedAccessPattern() const {
   if (!isSquare())
     return false;
 
@@ -944,17 +962,17 @@ bool MemoryAccessMatrix::hasReverseStridedOverlappedAccessPattern(
   // negative one.
   for (size_t row = 0; row < nRows; ++row) {
     for (size_t col = 0; col < nColumns; ++col) {
-      Value val = at(row, col);
+      IntegerValueRange range = at(row, col);
       bool isAboveDiagonal = (col > row);
 
-      if (isAboveDiagonal && !::isZero(val, solver))
+      if (isAboveDiagonal && !::isZero(range))
         return false;
 
       if (!isAboveDiagonal) {
         bool isLastDiagonalElem = (row == nRows - 1 && col == nColumns - 1);
-        if (!isLastDiagonalElem && !isOne(val, solver))
+        if (!isLastDiagonalElem && !isOne(range))
           return false;
-        if (isLastDiagonalElem && !isSmallerThanNegativeOne(val, solver))
+        if (isLastDiagonalElem && !isSmallerThanNegativeOne(range))
           return false;
       }
     }
@@ -964,10 +982,11 @@ bool MemoryAccessMatrix::hasReverseStridedOverlappedAccessPattern(
 }
 
 std::optional<APInt>
-MemoryAccessMatrix::getConstIntegerValue(size_t row, size_t column,
-                                         DataFlowSolver &solver) const {
-  Value val = at(row, column);
-  return ::getConstIntegerValue(val, solver);
+MemoryAccessMatrix::getConstIntegerValue(size_t row, size_t column) const {
+  IntegerValueRange range = at(row, column);
+  if (range.isUninitialized())
+    return std::nullopt;
+  return range.getValue().getConstantValue();
 }
 
 //===----------------------------------------------------------------------===//
@@ -976,30 +995,15 @@ MemoryAccessMatrix::getConstIntegerValue(size_t row, size_t column,
 
 [[maybe_unused]] raw_ostream &
 mlir::polygeist::operator<<(raw_ostream &os, const OffsetVector &vector) {
-  auto getConstant = [](Value val) -> Optional<int64_t> {
-    return TypeSwitch<Operation *, Optional<int64_t>>(val.getDefiningOp())
-        .Case<arith::ConstantIndexOp, arith::ConstantIntOp>(
-            [](auto op) { return op.value(); })
-        .Default([](auto) { return std::nullopt; });
-  };
-
   llvm::interleave(
       vector.getOffsets(), os,
-      [&](Value elem) {
-        std::optional<int64_t> constant = getConstant(elem);
-        if (constant.has_value())
-          os << constant;
-        else
-          os << elem;
-      },
-      " ");
-
+      [&os](const IntegerValueRange &elem) { printRange(os, elem); }, " ");
   return os << "\n";
 }
 
 OffsetVector::OffsetVector(size_t nRows) : nRows(nRows), offsets(nRows) {}
 
-OffsetVector::OffsetVector(std::initializer_list<Value> initList) {
+OffsetVector::OffsetVector(std::initializer_list<IntegerValueRange> initList) {
   assert(initList.size() != 0 && "Expecting a non-empty initializer list");
   nRows = initList.size();
   offsets.append(initList);
@@ -1012,16 +1016,18 @@ void OffsetVector::swapRows(size_t row, size_t otherRow) {
   std::swap(at(row), at(otherRow));
 }
 
-Value OffsetVector::getOffset(size_t row) const { return at(row); }
+IntegerValueRange OffsetVector::getOffset(size_t row) const { return at(row); }
 
-void OffsetVector::setOffset(size_t row, Value offset) { at(row) = offset; }
-
-void OffsetVector::fill(Value val) {
-  for (size_t row = 0; row < nRows; ++row)
-    at(row) = val;
+void OffsetVector::setOffset(size_t row, IntegerValueRange offset) {
+  at(row) = offset;
 }
 
-size_t OffsetVector::append(Value offset) {
+void OffsetVector::fill(IntegerValueRange range) {
+  for (size_t row = 0; row < nRows; ++row)
+    at(row) = range;
+}
+
+size_t OffsetVector::append(IntegerValueRange offset) {
   ++nRows;
   offsets.resize(nRows);
   size_t lastRow = nRows - 1;
@@ -1029,46 +1035,45 @@ size_t OffsetVector::append(Value offset) {
   return lastRow;
 }
 
-bool OffsetVector::isZero(DataFlowSolver &solver) const {
-  return llvm::all_of(offsets,
-                      [&](Value offset) { return ::isZero(offset, solver); });
+bool OffsetVector::isZero() const {
+  return llvm::all_of(
+      offsets, [&](IntegerValueRange offset) { return ::isZero(offset); });
 }
 
-bool OffsetVector::isZeroWithLastElementStrictlyPositive(
-    DataFlowSolver &solver) const {
+bool OffsetVector::isZeroWithLastElementStrictlyPositive() const {
   size_t lastIndex = nRows - 1;
   for (size_t pos = 0; pos < nRows; ++pos) {
-    Value val = at(pos);
+    IntegerValueRange range = at(pos);
     bool isLastIndex = (pos == lastIndex);
-    if (!isLastIndex && !::isZero(val, solver))
+    if (!isLastIndex && !::isZero(range))
       return false;
-    if (isLastIndex && !isStrictlyPositive(val, solver))
+    if (isLastIndex && !isStrictlyPositive(range))
       return false;
   }
   return true;
 }
 
-bool OffsetVector::isZeroWithLastElementEqualTo(int k,
-                                                DataFlowSolver &solver) const {
+bool OffsetVector::isZeroWithLastElementEqualTo(int k) const {
   LLVM_DEBUG(llvm::dbgs() << "In isZeroWithLastElementEqualTo\n");
 
   size_t lastIndex = nRows - 1;
   for (size_t pos = 0; pos < nRows; ++pos) {
-    Value val = at(pos);
+    IntegerValueRange range = at(pos);
     bool isLastIndex = (pos == lastIndex);
-    if (!isLastIndex && !::isZero(val, solver))
+    if (!isLastIndex && !::isZero(range))
       return false;
 
-    if (isLastIndex && !isEqualTo(val, k, solver))
+    if (isLastIndex && !isEqualTo(range, k))
       return false;
   }
   return true;
 }
 
-std::optional<APInt>
-OffsetVector::getConstIntegerValue(size_t row, DataFlowSolver &solver) const {
-  Value val = at(row);
-  return ::getConstIntegerValue(val, solver);
+std::optional<APInt> OffsetVector::getConstIntegerValue(size_t row) const {
+  IntegerValueRange range = at(row);
+  if (range.isUninitialized())
+    return std::nullopt;
+  return range.getValue().getConstantValue();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1092,8 +1097,8 @@ MemoryAccess::getIntraThreadAccessMatrix(unsigned numGridDimensions) const {
   if (numGridDimensions == 0)
     return matrix;
 
-  std::vector<size_t> v(numGridDimensions);
-  std::iota(v.begin(), v.end(), 0);
+  std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
+  std::iota(v.begin(), v.end(), numGridDimensions);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }
@@ -1106,69 +1111,71 @@ MemoryAccess::getInterThreadAccessMatrix(unsigned numGridDimensions) const {
   if (numGridDimensions == 0)
     return {};
 
-  std::vector<size_t> v(matrix.getNumColumns() - numGridDimensions);
-  std::iota(v.begin(), v.end(), numGridDimensions);
+  std::vector<size_t> v(numGridDimensions);
+  std::iota(v.begin(), v.end(), 0);
   std::set<size_t> columns(v.begin(), v.end());
   return matrix.getColumns(columns);
 }
 
-MemoryAccessPattern MemoryAccess::classify(DataFlowSolver &solver) const {
-  return MemoryAccess::classify(matrix, offsets, solver);
+MemoryAccessPattern MemoryAccess::classify() const {
+  return MemoryAccess::classify(matrix, offsets);
 }
 
 MemoryAccessPattern MemoryAccess::classify(const MemoryAccessMatrix &matrix,
-                                           const OffsetVector &offsets,
-                                           DataFlowSolver &solver) {
-  LLVM_DEBUG(llvm::dbgs() << "matrix:\n" << matrix << "\n");
+                                           const OffsetVector &offsets) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "matrix:\n" << matrix << "\n";
+    llvm::dbgs() << "offsets:\n" << offsets << "\n";
+  });
 
-  bool isZeroVector = offsets.isZero(solver);
+  bool isZeroVector = offsets.isZero();
 
   if (isZeroVector) {
-    if (matrix.hasLinearAccessPattern(solver))
+    if (matrix.hasLinearAccessPattern())
       return MemoryAccessPattern::Linear;
 
-    if (matrix.hasLinearOverlappedAccessPattern(solver))
+    if (matrix.hasLinearOverlappedAccessPattern())
       return MemoryAccessPattern::LinearOverlapped;
 
-    if (matrix.hasStridedAccessPattern(solver))
+    if (matrix.hasStridedAccessPattern())
       return MemoryAccessPattern::Strided;
 
-    if (matrix.hasStridedOverlappedAccessPattern(solver))
+    if (matrix.hasStridedOverlappedAccessPattern())
       return MemoryAccessPattern::StridedOverlapped;
 
     return MemoryAccessPattern::Unknown;
   }
 
-  if (matrix.hasLinearAccessPattern(solver) &&
-      offsets.isZeroWithLastElementStrictlyPositive(solver))
+  if (matrix.hasLinearAccessPattern() &&
+      offsets.isZeroWithLastElementStrictlyPositive())
     return MemoryAccessPattern::LinearShifted;
 
-  if (matrix.hasReverseLinearAccessPattern(solver) &&
-      offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1, solver))
+  if (matrix.hasReverseLinearAccessPattern() &&
+      offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1))
     return MemoryAccessPattern::ReverseLinear;
 
-  if (matrix.hasReverseLinearAccessPattern(solver) &&
-      offsets.isZeroWithLastElementStrictlyPositive(solver))
+  if (matrix.hasReverseLinearAccessPattern() &&
+      offsets.isZeroWithLastElementStrictlyPositive())
     return MemoryAccessPattern::ReverseLinearShifted;
 
-  if (matrix.hasReverseLinearOverlappedAccessPattern(solver) &&
-      offsets.isZeroWithLastElementStrictlyPositive(solver))
+  if (matrix.hasReverseLinearOverlappedAccessPattern() &&
+      offsets.isZeroWithLastElementStrictlyPositive())
     return MemoryAccessPattern::ReverseLinearOverlapped;
 
-  if (matrix.hasReverseStridedAccessPattern(solver) &&
-      offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1, solver))
+  if (matrix.hasReverseStridedAccessPattern() &&
+      offsets.isZeroWithLastElementEqualTo(matrix.getNumColumns() - 1))
     return MemoryAccessPattern::ReverseStrided;
 
-  if (matrix.hasStridedAccessPattern(solver) &&
-      offsets.isZeroWithLastElementStrictlyPositive(solver))
+  if (matrix.hasStridedAccessPattern() &&
+      offsets.isZeroWithLastElementStrictlyPositive())
     return MemoryAccessPattern::StridedShifted;
 
-  if (matrix.hasReverseStridedAccessPattern(solver) &&
-      offsets.isZeroWithLastElementStrictlyPositive(solver))
+  if (matrix.hasReverseStridedAccessPattern() &&
+      offsets.isZeroWithLastElementStrictlyPositive())
     return MemoryAccessPattern::ReverseStridedShifted;
 
-  if (matrix.hasReverseStridedOverlappedAccessPattern(solver) &&
-      offsets.isZeroWithLastElementStrictlyPositive(solver))
+  if (matrix.hasReverseStridedOverlappedAccessPattern() &&
+      offsets.isZeroWithLastElementStrictlyPositive())
     return MemoryAccessPattern::ReverseStridedOverlapped;
 
   return MemoryAccessPattern::Unknown;
@@ -1291,7 +1298,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 
   LLVM_DEBUG({
     llvm::dbgs() << "Underlying values:\n";
-    for (Value val : underlyingVals)
+    for (const Value &val : underlyingVals)
       llvm::dbgs().indent(2) << val << "\n";
     llvm::dbgs() << "\n";
   });
@@ -1353,9 +1360,6 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
                                   numColumns);
 
-  OpBuilder b(accessorSubscriptOp.getContext());
-  Value zero = b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0);
-
   for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
     Value val = underlyingVals[row];
     LLVM_DEBUG(llvm::dbgs().indent(2)
@@ -1365,7 +1369,8 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
       if (!usesValue(val.getDefiningOp(), loopAndThreadVars[col])) {
         LLVM_DEBUG(llvm::dbgs().indent(2)
                    << "Doesn't use " << loopAndThreadVars[col] << "\n");
-        accessMatrix(row, col) = zero;
+        auto zero = ConstantIntRanges::constant(APInt());
+        accessMatrix(row, col) = IntegerValueRange(zero);
         continue;
       }
 

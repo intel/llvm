@@ -14,6 +14,7 @@
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 
+#include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -130,6 +131,8 @@ class MemoryAccessMatrix {
   friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
 
 public:
+  using IntegerValueRange = dataflow::IntegerValueRange;
+
   MemoryAccessMatrix() = default;
   MemoryAccessMatrix(MemoryAccessMatrix &&) = default;
   MemoryAccessMatrix(const MemoryAccessMatrix &) = default;
@@ -141,23 +144,27 @@ public:
 
   /// Construct a matrix from an initializer list.
   MemoryAccessMatrix(
-      std::initializer_list<std::initializer_list<Value>> initList);
+      std::initializer_list<std::initializer_list<IntegerValueRange>>);
 
   /// Access the element at the specified \p row and \p column.
-  Value &at(size_t row, size_t column) {
+  IntegerValueRange &at(size_t row, size_t column) {
     assert(row < nRows && "Row outside of range");
     assert(column < nColumns && "Column outside of range");
     return data[row * nColumns + column];
   }
 
-  Value at(size_t row, size_t column) const {
+  IntegerValueRange at(size_t row, size_t column) const {
     assert(row < nRows && "Row outside of range");
     assert(column < nColumns && "Column outside of range");
     return data[row * nColumns + column];
   }
 
-  Value &operator()(size_t row, size_t column) { return at(row, column); }
-  Value operator()(size_t row, size_t column) const { return at(row, column); }
+  IntegerValueRange &operator()(size_t row, size_t column) {
+    return at(row, column);
+  }
+  IntegerValueRange operator()(size_t row, size_t column) const {
+    return at(row, column);
+  }
 
   /// Swap \p column with \p otherColumn.
   void swapColumns(size_t column, size_t otherColumn);
@@ -170,13 +177,13 @@ public:
   size_t getNumColumns() const { return nColumns; }
 
   /// Get a copy of the specified \p row.
-  SmallVector<Value> getRow(size_t row) const;
+  SmallVector<IntegerValueRange> getRow(size_t row) const;
 
   /// Set the specified \p row to \p elems.
-  void setRow(size_t row, ArrayRef<Value> elems);
+  void setRow(size_t row, ArrayRef<IntegerValueRange> elems);
 
-  /// Fill \p row with the given value \p val.
-  void fillRow(size_t row, Value val);
+  /// Fill \p row with the given \p range.
+  void fillRow(size_t row, IntegerValueRange range);
 
   /// Add an extra row at the bottom of the matrix and return the row index of
   /// the new row. The new row is uninitialized.
@@ -184,19 +191,19 @@ public:
 
   /// Add an extra row at the bottom of the matrix and copy the given elements
   /// \p elems into the new row. Return the row index of the new row.
-  size_t appendRow(ArrayRef<Value> elems);
+  size_t appendRow(ArrayRef<IntegerValueRange> elems);
 
   /// Get a copy of the specified \p column.
-  SmallVector<Value> getColumn(size_t column) const;
+  SmallVector<IntegerValueRange> getColumn(size_t column) const;
 
   /// Set the specified \p column to \p elems.
-  void setColumn(size_t col, ArrayRef<Value> elems);
+  void setColumn(size_t col, ArrayRef<IntegerValueRange> elems);
 
-  /// Fill \p col with the given value \p val.
-  void fillColumn(size_t col, Value val);
+  /// Fill \p col with the given range \p range.
+  void fillColumn(size_t col, IntegerValueRange range);
 
-  /// Fill the matrix with the given value \p val.
-  void fill(Value val);
+  /// Fill the matrix with the given range \p range.
+  void fill(IntegerValueRange range);
 
   /// Construct a new matrix containing the specified \p rows.
   /// Note: because \p rows is an ordered set, asking for rows {1,0} causes
@@ -225,19 +232,19 @@ public:
   bool isSquare() const;
 
   /// Return true if the matrix is the filled with zero values.
-  bool isZero(DataFlowSolver &solver) const;
+  bool isZero() const;
 
   /// Return true if the only non-zero entries are on the diagonal.
-  bool isDiagonal(DataFlowSolver &solver) const;
+  bool isDiagonal() const;
 
   /// Return true if the matrix is the unit matrix.
-  bool isIdentity(DataFlowSolver &solver) const;
+  bool isIdentity() const;
 
   /// Return true if all zero entries are above the diagonal.
-  bool isLowerTriangular(DataFlowSolver &solver) const;
+  bool isLowerTriangular() const;
 
   /// Return true if all zero entries are below the diagonal.
-  bool isUpperTriangular(DataFlowSolver &solver) const;
+  bool isUpperTriangular() const;
 
   //===----------------------------------------------------------------------===//
   // Access Pattern Queries
@@ -246,58 +253,57 @@ public:
   /// Array accessed contiguously, increasing offset order. The matrix shape is:
   ///   |1  0|
   ///   |0  1|
-  bool hasLinearAccessPattern(DataFlowSolver &solver) const;
+  bool hasLinearAccessPattern() const;
 
   /// Array accessed contiguously, decreasing offset order. The matrix shape is:
   ///   |1  0|
   ///   |0 -1|
-  bool hasReverseLinearAccessPattern(DataFlowSolver &solver) const;
+  bool hasReverseLinearAccessPattern() const;
 
   /// Array accessed contiguously, increasing offset order, starting at
   /// different row offsets. The matrix shape is:
   ///   |1  0|
   ///   |1  1|
-  bool hasLinearOverlappedAccessPattern(DataFlowSolver &solver) const;
+  bool hasLinearOverlappedAccessPattern() const;
 
   /// Array accessed contiguously, decreasing  offset order, starting at
   /// different row offsets. The matrix shape is:
   ///   |1  0|
   ///   |1 -1|
-  bool hasReverseLinearOverlappedAccessPattern(DataFlowSolver &solver) const;
+  bool hasReverseLinearOverlappedAccessPattern() const;
 
   /// Array accessed in strided fashion, increasing offset order. The matrix
   /// shape is:
   ///   |1  0|
   ///   |0  C|  where C > 1
-  bool hasStridedAccessPattern(DataFlowSolver &solver) const;
+  bool hasStridedAccessPattern() const;
 
   /// Array accessed in strided fashion, decreasing offset order. The matrix
   /// shape is:
   ///   |1  0|
   ///   |0 -C|  where -C < -1
-  bool hasReverseStridedAccessPattern(DataFlowSolver &solver) const;
+  bool hasReverseStridedAccessPattern() const;
 
   /// Array accessed in strided fashion, increasing offset order, starting at
   /// different row offsets. The matrix shape is:
   ///   |1  0|
   ///   |1  C|  where C > 1
-  bool hasStridedOverlappedAccessPattern(DataFlowSolver &solver) const;
+  bool hasStridedOverlappedAccessPattern() const;
 
   /// Array accessed in strided fashion, decreasing offset order, starting at
   /// different row offsets. The matrix shape is:
   ///   |1  0|
   ///   |1 -C|  where -C < -1
-  bool hasReverseStridedOverlappedAccessPattern(DataFlowSolver &solver) const;
+  bool hasReverseStridedOverlappedAccessPattern() const;
 
 private:
   /// Return the value at row \p row and column \p column if it is an integer
   /// constant and std::nullopt otherwise.
-  std::optional<APInt> getConstIntegerValue(size_t row, size_t column,
-                                            DataFlowSolver &solver) const;
+  std::optional<APInt> getConstIntegerValue(size_t row, size_t column) const;
 
 private:
   size_t nRows, nColumns;
-  SmallVector<Value> data;
+  SmallVector<IntegerValueRange> data;
 };
 
 /// A column vector representing offsets used to access an array.
@@ -307,6 +313,8 @@ class OffsetVector {
   friend raw_ostream &operator<<(raw_ostream &, const OffsetVector &);
 
 public:
+  using IntegerValueRange = dataflow::IntegerValueRange;
+
   OffsetVector() = default;
   OffsetVector(OffsetVector &&) = default;
   OffsetVector(const OffsetVector &) = default;
@@ -317,66 +325,65 @@ public:
   explicit OffsetVector(size_t nRows);
 
   /// Construct an offset vector from an initialization list.
-  OffsetVector(std::initializer_list<Value> initList);
+  OffsetVector(std::initializer_list<IntegerValueRange> initList);
 
   /// Access the offset at the specified \p row.
-  Value &at(size_t row) {
+  IntegerValueRange &at(size_t row) {
     assert(row < nRows && "Row outside of range");
     return offsets[row];
   }
 
-  Value at(size_t row) const {
+  IntegerValueRange at(size_t row) const {
     assert(row < nRows && "Row outside of range");
     return offsets[row];
   }
 
-  Value &operator()(size_t row) { return at(row); }
-  Value operator()(size_t row) const { return at(row); }
+  IntegerValueRange &operator()(size_t row) { return at(row); }
+  IntegerValueRange operator()(size_t row) const { return at(row); }
 
   /// Swap \p row with \p otherRow.
   void swapRows(size_t row, size_t otherRow);
 
   size_t getNumRows() const { return nRows; }
 
-  ArrayRef<Value> getOffsets() const { return offsets; }
+  ArrayRef<IntegerValueRange> getOffsets() const { return offsets; }
 
-  /// Get the offset value at the specified \p row.
-  Value getOffset(size_t row) const;
+  /// Get the offset at the specified \p row.
+  IntegerValueRange getOffset(size_t row) const;
 
-  /// Set the specified \p row to the given \p offset value.
-  void setOffset(size_t row, Value offset);
+  /// Set the specified \p row to the given \p offset.
+  void setOffset(size_t row, IntegerValueRange offset);
 
-  /// Fill the offset vector with the given value \p val.
-  void fill(Value val);
+  /// Fill the offset vector with the given \p range.
+  void fill(IntegerValueRange range);
 
   /// Add an extra element at the bottom of the offset vector and set it to the
-  /// given \p offset value. Return the new element index.
-  size_t append(Value offset);
+  /// given \p offset. Return the new element index.
+  size_t append(IntegerValueRange offset);
 
   //===----------------------------------------------------------------------===//
   // Queries
   //===----------------------------------------------------------------------===//
 
   /// Return true if the vector contains all zeros.
-  bool isZero(DataFlowSolver &solver) const;
+  bool isZero() const;
 
   /// Return true if the vector contains all zeros and the last element has
   /// a strictly positive constant value.
-  bool isZeroWithLastElementStrictlyPositive(DataFlowSolver &solver) const;
+  bool isZeroWithLastElementStrictlyPositive() const;
 
   /// Return true if the vector contains all zeros and the last element has
   /// value equal to the given constant \p k.
-  bool isZeroWithLastElementEqualTo(int k, DataFlowSolver &solver) const;
+  bool isZeroWithLastElementEqualTo(int k) const;
 
 private:
   /// Return the element at row \p row if it is a integer constant or
   /// std::nullopt otherwise.
-  std::optional<APInt> getConstIntegerValue(size_t row,
-                                            DataFlowSolver &solver) const;
+  std::optional<APInt> getConstIntegerValue(size_t row) const;
 
 private:
   size_t nRows;
-  SmallVector<Value> offsets;
+  SmallVector<IntegerValueRange> offsets;
 };
 
 /// Describes an array access via an access matrix and an offset vector.
@@ -415,13 +422,12 @@ public:
   getIntraThreadAccessMatrix(unsigned numGridDimensions) const;
 
   /// Analyze the memory access and classify its access pattern.
-  MemoryAccessPattern classify(DataFlowSolver &solver) const;
+  MemoryAccessPattern classify() const;
 
   /// Analyze the given access matrix and offset vector and classify the access
   /// pattern.
   static MemoryAccessPattern classify(const MemoryAccessMatrix &matrix,
-                                      const OffsetVector &offsets,
-                                      DataFlowSolver &solver);
+                                      const OffsetVector &offsets);
 
 private:
   MemoryAccessMatrix matrix; /// The memory access matrix.
@@ -432,6 +438,8 @@ class MemoryAccessAnalysis {
   friend raw_ostream &operator<<(raw_ostream &, const MemoryAccessMatrix &);
 
 public:
+  using IntegerValueRange = dataflow::IntegerValueRange;
+
   MemoryAccessAnalysis(Operation *op, AnalysisManager &am);
 
   MemoryAccessAnalysis &initialize(bool relaxedAliasing) {
