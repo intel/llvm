@@ -7384,6 +7384,15 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
     }
+    if (const SYCLIntelMaxWorkGroupSizeAttr *A =
+          FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      uint64_t MaxThreads = (*A->getZDimVal()).getExtValue() *
+                            (*A->getYDimVal()).getExtValue() *
+                            (*A->getXDimVal()).getExtValue();
+      if (MaxThreads > 0) {
+          addNVVMMetadata(F, "maxntidx", MaxThreads);
+      }
+    }
   }
 
   // Perform special handling in CUDA mode.
