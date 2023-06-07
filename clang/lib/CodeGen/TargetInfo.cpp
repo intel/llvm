@@ -7386,11 +7386,11 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
     }
     if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      uint64_t MaxThreads = (*A->getZDimVal()).getExtValue() *
-                            (*A->getYDimVal()).getExtValue() *
-                            (*A->getXDimVal()).getExtValue();
+      int64_t MaxThreads = (*A->getZDimVal()).getExtValue() *
+                           (*A->getYDimVal()).getExtValue() *
+                           (*A->getXDimVal()).getExtValue();
       if (MaxThreads > 0) {
-          addNVVMMetadata(F, "maxntidx", MaxThreads);
+        addNVVMMetadata(F, "maxntidx", MaxThreads);
       }
     }
   }
