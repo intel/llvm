@@ -17,6 +17,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <condition_variable>
+
 using ::testing::HasSubstr;
 using namespace sycl;
 XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
@@ -460,11 +462,29 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
   Test(STD_EXCEPTION);
 }
 
-TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
+std::mutex m;
+std::condition_variable cv;
+bool EnqueueKernelLaunchCalled = false;
+
+pi_result redefinedEnqueueKernelLaunchWithStatus(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  {
+    std::lock_guard<std::mutex> lk(m);
+    EnqueueKernelLaunchCalled = true;
+  }
+  cv.notify_one();
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+TEST_F(QueueApiFailures, QueueKernelAsync) {
   MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunch);
+      redefinedEnqueueKernelLaunchWithStatus);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
       redefinedPluginGetLastError);
+
   sycl::queue Q(default_selector(), silentAsyncHandler);
   bool ExceptionCaught = false;
   event EventToDepend;
@@ -487,6 +507,7 @@ TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
+
   try {
     Q.submit(
         [&](handler &Cgh) {
@@ -502,8 +523,11 @@ TEST_F(QueueApiFailures, DISABLED_QueueKernelAsync) {
   TestLock.unlock();
 
   // Need to wait till host task enqueue kernel to check code location report.
-  using namespace std::chrono_literals;
-  std::this_thread::sleep_for(10ms);
+  {
+    std::unique_lock<std::mutex> lk(m);
+    cv.wait(lk, [] { return EnqueueKernelLaunchCalled; });
+  }
+
   try {
     Q.wait();
   } catch (...) {
