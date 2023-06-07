@@ -228,9 +228,7 @@ public:
   llvm::DenormalMode getDefaultDenormalModeForType(
       const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
       const llvm::fltSemantics *FPType = nullptr) const override;
-
-  // math-errno should be the default for SYCL but not other OFK using CUDA TC
-  bool IsMathErrnoDefault() const override { return OK == Action::OFK_SYCL; }
+  bool IsMathErrnoDefault() const override { return false; }
 
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
