@@ -45,64 +45,59 @@ using namespace mlir::polygeist;
 
 namespace {
 
-//===----------------------------------------------------------------------===//
-// ValueUnsignedVariant
-//===----------------------------------------------------------------------===//
-
-/// Class to represent std::variant<Value, unsigned> with helper functions.
-class ValueUnsignedVariant {
+using ValueOrUnsignedTy = std::variant<Value, unsigned>;
+class ValueOrUnsigned {
 public:
-  ValueUnsignedVariant(OpBuilder builder) : builder(builder) {}
-
-  template <typename T, typename = std::enable_if_t<
-                            llvm::is_one_of<T, Value, unsigned>::value>>
-  bool is() const {
-    return std::holds_alternative<T>(data);
+  /// Return a Value or unsigned of \p val depending on \p createVal.
+  static ValueOrUnsignedTy get(unsigned val, OpBuilder builder,
+                               bool createVal) {
+    if (!createVal)
+      return val;
+    return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), val);
   }
 
-  template <typename T, typename = std::enable_if_t<
-                            llvm::is_one_of<T, Value, unsigned>::value>>
-  T get() const {
-    return std::get<T>(data);
+  /// Return a Value of \p val. Create a Value if \p val is an unsigned.
+  static Value getValue(ValueOrUnsignedTy val, OpBuilder builder) {
+    if (std::holds_alternative<Value>(val))
+      return std::get<Value>(val);
+
+    return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(),
+                                                  std::get<unsigned>(val));
   }
 
-  ValueUnsignedVariant &operator=(const unsigned &rhs) {
-    data = rhs;
-    return *this;
+  /// Return the result of adding \p lhs and \p rhs.
+  static ValueOrUnsignedTy add(const ValueOrUnsignedTy &lhs,
+                               const ValueOrUnsignedTy &rhs,
+                               OpBuilder builder) {
+    return binaryOperator<arith::AddIOp>(lhs, rhs, builder);
   }
 
-  ValueUnsignedVariant &operator=(const Value &rhs) {
-    data = rhs;
-    return *this;
-  }
-
-  ValueUnsignedVariant &operator+=(const ValueUnsignedVariant &rhs) {
-    if (this->is<unsigned>()) {
-      assert(rhs.is<unsigned>());
-      *this = (unsigned)(this->get<unsigned>() + rhs.get<unsigned>());
-    } else {
-      assert(this->is<Value>() && rhs.is<Value>());
-      *this = builder.create<arith::AddIOp>(
-          builder.getUnknownLoc(), this->get<Value>(), rhs.get<Value>());
-    }
-    return *this;
-  }
-
-  ValueUnsignedVariant &operator*=(const ValueUnsignedVariant &rhs) {
-    if (this->is<unsigned>()) {
-      assert(rhs.is<unsigned>());
-      *this = (unsigned)(this->get<unsigned>() * rhs.get<unsigned>());
-    } else {
-      assert(this->is<Value>() && rhs.is<Value>());
-      *this = builder.create<arith::MulIOp>(
-          builder.getUnknownLoc(), this->get<Value>(), rhs.get<Value>());
-    }
-    return *this;
+  /// Return the result of multiplying \p lhs and \p rhs.
+  static ValueOrUnsignedTy mul(const ValueOrUnsignedTy &lhs,
+                               const ValueOrUnsignedTy &rhs,
+                               OpBuilder builder) {
+    return binaryOperator<arith::MulIOp>(lhs, rhs, builder);
   }
 
 private:
-  std::variant<Value, unsigned> data;
-  OpBuilder builder;
+  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                            T, arith::AddIOp, arith::MulIOp>::value>>
+  static ValueOrUnsignedTy binaryOperator(const ValueOrUnsignedTy &lhs,
+                                          const ValueOrUnsignedTy &rhs,
+                                          OpBuilder builder) {
+    if (std::holds_alternative<unsigned>(lhs)) {
+      assert(std::holds_alternative<unsigned>(rhs));
+      if (std::is_same<T, arith::AddIOp>::value)
+        return std::get<unsigned>(lhs) + std::get<unsigned>(rhs);
+      if (std::is_same<T, arith::MulIOp>::value)
+        return std::get<unsigned>(lhs) * std::get<unsigned>(rhs);
+    }
+
+    assert(std::holds_alternative<Value>(lhs) &&
+           std::holds_alternative<Value>(rhs));
+    return builder.create<T>(builder.getUnknownLoc(), std::get<Value>(lhs),
+                             std::get<Value>(rhs));
+  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -112,7 +107,7 @@ private:
 /// Class to represent work group size of a kernel.
 class WorkGroupSize {
 public:
-  using ElemTy = ValueUnsignedVariant;
+  using ElemTy = ValueOrUnsignedTy;
   WorkGroupSize(Value ndItem, const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                 OpBuilder builder) {
     auto ndItemTy = cast<sycl::NdItemType>(
@@ -123,14 +118,12 @@ public:
            "nd_item dimension");
     for (unsigned dim = 0; dim < ndItemTy.getDimension(); ++dim) {
       /// Use constants provided by reqd_work_group_size if given (non-empty).
-      ElemTy size(builder);
       if (!reqdWorkGroupSize.empty())
-        size = (unsigned)reqdWorkGroupSize[dim];
+        wgSizes.push_back(reqdWorkGroupSize[dim]);
       else
-        size = builder.create<arith::IndexCastOp>(
+        wgSizes.push_back(builder.create<arith::IndexCastOp>(
             builder.getUnknownLoc(), builder.getIndexType(),
-            getLocalRange(ndItem, dim, builder));
-      wgSizes.push_back(size);
+            getLocalRange(ndItem, dim, builder)));
     }
   }
 
@@ -138,7 +131,7 @@ public:
   template <typename T, typename = std::enable_if_t<
                             llvm::is_one_of<T, Value, unsigned>::value>>
   bool hasElemTy() const {
-    return wgSizes.front().is<T>();
+    return std::holds_alternative<T>(wgSizes.front());
   }
 
   ElemTy operator[](unsigned dim) const {
@@ -247,18 +240,15 @@ unsigned getLocalMemoryRemain(gpu::GPUModuleOp &module,
 }
 
 /// Get the required local memory for \p accTy in bytes.
-ValueUnsignedVariant getReqdLocalMemory(sycl::AccessorType accTy,
-                                        const WorkGroupSize &workGroupSize,
-                                        OpBuilder builder) {
-  Location loc = builder.getUnknownLoc();
+ValueOrUnsignedTy getReqdLocalMemory(sycl::AccessorType accTy,
+                                     const WorkGroupSize &workGroupSize,
+                                     OpBuilder builder) {
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
-  ValueUnsignedVariant reqdLocalMemory(builder);
-  if (workGroupSize.hasElemTy<unsigned>())
-    reqdLocalMemory = elemSize;
-  else
-    reqdLocalMemory = builder.create<arith::ConstantIndexOp>(loc, elemSize);
+  ValueOrUnsignedTy reqdLocalMemory =
+      ValueOrUnsigned::get(elemSize, builder, workGroupSize.hasElemTy<Value>());
   for (unsigned dim = 0; dim < accTy.getDimension(); ++dim)
-    reqdLocalMemory *= workGroupSize[dim];
+    reqdLocalMemory =
+        ValueOrUnsigned::mul(reqdLocalMemory, workGroupSize[dim], builder);
   return reqdLocalMemory;
 }
 
@@ -325,12 +315,12 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
   SmallVector<int64_t> shape;
   SmallVector<Value> sizes;
   for (int dim = accTy.getDimension() - 1; dim >= 0; --dim) {
-    ValueUnsignedVariant size = workGroupSize[dim];
+    ValueOrUnsignedTy size = workGroupSize[dim];
     if (workGroupSize.hasElemTy<unsigned>())
-      shape.push_back(workGroupSize[dim].get<unsigned>());
+      shape.push_back(std::get<unsigned>(workGroupSize[dim]));
     else {
       shape.push_back(ShapedType::kDynamic);
-      sizes.push_back(size.get<Value>());
+      sizes.push_back(std::get<Value>(size));
     }
   }
   auto resTy = MemRefType::get(
@@ -809,31 +799,21 @@ void LoopInternalization::transform(T loop,
   loop = tiledNest.front();
   builder.setInsertionPointToStart(loop->getBlock());
   // Get pointer to the local memory portion for each memref.
-  ValueUnsignedVariant offset(builder);
-  if (workGroupSize.hasElemTy<unsigned>())
-    offset = (unsigned)0;
-  else
-    offset = builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), 0);
+  ValueOrUnsignedTy offset =
+      ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
   for (Operation *memref : memrefs) {
     sycl::AccessorType accTy =
         getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
-    Value offsetVal;
-    if (offset.is<unsigned>())
-      offsetVal = builder.create<arith::ConstantIndexOp>(
-          builder.getUnknownLoc(), offset.get<unsigned>());
-    else
-      offsetVal = offset.get<Value>();
-
-    createViewOp(accTy, offsetVal, getGlobalOp, workGroupSize, builder,
-                 memref->getLoc());
+    createViewOp(accTy, ValueOrUnsigned::getValue(offset, builder), getGlobalOp,
+                 workGroupSize, builder, memref->getLoc());
 
     // Only increment offset when the current memref is not the last one.
     if (memref == *memrefs.rbegin())
       continue;
 
-    ValueUnsignedVariant reqdLocalMemory =
+    ValueOrUnsignedTy reqdLocalMemory =
         getReqdLocalMemory(accTy, workGroupSize, builder);
-    offset += reqdLocalMemory;
+    offset = ValueOrUnsigned::add(offset, reqdLocalMemory, builder);
   }
 
   // TODO: promote loop accesses to local memory.
