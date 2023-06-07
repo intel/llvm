@@ -382,12 +382,12 @@ params:
     - type: "uint32_t"
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
-    - type: "$x_mem_handle_t"
-      name: hArgValue
-      desc: "[in][optional] handle of Memory object."
     - type: "const $x_mem_obj_properties_t*"
       name: pProperties
       desc: "[in][optional] pointer to Memory object properties."
+    - type: "$x_mem_handle_t"
+      name: hArgValue
+      desc: "[in][optional] handle of Memory object."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
