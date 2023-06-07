@@ -1939,9 +1939,9 @@ static void fixFunctionReadWriteAttributes(Module &M) {
     fixFunctionAttribute(F, llvm::Attribute::ReadNone,
                          llvm::MemoryEffects::none());
     fixFunctionAttribute(F, llvm::Attribute::ReadOnly,
-                  llvm::MemoryEffects::readOnly());
+                         llvm::MemoryEffects::readOnly());
     fixFunctionAttribute(F, llvm::Attribute::WriteOnly,
-                  llvm::MemoryEffects::writeOnly());
+                         llvm::MemoryEffects::writeOnly());
   }
 }
 
