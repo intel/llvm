@@ -1207,6 +1207,22 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
   return it->second;
 }
 
+unsigned MemoryAccessAnalysis::getGridSize(FunctionOpInterface func) const {
+  if (func.getNumArguments() == 0)
+    return 0;
+
+  Value lastArg = func.getArguments().back();
+  if (!isa<MemRefType>(lastArg.getType()))
+    return 0;
+
+  Type elemTy = cast<MemRefType>(lastArg.getType()).getElementType();
+  if (auto ndItemTy = dyn_cast<sycl::NdItemType>(elemTy))
+    return ndItemTy.getDimension();
+  if (auto itemTy = dyn_cast<sycl::ItemType>(elemTy))
+    return itemTy.getDimension();
+  return 0;
+}
+
 SmallVector<Value>
 MemoryAccessAnalysis::getThreadVector(FunctionOpInterface funcOp,
                                       DataFlowSolver &solver) const {
@@ -1311,27 +1327,27 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   SetVector<LoopLikeOpInterface> enclosingLoops =
       getParentsOfType<LoopLikeOpInterface>(*memoryOp->getBlock());
 
-  // Create a vector containing the thread ids and loop induction variables.
-  SmallVector<Value> loopAndThreadVars(threadVars);
+  // Create a vector containing the loop induction variables.
+  SmallVector<Value> loopIVs;
   for (LoopLikeOpInterface loop : llvm::reverse(enclosingLoops)) {
     std::optional<Value> iv = loop.getSingleInductionVar();
     if (!iv.has_value()) {
       LLVM_DEBUG(llvm::dbgs() << "Loop does not have a single IV\n");
       return;
     }
-    loopAndThreadVars.emplace_back(*iv);
+    loopIVs.emplace_back(*iv);
   }
 
   std::optional<MemoryAccessMatrix> matrix = buildAccessMatrix(
       accessorSubscriptOp, getGridSize(funcOp) + enclosingLoops.size(),
-      loopAndThreadVars, underlyingVals, solver);
+      threadVars, loopIVs, underlyingVals, solver);
   if (!matrix.has_value()) {
     LLVM_DEBUG(llvm::dbgs() << "Unable to build the memory access matrix\n");
     return;
   }
 
   std::optional<OffsetVector> offsets =
-      buildOffsetVector(*matrix, loopAndThreadVars, underlyingVals, solver);
+      buildOffsetVector(*matrix, threadVars, loopIVs, underlyingVals, solver);
   if (!offsets.has_value()) {
     LLVM_DEBUG(llvm::dbgs() << "Unable to build the offset vector\n");
     return;
@@ -1342,10 +1358,10 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 
 std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
     sycl::SYCLAccessorSubscriptOp accessorSubscriptOp, size_t numColumns,
-    const SmallVectorImpl<Value> &loopAndThreadVars,
-    const SmallVectorImpl<Value> &underlyingVals, DataFlowSolver &solver) {
-  assert(loopAndThreadVars.size() <= numColumns &&
-         "Expecting 'numColumns' to be equal (or greater) to the number of "
+    ArrayRef<Value> threadVars, ArrayRef<Value> loopIVs,
+    ArrayRef<Value> underlyingVals, DataFlowSolver &solver) {
+  assert(threadVars.size() + loopIVs.size() <= numColumns &&
+         "Expecting 'numColumns' to be equal (or greater) to the sum of "
          "loop/thread vars");
 
   LLVM_DEBUG(llvm::dbgs() << "Computing access matrix\n");
@@ -1360,28 +1376,57 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
                                   numColumns);
 
+  // Fill in a the access matrix element at [row,col] with the multiplier in
+  // 'expr' corresponding to the variable 'factor'.
+  auto createMatrixEntry = [&](Value expr, Value factor, size_t row,
+                               size_t col) -> bool {
+    assert(row >= 0 && row < accessMatrix.getNumRows() && "row out of bound");
+    assert(col >= 0 && col < accessMatrix.getNumColumns() &&
+           "col out of bound");
+
+    if (!usesValue(expr.getDefiningOp(), factor)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2) << "Doesn't use " << factor << "\n");
+      auto zero = ConstantIntRanges::constant(APInt());
+      accessMatrix(row, col) = IntegerValueRange(zero);
+      return true;
+    }
+
+    ValueOr<Multiplier> valOrMul = getMultiplier(expr, factor, solver);
+    if (!valOrMul.is<Multiplier>()) {
+      LLVM_DEBUG(llvm::dbgs().indent(2) << "Failed to find multiplier\n");
+      return false;
+    }
+
+    accessMatrix(row, col) = valOrMul.get<Multiplier>();
+    return true;
+  };
+
+  // Fill in the access matrix.
   for (size_t row = 0; row < accessMatrix.getNumRows(); ++row) {
     Value val = underlyingVals[row];
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "Analyzing underlying value: " << val << "\n");
 
-    for (size_t col = 0; col < accessMatrix.getNumColumns(); ++col) {
-      if (!usesValue(val.getDefiningOp(), loopAndThreadVars[col])) {
-        LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Doesn't use " << loopAndThreadVars[col] << "\n");
+    // The leftmost 'threadVars.size()' matrix columns correspond to the
+    // thread variables, create the corresponding matrix entries.
+    for (size_t col = 0; col < numColumns - loopIVs.size(); ++col) {
+      if (col > threadVars.size() - 1) {
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "Thread var not declared\n");
         auto zero = ConstantIntRanges::constant(APInt());
         accessMatrix(row, col) = IntegerValueRange(zero);
         continue;
       }
 
-      ValueOr<Multiplier> valOrMultiplier =
-          getMultiplier(val, loopAndThreadVars[col], solver);
-      if (!valOrMultiplier.is<Multiplier>()) {
-        LLVM_DEBUG(llvm::dbgs().indent(2) << "Failed to find multiplier\n");
+      Value threadId = threadVars[col];
+      if (!createMatrixEntry(val, threadId, row, col))
         return std::nullopt;
-      }
+    }
 
-      accessMatrix(row, col) = valOrMultiplier.get<Multiplier>();
+    // Now create the matrix entries corresponding to the loopIVs.
+    for (size_t col = numColumns - loopIVs.size(); col < numColumns; ++col) {
+      Value loopIV = loopIVs[col - (numColumns - loopIVs.size())];
+      if (!createMatrixEntry(val, loopIV, row, col))
+        return std::nullopt;
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "accessMatrix:\n" << accessMatrix << "\n");
@@ -1390,10 +1435,14 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
 }
 
 std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
-    const MemoryAccessMatrix &matrix,
-    const SmallVectorImpl<Value> &loopAndThreadVars,
-    const SmallVectorImpl<Value> &underlyingVals, DataFlowSolver &solver) {
+    const MemoryAccessMatrix &matrix, ArrayRef<Value> threadVars,
+    ArrayRef<Value> loopIVs, ArrayRef<Value> underlyingVals,
+    DataFlowSolver &solver) {
   LLVM_DEBUG(llvm::dbgs() << "Computing offset vector\n");
+
+  SmallVector<Value> loopAndThreadVars(threadVars);
+  for (Value loopIV : loopIVs)
+    loopAndThreadVars.emplace_back(loopIV);
 
   OffsetVector offsets(matrix.getNumRows());
 
@@ -1413,22 +1462,6 @@ std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
   LLVM_DEBUG(llvm::dbgs() << "offset vector:\n" << offsets << "\n");
 
   return offsets;
-}
-
-unsigned MemoryAccessAnalysis::getGridSize(FunctionOpInterface func) const {
-  if (func.getNumArguments() == 0)
-    return 0;
-
-  Value lastArg = func.getArguments().back();
-  if (!isa<MemRefType>(lastArg.getType()))
-    return 0;
-
-  Type elemTy = cast<MemRefType>(lastArg.getType()).getElementType();
-  if (auto ndItemTy = dyn_cast<sycl::NdItemType>(elemTy))
-    return ndItemTy.getDimension();
-  if (auto itemTy = dyn_cast<sycl::ItemType>(elemTy))
-    return itemTy.getDimension();
-  return 0;
 }
 
 bool MemoryAccessAnalysis::hasZeroIndex(const MemRefAccess &access) const {

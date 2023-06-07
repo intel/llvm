@@ -456,6 +456,10 @@ public:
   std::optional<MemoryAccess>
   getMemoryAccess(const affine::MemRefAccess &access) const;
 
+  /// Return the grid dimension for \p funcOp (e.g the dimension of the
+  /// sycl::nditem or sycl::item argument passed to the to the function).
+  unsigned getGridSize(FunctionOpInterface funcOp) const;
+
   /// Return a vector containing the thread values used in \p funcOp.
   SmallVector<Value> getThreadVector(FunctionOpInterface funcOp,
                                      DataFlowSolver &solver) const;
@@ -470,21 +474,17 @@ private:
   template <typename T> void build(T memoryOp, DataFlowSolver &solver);
 
   /// Construct the access matrix if possible.
-  std::optional<MemoryAccessMatrix> buildAccessMatrix(
-      sycl::SYCLAccessorSubscriptOp accessorSubscriptOp, size_t numColumns,
-      const SmallVectorImpl<Value> &loopAndThreadVars,
-      const SmallVectorImpl<Value> &underlyingVals, DataFlowSolver &solver);
+  std::optional<MemoryAccessMatrix>
+  buildAccessMatrix(sycl::SYCLAccessorSubscriptOp accessorSubscriptOp,
+                    size_t numColumns, ArrayRef<Value> threadVars,
+                    ArrayRef<Value> loopIVs, ArrayRef<Value> underlyingVals,
+                    DataFlowSolver &solver);
 
   /// Construct the offset vector if possible.
   std::optional<OffsetVector>
   buildOffsetVector(const MemoryAccessMatrix &matrix,
-                    const SmallVectorImpl<Value> &loopAndThreadVars,
-                    const SmallVectorImpl<Value> &underlyingVals,
-                    DataFlowSolver &solver);
-
-  /// Return the grid dimension for \p funcOp (e.g the size of the sycl::nditem
-  /// argument to the function).
-  unsigned getGridSize(FunctionOpInterface funcOp) const;
+                    ArrayRef<Value> threadVars, ArrayRef<Value> loopIVs,
+                    ArrayRef<Value> underlyingVals, DataFlowSolver &solver);
 
   /// Returns true if the memory access \p access has a single subscript that is
   /// zero, and false otherwise.
