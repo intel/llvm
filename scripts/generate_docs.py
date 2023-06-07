@@ -75,6 +75,7 @@ def _make_ref(symbol, symbol_type, meta):
             ref = ":ref:`" + ref + " <" + target.replace("_", "-") + ">`"
         else:
             print("%s(%s) : error : enum symbol not found for etor %s"%(fin, iline+1, symbol))
+            raise Exception()
     elif not re.match("function", symbol_type):
         ref = ":ref:`" + ref.replace("_", "-") + "`"
     else:
@@ -91,6 +92,8 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
     code_block = False
 
     print("Generating %s..."%fout)
+
+    error = False
 
     outlines = []
     for iline, line in enumerate(util.textRead(fin)):
@@ -116,6 +119,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
 
         if re.match(RE_INVALID_TAG_FORMAT, line):
             print("%s(%s) : error : invalid %s tag used"%(fin, iline+1, re.sub(RE_INVALID_TAG_FORMAT, r"\1", line)))
+            error = True
 
         newline = line # new line will contain proper tags for reStructuredText if needed.
         if re.match(RE_PROPER_TAG_FORMAT, line):
@@ -128,6 +132,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
                     symbol_type = _find_symbol_type(symbol, meta)
                     if not symbol_type:
                         print("%s(%s) : error : symbol '%s' not found"%(fin, iline+1, symbol))
+                        error = True
                         continue
 
                     if code_block and 'function' == symbol_type:
@@ -136,6 +141,7 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
                         if len(words) != len(meta['function'][symbol]['params']):
                             print("%s(%s) : error : %s parameter count mismatch - %s actual vs. %s expected"%(fin, iline+1, symbol, len(words), len(meta['function'][symbol]['params'])))
                             print("line = %s"%line)
+                            error = True
 
                     ref = _make_ref(symbol, symbol_type, meta)
                     if ref:
@@ -156,6 +162,9 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
             newline += line
 
         outlines.append(newline)
+
+    if error:
+        raise Exception('Error during reStructuredText generation.')
 
     util.writelines(os.path.abspath(fout), outlines)
 
