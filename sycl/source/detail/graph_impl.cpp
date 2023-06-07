@@ -248,8 +248,7 @@ sycl::event exec_graph_impl::enqueue(
         pi_int32 Res = sycl::detail::enqueueImpKernel(
             Queue, CG->MNDRDesc, CG->MArgs,
             // TODO: Handler KernelBundles
-            nullptr, CG->MSyclKernel, CG->MKernelName, CG->MOSModuleHandle,
-            RawEvents, OutEvent,
+            nullptr, CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
             // TODO: Pass accessor mem allocations
             nullptr,
             // TODO: Extract from handler

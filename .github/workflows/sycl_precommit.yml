@@ -61,12 +61,17 @@ jobs:
               - *llvm_spirv
               - *clang
               - 'libclc/**'
+            libdevice: &libdevice
+              - *llvm_spirv
+              - *clang
+              - 'libdevice/**'
             sycl:
               - *clang
               - *sycl-fusion
               - *llvm_spirv
               - *xptifw
               - *libclc
+              - *libdevice
               - 'sycl/*'
               - 'sycl/!(test-e2e)/**'
 
@@ -118,7 +123,7 @@ jobs:
 
   windows_default:
     name: Windows
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, need_check]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
