@@ -1203,6 +1203,9 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
 SmallVector<Value>
 MemoryAccessAnalysis::getThreadVector(FunctionOpInterface funcOp,
                                       DataFlowSolver &solver) const {
+  if (getGridSize(funcOp) == 0)
+    return {};
+
   // Collect global thread ids.
   SmallVector<Value> ndItemThreadVars =
       ::computeThreadVector<sycl::SYCLNDItemGetGlobalIDOp>(funcOp, solver);
@@ -1313,7 +1316,8 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   }
 
   std::optional<MemoryAccessMatrix> matrix = buildAccessMatrix(
-      accessorSubscriptOp, loopAndThreadVars, underlyingVals, solver);
+      accessorSubscriptOp, getGridSize(funcOp) + enclosingLoops.size(),
+      loopAndThreadVars, underlyingVals, solver);
   if (!matrix.has_value()) {
     LLVM_DEBUG(llvm::dbgs() << "Unable to build the memory access matrix\n");
     return;
@@ -1330,9 +1334,13 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 }
 
 std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
-    sycl::SYCLAccessorSubscriptOp accessorSubscriptOp,
+    sycl::SYCLAccessorSubscriptOp accessorSubscriptOp, size_t numColumns,
     const SmallVectorImpl<Value> &loopAndThreadVars,
     const SmallVectorImpl<Value> &underlyingVals, DataFlowSolver &solver) {
+  assert(loopAndThreadVars.size() <= numColumns &&
+         "Expecting 'numColumns' to be equal (or greater) to the number of "
+         "loop/thread vars");
+
   LLVM_DEBUG(llvm::dbgs() << "Computing access matrix\n");
 
   const Value accSubIndex = accessorSubscriptOp.getIndex();
@@ -1342,10 +1350,8 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
 
   // Construct the memory access matrix. The number of rows is equal to the
   // dimensionality of the sycl.id used by the accessor subscript operation.
-  // The number of columns is equal to the number of loops surrounding the
-  // memory access plus the number of threads used in the kernel.
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
-                                  loopAndThreadVars.size());
+                                  numColumns);
 
   OpBuilder b(accessorSubscriptOp.getContext());
   Value zero = b.create<arith::ConstantIndexOp>(b.getUnknownLoc(), 0);
@@ -1402,6 +1408,22 @@ std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
   LLVM_DEBUG(llvm::dbgs() << "offset vector:\n" << offsets << "\n");
 
   return offsets;
+}
+
+unsigned MemoryAccessAnalysis::getGridSize(FunctionOpInterface func) const {
+  if (func.getNumArguments() == 0)
+    return 0;
+
+  Value lastArg = func.getArguments().back();
+  if (!isa<MemRefType>(lastArg.getType()))
+    return 0;
+
+  Type elemTy = cast<MemRefType>(lastArg.getType()).getElementType();
+  if (auto ndItemTy = dyn_cast<sycl::NdItemType>(elemTy))
+    return ndItemTy.getDimension();
+  if (auto itemTy = dyn_cast<sycl::ItemType>(elemTy))
+    return itemTy.getDimension();
+  return 0;
 }
 
 bool MemoryAccessAnalysis::hasZeroIndex(const MemRefAccess &access) const {
