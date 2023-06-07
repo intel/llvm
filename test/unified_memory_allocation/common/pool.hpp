@@ -52,7 +52,7 @@ struct malloc_pool : public pool_base {
     }
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
 #ifdef _WIN32
-        // we could use _aligned_alloc but it requires using _aligned_free...
+        // we could use _aligned_malloc but it requires using _aligned_free...
         return nullptr;
 #else
         return ::aligned_alloc(alignment, size);
