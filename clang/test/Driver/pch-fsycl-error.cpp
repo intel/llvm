@@ -3,8 +3,12 @@
 
 // RUN: touch %t.h
 
-// Check if the deafult PCH file generated is a .pchi file.
+// Linux
 // RUN: %clang -c -fsycl -x c++-header %t.h -###  %s 2> %t1.txt
 // RUN: FileCheck %s -input-file=%t1.txt
 // CHECK: Pre-compiled header generation is not supported with '-fsycl'
 
+// Windows
+// RUN: %clang_cl -c -fsycl -x c++-header %t.h -### -- %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-ERROR %s
+// CHECK-ERROR: Pre-compiled header generation is not supported with '-fsycl'
