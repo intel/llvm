@@ -1108,13 +1108,30 @@ required by the graph (such as after being replaced through executable graph upd
 If a buffer created with a host data pointer is recorded as part of a submission to
 a command graph, the lifetime of that host data will also be extended by taking a
 copy of that data inside the buffer. This copy will occur during the call to
-`queue::submit()`. Users can opt-out of this behaviour by passing the property
+`queue::submit()`. Users can opt-out of this behavior by passing the property
 `graph::no_host_copy` to `command_graph::begin_recording()` or the constructor
 of the `command_graph` the commands will be recorded to. Passing the property to
 `begin_recording()` will prevent host copies only for commands recorded before
 `end_recording()` is called for a given queue. Passing the property to the
 `command_graph` constructor will prevent host copies for all commands recorded to
 the graph.
+
+This behavior was introduced to address the case where host data used to create
+a buffer is destroyed before the copy to device has happened. For example:
+[source,c++]
+----
+void foo(queue q /* queue in recording mode */ ) {
+  float data[NUM];
+  buffer buf{data, range{NUM}};
+  q.submit([&](handler &cgh) {
+    accessor acc{buf, cgh, read_only};
+    cgh.single_task([] {
+       // use "acc"
+    });
+  });
+  // "data" goes out of scope
+}
+----
 
 The copy will not occur if the buffer is accessed inside the submitted command
 group function with an accessor with `access_mode::write` or the `no_init`
