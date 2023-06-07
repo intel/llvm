@@ -530,6 +530,17 @@ associated with a buffer that was created using a host data pointer will
 outlive any executable graphs created from a modifiable graph which uses
 that buffer.
 
+==== No-Cycle Check
+
+The `property::graph::no_cycle_check` property disables any checks if a newly
+added dependency will lead to a cycle in a specific `command_graph` and can be
+passed to a `command_graph` on construction via the property list parameter.
+As a result, no errors are reported when a function tries to create a cyclic
+dependency. Thus, it's the user's responsibility to create an acyclic graph
+for execution when this property is set. Creating a `command_graph` in
+executable state through `finalize` from a graph with cyclic dependencies
+is not allowed and results in undefined behavior.
+
 ==== Executable Graph Update
 
 A graph in the executable state can have each nodes inputs & outputs updated
@@ -890,19 +901,6 @@ Exceptions:
   associated with `graph` does not match that of the `command_graph` being
   updated.
 |===
-
-==== Graph Properties
-
-There is the one following property defined that can be passed to a `command_graph`
-on construction via the property list parameter.
-
-1. `property::graph::no_cycle_check` - This property disables any checks if
-   a newly added dependency will lead to a cycle in a specific `command_graph`.
-   As a result, no errors are reported when a function tries to create a cyclic
-   dependency. Thus, it's the user's responsibility to create an acyclic graph
-   for execution when this property is set. Creating a `command_graph` in
-   executable state through `finalize` from a graph with cyclic dependencies
-   is not allowed and results in undefined behavior.
 
 === Queue Class Modifications
 
