@@ -1,11 +1,6 @@
 // REQUIRES: native_cpu_be
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t
-// Todo: this test currently fails because we use the typename of scalar kernel
-// arguments in the kernel declaration emitted in the Native CPU integration
-// header so currently compilation fails if the type name is not publicly
-// visible.
-// XFAIL: *
 #include <CL/sycl.hpp>
 #include <functional>
 

@@ -5,6 +5,7 @@
 // RUN: %clangxx -fsycl -D __SYCL_NATIVE_CPU__ -c -x c++ %t.h
 #include <CL/sycl.hpp>
 
+#include <cstdlib>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -18,7 +19,7 @@ template <typename T>
 bool test(queue myQueue) {
   {
     buffer<T, 1> a(range<1>{N});
-    T test = 42;
+    T test = rand() % 10;
 
     myQueue.submit([&](handler& cgh) {
       auto A = a.template get_access<access::mode::write>(cgh);

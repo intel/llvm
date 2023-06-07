@@ -17,12 +17,15 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Attributes.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
@@ -60,6 +63,86 @@ void fixCallingConv(Function *F) {
   F->addFnAttr("frame-pointer", "none");
   if (!F->isDeclaration())
     F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
+}
+
+// returns the indexes of the used arguments
+SmallVector<unsigned> getUsedIndexes(const Function *F) {
+  SmallVector<unsigned> res;
+  auto UsedNode = F->getMetadata("sycl_kernel_omit_args");
+  if (!UsedNode) {
+    // the metadata node is not available if -fenable-sycl-dae
+    // was not set; set everything to true in the mask.
+    for (unsigned I = 0; I < F->getFunctionType()->getNumParams(); I++) {
+      res.push_back(I);
+    }
+    return res;
+  }
+  auto NumOperands = UsedNode->getNumOperands();
+  for (unsigned I = 0; I < NumOperands; I++) {
+    auto &Op = UsedNode->getOperand(I);
+    if (auto CAM = dyn_cast<ConstantAsMetadata>(Op.get())) {
+      if (auto Const = dyn_cast<ConstantInt>(CAM->getValue())) {
+        auto Val = Const->getValue();
+        if (!Val.getBoolValue()) {
+          res.push_back(I);
+        }
+      } else {
+        report_fatal_error("Unable to retrieve constant int from "
+                           "sycl_kernel_omit_args metadata node");
+      }
+    } else {
+      report_fatal_error(
+          "Error while processing sycl_kernel_omit_args metadata node");
+    }
+  }
+  return res;
+}
+
+void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
+                            Type *StatePtrType) {
+  LLVMContext &Ctx = F->getContext();
+  Type *NativeCPUArgDescPtrType = PointerType::getUnqual(NativeCPUArgDescType);
+
+  // Create function signature
+  const std::string SubHandlerName = F->getName().str() + "subhandler";
+  FunctionType *FTy = FunctionType::get(
+      Type::getVoidTy(Ctx), {NativeCPUArgDescPtrType, StatePtrType}, false);
+  auto SubhFCallee = F->getParent()->getOrInsertFunction(SubHandlerName, FTy);
+  Function *SubhF = cast<Function>(SubhFCallee.getCallee());
+
+  // Emit function body, unpack kernel args
+  auto UsedIndexes = getUsedIndexes(F);
+  auto *KernelTy = F->getFunctionType();
+  // assert(UsedIndexes.size() + 1 == KernelTy->getNumParams() && "mismatch
+  // between number of params and used args");
+  IRBuilder<> Builder(Ctx);
+  BasicBlock *Block = BasicBlock::Create(Ctx, "entry", SubhF);
+  Builder.SetInsertPoint(Block);
+  unsigned NumArgs = UsedIndexes.size();
+  auto *BaseNativeCPUArg = SubhF->getArg(0);
+  SmallVector<Value *, 5> KernelArgs;
+  for (unsigned I = 0; I < NumArgs; I++) {
+    auto *Arg = F->getArg(I);
+    auto UsedI = UsedIndexes[I];
+    // Load the correct NativeCPUDesc and load the pointer from it
+    auto *Addr = Builder.CreateGEP(NativeCPUArgDescType, BaseNativeCPUArg,
+                                   {Builder.getInt64(UsedI)});
+    auto *Load = Builder.CreateLoad(PointerType::getUnqual(Ctx), Addr);
+    if (Arg->getType()->isPointerTy()) {
+      // If the arg is a pointer, just use it
+      KernelArgs.push_back(Load);
+    } else {
+      // Otherwise, load the scalar value and use that
+      auto *Scalar = Builder.CreateLoad(Arg->getType(), Load);
+      KernelArgs.push_back(Scalar);
+    }
+  }
+
+  // Call the kernel
+  // Add the nativecpu state as arg
+  KernelArgs.push_back(SubhF->getArg(1));
+  Builder.CreateCall(KernelTy, F, KernelArgs);
+  Builder.CreateRetVoid();
 }
 
 // Clone the function and returns a new function with a new argument on type T
@@ -164,6 +247,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     oldF->eraseFromParent();
     NewKernels.push_back(newF);
     ModuleChanged |= true;
+  }
+
+  StructType *NativeCPUArgDescType =
+      StructType::create({PointerType::getUnqual(M.getContext())});
+  for (auto &NewK : NewKernels) {
+    emitSubkernelForKernel(NewK, NativeCPUArgDescType, StatePtrType);
   }
 
   // Then we iterate over all the supported builtins, find their uses and
