@@ -34,19 +34,6 @@ using namespace mlir::polygeist;
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Determine whether a value \p val is equal to \p constant.
-static bool isEqualTo(Value val, int64_t constant, DataFlowSolver &solver) {
-  if (!val)
-    return false;
-
-  std::optional<APInt> constVal = getConstIntegerValue(val, solver);
-  if (!constVal)
-    return false;
-
-  APInt c(constVal->getBitWidth(), constant, true /*signed*/);
-  return (constVal == c);
-}
-
 /// Determine whether an integer range \p range is equal to \p constant.
 static bool isEqualTo(IntegerValueRange range, int64_t constant) {
   if (range.isUninitialized())
