@@ -290,11 +290,11 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  std::set<detail::RTDeviceBinaryImage *> BinImages =
-      detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs);
-
-  auto imageTargetMatchDevice = [](const device &Dev,
-                                   const detail::RTDeviceBinaryImage &Img) {
+  if (KernelIDs.empty())
+    return false;
+  // TODO: also need to check architectures matching
+  auto doesImageTargetMatchDevice = [](const device &Dev,
+                                       const detail::RTDeviceBinaryImage &Img) {
     const char *Target = Img.getRawData().DeviceTargetSpec;
     auto BE = Dev.get_backend();
     if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
@@ -318,11 +318,24 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
 
     return false;
   };
-  return std::all_of(BinImages.begin(), BinImages.end(),
+
+  // One kernel may be contained in several binary images depending on the
+  // number of targets. This kernel is compatible with the device if there is
+  // at least one image (containing this kernel) whose aspects are supported by
+  // the device and whose target matches the device.
+  for (const auto &KernelID : KernelIDs) {
+    std::set<detail::RTDeviceBinaryImage *> BinImages =
+        detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
+
+    if (std::none_of(BinImages.begin(), BinImages.end(),
                      [&](const detail::RTDeviceBinaryImage *Img) {
                        return doesDevSupportDeviceRequirements(Dev, *Img) &&
-                              imageTargetMatchDevice(Dev, *Img);
-                     });
+                              doesImageTargetMatchDevice(Dev, *Img);
+                     }))
+      return false;
+  }
+
+  return true;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
