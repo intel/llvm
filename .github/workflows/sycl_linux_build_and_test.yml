@@ -80,7 +80,13 @@ jobs:
     steps:
     # GHA requires relative paths for actions. Copy actions from container root
     # to CWD.
-    - run: cp -r /actions .
+    - run: |
+        whoami
+        pwd
+        ls -al .
+        ls -ald /actions || true
+        ls -al /actions
+        cp -r /actions .
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
@@ -181,7 +187,7 @@ jobs:
 
   aws-start:
     name: Start AWS
-    needs: build
+    # needs: build
     if: ${{ inputs.lts_aws_matrix != '[]' }}
     uses: ./.github/workflows/aws.yml
     secrets: inherit
