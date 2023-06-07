@@ -1,4 +1,4 @@
-//===----------- imf_fp32_dl.cpp - fp32 functions required by DL ----------===//
+//===----------- imf_fp64_dl.cpp - fp64 functions required by DL ----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,15 +14,8 @@
 #include "../device_imf.hpp"
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
-DEVICE_EXTERN_C_INLINE int32_t __devicelib_imf_abs(int32_t x) {
-  return (x >= 0) ? x : -x;
-}
-
-DEVICE_EXTERN_C_INLINE float __devicelib_imf_fabsf(float x) {
+DEVICE_EXTERN_C_INLINE double __devicelib_imf_fabs(double x) {
   return __fabs(x);
 }
-
-DEVICE_EXTERN_C_INLINE
-int64_t __devicelib_imf_llabs(int64_t x) { return x >= 0 ? x : -x; }
 
 #endif /*__LIBDEVICE_IMF_ENABLED__*/
