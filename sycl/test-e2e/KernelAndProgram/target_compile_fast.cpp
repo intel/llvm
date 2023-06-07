@@ -1,11 +1,15 @@
 // RUN: %{build} -ftarget-compile-fast -o %t_with.out
 // RUN: %{build} -o %t_without.out
 
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t_with.out 2>&1 | FileCheck %if !gpu || ext_oneapi_hip || ext_oneapi_cuda %{ --implicit-check-not=-igc_opts %} %else %{ --check-prefix=CHECK-INTEL-GPU-WITH %} %s
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t_with.out 2>&1 | FileCheck %if !gpu || ext_oneapi_hip || ext_oneapi_cuda %{ --check-prefix=CHECK-WITHOUT %} %else %{ --check-prefix=CHECK-INTEL-GPU-WITH %} %s
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t_without.out 2>&1 | FileCheck --implicit-check-not=-igc_opts %s
 
 // CHECK-INTEL-GPU-WITH: ---> piProgramBuild(
 // CHECK-INTEL-GPU-WITH: -igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'
+
+// CHECK-WITHOUT: ---> piProgramBuild(
+// CHECK-WITHOUT-NOT: -igc_opts
+// CHECK-WITHOUT: ) ---> pi_result : PI_SUCCESS
 
 #include <sycl/sycl.hpp>
 
