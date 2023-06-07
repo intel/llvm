@@ -108,17 +108,16 @@ static RT::PiProgram createSpirvProgram(const ContextImplPtr Context,
 }
 
 RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(OSModuleHandle M, const std::string &KernelName,
+ProgramManager::getDeviceImage(const std::string &KernelName,
                                const context &Context, const device &Device,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0)
-    std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \""
-              << KernelName << "\", " << getRawSyclObjImpl(Context) << ", "
-              << getRawSyclObjImpl(Device) << ", " << JITCompilationIsRequired
-              << ")\n";
+    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
+              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
+              << ", " << JITCompilationIsRequired << ")\n";
 
-  KernelSetId KSId = getKernelSetId(M, KernelName);
-  return getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+  KernelSetId KSId = getKernelSetId(KernelName);
+  return getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
 }
 
 /// Try to fetch entity (kernel or program) from cache. If there is no such
@@ -541,12 +540,12 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 }
 
 RT::PiProgram ProgramManager::getBuiltPIProgram(
-    OSModuleHandle M, const ContextImplPtr &ContextImpl,
-    const DeviceImplPtr &DeviceImpl, const std::string &KernelName,
-    const program_impl *Prg, bool JITCompilationIsRequired) {
+    const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
+    const std::string &KernelName, const program_impl *Prg,
+    bool JITCompilationIsRequired) {
   // TODO: Make sure that KSIds will be different for the case when the same
   // kernel built with different options is present in the fat binary.
-  KernelSetId KSId = getKernelSetId(M, KernelName);
+  KernelSetId KSId = getKernelSetId(KernelName);
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
@@ -584,7 +583,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   auto Device = createSyclObjFromImpl<device>(Dev);
   const RTDeviceBinaryImage &Img =
-      getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+      getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
 
   // Check that device supports all aspects used by the kernel
   const RTDeviceBinaryImage::PropertyRange &ARange =
@@ -697,15 +696,13 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 }
 
 std::tuple<RT::PiKernel, std::mutex *, const KernelArgMask *, RT::PiProgram>
-ProgramManager::getOrCreateKernel(OSModuleHandle M,
-                                  const ContextImplPtr &ContextImpl,
+ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
                                   const program_impl *Prg) {
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
-              << ContextImpl.get() << ", " << DeviceImpl.get() << ", "
-              << KernelName << ")\n";
+    std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
+              << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
   }
 
   using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
@@ -721,16 +718,16 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
-  auto key = std::make_tuple(std::move(SpecConsts), M, PiDevice,
+  auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
                              CompileOpts + LinkOpts, KernelName);
   auto ret_tuple = Cache.tryToGetKernelFast(key);
   if (std::get<0>(ret_tuple))
     return ret_tuple;
 
   RT::PiProgram Program =
-      getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
+      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, Prg);
 
-  auto BuildF = [this, &Program, &KernelName, &ContextImpl, M] {
+  auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     RT::PiKernel Kernel = nullptr;
 
     const PluginPtr &Plugin = ContextImpl->getPlugin();
@@ -742,8 +739,9 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     Plugin->call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
                                                  sizeof(pi_bool), &PI_TRUE);
 
-    const KernelArgMask *ArgMask =
-        getEliminatedKernelArgMask(M, Program, KernelName);
+    const KernelArgMask *ArgMask = nullptr;
+    if (!m_UseSpvFile)
+      ArgMask = getEliminatedKernelArgMask(Program, KernelName);
     return std::make_pair(Kernel, ArgMask);
   };
 
@@ -969,8 +967,8 @@ ProgramManager::ProgramManager() {
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
                           PI_ERROR_INVALID_VALUE);
-    auto ImgPtr = make_unique_ptr<DynRTDeviceBinaryImage>(
-        std::move(Data), Size, OSUtil::DummyModuleHandle);
+    auto ImgPtr =
+        make_unique_ptr<DynRTDeviceBinaryImage>(std::move(Data), Size);
 
     if (DbgProgMgr > 0) {
       std::cerr << "loaded device image binary from " << SpvFile << "\n";
@@ -986,14 +984,13 @@ ProgramManager::ProgramManager() {
 }
 
 RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                               const context &Context, const device &Device,
+ProgramManager::getDeviceImage(KernelSetId KSId, const context &Context,
+                               const device &Device,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
-              << "\", " << getRawSyclObjImpl(Context) << ", "
-              << getRawSyclObjImpl(Device) << ", " << JITCompilationIsRequired
-              << ")\n";
+    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KSId << "\", "
+              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
+              << ", " << JITCompilationIsRequired << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1198,21 +1195,16 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   return Program;
 }
 
-void ProgramManager::cacheKernelUsesAssertInfo(OSModuleHandle M,
-                                               RTDeviceBinaryImage &Img) {
+void ProgramManager::cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
       Img.getAssertUsed();
   if (AssertUsedRange.isAvailable())
-    for (const auto &Prop : AssertUsedRange) {
-      KernelNameWithOSModule Key{Prop->Name, M};
-      m_KernelUsesAssert.insert(Key);
-    }
+    for (const auto &Prop : AssertUsedRange)
+      m_KernelUsesAssert.insert(Prop->Name);
 }
 
-bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
-                                      const std::string &KernelName) const {
-  KernelNameWithOSModule Key{KernelName, M};
-  return m_KernelUsesAssert.find(Key) != m_KernelUsesAssert.end();
+bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
+  return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
@@ -1220,10 +1212,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
-    OSModuleHandle M = OSUtil::getOSModuleHandle(RawImg);
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
-    auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg, M);
+    auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg);
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
@@ -1293,7 +1284,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     if (EntriesB != EntriesE) {
       // The kernel sets for any pair of images are either disjoint or
       // identical, look up the kernel set using the first kernel name...
-      StrToKSIdMap &KSIdMap = m_KernelSets[M];
+      if (!m_KernelSets)
+        m_KernelSets = std::unordered_map<std::string, KernelSetId>{};
+      auto &KSIdMap = *m_KernelSets;
       auto KSIdIt = KSIdMap.find(EntriesB->name);
       if (KSIdIt != KSIdMap.end()) {
         auto &Imgs = m_DeviceImages[KSIdIt->second];
@@ -1306,7 +1299,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           dumpImage(*Img, KSIdIt->second, NeedsSequenceID ? ++SequenceID : 0);
         }
 
-        cacheKernelUsesAssertInfo(M, *Img);
+        cacheKernelUsesAssertInfo(*Img);
 
         Imgs->push_back(std::move(Img));
         continue;
@@ -1393,7 +1386,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
-      cacheKernelUsesAssertInfo(M, *Img);
+      cacheKernelUsesAssertInfo(*Img);
 
       if (DumpImages)
         dumpImage(*Img, KSId);
@@ -1403,7 +1396,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     }
     // Otherwise assume that the image contains all kernels associated with the
     // module
-    KernelSetId &KSId = m_OSModuleKernelSets[M];
+    if (!m_UniversalKernelSet)
+      m_UniversalKernelSet = KernelSetId{};
+    KernelSetId &KSId = *m_UniversalKernelSet;
     if (KSId == 0)
       KSId = getNextKernelSetId();
 
@@ -1411,7 +1406,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     if (!Imgs)
       Imgs.reset(new std::vector<RTDeviceBinaryImageUPtr>());
 
-    cacheKernelUsesAssertInfo(M, *Img);
+    cacheKernelUsesAssertInfo(*Img);
 
     if (DumpImages)
       dumpImage(*Img, KSId);
@@ -1434,26 +1429,22 @@ KernelSetId ProgramManager::getNextKernelSetId() const {
 }
 
 KernelSetId
-ProgramManager::getKernelSetId(OSModuleHandle M,
-                               const std::string &KernelName) const {
+ProgramManager::getKernelSetId(const std::string &KernelName) const {
   // If the env var instructs to use image from a file,
   // return the kernel set associated with it
-  if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
+  if (m_UseSpvFile)
     return SpvFileKSId;
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  auto KSIdMapIt = m_KernelSets.find(M);
-  if (KSIdMapIt != m_KernelSets.end()) {
-    const StrToKSIdMap &KSIdMap = KSIdMapIt->second;
-    auto KSIdIt = KSIdMap.find(KernelName);
+  if (m_KernelSets) {
+    auto KSIdIt = m_KernelSets->find(KernelName);
     // If the kernel has been assigned to a kernel set, return it
-    if (KSIdIt != KSIdMap.end())
+    if (KSIdIt != m_KernelSets->end())
       return KSIdIt->second;
   }
   // If no kernel set was found check if there is a kernel set containing
   // all kernels in the given module
-  auto ModuleKSIdIt = m_OSModuleKernelSets.find(M);
-  if (ModuleKSIdIt != m_OSModuleKernelSets.end())
-    return ModuleKSIdIt->second;
+  if (m_UniversalKernelSet)
+    return *m_UniversalKernelSet;
 
   throw runtime_error("No kernel named " + KernelName + " was found",
                       PI_ERROR_INVALID_KERNEL_NAME);
@@ -1461,7 +1452,8 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
 
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
                                uint32_t SequenceID) const {
-  std::string Fname("sycl_");
+  const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
+  std::string Fname(Prefix ? Prefix : "sycl_");
   const pi_device_binary_struct &RawImg = Img.getRawData();
   Fname += RawImg.DeviceTargetSpec;
   Fname += std::to_string(KSId);
@@ -1538,10 +1530,6 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
     return 0xFFFFFFFF;
 }
 
-// This version does not check m_UseSpvFile, but it's used in the kernel_bundle
-// path, which does not currently check it and always uses images from the fat
-// binary anyway.
-// TODO consider making m_UseSpvFile interact with kernel bundles as well.
 const KernelArgMask *
 ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
                                            const std::string &KernelName) {
@@ -1573,16 +1561,6 @@ ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
 
   // The kernel is not generated by DPCPP stack, so a mask doesn't exist for it
   return nullptr;
-}
-
-// TODO consider another approach with storing the masks in the integration
-// header instead.
-const KernelArgMask *ProgramManager::getEliminatedKernelArgMask(
-    OSModuleHandle M, pi::PiProgram NativePrg, const std::string &KernelName) {
-  // If instructed to use a spv file, assume no eliminated arguments.
-  if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
-    return nullptr;
-  return getEliminatedKernelArgMask(NativePrg, KernelName);
 }
 
 static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
@@ -2380,8 +2358,11 @@ ProgramManager::getOrCreateKernel(const context &Context,
     Plugin->call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
                                                  sizeof(pi_bool), &PI_TRUE);
 
+    // Ignore possible m_UseSpvFile for now.
+    // TODO consider making m_UseSpvFile interact with kernel bundles as well.
     const KernelArgMask *KernelArgMask =
         getEliminatedKernelArgMask(Program, KernelName);
+
     return std::make_pair(Kernel, KernelArgMask);
   };
 
