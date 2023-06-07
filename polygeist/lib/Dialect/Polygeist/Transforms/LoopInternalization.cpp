@@ -29,6 +29,7 @@
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include <variant>
 
 #define DEBUG_TYPE "loop-internalization"
 
@@ -43,6 +44,107 @@ using namespace mlir;
 using namespace mlir::polygeist;
 
 namespace {
+
+/// This class contains utilities to create or manipulate 'std::variant<Value,
+/// unsigned>'.
+class ValueOrUnsigned {
+public:
+  static std::variant<Value, unsigned> get(unsigned val, OpBuilder builder,
+                                           bool createVal) {
+    if (!createVal)
+      return val;
+    return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(), val);
+  }
+
+  static Value getValue(std::variant<Value, unsigned> val, OpBuilder builder) {
+    if (std::holds_alternative<Value>(val))
+      return std::get<Value>(val);
+    return builder.create<arith::ConstantIndexOp>(builder.getUnknownLoc(),
+                                                  std::get<unsigned>(val));
+  }
+
+  static std::variant<Value, unsigned>
+  add(const std::variant<Value, unsigned> &lhs,
+      const std::variant<Value, unsigned> &rhs, OpBuilder builder) {
+    return binaryOperator<arith::AddIOp>(lhs, rhs, builder);
+  }
+
+  static std::variant<Value, unsigned>
+  mul(const std::variant<Value, unsigned> &lhs,
+      const std::variant<Value, unsigned> &rhs, OpBuilder builder) {
+    return binaryOperator<arith::MulIOp>(lhs, rhs, builder);
+  }
+
+private:
+  template <typename T, typename = std::enable_if_t<llvm::is_one_of<
+                            T, arith::AddIOp, arith::MulIOp>::value>>
+  static std::variant<Value, unsigned>
+  binaryOperator(const std::variant<Value, unsigned> &lhs,
+                 const std::variant<Value, unsigned> &rhs, OpBuilder builder) {
+    if (std::holds_alternative<unsigned>(lhs)) {
+      assert(std::holds_alternative<unsigned>(rhs));
+      if (std::is_same_v<T, arith::AddIOp>)
+        return std::get<unsigned>(lhs) + std::get<unsigned>(rhs);
+      if (std::is_same_v<T, arith::MulIOp>)
+        return std::get<unsigned>(lhs) * std::get<unsigned>(rhs);
+    }
+
+    assert(std::holds_alternative<Value>(lhs) &&
+           std::holds_alternative<Value>(rhs));
+    return builder.create<T>(builder.getUnknownLoc(), std::get<Value>(lhs),
+                             std::get<Value>(rhs));
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// WorkGroupSize
+//===----------------------------------------------------------------------===//
+
+/// Class to represent work group size of a kernel.
+class WorkGroupSize {
+public:
+  using ElemTy = std::variant<Value, unsigned>;
+  WorkGroupSize(Value ndItem, const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
+                OpBuilder builder) {
+    auto ndItemTy = cast<sycl::NdItemType>(
+        cast<MemRefType>(ndItem.getType()).getElementType());
+    assert((reqdWorkGroupSize.empty() ||
+            reqdWorkGroupSize.size() == ndItemTy.getDimension()) &&
+           "Expecting reqdWorkGroupSize to have same number of elements as "
+           "nd_item dimension");
+    for (unsigned dim = 0; dim < ndItemTy.getDimension(); ++dim) {
+      /// Use constants provided by reqd_work_group_size if given (non-empty).
+      if (!reqdWorkGroupSize.empty())
+        wgSizes.push_back(reqdWorkGroupSize[dim]);
+      else
+        wgSizes.push_back(builder.create<arith::IndexCastOp>(
+            builder.getUnknownLoc(), builder.getIndexType(),
+            getLocalRange(ndItem, dim, builder)));
+    }
+  }
+
+  /// Return true if the element holds the alternative T.
+  template <typename T, typename = std::enable_if_t<
+                            llvm::is_one_of<T, Value, unsigned>::value>>
+  bool hasElemTy() const {
+    return std::holds_alternative<T>(wgSizes.front());
+  }
+
+  ElemTy operator[](unsigned dim) const {
+    assert(dim < wgSizes.size() && "Expecting valid dim");
+    return wgSizes[dim];
+  }
+
+private:
+  Value getLocalRange(Value ndItem, unsigned dim, OpBuilder builder) {
+    return builder.create<sycl::SYCLNDItemGetLocalRangeOp>(
+        builder.getUnknownLoc(), builder.getI64Type(), ndItem,
+        builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), dim,
+                                             builder.getI32Type()));
+  }
+
+  SmallVector<ElemTy> wgSizes;
+};
 
 //===----------------------------------------------------------------------===//
 // Utilities functions
@@ -102,6 +204,15 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
   return true;
 }
 
+/// Get the argument of \p func with nd_item type.
+Value getNdItemArgument(FunctionOpInterface func) {
+  assert(func.getNumArguments() > 0 && "Expecting at least one argument");
+  Value lastArg = func.getArguments().back();
+  assert(sycl::isPtrOf<sycl::NdItemType>(lastArg.getType()) &&
+         "Expecting last argument to be nd_item");
+  return lastArg;
+}
+
 /// Get the size of unused shared local memory arena in bytes.
 unsigned getLocalMemoryRemain(gpu::GPUModuleOp &module,
                               unsigned localMemorySize) {
@@ -124,11 +235,24 @@ unsigned getLocalMemoryRemain(gpu::GPUModuleOp &module,
   return localMemoryRemain;
 }
 
-/// Get the required local memory for \p accTy.
+/// Get the required local memory for \p accTy in bytes.
+std::variant<Value, unsigned>
+getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
+                   OpBuilder builder) {
+  unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
+  std::variant<Value, unsigned> reqdLocalMemory =
+      ValueOrUnsigned::get(elemSize, builder, workGroupSize.hasElemTy<Value>());
+  for (unsigned dim = 0; dim < accTy.getDimension(); ++dim)
+    reqdLocalMemory =
+        ValueOrUnsigned::mul(reqdLocalMemory, workGroupSize[dim], builder);
+  return reqdLocalMemory;
+}
+
+/// Get the required local memory for \p accTy in bytes.
 unsigned getReqdLocalMemory(sycl::AccessorType accTy,
-                            sycl::ReqdWorkGroupSize reqdWorkGroupSize) {
+                            const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
   assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
-  unsigned elemSize = accTy.getType().getIntOrFloatBitWidth();
+  unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   unsigned memrefReqdLocalMemory = elemSize;
   for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
     memrefReqdLocalMemory *= reqdWorkGroupSize[dim];
@@ -161,7 +285,7 @@ getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, std::set<Operation *>>
 }
 
 /// Create a GlobalOp for workgroup local memory.
-memref::GlobalOp getworkGroupLocalMemory(gpu::GPUModuleOp module,
+memref::GlobalOp getWorkGroupLocalMemory(gpu::GPUModuleOp module,
                                          unsigned size) {
   assert(size != 0 && "Expecting non-zero size");
   std::string name("WGLocalMem");
@@ -180,21 +304,26 @@ memref::GlobalOp getworkGroupLocalMemory(gpu::GPUModuleOp module,
 
 /// Create ViewOp from source \p source, with offset \p offset, for AccessorType
 /// \p accTy.
-memref::ViewOp createViewOp(sycl::AccessorType accTy, unsigned offset,
+memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
                             memref::GetGlobalOp source,
-                            const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
+                            const WorkGroupSize &workGroupSize,
                             OpBuilder builder, Location loc) {
-  assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
   SmallVector<int64_t> shape;
-  for (int dim = accTy.getDimension() - 1; dim >= 0; --dim)
-    shape.push_back(reqdWorkGroupSize[dim]);
+  SmallVector<Value> sizes;
+  for (int dim = accTy.getDimension() - 1; dim >= 0; --dim) {
+    std::variant<Value, unsigned> size = workGroupSize[dim];
+    if (workGroupSize.hasElemTy<unsigned>())
+      shape.push_back(std::get<unsigned>(workGroupSize[dim]));
+    else {
+      shape.push_back(ShapedType::kDynamic);
+      sizes.push_back(std::get<Value>(size));
+    }
+  }
   auto resTy = MemRefType::get(
       shape, accTy.getType(), MemRefLayoutAttrInterface(),
       sycl::AccessAddrSpaceAttr::get(builder.getContext(),
                                      sycl::AccessAddrSpace::LocalAccess));
-  auto offsetVal = builder.create<arith::ConstantIndexOp>(loc, offset);
-  return builder.create<memref::ViewOp>(loc, resTy, source, offsetVal,
-                                        ValueRange());
+  return builder.create<memref::ViewOp>(loc, resTy, source, offset, sizes);
 }
 
 /// Tile an affine for \p loop given the tile size \p tileSize.
@@ -479,7 +608,7 @@ private:
   /// Transform a candidate loop.
   template <typename T>
   void transform(T loop, memref::GlobalOp workGroupLocalMemory,
-                 const sycl::ReqdWorkGroupSize &reqdWorkGroupSize);
+                 const WorkGroupSize &workGroupSize);
 
 private:
   /// A map from a candidate loop to shared memref values used in the loop.
@@ -580,16 +709,21 @@ void LoopInternalization::runOnOperation() {
       return;
     }
 
-    memref::GlobalOp workGroupLocalMemory = getworkGroupLocalMemory(
+    memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
         gpuModule,
         reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemain);
+
+    // Get or create work group size.
+    Value ndItem = getNdItemArgument(func);
+    OpBuilder builder(func->getRegion(0));
+    WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
 
     // Now that we have a list of memref to promote to shared memory in each
     // loop nest's innermost loop, perform the transformation.
     for (auto &entry : loopToSharedMemref) {
       TypeSwitch<Operation *>(entry.first)
           .Case<affine::AffineForOp, scf::ForOp>([&](auto loop) {
-            transform(loop, workGroupLocalMemory, reqdWorkGroupSize);
+            transform(loop, workGroupLocalMemory, workGroupSize);
           });
     }
     loopToSharedMemref.clear();
@@ -638,9 +772,9 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
 }
 
 template <typename T>
-void LoopInternalization::transform(
-    T loop, memref::GlobalOp workGroupLocalMemory,
-    const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
+void LoopInternalization::transform(T loop,
+                                    memref::GlobalOp workGroupLocalMemory,
+                                    const WorkGroupSize &workGroupSize) {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
   assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
   assert(loopToSharedMemref.find(loop) != loopToSharedMemref.end() &&
@@ -660,21 +794,22 @@ void LoopInternalization::transform(
 
   loop = tiledNest.front();
   builder.setInsertionPointToStart(loop->getBlock());
-
   // Get pointer to the local memory portion for each memref.
-  if (!reqdWorkGroupSize.empty()) {
-    unsigned offset = 0;
-    for (Operation *memref : memrefs) {
-      sycl::AccessorType accTy =
-          getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
-      createViewOp(accTy, offset, getGlobalOp, reqdWorkGroupSize, builder,
-                   memref->getLoc());
-      offset += getReqdLocalMemory(accTy, reqdWorkGroupSize);
-    }
-  } else {
-    LLVM_DEBUG(
-        llvm::dbgs()
-        << "TODO: loop internalization without reqd_work_group_size support\n");
+  std::variant<Value, unsigned> offset =
+      ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
+  for (Operation *memref : memrefs) {
+    sycl::AccessorType accTy =
+        getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
+    createViewOp(accTy, ValueOrUnsigned::getValue(offset, builder), getGlobalOp,
+                 workGroupSize, builder, memref->getLoc());
+
+    // Only increment offset when the current memref is not the last one.
+    if (memref == *memrefs.rbegin())
+      continue;
+
+    std::variant<Value, unsigned> reqdLocalMemory =
+        getReqdLocalMemory(accTy, workGroupSize, builder);
+    offset = ValueOrUnsigned::add(offset, reqdLocalMemory, builder);
   }
 
   // TODO: promote loop accesses to local memory.
