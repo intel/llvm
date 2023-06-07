@@ -1105,11 +1105,6 @@ static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
           ? GenXIntrinsic::getGenXDeclaration(
                 EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
           : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
-  // llvm::Attribute::ReadNone must not be used for call statements anymore.
-  bool FixReadNone =
-      NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
-  if (FixReadNone)
-    NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
 
   // Use hardcoded prefix when EEI has no name.
   std::string ResultName =
@@ -1117,8 +1112,6 @@ static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
        FullIntrinName)
           .str();
   Instruction *Inst = IntrinsicInst::Create(NewFDecl, {}, ResultName, EEI);
-  if (FixReadNone)
-    (cast<CallInst>(Inst))->setMemoryEffects(MemoryEffects::none());
   Inst->setDebugLoc(EEI->getDebugLoc());
 
   if (IsVectorCall) {
@@ -1548,10 +1541,6 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   }
 
   // llvm::Attribute::ReadNone must not be used for call statements anymore.
-  bool FixReadNone =
-      NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
-  if (FixReadNone)
-    NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
   Instruction *NewInst = nullptr;
   AddrSpaceCastInst *CastInstruction = nullptr;
   if (DoesFunctionReturnStructure) {
@@ -1567,8 +1556,6 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
-  if (FixReadNone)
-    NewCI->setMemoryEffects(MemoryEffects::none());
   NewCI->setDebugLoc(CI.getDebugLoc());
   if (DoesFunctionReturnStructure) {
     IRBuilder<> Builder(&CI);
@@ -1929,6 +1916,35 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
   return NeedInline;
 }
 
+/// Remove the attribute \p Attr from the given function \p F.
+/// Adds the memory effect \p Memef to the calls \p F.
+static void fixFunctionAttribute(Function &F, Attribute::AttrKind Attr,
+                                 MemoryEffects MemEf) {
+  if (!F.getFnAttribute(Attr).isValid())
+    return;
+
+  for (auto &U : F.uses()) {
+    if (auto *Call = dyn_cast<CallInst>(&*U))
+      Call->setMemoryEffects(MemEf);
+  }
+  F.removeFnAttr(Attr);
+}
+
+/// Replaces the function attributes ReadNone/ReadOnly/WriteOnly
+/// with the corresponding memory effects on function calls.
+static void fixFunctionReadWriteAttributes(Module &M) {
+  // llvm::Attribute::ReadNone/ReadOnly/WriteOnly
+  // must not be used for call statements anymore.
+  for (auto &&F : M) {
+    fixFunctionAttribute(F, llvm::Attribute::ReadNone,
+                         llvm::MemoryEffects::none());
+    fixFunctionAttribute(F, llvm::Attribute::ReadOnly,
+                         llvm::MemoryEffects::readOnly());
+    fixFunctionAttribute(F, llvm::Attribute::WriteOnly,
+                         llvm::MemoryEffects::writeOnly());
+  }
+}
+
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
                                           ModuleAnalysisManager &MAM) {
   // AlwaysInlinerPass is required for correctness.
@@ -1949,6 +1965,8 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
+
+  fixFunctionReadWriteAttributes(M);
 
   // TODO FIXME ESIMD figure out less conservative result
   return AmountOfESIMDIntrCalls > 0 || ForceInline ? PreservedAnalyses::none()
