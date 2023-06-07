@@ -10477,14 +10477,14 @@ operator<<(std::ostream &os,
     os << *(params->pargIndex);
 
     os << ", ";
-    os << ".hArgValue = ";
-
-    ur_params::serializePtr(os, *(params->phArgValue));
-
-    os << ", ";
     os << ".pProperties = ";
 
     ur_params::serializePtr(os, *(params->ppProperties));
+
+    os << ", ";
+    os << ".hArgValue = ";
+
+    ur_params::serializePtr(os, *(params->phArgValue));
 
     return os;
 }
