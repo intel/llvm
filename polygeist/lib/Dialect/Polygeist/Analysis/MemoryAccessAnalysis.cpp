@@ -123,9 +123,10 @@ static bool usesValue(Operation *op, Value val) {
   if (!op)
     return false;
 
-  if (Operation *valOp = val.getDefiningOp())
+  if (Operation *valOp = val.getDefiningOp()) {
     if (valOp == op)
       return true;
+  }
 
   return llvm::any_of(op->getOperands(), [&](Value operand) {
     if (Operation *operandOp = operand.getDefiningOp())
@@ -147,6 +148,57 @@ static raw_ostream &printRange(raw_ostream &os,
 
 namespace {
 
+struct Helper {
+  enum class ArithOp { Add, Sub, Mul };
+
+  /// Return a new constant by applying the arithmetic operation \p op to \p lhs
+  /// and \p rhs.
+  template <typename T,
+            typename = std::enable_if_t<llvm::is_one_of<
+                T, arith::AddIOp, arith::SubIOp, arith::MulIOp>::value>>
+  static IntegerValueRange getConst(const IntegerValueRange &lhs,
+                                    const IntegerValueRange &rhs) {
+    constexpr unsigned bitWidth = sizeof(uint64_t);
+    const ConstantIntRanges &lhsConst = lhs.getValue();
+    const ConstantIntRanges &rhsConst = rhs.getValue();
+    const uint64_t lhsUMin = lhsConst.umin().getZExtValue(),
+                   lhsUMax = lhsConst.umax().getZExtValue();
+    const uint64_t rhsUMin = rhsConst.umin().getZExtValue(),
+                   rhsUMax = rhsConst.umax().getZExtValue();
+    const int64_t lhsSMin = lhsConst.smin().getSExtValue(),
+                  lhsSMax = lhsConst.smax().getSExtValue();
+    const int64_t rhsSMin = rhsConst.smin().getSExtValue(),
+                  rhsSMax = rhsConst.smax().getSExtValue();
+
+    uint64_t resUMin = 0, resUMax = 0;
+    int64_t resSMin = 0, resSMax = 0;
+    if (std::is_same_v<T, arith::AddIOp>) {
+      resUMin = lhsUMin + rhsUMin;
+      resUMax = lhsUMax + rhsUMax;
+      resSMin = lhsSMin + rhsSMin;
+      resSMax = lhsSMax + rhsSMax;
+    }
+    if (std::is_same_v<T, arith::SubIOp>) {
+      resUMin = lhsUMin - rhsUMin;
+      resUMax = lhsUMax - rhsUMax;
+      resSMin = lhsSMin - rhsSMin;
+      resSMax = lhsSMax - rhsSMax;
+    }
+    if (std::is_same_v<T, arith::MulIOp>) {
+      resUMin = lhsUMin * rhsUMin;
+      resUMax = lhsUMax * rhsUMax;
+      resSMin = lhsSMin * rhsSMin;
+      resSMax = lhsSMax * rhsSMax;
+    }
+
+    const APInt umin(bitWidth, resUMin), umax(bitWidth, resUMax);
+    const APInt smin(bitWidth, resSMin, true), smax(bitWidth, resSMax, true);
+    ConstantIntRanges constant(umin, umax, smin, smax);
+
+    return IntegerValueRange(constant);
+  }
+};
+
 /// Represents a multiplication factor in an affine expression.
 /// Example:
 ///   k1*i + k2
@@ -162,33 +214,25 @@ public:
     return Multiplier(IntegerValueRange(one));
   }
 
-  static Multiplier create(Value val, DataFlowSolver &solver) {
-    if (auto *range =
-            solver.lookupState<dataflow::IntegerValueRangeLattice>(val))
-      return Multiplier(range->getValue());
-    return Multiplier(IntegerValueRange());
-  }
-
-  static Multiplier mpy(const IntegerValueRange &lhs,
+  static Multiplier add(const IntegerValueRange &lhs,
                         const IntegerValueRange &rhs) {
     if (lhs.isUninitialized() || rhs.isUninitialized())
       return Multiplier(IntegerValueRange());
+    return Multiplier(Helper::getConst<arith::AddIOp>(lhs, rhs));
+  }
 
-    const ConstantIntRanges &lhsConst = lhs.getValue();
-    const ConstantIntRanges &rhsConst = rhs.getValue();
-    const APInt umin(sizeof(uint64_t), lhsConst.umin().getZExtValue() *
-                                           rhsConst.umin().getZExtValue());
-    const APInt umax(sizeof(uint64_t), lhsConst.umax().getZExtValue() *
-                                           rhsConst.umax().getZExtValue());
-    const APInt smin(
-        sizeof(uint64_t),
-        lhsConst.smin().getSExtValue() * rhsConst.smin().getSExtValue(), true);
-    const APInt smax(
-        sizeof(uint64_t),
-        lhsConst.smax().getSExtValue() * rhsConst.smax().getSExtValue(), true);
-    ConstantIntRanges mul(umin, umax, smin, smax);
+  static Multiplier sub(const IntegerValueRange &lhs,
+                        const IntegerValueRange &rhs) {
+    if (lhs.isUninitialized() || rhs.isUninitialized())
+      return Multiplier(IntegerValueRange());
+    return Multiplier(Helper::getConst<arith::SubIOp>(lhs, rhs));
+  }
 
-    return Multiplier(IntegerValueRange(mul));
+  static Multiplier mul(const IntegerValueRange &lhs,
+                        const IntegerValueRange &rhs) {
+    if (lhs.isUninitialized() || rhs.isUninitialized())
+      return Multiplier(IntegerValueRange());
+    return Multiplier(Helper::getConst<arith::MulIOp>(lhs, rhs));
   }
 };
 
@@ -213,33 +257,25 @@ public:
     return Offset(IntegerValueRange(zero));
   }
 
-  static Offset create(Value val, DataFlowSolver &solver) {
-    if (auto *range =
-            solver.lookupState<dataflow::IntegerValueRangeLattice>(val))
-      return Offset(range->getValue());
-    return Offset(IntegerValueRange());
-  }
-
   static Offset add(const IntegerValueRange &lhs,
                     const IntegerValueRange &rhs) {
     if (lhs.isUninitialized() || rhs.isUninitialized())
-      return Multiplier(IntegerValueRange());
+      return Offset(IntegerValueRange());
+    return Offset(Helper::getConst<arith::AddIOp>(lhs, rhs));
+  }
 
-    const ConstantIntRanges &lhsConst = lhs.getValue();
-    const ConstantIntRanges &rhsConst = rhs.getValue();
-    const APInt umin(sizeof(uint64_t), lhsConst.umin().getZExtValue() +
-                                           rhsConst.umin().getZExtValue());
-    const APInt umax(sizeof(uint64_t), lhsConst.umax().getZExtValue() +
-                                           rhsConst.umax().getZExtValue());
-    const APInt smin(
-        sizeof(uint64_t),
-        lhsConst.smin().getSExtValue() + rhsConst.smin().getSExtValue(), true);
-    const APInt smax(
-        sizeof(uint64_t),
-        lhsConst.smax().getSExtValue() + rhsConst.smax().getSExtValue(), true);
-    ConstantIntRanges mul(umin, umax, smin, smax);
+  static Offset sub(const IntegerValueRange &lhs,
+                    const IntegerValueRange &rhs) {
+    if (lhs.isUninitialized() || rhs.isUninitialized())
+      return Offset(IntegerValueRange());
+    return Offset(Helper::getConst<arith::SubIOp>(lhs, rhs));
+  }
 
-    return Offset(IntegerValueRange(mul));
+  static Offset mul(const IntegerValueRange &lhs,
+                    const IntegerValueRange &rhs) {
+    if (lhs.isUninitialized() || rhs.isUninitialized())
+      return Offset(IntegerValueRange());
+    return Offset(Helper::getConst<arith::MulIOp>(lhs, rhs));
   }
 };
 
@@ -274,13 +310,6 @@ public:
   U get() const {
     assert(is<U>() && "Incorrect type");
     return std::get<U>(data);
-  }
-
-  /// Determine whether this class holds the value \p constant.
-  bool isEqualTo(int64_t constant, DataFlowSolver &solver) const {
-    if (is<T>())
-      return ::isEqualTo(get<T>(), constant);
-    return ::isEqualTo(get<Value>(), constant, solver);
   }
 
 private:
@@ -344,36 +373,27 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
   if (!op)
     return expr;
 
-  auto getOperandThatMatchesFactor = [&factor](Value lhs, Value rhs) {
-    if (lhs == factor && lhs != rhs)
-      return lhs;
-    if (rhs == factor && lhs != rhs)
-      return rhs;
-    return Value();
-  };
-
   return TypeSwitch<Operation *, ValueOr<Multiplier>>(op)
       .Case<arith::AddIOp, arith::SubIOp>([&](auto binOp) {
         auto computeResult =
             [&](ValueOr<Multiplier> lhs,
                 ValueOr<Multiplier> rhs) -> ValueOr<Multiplier> {
           bool lhsIsMul = lhs.is<Multiplier>(), rhsIsMul = rhs.is<Multiplier>();
+          bool isAdd = isa<arith::AddIOp>(binOp);
 
-          // If the LHS (or RHS) subtree passed up a multiplier and the other
-          // operand is not a match (of the factor), propagate the multiplier
-          // up.
-          if (lhsIsMul && !rhsIsMul && rhs.get<Value>() != factor)
+          // If both the LHS and RHS subtrees passed up a multiplier,
+          // add/subtract them.
+          if (lhsIsMul && rhsIsMul)
+            return isAdd ? Multiplier::add(lhs.get<Multiplier>(),
+                                           rhs.get<Multiplier>())
+                         : Multiplier::sub(lhs.get<Multiplier>(),
+                                           rhs.get<Multiplier>());
+
+          // If the LHS (or RHS) subtree passed up a multiplier propagate it up.
+          if (lhsIsMul && !rhsIsMul)
             return lhs;
-          if (rhsIsMul && !lhsIsMul && lhs.get<Value>() != factor)
+          if (rhsIsMul && !lhsIsMul)
             return rhs;
-
-          // Otherwise, if neither the LHS nor the RHS subtrees passed up a
-          // multiplier, and one of the operands is a match, the multiplier is
-          // one.
-          if (!lhsIsMul && !rhsIsMul &&
-              getOperandThatMatchesFactor(lhs.get<Value>(), rhs.get<Value>()) !=
-                  nullptr)
-            return Multiplier::one();
 
           return Value();
         };
@@ -389,16 +409,6 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
                 ValueOr<Multiplier> rhs) -> ValueOr<Multiplier> {
           bool lhsIsMul = lhs.is<Multiplier>(), rhsIsMul = rhs.is<Multiplier>();
 
-          // If neither the LHS nor the RHS subtree passed up a multiplier,
-          // attempt to find it in this multiplication expression.
-          if (!lhsIsMul && !rhsIsMul) {
-            Value lhsVal = lhs.get<Value>(), rhsVal = rhs.get<Value>();
-            if (getOperandThatMatchesFactor(lhsVal, rhsVal) == lhsVal)
-              return Multiplier::create(lhsVal, solver);
-            if (getOperandThatMatchesFactor(lhsVal, rhsVal) == rhsVal)
-              return Multiplier::create(rhsVal, solver);
-          }
-
           // If the LHS (or RHS) subtrees passed up a multiplier attempt to
           // multiply it by the RHS (or LHS) value if its integer range is
           // known.
@@ -406,13 +416,13 @@ static ValueOr<Multiplier> getMultiplier(const Value expr, const Value factor,
             if (auto *range =
                     solver.lookupState<dataflow::IntegerValueRangeLattice>(
                         rhs.get<Value>()))
-              return Multiplier::mpy(lhs.get<Multiplier>(), range->getValue());
+              return Multiplier::mul(lhs.get<Multiplier>(), range->getValue());
           }
           if (rhsIsMul && !lhsIsMul) {
             if (auto *range =
                     solver.lookupState<dataflow::IntegerValueRangeLattice>(
                         lhs.get<Value>()))
-              return Multiplier::mpy(range->getValue(), rhs.get<Multiplier>());
+              return Multiplier::mul(range->getValue(), rhs.get<Multiplier>());
           }
 
           return Value();
@@ -471,88 +481,36 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
   if (!op)
     return expr;
 
-  // Determine whether 'expr' uses any of the values in 'values'.
-  auto usesAny = [](Value expr, const SmallVectorImpl<Value> &values) {
-    return llvm::any_of(values, [&](Value val) {
-      if (!expr.getDefiningOp())
-        return expr == val;
-      return usesValue(expr.getDefiningOp(), val);
-    });
-  };
-
   return TypeSwitch<Operation *, ValueOr<Offset>>(op)
-      .Case<arith::AddIOp>([&](auto binOp) -> ValueOr<Offset> {
+      .Case<arith::AddIOp, arith::SubIOp>([&](auto binOp) -> ValueOr<Offset> {
         auto computeResult = [&](ValueOr<Offset> lhs,
                                  ValueOr<Offset> rhs) -> ValueOr<Offset> {
           bool lhsIsOff = lhs.is<Offset>(), rhsIsOff = rhs.is<Offset>();
+          bool isAdd = isa<arith::AddIOp>(binOp);
 
-          // If both the LHS and RHS subtrees passed up an offset, add them.
+          // If both the LHS and RHS subtrees passed up an offset, add/subtract
+          // them.
           if (lhsIsOff && rhsIsOff)
-            return Offset::add(lhs.get<Offset>(), rhs.get<Offset>());
+            return isAdd ? Offset::add(lhs.get<Offset>(), rhs.get<Offset>())
+                         : Offset::sub(lhs.get<Offset>(), rhs.get<Offset>());
 
-          // If the LHS (or RHS) subtree passed up an offset:
-          //   - if the offset is zero and the other operand doesn't use a loop
-          //     IV or thread ID, then the other operand is the offset,
-          //     otherwise
-          //   - if the other operand uses a loop IV/thread ID or is zero, pass
-          //     up the offset, otherwise
-          //   - add the the other operand to the offset
+          // If only the LHS (or RHS) subtree passed up an offset add it to the
+          // other operand (if its range is known).
           if (lhsIsOff && !rhsIsOff) {
-            llvm::errs() << "line " << __LINE__ << "\n";
-            if (lhs.isEqualTo(0, solver) &&
-                !usesAny(rhs.get<Value>(), loopAndThreadVars))
-              return Offset::create(rhs.get<Value>(), solver);
-            if (usesAny(rhs.get<Value>(), loopAndThreadVars) ||
-                rhs.isEqualTo(0, solver))
-              return lhs;
             if (auto *range =
                     solver.lookupState<dataflow::IntegerValueRangeLattice>(
                         rhs.get<Value>()))
-              return Offset::add(lhs.get<Offset>(), range->getValue());
+              return isAdd ? Offset::add(lhs.get<Offset>(), range->getValue())
+                           : Offset::sub(lhs.get<Offset>(), range->getValue());
           }
           if (rhsIsOff && !lhsIsOff) {
-            if (rhs.isEqualTo(0, solver) &&
-                !usesAny(lhs.get<Value>(), loopAndThreadVars))
-              return Offset::create(lhs.get<Value>(), solver);
-            if (usesAny(lhs.get<Value>(), loopAndThreadVars) ||
-                lhs.isEqualTo(0, solver))
-              return rhs;
             if (auto *range =
                     solver.lookupState<dataflow::IntegerValueRangeLattice>(
                         lhs.get<Value>()))
-              return Offset::add(range->getValue(), rhs.get<Offset>());
+              return isAdd ? Offset::add(range->getValue(), rhs.get<Offset>())
+                           : Offset::sub(range->getValue(), rhs.get<Offset>());
           }
 
-          // If neither the LHS nor the RHS subtrees passed up an offset, the
-          // offset is:
-          //   - the operand that does not use any loop IV/thread id, if the
-          //     other operand uses it
-          //   - the addition of the two operand if neither use any loop
-          //     IV/thread id
-          if (!lhsIsOff && !rhsIsOff) {
-            llvm::errs() << "line " << __LINE__ << "\n";
-            bool lhsUsesThreadIDOrLoopIV =
-                usesAny(lhs.get<Value>(), loopAndThreadVars);
-            bool rhsUsesThreadIDOrLoopIV =
-                usesAny(rhs.get<Value>(), loopAndThreadVars);
-
-            if (lhsUsesThreadIDOrLoopIV && !rhsUsesThreadIDOrLoopIV)
-              return Offset::create(rhs.get<Value>(), solver);
-            if (!lhsUsesThreadIDOrLoopIV && rhsUsesThreadIDOrLoopIV)
-              return Offset::create(lhs.get<Value>(), solver);
-            if (!lhsUsesThreadIDOrLoopIV && !rhsUsesThreadIDOrLoopIV) {
-              auto *rangeLHS =
-                  solver.lookupState<dataflow::IntegerValueRangeLattice>(
-                      lhs.get<Value>());
-              auto *rangeRHS =
-                  solver.lookupState<dataflow::IntegerValueRangeLattice>(
-                      rhs.get<Value>());
-              if (rangeLHS && rangeRHS)
-                return Offset::add(rangeLHS->getValue(), rangeRHS->getValue());
-            }
-          }
-
-          llvm::errs() << "line " << __LINE__ << "\n";
           return Value();
         };
 
@@ -566,37 +524,25 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
                                  ValueOr<Offset> rhs) -> ValueOr<Offset> {
           bool lhsIsOff = lhs.is<Offset>(), rhsIsOff = rhs.is<Offset>();
 
-          // If both the LHS and RHS subtrees passed up an offset, and either is
-          // one, return the other.
-          if (lhsIsOff && rhsIsOff) {
-            if (lhs.isEqualTo(1, solver))
-              return rhs;
-            if (rhs.isEqualTo(1, solver))
-              return lhs;
-          }
+          // If both the LHS and RHS subtrees passed up an offset, multiply
+          // them.
+          if (lhsIsOff && rhsIsOff)
+            return Offset::mul(lhs.get<Offset>(), rhs.get<Offset>());
 
-          // If the LHS (or RHS) subtrees passed up an offset. Return:
-          //   - the offset if the other operand has value one
-          //   - a new offset with value equal to the other operand if the
-          //     offset is one
+          // If only the LHS (or RHS) subtree passed up an offset multiply it by
+          // the other operand (if its range is known).
           if (lhsIsOff && !rhsIsOff) {
-            if (lhs.isEqualTo(0, solver) || rhs.isEqualTo(1, solver))
-              return lhs;
-            if (lhs.isEqualTo(1, solver))
-              return Offset::create(rhs.get<Value>(), solver);
+            if (auto *range =
+                    solver.lookupState<dataflow::IntegerValueRangeLattice>(
+                        rhs.get<Value>()))
+              return Offset::mul(lhs.get<Offset>(), range->getValue());
           }
           if (rhsIsOff && !lhsIsOff) {
-            if (rhs.isEqualTo(0, solver) || lhs.isEqualTo(1, solver))
-              return rhs;
-            if (rhs.isEqualTo(1, solver))
-              return Offset::create(lhs.get<Value>(), solver);
+            if (auto *range =
+                    solver.lookupState<dataflow::IntegerValueRangeLattice>(
+                        lhs.get<Value>()))
+              return Offset::mul(range->getValue(), rhs.get<Offset>());
           }
-
-          // Otherwise, if neither the LHS nor the RHS subtrees passed up an
-          // offset, and the multiplication uses a loop IV or thread id, the
-          // offset is zero.
-          if (!lhsIsOff && !rhsIsOff && usesAny(mulOp, loopAndThreadVars))
-            return Offset::zero();
 
           return Value();
         };
@@ -1459,6 +1405,19 @@ std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
     Value val = underlyingVals[row];
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "Analyzing underlying value: " << val << "\n");
+
+    bool useLoopOrThreadVar = false;
+    for (size_t col = 0; col < matrix.getNumColumns(); ++col)
+      useLoopOrThreadVar |=
+          usesValue(val.getDefiningOp(), loopAndThreadVars[col]);
+
+    if (!useLoopOrThreadVar) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "Doesn't use any loop or thread vars \n");
+      auto zero = ConstantIntRanges::constant(APInt());
+      offsets(row) = IntegerValueRange(zero);
+      continue;
+    }
 
     ValueOr<Offset> valOrOffset = getOffset(val, loopAndThreadVars, solver);
     if (!valOrOffset.is<Offset>()) {
