@@ -1916,26 +1916,31 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
   return NeedInline;
 }
 
-static inline void FixAttributes(Function &F, Attribute::AttrKind Attr,
+/// Remove the attribute \p Attr from the given function \p F.
+/// Adds the memory effect \p Memef to the calls \p F.
+static void fixFunctionAttribute(Function &F, Attribute::AttrKind Attr,
                                  MemoryEffects MemEf) {
-  if (F.getFnAttribute(Attr).isValid()) {
-    for (auto &U : F.uses()) {
-      if (auto *Call = dyn_cast<CallInst>(&*U)) {
-        Call->setMemoryEffects(MemEf);
-      }
-    }
-    F.removeFnAttr(Attr);
+  if (!F.getFnAttribute(Attr).isValid())
+    return;
+
+  for (auto &U : F.uses()) {
+    if (auto *Call = dyn_cast<CallInst>(&*U))
+      Call->setMemoryEffects(MemEf);
   }
+  F.removeFnAttr(Attr);
 }
 
-static inline void fixFunctionReadWriteAttributes(Module &M) {
+/// Replaces the function attributes ReadNone/ReadOnly/WriteOnly
+/// with the corresponding memory effects on function calls.
+static void fixFunctionReadWriteAttributes(Module &M) {
   // llvm::Attribute::ReadNone/ReadOnly/WriteOnly
   // must not be used for call statements anymore.
   for (auto &&F : M) {
-    FixAttributes(F, llvm::Attribute::ReadNone, llvm::MemoryEffects::none());
-    FixAttributes(F, llvm::Attribute::ReadOnly,
+    fixFunctionAttribute(F, llvm::Attribute::ReadNone,
+                         llvm::MemoryEffects::none());
+    fixFunctionAttribute(F, llvm::Attribute::ReadOnly,
                   llvm::MemoryEffects::readOnly());
-    FixAttributes(F, llvm::Attribute::WriteOnly,
+    fixFunctionAttribute(F, llvm::Attribute::WriteOnly,
                   llvm::MemoryEffects::writeOnly());
   }
 }
