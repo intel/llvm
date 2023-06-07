@@ -643,8 +643,6 @@ public:
 
   bool isSYCL() const { return SYCLIsDevice || SYCLIsHost; }
 
-  bool isSYCLDevice() const { return SYCLIsDevice; }
-
   bool hasDefaultVisibilityExportMapping() const {
     return getDefaultVisibilityExportMapping() !=
            DefaultVisiblityExportMapping::None;
