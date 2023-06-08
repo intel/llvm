@@ -1274,10 +1274,21 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+template <int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
-multi_ptr(accessor<T, dimensions, Mode, access::target::device, isPlaceholder,
-                   PropertyListT>)
+multi_ptr(accessor<T, dimensions, access::mode::read, access::target::device,
+                   isPlaceholder, PropertyListT>)
+    -> multi_ptr<const T, access::address_space::global_space,
+                 access::decorated::no>;
+template <int dimensions, access::placeholder isPlaceholder,
+          typename PropertyListT, class T>
+multi_ptr(accessor<T, dimensions, access::mode::write, access::target::device,
+                   isPlaceholder, PropertyListT>)
+    -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
+template <int dimensions, access::placeholder isPlaceholder,
+          typename PropertyListT, class T>
+multi_ptr(accessor<T, dimensions, access::mode::read_write,
+                   access::target::device, isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
 template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
