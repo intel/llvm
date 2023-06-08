@@ -197,12 +197,12 @@ SYCL_EXTERNAL sycl::half add(sycl::half lhs, sycl::half rhs) {
 // CHECK-NEXT:        affine.store %[[VAL_289]], %[[VAL_279]][0] : memref<1x!sycl_half_>
 // CHECK-NEXT:        %[[VAL_290:.*]] = affine.load %[[VAL_281]][0] : memref<1x!sycl_half_>
 // CHECK-NEXT:        affine.store %[[VAL_290]], %[[VAL_277]][0] : memref<1x!sycl_half_>
-// CHECK-NEXT:        %[[VAL_291:.*]] = sycl.call @"operator*"(%[[VAL_280]], %[[VAL_278]]) {MangledFunctionName = @_ZN4sycl3_V16detail9half_implmlENS2_4halfES3_} : (memref<?x!sycl_half_>, memref<?x!sycl_half_>) -> !sycl_half_
+// CHECK-NEXT:        %[[VAL_291:.*]] = sycl.call @"operator-"(%[[VAL_280]], %[[VAL_278]]) {MangledFunctionName = @_ZN4sycl3_V16detail9half_implmiENS2_4halfES3_} : (memref<?x!sycl_half_>, memref<?x!sycl_half_>) -> !sycl_half_
 // CHECK-NEXT:        return %[[VAL_291]] : !sycl_half_
 // CHECK-NEXT:      }
 
 SYCL_EXTERNAL sycl::half sub(sycl::half lhs, sycl::half rhs) {
-  return lhs * rhs;
+  return lhs - rhs;
 }
 
 // CHECK-LABEL:     func.func @_Z3mulN4sycl3_V16detail9half_impl4halfES3_(
