@@ -307,22 +307,8 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
       TC.AddCXXStdlibLibArgs(Args, CmdArgs);
     else if (A.getOption().matches(options::OPT_Z_reserved_lib_cckext))
       TC.AddCCKextLibArgs(Args, CmdArgs);
-    else if (A.getOption().matches(options::OPT_z)) {
-      // Pass -z prefix for gcc linker compatibility.
-      A.claim();
-      A.render(Args, CmdArgs);
-    } else if (A.getOption().matches(options::OPT_b)) {
-      const llvm::Triple &T = TC.getTriple();
-      if (!T.isOSAIX()) {
-        TC.getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
-            << A.getSpelling() << T.str();
-      }
-      // Pass -b prefix for AIX linker.
-      A.claim();
-      A.render(Args, CmdArgs);
-    } else {
+    else
       A.renderAsInput(Args, CmdArgs);
-    }
   }
 }
 
@@ -359,6 +345,7 @@ void tools::AddTargetFeature(const ArgList &Args,
 /// Get the (LLVM) name of the AMDGPU gpu we are targeting.
 static std::string getAMDGPUTargetGPU(const llvm::Triple &T,
                                       const ArgList &Args) {
+  Arg *MArch = Args.getLastArg(options::OPT_march_EQ);
   if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
     auto GPUName = getProcessorFromTargetID(T, A->getValue());
     return llvm::StringSwitch<std::string>(GPUName)
@@ -371,9 +358,8 @@ static std::string getAMDGPUTargetGPU(const llvm::Triple &T,
         .Case("aruba", "cayman")
         .Default(GPUName.str());
   }
-  if (Arg *A = Args.getLastArg(options::OPT_march_EQ)) {
-    return getProcessorFromTargetID(T, A->getValue()).str();
-  }
+  if (MArch)
+    return getProcessorFromTargetID(T, MArch->getValue()).str();
   return "";
 }
 

@@ -89,8 +89,7 @@ public:
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj, OSModuleHandle, RT::PiDevice, std::string,
-                 std::string>;
+      std::tuple<SerializedObj, RT::PiDevice, std::string, std::string>;
   using KernelFastCacheValT = std::tuple<RT::PiKernel, std::mutex *,
                                          const KernelArgMask *, RT::PiProgram>;
   using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
