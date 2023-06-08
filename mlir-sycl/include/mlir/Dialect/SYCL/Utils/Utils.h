@@ -26,6 +26,14 @@ inline AccessorType getAccessorType(SYCLAccessorSubscriptOp op) {
   return sycl::AccessorPtrValue(op.getAcc()).getAccessorType();
 }
 
+sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
+                                    OpBuilder builder, Location loc);
+
+sycl::SYCLAccessorSubscriptOp
+createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
+                              TypedValue<MemRefType> id, OpBuilder builder,
+                              Location loc);
+
 } // namespace sycl
 } // namespace mlir
 

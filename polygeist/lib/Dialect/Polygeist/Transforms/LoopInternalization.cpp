@@ -408,7 +408,7 @@ TypedValue<MemRefType> constructSYCLID(sycl::IDType idTy,
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   for (unsigned dim = 0; dim < idTy.getDimension(); ++dim) {
-    Value idGetOp = createSYCLIDGetOp(id, dim, builder, loc);
+    Value idGetOp = sycl::createSYCLIDGetOp(id, dim, builder, loc);
     builder.create<memref::StoreOp>(loc, indexes[dim], idGetOp, zeroIndex);
   }
   return id;
@@ -849,8 +849,8 @@ void LoopInternalization::transform(T loop,
     SmallVector<Value> indexes(localIDs.begin(), localIDs.end());
     TypedValue<MemRefType> id =
         constructSYCLID(idTy, indexes, builder, builder.getUnknownLoc());
-    createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder,
-                                  builder.getUnknownLoc());
+    sycl::createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder,
+                                        builder.getUnknownLoc());
 
     createViewOp(accTy, ValueOrUnsigned::getValue(offset, builder), getGlobalOp,
                  workGroupSize, builder, memref->getLoc());

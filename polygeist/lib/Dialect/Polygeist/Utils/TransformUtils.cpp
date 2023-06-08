@@ -683,14 +683,6 @@ bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                                    OpBuilder builder, Location loc) {
-  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  const auto resTy = builder.getIndexType();
-  return builder.create<sycl::SYCLIDGetOp>(
-      loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
-}
-
 static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
                                                  unsigned index,
                                                  OpBuilder builder,
@@ -707,18 +699,6 @@ createSYCLAccessorGetRangeOp(sycl::AccessorPtrValue accessor, OpBuilder builder,
   const auto rangeTy = cast<sycl::RangeType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
   return builder.create<sycl::SYCLAccessorGetRangeOp>(loc, rangeTy, accessor);
-}
-
-sycl::SYCLAccessorSubscriptOp
-createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
-                              TypedValue<MemRefType> id, OpBuilder builder,
-                              Location loc) {
-  const sycl::AccessorType accTy = accessor.getAccessorType();
-  assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
-  const auto MT = MemRefType::get(
-      ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
-      builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
-  return builder.create<sycl::SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
 }
 
 static sycl::SYCLAccessorGetPointerOp
@@ -742,7 +722,7 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   for (unsigned i = 0; i < accTy.getDimension(); ++i) {
-    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    Value idGetOp = sycl::createSYCLIDGetOp(id, i, builder, loc);
     builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
   }
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
@@ -769,7 +749,7 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
   const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
   unsigned dim = accTy.getDimension();
   for (unsigned i = 0; i < dim; ++i) {
-    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    Value idGetOp = sycl::createSYCLIDGetOp(id, i, builder, loc);
     Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
     auto index = (i == dim - 1)
                      ? rangeGetOp

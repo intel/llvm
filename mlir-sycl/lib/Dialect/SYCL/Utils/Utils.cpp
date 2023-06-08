@@ -14,3 +14,24 @@
 
 using namespace mlir;
 using namespace mlir::sycl;
+
+sycl::SYCLIDGetOp sycl::createSYCLIDGetOp(TypedValue<MemRefType> id,
+                                          unsigned index, OpBuilder builder,
+                                          Location loc) {
+  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+  const auto resTy = builder.getIndexType();
+  return builder.create<sycl::SYCLIDGetOp>(
+      loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
+}
+
+sycl::SYCLAccessorSubscriptOp
+sycl::createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
+                                    TypedValue<MemRefType> id,
+                                    OpBuilder builder, Location loc) {
+  const sycl::AccessorType accTy = accessor.getAccessorType();
+  assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
+  const auto MT = MemRefType::get(
+      ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
+      builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
+  return builder.create<sycl::SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
+}

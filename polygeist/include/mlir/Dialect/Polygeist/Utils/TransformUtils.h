@@ -44,8 +44,6 @@ class ParallelOp;
 
 namespace sycl {
 class AccessorPtrValue;
-class SYCLAccessorSubscriptOp;
-class SYCLIDGetOp;
 } // namespace sycl
 
 namespace polygeist {
@@ -85,14 +83,6 @@ template <typename T> SetVector<T> getParentsOfType(Block &block);
 /// Retrieve operations with type \tparam T in \p funcOp.
 template <typename T>
 SetVector<T> getOperationsOfType(FunctionOpInterface funcOp);
-
-sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                                    OpBuilder builder, Location loc);
-
-sycl::SYCLAccessorSubscriptOp
-createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
-                              TypedValue<MemRefType> id, OpBuilder builder,
-                              Location loc);
 
 //===----------------------------------------------------------------------===//
 // FunctionKernelInfo
