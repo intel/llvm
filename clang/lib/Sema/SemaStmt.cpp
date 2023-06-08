@@ -932,11 +932,12 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   }
 
   if (ConstevalOrNegatedConsteval) {
-    bool Immediate = isImmediateFunctionContext();
+    bool Immediate = ExprEvalContexts.back().Context ==
+                     ExpressionEvaluationContext::ImmediateFunctionContext;
     if (CurContext->isFunctionOrMethod()) {
       const auto *FD =
           dyn_cast<FunctionDecl>(Decl::castFromDeclContext(CurContext));
-      if (FD && FD->isConsteval())
+      if (FD && FD->isImmediateFunction())
         Immediate = true;
     }
     if (isUnevaluatedContext() || Immediate)
@@ -4763,6 +4764,7 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
 
   PushExpressionEvaluationContext(
       ExpressionEvaluationContext::PotentiallyEvaluated);
+  ExprEvalContexts.back().InImmediateEscalatingFunctionContext = false;
 }
 
 void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,

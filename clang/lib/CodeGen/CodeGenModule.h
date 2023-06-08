@@ -1621,7 +1621,8 @@ private:
                         ForDefinition_t IsForDefinition = NotForDefinition);
 
   bool GetCPUAndFeaturesAttributes(GlobalDecl GD,
-                                   llvm::AttrBuilder &AttrBuilder);
+                                   llvm::AttrBuilder &AttrBuilder,
+                                   bool SetTargetFeatures = true);
   void setNonAliasAttributes(GlobalDecl GD, llvm::GlobalObject *GO);
 
   /// Set function attributes for a function declaration.

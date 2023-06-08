@@ -1545,13 +1545,18 @@ defm constant_cfstrings : BoolFOption<"constant-cfstrings",
   NegFlag<SetTrue, [CC1Option], "Disable creation of CodeFoundation-type constant strings">,
   PosFlag<SetFalse>>;
 def fconstant_string_class_EQ : Joined<["-"], "fconstant-string-class=">, Group<f_Group>;
-def fconstexpr_depth_EQ : Joined<["-"], "fconstexpr-depth=">, Group<f_Group>;
-def fconstexpr_steps_EQ : Joined<["-"], "fconstexpr-steps=">, Group<f_Group>;
+def fconstexpr_depth_EQ : Joined<["-"], "fconstexpr-depth=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Set the maximum depth of recursive constexpr function calls">,
+  MarshallingInfoInt<LangOpts<"ConstexprCallDepth">, "512">;
+def fconstexpr_steps_EQ : Joined<["-"], "fconstexpr-steps=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Set the maximum number of steps in constexpr function evaluation">,
+  MarshallingInfoInt<LangOpts<"ConstexprStepLimit">, "1048576">;
 def fexperimental_new_constant_interpreter : Flag<["-"], "fexperimental-new-constant-interpreter">, Group<f_Group>,
   HelpText<"Enable the experimental new constant interpreter">, Flags<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"EnableNewConstInterp">>;
-def fconstexpr_backtrace_limit_EQ : Joined<["-"], "fconstexpr-backtrace-limit=">,
-                                    Group<f_Group>;
+def fconstexpr_backtrace_limit_EQ : Joined<["-"], "fconstexpr-backtrace-limit=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Set the maximum number of entries to print in a constexpr evaluation backtrace (0 = no limit)">,
+  MarshallingInfoInt<DiagnosticOpts<"ConstexprBacktraceLimit">, "DiagnosticOptions::DefaultConstexprBacktraceLimit">;
 def fcrash_diagnostics_EQ : Joined<["-"], "fcrash-diagnostics=">, Group<f_clang_Group>, Flags<[NoArgumentUnused, CoreOption]>,
   HelpText<"Set level of crash diagnostic reporting, (option: off, compiler, all)">;
 def fcrash_diagnostics : Flag<["-"], "fcrash-diagnostics">, Group<f_clang_Group>, Flags<[NoArgumentUnused, CoreOption]>,
@@ -2332,7 +2337,9 @@ def fthin_link_bitcode_EQ : Joined<["-"], "fthin-link-bitcode=">,
   HelpText<"Write minimized bitcode to <file> for the ThinLTO thin link only">,
   MarshallingInfoString<CodeGenOpts<"ThinLinkBitcodeFile">>;
 def fmacro_backtrace_limit_EQ : Joined<["-"], "fmacro-backtrace-limit=">,
-                                Group<f_Group>, Flags<[NoXarchOption, CoreOption]>;
+  Group<f_Group>, Flags<[NoXarchOption, CC1Option, CoreOption]>,
+  HelpText<"Set the maximum number of entries to print in a macro expansion backtrace (0 = no limit)">,
+  MarshallingInfoInt<DiagnosticOpts<"MacroBacktraceLimit">, "DiagnosticOptions::DefaultMacroBacktraceLimit">;
 defm merge_all_constants : BoolFOption<"merge-all-constants",
   CodeGenOpts<"MergeAllConstants">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option, CoreOption], "Allow">, NegFlag<SetFalse, [], "Disallow">,
@@ -2938,7 +2945,9 @@ defm show_source_location : BoolFOption<"show-source-location",
 defm spell_checking : BoolFOption<"spell-checking",
   LangOpts<"SpellChecking">, DefaultTrue,
   NegFlag<SetFalse, [CC1Option], "Disable spell-checking">, PosFlag<SetTrue>>;
-def fspell_checking_limit_EQ : Joined<["-"], "fspell-checking-limit=">, Group<f_Group>;
+def fspell_checking_limit_EQ : Joined<["-"], "fspell-checking-limit=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Set the maximum number of times to perform spell checking on unrecognized identifiers (0 = no limit)">,
+  MarshallingInfoInt<DiagnosticOpts<"SpellCheckingLimit">, "DiagnosticOptions::DefaultSpellCheckingLimit">;
 def fsigned_bitfields : Flag<["-"], "fsigned-bitfields">, Group<f_Group>;
 defm signed_char : BoolFOption<"signed-char",
   LangOpts<"CharIsSigned">, DefaultTrue,
@@ -3134,12 +3143,16 @@ def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,
   HelpText<"Run the preprocessor, parser and semantic analysis stages">;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
-def ftemplate_depth_EQ : Joined<["-"], "ftemplate-depth=">, Group<f_Group>;
-def ftemplate_depth_ : Joined<["-"], "ftemplate-depth-">, Group<f_Group>;
-def ftemplate_backtrace_limit_EQ : Joined<["-"], "ftemplate-backtrace-limit=">,
-                                   Group<f_Group>;
-def foperator_arrow_depth_EQ : Joined<["-"], "foperator-arrow-depth=">,
-                               Group<f_Group>;
+def ftemplate_depth_EQ : Joined<["-"], "ftemplate-depth=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Set the maximum depth of recursive template instantiation">,
+  MarshallingInfoInt<LangOpts<"InstantiationDepth">, "1024">;
+def : Joined<["-"], "ftemplate-depth-">, Group<f_Group>, Alias<ftemplate_depth_EQ>;
+def ftemplate_backtrace_limit_EQ : Joined<["-"], "ftemplate-backtrace-limit=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Set the maximum number of entries to print in a template instantiation backtrace (0 = no limit)">,
+  MarshallingInfoInt<DiagnosticOpts<"TemplateBacktraceLimit">, "DiagnosticOptions::DefaultTemplateBacktraceLimit">;
+def foperator_arrow_depth_EQ : Joined<["-"], "foperator-arrow-depth=">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Maximum number of 'operator->'s to call for a member access">,
+  MarshallingInfoInt<LangOpts<"ArrowDepth">, "256">;
 
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Group<f_Group>, HelpText<"Generate a YAML optimization record file">;
@@ -3444,6 +3457,9 @@ def femit_dwarf_unwind_EQ : Joined<["-"], "femit-dwarf-unwind=">,
   NormalizedValues<["Always", "NoCompactUnwind", "Default"]>,
   NormalizedValuesScope<"llvm::EmitDwarfUnwindType">,
   MarshallingInfoEnum<CodeGenOpts<"EmitDwarfUnwind">, "Default">;
+defm emit_compact_unwind_non_canonical : BoolFOption<"emit-compact-unwind-non-canonical",
+  CodeGenOpts<"EmitCompactUnwindNonCanonical">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option, CC1AsOption], "Try emitting Compact-Unwind for non-canonical entries. Maybe overriden by other constraints">, NegFlag<SetFalse>>;
 def g_Flag : Flag<["-"], "g">, Group<g_Group>,
     Flags<[CoreOption,FlangOption]>, HelpText<"Generate source-level debug information">;
 def gline_tables_only : Flag<["-"], "gline-tables-only">, Group<gN_Group>,
@@ -3856,12 +3872,14 @@ def mrvv_vector_bits_EQ : Joined<["-"], "mrvv-vector-bits=">, Group<m_Group>,
            "to use the value implied by -march/-mcpu. Value will be reflected "
            "in __riscv_v_fixed_vlen preprocessor define (RISC-V only)">;
 
-def munaligned_access : Flag<["-"], "munaligned-access">, Group<m_arm_Features_Group>,
-  HelpText<"Allow memory accesses to be unaligned (AArch32/AArch64 only)">;
-def mno_unaligned_access : Flag<["-"], "mno-unaligned-access">, Group<m_arm_Features_Group>,
-  HelpText<"Force all memory accesses to be aligned (AArch32/AArch64 only)">;
+def munaligned_access : Flag<["-"], "munaligned-access">, Group<m_Group>,
+  HelpText<"Allow memory accesses to be unaligned (AArch32/AArch64/LoongArch only)">;
+def mno_unaligned_access : Flag<["-"], "mno-unaligned-access">, Group<m_Group>,
+  HelpText<"Force all memory accesses to be aligned (AArch32/AArch64/LoongArch only)">;
 def mstrict_align : Flag<["-"], "mstrict-align">, Alias<mno_unaligned_access>, Flags<[CC1Option,HelpHidden]>,
   HelpText<"Force all memory accesses to be aligned (same as mno-unaligned-access)">;
+def mno_strict_align : Flag<["-"], "mno-strict-align">, Alias<munaligned_access>, Flags<[CC1Option,HelpHidden]>,
+  HelpText<"Allow memory accesses to be unaligned (same as munaligned-access)">;
 def mno_thumb : Flag<["-"], "mno-thumb">, Group<m_arm_Features_Group>;
 def mrestrict_it: Flag<["-"], "mrestrict-it">, Group<m_arm_Features_Group>,
   HelpText<"Disallow generation of complex IT blocks.">;
@@ -6139,18 +6157,6 @@ def ftabstop : Separate<["-"], "ftabstop">, MetaVarName<"<N>">,
 def ferror_limit : Separate<["-"], "ferror-limit">, MetaVarName<"<N>">,
   HelpText<"Set the maximum number of errors to emit before stopping (0 = no limit).">,
   MarshallingInfoInt<DiagnosticOpts<"ErrorLimit">>;
-def fmacro_backtrace_limit : Separate<["-"], "fmacro-backtrace-limit">, MetaVarName<"<N>">,
-  HelpText<"Set the maximum number of entries to print in a macro expansion backtrace (0 = no limit).">,
-  MarshallingInfoInt<DiagnosticOpts<"MacroBacktraceLimit">, "DiagnosticOptions::DefaultMacroBacktraceLimit">;
-def ftemplate_backtrace_limit : Separate<["-"], "ftemplate-backtrace-limit">, MetaVarName<"<N>">,
-  HelpText<"Set the maximum number of entries to print in a template instantiation backtrace (0 = no limit).">,
-  MarshallingInfoInt<DiagnosticOpts<"TemplateBacktraceLimit">, "DiagnosticOptions::DefaultTemplateBacktraceLimit">;
-def fconstexpr_backtrace_limit : Separate<["-"], "fconstexpr-backtrace-limit">, MetaVarName<"<N>">,
-  HelpText<"Set the maximum number of entries to print in a constexpr evaluation backtrace (0 = no limit).">,
-  MarshallingInfoInt<DiagnosticOpts<"ConstexprBacktraceLimit">, "DiagnosticOptions::DefaultConstexprBacktraceLimit">;
-def fspell_checking_limit : Separate<["-"], "fspell-checking-limit">, MetaVarName<"<N>">,
-  HelpText<"Set the maximum number of times to perform spell checking on unrecognized identifiers (0 = no limit).">,
-  MarshallingInfoInt<DiagnosticOpts<"SpellCheckingLimit">, "DiagnosticOptions::DefaultSpellCheckingLimit">;
 def fcaret_diagnostics_max_lines :
   Separate<["-"], "fcaret-diagnostics-max-lines">, MetaVarName<"<N>">,
   HelpText<"Set the maximum number of source lines to show in a caret diagnostic">,
@@ -6614,18 +6620,6 @@ def ftype_visibility : Joined<["-"], "ftype-visibility=">,
 def fapply_global_visibility_to_externs : Flag<["-"], "fapply-global-visibility-to-externs">,
   HelpText<"Apply global symbol visibility to external declarations without an explicit visibility">,
   MarshallingInfoFlag<LangOpts<"SetVisibilityForExternDecls">>;
-def ftemplate_depth : Separate<["-"], "ftemplate-depth">,
-  HelpText<"Maximum depth of recursive template instantiation">,
-  MarshallingInfoInt<LangOpts<"InstantiationDepth">, "1024">;
-def foperator_arrow_depth : Separate<["-"], "foperator-arrow-depth">,
-  HelpText<"Maximum number of 'operator->'s to call for a member access">,
-  MarshallingInfoInt<LangOpts<"ArrowDepth">, "256">;
-def fconstexpr_depth : Separate<["-"], "fconstexpr-depth">,
-  HelpText<"Maximum depth of recursive constexpr function calls">,
-  MarshallingInfoInt<LangOpts<"ConstexprCallDepth">, "512">;
-def fconstexpr_steps : Separate<["-"], "fconstexpr-steps">,
-  HelpText<"Maximum number of steps in constexpr function evaluation">,
-  MarshallingInfoInt<LangOpts<"ConstexprStepLimit">, "1048576">;
 def fbracket_depth : Separate<["-"], "fbracket-depth">,
   HelpText<"Maximum nesting level for parentheses, brackets, and braces">,
   MarshallingInfoInt<LangOpts<"BracketDepth">, "256">;
