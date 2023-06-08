@@ -355,8 +355,8 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   // work group size to produce uniform work groups.
   // Additionally, for best compute utilisation, the local size has
   // to be a power of two.
-  while (0u != (x_global_work_size % threadsPerBlock[0]) || 
-    !isPowerOf2(threadsPerBlock[0]) {
+  while (0u != (x_global_work_size % threadsPerBlock[0]) ||
+         !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
 }
