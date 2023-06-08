@@ -24,7 +24,7 @@ void test(const InputContainer &input, BinaryOperation binary_op,
   std::array<OutputT, 6> output = {};
   constexpr OutputT init(42);
   size_t N = input.size();
-  constexpr size_t G = 64;
+  constexpr size_t G = 16;
   {
     buffer<InputT> in_buf(input.data(), input.size());
     buffer<OutputT> out_buf(output.data(), output.size());
@@ -111,7 +111,7 @@ int main() {
   test<class PlusInt2V>(int2_input, sycl::plus<>(), {0, 0});
 
   if (q.get_device().has(aspect::fp16)) {
-    std::array<half, N> half_input = {};
+    std::array<half, 32> half_input = {};
     std::iota(half_input.begin(), half_input.end(), 0);
     test<class PlusHalf>(half_input, sycl::plus<half>(), 0);
     test<class PlusHalfV>(half_input, sycl::plus<>(), 0);

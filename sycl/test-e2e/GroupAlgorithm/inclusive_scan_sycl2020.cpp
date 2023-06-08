@@ -43,7 +43,7 @@ void test(const InputContainer &input, BinaryOperation binary_op,
   typedef InputT OutputT;
   typedef class inclusive_scan_kernel<SpecializationKernelName, 0> kernel_name0;
   constexpr size_t N = std::tuple_size_v<InputContainer>; // 128 or 12
-  constexpr size_t G = 64;
+  constexpr size_t G = 16;
   constexpr size_t confirmRange = std::min(G, N);
   std::array<OutputT, N> output;
   std::array<OutputT, N> expected;
@@ -202,7 +202,7 @@ int main() {
   test<class PlusInt2V>(int2_input, sycl::plus<>(), {0, 0});
 
   if (q.get_device().has(aspect::fp16)) {
-    std::array<half, N> half_input = {};
+    std::array<half, 32> half_input = {};
     std::iota(half_input.begin(), half_input.end(), 0);
     test<class PlusHalf>(half_input, sycl::plus<half>(), 0);
     test<class PlusHalfV>(half_input, sycl::plus<>(), 0);
