@@ -192,15 +192,14 @@ void foo() {
 // CHECK-NEXT: 552 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 552 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 560 |   class std::unique_ptr<class sycl::detail::CG> MGraphNodeCG
-// CHECK-NEXT: 560 |     struct std::__uniq_ptr_data<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> > _M_t
-// CHECK-NEXT: 560 |       class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> > (base)
-// CHECK-NEXT: 560 |         class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
-// CHECK-NEXT: 560 |           struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
-// CHECK-NEXT: 560 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
-// CHECK-NEXT: 560 |               struct std::_Head_base<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
-// CHECK-NEXT: 560 |                 struct std::default_delete<class sycl::detail::CG> _M_head_impl (empty)
-// CHECK-NEXT: 560 |             struct std::_Head_base<0, class sycl::detail::CG *> (base)
-// CHECK-NEXT: 560 |               class sycl::detail::CG * _M_head_impl
+// CHECK-NEXT: 560 |     class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> > _M_t
+// CHECK-NEXT: 560 |       class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
+// CHECK-NEXT: 560 |         struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
+// CHECK-NEXT: 560 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
+// CHECK-NEXT: 560 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
+// CHECK-NEXT: 560 |               struct std::default_delete<class sycl::detail::CG> (base) (empty)
+// CHECK-NEXT: 560 |           struct std::_Head_base<0, class sycl::detail::CG *> (base)
+// CHECK-NEXT: 560 |             class sycl::detail::CG * _M_head_impl
 // CHECK-NEXT: 568 |   _Bool MIsHost
 // CHECK-NEXT: 576 |   struct sycl::detail::code_location MCodeLoc
 // CHECK-NEXT: 576 |     const char * MFileName
