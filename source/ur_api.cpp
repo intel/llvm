@@ -13,309 +13,6 @@
 #include "ur_api.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create a Command-Buffer object
-///
-/// @details
-///     - Create a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferCreateExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    const ur_exp_command_buffer_desc_t
-        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
-    ur_exp_command_buffer_handle_t
-        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Increment the command-buffer object's reference count.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urCommandBufferRetainExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Decrement the command-buffer object's reference count and delete the
-///        command-buffer object if the reference count becomes zero.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urCommandBufferReleaseExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Stop recording on a command-buffer object such that no more commands
-///        can be appended and make it ready to enqueue.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferFinalizeExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a kernel execution command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
-///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pLocalWorkSize`
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer,         ///< [in] handle of the command-buffer object
-    ur_kernel_handle_t hKernel, ///< [in] kernel to append
-    uint32_t WorkDim,           ///< [in] dimension of the kernel execution
-    const size_t
-        *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
-    const size_t *
-        pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
-    const size_t
-        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a USM memcpy command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pDst`
-///         + `NULL == pSrc`
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `size == 0`
-///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
-///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    void *pDst,         ///< [in] Location the data will be copied to.
-    const void *pSrc,   ///< [in] The data to be copied.
-    size_t size,        ///< [in] The number of bytes to copy
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a memory copy command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hSrcMem`
-///         + `NULL == hDstMem`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
-    size_t srcOffset,        ///< [in] Offset into the source memory.
-    size_t dstOffset,        ///< [in] Offset into the destination memory
-    size_t size,             ///< [in] The number of bytes to be copied.
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a rectangular memory copy command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hSrcMem`
-///         + `NULL == hDstMem`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
-    ur_rect_offset_t
-        SrcOrigin, ///< [in] Origin for the region of data to be copied from the source.
-    ur_rect_offset_t
-        DstOrigin, ///< [in] Origin for the region of data to be copied to in the destination.
-    ur_rect_region_t
-        Region, ///< [in] The extents describing the region to be copied.
-    size_t SrcRowPitch,   ///< [in] Row pitch of the source memory.
-    size_t SrcSlicePitch, ///< [in] Slice pitch of the source memory.
-    size_t DstRowPitch,   ///< [in] Row pitch of the destination memory.
-    size_t DstSlicePitch, ///< [in] Slice pitch of the destination memory.
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Submit a command-buffer for execution on a queue.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hQueue`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    ur_queue_handle_t
-        hQueue, ///< [in] the queue to submit this command-buffer for execution.
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t *
-        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    ///< events that must be complete before the command-buffer execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    ///< events.
-    ur_event_handle_t *
-        phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command-buffer execution instance.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' adapter(s)
 ///
 /// @details
@@ -4741,6 +4438,299 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ur_event_handle_t *
         phEvent ///< [out] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a Command-Buffer object
+///
+/// @details
+///     - Create a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_exp_command_buffer_desc_t
+        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
+    ur_exp_command_buffer_handle_t
+        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Increment the command-buffer object's reference count.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urCommandBufferRetainExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Decrement the command-buffer object's reference count and delete the
+///        command-buffer object if the reference count becomes zero.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urCommandBufferReleaseExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Stop recording on a command-buffer object such that no more commands
+///        can be appended and make it ready to enqueue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferFinalizeExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a kernel execution command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pLocalWorkSize`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,         ///< [in] handle of the command-buffer object
+    ur_kernel_handle_t hKernel, ///< [in] kernel to append
+    uint32_t workDim,           ///< [in] dimension of the kernel execution
+    const size_t
+        *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
+    const size_t *
+        pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
+    const size_t
+        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a USM memcpy command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    void *pDst,         ///< [in] Location the data will be copied to.
+    const void *pSrc,   ///< [in] The data to be copied.
+    size_t size,        ///< [in] The number of bytes to copy
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a memory copy command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hSrcMem`
+///         + `NULL == hDstMem`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    size_t srcOffset,        ///< [in] Offset into the source memory.
+    size_t dstOffset,        ///< [in] Offset into the destination memory
+    size_t size,             ///< [in] The number of bytes to be copied.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a rectangular memory copy command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hSrcMem`
+///         + `NULL == hDstMem`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    ur_rect_offset_t
+        srcOrigin, ///< [in] Origin for the region of data to be copied from the source.
+    ur_rect_offset_t
+        dstOrigin, ///< [in] Origin for the region of data to be copied to in the destination.
+    ur_rect_region_t
+        region, ///< [in] The extents describing the region to be copied.
+    size_t srcRowPitch,   ///< [in] Row pitch of the source memory.
+    size_t srcSlicePitch, ///< [in] Slice pitch of the source memory.
+    size_t dstRowPitch,   ///< [in] Row pitch of the destination memory.
+    size_t dstSlicePitch, ///< [in] Slice pitch of the destination memory.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Submit a command-buffer for execution on a queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    ur_queue_handle_t
+        hQueue, ///< [in] the queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command-buffer execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command-buffer execution instance.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;

@@ -137,88 +137,88 @@ typedef struct ur_mem_handle_t_ *ur_mem_handle_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines Return/Error codes
 typedef enum ur_result_t {
-    UR_RESULT_SUCCESS = 0,                                                ///< Success
-    UR_RESULT_ERROR_INVALID_OPERATION = 1,                                ///< Invalid operation
-    UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES = 2,                         ///< Invalid queue properties
-    UR_RESULT_ERROR_INVALID_QUEUE = 3,                                    ///< Invalid queue
-    UR_RESULT_ERROR_INVALID_VALUE = 4,                                    ///< Invalid Value
-    UR_RESULT_ERROR_INVALID_CONTEXT = 5,                                  ///< Invalid context
-    UR_RESULT_ERROR_INVALID_PLATFORM = 6,                                 ///< Invalid platform
-    UR_RESULT_ERROR_INVALID_BINARY = 7,                                   ///< Invalid binary
-    UR_RESULT_ERROR_INVALID_PROGRAM = 8,                                  ///< Invalid program
-    UR_RESULT_ERROR_INVALID_SAMPLER = 9,                                  ///< Invalid sampler
-    UR_RESULT_ERROR_INVALID_BUFFER_SIZE = 10,                             ///< Invalid buffer size
-    UR_RESULT_ERROR_INVALID_MEM_OBJECT = 11,                              ///< Invalid memory object
-    UR_RESULT_ERROR_INVALID_EVENT = 12,                                   ///< Invalid event
-    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST = 13,                         ///< Returned when the event wait list or the events in the wait list are
-                                                                          ///< invalid.
-    UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = 14,                    ///< Misaligned sub buffer offset
-    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE = 15,                         ///< Invalid work group size
-    UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE = 16,                          ///< Compiler not available
-    UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE = 17,                    ///< Profiling info not available
-    UR_RESULT_ERROR_DEVICE_NOT_FOUND = 18,                                ///< Device not found
-    UR_RESULT_ERROR_INVALID_DEVICE = 19,                                  ///< Invalid device
-    UR_RESULT_ERROR_DEVICE_LOST = 20,                                     ///< Device hung, reset, was removed, or adapter update occurred
-    UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,                           ///< Device requires a reset
-    UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,                       ///< Device currently in low power state
-    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,                         ///< Device paritioning failed
-    UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 24,                  ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
-    UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,                          ///< Invalid work item size
-    UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,                          ///< Invalid work dimension
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGS = 27,                             ///< Invalid kernel args
-    UR_RESULT_ERROR_INVALID_KERNEL = 28,                                  ///< Invalid kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_NAME = 29,                             ///< [Validation] kernel name is not found in the program
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 30,                   ///< [Validation] kernel argument index is not valid for kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 31,                    ///< [Validation] kernel argument size does not match kernel
-    UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 32,                  ///< [Validation] value of kernel attribute is not valid for the kernel or
-                                                                          ///< device
-    UR_RESULT_ERROR_INVALID_IMAGE_SIZE = 33,                              ///< Invalid image size
-    UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 34,                 ///< Invalid image format descriptor
-    UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,                      ///< Image format not supported
-    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,                   ///< Memory object allocation failure
-    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,                      ///< Program object parameter is invalid.
-    UR_RESULT_ERROR_UNINITIALIZED = 38,                                   ///< [Validation] adapter is not initialized
-    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,                              ///< Insufficient host memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,                            ///< Insufficient device memory to satisfy call
-    UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                                ///< Out of resources
-    UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE = 42,                           ///< Error occurred when building program, see build log for details
-    UR_RESULT_ERROR_PROGRAM_LINK_FAILURE = 43,                            ///< Error occurred when linking programs, see build log for details
-    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 44,                             ///< [Validation] generic error code for unsupported versions
-    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 45,                             ///< [Validation] generic error code for unsupported features
-    UR_RESULT_ERROR_INVALID_ARGUMENT = 46,                                ///< [Validation] generic error code for invalid arguments
-    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 47,                             ///< [Validation] handle argument is not valid
-    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 48,                            ///< [Validation] object pointed to by handle still in-use by device
-    UR_RESULT_ERROR_INVALID_NULL_POINTER = 49,                            ///< [Validation] pointer argument may not be nullptr
-    UR_RESULT_ERROR_INVALID_SIZE = 50,                                    ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
-                                                                          ///< out of bounds)
-    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 51,                                ///< [Validation] size argument is not supported by the device (e.g., too
-                                                                          ///< large)
-    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 52,                           ///< [Validation] alignment argument is not supported by the device (e.g.,
-                                                                          ///< too small)
-    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 53,                  ///< [Validation] synchronization object in invalid state
-    UR_RESULT_ERROR_INVALID_ENUMERATION = 54,                             ///< [Validation] enumerator argument is not valid
-    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 55,                         ///< [Validation] enumerator argument is not supported by the device
-    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 56,                        ///< [Validation] image format is not supported by the device
-    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 57,                           ///< [Validation] native binary is not supported by the device
-    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 58,                             ///< [Validation] global variable is not found in the program
-    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 59,                           ///< [Validation] function name is not found in the program
-    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 60,                    ///< [Validation] group size dimension is not valid for the kernel or
-                                                                          ///< device
-    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 61,                  ///< [Validation] global width dimension is not valid for the kernel or
-                                                                          ///< device
-    UR_RESULT_ERROR_PROGRAM_UNLINKED = 62,                                ///< [Validation] compiled program or program with imports needs to be
-                                                                          ///< linked before kernels can be created from it.
-    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 63,                             ///< [Validation] copy operations do not support overlapping regions of
-                                                                          ///< memory
-    UR_RESULT_ERROR_INVALID_HOST_PTR = 64,                                ///< Invalid host pointer
-    UR_RESULT_ERROR_INVALID_USM_SIZE = 65,                                ///< Invalid USM size
-    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 66,                      ///< Invalid Command-Buffer
-    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 67,           ///< Sync point is not valid for the command-buffer
-    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 68, ///< Sync point wait list is invalid
-    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 69,                       ///< Objection allocation failure
-    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 70,                                ///< An adapter specific warning/error has been reported and can be
-                                                                          ///< retrieved via the urGetLastResult entry point.
-    UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                                 ///< Unknown or internal error
+    UR_RESULT_SUCCESS = 0,                                                    ///< Success
+    UR_RESULT_ERROR_INVALID_OPERATION = 1,                                    ///< Invalid operation
+    UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES = 2,                             ///< Invalid queue properties
+    UR_RESULT_ERROR_INVALID_QUEUE = 3,                                        ///< Invalid queue
+    UR_RESULT_ERROR_INVALID_VALUE = 4,                                        ///< Invalid Value
+    UR_RESULT_ERROR_INVALID_CONTEXT = 5,                                      ///< Invalid context
+    UR_RESULT_ERROR_INVALID_PLATFORM = 6,                                     ///< Invalid platform
+    UR_RESULT_ERROR_INVALID_BINARY = 7,                                       ///< Invalid binary
+    UR_RESULT_ERROR_INVALID_PROGRAM = 8,                                      ///< Invalid program
+    UR_RESULT_ERROR_INVALID_SAMPLER = 9,                                      ///< Invalid sampler
+    UR_RESULT_ERROR_INVALID_BUFFER_SIZE = 10,                                 ///< Invalid buffer size
+    UR_RESULT_ERROR_INVALID_MEM_OBJECT = 11,                                  ///< Invalid memory object
+    UR_RESULT_ERROR_INVALID_EVENT = 12,                                       ///< Invalid event
+    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST = 13,                             ///< Returned when the event wait list or the events in the wait list are
+                                                                              ///< invalid.
+    UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = 14,                        ///< Misaligned sub buffer offset
+    UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE = 15,                             ///< Invalid work group size
+    UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE = 16,                              ///< Compiler not available
+    UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE = 17,                        ///< Profiling info not available
+    UR_RESULT_ERROR_DEVICE_NOT_FOUND = 18,                                    ///< Device not found
+    UR_RESULT_ERROR_INVALID_DEVICE = 19,                                      ///< Invalid device
+    UR_RESULT_ERROR_DEVICE_LOST = 20,                                         ///< Device hung, reset, was removed, or adapter update occurred
+    UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,                               ///< Device requires a reset
+    UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,                           ///< Device currently in low power state
+    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,                             ///< Device paritioning failed
+    UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 24,                      ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
+    UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,                              ///< Invalid work item size
+    UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,                              ///< Invalid work dimension
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGS = 27,                                 ///< Invalid kernel args
+    UR_RESULT_ERROR_INVALID_KERNEL = 28,                                      ///< Invalid kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_NAME = 29,                                 ///< [Validation] kernel name is not found in the program
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX = 30,                       ///< [Validation] kernel argument index is not valid for kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE = 31,                        ///< [Validation] kernel argument size does not match kernel
+    UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE = 32,                      ///< [Validation] value of kernel attribute is not valid for the kernel or
+                                                                              ///< device
+    UR_RESULT_ERROR_INVALID_IMAGE_SIZE = 33,                                  ///< Invalid image size
+    UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = 34,                     ///< Invalid image format descriptor
+    UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,                          ///< Image format not supported
+    UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,                       ///< Memory object allocation failure
+    UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,                          ///< Program object parameter is invalid.
+    UR_RESULT_ERROR_UNINITIALIZED = 38,                                       ///< [Validation] adapter is not initialized
+    UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,                                  ///< Insufficient host memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,                                ///< Insufficient device memory to satisfy call
+    UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                                    ///< Out of resources
+    UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE = 42,                               ///< Error occurred when building program, see build log for details
+    UR_RESULT_ERROR_PROGRAM_LINK_FAILURE = 43,                                ///< Error occurred when linking programs, see build log for details
+    UR_RESULT_ERROR_UNSUPPORTED_VERSION = 44,                                 ///< [Validation] generic error code for unsupported versions
+    UR_RESULT_ERROR_UNSUPPORTED_FEATURE = 45,                                 ///< [Validation] generic error code for unsupported features
+    UR_RESULT_ERROR_INVALID_ARGUMENT = 46,                                    ///< [Validation] generic error code for invalid arguments
+    UR_RESULT_ERROR_INVALID_NULL_HANDLE = 47,                                 ///< [Validation] handle argument is not valid
+    UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE = 48,                                ///< [Validation] object pointed to by handle still in-use by device
+    UR_RESULT_ERROR_INVALID_NULL_POINTER = 49,                                ///< [Validation] pointer argument may not be nullptr
+    UR_RESULT_ERROR_INVALID_SIZE = 50,                                        ///< [Validation] invalid size or dimensions (e.g., must not be zero, or is
+                                                                              ///< out of bounds)
+    UR_RESULT_ERROR_UNSUPPORTED_SIZE = 51,                                    ///< [Validation] size argument is not supported by the device (e.g., too
+                                                                              ///< large)
+    UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT = 52,                               ///< [Validation] alignment argument is not supported by the device (e.g.,
+                                                                              ///< too small)
+    UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT = 53,                      ///< [Validation] synchronization object in invalid state
+    UR_RESULT_ERROR_INVALID_ENUMERATION = 54,                                 ///< [Validation] enumerator argument is not valid
+    UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION = 55,                             ///< [Validation] enumerator argument is not supported by the device
+    UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT = 56,                            ///< [Validation] image format is not supported by the device
+    UR_RESULT_ERROR_INVALID_NATIVE_BINARY = 57,                               ///< [Validation] native binary is not supported by the device
+    UR_RESULT_ERROR_INVALID_GLOBAL_NAME = 58,                                 ///< [Validation] global variable is not found in the program
+    UR_RESULT_ERROR_INVALID_FUNCTION_NAME = 59,                               ///< [Validation] function name is not found in the program
+    UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION = 60,                        ///< [Validation] group size dimension is not valid for the kernel or
+                                                                              ///< device
+    UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION = 61,                      ///< [Validation] global width dimension is not valid for the kernel or
+                                                                              ///< device
+    UR_RESULT_ERROR_PROGRAM_UNLINKED = 62,                                    ///< [Validation] compiled program or program with imports needs to be
+                                                                              ///< linked before kernels can be created from it.
+    UR_RESULT_ERROR_OVERLAPPING_REGIONS = 63,                                 ///< [Validation] copy operations do not support overlapping regions of
+                                                                              ///< memory
+    UR_RESULT_ERROR_INVALID_HOST_PTR = 64,                                    ///< Invalid host pointer
+    UR_RESULT_ERROR_INVALID_USM_SIZE = 65,                                    ///< Invalid USM size
+    UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 66,                           ///< Objection allocation failure
+    UR_RESULT_ERROR_ADAPTER_SPECIFIC = 67,                                    ///< An adapter specific warning/error has been reported and can be
+                                                                              ///< retrieved via the urGetLastResult entry point.
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,                      ///< Invalid Command-Buffer
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001,           ///< Sync point is not valid for the command-buffer
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002, ///< Sync point wait list is invalid
+    UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                                     ///< Unknown or internal error
     /// @cond
     UR_RESULT_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -295,285 +295,6 @@ typedef struct ur_rect_region_t {
     uint64_t depth;  ///< [in] scalar (scalar)
 
 } ur_rect_region_t;
-
-#if !defined(__GNUC__)
-#pragma endregion
-#endif
-// Intel 'oneAPI' Command-Buffer Extension APIs
-#if !defined(__GNUC__)
-#pragma region exp -command-buffer
-#endif
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Command-Buffer Descriptor Type
-typedef struct ur_exp_command_buffer_desc_t {
-    ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
-    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
-
-} ur_exp_command_buffer_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief A value that identifies a command inside of a command-buffer, used for
-///        defining dependencies between commands in the same command-buffer.
-typedef uint32_t ur_exp_command_buffer_sync_point_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of Command-Buffer object
-typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Create a Command-Buffer object
-///
-/// @details
-///     - Create a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferCreateExp(
-    ur_context_handle_t hContext,                           ///< [in] handle of the context object
-    ur_device_handle_t hDevice,                             ///< [in] handle of the device object
-    const ur_exp_command_buffer_desc_t *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
-    ur_exp_command_buffer_handle_t *phCommandBuffer         ///< [out] pointer to Command-Buffer handle
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Increment the command-buffer object's reference count.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferRetainExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Decrement the command-buffer object's reference count and delete the
-///        command-buffer object if the reference count becomes zero.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferReleaseExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Stop recording on a command-buffer object such that no more commands
-///        can be appended and make it ready to enqueue.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferFinalizeExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a kernel execution command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
-///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pLocalWorkSize`
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendKernelExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object
-    ur_kernel_handle_t hKernel,                                   ///< [in] kernel to append
-    uint32_t WorkDim,                                             ///< [in] dimension of the kernel execution
-    const size_t *pGlobalWorkOffset,                              ///< [in] Offset to use when executing kernel.
-    const size_t *pGlobalWorkSize,                                ///< [in] Global work size to use when executing kernel.
-    const size_t *pLocalWorkSize,                                 ///< [in] Local work size to use when executing kernel.
-    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a USM memcpy command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pDst`
-///         + `NULL == pSrc`
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `size == 0`
-///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
-///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMemcpyUSMExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    void *pDst,                                                   ///< [in] Location the data will be copied to.
-    const void *pSrc,                                             ///< [in] The data to be copied.
-    size_t size,                                                  ///< [in] The number of bytes to copy
-    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a memory copy command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hSrcMem`
-///         + `NULL == hDstMem`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferCopyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
-    size_t srcOffset,                                             ///< [in] Offset into the source memory.
-    size_t dstOffset,                                             ///< [in] Offset into the destination memory
-    size_t size,                                                  ///< [in] The number of bytes to be copied.
-    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a rectangular memory copy command to a command-buffer object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hSrcMem`
-///         + `NULL == hDstMem`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSyncPointWaitList`
-///         + `NULL == pSyncPoint`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
-///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferCopyRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
-    ur_rect_offset_t SrcOrigin,                                   ///< [in] Origin for the region of data to be copied from the source.
-    ur_rect_offset_t DstOrigin,                                   ///< [in] Origin for the region of data to be copied to in the destination.
-    ur_rect_region_t Region,                                      ///< [in] The extents describing the region to be copied.
-    size_t SrcRowPitch,                                           ///< [in] Row pitch of the source memory.
-    size_t SrcSlicePitch,                                         ///< [in] Slice pitch of the source memory.
-    size_t DstRowPitch,                                           ///< [in] Row pitch of the destination memory.
-    size_t DstSlicePitch,                                         ///< [in] Slice pitch of the destination memory.
-    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out] sync point associated with this command
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Submit a command-buffer for execution on a queue.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
-///         + `NULL == hQueue`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ///< [in] handle of the command-buffer object.
-    ur_queue_handle_t hQueue,                      ///< [in] the queue to submit this command-buffer for execution.
-    uint32_t numEventsInWaitList,                  ///< [in] size of the event wait list
-    const ur_event_handle_t *phEventWaitList,      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-                                                   ///< events that must be complete before the command-buffer execution.
-                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-                                                   ///< events.
-    ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
-                                                   ///< command-buffer execution instance.
-);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -5057,7 +4778,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP = 121,                     ///< Enumerator for ::urCommandBufferRetainExp
     UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,                    ///< Enumerator for ::urCommandBufferReleaseExp
     UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                   ///< Enumerator for ::urCommandBufferFinalizeExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_EXP = 124,              ///< Enumerator for ::urCommandBufferAppendKernelExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125,       ///< Enumerator for ::urCommandBufferAppendKernelLaunchExp
     UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                    ///< Enumerator for ::urCommandBufferEnqueueExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129,          ///< Enumerator for ::urCommandBufferAppendMemcpyUSMExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130,      ///< Enumerator for ::urCommandBufferAppendMembufferCopyExp
@@ -6251,6 +5972,275 @@ urEnqueueWriteHostPipe(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out] returns an event object that identifies this write command
                                               ///< and can be used to query or queue a wait for this command to complete.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for Command-Buffers
+#if !defined(__GNUC__)
+#pragma region command buffer(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Command-Buffer Descriptor Type
+typedef struct ur_exp_command_buffer_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+
+} ur_exp_command_buffer_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief A value that identifies a command inside of a command-buffer, used for
+///        defining dependencies between commands in the same command-buffer.
+typedef uint32_t ur_exp_command_buffer_sync_point_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of Command-Buffer object
+typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a Command-Buffer object
+///
+/// @details
+///     - Create a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferCreateExp(
+    ur_context_handle_t hContext,                           ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                             ///< [in] handle of the device object
+    const ur_exp_command_buffer_desc_t *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
+    ur_exp_command_buffer_handle_t *phCommandBuffer         ///< [out] pointer to Command-Buffer handle
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Increment the command-buffer object's reference count.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferRetainExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Decrement the command-buffer object's reference count and delete the
+///        command-buffer object if the reference count becomes zero.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferReleaseExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Stop recording on a command-buffer object such that no more commands
+///        can be appended and make it ready to enqueue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferFinalizeExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a kernel execution command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pLocalWorkSize`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendKernelLaunchExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object
+    ur_kernel_handle_t hKernel,                                   ///< [in] kernel to append
+    uint32_t workDim,                                             ///< [in] dimension of the kernel execution
+    const size_t *pGlobalWorkOffset,                              ///< [in] Offset to use when executing kernel.
+    const size_t *pGlobalWorkSize,                                ///< [in] Global work size to use when executing kernel.
+    const size_t *pLocalWorkSize,                                 ///< [in] Local work size to use when executing kernel.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a USM memcpy command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMemcpyUSMExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    void *pDst,                                                   ///< [in] Location the data will be copied to.
+    const void *pSrc,                                             ///< [in] The data to be copied.
+    size_t size,                                                  ///< [in] The number of bytes to copy
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a memory copy command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hSrcMem`
+///         + `NULL == hDstMem`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMembufferCopyExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
+    size_t srcOffset,                                             ///< [in] Offset into the source memory.
+    size_t dstOffset,                                             ///< [in] Offset into the destination memory
+    size_t size,                                                  ///< [in] The number of bytes to be copied.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a rectangular memory copy command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hSrcMem`
+///         + `NULL == hDstMem`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMembufferCopyRectExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
+    ur_rect_offset_t srcOrigin,                                   ///< [in] Origin for the region of data to be copied from the source.
+    ur_rect_offset_t dstOrigin,                                   ///< [in] Origin for the region of data to be copied to in the destination.
+    ur_rect_region_t region,                                      ///< [in] The extents describing the region to be copied.
+    size_t srcRowPitch,                                           ///< [in] Row pitch of the source memory.
+    size_t srcSlicePitch,                                         ///< [in] Slice pitch of the source memory.
+    size_t dstRowPitch,                                           ///< [in] Row pitch of the destination memory.
+    size_t dstSlicePitch,                                         ///< [in] Slice pitch of the destination memory.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Submit a command-buffer for execution on a queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferEnqueueExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ///< [in] handle of the command-buffer object.
+    ur_queue_handle_t hQueue,                      ///< [in] the queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList,                  ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                   ///< events that must be complete before the command-buffer execution.
+                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+                                                   ///< events.
+    ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
+                                                   ///< command-buffer execution instance.
 );
 
 #if !defined(__GNUC__)
@@ -7450,20 +7440,20 @@ typedef struct ur_command_buffer_finalize_exp_params_t {
 } ur_command_buffer_finalize_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendKernelExp
+/// @brief Function parameters for urCommandBufferAppendKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_kernel_exp_params_t {
+typedef struct ur_command_buffer_append_kernel_launch_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_kernel_handle_t *phKernel;
-    uint32_t *pWorkDim;
+    uint32_t *pworkDim;
     const size_t **ppGlobalWorkOffset;
     const size_t **ppGlobalWorkSize;
     const size_t **ppLocalWorkSize;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_kernel_exp_params_t;
+} ur_command_buffer_append_kernel_launch_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferAppendMemcpyUSMExp
@@ -7503,13 +7493,13 @@ typedef struct ur_command_buffer_append_membuffer_copy_rect_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phSrcMem;
     ur_mem_handle_t *phDstMem;
-    ur_rect_offset_t *pSrcOrigin;
-    ur_rect_offset_t *pDstOrigin;
-    ur_rect_region_t *pRegion;
-    size_t *pSrcRowPitch;
-    size_t *pSrcSlicePitch;
-    size_t *pDstRowPitch;
-    size_t *pDstSlicePitch;
+    ur_rect_offset_t *psrcOrigin;
+    ur_rect_offset_t *pdstOrigin;
+    ur_rect_region_t *pregion;
+    size_t *psrcRowPitch;
+    size_t *psrcSlicePitch;
+    size_t *pdstRowPitch;
+    size_t *pdstSlicePitch;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
