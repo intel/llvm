@@ -295,6 +295,20 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 }
 /// \endcond
 
+bool isPrime(size_t number) {
+  if (number < 2)
+    return false;
+  if (number == 2)
+    return true;
+  if (number % 2 == 0)
+    return false;
+  for (int i = 3; (i * i) <= number; i += 2) {
+    if (number % i == 0)
+      return false;
+  }
+  return true;
+}
+
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
@@ -305,29 +319,37 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
-  int minGrid, maxBlockSize, gridDim[3];
+  int minGrid, maxBlockSize, maxBlockDim[3];
 
-  cuDeviceGetAttribute(&gridDim[1], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+  cuDeviceGetAttribute(&maxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
                        device->get());
-  cuDeviceGetAttribute(&gridDim[2], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+  cuDeviceGetAttribute(&maxBlockDim[2], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
                        device->get());
-
-  threadsPerBlock[1] = ((global_work_size[1] - 1) / gridDim[1]) + 1;
-  threadsPerBlock[2] = ((global_work_size[2] - 1) / gridDim[2]) + 1;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &minGrid, &maxBlockSize, kernel->get(), NULL, local_size,
       maxThreadsPerBlock[0]));
 
-  gridDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
+  threadsPerBlock[2] = std::min(global_work_size[2], size_t(maxBlockDim[2]));
+  threadsPerBlock[1] =
+      std::min(global_work_size[1], std::min(maxBlockSize / threadsPerBlock[2],
+                                             size_t(maxBlockDim[1])));
+  maxBlockDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
+  threadsPerBlock[0] = std::min(
+      maxThreadsPerBlock[0],
+      std::min(global_work_size[0], static_cast<size_t>(maxBlockDim[0])));
 
-  threadsPerBlock[0] =
-      std::min(maxThreadsPerBlock[0],
-               std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
+  // When global_work_size[0] is prime threadPerBlock[0] will later computed as
+  // 1, which is not efficient configuration. In such case we use
+  // global_work_size[0] to compute threadPerBlock[0].
+  int x_global_work_size = (isPrime(global_work_size[0]) &&
+                            (threadsPerBlock[0] != global_work_size[0]))
+                               ? global_work_size[0] + 1
+                               : global_work_size[0];
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
+  while (0u != (x_global_work_size % threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
 }
