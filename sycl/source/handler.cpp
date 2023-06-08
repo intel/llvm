@@ -116,10 +116,8 @@ event handler::finalize() {
   // they have already been added, and return the event associated with the
   // subgraph node.
   if (MQueue && MQueue->getCommandGraph() && MSubgraphNode) {
-    {
-      return detail::createSyclObjFromImpl<event>(
-          MQueue->getCommandGraph()->get_event_for_node(MSubgraphNode));
-    }
+    return detail::createSyclObjFromImpl<event>(
+        MQueue->getCommandGraph()->get_event_for_node(MSubgraphNode));
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed

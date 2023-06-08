@@ -49,7 +49,7 @@ public:
   /// @param Node Node to add as a successor.
   /// @param Prev Predecessor to \p node being added as successor.
   ///
-  /// /p Prev should be a shared_ptr to an instance of this object, but can't
+  /// \p Prev should be a shared_ptr to an instance of this object, but can't
   /// use a raw \p this pointer, so the extra \Prev parameter is passed.
   void register_successor(const std::shared_ptr<node_impl> &Node,
                           const std::shared_ptr<node_impl> &Prev) {
@@ -188,7 +188,7 @@ private:
   }
 };
 
-/// Class representing implementation details of command_graph<modifiable>.
+/// Implementation details of command_graph<modifiable>.
 class graph_impl {
 public:
   /// Constructor.

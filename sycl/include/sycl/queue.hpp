@@ -1957,7 +1957,7 @@ public:
         [&](handler &CGH) { CGH.ext_oneapi_graph(Graph); } _CODELOCFW(CodeLoc));
   }
 
-  /// Shortcut for executing a graph of commands.
+  /// Shortcut for executing a graph of commands with a single dependency.
   ///
   /// \param Graph the graph of commands to execute
   /// \param DepEvent is an event that specifies the graph execution
@@ -1973,7 +1973,7 @@ public:
     } _CODELOCFW(CodeLoc));
   }
 
-  /// Shortcut for executing a graph of commands.
+  /// Shortcut for executing a graph of commands with multiple dependencies.
   ///
   /// \param Graph the graph of commands to execute
   /// \param DepEvents is a vector of events that specifies the graph
