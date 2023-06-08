@@ -4674,7 +4674,7 @@ void LoopVectorizationCostModel::collectLoopUniforms(ElementCount VF) {
   // Return true if all lanes perform the same memory operation, and we can
   // thus chose to execute only one.
   auto isUniformMemOpUse = [&](Instruction *I) {
-    if (!Legal->isUniformMemOp(*I))
+    if (!Legal->isUniformMemOp(*I, VF))
       return false;
     if (isa<LoadInst>(I))
       // Loading the same address always produces the same result - at least
@@ -4701,13 +4701,10 @@ void LoopVectorizationCostModel::collectLoopUniforms(ElementCount VF) {
   // I, I is known to not require scalarization, and the pointer is not also
   // stored.
   auto isVectorizedMemAccessUse = [&](Instruction *I, Value *Ptr) -> bool {
-    auto GetStoredValue = [I]() -> Value * {
-      if (!isa<StoreInst>(I))
-        return nullptr;
-      return I->getOperand(0);
-    };
-    return getLoadStorePointerOperand(I) == Ptr && isUniformDecision(I, VF) &&
-           GetStoredValue() != Ptr;
+    if (isa<StoreInst>(I) && I->getOperand(0) == Ptr)
+      return false;
+    return getLoadStorePointerOperand(I) == Ptr &&
+           (isUniformDecision(I, VF) || Legal->isUniform(Ptr));
   };
 
   // Holds a list of values which are known to have at least one uniform use.
@@ -4753,10 +4750,8 @@ void LoopVectorizationCostModel::collectLoopUniforms(ElementCount VF) {
       if (isUniformMemOpUse(&I))
         addToWorklistIfAllowed(&I);
 
-      if (isVectorizedMemAccessUse(&I, Ptr)) {
-        assert(isUniformDecision(&I, VF) && "consistency check");
+      if (isVectorizedMemAccessUse(&I, Ptr))
         HasUniformUse.insert(Ptr);
-      }
     }
 
   // Add to the worklist any operands which have *only* uniform (e.g. lane 0
@@ -6501,7 +6496,7 @@ LoopVectorizationCostModel::getConsecutiveMemOpCost(Instruction *I,
 InstructionCost
 LoopVectorizationCostModel::getUniformMemOpCost(Instruction *I,
                                                 ElementCount VF) {
-  assert(Legal->isUniformMemOp(*I));
+  assert(Legal->isUniformMemOp(*I, VF));
 
   Type *ValTy = getLoadStoreType(I);
   auto *VectorTy = cast<VectorType>(ToVectorTy(ValTy, VF));
@@ -6877,7 +6872,7 @@ void LoopVectorizationCostModel::setCostBasedWideningDecision(ElementCount VF) {
       if (isa<StoreInst>(&I) && isScalarWithPredication(&I, VF))
         NumPredStores++;
 
-      if (Legal->isUniformMemOp(I)) {
+      if (Legal->isUniformMemOp(I, VF)) {
         auto isLegalToScalarize = [&]() {
           if (!VF.isScalable())
             // Scalarization of fixed length vectors "just works".
@@ -7743,7 +7738,10 @@ SCEV2ValueTy LoopVectorizationPlanner::executePlan(
     LoopVectorizeHints Hints(L, true, *ORE);
     Hints.setAlreadyVectorized();
   }
-  AddRuntimeUnrollDisableMetaData(L);
+  TargetTransformInfo::UnrollingPreferences UP;
+  TTI.getUnrollingPreferences(L, *PSE.getSE(), UP, ORE);
+  if (!UP.UnrollVectorizedLoop || CanonicalIVStartValue)
+    AddRuntimeUnrollDisableMetaData(L);
 
   // 3. Fix the vectorized code: take care of header phi's, live-outs,
   //    predication, updating analyses.

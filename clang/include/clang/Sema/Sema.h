@@ -1812,7 +1812,7 @@ public:
   /// Indicate RISC-V vector builtin functions enabled or not.
   bool DeclareRISCVVBuiltins = false;
 
-  /// Indicate RISC-V Sifive vector builtin functions enabled or not.
+  /// Indicate RISC-V SiFive vector builtin functions enabled or not.
   bool DeclareRISCVVectorBuiltins = false;
 
 private:
@@ -4423,10 +4423,9 @@ public:
   bool resolveAndFixAddressOfSingleOverloadCandidate(
       ExprResult &SrcExpr, bool DoFunctionPointerConversion = false);
 
-  FunctionDecl *
-  ResolveSingleFunctionTemplateSpecialization(OverloadExpr *ovl,
-                                              bool Complain = false,
-                                              DeclAccessPair *Found = nullptr);
+  FunctionDecl *ResolveSingleFunctionTemplateSpecialization(
+      OverloadExpr *ovl, bool Complain = false, DeclAccessPair *Found = nullptr,
+      TemplateSpecCandidateSet *FailedTSC = nullptr);
 
   bool ResolveAndFixSingleFunctionTemplateSpecialization(
       ExprResult &SrcExpr, bool DoFunctionPointerConversion = false,
@@ -5999,6 +5998,11 @@ public:
 
   bool CheckTypeTraitArity(unsigned Arity, SourceLocation Loc, size_t N);
 
+  bool ActOnAlignasTypeArgument(StringRef KWName, ParsedType Ty,
+                                SourceLocation OpLoc, SourceRange R);
+  bool CheckAlignasTypeArgument(StringRef KWName, TypeSourceInfo *TInfo,
+                                SourceLocation OpLoc, SourceRange R);
+
   ExprResult CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
                                             SourceLocation OpLoc,
                                             UnaryExprOrTypeTrait ExprKind,
@@ -6017,7 +6021,8 @@ public:
   bool CheckUnaryExprOrTypeTraitOperand(Expr *E, UnaryExprOrTypeTrait ExprKind);
   bool CheckUnaryExprOrTypeTraitOperand(QualType ExprType, SourceLocation OpLoc,
                                         SourceRange ExprRange,
-                                        UnaryExprOrTypeTrait ExprKind);
+                                        UnaryExprOrTypeTrait ExprKind,
+                                        StringRef KWName);
   ExprResult ActOnSizeofParameterPackExpr(Scope *S,
                                           SourceLocation OpLoc,
                                           IdentifierInfo &Name,
@@ -7387,14 +7392,6 @@ public:
                                          TypeSourceInfo *Info,
                                          unsigned LambdaDependencyKind,
                                          LambdaCaptureDefault CaptureDefault);
-
-  /// Start the definition of a lambda expression.
-  CXXMethodDecl *
-  startLambdaDefinition(CXXRecordDecl *Class, SourceRange IntroducerRange,
-                        TypeSourceInfo *MethodType, SourceLocation EndLoc,
-                        ArrayRef<ParmVarDecl *> Params,
-                        ConstexprSpecKind ConstexprKind, StorageClass SC,
-                        Expr *TrailingRequiresClause);
 
   /// Number lambda for linkage purposes if necessary.
   void handleLambdaNumbering(CXXRecordDecl *Class, CXXMethodDecl *Method,
@@ -9425,11 +9422,12 @@ public:
   TypeSourceInfo *ReplaceAutoTypeSourceInfo(TypeSourceInfo *TypeWithAuto,
                                             QualType Replacement);
 
-  TemplateDeductionResult DeduceAutoType(TypeLoc AutoTypeLoc, Expr *Initializer,
-                                         QualType &Result,
-                                         sema::TemplateDeductionInfo &Info,
-                                         bool DependentDeduction = false,
-                                         bool IgnoreConstraints = false);
+  TemplateDeductionResult
+  DeduceAutoType(TypeLoc AutoTypeLoc, Expr *Initializer, QualType &Result,
+                 sema::TemplateDeductionInfo &Info,
+                 bool DependentDeduction = false,
+                 bool IgnoreConstraints = false,
+                 TemplateSpecCandidateSet *FailedTSC = nullptr);
   void DiagnoseAutoDeductionFailure(VarDecl *VDecl, Expr *Init);
   bool DeduceReturnType(FunctionDecl *FD, SourceLocation Loc,
                         bool Diagnose = true);
@@ -13351,13 +13349,6 @@ public:
   /// CheckCXXBooleanCondition - Returns true if conversion to bool is invalid.
   ExprResult CheckCXXBooleanCondition(Expr *CondExpr, bool IsConstexpr = false);
 
-  /// ConvertIntegerToTypeWarnOnOverflow - Convert the specified APInt to have
-  /// the specified width and sign.  If an overflow occurs, detect it and emit
-  /// the specified diagnostic.
-  void ConvertIntegerToTypeWarnOnOverflow(llvm::APSInt &OldVal,
-                                          unsigned NewWidth, bool NewSign,
-                                          SourceLocation Loc, unsigned DiagID);
-
   /// Checks that the Objective-C declaration is declared in the global scope.
   /// Emits an error and marks the declaration as invalid if it's not declared
   /// in the global scope.
@@ -14226,7 +14217,6 @@ private:
   Scope *CurScope;
 
   mutable IdentifierInfo *Ident_super;
-  mutable IdentifierInfo *Ident___float128;
 
   /// Nullability type specifiers.
   IdentifierInfo *Ident__Nonnull = nullptr;
@@ -14275,7 +14265,6 @@ public:
   }
 
   IdentifierInfo *getSuperIdentifier() const;
-  IdentifierInfo *getFloat128Identifier() const;
 
   ObjCContainerDecl *getObjCDeclContext() const;
 

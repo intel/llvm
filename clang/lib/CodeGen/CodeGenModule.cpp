@@ -4573,8 +4573,20 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
   }
 
   assert(F->getName() == MangledName && "name was uniqued!");
-  if (D)
+  if (D) {
     SetFunctionAttributes(GD, F, IsIncompleteFunction, IsThunk);
+    if (const auto *A = D->getAttr<SYCLDeviceHasAttr>()) {
+      SmallVector<llvm::Metadata *, 4> AspectsMD;
+      for (auto *Aspect : A->aspects()) {
+        llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(getContext());
+        auto *T = llvm::Type::getInt32Ty(getLLVMContext());
+        auto *C = llvm::Constant::getIntegerValue(T, AspectInt);
+        AspectsMD.push_back(llvm::ConstantAsMetadata::get(C));
+      }
+      F->setMetadata("sycl_declared_aspects",
+                     llvm::MDNode::get(getLLVMContext(), AspectsMD));
+    }
+  }
   if (ExtraAttrs.hasFnAttrs()) {
     llvm::AttrBuilder B(F->getContext(), ExtraAttrs.getFnAttrs());
     F->addFnAttrs(B);
@@ -6504,6 +6516,7 @@ CodeGenModule::GetConstantArrayFromStringLiteral(const StringLiteral *E) {
 
     // Resize the string to the right size, which is indicated by its type.
     const ConstantArrayType *CAT = Context.getAsConstantArrayType(E->getType());
+    assert(CAT && "String literal not of constant array type!");
     Str.resize(CAT->getSize().getZExtValue());
     return llvm::ConstantDataArray::getString(VMContext, Str, false);
   }
@@ -6888,6 +6901,10 @@ void CodeGenModule::EmitLinkageSpec(const LinkageSpecDecl *LSD) {
 }
 
 void CodeGenModule::EmitTopLevelStmt(const TopLevelStmtDecl *D) {
+  // Device code should not be at top level.
+  if (LangOpts.CUDA && LangOpts.CUDAIsDevice)
+    return;
+
   std::unique_ptr<CodeGenFunction> &CurCGF =
       GlobalTopLevelStmtBlockInFlight.first;
 

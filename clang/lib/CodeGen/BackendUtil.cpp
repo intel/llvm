@@ -1025,6 +1025,16 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(InstrProfiling(*Options, false));
           });
 
+    // TODO: Consider passing the MemoryProfileOutput to the pass builder via
+    // the PGOOptions, and set this up there.
+    if (!CodeGenOpts.MemoryProfileOutput.empty()) {
+      PB.registerOptimizerLastEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
+            MPM.addPass(ModuleMemProfilerPass());
+          });
+    }
+
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
       MPM =
           PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
@@ -1034,11 +1044,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
     } else {
       MPM = PB.buildPerModuleDefaultPipeline(Level);
-    }
-
-    if (!CodeGenOpts.MemoryProfileOutput.empty()) {
-      MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
-      MPM.addPass(ModuleMemProfilerPass());
     }
 
     if (LangOpts.SYCLIsDevice) {

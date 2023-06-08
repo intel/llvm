@@ -43,29 +43,14 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-/// Uniquely identifies an operating system module (executable or a dynamic
-/// library)
-using OSModuleHandle = intptr_t;
-
 /// Groups the OS-dependent services.
 class __SYCL_EXPORT OSUtil {
 public:
-  /// Returns a module enclosing given address or nullptr.
-  static OSModuleHandle getOSModuleHandle(const void *VirtAddr);
-
   /// Returns an absolute path to a directory where the object was found.
   static std::string getCurrentDSODir();
 
   /// Returns a directory component of a path.
   static std::string getDirName(const char *Path);
-
-  /// Module handle for the executable module - it is assumed there is always
-  /// single one at most.
-  static constexpr OSModuleHandle ExeModuleHandle = -1;
-
-  /// Dummy module handle to designate non-existing module for a device binary
-  /// image loaded from file e.g. via SYCL_USE_KERNEL_SPV env var.
-  static constexpr OSModuleHandle DummyModuleHandle = -2;
 
 #ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";

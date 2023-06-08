@@ -55,12 +55,16 @@ using IsBitXOR =
 
 template <typename T, class BinaryOperation>
 using IsLogicalAND = std::bool_constant<
+    std::is_same_v<BinaryOperation, std::logical_and<T>> ||
+    std::is_same_v<BinaryOperation, std::logical_and<void>> ||
     std::is_same_v<BinaryOperation, sycl::logical_and<T>> ||
     std::is_same_v<BinaryOperation, sycl::logical_and<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsLogicalOR =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::logical_or<T>> ||
+    std::bool_constant<std::is_same_v<BinaryOperation, std::logical_or<T>> ||
+                       std::is_same_v<BinaryOperation, std::logical_or<void>> ||
+                       std::is_same_v<BinaryOperation, sycl::logical_or<T>> ||
                        std::is_same_v<BinaryOperation, sycl::logical_or<void>>>;
 
 template <typename T>
