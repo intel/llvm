@@ -276,7 +276,7 @@ supported.
 Transition State
 ================
 
-As of December 2022:
+As of January 2023:
 
 Typed pointers are **not** supported on the ``main`` branch as a matter of
 policy. Fixes for typed pointer support are not accepted. Typed pointer
@@ -293,11 +293,11 @@ The following typed pointer functionality has already been removed:
 * The ``-plugin-opt=no-opaque-pointers`` LTO flag is no longer supported.
 * C APIs that do not support opaque pointers (like ``LLVMBuildLoad``) are no
   longer supported.
-* Typed pointer bitcode is implicitly upgraded to use opaque pointers, unless
-  ``-opaque-pointers=0`` is passed.
+* Typed pointer IR and bitcode is implicitly upgraded to use opaque pointers,
+  unless ``-opaque-pointers=0`` is passed.
 
 The following typed pointer functionality is still to be removed:
 
-* The ``-opaque-pointers=0`` opt flag.
-* Auto-detection of typed pointers in textual IR.
+* The ``-no-opaque-pointers`` cc1 flag, ``-opaque-pointers=0`` opt flag and
+  ``-plugin-opt=no-opaque-pointers`` lto flag.
 * Support for typed pointers in LLVM libraries.

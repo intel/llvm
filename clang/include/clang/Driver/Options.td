@@ -1016,7 +1016,7 @@ def cuda_include_ptx_EQ : Joined<["--"], "cuda-include-ptx=">, Flags<[NoXarchOpt
   HelpText<"Include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
 def no_cuda_include_ptx_EQ : Joined<["--"], "no-cuda-include-ptx=">, Flags<[NoXarchOption]>,
   HelpText<"Do not include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
-def fno_bundle_offload_arch : Flag<["-"], "fno-bundle-offload-arch">, 
+def fno_bundle_offload_arch : Flag<["-"], "fno-bundle-offload-arch">,
   HelpText<"Specify that the offload bundler should not identify a bundle with "
             "specific arch. For example, the bundle for `nvptx64-nvidia-cuda-sm_80` "
             "uses the bundle tag `nvptx64-nvidia-cuda` when used. "
@@ -6242,6 +6242,15 @@ defm enable_noundef_analysis : BoolOption<"",
   PosFlag<SetTrue, [], "Enable">,
   NegFlag<SetFalse, [], "Disable">,
   BothFlags<[], " analyzing function argument and return types for mandatory definedness">>;
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+defm opaque_pointers : BoolOption<"",
+  "opaque-pointers",
+  CodeGenOpts<"OpaquePointers">,
+  DefaultTrue,
+  PosFlag<SetTrue, [], "Enable">,
+  NegFlag<SetFalse, [], "Disable">,
+  BothFlags<[], " opaque pointers">>;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 def discard_value_names : Flag<["-"], "discard-value-names">,
   HelpText<"Discard value names in LLVM IR">,
   MarshallingInfoFlag<CodeGenOpts<"DiscardValueNames">>;
