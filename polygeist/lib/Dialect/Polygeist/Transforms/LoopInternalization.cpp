@@ -324,7 +324,7 @@ MemorySelector::getMemorySpace(Value memref) const {
 void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
   // Collect the global thread ids used in the function the loop is in.
   auto funcOp = loop->template getParentOfType<FunctionOpInterface>();
-  unsigned gridSize = memAccessAnalysis.getGridSize(funcOp);
+  unsigned gridDim = memAccessAnalysis.getGridDimension(funcOp);
   SmallVector<Value> threadVars =
       memAccessAnalysis.getThreadVector(funcOp, solver);
 
@@ -363,7 +363,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
 
     // Get the inter-thread access pattern and classify the memory access.
     MemoryAccessMatrix interThreadMatrix =
-        memAccess->getInterThreadAccessMatrix(gridSize);
+        memAccess->getInterThreadAccessMatrix(gridDim);
     MemoryAccessPattern interThreadAccessPattern =
         MemoryAccess::classify(interThreadMatrix, memAccess->getOffsetVector());
 

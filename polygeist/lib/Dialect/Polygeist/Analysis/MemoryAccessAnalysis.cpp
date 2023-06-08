@@ -1207,7 +1207,8 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
   return it->second;
 }
 
-unsigned MemoryAccessAnalysis::getGridSize(FunctionOpInterface func) const {
+unsigned
+MemoryAccessAnalysis::getGridDimension(FunctionOpInterface func) const {
   if (func.getNumArguments() == 0)
     return 0;
 
@@ -1216,17 +1217,20 @@ unsigned MemoryAccessAnalysis::getGridSize(FunctionOpInterface func) const {
     return 0;
 
   Type elemTy = cast<MemRefType>(lastArg.getType()).getElementType();
-  if (auto ndItemTy = dyn_cast<sycl::NdItemType>(elemTy))
-    return ndItemTy.getDimension();
-  if (auto itemTy = dyn_cast<sycl::ItemType>(elemTy))
-    return itemTy.getDimension();
-  return 0;
+
+  return TypeSwitch<Type, unsigned>(elemTy)
+      .Case<sycl::NdItemType, sycl::ItemType>([](auto ty) {
+        unsigned dim = ty.getDimension();
+        assert(dim > 0 && dim <= 3 && "Dimension out of range");
+        return dim;
+      })
+      .Default([](auto) { return 0; });
 }
 
 SmallVector<Value>
 MemoryAccessAnalysis::getThreadVector(FunctionOpInterface funcOp,
                                       DataFlowSolver &solver) const {
-  if (getGridSize(funcOp) == 0)
+  if (getGridDimension(funcOp) == 0)
     return {};
 
   // Collect global thread ids.
@@ -1339,7 +1343,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   }
 
   std::optional<MemoryAccessMatrix> matrix = buildAccessMatrix(
-      accessorSubscriptOp, getGridSize(funcOp) + enclosingLoops.size(),
+      accessorSubscriptOp, getGridDimension(funcOp) + enclosingLoops.size(),
       threadVars, loopIVs, underlyingVals, solver);
   if (!matrix.has_value()) {
     LLVM_DEBUG(llvm::dbgs() << "Unable to build the memory access matrix\n");
@@ -1376,7 +1380,7 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
   MemoryAccessMatrix accessMatrix(sycl::getDimensions(accSubIndex.getType()),
                                   numColumns);
 
-  // Fill in a the access matrix element at [row,col] with the multiplier in
+  // Fill in the access matrix element at [row,col] with the multiplier in
   // 'expr' corresponding to the variable 'factor'.
   auto createMatrixEntry = [&](Value expr, Value factor, size_t row,
                                size_t col) -> bool {
@@ -1391,14 +1395,14 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
       return true;
     }
 
-    ValueOr<Multiplier> valOrMul = getMultiplier(expr, factor, solver);
-    if (!valOrMul.is<Multiplier>()) {
-      LLVM_DEBUG(llvm::dbgs().indent(2) << "Failed to find multiplier\n");
-      return false;
+    if (ValueOr<Multiplier> valOrMul = getMultiplier(expr, factor, solver);
+        valOrMul.is<Multiplier>()) {
+      accessMatrix(row, col) = valOrMul.get<Multiplier>();
+      return true;
     }
 
-    accessMatrix(row, col) = valOrMul.get<Multiplier>();
-    return true;
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "Failed to find multiplier\n");
+    return false;
   };
 
   // Fill in the access matrix.

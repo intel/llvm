@@ -19,15 +19,14 @@
 // CHECK:         %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:    [[TX:%.*]] = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2_>, i32) -> i64  
-// CHECK-NEXT:    [[TY:%.*]] = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_2_>, i32) -> i64  
-// CHECK-NEXT:    %2 = memref.get_global @WGLocalMem : memref<512xi8, #sycl.access.address_space<local>>
+// CHECK-NEXT:    [[LOCALMEM:%.*]] = memref.get_global @WGLocalMem : memref<512xi8, #sycl.access.address_space<local>>
 // SIZE1-NEXT:    [[TILESIZE:%.*]] = arith.constant 1 : index
 // SIZE2-NEXT:    [[TILESIZE:%.*]] = arith.constant 2 : index
 // CHECK-NEXT:    affine.for [[IV1:%.*]] = 0 to [[MAP1]]()[[[TILESIZE]]] {
 // CHECK-NEXT:      %c0 = arith.constant 0 : index
-// CHECK-NEXT:      %view = memref.view %2[%c0][] : memref<512xi8, #sycl.access.address_space<local>> to memref<4x2xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:      %view = memref.view [[LOCALMEM]][%c0][] : memref<512xi8, #sycl.access.address_space<local>> to memref<4x2xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:      %c256 = arith.constant 256 : index
-// CHECK-NEXT:      %view_0 = memref.view %2[%c256][] : memref<512xi8, #sycl.access.address_space<local>> to memref<4x2xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:      %view_0 = memref.view [[LOCALMEM]][%c256][] : memref<512xi8, #sycl.access.address_space<local>> to memref<4x2xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:      spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      affine.for [[IV2:%.*]] = [[MAP2]]([[IV1]])[[[TILESIZE]]] to min [[MAP3]]([[IV1]])[[[TILESIZE]]] {
 // CHECK-NEXT:        [[IV2_CAST:%.*]] = arith.index_cast [[IV2]] : index to i64 
@@ -48,8 +47,6 @@ func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: 
   %c0_i32 = arith.constant 0 : i32
   %c1_i32 = arith.constant 1 : i32
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
-  // FIXME: should build access matrix with nd_item dimension and not the number of get_global_id.
-  %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_2>, i32) -> i64
 
   affine.for %ii = 0 to 256 {
     %i = arith.index_cast %ii : index to i64

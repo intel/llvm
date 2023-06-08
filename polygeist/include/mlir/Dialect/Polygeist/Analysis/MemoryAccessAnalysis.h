@@ -458,7 +458,7 @@ public:
 
   /// Return the grid dimension for \p funcOp (e.g the dimension of the
   /// sycl::nditem or sycl::item argument passed to the to the function).
-  unsigned getGridSize(FunctionOpInterface funcOp) const;
+  unsigned getGridDimension(FunctionOpInterface funcOp) const;
 
   /// Return a vector containing the thread values used in \p funcOp.
   SmallVector<Value> getThreadVector(FunctionOpInterface funcOp,
