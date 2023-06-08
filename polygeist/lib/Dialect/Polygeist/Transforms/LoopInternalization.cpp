@@ -782,16 +782,20 @@ void LoopInternalization::transform(FunctionOpInterface func,
   // Create SYCL local ids corresponding to the grid dimensionality (per
   // kernel).
   SmallVector<Value> localIDs;
+  Location loc = builder.getUnknownLoc();
   auto ndItemTy = cast<sycl::NdItemType>(
       cast<MemRefType>(ndItem.getType()).getElementType());
   const unsigned numDims = ndItemTy.getDimension();
+  const auto arrayType = builder.getType<sycl::ArrayType>(
+      numDims, MemRefType::get(numDims, builder.getIndexType()));
+  const auto idTy = builder.getType<sycl::IDType>(numDims, arrayType);
+  auto localID = builder.create<sycl::SYCLLocalIDOp>(loc, idTy);
+  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  builder.create<memref::StoreOp>(loc, localID, id, zeroIndex);
   for (unsigned dim = 0; dim < numDims; ++dim) {
-    localIDs.push_back(builder.create<arith::IndexCastOp>(
-        builder.getUnknownLoc(), builder.getIndexType(),
-        builder.create<sycl::SYCLNDItemGetLocalIDOp>(
-            builder.getUnknownLoc(), builder.getI64Type(), ndItem,
-            builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), dim,
-                                                 builder.getI32Type()))));
+    Value idGetOp = sycl::createSYCLIDGetOp(id, dim, builder, loc);
+    localIDs.push_back(builder.create<memref::LoadOp>(loc, idGetOp, zeroIndex));
   }
 
   // Now that we have a list of memref to promote to shared memory in each
