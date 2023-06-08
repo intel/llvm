@@ -17,31 +17,31 @@
 ///
 struct ur_program_handle_t_ {
   using native_type = hipModule_t;
-  native_type module_;
-  const char *binary_;
-  size_t binarySizeInBytes_;
-  std::atomic_uint32_t refCount_;
-  ur_context_handle_t context_;
+  native_type Module;
+  const char *Binary;
+  size_t BinarySizeInBytes;
+  std::atomic_uint32_t RefCount;
+  ur_context_handle_t Context;
 
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
-  char errorLog_[MAX_LOG_SIZE], infoLog_[MAX_LOG_SIZE];
-  std::string buildOptions_;
-  ur_program_build_status_t buildStatus_ = UR_PROGRAM_BUILD_STATUS_NONE;
+  char ErrorLog[MAX_LOG_SIZE], InfoLog[MAX_LOG_SIZE];
+  std::string BuildOptions;
+  ur_program_build_status_t BuildStatus = UR_PROGRAM_BUILD_STATUS_NONE;
 
-  ur_program_handle_t_(ur_context_handle_t ctxt);
+  ur_program_handle_t_(ur_context_handle_t Ctxt);
   ~ur_program_handle_t_();
 
-  ur_result_t set_binary(const char *binary, size_t binarySizeInBytes);
+  ur_result_t setBinary(const char *Binary, size_t BinarySizeInBytes);
 
-  ur_result_t build_program(const char *build_options);
-  ur_context_handle_t get_context() const { return context_; };
+  ur_result_t buildProgram(const char *BuildOptions);
+  ur_context_handle_t getContext() const { return Context; };
 
-  native_type get() const noexcept { return module_; };
+  native_type get() const noexcept { return Module; };
 
-  uint32_t increment_reference_count() noexcept { return ++refCount_; }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
-  uint32_t decrement_reference_count() noexcept { return --refCount_; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
-  uint32_t get_reference_count() const noexcept { return refCount_; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 };

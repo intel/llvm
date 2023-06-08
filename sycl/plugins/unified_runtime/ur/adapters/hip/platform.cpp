@@ -8,16 +8,16 @@
 
 #include "platform.hpp"
 
-hipEvent_t ur_platform_handle_t_::evBase_{nullptr};
+hipEvent_t ur_platform_handle_t_::EvBase{nullptr};
 
-UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
-    ur_platform_handle_t hPlatform, ur_platform_info_t PlatformInfoType,
-    size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
+UR_DLLEXPORT ur_result_t UR_APICALL
+urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
+                  size_t propSize, void *pPropValue, size_t *pSizeRet) {
 
   UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UrReturnHelper ReturnValue(Size, pPlatformInfo, pSizeRet);
+  UrReturnHelper ReturnValue(propSize, pPropValue, pSizeRet);
 
-  switch (PlatformInfoType) {
+  switch (propName) {
   case UR_PLATFORM_INFO_NAME:
     return ReturnValue("AMD HIP BACKEND");
   case UR_PLATFORM_INFO_VENDOR_NAME:
@@ -48,76 +48,75 @@ UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 ///
 /// However because multiple devices in a context is not currently supported,
 /// place each device in a separate platform.
-///
 UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
               uint32_t *pNumPlatforms) {
 
   try {
-    static std::once_flag initFlag;
-    static uint32_t numPlatforms = 1;
-    static std::vector<ur_platform_handle_t_> platformIds;
+    static std::once_flag InitFlag;
+    static uint32_t NumPlatforms = 1;
+    static std::vector<ur_platform_handle_t_> PlatformIds;
 
     UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
     UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_VALUE);
 
-    ur_result_t err = UR_RESULT_SUCCESS;
+    ur_result_t Result = UR_RESULT_SUCCESS;
 
     std::call_once(
-        initFlag,
-        [](ur_result_t &err) {
+        InitFlag,
+        [](ur_result_t &Err) {
           if (hipInit(0) != hipSuccess) {
-            numPlatforms = 0;
+            NumPlatforms = 0;
             return;
           }
-          int numDevices = 0;
-          err = UR_CHECK_ERROR(hipGetDeviceCount(&numDevices));
-          if (numDevices == 0) {
-            numPlatforms = 0;
+          int NumDevices = 0;
+          Err = UR_CHECK_ERROR(hipGetDeviceCount(&NumDevices));
+          if (NumDevices == 0) {
+            NumPlatforms = 0;
             return;
           }
           try {
             // make one platform per device
-            numPlatforms = numDevices;
-            platformIds.resize(numDevices);
+            NumPlatforms = NumDevices;
+            PlatformIds.resize(NumDevices);
 
-            for (int i = 0; i < numDevices; ++i) {
-              hipDevice_t device;
-              err = UR_CHECK_ERROR(hipDeviceGet(&device, i));
-              platformIds[i].devices_.emplace_back(
-                  new ur_device_handle_t_{device, &platformIds[i]});
+            for (int i = 0; i < NumDevices; ++i) {
+              hipDevice_t Device;
+              Err = UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              PlatformIds[i].Devices.emplace_back(
+                  new ur_device_handle_t_{Device, &PlatformIds[i]});
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            for (int i = 0; i < numDevices; ++i) {
-              platformIds[i].devices_.clear();
+            for (int i = 0; i < NumDevices; ++i) {
+              PlatformIds[i].Devices.clear();
             }
-            platformIds.clear();
-            err = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+            PlatformIds.clear();
+            Err = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
-            for (int i = 0; i < numDevices; ++i) {
-              platformIds[i].devices_.clear();
+            for (int i = 0; i < NumDevices; ++i) {
+              PlatformIds[i].Devices.clear();
             }
-            platformIds.clear();
+            PlatformIds.clear();
             throw;
           }
         },
-        err);
+        Result);
 
     if (pNumPlatforms != nullptr) {
-      *pNumPlatforms = numPlatforms;
+      *pNumPlatforms = NumPlatforms;
     }
 
     if (phPlatforms != nullptr) {
-      for (unsigned i = 0; i < std::min(NumEntries, numPlatforms); ++i) {
-        phPlatforms[i] = &platformIds[i];
+      for (unsigned i = 0; i < std::min(NumEntries, NumPlatforms); ++i) {
+        phPlatforms[i] = &PlatformIds[i];
       }
     }
 
-    return err;
-  } catch (ur_result_t err) {
-    return err;
+    return Result;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -140,14 +139,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-// Returns plugin specific backend option.
+// Get CUDA plugin specific backend option.
 // Current support is only for optimization options.
 // Return empty string for cuda.
 // TODO: Determine correct string to be passed.
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_handle_t hPlatform, const char *pFrontendOption,
     const char **ppPlatformOption) {
-  (void)hPlatform;
+  std::ignore = hPlatform;
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;

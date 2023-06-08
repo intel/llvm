@@ -9,8 +9,8 @@
 
 #include <sstream>
 
-ur_result_t map_error_ur(hipError_t result) {
-  switch (result) {
+ur_result_t mapErrorUR(hipError_t Result) {
+  switch (Result) {
   case hipSuccess:
     return UR_RESULT_SUCCESS;
   case hipErrorInvalidContext:
@@ -28,76 +28,70 @@ ur_result_t map_error_ur(hipError_t result) {
   }
 }
 
-ur_result_t check_error_ur(hipError_t result, const char *function, int line,
-                           const char *file) {
-  if (result == hipSuccess) {
+ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
+                         const char *File) {
+  if (Result == hipSuccess) {
     return UR_RESULT_SUCCESS;
   }
 
   if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
-    const char *errorString = nullptr;
-    const char *errorName = nullptr;
-    errorName = hipGetErrorName(result);
-    errorString = hipGetErrorString(result);
-    std::stringstream ss;
-    ss << "\nUR HIP ERROR:"
-       << "\n\tValue:           " << result
-       << "\n\tName:            " << errorName
-       << "\n\tDescription:     " << errorString
-       << "\n\tFunction:        " << function << "\n\tSource Location: " << file
-       << ":" << line << "\n"
+    const char *ErrorString = nullptr;
+    const char *ErrorName = nullptr;
+    ErrorName = hipGetErrorName(Result);
+    ErrorString = hipGetErrorString(Result);
+    std::stringstream SS;
+    SS << "\nUR HIP ERROR:"
+       << "\n\tValue:           " << Result
+       << "\n\tName:            " << ErrorName
+       << "\n\tDescription:     " << ErrorString
+       << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+       << ":" << Line << "\n"
        << std::endl;
-    std::cerr << ss.str();
+    std::cerr << SS.str();
   }
 
   if (std::getenv("PI_HIP_ABORT") != nullptr) {
     std::abort();
   }
 
-  throw map_error_ur(result);
+  throw mapErrorUR(Result);
 }
 
 std::string getHipVersionString() {
-  int driver_version = 0;
-  if (hipDriverGetVersion(&driver_version) != hipSuccess) {
+  int DriverVersion = 0;
+  if (hipDriverGetVersion(&DriverVersion) != hipSuccess) {
     return "";
   }
   // The version is returned as (1000 major + 10 minor).
-  std::stringstream stream;
-  stream << "HIP " << driver_version / 1000 << "."
-         << driver_version % 1000 / 10;
-  return stream.str();
+  std::stringstream Stream;
+  Stream << "HIP " << DriverVersion / 1000 << "." << DriverVersion % 1000 / 10;
+  return Stream.str();
 }
 
-void sycl::detail::ur::die(const char *Message) {
-  std::cerr << "ur_die: " << Message << std::endl;
+void sycl::detail::ur::die(const char *pMessage) {
+  std::cerr << "ur_die: " << pMessage << std::endl;
   std::terminate();
 }
 
-void sycl::detail::ur::assertion(bool Condition, const char *Message) {
+void sycl::detail::ur::assertion(bool Condition, const char *pMessage) {
   if (!Condition)
-    die(Message);
+    die(pMessage);
 }
 
-void sycl::detail::ur::hipPrint(const char *Message) {
-  std::cerr << "ur_print: " << Message << std::endl;
+void sycl::detail::ur::hipPrint(const char *pMessage) {
+  std::cerr << "ur_print: " << pMessage << std::endl;
 }
 
-// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
+// Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code) {
-  assert(strlen(message) <= MaxMessageSize);
-  strcpy(ErrorMessage, message);
-  ErrorMessageCode = error_code;
-}
-
-ur_result_t zerPluginGetLastError(char **message) {
-  *message = &ErrorMessage[0];
-  return ErrorMessageCode;
+[[maybe_unused]] void setErrorMessage(const char *pMessage,
+                                      ur_result_t ErrorCode) {
+  assert(strlen(pMessage) <= MaxMessageSize);
+  strcpy(ErrorMessage, pMessage);
+  ErrorMessageCode = ErrorCode;
 }
 
 // Returns plugin specific error and warning messages; common implementation

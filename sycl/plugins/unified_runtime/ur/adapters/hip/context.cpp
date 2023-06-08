@@ -17,67 +17,68 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 const ur_context_properties_t *pProperties,
                 ur_context_handle_t *phContext) {
+  std::ignore = pProperties;
+
   UR_ASSERT(phDevices, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(phContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   assert(DeviceCount == 1);
-  ur_result_t errcode_ret = UR_RESULT_SUCCESS;
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
 
-  std::unique_ptr<ur_context_handle_t_> urContextPtr{nullptr};
+  std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
-    hipCtx_t current = nullptr;
+    hipCtx_t Current = nullptr;
 
     // Create a scoped context.
-    hipCtx_t newContext;
-    UR_CHECK_ERROR(hipCtxGetCurrent(&current));
-    errcode_ret = UR_CHECK_ERROR(
-        hipCtxCreate(&newContext, hipDeviceMapHost, phDevices[0]->get()));
-    urContextPtr =
-        std::unique_ptr<ur_context_handle_t_>(new ur_context_handle_t_{
-            ur_context_handle_t_::kind::user_defined, newContext, *phDevices});
+    hipCtx_t NewContext;
+    UR_CHECK_ERROR(hipCtxGetCurrent(&Current));
+    RetErr = UR_CHECK_ERROR(
+        hipCtxCreate(&NewContext, hipDeviceMapHost, phDevices[0]->get()));
+    ContextPtr = std::unique_ptr<ur_context_handle_t_>(new ur_context_handle_t_{
+        ur_context_handle_t_::kind::UserDefined, NewContext, *phDevices});
 
-    static std::once_flag initFlag;
+    static std::once_flag InitFlag;
     std::call_once(
-        initFlag,
-        [](ur_result_t &err) {
+        InitFlag,
+        [](ur_result_t &Err) {
           // Use default stream to record base event counter
-          UR_CHECK_ERROR(hipEventCreateWithFlags(
-              &ur_platform_handle_t_::evBase_, hipEventDefault));
-          UR_CHECK_ERROR(hipEventRecord(ur_platform_handle_t_::evBase_, 0));
+          UR_CHECK_ERROR(hipEventCreateWithFlags(&ur_platform_handle_t_::EvBase,
+                                                 hipEventDefault));
+          UR_CHECK_ERROR(hipEventRecord(ur_platform_handle_t_::EvBase, 0));
         },
-        errcode_ret);
+        RetErr);
 
     // For non-primary scoped contexts keep the last active on top of the stack
     // as `cuCtxCreate` replaces it implicitly otherwise.
     // Primary contexts are kept on top of the stack, so the previous context
     // is not queried and therefore not recovered.
-    if (current != nullptr) {
-      UR_CHECK_ERROR(hipCtxSetCurrent(current));
+    if (Current != nullptr) {
+      UR_CHECK_ERROR(hipCtxSetCurrent(Current));
     }
 
-    *phContext = urContextPtr.release();
-  } catch (ur_result_t err) {
-    errcode_ret = err;
+    *phContext = ContextPtr.release();
+  } catch (ur_result_t Err) {
+    RetErr = Err;
   } catch (...) {
-    errcode_ret = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    RetErr = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
-  return errcode_ret;
+  return RetErr;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
-    ur_context_handle_t hContext, ur_context_info_t ContextInfoType,
-    size_t propSize, void *pContextInfo, size_t *pPropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
+                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  switch (uint32_t{ContextInfoType}) {
+  switch (uint32_t{propName}) {
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(1);
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->get_device());
+    return ReturnValue(hContext->getDevice());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hContext->get_reference_count());
+    return ReturnValue(hContext->getReferenceCount());
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
@@ -102,51 +103,53 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(ur_context_handle_t ctxt) {
-  UR_ASSERT(ctxt, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextRelease(ur_context_handle_t hContext) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  if (ctxt->decrement_reference_count() > 0) {
+  if (hContext->decrementReferenceCount() > 0) {
     return UR_RESULT_SUCCESS;
   }
-  ctxt->invoke_extended_deleters();
+  hContext->invokeExtendedDeleters();
 
-  std::unique_ptr<ur_context_handle_t_> context{ctxt};
+  std::unique_ptr<ur_context_handle_t_> context{hContext};
 
-  if (!ctxt->is_primary()) {
-    hipCtx_t hipCtxt = ctxt->get();
+  if (!hContext->isPrimary()) {
+    hipCtx_t HIPCtxt = hContext->get();
     // hipCtxSynchronize is not supported for AMD platform so we can just
     // destroy the context, for NVIDIA make sure it's synchronized.
 #if defined(__HIP_PLATFORM_NVIDIA__)
-    hipCtx_t current = nullptr;
-    UR_CHECK_ERROR(hipCtxGetCurrent(&current));
-    if (hipCtxt != current) {
-      UR_CHECK_ERROR(hipCtxPushCurrent(hipCtxt));
+    hipCtx_t Current = nullptr;
+    UR_CHECK_ERROR(hipCtxGetCurrent(&Current));
+    if (HIPCtxt != Current) {
+      UR_CHECK_ERROR(hipCtxPushCurrent(HIPCtxt));
     }
     UR_CHECK_ERROR(hipCtxSynchronize());
-    UR_CHECK_ERROR(hipCtxGetCurrent(&current));
-    if (hipCtxt == current) {
-      UR_CHECK_ERROR(hipCtxPopCurrent(&current));
+    UR_CHECK_ERROR(hipCtxGetCurrent(&Current));
+    if (HIPCtxt == Current) {
+      UR_CHECK_ERROR(hipCtxPopCurrent(&Current));
     }
 #endif
-    return UR_CHECK_ERROR(hipCtxDestroy(hipCtxt));
+    return UR_CHECK_ERROR(hipCtxDestroy(HIPCtxt));
   } else {
     // Primary context is not destroyed, but released
-    hipDevice_t hipDev = ctxt->get_device()->get();
-    hipCtx_t current;
-    UR_CHECK_ERROR(hipCtxPopCurrent(&current));
-    return UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(hipDev));
+    hipDevice_t HIPDev = hContext->getDevice()->get();
+    hipCtx_t Current;
+    UR_CHECK_ERROR(hipCtxPopCurrent(&Current));
+    return UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDev));
   }
 
-  hipCtx_t hipCtxt = ctxt->get();
-  return UR_CHECK_ERROR(hipCtxDestroy(hipCtxt));
+  hipCtx_t HIPCtxt = hContext->get();
+  return UR_CHECK_ERROR(hipCtxDestroy(HIPCtxt));
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
-  UR_ASSERT(ctxt, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextRetain(ur_context_handle_t hContext) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  assert(ctxt->get_reference_count() > 0);
+  assert(hContext->getReferenceCount() > 0);
 
-  ctxt->increment_reference_count();
+  hContext->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
@@ -164,12 +167,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     const ur_device_handle_t *phDevices,
     const ur_context_native_properties_t *pProperties,
     ur_context_handle_t *phContext) {
-  (void)hNativeContext;
-  (void)phContext;
-
-  // TODO(ur): Needed for the conformance test to pass, but it may be valid
-  // to have a null CUDA context
-  UR_ASSERT(hNativeContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  std::ignore = hNativeContext;
+  std::ignore = numDevices;
+  std::ignore = phDevices;
+  std::ignore = pProperties;
+  std::ignore = phContext;
 
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
@@ -180,6 +182,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pfnDeleter, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  hContext->set_extended_deleter(pfnDeleter, pUserData);
+  hContext->setExtendedDeleter(pfnDeleter, pUserData);
   return UR_RESULT_SUCCESS;
 }

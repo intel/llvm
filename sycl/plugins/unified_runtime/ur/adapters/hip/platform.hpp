@@ -18,6 +18,6 @@
 ///  when devices are used.
 ///
 struct ur_platform_handle_t_ {
-  static hipEvent_t evBase_; // HIP event used as base counter
-  std::vector<std::unique_ptr<ur_device_handle_t_>> devices_;
+  static hipEvent_t EvBase; // HIP event used as base counter
+  std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
 };

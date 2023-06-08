@@ -14,11 +14,11 @@ namespace {
 // TODO - this is a duplicate of what is in the L0 plugin
 // We should move this to somewhere common
 ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable) {
-  if (nullptr == pDdiTable) {
+  if (pDdiTable == nullptr) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-  // Pre 1.0 we enforce loader and adapter must have same version.
-  // Post 1.0 only major version match should be required.
+  // Pre 1.0 we enforce that loader and adapter must have the same version.
+  // Post 1.0 only a major version match should be required.
   if (version != UR_API_VERSION_CURRENT) {
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
   }

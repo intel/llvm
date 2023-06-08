@@ -12,20 +12,20 @@
 ur_result_t urSamplerCreate(ur_context_handle_t hContext,
                             const ur_sampler_desc_t *pDesc,
                             ur_sampler_handle_t *phSampler) {
-  std::unique_ptr<ur_sampler_handle_t_> retImplSampl{
+  std::unique_ptr<ur_sampler_handle_t_> RetImplSampl{
       new ur_sampler_handle_t_(hContext)};
 
   if (pDesc && pDesc->stype == UR_STRUCTURE_TYPE_SAMPLER_DESC) {
-    retImplSampl->props_ |= pDesc->normalizedCoords;
-    retImplSampl->props_ |= (pDesc->filterMode << 1);
-    retImplSampl->props_ |= (pDesc->addressingMode << 2);
+    RetImplSampl->Props |= pDesc->normalizedCoords;
+    RetImplSampl->Props |= pDesc->filterMode << 1;
+    RetImplSampl->Props |= pDesc->addressingMode << 2;
   } else {
     // Set default values
-    retImplSampl->props_ |= true; // Normalized Coords
-    retImplSampl->props_ |= UR_SAMPLER_ADDRESSING_MODE_CLAMP << 2;
+    RetImplSampl->Props |= true; // Normalized Coords
+    RetImplSampl->Props |= UR_SAMPLER_ADDRESSING_MODE_CLAMP << 2;
   }
 
-  *phSampler = retImplSampl.release();
+  *phSampler = RetImplSampl.release();
   return UR_RESULT_SUCCESS;
 }
 
@@ -37,22 +37,22 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
 
   switch (propName) {
   case UR_SAMPLER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hSampler->get_reference_count());
+    return ReturnValue(hSampler->getReferenceCount());
   case UR_SAMPLER_INFO_CONTEXT:
-    return ReturnValue(hSampler->context_);
+    return ReturnValue(hSampler->Context);
   case UR_SAMPLER_INFO_NORMALIZED_COORDS: {
-    bool norm_coords_prop = static_cast<bool>(hSampler->props_);
-    return ReturnValue(norm_coords_prop);
+    bool NormCoordsProp = static_cast<bool>(hSampler->Props);
+    return ReturnValue(NormCoordsProp);
   }
   case UR_SAMPLER_INFO_FILTER_MODE: {
-    auto filter_prop =
-        static_cast<ur_sampler_filter_mode_t>(((hSampler->props_ >> 1) & 0x1));
-    return ReturnValue(filter_prop);
+    auto FilterProp =
+        static_cast<ur_sampler_filter_mode_t>((hSampler->Props >> 1) & 0x1);
+    return ReturnValue(FilterProp);
   }
   case UR_SAMPLER_INFO_ADDRESSING_MODE: {
-    auto addressing_prop =
-        static_cast<ur_sampler_addressing_mode_t>(hSampler->props_ >> 2);
-    return ReturnValue(addressing_prop);
+    auto AddressingProp =
+        static_cast<ur_sampler_addressing_mode_t>(hSampler->Props >> 2);
+    return ReturnValue(AddressingProp);
   }
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
@@ -62,7 +62,7 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
 
 ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  hSampler->increment_reference_count();
+  hSampler->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
@@ -72,11 +72,11 @@ ur_result_t urSamplerRelease(ur_sampler_handle_t hSampler) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   sycl::detail::ur::assertion(
-      hSampler->get_reference_count() != 0,
+      hSampler->getReferenceCount() != 0,
       "Reference count overflow detected in urSamplerRelease.");
 
   // decrement ref count. If it is 0, delete the sampler.
-  if (hSampler->decrement_reference_count() == 0) {
+  if (hSampler->decrementReferenceCount() == 0) {
     delete hSampler;
   }
 

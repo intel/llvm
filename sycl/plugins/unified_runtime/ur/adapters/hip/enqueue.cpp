@@ -15,8 +15,8 @@
 
 namespace {
 
-static size_t imageElementByteSize(hipArray_Format array_format) {
-  switch (array_format) {
+static size_t imageElementByteSize(hipArray_Format ArrayFormat) {
+  switch (ArrayFormat) {
   case HIP_AD_FORMAT_UNSIGNED_INT8:
   case HIP_AD_FORMAT_SIGNED_INT8:
     return 1;
@@ -34,58 +34,57 @@ static size_t imageElementByteSize(hipArray_Format array_format) {
   return 0;
 }
 
-ur_result_t enqueueEventsWait(ur_queue_handle_t command_queue,
-                              hipStream_t stream,
-                              uint32_t num_events_in_wait_list,
-                              const ur_event_handle_t *event_wait_list) {
-  if (!event_wait_list) {
+ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue,
+                              hipStream_t Stream, uint32_t NumEventsInWaitList,
+                              const ur_event_handle_t *EventWaitList) {
+  if (!EventWaitList) {
     return UR_RESULT_SUCCESS;
   }
   try {
-    ScopedContext active(command_queue->get_context());
+    ScopedContext Active(CommandQueue->getContext());
 
-    auto result = forLatestEvents(
-        event_wait_list, num_events_in_wait_list,
-        [stream](ur_event_handle_t event) -> ur_result_t {
-          if (event->get_stream() == stream) {
+    auto Result = forLatestEvents(
+        EventWaitList, NumEventsInWaitList,
+        [Stream](ur_event_handle_t Event) -> ur_result_t {
+          if (Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
-            return UR_CHECK_ERROR(hipStreamWaitEvent(stream, event->get(), 0));
+            return UR_CHECK_ERROR(hipStreamWaitEvent(Stream, Event->get(), 0));
           }
         });
 
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
+    if (Result != UR_RESULT_SUCCESS) {
+      return Result;
     }
     return UR_RESULT_SUCCESS;
-  } catch (ur_result_t err) {
-    return err;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
 }
 
-void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
-                              const size_t *global_work_size,
-                              const size_t maxThreadsPerBlock[3],
-                              ur_kernel_handle_t kernel) {
-  assert(threadsPerBlock != nullptr);
-  assert(global_work_size != nullptr);
-  assert(kernel != nullptr);
+void simpleGuessLocalWorkSize(size_t *ThreadsPerBlock,
+                              const size_t *GlobalWorkSize,
+                              const size_t MaxThreadsPerBlock[3],
+                              ur_kernel_handle_t Kernel) {
+  assert(ThreadsPerBlock != nullptr);
+  assert(GlobalWorkSize != nullptr);
+  assert(Kernel != nullptr);
   // int recommendedBlockSize, minGrid;
 
   // UR_CHECK_ERROR(hipOccupancyMaxPotentialBlockSize(
-  //    &minGrid, &recommendedBlockSize, kernel->get(),
+  //    &minGrid, &recommendedBlockSize, Kernel->get(),
   //    0, 0));
 
   //(void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] = std::min(maxThreadsPerBlock[0], global_work_size[0]);
+  ThreadsPerBlock[0] = std::min(MaxThreadsPerBlock[0], GlobalWorkSize[0]);
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
-    --threadsPerBlock[0];
+  while (0u != (GlobalWorkSize[0] % ThreadsPerBlock[0])) {
+    --ThreadsPerBlock[0];
   }
 }
 } // namespace
@@ -103,41 +102,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, hipStream));
-      retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_WRITE, hQueue, HIPStream));
+      RetImplEvent->start();
     }
 
-    retErr = UR_CHECK_ERROR(
-        hipMemcpyHtoDAsync(hBuffer->mem_.buffer_mem_.get_with_offset(offset),
-                           const_cast<void *>(pSrc), size, hipStream));
+    Result = UR_CHECK_ERROR(
+        hipMemcpyHtoDAsync(hBuffer->Mem.BufferMem.getWithOffset(offset),
+                           const_cast<void *>(pSrc), size, HIPStream));
 
     if (phEvent) {
-      retErr = retImplEv->record();
+      Result = RetImplEvent->record();
     }
 
     if (blockingWrite) {
-      retErr = UR_CHECK_ERROR(hipStreamSynchronize(hipStream));
+      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
-      *phEvent = retImplEv.release();
+      *phEvent = RetImplEvent.release();
     }
-  } catch (ur_result_t err) {
-    retErr = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -153,42 +152,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_MEM_BUFFER_READ, hQueue, hipStream));
-      retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_READ, hQueue, HIPStream));
+      RetImplEvent->start();
     }
 
-    retErr = UR_CHECK_ERROR(hipMemcpyDtoHAsync(
-        pDst, hBuffer->mem_.buffer_mem_.get_with_offset(offset), size,
-        hipStream));
+    Result = UR_CHECK_ERROR(hipMemcpyDtoHAsync(
+        pDst, hBuffer->Mem.BufferMem.getWithOffset(offset), size, HIPStream));
 
     if (phEvent) {
-      retErr = retImplEv->record();
+      Result = RetImplEvent->record();
     }
 
     if (blockingRead) {
-      retErr = UR_CHECK_ERROR(hipStreamSynchronize(hipStream));
+      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
-      *phEvent = retImplEv.release();
+      *phEvent = RetImplEvent.release();
     }
 
   } catch (ur_result_t err) {
-    retErr = err;
+    Result = err;
   }
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -201,7 +199,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pGlobalWorkSize, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hQueue->get_context() == hKernel->get_context(),
+  UR_ASSERT(hQueue->getContext() == hKernel->getContext(),
             UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
@@ -213,28 +211,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  size_t threadsPerBlock[3] = {32u, 1u, 1u};
-  size_t maxWorkGroupSize = 0u;
-  size_t maxThreadsPerBlock[3] = {};
-  bool providedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
+  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+  size_t MaxWorkGroupSize = 0u;
+  size_t MaxThreadsPerBlock[3] = {};
+  bool ProvidedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
 
   {
-    ur_result_t retError = urDeviceGetInfo(
-        hQueue->device_, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-        sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
-    UR_ASSERT(retError == UR_RESULT_SUCCESS, retError);
+    ur_result_t Result = urDeviceGetInfo(
+        hQueue->Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+        sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
+    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
 
-    retError =
-        urDeviceGetInfo(hQueue->device_, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                        sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
-    UR_ASSERT(retError == UR_RESULT_SUCCESS, retError);
+    Result =
+        urDeviceGetInfo(hQueue->Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                        sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
+    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
 
-    // The maxWorkGroupsSize = 1024 for AMD GPU
-    // The maxThreadsPerBlock = {1024, 1024, 1024}
+    // The MaxWorkGroupSize = 1024 for AMD GPU
+    // The MaxThreadsPerBlock = {1024, 1024, 1024}
 
-    if (providedLocalWorkGroupSize) {
+    if (ProvidedLocalWorkGroupSize) {
       auto isValid = [&](int dim) {
-        UR_ASSERT(pLocalWorkSize[dim] <= maxThreadsPerBlock[dim],
+        UR_ASSERT(pLocalWorkSize[dim] <= MaxThreadsPerBlock[dim],
                   UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
         // Checks that local work sizes are a divisor of the global work sizes
         // which includes that the local work sizes are neither larger than the
@@ -242,7 +240,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         UR_ASSERT(pLocalWorkSize != 0, UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
         UR_ASSERT((pGlobalWorkSize[dim] % pLocalWorkSize[dim]) == 0,
                   UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
-        threadsPerBlock[dim] = pLocalWorkSize[dim];
+        ThreadsPerBlock[dim] = pLocalWorkSize[dim];
         return UR_RESULT_SUCCESS;
       };
 
@@ -252,60 +250,60 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
           return err;
       }
     } else {
-      simpleGuessLocalWorkSize(threadsPerBlock, pGlobalWorkSize,
-                               maxThreadsPerBlock, hKernel);
+      simpleGuessLocalWorkSize(ThreadsPerBlock, pGlobalWorkSize,
+                               MaxThreadsPerBlock, hKernel);
     }
   }
 
-  UR_ASSERT(maxWorkGroupSize >= size_t(threadsPerBlock[0] * threadsPerBlock[1] *
-                                       threadsPerBlock[2]),
+  UR_ASSERT(MaxWorkGroupSize >= size_t(ThreadsPerBlock[0] * ThreadsPerBlock[1] *
+                                       ThreadsPerBlock[2]),
             UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
 
-  size_t blocksPerGrid[3] = {1u, 1u, 1u};
+  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
 
   for (size_t i = 0; i < workDim; i++) {
-    blocksPerGrid[i] =
-        (pGlobalWorkSize[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
+    BlocksPerGrid[i] =
+        (pGlobalWorkSize[i] + ThreadsPerBlock[i] - 1) / ThreadsPerBlock[i];
   }
 
-  ur_result_t retError = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
+    ScopedContext Active(hQueue->getContext());
 
-    uint32_t stream_token;
-    ur_stream_quard guard;
-    hipStream_t hipStream = hQueue->get_next_compute_stream(
-        numEventsInWaitList, phEventWaitList, guard, &stream_token);
-    hipFunction_t hipFunc = hKernel->get();
+    uint32_t StreamToken;
+    ur_stream_quard Guard;
+    hipStream_t HIPStream = hQueue->getNextComputeStream(
+        numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
+    hipFunction_t HIPFunc = hKernel->get();
 
-    retError = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
-                                 phEventWaitList);
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                               phEventWaitList);
 
     // Set the implicit global offset parameter if kernel has offset variant
-    if (hKernel->get_with_offset_parameter()) {
+    if (hKernel->getWithOffsetParameter()) {
       std::uint32_t hip_implicit_offset[3] = {0, 0, 0};
       if (pGlobalWorkOffset) {
         for (size_t i = 0; i < workDim; i++) {
           hip_implicit_offset[i] =
               static_cast<std::uint32_t>(pGlobalWorkOffset[i]);
           if (pGlobalWorkOffset[i] != 0) {
-            hipFunc = hKernel->get_with_offset_parameter();
+            HIPFunc = hKernel->getWithOffsetParameter();
           }
         }
       }
-      hKernel->set_implicit_offset_arg(sizeof(hip_implicit_offset),
-                                       hip_implicit_offset);
+      hKernel->setImplicitOffsetArg(sizeof(hip_implicit_offset),
+                                    hip_implicit_offset);
     }
 
-    auto argIndices = hKernel->get_arg_indices();
+    auto ArgIndices = hKernel->getArgIndices();
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_KERNEL_LAUNCH, hQueue, hipStream, stream_token));
-      retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_KERNEL_LAUNCH, hQueue, HIPStream, StreamToken));
+      RetImplEvent->start();
     }
 
     // Set local mem max size if env var is present
@@ -314,9 +312,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     if (local_mem_sz_ptr) {
       int device_max_local_mem = 0;
-      retError = UR_CHECK_ERROR(hipDeviceGetAttribute(
+      Result = UR_CHECK_ERROR(hipDeviceGetAttribute(
           &device_max_local_mem, hipDeviceAttributeMaxSharedMemoryPerBlock,
-          hQueue->get_device()->get()));
+          hQueue->getDevice()->get()));
 
       static const int env_val = std::atoi(local_mem_sz_ptr);
       if (env_val <= 0 || env_val > device_max_local_mem) {
@@ -325,25 +323,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      retError = UR_CHECK_ERROR(hipFuncSetAttribute(
-          hipFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
+      Result = UR_CHECK_ERROR(hipFuncSetAttribute(
+          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
     }
 
-    retError = UR_CHECK_ERROR(hipModuleLaunchKernel(
-        hipFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
-        threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],
-        hKernel->get_local_size(), hipStream, argIndices.data(), nullptr));
+    Result = UR_CHECK_ERROR(hipModuleLaunchKernel(
+        HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
+        ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
+        hKernel->getLocalSize(), HIPStream, ArgIndices.data(), nullptr));
 
-    hKernel->clear_local_size();
+    hKernel->clearLocalSize();
 
     if (phEvent) {
-      retError = retImplEv->record();
-      *phEvent = retImplEv.release();
+      Result = RetImplEvent->record();
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t err) {
-    retError = err;
+    Result = err;
   }
-  return retError;
+  return Result;
 }
 
 /// Enqueues a wait on the given queue for all events.
@@ -374,72 +372,69 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
 
-  ur_result_t result;
+  ur_result_t Result;
 
   try {
-    ScopedContext active(hQueue->get_context());
-    uint32_t stream_token;
-    ur_stream_quard guard;
-    hipStream_t hipStream = hQueue->get_next_compute_stream(
+    ScopedContext Active(hQueue->getContext());
+    uint32_t StreamToken;
+    ur_stream_quard Guard;
+    hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList,
-        reinterpret_cast<const ur_event_handle_t *>(phEventWaitList), guard,
-        &stream_token);
+        reinterpret_cast<const ur_event_handle_t *>(phEventWaitList), Guard,
+        &StreamToken);
     {
-      std::lock_guard<std::mutex> guard(hQueue->barrier_mutex_);
-      if (hQueue->barrier_event_ == nullptr) {
-        UR_CHECK_ERROR(hipEventCreate(&hQueue->barrier_event_));
+      std::lock_guard<std::mutex> Guard(hQueue->BarrierMutex);
+      if (hQueue->BarrierEvent == nullptr) {
+        UR_CHECK_ERROR(hipEventCreate(&hQueue->BarrierEvent));
       }
       if (numEventsInWaitList == 0) { //  wait on all work
-        if (hQueue->barrier_tmp_event_ == nullptr) {
-          UR_CHECK_ERROR(hipEventCreate(&hQueue->barrier_tmp_event_));
+        if (hQueue->BarrierTmpEvent == nullptr) {
+          UR_CHECK_ERROR(hipEventCreate(&hQueue->BarrierTmpEvent));
         }
-        hQueue->sync_streams(
-            [hipStream, tmp_event = hQueue->barrier_tmp_event_](hipStream_t s) {
-              if (hipStream != s) {
-                UR_CHECK_ERROR(hipEventRecord(tmp_event, s));
-                UR_CHECK_ERROR(hipStreamWaitEvent(hipStream, tmp_event, 0));
+        hQueue->syncStreams(
+            [HIPStream, TmpEvent = hQueue->BarrierTmpEvent](hipStream_t S) {
+              if (HIPStream != S) {
+                UR_CHECK_ERROR(hipEventRecord(TmpEvent, S));
+                UR_CHECK_ERROR(hipStreamWaitEvent(HIPStream, TmpEvent, 0));
               }
             });
       } else { // wait just on given events
         forLatestEvents(
             reinterpret_cast<const ur_event_handle_t *>(phEventWaitList),
             numEventsInWaitList,
-            [hipStream](ur_event_handle_t event) -> ur_result_t {
-              if (event->get_queue()->has_been_synchronized(
-                      event->get_compute_stream_token())) {
+            [HIPStream](ur_event_handle_t Event) -> ur_result_t {
+              if (Event->getQueue()->hasBeenSynchronized(
+                      Event->getComputeStreamToken())) {
                 return UR_RESULT_SUCCESS;
               } else {
                 return UR_CHECK_ERROR(
-                    hipStreamWaitEvent(hipStream, event->get(), 0));
+                    hipStreamWaitEvent(HIPStream, Event->get(), 0));
               }
             });
       }
 
-      result =
-          UR_CHECK_ERROR(hipEventRecord(hQueue->barrier_event_, hipStream));
-      for (unsigned int i = 0; i < hQueue->compute_applied_barrier_.size();
-           i++) {
-        hQueue->compute_applied_barrier_[i] = false;
+      Result = UR_CHECK_ERROR(hipEventRecord(hQueue->BarrierEvent, HIPStream));
+      for (unsigned int i = 0; i < hQueue->ComputeAppliedBarrier.size(); i++) {
+        hQueue->ComputeAppliedBarrier[i] = false;
       }
-      for (unsigned int i = 0; i < hQueue->transfer_applied_barrier_.size();
-           i++) {
-        hQueue->transfer_applied_barrier_[i] = false;
+      for (unsigned int i = 0; i < hQueue->TransferAppliedBarrier.size(); i++) {
+        hQueue->TransferAppliedBarrier[i] = false;
       }
     }
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
+    if (Result != UR_RESULT_SUCCESS) {
+      return Result;
     }
 
     if (phEvent) {
-      *phEvent = ur_event_handle_t_::make_native(
-          UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue, hipStream, stream_token);
+      *phEvent = ur_event_handle_t_::makeNative(
+          UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue, HIPStream, StreamToken);
       (*phEvent)->start();
       (*phEvent)->record();
     }
 
     return UR_RESULT_SUCCESS;
-  } catch (ur_result_t err) {
-    return err;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -448,54 +443,53 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 /// General 3D memory copy operation.
 /// This function requires the corresponding HIP context to be at the top of
 /// the context stack
-/// If the source and/or destination is on the device, src_ptr and/or dst_ptr
+/// If the source and/or destination is on the device, SrcPtr and/or DstPtr
 /// must be a pointer to a hipDevPtr
 static ur_result_t commonEnqueueMemBufferCopyRect(
-    hipStream_t hip_stream, ur_rect_region_t region, const void *src_ptr,
-    const hipMemoryType src_type, ur_rect_offset_t src_offset,
-    size_t src_row_pitch, size_t src_slice_pitch, void *dst_ptr,
-    const hipMemoryType dst_type, ur_rect_offset_t dst_offset,
-    size_t dst_row_pitch, size_t dst_slice_pitch) {
+    hipStream_t HipStream, ur_rect_region_t Region, const void *SrcPtr,
+    const hipMemoryType SrcType, ur_rect_offset_t SrcOffset, size_t SrcRowPitch,
+    size_t SrcSlicePitch, void *DstPtr, const hipMemoryType DstType,
+    ur_rect_offset_t DstOffset, size_t DstRowPitch, size_t DstSlicePitch) {
 
-  assert(src_type == hipMemoryTypeDevice || src_type == hipMemoryTypeHost);
-  assert(dst_type == hipMemoryTypeDevice || dst_type == hipMemoryTypeHost);
+  assert(SrcType == hipMemoryTypeDevice || SrcType == hipMemoryTypeHost);
+  assert(DstType == hipMemoryTypeDevice || DstType == hipMemoryTypeHost);
 
-  src_row_pitch = (!src_row_pitch) ? region.width : src_row_pitch;
-  src_slice_pitch =
-      (!src_slice_pitch) ? (region.height * src_row_pitch) : src_slice_pitch;
-  dst_row_pitch = (!dst_row_pitch) ? region.width : dst_row_pitch;
-  dst_slice_pitch =
-      (!dst_slice_pitch) ? (region.height * dst_row_pitch) : dst_slice_pitch;
+  SrcRowPitch = (!SrcRowPitch) ? Region.width : SrcRowPitch;
+  SrcSlicePitch =
+      (!SrcSlicePitch) ? (Region.height * SrcRowPitch) : SrcSlicePitch;
+  DstRowPitch = (!DstRowPitch) ? Region.width : DstRowPitch;
+  DstSlicePitch =
+      (!DstSlicePitch) ? (Region.height * DstRowPitch) : DstSlicePitch;
 
-  HIP_MEMCPY3D params;
+  HIP_MEMCPY3D Params;
 
-  params.WidthInBytes = region.width;
-  params.Height = region.height;
-  params.Depth = region.depth;
+  Params.WidthInBytes = Region.width;
+  Params.Height = Region.height;
+  Params.Depth = Region.depth;
 
-  params.srcMemoryType = src_type;
-  params.srcDevice = src_type == hipMemoryTypeDevice
-                         ? *static_cast<const hipDeviceptr_t *>(src_ptr)
+  Params.srcMemoryType = SrcType;
+  Params.srcDevice = SrcType == hipMemoryTypeDevice
+                         ? *static_cast<const hipDeviceptr_t *>(SrcPtr)
                          : 0;
-  params.srcHost = src_type == hipMemoryTypeHost ? src_ptr : nullptr;
-  params.srcXInBytes = src_offset.x;
-  params.srcY = src_offset.y;
-  params.srcZ = src_offset.z;
-  params.srcPitch = src_row_pitch;
-  params.srcHeight = src_slice_pitch / src_row_pitch;
+  Params.srcHost = SrcType == hipMemoryTypeHost ? SrcPtr : nullptr;
+  Params.srcXInBytes = SrcOffset.x;
+  Params.srcY = SrcOffset.y;
+  Params.srcZ = SrcOffset.z;
+  Params.srcPitch = SrcRowPitch;
+  Params.srcHeight = SrcSlicePitch / SrcRowPitch;
 
-  params.dstMemoryType = dst_type;
-  params.dstDevice = dst_type == hipMemoryTypeDevice
-                         ? *reinterpret_cast<hipDeviceptr_t *>(dst_ptr)
+  Params.dstMemoryType = DstType;
+  Params.dstDevice = DstType == hipMemoryTypeDevice
+                         ? *reinterpret_cast<hipDeviceptr_t *>(DstPtr)
                          : 0;
-  params.dstHost = dst_type == hipMemoryTypeHost ? dst_ptr : nullptr;
-  params.dstXInBytes = dst_offset.x;
-  params.dstY = dst_offset.y;
-  params.dstZ = dst_offset.z;
-  params.dstPitch = dst_row_pitch;
-  params.dstHeight = dst_slice_pitch / dst_row_pitch;
+  Params.dstHost = DstType == hipMemoryTypeHost ? DstPtr : nullptr;
+  Params.dstXInBytes = DstOffset.x;
+  Params.dstY = DstOffset.y;
+  Params.dstZ = DstOffset.z;
+  Params.dstPitch = DstRowPitch;
+  Params.dstHeight = DstSlicePitch / DstRowPitch;
 
-  return UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&params, hip_stream));
+  return UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&Params, HipStream));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
@@ -530,45 +524,45 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   UR_ASSERT(!(hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0),
             UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
-  void *devPtr = hBuffer->mem_.buffer_mem_.get_void();
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  void *DevPtr = hBuffer->Mem.BufferMem.getVoid();
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
 
-    retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, hipStream));
-      retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, HIPStream));
+      RetImplEvent->start();
     }
 
-    retErr = commonEnqueueMemBufferCopyRect(
-        hipStream, region, &devPtr, hipMemoryTypeDevice, bufferOrigin,
+    Result = commonEnqueueMemBufferCopyRect(
+        HIPStream, region, &DevPtr, hipMemoryTypeDevice, bufferOrigin,
         bufferRowPitch, bufferSlicePitch, pDst, hipMemoryTypeHost, hostOrigin,
         hostRowPitch, hostSlicePitch);
 
     if (phEvent) {
-      retErr = retImplEv->record();
+      Result = RetImplEvent->record();
     }
 
     if (blockingRead) {
-      retErr = UR_CHECK_ERROR(hipStreamSynchronize(hipStream));
+      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
-      *phEvent = retImplEv.release();
+      *phEvent = RetImplEvent.release();
     }
 
-  } catch (ur_result_t err) {
-    retErr = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
@@ -582,44 +576,44 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
-  void *devPtr = hBuffer->mem_.buffer_mem_.get_void();
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  void *DevPtr = hBuffer->Mem.BufferMem.getVoid();
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, hipStream));
-      retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, HIPStream));
+      RetImplEvent->start();
     }
 
-    retErr = commonEnqueueMemBufferCopyRect(
-        hipStream, region, pSrc, hipMemoryTypeHost, hostOrigin, hostRowPitch,
-        hostSlicePitch, &devPtr, hipMemoryTypeDevice, bufferOrigin,
+    Result = commonEnqueueMemBufferCopyRect(
+        HIPStream, region, pSrc, hipMemoryTypeHost, hostOrigin, hostRowPitch,
+        hostSlicePitch, &DevPtr, hipMemoryTypeDevice, bufferOrigin,
         bufferRowPitch, bufferSlicePitch);
 
     if (phEvent) {
-      retErr = retImplEv->record();
+      Result = RetImplEvent->record();
     }
 
     if (blockingWrite) {
-      retErr = UR_CHECK_ERROR(hipStreamSynchronize(hipStream));
+      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
-      *phEvent = retImplEv.release();
+      *phEvent = RetImplEvent.release();
     }
 
-  } catch (ur_result_t err) {
-    retErr = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
@@ -629,38 +623,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_event_handle_t *phEvent) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    ur_result_t result;
-    auto stream = hQueue->get_next_transfer_stream();
+    ScopedContext Active(hQueue->getContext());
+    ur_result_t Result;
+    auto Stream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
-      result = enqueueEventsWait(hQueue, stream, numEventsInWaitList,
+      Result = enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                  phEventWaitList);
     }
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_MEM_BUFFER_COPY, hQueue, stream));
-      result = retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream));
+      Result = RetImplEvent->start();
     }
 
-    auto src = hBufferSrc->mem_.buffer_mem_.get_with_offset(srcOffset);
-    auto dst = hBufferDst->mem_.buffer_mem_.get_with_offset(dstOffset);
+    auto Src = hBufferSrc->Mem.BufferMem.getWithOffset(srcOffset);
+    auto Dst = hBufferDst->Mem.BufferMem.getWithOffset(dstOffset);
 
-    result = UR_CHECK_ERROR(hipMemcpyDtoDAsync(dst, src, size, stream));
+    Result = UR_CHECK_ERROR(hipMemcpyDtoDAsync(Dst, Src, size, Stream));
 
     if (phEvent) {
-      result = retImplEv->record();
-      *phEvent = retImplEv.release();
+      Result = RetImplEvent->record();
+      *phEvent = RetImplEvent.release();
     }
 
-    return result;
-  } catch (ur_result_t err) {
-    return err;
+    return Result;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -678,38 +672,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   UR_ASSERT(hBufferSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hBufferDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
-  void *srcPtr = hBufferSrc->mem_.buffer_mem_.get_void();
-  void *dstPtr = hBufferDst->mem_.buffer_mem_.get_void();
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  void *SrcPtr = hBufferSrc->Mem.BufferMem.getVoid();
+  void *DstPtr = hBufferDst->Mem.BufferMem.getVoid();
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, hipStream));
-      retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, HIPStream));
+      RetImplEvent->start();
     }
 
-    retErr = commonEnqueueMemBufferCopyRect(
-        hipStream, region, &srcPtr, hipMemoryTypeDevice, srcOrigin, srcRowPitch,
-        srcSlicePitch, &dstPtr, hipMemoryTypeDevice, dstOrigin, dstRowPitch,
+    Result = commonEnqueueMemBufferCopyRect(
+        HIPStream, region, &SrcPtr, hipMemoryTypeDevice, srcOrigin, srcRowPitch,
+        srcSlicePitch, &DstPtr, hipMemoryTypeDevice, dstOrigin, dstRowPitch,
         dstSlicePitch);
 
     if (phEvent) {
-      retImplEv->record();
-      *phEvent = retImplEv.release();
+      RetImplEvent->record();
+      *phEvent = RetImplEvent.release();
     }
 
-  } catch (ur_result_t err) {
-    retErr = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
@@ -722,59 +716,59 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
   UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  auto args_are_multiples_of_pattern_size =
+  auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
 
-  auto pattern_is_valid = (pPattern != nullptr);
+  auto PatternIsValid = (pPattern != nullptr);
 
-  auto pattern_size_is_valid =
+  auto PatternSizeIsValid =
       ((patternSize & (patternSize - 1)) == 0) && // is power of two
       (patternSize > 0) && (patternSize <= 128);  // falls within valid range
 
-  UR_ASSERT(args_are_multiples_of_pattern_size && pattern_is_valid &&
-                pattern_size_is_valid,
+  UR_ASSERT(ArgsAreMultiplesOfPatternSize && PatternIsValid &&
+                PatternSizeIsValid,
             UR_RESULT_ERROR_INVALID_VALUE);
-  (void)args_are_multiples_of_pattern_size;
-  (void)pattern_is_valid;
-  (void)pattern_size_is_valid;
+  std::ignore = ArgsAreMultiplesOfPatternSize;
+  std::ignore = PatternIsValid;
+  std::ignore = PatternSizeIsValid;
 
-  std::unique_ptr<ur_event_handle_t_> retImplEv{nullptr};
+  std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
+    ScopedContext Active(hQueue->getContext());
 
-    auto stream = hQueue->get_next_transfer_stream();
-    ur_result_t result;
+    auto Stream = hQueue->getNextTransferStream();
+    ur_result_t Result;
     if (phEventWaitList) {
-      result = enqueueEventsWait(hQueue, stream, numEventsInWaitList,
+      Result = enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                  phEventWaitList);
     }
 
     if (phEvent) {
-      retImplEv =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_MEM_BUFFER_FILL, hQueue, stream));
-      result = retImplEv->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_FILL, hQueue, Stream));
+      Result = RetImplEvent->start();
     }
 
-    auto dstDevice = hBuffer->mem_.buffer_mem_.get_with_offset(offset);
+    auto DstDevice = hBuffer->Mem.BufferMem.getWithOffset(offset);
     auto N = size / patternSize;
 
     // pattern size in bytes
     switch (patternSize) {
     case 1: {
-      auto value = *static_cast<const uint8_t *>(pPattern);
-      result = UR_CHECK_ERROR(hipMemsetD8Async(dstDevice, value, N, stream));
+      auto Value = *static_cast<const uint8_t *>(pPattern);
+      Result = UR_CHECK_ERROR(hipMemsetD8Async(DstDevice, Value, N, Stream));
       break;
     }
     case 2: {
-      auto value = *static_cast<const uint16_t *>(pPattern);
-      result = UR_CHECK_ERROR(hipMemsetD16Async(dstDevice, value, N, stream));
+      auto Value = *static_cast<const uint16_t *>(pPattern);
+      Result = UR_CHECK_ERROR(hipMemsetD16Async(DstDevice, Value, N, Stream));
       break;
     }
     case 4: {
-      auto value = *static_cast<const uint32_t *>(pPattern);
-      result = UR_CHECK_ERROR(hipMemsetD32Async(dstDevice, value, N, stream));
+      auto Value = *static_cast<const uint32_t *>(pPattern);
+      Result = UR_CHECK_ERROR(hipMemsetD32Async(DstDevice, Value, N, Stream));
       break;
     }
 
@@ -790,39 +784,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       // Calculate the number of patterns, stride, number of times the pattern
       // needs to be applied, and the number of times the first 32 bit pattern
       // needs to be applied.
-      auto number_of_steps = patternSize / sizeof(uint8_t);
-      auto pitch = number_of_steps * sizeof(uint8_t);
-      auto height = size / number_of_steps;
-      auto count_32 = size / sizeof(uint32_t);
+      auto NumberOfSteps = patternSize / sizeof(uint8_t);
+      auto Pitch = NumberOfSteps * sizeof(uint8_t);
+      auto Height = size / NumberOfSteps;
+      auto Count32 = size / sizeof(uint32_t);
 
       // Get 4-byte chunk of the pattern and call hipMemsetD32Async
-      auto value = *(static_cast<const uint32_t *>(pPattern));
-      result =
-          UR_CHECK_ERROR(hipMemsetD32Async(dstDevice, value, count_32, stream));
-      for (auto step = 4u; step < number_of_steps; ++step) {
+      auto Value = *(static_cast<const uint32_t *>(pPattern));
+      Result =
+          UR_CHECK_ERROR(hipMemsetD32Async(DstDevice, Value, Count32, Stream));
+      for (auto step = 4u; step < NumberOfSteps; ++step) {
         // take 1 byte of the pattern
-        value = *(static_cast<const uint8_t *>(pPattern) + step);
+        Value = *(static_cast<const uint8_t *>(pPattern) + step);
 
         // offset the pointer to the part of the buffer we want to write to
-        auto offset_ptr = reinterpret_cast<void *>(
-            reinterpret_cast<uint8_t *>(dstDevice) + (step * sizeof(uint8_t)));
+        auto OffsetPtr = reinterpret_cast<void *>(
+            reinterpret_cast<uint8_t *>(DstDevice) + (step * sizeof(uint8_t)));
 
         // set all of the pattern chunks
-        result = UR_CHECK_ERROR(hipMemset2DAsync(
-            offset_ptr, pitch, value, sizeof(uint8_t), height, stream));
+        Result = UR_CHECK_ERROR(hipMemset2DAsync(
+            OffsetPtr, Pitch, Value, sizeof(uint8_t), Height, Stream));
       }
       break;
     }
     }
 
     if (phEvent) {
-      result = retImplEv->record();
-      *phEvent = retImplEv.release();
+      Result = RetImplEvent->record();
+      *phEvent = RetImplEvent.release();
     }
 
-    return result;
-  } catch (ur_result_t err) {
-    return err;
+    return Result;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -831,72 +825,72 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
 /// General ND memory copy operation for images (where N > 1).
 /// This function requires the corresponding HIP context to be at the top of
 /// the context stack
-/// If the source and/or destination is an array, src_ptr and/or dst_ptr
+/// If the source and/or destination is an array, SrcPtr and/or DstPtr
 /// must be a pointer to a hipArray
 static ur_result_t commonEnqueueMemImageNDCopy(
-    hipStream_t hip_stream, ur_mem_type_t img_type, const size_t *region,
-    const void *src_ptr, const hipMemoryType src_type, const size_t *src_offset,
-    void *dst_ptr, const hipMemoryType dst_type, const size_t *dst_offset) {
-  UR_ASSERT(region, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    hipStream_t HipStream, ur_mem_type_t ImgType, const size_t *Region,
+    const void *SrcPtr, const hipMemoryType SrcType, const size_t *SrcOffset,
+    void *DstPtr, const hipMemoryType DstType, const size_t *DstOffset) {
+  UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  UR_ASSERT(src_type == hipMemoryTypeArray || src_type == hipMemoryTypeHost,
+  UR_ASSERT(SrcType == hipMemoryTypeArray || SrcType == hipMemoryTypeHost,
             UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(dst_type == hipMemoryTypeArray || dst_type == hipMemoryTypeHost,
+  UR_ASSERT(DstType == hipMemoryTypeArray || DstType == hipMemoryTypeHost,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (img_type == UR_MEM_TYPE_IMAGE2D) {
-    hip_Memcpy2D cpyDesc;
-    memset(&cpyDesc, 0, sizeof(cpyDesc));
-    cpyDesc.srcMemoryType = src_type;
-    if (src_type == hipMemoryTypeArray) {
-      cpyDesc.srcArray =
-          reinterpret_cast<hipCUarray>(const_cast<void *>(src_ptr));
-      cpyDesc.srcXInBytes = src_offset[0];
-      cpyDesc.srcY = src_offset[1];
+  if (ImgType == UR_MEM_TYPE_IMAGE2D) {
+    hip_Memcpy2D CpyDesc;
+    memset(&CpyDesc, 0, sizeof(CpyDesc));
+    CpyDesc.srcMemoryType = SrcType;
+    if (SrcType == hipMemoryTypeArray) {
+      CpyDesc.srcArray =
+          reinterpret_cast<hipCUarray>(const_cast<void *>(SrcPtr));
+      CpyDesc.srcXInBytes = SrcOffset[0];
+      CpyDesc.srcY = SrcOffset[1];
     } else {
-      cpyDesc.srcHost = src_ptr;
+      CpyDesc.srcHost = SrcPtr;
     }
-    cpyDesc.dstMemoryType = dst_type;
-    if (dst_type == hipMemoryTypeArray) {
-      cpyDesc.dstArray =
-          reinterpret_cast<hipCUarray>(const_cast<void *>(dst_ptr));
-      cpyDesc.dstXInBytes = dst_offset[0];
-      cpyDesc.dstY = dst_offset[1];
+    CpyDesc.dstMemoryType = DstType;
+    if (DstType == hipMemoryTypeArray) {
+      CpyDesc.dstArray =
+          reinterpret_cast<hipCUarray>(const_cast<void *>(DstPtr));
+      CpyDesc.dstXInBytes = DstOffset[0];
+      CpyDesc.dstY = DstOffset[1];
     } else {
-      cpyDesc.dstHost = dst_ptr;
+      CpyDesc.dstHost = DstPtr;
     }
-    cpyDesc.WidthInBytes = region[0];
-    cpyDesc.Height = region[1];
-    return UR_CHECK_ERROR(hipMemcpyParam2DAsync(&cpyDesc, hip_stream));
+    CpyDesc.WidthInBytes = Region[0];
+    CpyDesc.Height = Region[1];
+    return UR_CHECK_ERROR(hipMemcpyParam2DAsync(&CpyDesc, HipStream));
   }
 
-  if (img_type == UR_MEM_TYPE_IMAGE3D) {
+  if (ImgType == UR_MEM_TYPE_IMAGE3D) {
 
-    HIP_MEMCPY3D cpyDesc;
-    memset(&cpyDesc, 0, sizeof(cpyDesc));
-    cpyDesc.srcMemoryType = src_type;
-    if (src_type == hipMemoryTypeArray) {
-      cpyDesc.srcArray =
-          reinterpret_cast<hipCUarray>(const_cast<void *>(src_ptr));
-      cpyDesc.srcXInBytes = src_offset[0];
-      cpyDesc.srcY = src_offset[1];
-      cpyDesc.srcZ = src_offset[2];
+    HIP_MEMCPY3D CpyDesc;
+    memset(&CpyDesc, 0, sizeof(CpyDesc));
+    CpyDesc.srcMemoryType = SrcType;
+    if (SrcType == hipMemoryTypeArray) {
+      CpyDesc.srcArray =
+          reinterpret_cast<hipCUarray>(const_cast<void *>(SrcPtr));
+      CpyDesc.srcXInBytes = SrcOffset[0];
+      CpyDesc.srcY = SrcOffset[1];
+      CpyDesc.srcZ = SrcOffset[2];
     } else {
-      cpyDesc.srcHost = src_ptr;
+      CpyDesc.srcHost = SrcPtr;
     }
-    cpyDesc.dstMemoryType = dst_type;
-    if (dst_type == hipMemoryTypeArray) {
-      cpyDesc.dstArray = reinterpret_cast<hipCUarray>(dst_ptr);
-      cpyDesc.dstXInBytes = dst_offset[0];
-      cpyDesc.dstY = dst_offset[1];
-      cpyDesc.dstZ = dst_offset[2];
+    CpyDesc.dstMemoryType = DstType;
+    if (DstType == hipMemoryTypeArray) {
+      CpyDesc.dstArray = reinterpret_cast<hipCUarray>(DstPtr);
+      CpyDesc.dstXInBytes = DstOffset[0];
+      CpyDesc.dstY = DstOffset[1];
+      CpyDesc.dstZ = DstOffset[2];
     } else {
-      cpyDesc.dstHost = dst_ptr;
+      CpyDesc.dstHost = DstPtr;
     }
-    cpyDesc.WidthInBytes = region[0];
-    cpyDesc.Height = region[1];
-    cpyDesc.Depth = region[2];
-    return UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&cpyDesc, hip_stream));
+    CpyDesc.WidthInBytes = Region[0];
+    CpyDesc.Height = Region[1];
+    CpyDesc.Depth = Region[2];
+    return UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&CpyDesc, HipStream));
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
@@ -913,61 +907,61 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hImage->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+  UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
-      retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+      Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                  phEventWaitList);
     }
 
-    hipArray *array = hImage->mem_.surface_mem_.get_array();
+    hipArray *Array = hImage->Mem.SurfaceMem.getArray();
 
     hipArray_Format Format;
     size_t NumChannels;
-    getArrayDesc(array, Format, NumChannels);
+    getArrayDesc(Array, Format, NumChannels);
 
-    int elementByteSize = imageElementByteSize(Format);
+    int ElementByteSize = imageElementByteSize(Format);
 
-    size_t byteOffsetX = origin.x * elementByteSize * NumChannels;
-    size_t bytesToCopy = elementByteSize * NumChannels * region.depth;
+    size_t ByteOffsetX = origin.x * ElementByteSize * NumChannels;
+    size_t BytesToCopy = ElementByteSize * NumChannels * region.depth;
 
-    auto imgType = hImage->mem_.surface_mem_.get_image_type();
+    auto ImgType = hImage->Mem.SurfaceMem.getImageType();
 
-    size_t adjustedRegion[3] = {bytesToCopy, region.height, region.height};
-    size_t srcOffset[3] = {byteOffsetX, origin.y, origin.z};
+    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.height};
+    size_t SrcOffset[3] = {ByteOffsetX, origin.y, origin.z};
 
-    retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
-                                         array, hipMemoryTypeArray, srcOffset,
+    Result = commonEnqueueMemImageNDCopy(HIPStream, ImgType, AdjustedRegion,
+                                         Array, hipMemoryTypeArray, SrcOffset,
                                          pDst, hipMemoryTypeHost, nullptr);
 
-    if (retErr != UR_RESULT_SUCCESS) {
-      return retErr;
+    if (Result != UR_RESULT_SUCCESS) {
+      return Result;
     }
 
     if (phEvent) {
-      auto new_event = ur_event_handle_t_::make_native(
-          UR_COMMAND_MEM_IMAGE_READ, hQueue, hipStream);
-      new_event->record();
-      *phEvent = new_event;
+      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_READ,
+                                                     hQueue, HIPStream);
+      NewEvent->record();
+      *phEvent = NewEvent;
     }
 
     if (blockingRead) {
-      retErr = UR_CHECK_ERROR(hipStreamSynchronize(hipStream));
+      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
-  } catch (ur_result_t err) {
-    return err;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
@@ -981,59 +975,59 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hImage->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+  UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
-      retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+      Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                  phEventWaitList);
     }
 
-    hipArray *array = hImage->mem_.surface_mem_.get_array();
+    hipArray *Array = hImage->Mem.SurfaceMem.getArray();
 
     hipArray_Format Format;
     size_t NumChannels;
-    getArrayDesc(array, Format, NumChannels);
+    getArrayDesc(Array, Format, NumChannels);
 
-    int elementByteSize = imageElementByteSize(Format);
+    int ElementByteSize = imageElementByteSize(Format);
 
-    size_t byteOffsetX = origin.x * elementByteSize * NumChannels;
-    size_t bytesToCopy = elementByteSize * NumChannels * region.depth;
+    size_t ByteOffsetX = origin.x * ElementByteSize * NumChannels;
+    size_t BytesToCopy = ElementByteSize * NumChannels * region.depth;
 
-    auto imgType = hImage->mem_.surface_mem_.get_image_type();
+    auto ImgType = hImage->Mem.SurfaceMem.getImageType();
 
-    size_t adjustedRegion[3] = {bytesToCopy, region.height, region.height};
-    size_t dstOffset[3] = {byteOffsetX, origin.y, origin.z};
+    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.height};
+    size_t DstOffset[3] = {ByteOffsetX, origin.y, origin.z};
 
-    retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
+    Result = commonEnqueueMemImageNDCopy(HIPStream, ImgType, AdjustedRegion,
                                          pSrc, hipMemoryTypeHost, nullptr,
-                                         array, hipMemoryTypeArray, dstOffset);
+                                         Array, hipMemoryTypeArray, DstOffset);
 
-    if (retErr != UR_RESULT_SUCCESS) {
-      return retErr;
+    if (Result != UR_RESULT_SUCCESS) {
+      return Result;
     }
 
     if (phEvent) {
-      auto new_event = ur_event_handle_t_::make_native(
-          UR_COMMAND_MEM_IMAGE_WRITE, hQueue, hipStream);
-      new_event->record();
-      *phEvent = new_event;
+      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
+                                                     hQueue, HIPStream);
+      NewEvent->record();
+      *phEvent = NewEvent;
     }
-  } catch (ur_result_t err) {
-    return err;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
   return UR_RESULT_SUCCESS;
 
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
@@ -1046,67 +1040,67 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE)
   UR_ASSERT(hImageSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE)
   UR_ASSERT(hImageDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE)
-  UR_ASSERT(hImageSrc->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+  UR_ASSERT(hImageSrc->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hImageDst->mem_type_ == ur_mem_handle_t_::mem_type::surface,
+  UR_ASSERT(hImageDst->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hImageSrc->mem_.surface_mem_.get_image_type() ==
-                hImageDst->mem_.surface_mem_.get_image_type(),
+  UR_ASSERT(hImageSrc->Mem.SurfaceMem.getImageType() ==
+                hImageDst->Mem.SurfaceMem.getImageType(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
     if (phEventWaitList) {
-      retErr = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+      Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                  phEventWaitList);
     }
 
-    hipArray *srcArray = hImageSrc->mem_.surface_mem_.get_array();
-    hipArray_Format srcFormat;
-    size_t srcNumChannels;
-    getArrayDesc(srcArray, srcFormat, srcNumChannels);
+    hipArray *SrcArray = hImageSrc->Mem.SurfaceMem.getArray();
+    hipArray_Format SrcFormat;
+    size_t SrcNumChannels;
+    getArrayDesc(SrcArray, SrcFormat, SrcNumChannels);
 
-    hipArray *dstArray = hImageDst->mem_.surface_mem_.get_array();
-    hipArray_Format dstFormat;
-    size_t dstNumChannels;
-    getArrayDesc(dstArray, dstFormat, dstNumChannels);
+    hipArray *DstArray = hImageDst->Mem.SurfaceMem.getArray();
+    hipArray_Format DstFormat;
+    size_t DstNumChannels;
+    getArrayDesc(DstArray, DstFormat, DstNumChannels);
 
-    UR_ASSERT(srcFormat == dstFormat,
+    UR_ASSERT(SrcFormat == DstFormat,
               UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-    UR_ASSERT(srcNumChannels == dstNumChannels,
+    UR_ASSERT(SrcNumChannels == DstNumChannels,
               UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
-    int elementByteSize = imageElementByteSize(srcFormat);
+    int ElementByteSize = imageElementByteSize(SrcFormat);
 
-    size_t dstByteOffsetX = dstOrigin.x * elementByteSize * srcNumChannels;
-    size_t srcByteOffsetX = srcOrigin.x * elementByteSize * dstNumChannels;
-    size_t bytesToCopy = elementByteSize * srcNumChannels * region.depth;
+    size_t DstByteOffsetX = dstOrigin.x * ElementByteSize * SrcNumChannels;
+    size_t SrcByteOffsetX = srcOrigin.x * ElementByteSize * DstNumChannels;
+    size_t BytesToCopy = ElementByteSize * SrcNumChannels * region.depth;
 
-    auto imgType = hImageSrc->mem_.surface_mem_.get_image_type();
+    auto ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
 
-    size_t adjustedRegion[3] = {bytesToCopy, region.height, region.width};
-    size_t srcOffset[3] = {srcByteOffsetX, srcOrigin.y, srcOrigin.z};
-    size_t dstOffset[3] = {dstByteOffsetX, dstOrigin.y, dstOrigin.z};
+    size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.width};
+    size_t SrcOffset[3] = {SrcByteOffsetX, srcOrigin.y, srcOrigin.z};
+    size_t DstOffset[3] = {DstByteOffsetX, dstOrigin.y, dstOrigin.z};
 
-    retErr = commonEnqueueMemImageNDCopy(
-        hipStream, imgType, adjustedRegion, srcArray, hipMemoryTypeArray,
-        srcOffset, dstArray, hipMemoryTypeArray, dstOffset);
+    Result = commonEnqueueMemImageNDCopy(
+        HIPStream, ImgType, AdjustedRegion, SrcArray, hipMemoryTypeArray,
+        SrcOffset, DstArray, hipMemoryTypeArray, DstOffset);
 
-    if (retErr != UR_RESULT_SUCCESS) {
-      return retErr;
+    if (Result != UR_RESULT_SUCCESS) {
+      return Result;
     }
 
     if (phEvent) {
-      auto new_event = ur_event_handle_t_::make_native(
-          UR_COMMAND_MEM_IMAGE_COPY, hQueue, hipStream);
-      new_event->record();
-      *phEvent = new_event;
+      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
+                                                     hQueue, HIPStream);
+      NewEvent->record();
+      *phEvent = NewEvent;
     }
-  } catch (ur_result_t err) {
-    return err;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -1127,54 +1121,53 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(ppRetMap, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hBuffer->mem_type_ == ur_mem_handle_t_::mem_type::buffer,
+  UR_ASSERT(hBuffer->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t ret_err = UR_RESULT_ERROR_INVALID_OPERATION;
-  const bool is_pinned =
-      hBuffer->mem_.buffer_mem_.allocMode_ ==
-      ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
+  ur_result_t Result = UR_RESULT_ERROR_INVALID_OPERATION;
+  const bool IsPinned =
+      hBuffer->Mem.BufferMem.MemAllocMode ==
+      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
 
   // Currently no support for overlapping regions
-  if (hBuffer->mem_.buffer_mem_.get_map_ptr() != nullptr) {
-    return ret_err;
+  if (hBuffer->Mem.BufferMem.getMapPtr() != nullptr) {
+    return Result;
   }
 
   // Allocate a pointer in the host to store the mapped information
-  auto hostPtr = hBuffer->mem_.buffer_mem_.map_to_ptr(offset, mapFlags);
-  *ppRetMap = hBuffer->mem_.buffer_mem_.get_map_ptr();
-  if (hostPtr) {
-    ret_err = UR_RESULT_SUCCESS;
+  auto HostPtr = hBuffer->Mem.BufferMem.mapToPtr(offset, mapFlags);
+  *ppRetMap = hBuffer->Mem.BufferMem.getMapPtr();
+  if (HostPtr) {
+    Result = UR_RESULT_SUCCESS;
   }
 
-  if (!is_pinned &&
+  if (!IsPinned &&
       ((mapFlags & UR_MAP_FLAG_READ) || (mapFlags & UR_MAP_FLAG_WRITE))) {
     // Pinned host memory is already on host so it doesn't need to be read.
-    ret_err = urEnqueueMemBufferRead(hQueue, hBuffer, blockingMap, offset, size,
-                                     hostPtr, numEventsInWaitList,
-                                     phEventWaitList, phEvent);
+    Result = urEnqueueMemBufferRead(hQueue, hBuffer, blockingMap, offset, size,
+                                    HostPtr, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
   } else {
-    ScopedContext active(hQueue->get_context());
+    ScopedContext Active(hQueue->getContext());
 
-    if (is_pinned) {
-      ret_err = urEnqueueEventsWait(hQueue, numEventsInWaitList,
-                                    phEventWaitList, nullptr);
+    if (IsPinned) {
+      Result = urEnqueueEventsWait(hQueue, numEventsInWaitList, phEventWaitList,
+                                   nullptr);
     }
 
     if (phEvent) {
       try {
-        *phEvent =
-            ur_event_handle_t_::make_native(UR_COMMAND_MEM_BUFFER_MAP, hQueue,
-                                            hQueue->get_next_transfer_stream());
+        *phEvent = ur_event_handle_t_::makeNative(
+            UR_COMMAND_MEM_BUFFER_MAP, hQueue, hQueue->getNextTransferStream());
         (*phEvent)->start();
         (*phEvent)->record();
-      } catch (ur_result_t error) {
-        ret_err = error;
+      } catch (ur_result_t Error) {
+        Result = Error;
       }
     }
   }
 
-  return ret_err;
+  return Result;
 }
 
 /// Implements the unmap from the host, using a BufferWrite operation.
@@ -1185,53 +1178,52 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t ret_err = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pMappedPtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hMem->mem_type_ == ur_mem_handle_t_::mem_type::buffer,
+  UR_ASSERT(hMem->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hMem->mem_.buffer_mem_.get_map_ptr() != nullptr,
+  UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() != nullptr,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hMem->mem_.buffer_mem_.get_map_ptr() == pMappedPtr,
+  UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() == pMappedPtr,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  const bool is_pinned =
-      hMem->mem_.buffer_mem_.allocMode_ ==
-      ur_mem_handle_t_::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
+  const bool IsPinned =
+      hMem->Mem.BufferMem.MemAllocMode ==
+      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
 
-  if (!is_pinned &&
-      ((hMem->mem_.buffer_mem_.get_map_flags() & UR_MAP_FLAG_WRITE) ||
-       (hMem->mem_.buffer_mem_.get_map_flags() &
-        UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
+  if (!IsPinned && ((hMem->Mem.BufferMem.getMapFlags() & UR_MAP_FLAG_WRITE) ||
+                    (hMem->Mem.BufferMem.getMapFlags() &
+                     UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
-    ret_err = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, hMem->mem_.buffer_mem_.get_map_offset(pMappedPtr),
-        hMem->mem_.buffer_mem_.get_size(), pMappedPtr, numEventsInWaitList,
+    Result = urEnqueueMemBufferWrite(
+        hQueue, hMem, true, hMem->Mem.BufferMem.getMapOffset(pMappedPtr),
+        hMem->Mem.BufferMem.getSize(), pMappedPtr, numEventsInWaitList,
         phEventWaitList, phEvent);
   } else {
-    ScopedContext active(hQueue->get_context());
+    ScopedContext Active(hQueue->getContext());
 
-    if (is_pinned) {
-      ret_err = urEnqueueEventsWait(hQueue, numEventsInWaitList,
-                                    phEventWaitList, nullptr);
+    if (IsPinned) {
+      Result = urEnqueueEventsWait(hQueue, numEventsInWaitList, phEventWaitList,
+                                   nullptr);
     }
 
     if (phEvent) {
       try {
-        *phEvent = ur_event_handle_t_::make_native(
-            UR_COMMAND_MEM_UNMAP, hQueue, hQueue->get_next_transfer_stream());
+        *phEvent = ur_event_handle_t_::makeNative(
+            UR_COMMAND_MEM_UNMAP, hQueue, hQueue->getNextTransferStream());
         (*phEvent)->start();
         (*phEvent)->record();
-      } catch (ur_result_t error) {
-        ret_err = error;
+      } catch (ur_result_t Error) {
+        Result = Error;
       }
     }
   }
 
-  hMem->mem_.buffer_mem_.unmap(pMappedPtr);
-  return ret_err;
+  hMem->Mem.BufferMem.unmap(pMappedPtr);
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
@@ -1243,38 +1235,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ur_result_t result = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    uint32_t stream_token;
-    ur_stream_quard guard;
-    hipStream_t hipStream = hQueue->get_next_compute_stream(
-        numEventsInWaitList, phEventWaitList, guard, &stream_token);
-    result = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    uint32_t StreamToken;
+    ur_stream_quard Guard;
+    hipStream_t HIPStream = hQueue->getNextComputeStream(
+        numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
     if (phEvent) {
-      event_ptr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_USM_FILL, hQueue, hipStream, stream_token));
-      event_ptr->start();
+      EventPtr =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_USM_FILL, hQueue, HIPStream, StreamToken));
+      EventPtr->start();
     }
     switch (patternSize) {
     case 1:
-      result = UR_CHECK_ERROR(
+      Result = UR_CHECK_ERROR(
           hipMemsetD8Async(reinterpret_cast<hipDeviceptr_t>(ptr),
-                           *(const uint8_t *)pPattern & 0xFF, size, hipStream));
+                           *(const uint8_t *)pPattern & 0xFF, size, HIPStream));
       break;
     case 2:
-      result = UR_CHECK_ERROR(hipMemsetD16Async(
+      Result = UR_CHECK_ERROR(hipMemsetD16Async(
           reinterpret_cast<hipDeviceptr_t>(ptr),
-          *(const uint16_t *)pPattern & 0xFFFF, size, hipStream));
+          *(const uint16_t *)pPattern & 0xFFFF, size, HIPStream));
       break;
     case 4:
-      result = UR_CHECK_ERROR(hipMemsetD32Async(
+      Result = UR_CHECK_ERROR(hipMemsetD32Async(
           reinterpret_cast<hipDeviceptr_t>(ptr),
-          *(const uint32_t *)pPattern & 0xFFFFFFFF, size, hipStream));
+          *(const uint32_t *)pPattern & 0xFFFFFFFF, size, HIPStream));
       break;
 
     default:
@@ -1282,14 +1274,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     }
 
     if (phEvent) {
-      result = event_ptr->record();
-      *phEvent = event_ptr.release();
+      Result = EventPtr->record();
+      *phEvent = EventPtr.release();
     }
-  } catch (ur_result_t err) {
-    result = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
 
-  return result;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
@@ -1300,36 +1292,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ur_result_t result = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
-  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
-    result = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
     if (phEvent) {
-      event_ptr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_USM_MEMCPY, hQueue, hipStream));
-      event_ptr->start();
+      EventPtr =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_USM_MEMCPY, hQueue, HIPStream));
+      EventPtr->start();
     }
-    result = UR_CHECK_ERROR(
-        hipMemcpyAsync(pDst, pSrc, size, hipMemcpyDefault, hipStream));
+    Result = UR_CHECK_ERROR(
+        hipMemcpyAsync(pDst, pSrc, size, hipMemcpyDefault, HIPStream));
     if (phEvent) {
-      result = event_ptr->record();
+      Result = EventPtr->record();
     }
     if (blocking) {
-      result = UR_CHECK_ERROR(hipStreamSynchronize(hipStream));
+      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
     if (phEvent) {
-      *phEvent = event_ptr.release();
+      *phEvent = EventPtr.release();
     }
-  } catch (ur_result_t err) {
-    result = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return result;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
@@ -1343,31 +1335,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   // flags is currently unused so fail if set
   if (flags != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
-  ur_result_t result = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
-    result = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
     if (phEvent) {
-      event_ptr =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::make_native(
-              UR_COMMAND_USM_PREFETCH, hQueue, hipStream));
-      event_ptr->start();
+      EventPtr =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_USM_PREFETCH, hQueue, HIPStream));
+      EventPtr->start();
     }
-    result = UR_CHECK_ERROR(hipMemPrefetchAsync(
-        pMem, size, hQueue->get_context()->get_device()->get(), hipStream));
+    Result = UR_CHECK_ERROR(hipMemPrefetchAsync(
+        pMem, size, hQueue->getContext()->getDevice()->get(), HIPStream));
     if (phEvent) {
-      result = event_ptr->record();
-      *phEvent = event_ptr.release();
+      Result = EventPtr->record();
+      *phEvent = EventPtr.release();
     }
-  } catch (ur_result_t err) {
-    result = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
 
-  return result;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -1427,34 +1419,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ur_result_t result = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext active(hQueue->get_context());
-    hipStream_t hipStream = hQueue->get_next_transfer_stream();
-    result = enqueueEventsWait(hQueue, hipStream, numEventsInWaitList,
+    ScopedContext Active(hQueue->getContext());
+    hipStream_t HIPStream = hQueue->getNextTransferStream();
+    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
     if (phEvent) {
-      (*phEvent) = ur_event_handle_t_::make_native(UR_COMMAND_USM_MEMCPY_2D,
-                                                   hQueue, hipStream);
+      (*phEvent) = ur_event_handle_t_::makeNative(UR_COMMAND_USM_MEMCPY_2D,
+                                                  hQueue, HIPStream);
       (*phEvent)->start();
     }
 
-    result =
+    Result =
         UR_CHECK_ERROR(hipMemcpy2DAsync(pDst, dstPitch, pSrc, srcPitch, width,
-                                        height, hipMemcpyDefault, hipStream));
+                                        height, hipMemcpyDefault, HIPStream));
 
     if (phEvent) {
       (*phEvent)->record();
     }
     if (blocking) {
-      result = UR_CHECK_ERROR(hipStreamSynchronize(hipStream));
+      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
-  } catch (ur_result_t err) {
-    result = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
 
-  return result;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(

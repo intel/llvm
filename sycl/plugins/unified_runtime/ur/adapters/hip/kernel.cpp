@@ -17,38 +17,38 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   UR_ASSERT(pKernelName, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(phKernel, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
-  std::unique_ptr<ur_kernel_handle_t_> retKernel{nullptr};
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  std::unique_ptr<ur_kernel_handle_t_> RetKernel{nullptr};
 
   try {
-    ScopedContext active(hProgram->get_context());
+    ScopedContext Active(hProgram->getContext());
 
-    hipFunction_t hipFunc;
-    retErr = UR_CHECK_ERROR(
-        hipModuleGetFunction(&hipFunc, hProgram->get(), pKernelName));
+    hipFunction_t HIPFunc;
+    Result = UR_CHECK_ERROR(
+        hipModuleGetFunction(&HIPFunc, hProgram->get(), pKernelName));
 
-    std::string kernel_name_woffset = std::string(pKernelName) + "_with_offset";
-    hipFunction_t hipFuncWithOffsetParam;
-    hipError_t offsetRes = hipModuleGetFunction(
-        &hipFuncWithOffsetParam, hProgram->get(), kernel_name_woffset.c_str());
+    std::string KernelNameWoffset = std::string(pKernelName) + "_with_offset";
+    hipFunction_t HIPFuncWithOffsetParam;
+    hipError_t OffsetRes = hipModuleGetFunction(
+        &HIPFuncWithOffsetParam, hProgram->get(), KernelNameWoffset.c_str());
 
     // If there is no kernel with global offset parameter we mark it as missing
-    if (offsetRes == hipErrorNotFound) {
-      hipFuncWithOffsetParam = nullptr;
+    if (OffsetRes == hipErrorNotFound) {
+      HIPFuncWithOffsetParam = nullptr;
     } else {
-      retErr = UR_CHECK_ERROR(offsetRes);
+      Result = UR_CHECK_ERROR(OffsetRes);
     }
-    retKernel = std::unique_ptr<ur_kernel_handle_t_>(
-        new ur_kernel_handle_t_{hipFunc, hipFuncWithOffsetParam, pKernelName,
-                                hProgram, hProgram->get_context()});
-  } catch (ur_result_t err) {
-    retErr = err;
+    RetKernel = std::unique_ptr<ur_kernel_handle_t_>(
+        new ur_kernel_handle_t_{HIPFunc, HIPFuncWithOffsetParam, pKernelName,
+                                hProgram, hProgram->getContext()});
+  } catch (ur_result_t Err) {
+    Result = Err;
   } catch (...) {
-    retErr = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
 
-  *phKernel = retKernel.release();
-  return retErr;
+  *phKernel = RetKernel.release();
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -57,22 +57,21 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                      void *pPropValue, size_t *pPropSizeRet) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  // Here we want to query about a kernel's cuda blocks!
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
   case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
-    size_t global_work_size[3] = {0, 0, 0};
+    size_t GlobalWorkSize[3] = {0, 0, 0};
 
-    int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+    int MaxBlockDimX{0}, MaxBlockDimY{0}, MaxBlockDimZ{0};
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_block_dimX, hipDeviceAttributeMaxBlockDimX,
+        hipDeviceGetAttribute(&MaxBlockDimX, hipDeviceAttributeMaxBlockDimX,
                               hDevice->get()) == hipSuccess);
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_block_dimY, hipDeviceAttributeMaxBlockDimY,
+        hipDeviceGetAttribute(&MaxBlockDimY, hipDeviceAttributeMaxBlockDimY,
                               hDevice->get()) == hipSuccess);
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_block_dimZ, hipDeviceAttributeMaxBlockDimZ,
+        hipDeviceGetAttribute(&MaxBlockDimZ, hipDeviceAttributeMaxBlockDimZ,
                               hDevice->get()) == hipSuccess);
 
     int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
@@ -86,18 +85,18 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
         hipDeviceGetAttribute(&max_grid_dimZ, hipDeviceAttributeMaxGridDimZ,
                               hDevice->get()) == hipSuccess);
 
-    global_work_size[0] = max_block_dimX * max_grid_dimX;
-    global_work_size[1] = max_block_dimY * max_grid_dimY;
-    global_work_size[2] = max_block_dimZ * max_grid_dimZ;
-    return ReturnValue(global_work_size, 3);
+    GlobalWorkSize[0] = MaxBlockDimX * max_grid_dimX;
+    GlobalWorkSize[1] = MaxBlockDimY * max_grid_dimY;
+    GlobalWorkSize[2] = MaxBlockDimZ * max_grid_dimZ;
+    return ReturnValue(GlobalWorkSize, 3);
   }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-    int max_threads = 0;
+    int MaxThreads = 0;
     sycl::detail::ur::assertion(
-        hipFuncGetAttribute(&max_threads,
+        hipFuncGetAttribute(&MaxThreads,
                             HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                             hKernel->get()) == hipSuccess);
-    return ReturnValue(size_t(max_threads));
+    return ReturnValue(size_t(MaxThreads));
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     size_t group_size[3] = {0, 0, 0};
@@ -111,27 +110,27 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // OpenCL LOCAL == HIP SHARED
-    int bytes = 0;
+    int Bytes = 0;
     sycl::detail::ur::assertion(
-        hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+        hipFuncGetAttribute(&Bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                             hKernel->get()) == hipSuccess);
-    return ReturnValue(uint64_t(bytes));
+    return ReturnValue(uint64_t(Bytes));
   }
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     // Work groups should be multiples of the warp size
-    int warpSize = 0;
+    int WarpSize = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
+        hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
                               hDevice->get()) == hipSuccess);
-    return ReturnValue(static_cast<size_t>(warpSize));
+    return ReturnValue(static_cast<size_t>(WarpSize));
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
     // OpenCL PRIVATE == HIP LOCAL
-    int bytes = 0;
+    int Bytes = 0;
     sycl::detail::ur::assertion(
-        hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+        hipFuncGetAttribute(&Bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
                             hKernel->get()) == hipSuccess);
-    return ReturnValue(uint64_t(bytes));
+    return ReturnValue(uint64_t(Bytes));
   }
   default:
     break;
@@ -142,10 +141,9 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hKernel->get_reference_count() > 0u,
-            UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(hKernel->getReferenceCount() > 0u, UR_RESULT_ERROR_INVALID_KERNEL);
 
-  hKernel->increment_reference_count();
+  hKernel->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
@@ -155,11 +153,10 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  UR_ASSERT(hKernel->get_reference_count() != 0,
-            UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(hKernel->getReferenceCount() != 0, UR_RESULT_ERROR_INVALID_KERNEL);
 
   // decrement ref count. If it is 0, delete the program.
-  if (hKernel->decrement_reference_count() == 0) {
+  if (hKernel->decrementReferenceCount() == 0) {
     // no internal cuda resources to clean up. Just delete it.
     delete hKernel;
     return UR_RESULT_SUCCESS;
@@ -172,8 +169,8 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
 // feature.
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
-  (void)hKernel;
-  (void)phNativeKernel;
+  std::ignore = hKernel;
+  std::ignore = phNativeKernel;
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -183,17 +180,17 @@ urKernelSetArgValue(ur_kernel_handle_t hKernel, uint32_t argIndex,
                     size_t argSize, const void *pArgValue) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     if (pArgValue) {
-      hKernel->set_kernel_arg(argIndex, argSize, pArgValue);
+      hKernel->setKernelArg(argIndex, argSize, pArgValue);
     } else {
-      hKernel->set_kernel_local_arg(argIndex, argSize);
+      hKernel->setKernelLocalArg(argIndex, argSize);
     }
-  } catch (ur_result_t err) {
-    retErr = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
@@ -207,15 +204,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
 
   switch (propName) {
   case UR_KERNEL_INFO_FUNCTION_NAME:
-    return ReturnValue(hKernel->get_name());
+    return ReturnValue(hKernel->getName());
   case UR_KERNEL_INFO_NUM_ARGS:
-    return ReturnValue(hKernel->get_num_args());
+    return ReturnValue(hKernel->getNumArgs());
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(hKernel->get_reference_count());
+    return ReturnValue(hKernel->getReferenceCount());
   case UR_KERNEL_INFO_CONTEXT:
-    return ReturnValue(hKernel->get_context());
+    return ReturnValue(hKernel->getContext());
   case UR_KERNEL_INFO_PROGRAM:
-    return ReturnValue(hKernel->get_program());
+    return ReturnValue(hKernel->getProgram());
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
   default:
@@ -235,25 +232,25 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   switch (propName) {
   case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE: {
     // Sub-group size is equivalent to warp size
-    int warpSize = 0;
+    int WarpSize = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
+        hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
                               hDevice->get()) == hipSuccess);
-    return ReturnValue(static_cast<uint32_t>(warpSize));
+    return ReturnValue(static_cast<uint32_t>(WarpSize));
   }
   case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
-    int max_threads = 0;
+    int MaxThreads = 0;
     sycl::detail::ur::assertion(
-        hipFuncGetAttribute(&max_threads,
+        hipFuncGetAttribute(&MaxThreads,
                             HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                             hKernel->get()) == hipSuccess);
-    int warpSize = 0;
+    int WarpSize = 0;
     urKernelGetSubGroupInfo(hKernel, hDevice,
                             UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE,
-                            sizeof(uint32_t), &warpSize, nullptr);
-    int maxWarps = (max_threads + warpSize - 1) / warpSize;
-    return ReturnValue(static_cast<uint32_t>(maxWarps));
+                            sizeof(uint32_t), &WarpSize, nullptr);
+    int MaxWarps = (MaxThreads + WarpSize - 1) / WarpSize;
+    return ReturnValue(static_cast<uint32_t>(MaxWarps));
   }
   case UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS: {
     // Return value of 0 => not specified
@@ -276,7 +273,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex, const void *pArgValue) {
-  hKernel->set_kernel_arg(argIndex, sizeof(pArgValue), pArgValue);
+  hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
   return UR_RESULT_SUCCESS;
 }
 
@@ -288,14 +285,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   // Below sets kernel arg when zero-sized buffers are handled.
   // In such case the corresponding memory is null.
   if (hArgValue == nullptr) {
-    hKernel->set_kernel_arg(argIndex, 0, nullptr);
+    hKernel->setKernelArg(argIndex, 0, nullptr);
     return UR_RESULT_SUCCESS;
   }
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    if (hArgValue->mem_type_ == ur_mem_handle_t_::mem_type::surface) {
-      auto array = hArgValue->mem_.surface_mem_.get_array();
+    if (hArgValue->MemType == ur_mem_handle_t_::Type::Surface) {
+      auto array = hArgValue->Mem.SurfaceMem.getArray();
       hipArray_Format Format;
       size_t NumChannels;
       getArrayDesc(array, Format, NumChannels);
@@ -306,18 +303,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
             "UR HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
       }
-      hipSurfaceObject_t hipSurf = hArgValue->mem_.surface_mem_.get_surface();
-      hKernel->set_kernel_arg(argIndex, sizeof(hipSurf), (void *)&hipSurf);
+      hipSurfaceObject_t hipSurf = hArgValue->Mem.SurfaceMem.getSurface();
+      hKernel->setKernelArg(argIndex, sizeof(hipSurf), (void *)&hipSurf);
     } else
 
     {
-      void *hipPtr = hArgValue->mem_.buffer_mem_.get_void();
-      hKernel->set_kernel_arg(argIndex, sizeof(void *), (void *)&hipPtr);
+      void *HIPPtr = hArgValue->Mem.BufferMem.getVoid();
+      hKernel->setKernelArg(argIndex, sizeof(void *), (void *)&HIPPtr);
     }
-  } catch (ur_result_t err) {
-    retErr = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retErr;
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -327,20 +324,24 @@ urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
   UR_ASSERT(hKernel != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hArgValue != nullptr, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ur_result_t retErr = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    uint32_t samplerProps = hArgValue->props_;
-    hKernel->set_kernel_arg(argIndex, sizeof(uint32_t), (void *)&samplerProps);
-  } catch (ur_result_t err) {
-    retErr = err;
+    uint32_t SamplerProps = hArgValue->Props;
+    hKernel->setKernelArg(argIndex, sizeof(uint32_t), (void *)&SamplerProps);
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retErr;
+  return Result;
 }
 
 // A NOP for the HIP backend
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
                     size_t propSize, const void *pPropValue) {
+  std::ignore = hKernel;
+  std::ignore = propName;
+  std::ignore = propSize;
+  std::ignore = pPropValue;
   return UR_RESULT_SUCCESS;
 }
 
@@ -349,5 +350,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_program_handle_t hProgram,
     const ur_kernel_native_properties_t *pProperties,
     ur_kernel_handle_t *phKernel) {
+  std::ignore = hNativeKernel;
+  std::ignore = hContext;
+  std::ignore = hProgram;
+  std::ignore = pProperties;
+  std::ignore = phKernel;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

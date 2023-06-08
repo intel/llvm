@@ -20,24 +20,24 @@ struct ur_device_handle_t_ {
 private:
   using native_type = hipDevice_t;
 
-  native_type hipDevice_;
-  std::atomic_uint32_t refCount_;
-  ur_platform_handle_t platform_;
-  ur_context_handle_t context_;
+  native_type HIPDevice;
+  std::atomic_uint32_t RefCount;
+  ur_platform_handle_t Platform;
+  ur_context_handle_t Context;
 
 public:
-  ur_device_handle_t_(native_type hipDevice, ur_platform_handle_t platform)
-      : hipDevice_(hipDevice), refCount_{1}, platform_(platform) {}
+  ur_device_handle_t_(native_type HipDevice, ur_platform_handle_t Platform)
+      : HIPDevice(HipDevice), RefCount{1}, Platform(Platform) {}
 
-  native_type get() const noexcept { return hipDevice_; };
+  native_type get() const noexcept { return HIPDevice; };
 
-  uint32_t get_reference_count() const noexcept { return refCount_; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  ur_platform_handle_t get_platform() const noexcept { return platform_; };
+  ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
-  void set_context(ur_context_handle_t ctx) { context_ = ctx; };
+  void setContext(ur_context_handle_t Ctxt) { Context = Ctxt; };
 
-  ur_context_handle_t get_context() { return context_; };
+  ur_context_handle_t getContext() { return Context; };
 };
 
-int getAttribute(ur_device_handle_t device, hipDeviceAttribute_t attribute);
+int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);

@@ -12,113 +12,113 @@
 
 #include <sstream>
 
-int getAttribute(ur_device_handle_t device, hipDeviceAttribute_t attribute) {
-  int value;
+int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
+  int Value;
   sycl::detail::ur::assertion(
-      hipDeviceGetAttribute(&value, attribute, device->get()) == hipSuccess);
-  return value;
+      hipDeviceGetAttribute(&Value, Attribute, Device->get()) == hipSuccess);
+  return Value;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
-                                                    ur_device_info_t infoType,
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
+                                                    ur_device_info_t propName,
                                                     size_t propSize,
-                                                    void *pDeviceInfo,
+                                                    void *pPropValue,
                                                     size_t *pPropSizeRet) {
-  UR_ASSERT(device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UrReturnHelper ReturnValue(propSize, pDeviceInfo, pPropSizeRet);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  static constexpr uint32_t max_work_item_dimensions = 3u;
+  static constexpr uint32_t MaxWorkItemDimensions = 3u;
 
-  switch ((uint32_t)infoType) {
+  switch ((uint32_t)propName) {
   case UR_DEVICE_INFO_TYPE: {
     return ReturnValue(UR_DEVICE_TYPE_GPU);
   }
   case UR_DEVICE_INFO_VENDOR_ID: {
 #if defined(__HIP_PLATFORM_AMD__)
-    uint32_t vendor_id = 4098u;
+    uint32_t VendorId = 4098u;
 #elif defined(__HIP_PLATFORM_NVIDIA__)
-    uint32_t vendor_id = 4318u;
+    uint32_t VendorId = 4318u;
 #else
-    uint32_t vendor_id = 0u;
+    uint32_t VendorId = 0u;
 #endif
-    return ReturnValue(vendor_id);
+    return ReturnValue(VendorId);
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
-    int compute_units = 0;
+    int ComputeUnits = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&compute_units,
+        hipDeviceGetAttribute(&ComputeUnits,
                               hipDeviceAttributeMultiprocessorCount,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(compute_units >= 0);
-    return ReturnValue(static_cast<uint32_t>(compute_units));
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(ComputeUnits >= 0);
+    return ReturnValue(static_cast<uint32_t>(ComputeUnits));
   }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS: {
-    return ReturnValue(max_work_item_dimensions);
+    return ReturnValue(MaxWorkItemDimensions);
   }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
-      size_t sizes[max_work_item_dimensions];
+      size_t sizes[MaxWorkItemDimensions];
     } return_sizes;
 
-    int max_x = 0, max_y = 0, max_z = 0;
+    int MaxX = 0, MaxY = 0, MaxZ = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxBlockDimX,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(max_x >= 0);
+        hipDeviceGetAttribute(&MaxX, hipDeviceAttributeMaxBlockDimX,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(MaxX >= 0);
 
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxBlockDimY,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(max_y >= 0);
+        hipDeviceGetAttribute(&MaxY, hipDeviceAttributeMaxBlockDimY,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(MaxY >= 0);
 
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxBlockDimZ,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(max_z >= 0);
+        hipDeviceGetAttribute(&MaxZ, hipDeviceAttributeMaxBlockDimZ,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(MaxZ >= 0);
 
-    return_sizes.sizes[0] = size_t(max_x);
-    return_sizes.sizes[1] = size_t(max_y);
-    return_sizes.sizes[2] = size_t(max_z);
+    return_sizes.sizes[0] = size_t(MaxX);
+    return_sizes.sizes[1] = size_t(MaxY);
+    return_sizes.sizes[2] = size_t(MaxZ);
     return ReturnValue(return_sizes);
   }
 
   case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
     struct {
-      size_t sizes[max_work_item_dimensions];
+      size_t sizes[MaxWorkItemDimensions];
     } return_sizes;
 
-    int max_x = 0, max_y = 0, max_z = 0;
+    int MaxX = 0, MaxY = 0, MaxZ = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxGridDimX,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(max_x >= 0);
+        hipDeviceGetAttribute(&MaxX, hipDeviceAttributeMaxGridDimX,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(MaxX >= 0);
 
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxGridDimY,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(max_y >= 0);
+        hipDeviceGetAttribute(&MaxY, hipDeviceAttributeMaxGridDimY,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(MaxY >= 0);
 
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxGridDimZ,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(max_z >= 0);
+        hipDeviceGetAttribute(&MaxZ, hipDeviceAttributeMaxGridDimZ,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(MaxZ >= 0);
 
-    return_sizes.sizes[0] = size_t(max_x);
-    return_sizes.sizes[1] = size_t(max_y);
-    return_sizes.sizes[2] = size_t(max_z);
+    return_sizes.sizes[0] = size_t(MaxX);
+    return_sizes.sizes[1] = size_t(MaxY);
+    return_sizes.sizes[2] = size_t(MaxZ);
     return ReturnValue(return_sizes);
   }
 
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
-    int max_work_group_size = 0;
+    int MaxWorkGroupSize = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_work_group_size,
+        hipDeviceGetAttribute(&MaxWorkGroupSize,
                               hipDeviceAttributeMaxThreadsPerBlock,
-                              device->get()) == hipSuccess);
+                              hDevice->get()) == hipSuccess);
 
-    sycl::detail::ur::assertion(max_work_group_size >= 0);
+    sycl::detail::ur::assertion(MaxWorkGroupSize >= 0);
 
-    return ReturnValue(size_t(max_work_group_size));
+    return ReturnValue(size_t(MaxWorkGroupSize));
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR: {
     return ReturnValue(1u);
@@ -164,47 +164,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
   }
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
-    int max_threads = 0;
+    int MaxThreads = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&max_threads,
-                              hipDeviceAttributeMaxThreadsPerBlock,
-                              device->get()) == hipSuccess);
-    int warpSize = 0;
+        hipDeviceGetAttribute(&MaxThreads, hipDeviceAttributeMaxThreadsPerBlock,
+                              hDevice->get()) == hipSuccess);
+    int WarpSize = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                              device->get()) == hipSuccess);
-    int maxWarps = (max_threads + warpSize - 1) / warpSize;
-    return ReturnValue(maxWarps);
+        hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
+                              hDevice->get()) == hipSuccess);
+    int MaxWarps = (MaxThreads + WarpSize - 1) / WarpSize;
+    return ReturnValue(MaxWarps);
   }
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
     // Volta provides independent thread scheduling
     // TODO: Revisit for previous generation GPUs
-    int major = 0;
+    int Major = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&major, hipDeviceAttributeComputeCapabilityMajor,
-                              device->get()) == hipSuccess);
-    bool ifp = (major >= 7);
-    return ReturnValue(ifp);
+        hipDeviceGetAttribute(&Major, hipDeviceAttributeComputeCapabilityMajor,
+                              hDevice->get()) == hipSuccess);
+    bool IFP = (Major >= 7);
+    return ReturnValue(IFP);
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    int warpSize = 0;
+    int WarpSize = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                              device->get()) == hipSuccess);
-    size_t sizes[1] = {static_cast<size_t>(warpSize)};
-    return ReturnValue(sizes, 1);
+        hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
+                              hDevice->get()) == hipSuccess);
+    size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
+    return ReturnValue(Sizes, 1);
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
-    int clock_freq = 0;
+    int ClockFreq = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&clock_freq, hipDeviceAttributeClockRate,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(clock_freq >= 0);
-    return ReturnValue(static_cast<uint32_t>(clock_freq) / 1000u);
+        hipDeviceGetAttribute(&ClockFreq, hipDeviceAttributeClockRate,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(ClockFreq >= 0);
+    return ReturnValue(static_cast<uint32_t>(ClockFreq) / 1000u);
   }
   case UR_DEVICE_INFO_ADDRESS_BITS: {
-    auto bits = uint32_t{std::numeric_limits<uintptr_t>::digits};
-    return ReturnValue(bits);
+    auto Bits = uint32_t{std::numeric_limits<uintptr_t>::digits};
+    return ReturnValue(Bits);
   }
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
     // Max size of memory object allocation in bytes.
@@ -213,16 +212,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     // 32 × 1024 × 1024) for devices that are not of type
     // CL_DEVICE_TYPE_CUSTOM.
 
-    size_t global = 0;
-    sycl::detail::ur::assertion(hipDeviceTotalMem(&global, device->get()) ==
+    size_t Global = 0;
+    sycl::detail::ur::assertion(hipDeviceTotalMem(&Global, hDevice->get()) ==
                                 hipSuccess);
 
-    auto quarter_global = static_cast<uint32_t>(global / 4u);
+    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
 
-    auto max_alloc = std::max(std::min(1024u * 1024u * 1024u, quarter_global),
-                              32u * 1024u * 1024u);
+    auto MaxAlloc = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
+                             32u * 1024u * 1024u);
 
-    return ReturnValue(uint64_t{max_alloc});
+    return ReturnValue(uint64_t{MaxAlloc});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
     return ReturnValue(uint32_t{true});
@@ -241,107 +240,105 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
   }
   case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
-    int tex_height = 0;
+    int TexHeight = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture2DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(tex_height >= 0);
-    int surf_height = 0;
+        hipDeviceGetAttribute(&TexHeight, hipDeviceAttributeMaxTexture2DHeight,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(TexHeight >= 0);
+    int SurfHeight = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&surf_height,
-                              hipDeviceAttributeMaxTexture2DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(surf_height >= 0);
+        hipDeviceGetAttribute(&SurfHeight, hipDeviceAttributeMaxTexture2DHeight,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(SurfHeight >= 0);
 
-    int min = std::min(tex_height, surf_height);
+    int Min = std::min(TexHeight, SurfHeight);
 
-    return ReturnValue(static_cast<size_t>(min));
+    return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
-    int tex_width = 0;
+    int TexWidth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture2DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(tex_width >= 0);
-    int surf_width = 0;
+        hipDeviceGetAttribute(&TexWidth, hipDeviceAttributeMaxTexture2DWidth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(TexWidth >= 0);
+    int SurfWidth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture2DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(surf_width >= 0);
+        hipDeviceGetAttribute(&SurfWidth, hipDeviceAttributeMaxTexture2DWidth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(SurfWidth >= 0);
 
-    int min = std::min(tex_width, surf_width);
+    int Min = std::min(TexWidth, SurfWidth);
 
-    return ReturnValue(static_cast<size_t>(min));
+    return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
-    int tex_height = 0;
+    int TexHeight = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture3DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(tex_height >= 0);
-    int surf_height = 0;
+        hipDeviceGetAttribute(&TexHeight, hipDeviceAttributeMaxTexture3DHeight,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(TexHeight >= 0);
+    int SurfHeight = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&surf_height,
-                              hipDeviceAttributeMaxTexture3DHeight,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(surf_height >= 0);
+        hipDeviceGetAttribute(&SurfHeight, hipDeviceAttributeMaxTexture3DHeight,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(SurfHeight >= 0);
 
-    int min = std::min(tex_height, surf_height);
+    int Min = std::min(TexHeight, SurfHeight);
 
-    return ReturnValue(static_cast<size_t>(min));
+    return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
-    int tex_width = 0;
+    int TexWidth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture3DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(tex_width >= 0);
-    int surf_width = 0;
+        hipDeviceGetAttribute(&TexWidth, hipDeviceAttributeMaxTexture3DWidth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(TexWidth >= 0);
+    int SurfWidth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture3DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(surf_width >= 0);
+        hipDeviceGetAttribute(&SurfWidth, hipDeviceAttributeMaxTexture3DWidth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(SurfWidth >= 0);
 
-    int min = std::min(tex_width, surf_width);
+    int Min = std::min(TexWidth, SurfWidth);
 
-    return ReturnValue(static_cast<size_t>(min));
+    return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
     // Take the smaller of maximum surface and maximum texture depth.
-    int tex_depth = 0;
+    int TexDepth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&tex_depth, hipDeviceAttributeMaxTexture3DDepth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(tex_depth >= 0);
-    int surf_depth = 0;
+        hipDeviceGetAttribute(&TexDepth, hipDeviceAttributeMaxTexture3DDepth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(TexDepth >= 0);
+    int SurfDepth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&surf_depth, hipDeviceAttributeMaxTexture3DDepth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(surf_depth >= 0);
+        hipDeviceGetAttribute(&SurfDepth, hipDeviceAttributeMaxTexture3DDepth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(SurfDepth >= 0);
 
-    int min = std::min(tex_depth, surf_depth);
+    int Min = std::min(TexDepth, SurfDepth);
 
-    return ReturnValue(static_cast<size_t>(min));
+    return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
     // Take the smaller of maximum surface and maximum texture width.
-    int tex_width = 0;
+    int TexWidth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture1DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(tex_width >= 0);
-    int surf_width = 0;
+        hipDeviceGetAttribute(&TexWidth, hipDeviceAttributeMaxTexture1DWidth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(TexWidth >= 0);
+    int SurfWidth = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture1DWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(surf_width >= 0);
+        hipDeviceGetAttribute(&SurfWidth, hipDeviceAttributeMaxTexture1DWidth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(SurfWidth >= 0);
 
-    int min = std::min(tex_width, surf_width);
+    int Min = std::min(TexWidth, SurfWidth);
 
-    return ReturnValue(static_cast<size_t>(min));
+    return ReturnValue(static_cast<size_t>(Min));
   }
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
     return ReturnValue(0lu);
@@ -357,20 +354,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     return ReturnValue(4000lu);
   }
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
-    int mem_base_addr_align = 0;
+    int MemBaseAddrAlign = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&mem_base_addr_align,
+        hipDeviceGetAttribute(&MemBaseAddrAlign,
                               hipDeviceAttributeTextureAlignment,
-                              device->get()) == hipSuccess);
+                              hDevice->get()) == hipSuccess);
     // Multiply by 8 as clGetDeviceInfo returns this value in bits
-    mem_base_addr_align *= 8;
-    return ReturnValue(mem_base_addr_align);
+    MemBaseAddrAlign *= 8;
+    return ReturnValue(MemBaseAddrAlign);
   }
   case UR_DEVICE_INFO_HALF_FP_CONFIG: {
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
-    uint64_t config =
+    uint64_t Config =
         UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
         UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
         UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
@@ -378,16 +375,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
         UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
         UR_DEVICE_FP_CAPABILITY_FLAG_FMA |
         UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
-    return ReturnValue(config);
+    return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    uint64_t config = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+    uint64_t Config = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
                       UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
                       UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
                       UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
                       UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
                       UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
-    return ReturnValue(config);
+    return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
     return ReturnValue(UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
@@ -398,35 +395,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     return ReturnValue(128u);
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
-    int cache_size = 0;
+    int CacheSize = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&cache_size, hipDeviceAttributeL2CacheSize,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(cache_size >= 0);
+        hipDeviceGetAttribute(&CacheSize, hipDeviceAttributeL2CacheSize,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(CacheSize >= 0);
     // The L2 cache is global to the GPU.
-    return ReturnValue(static_cast<uint64_t>(cache_size));
+    return ReturnValue(static_cast<uint64_t>(CacheSize));
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
-    size_t bytes = 0;
+    size_t Bytes = 0;
     // Runtime API has easy access to this value, driver API info is scarse.
-    sycl::detail::ur::assertion(hipDeviceTotalMem(&bytes, device->get()) ==
+    sycl::detail::ur::assertion(hipDeviceTotalMem(&Bytes, hDevice->get()) ==
                                 hipSuccess);
-    return ReturnValue(uint64_t{bytes});
+    return ReturnValue(uint64_t{Bytes});
   }
   case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
-    int constant_memory = 0;
+    int ConstantMemory = 0;
 
     // hipDeviceGetAttribute takes a int*, however the size of the constant
     // memory on AMD GPU may be larger than what can fit in the positive part
     // of a signed integer, so use an unsigned integer and cast the pointer to
     // int*.
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&constant_memory,
+        hipDeviceGetAttribute(&ConstantMemory,
                               hipDeviceAttributeTotalConstantMemory,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(constant_memory >= 0);
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(ConstantMemory >= 0);
 
-    return ReturnValue(static_cast<uint64_t>(constant_memory));
+    return ReturnValue(static_cast<uint64_t>(ConstantMemory));
   }
   case UR_DEVICE_INFO_MAX_CONSTANT_ARGS: {
     // TODO: is there a way to retrieve this from HIP driver API?
@@ -441,33 +438,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     // OpenCL's "local memory" maps most closely to HIP's "shared memory".
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int local_mem_size = 0;
+    int LocalMemSize = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&local_mem_size,
+        hipDeviceGetAttribute(&LocalMemSize,
                               hipDeviceAttributeMaxSharedMemoryPerBlock,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(local_mem_size >= 0);
-    return ReturnValue(static_cast<uint64_t>(local_mem_size));
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(LocalMemSize >= 0);
+    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
-    int ecc_enabled = 0;
+    int EccEnabled = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&ecc_enabled, hipDeviceAttributeEccEnabled,
-                              device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&EccEnabled, hipDeviceAttributeEccEnabled,
+                              hDevice->get()) == hipSuccess);
 
-    sycl::detail::ur::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
-    auto result = static_cast<bool>(ecc_enabled);
-    return ReturnValue(result);
+    sycl::detail::ur::assertion((EccEnabled == 0) | (EccEnabled == 1));
+    auto Result = static_cast<bool>(EccEnabled);
+    return ReturnValue(Result);
   }
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
-    int is_integrated = 0;
+    int IsIntegrated = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&is_integrated, hipDeviceAttributeIntegrated,
-                              device->get()) == hipSuccess);
+        hipDeviceGetAttribute(&IsIntegrated, hipDeviceAttributeIntegrated,
+                              hDevice->get()) == hipSuccess);
 
-    sycl::detail::ur::assertion((is_integrated == 0) | (is_integrated == 1));
-    auto result = static_cast<bool>(is_integrated);
-    return ReturnValue(result);
+    sycl::detail::ur::assertion((IsIntegrated == 0) | (IsIntegrated == 1));
+    auto Result = static_cast<bool>(IsIntegrated);
+    return ReturnValue(Result);
   }
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
     // Hard coded to value returned by clinfo for OpenCL 1.2 HIP | GeForce GTX
@@ -490,21 +487,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
-    auto capability = ur_device_exec_capability_flags_t{
+    auto Capability = ur_device_exec_capability_flags_t{
         UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL};
-    return ReturnValue(capability);
+    return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
+    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
                           UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    return ReturnValue(capability);
+    return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
-    return ReturnValue(capability);
+    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
     // An empty string is returned if no built-in kernels are supported by the
@@ -512,23 +509,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     return ReturnValue("");
   }
   case UR_DEVICE_INFO_PLATFORM: {
-    return ReturnValue(device->get_platform());
+    return ReturnValue(hDevice->getPlatform());
   }
   case UR_DEVICE_INFO_NAME: {
     static constexpr size_t MAX_DEVICE_NAME_LENGTH = 256u;
-    char name[MAX_DEVICE_NAME_LENGTH];
-    sycl::detail::ur::assertion(hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH,
-                                                 device->get()) == hipSuccess);
+    char Name[MAX_DEVICE_NAME_LENGTH];
+    sycl::detail::ur::assertion(hipDeviceGetName(Name, MAX_DEVICE_NAME_LENGTH,
+                                                 hDevice->get()) == hipSuccess);
     // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
     // name instead, this is also what AMD OpenCL devices return.
-    if (strlen(name) == 0) {
-      hipDeviceProp_t props;
+    if (strlen(Name) == 0) {
+      hipDeviceProp_t Props;
       sycl::detail::ur::assertion(
-          hipGetDeviceProperties(&props, device->get()) == hipSuccess);
+          hipGetDeviceProperties(&Props, hDevice->get()) == hipSuccess);
 
-      return ReturnValue(props.gcnArchName, strlen(props.gcnArchName) + 1);
+      return ReturnValue(Props.gcnArchName, strlen(Props.gcnArchName) + 1);
     }
-    return ReturnValue(name, strlen(name) + 1);
+    return ReturnValue(Name, strlen(Name) + 1);
   }
   case UR_DEVICE_INFO_VENDOR: {
     return ReturnValue("AMD Corporation");
@@ -541,22 +538,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     return ReturnValue("HIP");
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(device->get_reference_count());
+    return ReturnValue(hDevice->getReferenceCount());
   }
   case UR_DEVICE_INFO_VERSION: {
-    std::stringstream s;
+    std::stringstream S;
 
-    hipDeviceProp_t props;
-    sycl::detail::ur::assertion(hipGetDeviceProperties(&props, device->get()) ==
-                                hipSuccess);
+    hipDeviceProp_t Props;
+    sycl::detail::ur::assertion(
+        hipGetDeviceProperties(&Props, hDevice->get()) == hipSuccess);
 #if defined(__HIP_PLATFORM_NVIDIA__)
-    s << props.major << "." << props.minor;
+    S << Props.major << "." << Props.minor;
 #elif defined(__HIP_PLATFORM_AMD__)
-    s << props.gcnArchName;
+    S << Props.gcnArchName;
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
-    return ReturnValue(s.str().c_str());
+    return ReturnValue(S.str().c_str());
   }
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
     return ReturnValue("");
@@ -570,11 +567,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     SupportedExtensions += "pi_ext_intel_devicelib_assert ";
     SupportedExtensions += " ";
 
-    hipDeviceProp_t props;
-    sycl::detail::ur::assertion(hipGetDeviceProperties(&props, device->get()) ==
-                                hipSuccess);
+    hipDeviceProp_t Props;
+    sycl::detail::ur::assertion(
+        hipGetDeviceProperties(&Props, hDevice->get()) == hipSuccess);
 
-    if (props.arch.hasDoubles) {
+    if (Props.arch.hasDoubles) {
       SupportedExtensions += "cl_khr_fp64 ";
     }
 
@@ -610,13 +607,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     //
     // query if/how the device can access page-locked host memory, possibly
     // through PCIe, using the same pointer as the host
-    uint64_t value = {};
+    uint64_t Value = {};
     // if (getAttribute(device, HIP_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING)) {
     // the device shares a unified address space with the host
-    if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
+    if (getAttribute(hDevice, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
       // compute capability 6.x introduces operations that are atomic with
       // respect to other CPUs and GPUs in the system
-      value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+      Value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS |
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS |
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
@@ -624,10 +621,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
       // on GPU architectures with compute capability lower than 6.x, atomic
       // operations from the GPU to CPU memory will not be atomic with respect
       // to CPU initiated atomic operations
-      value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+      Value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
     }
-    return ReturnValue(value);
+    return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_USM_DEVICE_SUPPORT: {
     // from cl_intel_unified_shared_memory:
@@ -635,12 +632,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     // associated with this device."
     //
     // query how the device can access memory allocated on the device itself (?)
-    uint64_t value =
+    uint64_t Value =
         UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
         UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS |
         UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS |
         UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
-    return ReturnValue(value);
+    return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
     // from cl_intel_unified_shared_memory:
@@ -648,23 +645,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     // allocation associated with this device."
     //
     // query if/how the device can access managed memory associated to it
-    uint64_t value = {};
-    if (getAttribute(device, hipDeviceAttributeManagedMemory)) {
+    uint64_t Value = {};
+    if (getAttribute(hDevice, hipDeviceAttributeManagedMemory)) {
       // the device can allocate managed memory on this system
-      value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+      Value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS;
     }
-    if (getAttribute(device, hipDeviceAttributeConcurrentManagedAccess)) {
+    if (getAttribute(hDevice, hipDeviceAttributeConcurrentManagedAccess)) {
       // the device can coherently access managed memory concurrently with the
       // CPU
-      value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
-      if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
+      Value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
+      if (getAttribute(hDevice, hipDeviceAttributeComputeCapabilityMajor) >=
+          6) {
         // compute capability 6.x introduces operations that are atomic with
         // respect to other CPUs and GPUs in the system
-        value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
+        Value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
       }
     }
-    return ReturnValue(value);
+    return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
     // from cl_intel_unified_shared_memory:
@@ -675,26 +673,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     //
     // query if/how the device can access managed memory associated to other
     // devices
-    uint64_t value = {};
-    if (getAttribute(device, hipDeviceAttributeManagedMemory)) {
+    uint64_t Value = {};
+    if (getAttribute(hDevice, hipDeviceAttributeManagedMemory)) {
       // the device can allocate managed memory on this system
-      value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
+      Value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS;
     }
-    if (getAttribute(device, hipDeviceAttributeConcurrentManagedAccess)) {
+    if (getAttribute(hDevice, hipDeviceAttributeConcurrentManagedAccess)) {
       // all devices with the CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS
       // attribute can coherently access managed memory concurrently with the
       // CPU
-      value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
+      Value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
     }
-    if (getAttribute(device, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
+    if (getAttribute(hDevice, hipDeviceAttributeComputeCapabilityMajor) >= 6) {
       // compute capability 6.x introduces operations that are atomic with
       // respect to other CPUs and GPUs in the system
-      if (value & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)
-        value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS;
-      if (value & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS)
-        value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
+      if (Value & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)
+        Value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_ACCESS;
+      if (Value & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS)
+        Value |= UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
     }
-    return ReturnValue(value);
+    return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
     // from cl_intel_unified_shared_memory:
@@ -703,32 +701,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     //
     // query if/how the device can access pageable host memory allocated by the
     // system allocator
-    uint64_t value = {};
-    if (getAttribute(device, hipDeviceAttributePageableMemoryAccess)) {
+    uint64_t Value = {};
+    if (getAttribute(hDevice, hipDeviceAttributePageableMemoryAccess)) {
       // the link between the device and the host does not support native
       // atomic operations
-      value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
+      Value = UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS |
               UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_CONCURRENT_ACCESS;
     }
-    return ReturnValue(value);
+    return ReturnValue(Value);
   }
 
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
-    int major = 0, minor = 0;
+    int Major = 0, Minor = 0;
     sycl::detail::ur::assertion(
-        hipDeviceComputeCapability(&major, &minor, device->get()) ==
+        hipDeviceComputeCapability(&Major, &Minor, hDevice->get()) ==
         hipSuccess);
-    std::string result = std::to_string(major) + "." + std::to_string(minor);
-    return ReturnValue(result.c_str());
+    std::string Result = std::to_string(Major) + "." + std::to_string(Minor);
+    return ReturnValue(Result.c_str());
   }
 
   case UR_DEVICE_INFO_ATOMIC_64: {
     // TODO: Reconsider it when AMD supports SYCL_USE_NATIVE_FP_ATOMICS.
-    hipDeviceProp_t props;
-    sycl::detail::ur::assertion(hipGetDeviceProperties(&props, device->get()) ==
-                                hipSuccess);
-    return ReturnValue(props.arch.hasGlobalInt64Atomics &&
-                       props.arch.hasSharedInt64Atomics);
+    hipDeviceProp_t Props;
+    sycl::detail::ur::assertion(
+        hipGetDeviceProperties(&Props, hDevice->get()) == hipSuccess);
+    return ReturnValue(Props.arch.hasGlobalInt64Atomics &&
+                       Props.arch.hasSharedInt64Atomics);
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
@@ -741,32 +739,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
   }
 
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
-    int value = 0;
+    int Value = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryClockRate,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(value >= 0);
+        hipDeviceGetAttribute(&Value, hipDeviceAttributeMemoryClockRate,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(Value >= 0);
     // Convert kilohertz to megahertz when returning.
-    return ReturnValue(value / 1000);
+    return ReturnValue(Value / 1000);
   }
 
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH: {
-    int value = 0;
+    int Value = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryBusWidth,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(value >= 0);
-    return ReturnValue(value);
+        hipDeviceGetAttribute(&Value, hipDeviceAttributeMemoryBusWidth,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(Value >= 0);
+    return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
   }
 
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint64_t capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+    uint64_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
                             UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
                             UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
-    return ReturnValue(capabilities);
+    return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
@@ -775,39 +773,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     // Because scopes are hierarchical, wider scopes support all narrower
     // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
     // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
-    uint64_t capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                             UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
                             UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
-    return ReturnValue(capabilities);
+    return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // SYCL2020 4.6.4.2 minimum mandated capabilities for
     // atomic_fence_order_capabilities.
-    ur_memory_order_capability_flags_t capabilities =
+    ur_memory_order_capability_flags_t Capabilities =
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
-    return ReturnValue(capabilities);
+    return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_DEVICE_ID: {
-    int value = 0;
+    int Value = 0;
     sycl::detail::ur::assertion(
-        hipDeviceGetAttribute(&value, hipDeviceAttributePciDeviceId,
-                              device->get()) == hipSuccess);
-    sycl::detail::ur::assertion(value >= 0);
-    return ReturnValue(value);
+        hipDeviceGetAttribute(&Value, hipDeviceAttributePciDeviceId,
+                              hDevice->get()) == hipSuccess);
+    sycl::detail::ur::assertion(Value >= 0);
+    return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_UUID: {
 #if ((HIP_VERSION_MAJOR == 5 && HIP_VERSION_MINOR >= 2) ||                     \
      HIP_VERSION_MAJOR > 5)
-    hipUUID uuid = {};
+    hipUUID UUID = {};
     // Supported since 5.2+
-    sycl::detail::ur::assertion(hipDeviceGetUuid(&uuid, device->get()) ==
+    sycl::detail::ur::assertion(hipDeviceGetUuid(&UUID, hDevice->get()) ==
                                 hipSuccess);
-    std::array<unsigned char, 16> name;
-    std::copy(uuid.bytes, uuid.bytes + 16, name.begin());
-    return ReturnValue(name.data(), 16);
+    std::array<unsigned char, 16> Name;
+    std::copy(UUID.bytes, UUID.bytes + 16, Name.begin());
+    return ReturnValue(Name.data(), 16);
 #endif
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -815,13 +813,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     // Maximum number of 32-bit registers available to a thread block.
     // Note: This number is shared by all thread blocks simultaneously resident
     // on a multiprocessor.
-    int max_registers{-1};
+    int MaxRegisters{-1};
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &max_registers, hipDeviceAttributeMaxRegistersPerBlock, device->get()));
+        &MaxRegisters, hipDeviceAttributeMaxRegistersPerBlock, hDevice->get()));
 
-    sycl::detail::ur::assertion(max_registers >= 0);
+    sycl::detail::ur::assertion(MaxRegisters >= 0);
 
-    return ReturnValue(static_cast<uint32_t>(max_registers));
+    return ReturnValue(static_cast<uint32_t>(MaxRegisters));
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     return ReturnValue(false);
@@ -848,8 +846,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
 
 /// \return UR_RESULT_SUCCESS if the function is executed successfully
 /// HIP devices are always root devices so retain always returns success.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t device) {
-  UR_ASSERT(device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   return UR_RESULT_SUCCESS;
 }
@@ -862,8 +860,9 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_property_t *,
 
 /// \return UR_RESULT_SUCCESS always since HIP devices are always root
 /// devices.
-UR_DLLEXPORT ur_result_t UR_APICALL urDeviceRelease(ur_device_handle_t device) {
-  UR_ASSERT(device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_DLLEXPORT ur_result_t UR_APICALL
+urDeviceRelease(ur_device_handle_t hDevice) {
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   return UR_RESULT_SUCCESS;
 }
@@ -873,32 +872,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
                                                 uint32_t NumEntries,
                                                 ur_device_handle_t *phDevices,
                                                 uint32_t *pNumDevices) {
-  ur_result_t err = UR_RESULT_SUCCESS;
-  const bool askingForDefault = DeviceType == UR_DEVICE_TYPE_DEFAULT;
-  const bool askingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
-  const bool askingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
-  const bool returnDevices = askingForDefault || askingForGPU || askingForAll;
+  ur_result_t Err = UR_RESULT_SUCCESS;
+  const bool AskingForDefault = DeviceType == UR_DEVICE_TYPE_DEFAULT;
+  const bool AskingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
+  const bool AskingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
+  const bool ReturnDevices = AskingForDefault || AskingForGPU || AskingForAll;
 
   UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  size_t numDevices = returnDevices ? hPlatform->devices_.size() : 0;
+  size_t NumDevices = ReturnDevices ? hPlatform->Devices.size() : 0;
 
   try {
     UR_ASSERT(pNumDevices || phDevices, UR_RESULT_ERROR_INVALID_VALUE);
 
     if (pNumDevices) {
-      *pNumDevices = numDevices;
+      *pNumDevices = NumDevices;
     }
 
-    if (returnDevices && phDevices) {
-      for (size_t i = 0; i < std::min(size_t(NumEntries), numDevices); ++i) {
-        phDevices[i] = hPlatform->devices_[i].get();
+    if (ReturnDevices && phDevices) {
+      for (size_t i = 0; i < std::min(size_t(NumEntries), NumDevices); ++i) {
+        phDevices[i] = hPlatform->Devices[i].get();
       }
     }
 
-    return err;
-  } catch (ur_result_t err) {
-    return err;
+    return Err;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -906,11 +905,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 
 /// Gets the native HIP handle of a UR device object
 ///
-/// \param[in] device The UR device to get the native HIP object of.
-/// \param[out] nativeHandle Set to the native handle of the UR device object.
+/// \param[in] hDevice The UR device to get the native HIP object of.
+/// \param[out] phNativeHandle Set to the native handle of the UR device object.
 ///
 /// \return UR_RESULT_SUCCESS
-
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -924,19 +922,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
+  std::ignore = hPlatform;
+  std::ignore = pProperties;
+
   UR_ASSERT(hNativeDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phDevice, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
-/// \return If available, the first binary that is PTX
+/// \return UR_RESULT_SUCCESS If available, the first binary that is PTX
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
   // Ignore unused parameter
-  (void)hDevice;
+  std::ignore = hDevice;
 
   UR_ASSERT(pBinaries, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
@@ -944,14 +945,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   // Look for an image for the HIP target, and return the first one that is
   // found
 #if defined(__HIP_PLATFORM_AMD__)
-  const char *binary_type = UR_DEVICE_BINARY_TARGET_AMDGCN;
+  const char *BinaryType = UR_DEVICE_BINARY_TARGET_AMDGCN;
 #elif defined(__HIP_PLATFORM_NVIDIA__)
-  const char *binary_type = UR_DEVICE_BINARY_TARGET_NVPTX64;
+  const char *BinaryType = UR_DEVICE_BINARY_TARGET_NVPTX64;
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
   for (uint32_t i = 0; i < NumBinaries; i++) {
-    if (strcmp(pBinaries[i].pDeviceTargetSpec, binary_type) == 0) {
+    if (strcmp(pBinaries[i].pDeviceTargetSpec, BinaryType) == 0) {
       *pSelectedBinary = i;
       return UR_RESULT_SUCCESS;
     }
@@ -969,12 +970,12 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   if (!pDeviceTimestamp && !pHostTimestamp)
     return UR_RESULT_SUCCESS;
 
-  ur_event_handle_t_::native_type event;
-  ScopedContext active(hDevice->get_context());
+  ur_event_handle_t_::native_type Event;
+  ScopedContext Active(hDevice->getContext());
 
   if (pDeviceTimestamp) {
-    UR_CHECK_ERROR(hipEventCreateWithFlags(&event, hipEventDefault));
-    UR_CHECK_ERROR(hipEventRecord(event));
+    UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
+    UR_CHECK_ERROR(hipEventRecord(Event));
   }
   if (pHostTimestamp) {
     using namespace std::chrono;
@@ -984,11 +985,11 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   }
 
   if (pDeviceTimestamp) {
-    UR_CHECK_ERROR(hipEventSynchronize(event));
-    float elapsedTime = 0.0f;
-    UR_CHECK_ERROR(hipEventElapsedTime(&elapsedTime,
-                                       ur_platform_handle_t_::evBase_, event));
-    *pDeviceTimestamp = (uint64_t)(elapsedTime * (double)1e6);
+    UR_CHECK_ERROR(hipEventSynchronize(Event));
+    float ElapsedTime = 0.0f;
+    UR_CHECK_ERROR(hipEventElapsedTime(&ElapsedTime,
+                                       ur_platform_handle_t_::EvBase, Event));
+    *pDeviceTimestamp = (uint64_t)(ElapsedTime * (double)1e6);
   }
 
   return UR_RESULT_SUCCESS;

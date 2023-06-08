@@ -15,17 +15,17 @@
 // indexed, but on NVidia it is an opaque type and needs to go through
 // cuArrayGetDescriptor so implement a utility function to get the array
 // properties
-inline void getArrayDesc(hipArray *array, hipArray_Format &format,
-                         size_t &channels) {
+inline void getArrayDesc(hipArray *Array, hipArray_Format &Format,
+                         size_t &Channels) {
 #if defined(__HIP_PLATFORM_AMD__)
-  format = array->Format;
-  channels = array->NumChannels;
+  Format = Array->Format;
+  Channels = Array->NumChannels;
 #elif defined(__HIP_PLATFORM_NVIDIA__)
-  CUDA_ARRAY_DESCRIPTOR arrayDesc;
-  cuArrayGetDescriptor(&arrayDesc, (CUarray)array);
+  CUDA_ARRAY_DESCRIPTOR ArrayDesc;
+  cuArrayGetDescriptor(&ArrayDesc, (CUarray)Array);
 
-  format = arrayDesc.Format;
-  channels = arrayDesc.NumChannels;
+  Format = ArrayDesc.Format;
+  Channels = ArrayDesc.NumChannels;
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
@@ -66,13 +66,13 @@ typedef hipArray *hipCUarray;
 #define hipMemoryTypeUnified CU_MEMORYTYPE_UNIFIED
 #endif
 
-ur_result_t map_error_ur(hipError_t result);
+ur_result_t mapErrorUR(hipError_t Result);
 
-ur_result_t check_error_ur(hipError_t result, const char *function, int line,
-                           const char *file);
+ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
+                         const char *File);
 
 #define UR_CHECK_ERROR(result)                                                 \
-  check_error_ur(result, __func__, __LINE__, __FILE__)
+  checkErrorUR(result, __func__, __LINE__, __FILE__)
 
 std::string getHipVersionString();
 
@@ -81,8 +81,8 @@ extern thread_local ur_result_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code);
+[[maybe_unused]] void setErrorMessage(const char *Message,
+                                      ur_result_t ErrorCode);
 
 /// ------ Error handling, matching OpenCL plugin semantics.
 namespace sycl {
@@ -94,12 +94,12 @@ namespace ur {
 // TODO: Probably change that to throw a catchable exception,
 //       but for now it is useful to see every failure.
 //
-[[noreturn]] void die(const char *Message);
+[[noreturn]] void die(const char *pMessage);
 
 // Reports error messages
-void hipPrint(const char *Message);
+void hipPrint(const char *pMessage);
 
-void assertion(bool Condition, const char *Message = nullptr);
+void assertion(bool Condition, const char *pMessage = nullptr);
 
 } // namespace ur
 } // namespace detail
