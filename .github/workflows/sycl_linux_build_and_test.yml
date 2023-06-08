@@ -88,6 +88,10 @@ on:
         type: string
         required: false
         default: 'true'
+      check_libdevice:
+        type: string
+        required: false
+        default: 'true'
 
 jobs:
   build:
@@ -160,6 +164,10 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_libclc == 'true' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
+    - name: check-libdevice
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_libdevice == 'true' }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Install
       # TODO replace utility installation with a single CMake target
       run: |
@@ -169,12 +177,22 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target utils/not/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/lit/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/llvm-lit/install
-        cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
-        cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-size
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
+    - name: Additional Install for "--shared-libs" build
+      if: ${{ contains(inputs.build_configure_extra_args, '--shared-libs') }}
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target install-clang-libraries
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-libraries
+
+    - name: Install lint utilities
+      # We install these into our nightly container that CI uses to run lint
+      # checks.
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
+        cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
 
     - name: Pack toolchain
       run: tar -I 'zstd -9' -cf llvm_sycl.tar.zst -C $GITHUB_WORKSPACE/build/install .

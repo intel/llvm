@@ -35,6 +35,7 @@ enum ActionType {
   GenClangAttrSubjectMatchRuleList,
   GenClangAttrPCHRead,
   GenClangAttrPCHWrite,
+  GenClangAttrTokenKinds,
   GenClangAttrHasAttributeImpl,
   GenClangAttrSpellingListIndex,
   GenClangAttrASTVisitor,
@@ -83,6 +84,10 @@ enum ActionType {
   GenArmSveBuiltinCG,
   GenArmSveTypeFlags,
   GenArmSveRangeChecks,
+  GenArmSmeHeader,
+  GenArmSmeBuiltins,
+  GenArmSmeBuiltinCG,
+  GenArmSmeRangeChecks,
   GenArmCdeHeader,
   GenArmCdeBuiltinDef,
   GenArmCdeBuiltinSema,
@@ -132,6 +137,8 @@ cl::opt<ActionType> Action(
                    "Generate clang PCH attribute reader"),
         clEnumValN(GenClangAttrPCHWrite, "gen-clang-attr-pch-write",
                    "Generate clang PCH attribute writer"),
+        clEnumValN(GenClangAttrTokenKinds, "gen-clang-attr-token-kinds",
+                   "Generate a list of attribute-related clang tokens"),
         clEnumValN(GenClangAttrHasAttributeImpl,
                    "gen-clang-attr-has-attribute-impl",
                    "Generate a clang attribute spelling list"),
@@ -229,6 +236,14 @@ cl::opt<ActionType> Action(
                    "Generate arm_sve_typeflags.inc for clang"),
         clEnumValN(GenArmSveRangeChecks, "gen-arm-sve-sema-rangechecks",
                    "Generate arm_sve_sema_rangechecks.inc for clang"),
+        clEnumValN(GenArmSmeHeader, "gen-arm-sme-header",
+                   "Generate arm_sme.h for clang"),
+        clEnumValN(GenArmSmeBuiltins, "gen-arm-sme-builtins",
+                   "Generate arm_sme_builtins.inc for clang"),
+        clEnumValN(GenArmSmeBuiltinCG, "gen-arm-sme-builtin-codegen",
+                   "Generate arm_sme_builtin_cg_map.inc for clang"),
+        clEnumValN(GenArmSmeRangeChecks, "gen-arm-sme-sema-rangechecks",
+                   "Generate arm_sme_sema_rangechecks.inc for clang"),
         clEnumValN(GenArmMveHeader, "gen-arm-mve-header",
                    "Generate arm_mve.h for clang"),
         clEnumValN(GenArmMveBuiltinDef, "gen-arm-mve-builtin-def",
@@ -314,6 +329,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenClangAttrPCHWrite:
     EmitClangAttrPCHWrite(Records, OS);
+    break;
+  case GenClangAttrTokenKinds:
+    EmitClangAttrTokenKinds(Records, OS);
     break;
   case GenClangAttrHasAttributeImpl:
     EmitClangAttrHasAttrImpl(Records, OS);
@@ -459,6 +477,18 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenArmSveRangeChecks:
     EmitSveRangeChecks(Records, OS);
+    break;
+  case GenArmSmeHeader:
+    EmitSmeHeader(Records, OS);
+    break;
+  case GenArmSmeBuiltins:
+    EmitSmeBuiltins(Records, OS);
+    break;
+  case GenArmSmeBuiltinCG:
+    EmitSmeBuiltinCG(Records, OS);
+    break;
+  case GenArmSmeRangeChecks:
+    EmitSmeRangeChecks(Records, OS);
     break;
   case GenArmCdeHeader:
     EmitCdeHeader(Records, OS);

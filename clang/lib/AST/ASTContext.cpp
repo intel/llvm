@@ -3030,7 +3030,7 @@ TypeSourceInfo *ASTContext::CreateTypeSourceInfo(QualType T,
 
   auto *TInfo =
     (TypeSourceInfo*)BumpAlloc.Allocate(sizeof(TypeSourceInfo) + DataSize, 8);
-  new (TInfo) TypeSourceInfo(T);
+  new (TInfo) TypeSourceInfo(T, DataSize);
   return TInfo;
 }
 
@@ -11476,6 +11476,17 @@ static QualType DecodeTypeFromStr(const char *&Str, const ASTContext &Context,
     assert(!RequiresICE && "Can't require vector ICE");
 
     Type = Context.getScalableVectorType(ElementType, NumElements);
+    break;
+  }
+  case 'Q': {
+    switch (*Str++) {
+    case 'a': {
+      Type = Context.SveCountTy;
+      break;
+    }
+    default:
+      llvm_unreachable("Unexpected target builtin type");
+    }
     break;
   }
   case 'V': {
