@@ -157,7 +157,7 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
       })
       .Case<mlir::sycl::HalfType, mlir::sycl::KernelHandlerType,
             mlir::sycl::StreamType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
+        OS << "sycl_" << decltype(Ty)::getMnemonic();
         return AliasResult::FinalAlias;
       })
       .Case<mlir::sycl::AtomicType>([&](auto Ty) {
