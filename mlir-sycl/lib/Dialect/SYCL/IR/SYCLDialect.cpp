@@ -205,8 +205,11 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
         return AliasResult::OverridableAlias;
       })
       .Case<mlir::sycl::VecType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
-           << "_" << Ty.getNumElements() << "_";
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
+        mlir::Type DataTy = Ty.getDataType();
+        if (getAlias(DataTy, OS) == AliasResult::NoAlias)
+          OS << DataTy;
+        OS << "_" << Ty.getNumElements() << "_";
         return AliasResult::FinalAlias;
       })
       .Default(AliasResult::NoAlias);

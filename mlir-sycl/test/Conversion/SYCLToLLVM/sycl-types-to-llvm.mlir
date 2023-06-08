@@ -223,9 +223,16 @@ func.func @test_stream(%arg0: !sycl_stream) {
 }
 // -----
 
+!sycl_half = !sycl.half<(f16)>
 !sycl_vec_f32_4_ = !sycl.vec<[f32, 4], (vector<4xf32>)>
+!sycl_vec_sycl_half_16_ = !sycl.vec<[!sycl_half, 16], (vector<16xf16>)>
+
 // CHECK: llvm.func @test_vec(%arg0: !llvm.[[VEC:struct<"class.sycl::_V1::vec", \(vector<4xf32>\)>]])
 func.func @test_vec(%arg0: !sycl_vec_f32_4_) {
+  return
+}
+// CHECK: llvm.func @test_half16(%arg0: !llvm.[[VEC1:struct<"class.sycl::_V1::vec.1", \(vector<16xf16>\)>]])
+func.func @test_half16(%arg0: !sycl_vec_sycl_half_16_) {
   return
 }
 !sycl_swizzled_vec_f32_4_ = !sycl.swizzled_vec<[!sycl_vec_f32_4_, 0, 2], (memref<?x!sycl_vec_f32_4_, 4>, !llvm.struct<(i8)>, !llvm.struct<(i8)>)>

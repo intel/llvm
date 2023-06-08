@@ -19,6 +19,21 @@ SYCL_EXTERNAL sycl::half identity(sycl::half h) {
   return h;
 }
 
+// CHECK-LABEL:     func.func @_Z8identityN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEE(
+// CHECK-SAME:                                                                             %[[VAL_163:.*]]: memref<?x!sycl_vec_sycl_half_8_> {llvm.align = 16 : i64, llvm.byval = !sycl_vec_sycl_half_8_, llvm.noundef}) -> !sycl_vec_sycl_half_8_
+// CHECK-NEXT:        %[[VAL_164:.*]] = memref.alloca() : memref<1x!sycl_vec_sycl_half_8_>
+// CHECK-NEXT:        %[[VAL_165:.*]] = memref.cast %[[VAL_164]] : memref<1x!sycl_vec_sycl_half_8_> to memref<?x!sycl_vec_sycl_half_8_>
+// CHECK-NEXT:        %[[VAL_166:.*]] = memref.memory_space_cast %[[VAL_165]] : memref<?x!sycl_vec_sycl_half_8_> to memref<?x!sycl_vec_sycl_half_8_, 4>
+// CHECK-NEXT:        %[[VAL_167:.*]] = memref.memory_space_cast %[[VAL_163]] : memref<?x!sycl_vec_sycl_half_8_> to memref<?x!sycl_vec_sycl_half_8_, 4>
+// CHECK-NEXT:        sycl.constructor @vec(%[[VAL_166]], %[[VAL_167]]) {MangledFunctionName = @_ZN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEC1EOS5_} : (memref<?x!sycl_vec_sycl_half_8_, 4>, memref<?x!sycl_vec_sycl_half_8_, 4>)
+// CHECK-NEXT:        %[[VAL_168:.*]] = affine.load %[[VAL_164]][0] : memref<1x!sycl_vec_sycl_half_8_>
+// CHECK-NEXT:        return %[[VAL_168]] : !sycl_vec_sycl_half_8_
+// CHECK-NEXT:      }
+
+SYCL_EXTERNAL sycl::half8 identity(sycl::half8 h) {
+  return h;
+}
+
 // CHECK-LABEL:     func.func @_Z6toHalff(
 // CHECK-SAME:                            %[[VAL_163:.*]]: f32 {llvm.noundef}) -> !sycl_half
 // CHECK-NEXT:        %[[VAL_164:.*]] = memref.alloca() : memref<1x!sycl_half>
@@ -177,6 +192,18 @@ SYCL_EXTERNAL sycl::half add(sycl::half lhs, sycl::half rhs) {
   return lhs + rhs;
 }
 
+// CHECK-LABEL:           func.func @_Z3addN4sycl3_V13vecINS0_6detail9half_impl4halfELi4EEES5_(
+// CHECK-SAME:                                                                                 %[[VAL_278:.*]]: memref<?x!sycl_vec_sycl_half_4_> {llvm.align = 8 : i64, llvm.byval = !sycl_vec_sycl_half_4_, llvm.noundef}, %[[VAL_279:.*]]: memref<?x!sycl_vec_sycl_half_4_> {llvm.align = 8 : i64, llvm.byval = !sycl_vec_sycl_half_4_, llvm.noundef}) -> !sycl_vec_sycl_half_4_
+// CHECK-NEXT:        %[[VAL_280:.*]] = memref.memory_space_cast %[[VAL_278]] : memref<?x!sycl_vec_sycl_half_4_> to memref<?x!sycl_vec_sycl_half_4_, 4>
+// CHECK-NEXT:        %[[VAL_281:.*]] = memref.memory_space_cast %[[VAL_279]] : memref<?x!sycl_vec_sycl_half_4_> to memref<?x!sycl_vec_sycl_half_4_, 4>
+// CHECK-NEXT:        %[[VAL_282:.*]] = sycl.call @"operator+"(%[[VAL_280]], %[[VAL_281]]) {MangledFunctionName = @_ZNK4sycl3_V13vecINS0_6detail9half_impl4halfELi4EEplIS5_EES5_RKNSt9enable_ifILb1ET_E4typeE, TypeName = @vec} : (memref<?x!sycl_vec_sycl_half_4_, 4>, memref<?x!sycl_vec_sycl_half_4_, 4>) -> !sycl_vec_sycl_half_4_
+// CHECK-NEXT:        return %[[VAL_282]] : !sycl_vec_sycl_half_4_
+// CHECK-NEXT:      }
+
+SYCL_EXTERNAL sycl::half4 add(sycl::half4 lhs, sycl::half4 rhs) {
+  return lhs + rhs;
+}
+
 // CHECK-LABEL:     func.func @_Z3subN4sycl3_V16detail9half_impl4halfES3_(
 // CHECK-SAME:                                                            %[[VAL_275:.*]]: memref<?x!sycl_half> {llvm.align = 2 : i64, llvm.byval = !sycl_half, llvm.noundef}, %[[VAL_276:.*]]: memref<?x!sycl_half> {llvm.align = 2 : i64, llvm.byval = !sycl_half, llvm.noundef}) -> !sycl_half
 // CHECK-NEXT:        %[[VAL_277:.*]] = memref.alloca() : memref<1x!sycl_half>
@@ -202,6 +229,18 @@ SYCL_EXTERNAL sycl::half add(sycl::half lhs, sycl::half rhs) {
 // CHECK-NEXT:      }
 
 SYCL_EXTERNAL sycl::half sub(sycl::half lhs, sycl::half rhs) {
+  return lhs - rhs;
+}
+
+// CHECK-LABEL:     func.func @_Z3subN4sycl3_V13vecINS0_6detail9half_impl4halfELi2EEES5_(
+// CHECK-SAME:                                                                           %[[VAL_330:.*]]: memref<?x!sycl_vec_sycl_half_2_> {llvm.align = 4 : i64, llvm.byval = !sycl_vec_sycl_half_2_, llvm.noundef}, %[[VAL_331:.*]]: memref<?x!sycl_vec_sycl_half_2_> {llvm.align = 4 : i64, llvm.byval = !sycl_vec_sycl_half_2_, llvm.noundef}) -> !sycl_vec_sycl_half_2_
+// CHECK-NEXT:        %[[VAL_332:.*]] = memref.memory_space_cast %[[VAL_330]] : memref<?x!sycl_vec_sycl_half_2_> to memref<?x!sycl_vec_sycl_half_2_, 4>
+// CHECK-NEXT:        %[[VAL_333:.*]] = memref.memory_space_cast %[[VAL_331]] : memref<?x!sycl_vec_sycl_half_2_> to memref<?x!sycl_vec_sycl_half_2_, 4>
+// CHECK-NEXT:        %[[VAL_334:.*]] = sycl.call @"operator-"(%[[VAL_332]], %[[VAL_333]]) {MangledFunctionName = @_ZNK4sycl3_V13vecINS0_6detail9half_impl4halfELi2EEmiIS5_EES5_RKNSt9enable_ifILb1ET_E4typeE, TypeName = @vec} : (memref<?x!sycl_vec_sycl_half_2_, 4>, memref<?x!sycl_vec_sycl_half_2_, 4>) -> !sycl_vec_sycl_half_2_
+// CHECK-NEXT:        return %[[VAL_334]] : !sycl_vec_sycl_half_2_
+// CHECK-NEXT:      }
+
+SYCL_EXTERNAL sycl::half2 sub(sycl::half2 lhs, sycl::half2 rhs) {
   return lhs - rhs;
 }
 
@@ -233,6 +272,18 @@ SYCL_EXTERNAL sycl::half mul(sycl::half lhs, sycl::half rhs) {
   return lhs * rhs;
 }
 
+// CHECK-LABEL:     func.func @_Z3mulN4sycl3_V13vecINS0_6detail9half_impl4halfELi4EEES5_(
+// CHECK-SAME:                                                                           %[[VAL_382:.*]]: memref<?x!sycl_vec_sycl_half_4_> {llvm.align = 8 : i64, llvm.byval = !sycl_vec_sycl_half_4_, llvm.noundef}, %[[VAL_383:.*]]: memref<?x!sycl_vec_sycl_half_4_> {llvm.align = 8 : i64, llvm.byval = !sycl_vec_sycl_half_4_, llvm.noundef}) -> !sycl_vec_sycl_half_4_
+// CHECK-NEXT:        %[[VAL_384:.*]] = memref.memory_space_cast %[[VAL_382]] : memref<?x!sycl_vec_sycl_half_4_> to memref<?x!sycl_vec_sycl_half_4_, 4>
+// CHECK-NEXT:        %[[VAL_385:.*]] = memref.memory_space_cast %[[VAL_383]] : memref<?x!sycl_vec_sycl_half_4_> to memref<?x!sycl_vec_sycl_half_4_, 4>
+// CHECK-NEXT:        %[[VAL_386:.*]] = sycl.call @"operator*"(%[[VAL_384]], %[[VAL_385]]) {MangledFunctionName = @_ZNK4sycl3_V13vecINS0_6detail9half_impl4halfELi4EEmlIS5_EES5_RKNSt9enable_ifILb1ET_E4typeE, TypeName = @vec} : (memref<?x!sycl_vec_sycl_half_4_, 4>, memref<?x!sycl_vec_sycl_half_4_, 4>) -> !sycl_vec_sycl_half_4_
+// CHECK-NEXT:        return %[[VAL_386]] : !sycl_vec_sycl_half_4_
+// CHECK-NEXT:      }
+
+SYCL_EXTERNAL sycl::half4 mul(sycl::half4 lhs, sycl::half4 rhs) {
+  return lhs * rhs;
+}
+
 // CHECK-LABEL:     func.func @_Z3divN4sycl3_V16detail9half_impl4halfES3_(
 // CHECK-SAME:                                                            %[[VAL_321:.*]]: memref<?x!sycl_half> {llvm.align = 2 : i64, llvm.byval = !sycl_half, llvm.noundef}, %[[VAL_322:.*]]: memref<?x!sycl_half> {llvm.align = 2 : i64, llvm.byval = !sycl_half, llvm.noundef}) -> !sycl_half
 // CHECK-NEXT:        %[[VAL_323:.*]] = memref.alloca() : memref<1x!sycl_half>
@@ -258,5 +309,17 @@ SYCL_EXTERNAL sycl::half mul(sycl::half lhs, sycl::half rhs) {
 // CHECK-NEXT:      }
 
 SYCL_EXTERNAL sycl::half div(sycl::half lhs, sycl::half rhs) {
+  return lhs / rhs;
+}
+
+// CHECK-LABEL:     func.func @_Z3divN4sycl3_V13vecINS0_6detail9half_impl4halfELi3EEES5_(
+// CHECK-SAME:                                                                           %[[VAL_434:.*]]: memref<?x!sycl_vec_sycl_half_3_> {llvm.align = 8 : i64, llvm.byval = !sycl_vec_sycl_half_3_, llvm.noundef}, %[[VAL_435:.*]]: memref<?x!sycl_vec_sycl_half_3_> {llvm.align = 8 : i64, llvm.byval = !sycl_vec_sycl_half_3_, llvm.noundef}) -> !sycl_vec_sycl_half_3_
+// CHECK-NEXT:        %[[VAL_436:.*]] = memref.memory_space_cast %[[VAL_434]] : memref<?x!sycl_vec_sycl_half_3_> to memref<?x!sycl_vec_sycl_half_3_, 4>
+// CHECK-NEXT:        %[[VAL_437:.*]] = memref.memory_space_cast %[[VAL_435]] : memref<?x!sycl_vec_sycl_half_3_> to memref<?x!sycl_vec_sycl_half_3_, 4>
+// CHECK-NEXT:        %[[VAL_438:.*]] = sycl.call @"operator/"(%[[VAL_436]], %[[VAL_437]]) {MangledFunctionName = @_ZNK4sycl3_V13vecINS0_6detail9half_impl4halfELi3EEdvIS5_EES5_RKNSt9enable_ifILb1ET_E4typeE, TypeName = @vec} : (memref<?x!sycl_vec_sycl_half_3_, 4>, memref<?x!sycl_vec_sycl_half_3_, 4>) -> !sycl_vec_sycl_half_3_
+// CHECK-NEXT:        return %[[VAL_438]] : !sycl_vec_sycl_half_3_
+// CHECK-NEXT:      }
+
+SYCL_EXTERNAL sycl::half3 div(sycl::half3 lhs, sycl::half3 rhs) {
   return lhs / rhs;
 }

@@ -36,29 +36,34 @@ VecType::verify(llvm::function_ref<InFlightDiagnostic()> emitError, Type dataT,
                        << numElements << ".";
   }
 
-  if (!dataT.isa<IntegerType, FloatType>()) {
-    return emitError()
-           << "SYCL vector types can only hold basic scalar types. Got "
-           << dataT << ".";
-  }
-
-  if (auto intTy = dataT.dyn_cast<IntegerType>()) {
-    const auto width = intTy.getWidth();
-    if (width != 1 && width != 8 && width != 16 && width != 32 && width != 64) {
-      return emitError() << "Integer SYCL vector element types can only be i1, "
-                            "i8, i16, i32 or i64. Got "
-                         << width << ".";
-    }
-  } else {
-    const auto width = dataT.cast<FloatType>().getWidth();
-    if (width != 16 && width != 32 && width != 64) {
-      return emitError()
-             << "FP SYCL vector element types can only be f16, f32 or f64. Got "
-             << width << ".";
-    }
-  }
-
-  return success();
+  return TypeSwitch<Type, LogicalResult>(dataT)
+      .Case<IntegerType>([&](auto intTy) -> LogicalResult {
+        const unsigned width = intTy.getWidth();
+        if (width != 1 && width != 8 && width != 16 && width != 32 &&
+            width != 64) {
+          return emitError()
+                 << "Integer SYCL vector element types can only be i1, "
+                    "i8, i16, i32 or i64. Got "
+                 << width << ".";
+        }
+        return success();
+      })
+      .Case<FloatType>([&](auto floatTy) -> LogicalResult {
+        const unsigned width = dataT.cast<FloatType>().getWidth();
+        if (width != 32 && width != 64) {
+          return emitError() << "FP SYCL vector element types can only be f16, "
+                                "f32 or f64. Got "
+                             << width << ".";
+        }
+        return success();
+      })
+      .Case<HalfType>([&](auto) { return success(); })
+      .Default(
+          [&](auto dataT) {
+            return emitError()
+                   << "SYCL vector types can only hold basic scalar types. Got "
+                   << dataT << ".";
+          });
 }
 
 unsigned getDimensions(Type type) {
