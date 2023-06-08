@@ -15,23 +15,37 @@
 using namespace mlir;
 using namespace mlir::sycl;
 
-sycl::SYCLIDGetOp sycl::createSYCLIDGetOp(TypedValue<MemRefType> id,
-                                          unsigned index, OpBuilder builder,
-                                          Location loc) {
+SYCLIDGetOp sycl::createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
+                                    OpBuilder builder, Location loc) {
   const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
   const auto resTy = builder.getIndexType();
-  return builder.create<sycl::SYCLIDGetOp>(
+  return builder.create<SYCLIDGetOp>(
       loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
 }
 
-sycl::SYCLAccessorSubscriptOp
-sycl::createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
+TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
+                                             ArrayRef<Value> indexes,
+                                             OpBuilder builder, Location loc) {
+  const unsigned numDims = idTy.getDimension();
+  assert(numDims == indexes.size() &&
+         "Expecting the size of indexes to be the id dimension");
+  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  for (unsigned dim = 0; dim < idTy.getDimension(); ++dim) {
+    Value idGetOp = createSYCLIDGetOp(id, dim, builder, loc);
+    builder.create<memref::StoreOp>(loc, indexes[dim], idGetOp, zeroIndex);
+  }
+  return id;
+}
+
+SYCLAccessorSubscriptOp
+sycl::createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
                                     TypedValue<MemRefType> id,
                                     OpBuilder builder, Location loc) {
-  const sycl::AccessorType accTy = accessor.getAccessorType();
+  const AccessorType accTy = accessor.getAccessorType();
   assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
   const auto MT = MemRefType::get(
       ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
       builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
-  return builder.create<sycl::SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
+  return builder.create<SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
 }

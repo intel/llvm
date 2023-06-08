@@ -23,16 +23,19 @@ namespace sycl {
 
 /// Return type of the accessor of \p op.
 inline AccessorType getAccessorType(SYCLAccessorSubscriptOp op) {
-  return sycl::AccessorPtrValue(op.getAcc()).getAccessorType();
+  return AccessorPtrValue(op.getAcc()).getAccessorType();
 }
 
-sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                                    OpBuilder builder, Location loc);
+SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
+                              OpBuilder builder, Location loc);
 
-sycl::SYCLAccessorSubscriptOp
-createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
-                              TypedValue<MemRefType> id, OpBuilder builder,
-                              Location loc);
+TypedValue<MemRefType> constructSYCLID(IDType idTy, ArrayRef<Value> indexes,
+                                       OpBuilder builder, Location loc);
+
+SYCLAccessorSubscriptOp createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
+                                                      TypedValue<MemRefType> id,
+                                                      OpBuilder builder,
+                                                      Location loc);
 
 } // namespace sycl
 } // namespace mlir

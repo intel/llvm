@@ -113,11 +113,11 @@ public:
                 OpBuilder builder) {
     auto ndItemTy = cast<sycl::NdItemType>(
         cast<MemRefType>(ndItem.getType()).getElementType());
-    assert((reqdWorkGroupSize.empty() ||
-            reqdWorkGroupSize.size() == ndItemTy.getDimension()) &&
+    const unsigned numDims = ndItemTy.getDimension();
+    assert((reqdWorkGroupSize.empty() || reqdWorkGroupSize.size() == numDims) &&
            "Expecting reqdWorkGroupSize to have same number of elements as "
            "nd_item dimension");
-    for (unsigned dim = 0; dim < ndItemTy.getDimension(); ++dim) {
+    for (unsigned dim = 0; dim < numDims; ++dim) {
       /// Use constants provided by reqd_work_group_size if given (non-empty).
       if (!reqdWorkGroupSize.empty())
         wgSizes.push_back(reqdWorkGroupSize[dim]);
@@ -247,7 +247,8 @@ getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   std::variant<Value, unsigned> reqdLocalMemory =
       ValueOrUnsigned::get(elemSize, builder, workGroupSize.hasElemTy<Value>());
-  for (unsigned dim = 0; dim < accTy.getDimension(); ++dim)
+  const unsigned numDims = accTy.getDimension();
+  for (unsigned dim = 0; dim < numDims; ++dim)
     reqdLocalMemory =
         ValueOrUnsigned::mul(reqdLocalMemory, workGroupSize[dim], builder);
   return reqdLocalMemory;
@@ -259,7 +260,8 @@ unsigned getReqdLocalMemory(sycl::AccessorType accTy,
   assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   unsigned memrefReqdLocalMemory = elemSize;
-  for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
+  const unsigned numDims = accTy.getDimension();
+  for (unsigned dim = 0; dim < numDims; ++dim) {
     memrefReqdLocalMemory *= reqdWorkGroupSize[dim];
   }
   return memrefReqdLocalMemory;
@@ -400,18 +402,6 @@ bool mayConflictWithWriteInLoop(affine::MemRefAccess memRefAccess,
   });
 
   return walkResult.wasInterrupted();
-}
-
-TypedValue<MemRefType> constructSYCLID(sycl::IDType idTy,
-                                       ArrayRef<Value> indexes,
-                                       OpBuilder builder, Location loc) {
-  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  for (unsigned dim = 0; dim < idTy.getDimension(); ++dim) {
-    Value idGetOp = sycl::createSYCLIDGetOp(id, dim, builder, loc);
-    builder.create<memref::StoreOp>(loc, indexes[dim], idGetOp, zeroIndex);
-  }
-  return id;
 }
 
 //===----------------------------------------------------------------------===//
@@ -624,19 +614,17 @@ private:
 
   /// Transform a candidate kernel body function.
   void transform(FunctionOpInterface func,
-                 const FunctionKernelInfo &funcKernelInfo);
+                 const FunctionKernelInfo &funcKernelInfo,
+                 const unsigned localMemoryRemain);
 
   /// Transform a candidate loop.
   template <typename T>
   void transform(T loop, memref::GlobalOp workGroupLocalMemory,
-                 const WorkGroupSize &workGroupSize);
+                 ArrayRef<Value> localIDs, const WorkGroupSize &workGroupSize);
 
 private:
   /// A map from a candidate loop to shared memref values used in the loop.
   DenseMap<LoopLikeOpInterface, std::set<Operation *>> loopToSharedMemref;
-
-  /// Local ids per dimensions.
-  SmallVector<Value> localIDs;
 };
 
 void LoopInternalization::runOnOperation() {
@@ -691,6 +679,12 @@ void LoopInternalization::runOnOperation() {
       return;
     }
 
+    // Ensure there is local memory to be used.
+    unsigned localMemoryRemain =
+        getLocalMemoryRemain(gpuModule, localMemorySize);
+    if (localMemoryRemain == 0)
+      return;
+
     // Select the ideal memory space for memref accesses in candidate loops
     // contained by this function.
     func->walk<WalkOrder::PreOrder>([&](LoopLikeOpInterface loop) {
@@ -715,7 +709,7 @@ void LoopInternalization::runOnOperation() {
       // prioritize(memAccessAnalysis, solver);
     });
 
-    transform(func, funcKernelInfo);
+    transform(func, funcKernelInfo, localMemoryRemain);
   }
 }
 
@@ -761,14 +755,8 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
 }
 
 void LoopInternalization::transform(FunctionOpInterface func,
-                                    const FunctionKernelInfo &funcKernelInfo) {
-  auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
-
-  // Ensure there is local memory to be used.
-  unsigned localMemoryRemain = getLocalMemoryRemain(gpuModule, localMemorySize);
-  if (localMemoryRemain == 0)
-    return;
-
+                                    const FunctionKernelInfo &funcKernelInfo,
+                                    const unsigned localMemoryRemain) {
   // Calculate the required local memory for all accesses in
   // loopToSharedMemref to be promoted.
   SmallVector<gpu::GPUFuncOp> kernels;
@@ -781,6 +769,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
     return;
   }
 
+  auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
   memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
       gpuModule,
       reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemain);
@@ -790,10 +779,13 @@ void LoopInternalization::transform(FunctionOpInterface func,
   OpBuilder builder(func->getRegion(0));
   WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
 
-  // Create local id.
+  // Create SYCL local ids corresponding to the grid dimensionality (per
+  // kernel).
+  SmallVector<Value> localIDs;
   auto ndItemTy = cast<sycl::NdItemType>(
       cast<MemRefType>(ndItem.getType()).getElementType());
-  for (unsigned dim = 0; dim < ndItemTy.getDimension(); ++dim) {
+  const unsigned numDims = ndItemTy.getDimension();
+  for (unsigned dim = 0; dim < numDims; ++dim) {
     localIDs.push_back(builder.create<arith::IndexCastOp>(
         builder.getUnknownLoc(), builder.getIndexType(),
         builder.create<sycl::SYCLNDItemGetLocalIDOp>(
@@ -807,7 +799,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
   for (auto &entry : loopToSharedMemref) {
     TypeSwitch<Operation *>(entry.first)
         .Case<affine::AffineForOp, scf::ForOp>([&](auto loop) {
-          transform(loop, workGroupLocalMemory, workGroupSize);
+          transform(loop, workGroupLocalMemory, localIDs, workGroupSize);
         });
   }
   loopToSharedMemref.clear();
@@ -817,9 +809,12 @@ void LoopInternalization::transform(FunctionOpInterface func,
 template <typename T>
 void LoopInternalization::transform(T loop,
                                     memref::GlobalOp workGroupLocalMemory,
+                                    ArrayRef<Value> localIDs,
                                     const WorkGroupSize &workGroupSize) {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
   assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
+  assert(localIDs.size() >= 1 && localIDs.size() <= 3 &&
+         "Expecting valid localIDs");
   assert(loopToSharedMemref.find(loop) != loopToSharedMemref.end() &&
          "Loop should be in the map");
 
@@ -846,9 +841,8 @@ void LoopInternalization::transform(T loop,
     const auto idTy = cast<sycl::IDType>(
         cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
     // TODO: The current indexes used are incorrect.
-    SmallVector<Value> indexes(localIDs.begin(), localIDs.end());
     TypedValue<MemRefType> id =
-        constructSYCLID(idTy, indexes, builder, builder.getUnknownLoc());
+        sycl::constructSYCLID(idTy, localIDs, builder, builder.getUnknownLoc());
     sycl::createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder,
                                         builder.getUnknownLoc());
 
