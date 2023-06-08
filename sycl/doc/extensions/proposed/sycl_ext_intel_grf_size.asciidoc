@@ -102,14 +102,14 @@ It accepts a single integer value. It is defined as follows:
 namespace sycl::ext::intel::experimental {
 
 struct grf_size_key {
-  template <int Mode>
+  template <int Size>
   using value_t = 
       oneapi::experimental::property_value<grf_size_key, 
-                                           std::integral_constant<int, Mode>>;
+                                           std::integral_constant<int, Size>>;
 };
 
-template <int Mode>
-inline constexpr grf_size_key::value_t<Mode> grf_size;
+template <int Size>
+inline constexpr grf_size_key::value_t<Size> grf_size;
 
 } // namespace sycl::ext::intel::experimental
 ```
