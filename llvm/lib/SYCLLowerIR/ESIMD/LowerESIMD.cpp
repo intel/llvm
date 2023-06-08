@@ -1046,17 +1046,6 @@ static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   return true;
 }
 
-static void translateGetSurfaceIndex(CallInst &CI) {
-  auto opnd = CI.getArgOperand(0);
-  assert(opnd->getType()->isPointerTy());
-  IRBuilder<> Builder(&CI);
-  auto SV =
-      Builder.CreatePtrToInt(opnd, IntegerType::getInt32Ty(CI.getContext()));
-  auto *SI = cast<CastInst>(SV);
-  SI->setDebugLoc(CI.getDebugLoc());
-  CI.replaceAllUsesWith(SI);
-}
-
 // Newly created GenX intrinsic might have different return type than expected.
 // This helper function creates cast operation from GenX intrinsic return type
 // to currently expected. Returns pointer to created cast instruction if it
@@ -2057,11 +2046,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
           ToErase.push_back(CI);
           continue;
         }
-      }
-      if (Name.startswith("__esimd_get_surface_index")) {
-        translateGetSurfaceIndex(*CI);
-        ToErase.push_back(CI);
-        continue;
       }
 
       if (Name.empty() ||
