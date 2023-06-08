@@ -136,7 +136,9 @@ static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
   };
   bool ShouldRaise = Args.hasArg(options::OPT_fsycl_raise_host);
   if (ShouldRaise) {
-    if (Args.hasArg(options::OPT_fsyntax_only))
+    if (Args.hasArg(options::OPT_fsyntax_only) ||
+        Args.hasArg(options::OPT_fsycl_link_EQ) ||
+        Args.hasArg(options::OPT_fsycl_link_targets_EQ))
       ShouldRaise = false;
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_host_compiler_EQ)) {
       if (Diagnose)

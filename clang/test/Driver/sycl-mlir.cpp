@@ -276,3 +276,63 @@
 // RUN: | FileCheck -check-prefix=CHK-RAISE-HOST-CCMP %s
 
 // CHK-RAISE-HOST-CCMP: error: the combination of '-fsycl-raise-host' and '-fsycl-host-compiler=' is incompatible
+
+// Make sure -fsycl-raise-host is ignored with -fsycl-link and -fsycl-link-targets
+
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl                         \
+// RUN: -fsycl-raise-host -fsycl-link                                   \
+// RUN: -Xclang -opaque-pointers -fno-sycl-device-lib=all               \
+// RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
+// RUN:  | FileCheck -check-prefix=CHK-SYCL-LINK -check-prefix=CHK-SYCL-LINK-MLIR %s
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl                         \
+// RUN: -fsycl-link  -fno-sycl-device-lib=all                           \
+// RUN: -Xclang -opaque-pointers                                        \
+// RUN: -fsycl-targets=spir64-unknown-unknown %s  2>&1                  \
+// RUN:  | FileCheck -check-prefix=CHK-SYCL-LINK -check-prefix=CHK-SYCL-LINK-LLVM %s
+
+// CHK-SYCL-LINK: 0: input, "{{.*}}sycl-mlir.cpp", c++, (device-sycl)
+// CHK-SYCL-LINK: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// CHK-SYCL-LINK: 2: compiler, {1}, ir, (device-sycl)
+// CHK-SYCL-LINK: 3: linker, {2}, image, (device-sycl)
+// CHK-SYCL-LINK: 4: input, "{{.*}}libsycl-itt-user-wrappers.o", object
+// CHK-SYCL-LINK: 5: clang-offload-unbundler, {4}, object
+// CHK-SYCL-LINK-MLIR: 6: offload, " (spir64-unknown-unknown-syclmlir)" {5}, object
+// CHK-SYCL-LINK-LLVM: 6: offload, " (spir64-unknown-unknown)" {5}, object
+// CHK-SYCL-LINK: 7: input, "{{.*}}libsycl-itt-compiler-wrappers.o", object
+// CHK-SYCL-LINK: 8: clang-offload-unbundler, {7}, object
+// CHK-SYCL-LINK-MLIR: 9: offload, " (spir64-unknown-unknown-syclmlir)" {8}, object
+// CHK-SYCL-LINK-LLVM: 9: offload, " (spir64-unknown-unknown)" {8}, object
+// CHK-SYCL-LINK: 10: input, "{{.*}}libsycl-itt-stubs.o", object
+// CHK-SYCL-LINK: 11: clang-offload-unbundler, {10}, object
+// CHK-SYCL-LINK-MLIR: 12: offload, " (spir64-unknown-unknown-syclmlir)" {11}, object
+// CHK-SYCL-LINK-LLVM: 12: offload, " (spir64-unknown-unknown)" {11}, object
+// CHK-SYCL-LINK: 13: linker, {3, 6, 9, 12}, ir, (device-sycl)
+// CHK-SYCL-LINK: 14: sycl-post-link, {13}, ir, (device-sycl)
+// CHK-SYCL-LINK: 15: file-table-tform, {14}, tempfilelist, (device-sycl)
+// CHK-SYCL-LINK: 16: llvm-spirv, {15}, tempfilelist, (device-sycl)
+// CHK-SYCL-LINK: 17: file-table-tform, {14, 16}, tempfiletable, (device-sycl)
+// CHK-SYCL-LINK: 18: clang-offload-wrapper, {17}, object, (device-sycl)
+// CHK-SYCL-LINK-MLIR: 19: offload, "device-sycl (spir64-unknown-unknown-syclmlir)" {18}, object
+// CHK-SYCL-LINK-LLVM: 19: offload, "device-sycl (spir64-unknown-unknown)" {18}, object
+
+// RUN: %clangxx -ccc-print-phases                                      \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl                         \
+// RUN: -fsycl-raise-host                                               \
+// RUN: -Xclang -opaque-pointers                                        \
+// RUN: -fsycl-link-targets=spir64-unknown-unknown-syclmlir %s 2>&1     \
+// RUN:  | FileCheck -check-prefix=CHK-SYCL-LINK-TARGET -check-prefix=CHK-SYCL-LINK-TARGET-MLIR %s
+// RUN: %clangxx -ccc-print-phases                                      \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl                         \
+// RUN: -Xclang -opaque-pointers                                        \
+// RUN: -fsycl-link-targets=spir64-unknown-unknown %s  2>&1             \
+// RUN:  | FileCheck -check-prefix=CHK-SYCL-LINK-TARGET -check-prefix=CHK-SYCL-LINK-TARGET-LLVM %s
+
+// CHK-SYCL-LINK-TARGET: 0: input, "{{.*}}sycl-mlir.cpp", c++, (device-sycl)
+// CHK-SYCL-LINK-TARGET: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// CHK-SYCL-LINK-TARGET: 2: compiler, {1}, ir, (device-sycl)
+// CHK-SYCL-LINK-TARGET: 3: linker, {2}, image, (device-sycl)
+// CHK-SYCL-LINK-TARGET: 4: llvm-spirv, {3}, image, (device-sycl)
+// CHK-SYCL-LINK-TARGET-MLIR: 5: offload, "device-sycl (spir64-unknown-unknown-syclmlir)" {4}, image
+// CHK-SYCL-LINK-TARGET-LLVM: 5: offload, "device-sycl (spir64-unknown-unknown)" {4}, image

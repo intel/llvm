@@ -25,6 +25,8 @@ ReqdWorkGroupSize::ReqdWorkGroupSize(ArrayRef<gpu::GPUFuncOp> kernels) {
 
 bool ReqdWorkGroupSize::empty() const { return wgSizes.empty(); }
 
+unsigned ReqdWorkGroupSize::size() const { return wgSizes.size(); }
+
 unsigned ReqdWorkGroupSize::operator[](unsigned dim) const {
   assert(dim < wgSizes.size() && "Expecting valid dim");
   return wgSizes[wgSizes.size() - 1 - dim];
