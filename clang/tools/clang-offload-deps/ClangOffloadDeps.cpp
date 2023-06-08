@@ -74,6 +74,19 @@ static void reportError(Error E) {
   logAllUnhandledErrors(std::move(E), WithColor::error(errs(), ToolPath));
 }
 
+static std::string standardizedTarget(std::string OrigTarget) {
+  if (OrigTarget.back() == '-') // Already standardized
+    return OrigTarget;
+  StringRef Target(OrigTarget);
+  auto KindTriple = Target.split('-');
+  llvm::Triple t = llvm::Triple(KindTriple.second);
+  return std::string(KindTriple.first) + "-" +
+         std::string(llvm::Triple(t.getArchName(), t.getVendorName(),
+                                  t.getOSName(), t.getEnvironmentName())
+                         .str()) +
+         "-";
+}
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   ToolPath = argv[0];
@@ -168,11 +181,10 @@ int main(int argc, const char **argv) {
     // offload targets and insert them into the map.
     for (StringRef Symbol = DataOrErr.get(); !Symbol.empty();) {
       unsigned Len = strlen(Symbol.data());
-
       // TODO: Consider storing Targets and Kinds in a single map-like struct,
       // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
       for (const std::string &Target : Targets) {
-        std::string Prefix = Target + ".";
+        std::string Prefix = standardizedTarget(Target) + ".";
         if (Symbol.startswith(Prefix))
           Target2Symbols[Target].insert(
               Symbol.substr(Prefix.size(), Len - Prefix.size()));
