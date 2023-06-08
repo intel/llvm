@@ -6099,7 +6099,9 @@ urCommandBufferFinalizeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -6133,7 +6135,9 @@ urCommandBufferAppendKernelLaunchExp(
 ///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -6160,7 +6164,9 @@ urCommandBufferAppendMemcpyUSMExp(
 ///         + `NULL == hDstMem`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -6190,7 +6196,9 @@ urCommandBufferAppendMembufferCopyExp(
 ///         + `NULL == hDstMem`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`" - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
