@@ -341,7 +341,7 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
 
   // When global_work_size[0] is prime threadPerBlock[0] will later computed as
   // 1, which is not efficient configuration. In such case we use
-  // global_work_size[0] to compute threadPerBlock[0].
+  // global_work_size[0] + 1 to compute threadPerBlock[0].
   int x_global_work_size = (isPrime(global_work_size[0]) &&
                             (threadsPerBlock[0] != global_work_size[0]))
                                ? global_work_size[0] + 1
