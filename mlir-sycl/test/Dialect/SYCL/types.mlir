@@ -170,8 +170,10 @@ func.func @_Z7group_2N2cl4sycl5groupILi2EEE(%arg0: !sycl_group_2_) attributes {l
 // HALF
 ////////////////////////////////////////////////////////////////////////////////
 
-// CHECK: func @half(%arg0: !sycl.half<(f16)>) {
-func.func @half(%arg0: !sycl.half<(f16)>) {
+!sycl_half_ = !sycl.half<(f16)>
+
+// CHECK: func @half(%arg0: !sycl_half_) {
+func.func @half(%arg0: !sycl_half_) {
   return
 }
 
