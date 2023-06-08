@@ -5189,6 +5189,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         if (NULL == pLocalWorkSize) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
     }
 
     ur_result_t result = pfnAppendKernelLaunchExp(
@@ -5237,6 +5245,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
         if (size == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
     }
 
     ur_result_t result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
@@ -5281,6 +5297,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
 
         if (NULL == hDstMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
         }
     }
 
@@ -5333,6 +5357,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 
         if (NULL == hDstMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
         }
     }
 

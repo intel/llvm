@@ -133,7 +133,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
         - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
         - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -172,7 +172,7 @@ returns:
         - "If `size` is higher than the allocation size of `pSrc` or `pDst`"
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
         - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
         - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -213,7 +213,7 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
         - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
         - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -267,7 +267,7 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
-    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
         - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
         - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
