@@ -12,3 +12,8 @@
 // RUN: %clang_cl -c -fsycl -x c++-header %t.h -### -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-ERROR %s
 // CHECK-ERROR: Pre-compiled header generation is not supported with '-fsycl'
+
+// /Yc
+// RUN: %clang_cl -fsycl /Ycpchfile.h /FIpchfile.h /c -### -- %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-YC %s
+// CHECK-YC: Pre-compiled header generation is not supported with '-fsycl'
