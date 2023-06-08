@@ -1122,8 +1122,7 @@ static void memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
 
 static RT::PiProgram
 getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
-                                 DeviceGlobalMapEntry *DeviceGlobalEntry,
-                                 OSModuleHandle M) {
+                                 DeviceGlobalMapEntry *DeviceGlobalEntry) {
   assert(DeviceGlobalEntry->MIsDeviceImageScopeDecorated &&
          "device_global is not device image scope decorated.");
 
@@ -1149,7 +1148,7 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   KernelSetId KSId = *DeviceGlobalEntry->MKSIds.begin();
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img = PM.getDeviceImage(M, KSId, Context, Device);
+  RTDeviceBinaryImage &Img = PM.getDeviceImage(KSId, Context, Device);
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage = PM.build(DeviceImage, {Device}, {});
@@ -1158,10 +1157,10 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
 
 static void memcpyToDeviceGlobalDirect(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, const void *Src, OSModuleHandle M,
+    size_t NumBytes, size_t Offset, const void *Src,
     const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   RT::PiProgram Program =
-      getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry, M);
+      getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
       Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
@@ -1171,10 +1170,10 @@ static void memcpyToDeviceGlobalDirect(
 
 static void memcpyFromDeviceGlobalDirect(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
-    size_t NumBytes, size_t Offset, void *Dest, OSModuleHandle M,
+    size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   RT::PiProgram Program =
-      getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry, M);
+      getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
       Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
@@ -1184,7 +1183,7 @@ static void memcpyFromDeviceGlobalDirect(
 
 void MemoryManager::copy_to_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
-    size_t NumBytes, size_t Offset, const void *SrcMem, OSModuleHandle M,
+    size_t NumBytes, size_t Offset, const void *SrcMem,
     const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
@@ -1196,7 +1195,7 @@ void MemoryManager::copy_to_device_global(
          "Copy to device_global is out of bounds.");
 
   if (IsDeviceImageScoped)
-    memcpyToDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, SrcMem, M,
+    memcpyToDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, SrcMem,
                                DepEvents, OutEvent);
   else
     memcpyToDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, SrcMem, DepEvents,
@@ -1205,7 +1204,7 @@ void MemoryManager::copy_to_device_global(
 
 void MemoryManager::copy_from_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
-    size_t NumBytes, size_t Offset, void *DstMem, OSModuleHandle M,
+    size_t NumBytes, size_t Offset, void *DstMem,
     const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
@@ -1217,7 +1216,7 @@ void MemoryManager::copy_from_device_global(
          "Copy from device_global is out of bounds.");
 
   if (IsDeviceImageScoped)
-    memcpyFromDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, DstMem, M,
+    memcpyFromDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, DstMem,
                                  DepEvents, OutEvent);
   else
     memcpyFromDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, DstMem,

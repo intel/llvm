@@ -345,7 +345,7 @@ int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
 void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
                               const size_t *global_work_size,
                               const size_t maxThreadsPerBlock[3],
-                              pi_kernel kernel) {
+                              [[maybe_unused]] pi_kernel kernel) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
@@ -932,7 +932,7 @@ pi_result hip_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   }
 }
 
-pi_result hip_piPlatformGetInfo(pi_platform platform,
+pi_result hip_piPlatformGetInfo([[maybe_unused]] pi_platform platform,
                                 pi_platform_info param_name,
                                 size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
@@ -1112,7 +1112,7 @@ pi_result hip_piextDeviceSelectBinary(pi_device device,
   return PI_ERROR_INVALID_BINARY;
 }
 
-pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
+pi_result hip_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
                                             pi_program program,
                                             const char *func_name,
                                             pi_uint64 *func_pointer_ret) {
@@ -2074,12 +2074,13 @@ pi_result hip_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[out] retcontext Set to created context on success.
 ///
 /// \return PI_SUCCESS on success, otherwise an error return code.
-pi_result hip_piContextCreate(const pi_context_properties *properties,
-                              pi_uint32 num_devices, const pi_device *devices,
-                              void (*pfn_notify)(const char *errinfo,
-                                                 const void *private_info,
-                                                 size_t cb, void *user_data),
-                              void *user_data, pi_context *retcontext) {
+pi_result hip_piContextCreate(
+    const pi_context_properties *properties,
+    [[maybe_unused]] pi_uint32 num_devices, const pi_device *devices,
+    [[maybe_unused]] void (*pfn_notify)(const char *errinfo,
+                                        const void *private_info, size_t cb,
+                                        [[maybe_unused]] void *user_data),
+    [[maybe_unused]] void *user_data, pi_context *retcontext) {
 
   assert(devices != nullptr);
   // TODO: How to implement context callback?
@@ -2138,7 +2139,7 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
     static std::once_flag initFlag;
     std::call_once(
         initFlag,
-        [](pi_result &err) {
+        [](pi_result &) {
           // Use default stream to record base event counter
           PI_CHECK_ERROR(
               hipEventCreateWithFlags(&_pi_platform::evBase_, hipEventDefault));
@@ -2242,9 +2243,10 @@ pi_result hip_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                size_t size, void *host_ptr, pi_mem *ret_mem,
-                                const pi_mem_properties *properties) {
+pi_result
+hip_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
+                      void *host_ptr, pi_mem *ret_mem,
+                      [[maybe_unused]] const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
   assert((properties == nullptr || *properties == 0) &&
@@ -2387,9 +2389,10 @@ pi_result hip_piMemRelease(pi_mem memObj) {
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing HIP allocation.
 ///
-pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
-                                   pi_buffer_create_type buffer_create_type,
-                                   void *buffer_create_info, pi_mem *memObj) {
+pi_result hip_piMemBufferPartition(
+    pi_mem parent_buffer, pi_mem_flags flags,
+    [[maybe_unused]] pi_buffer_create_type buffer_create_type,
+    void *buffer_create_info, pi_mem *memObj) {
   assert((parent_buffer != nullptr) && "PI_ERROR_INVALID_MEM_OBJECT");
   assert(parent_buffer->is_buffer() && "PI_ERROR_INVALID_MEM_OBJECTS");
   assert(!parent_buffer->is_sub_buffer() && "PI_ERROR_INVALID_MEM_OBJECT");
@@ -3376,11 +3379,11 @@ pi_result hip_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
 /// used later on to extract functions (kernels).
 /// See \ref _pi_program for implementation details.
 ///
-pi_result hip_piProgramBuild(pi_program program, pi_uint32 num_devices,
-                             const pi_device *device_list, const char *options,
-                             void (*pfn_notify)(pi_program program,
-                                                void *user_data),
-                             void *user_data) {
+pi_result hip_piProgramBuild(
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
 
   assert(program != nullptr);
   assert(num_devices == 1 || num_devices == 0);
@@ -3419,10 +3422,11 @@ pi_result hip_piProgramCreate(pi_context context, const void *il, size_t length,
 /// Note: Only supports one device
 ///
 pi_result hip_piProgramCreateWithBinary(
-    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
-    const size_t *lengths, const unsigned char **binaries,
-    size_t num_metadata_entries, const pi_device_binary_property *metadata,
-    pi_int32 *binary_status, pi_program *program) {
+    pi_context context, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const size_t *lengths,
+    const unsigned char **binaries, size_t num_metadata_entries,
+    const pi_device_binary_property *metadata, pi_int32 *binary_status,
+    pi_program *program) {
   (void)num_metadata_entries;
   (void)metadata;
   (void)binary_status;
@@ -3520,10 +3524,12 @@ pi_result hip_piProgramLink(pi_context context, pi_uint32 num_devices,
 /// \TODO Implement asynchronous compilation
 ///
 pi_result hip_piProgramCompile(
-    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
-    const char *options, pi_uint32 num_input_headers,
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] pi_uint32 num_input_headers,
     const pi_program *input_headers, const char **header_include_names,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
   (void)input_headers;
   (void)header_include_names;
 
@@ -5093,9 +5099,10 @@ pi_result hip_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
 ///
-pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
-                                pi_usm_mem_properties *properties, size_t size,
-                                pi_uint32 alignment) {
+pi_result
+hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
+                      [[maybe_unused]] pi_usm_mem_properties *properties,
+                      size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(properties == nullptr || *properties == 0);
@@ -5115,10 +5122,11 @@ pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM device allocations using a normal HIP device pointer
 ///
-pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
-                                  pi_device device,
-                                  pi_usm_mem_properties *properties,
-                                  size_t size, pi_uint32 alignment) {
+pi_result
+hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
+                        [[maybe_unused]] pi_device device,
+                        [[maybe_unused]] pi_usm_mem_properties *properties,
+                        size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5139,10 +5147,11 @@ pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM Shared allocations using HIP Managed Memory
 ///
-pi_result hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
-                                  pi_device device,
-                                  pi_usm_mem_properties *properties,
-                                  size_t size, pi_uint32 alignment) {
+pi_result
+hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
+                        [[maybe_unused]] pi_device device,
+                        [[maybe_unused]] pi_usm_mem_properties *properties,
+                        size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5304,7 +5313,8 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 }
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
-pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
+pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue,
+                                       [[maybe_unused]] const void *ptr,
                                        size_t length, pi_mem_advice advice,
                                        pi_event *event) {
   (void)length;

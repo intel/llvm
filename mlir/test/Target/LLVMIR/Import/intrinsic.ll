@@ -117,6 +117,7 @@ define void @pow_test(float %0, float %1, <8 x float> %2, <8 x float> %3) {
   %6 = call <8 x float> @llvm.pow.v8f32(<8 x float> %2, <8 x float> %3)
   ret void
 }
+
 ; CHECK-LABEL: llvm.func @rint_test
 define void @rint_test(float %0, double %1, <8 x float> %2, <8 x double> %3) {
   ; CHECK: llvm.intr.rint(%{{.*}}) : (f32) -> f32
@@ -181,6 +182,7 @@ define void @llrint_test(float %0, double %1) {
   %4 = call i64 @llvm.llrint.i64.f64(double %1)
   ret void
 }
+
 ; CHECK-LABEL:  llvm.func @bitreverse_test
 define void @bitreverse_test(i32 %0, <8 x i32> %1) {
   ; CHECK:   llvm.intr.bitreverse(%{{.*}}) : (i32) -> i32
