@@ -1,7 +1,14 @@
+#
+# Copyright (C) 2021 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Command-Buffer Extension APIs"
-ordinal: "0"
+desc: "Intel $OneApi Unified Runtime Experimental APIs for Command-Buffers"
+ordinal: "99"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Command-Buffer Descriptor Type"
@@ -88,7 +95,7 @@ returns:
 type: function
 desc: "Append a kernel execution command to a command-buffer object"
 class: $xCommandBuffer
-name: AppendKernelExp
+name: AppendKernelLaunchExp
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
@@ -97,7 +104,7 @@ params:
       name: hKernel
       desc: "[in] kernel to append"
     - type: uint32_t
-      name: WorkDim
+      name: workDim
       desc: "[in] dimension of the kernel execution"
     - type: "const size_t*"
       name: pGlobalWorkOffset
@@ -113,10 +120,10 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
-      desc: "[out] sync point associated with this command"
+      desc: "[out][optional] sync point associated with this command"
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_KERNEL
@@ -152,10 +159,10 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
-      desc: "[out] sync point associated with this command"
+      desc: "[out][optional] sync point associated with this command"
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_SIZE:
@@ -197,10 +204,10 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
-      desc: "[out] sync point associated with this command"
+      desc: "[out][optional] sync point associated with this command"
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -226,35 +233,35 @@ params:
       name: hDstMem
       desc: "[in] The location the data will be copied to."
     - type: $x_rect_offset_t
-      name: SrcOrigin
+      name: srcOrigin
       desc: "[in] Origin for the region of data to be copied from the source."
     - type: $x_rect_offset_t
-      name: DstOrigin
+      name: dstOrigin
       desc: "[in] Origin for the region of data to be copied to in the destination."
     - type: $x_rect_region_t
-      name: Region
+      name: region
       desc: "[in] The extents describing the region to be copied."
     - type: "size_t"
-      name: SrcRowPitch
+      name: srcRowPitch
       desc: "[in] Row pitch of the source memory."
     - type: "size_t"
-      name: SrcSlicePitch
+      name: srcSlicePitch
       desc: "[in] Slice pitch of the source memory."
     - type: "size_t"
-      name: DstRowPitch
+      name: dstRowPitch
       desc: "[in] Row pitch of the destination memory."
     - type: "size_t"
-      name: DstSlicePitch
+      name: dstSlicePitch
       desc: "[in] Slice pitch of the destination memory."
     - type: uint32_t
       name: numSyncPointsInWaitList
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on."
     - type: $x_exp_command_buffer_sync_point_t*
       name: pSyncPoint
-      desc: "[out] sync point associated with this command"
+      desc: "[out][optional] sync point associated with this command"
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP

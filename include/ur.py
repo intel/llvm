@@ -188,12 +188,12 @@ class ur_result_v(IntEnum):
                                                     ## memory
     ERROR_INVALID_HOST_PTR = 64                     ## Invalid host pointer
     ERROR_INVALID_USM_SIZE = 65                     ## Invalid USM size
-    ERROR_INVALID_COMMAND_BUFFER_EXP = 66           ## Invalid Command-Buffer
-    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 67## Sync point is not valid for the command-buffer
-    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 68  ## Sync point wait list is invalid
-    ERROR_OBJECT_ALLOCATION_FAILURE = 69            ## Objection allocation failure
-    ERROR_ADAPTER_SPECIFIC = 70                     ## An adapter specific warning/error has been reported and can be
+    ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
+    ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
                                                     ## retrieved via the urGetLastResult entry point.
+    ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000       ## Invalid Command-Buffer
+    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001## Sync point is not valid for the command-buffer
+    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002  ## Sync point wait list is invalid
     ERROR_UNKNOWN = 0x7ffffffe                      ## Unknown or internal error
 
 class ur_result_t(c_int):
@@ -271,26 +271,6 @@ class ur_rect_region_t(Structure):
         ("height", c_ulonglong),                                        ## [in] height (scalar)
         ("depth", c_ulonglong)                                          ## [in] scalar (scalar)
     ]
-
-###############################################################################
-## @brief Command-Buffer Descriptor Type
-class ur_exp_command_buffer_desc_t(Structure):
-    _fields_ = [
-        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
-                                                                        ## ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
-        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
-    ]
-
-###############################################################################
-## @brief A value that identifies a command inside of a command-buffer, used for
-##        defining dependencies between commands in the same command-buffer.
-class ur_exp_command_buffer_sync_point_t(c_ulong):
-    pass
-
-###############################################################################
-## @brief Handle of Command-Buffer object
-class ur_exp_command_buffer_handle_t(c_void_p):
-    pass
 
 ###############################################################################
 ## @brief Supported device initialization flags
@@ -1846,7 +1826,7 @@ class ur_function_v(IntEnum):
     COMMAND_BUFFER_RETAIN_EXP = 121                 ## Enumerator for ::urCommandBufferRetainExp
     COMMAND_BUFFER_RELEASE_EXP = 122                ## Enumerator for ::urCommandBufferReleaseExp
     COMMAND_BUFFER_FINALIZE_EXP = 123               ## Enumerator for ::urCommandBufferFinalizeExp
-    COMMAND_BUFFER_APPEND_KERNEL_EXP = 124          ## Enumerator for ::urCommandBufferAppendKernelExp
+    COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125   ## Enumerator for ::urCommandBufferAppendKernelLaunchExp
     COMMAND_BUFFER_ENQUEUE_EXP = 128                ## Enumerator for ::urCommandBufferEnqueueExp
     COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129      ## Enumerator for ::urCommandBufferAppendMemcpyUSMExp
     COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130  ## Enumerator for ::urCommandBufferAppendMembufferCopyExp
@@ -1878,6 +1858,26 @@ class ur_usm_migration_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
+
+###############################################################################
+## @brief Command-Buffer Descriptor Type
+class ur_exp_command_buffer_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
+        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief A value that identifies a command inside of a command-buffer, used for
+##        defining dependencies between commands in the same command-buffer.
+class ur_exp_command_buffer_sync_point_t(c_ulong):
+    pass
+
+###############################################################################
+## @brief Handle of Command-Buffer object
+class ur_exp_command_buffer_handle_t(c_void_p):
+    pass
 
 ###############################################################################
 __use_win_types = "Windows" == platform.uname()[0]
@@ -2758,11 +2758,11 @@ else:
     _urCommandBufferFinalizeExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
 
 ###############################################################################
-## @brief Function-pointer for urCommandBufferAppendKernelExp
+## @brief Function-pointer for urCommandBufferAppendKernelLaunchExp
 if __use_win_types:
-    _urCommandBufferAppendKernelExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+    _urCommandBufferAppendKernelLaunchExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
 else:
-    _urCommandBufferAppendKernelExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+    _urCommandBufferAppendKernelLaunchExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urCommandBufferAppendMemcpyUSMExp
@@ -2801,7 +2801,7 @@ class ur_command_buffer_exp_dditable_t(Structure):
         ("pfnRetainExp", c_void_p),                                     ## _urCommandBufferRetainExp_t
         ("pfnReleaseExp", c_void_p),                                    ## _urCommandBufferReleaseExp_t
         ("pfnFinalizeExp", c_void_p),                                   ## _urCommandBufferFinalizeExp_t
-        ("pfnAppendKernelExp", c_void_p),                               ## _urCommandBufferAppendKernelExp_t
+        ("pfnAppendKernelLaunchExp", c_void_p),                         ## _urCommandBufferAppendKernelLaunchExp_t
         ("pfnAppendMemcpyUSMExp", c_void_p),                            ## _urCommandBufferAppendMemcpyUSMExp_t
         ("pfnAppendMembufferCopyExp", c_void_p),                        ## _urCommandBufferAppendMembufferCopyExp_t
         ("pfnAppendMembufferCopyRectExp", c_void_p),                    ## _urCommandBufferAppendMembufferCopyRectExp_t
@@ -3222,7 +3222,7 @@ class UR_DDI:
         self.urCommandBufferRetainExp = _urCommandBufferRetainExp_t(self.__dditable.CommandBufferExp.pfnRetainExp)
         self.urCommandBufferReleaseExp = _urCommandBufferReleaseExp_t(self.__dditable.CommandBufferExp.pfnReleaseExp)
         self.urCommandBufferFinalizeExp = _urCommandBufferFinalizeExp_t(self.__dditable.CommandBufferExp.pfnFinalizeExp)
-        self.urCommandBufferAppendKernelExp = _urCommandBufferAppendKernelExp_t(self.__dditable.CommandBufferExp.pfnAppendKernelExp)
+        self.urCommandBufferAppendKernelLaunchExp = _urCommandBufferAppendKernelLaunchExp_t(self.__dditable.CommandBufferExp.pfnAppendKernelLaunchExp)
         self.urCommandBufferAppendMemcpyUSMExp = _urCommandBufferAppendMemcpyUSMExp_t(self.__dditable.CommandBufferExp.pfnAppendMemcpyUSMExp)
         self.urCommandBufferAppendMembufferCopyExp = _urCommandBufferAppendMembufferCopyExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyExp)
         self.urCommandBufferAppendMembufferCopyRectExp = _urCommandBufferAppendMembufferCopyRectExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyRectExp)

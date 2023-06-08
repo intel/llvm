@@ -1237,8 +1237,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferFinalizeExp_t)(
     ur_exp_command_buffer_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendKernelExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendKernelLaunchExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_kernel_handle_t,
     uint32_t,
@@ -1306,7 +1306,7 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferRetainExp_t pfnRetainExp;
     ur_pfnCommandBufferReleaseExp_t pfnReleaseExp;
     ur_pfnCommandBufferFinalizeExp_t pfnFinalizeExp;
-    ur_pfnCommandBufferAppendKernelExp_t pfnAppendKernelExp;
+    ur_pfnCommandBufferAppendKernelLaunchExp_t pfnAppendKernelLaunchExp;
     ur_pfnCommandBufferAppendMemcpyUSMExp_t pfnAppendMemcpyUSMExp;
     ur_pfnCommandBufferAppendMembufferCopyExp_t pfnAppendMembufferCopyExp;
     ur_pfnCommandBufferAppendMembufferCopyRectExp_t pfnAppendMembufferCopyRectExp;

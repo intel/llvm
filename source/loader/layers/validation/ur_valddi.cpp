@@ -15,400 +15,6 @@
 namespace ur_validation_layer {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferCreateExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    const ur_exp_command_buffer_desc_t
-        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
-    ur_exp_command_buffer_handle_t
-        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
-) {
-    auto pfnCreateExp = context.urDdiTable.CommandBufferExp.pfnCreateExp;
-
-    if (nullptr == pfnCreateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == phCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    ur_result_t result =
-        pfnCreateExp(hContext, hDevice, pCommandBufferDesc, phCommandBuffer);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferRetainExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
-) {
-    auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
-
-    if (nullptr == pfnRetainExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-    }
-
-    ur_result_t result = pfnRetainExp(hCommandBuffer);
-
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hCommandBuffer);
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferReleaseExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
-) {
-    auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
-
-    if (nullptr == pfnReleaseExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-    }
-
-    ur_result_t result = pfnReleaseExp(hCommandBuffer);
-
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hCommandBuffer);
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferFinalizeExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
-) {
-    auto pfnFinalizeExp = context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
-
-    if (nullptr == pfnFinalizeExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-    }
-
-    ur_result_t result = pfnFinalizeExp(hCommandBuffer);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendKernelExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer,         ///< [in] handle of the command-buffer object
-    ur_kernel_handle_t hKernel, ///< [in] kernel to append
-    uint32_t WorkDim,           ///< [in] dimension of the kernel execution
-    const size_t
-        *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
-    const size_t *
-        pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
-    const size_t
-        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    auto pfnAppendKernelExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendKernelExp;
-
-    if (nullptr == pfnAppendKernelExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hKernel) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == pGlobalWorkOffset) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pGlobalWorkSize) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pLocalWorkSize) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pSyncPointWaitList) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pSyncPoint) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    ur_result_t result = pfnAppendKernelExp(
-        hCommandBuffer, hKernel, WorkDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList,
-        pSyncPoint);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    void *pDst,         ///< [in] Location the data will be copied to.
-    const void *pSrc,   ///< [in] The data to be copied.
-    size_t size,        ///< [in] The number of bytes to copy
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    auto pfnAppendMemcpyUSMExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
-
-    if (nullptr == pfnAppendMemcpyUSMExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == pDst) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pSrc) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pSyncPointWaitList) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pSyncPoint) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (size == 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-    }
-
-    ur_result_t result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
-                                               numSyncPointsInWaitList,
-                                               pSyncPointWaitList, pSyncPoint);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
-    size_t srcOffset,        ///< [in] Offset into the source memory.
-    size_t dstOffset,        ///< [in] Offset into the destination memory
-    size_t size,             ///< [in] The number of bytes to be copied.
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    auto pfnAppendMembufferCopyExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
-
-    if (nullptr == pfnAppendMembufferCopyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hSrcMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hDstMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == pSyncPointWaitList) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pSyncPoint) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    ur_result_t result = pfnAppendMembufferCopyExp(
-        hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
-        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
-    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
-    ur_rect_offset_t
-        SrcOrigin, ///< [in] Origin for the region of data to be copied from the source.
-    ur_rect_offset_t
-        DstOrigin, ///< [in] Origin for the region of data to be copied to in the destination.
-    ur_rect_region_t
-        Region, ///< [in] The extents describing the region to be copied.
-    size_t SrcRowPitch,   ///< [in] Row pitch of the source memory.
-    size_t SrcSlicePitch, ///< [in] Slice pitch of the source memory.
-    size_t DstRowPitch,   ///< [in] Row pitch of the destination memory.
-    size_t DstSlicePitch, ///< [in] Slice pitch of the destination memory.
-    uint32_t
-        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
-    const ur_exp_command_buffer_sync_point_t *
-        pSyncPointWaitList, ///< [in] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out] sync point associated with this command
-) {
-    auto pfnAppendMembufferCopyRectExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
-
-    if (nullptr == pfnAppendMembufferCopyRectExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hSrcMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hDstMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == pSyncPointWaitList) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pSyncPoint) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    ur_result_t result = pfnAppendMembufferCopyRectExp(
-        hCommandBuffer, hSrcMem, hDstMem, SrcOrigin, DstOrigin, Region,
-        SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
-        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferEnqueueExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    ur_queue_handle_t
-        hQueue, ///< [in] the queue to submit this command-buffer for execution.
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t *
-        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    ///< events that must be complete before the command-buffer execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    ///< events.
-    ur_event_handle_t *
-        phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command-buffer execution instance.
-) {
-    auto pfnEnqueueExp = context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
-
-    if (nullptr == pfnEnqueueExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hCommandBuffer) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hQueue) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
-            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-        }
-
-        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
-            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
-        }
-    }
-
-    ur_result_t result = pfnEnqueueExp(
-        hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
     ur_device_init_flags_t device_flags ///< [in] device initialization flags.
@@ -5424,6 +5030,368 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferCreateExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_exp_command_buffer_desc_t
+        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
+    ur_exp_command_buffer_handle_t
+        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
+) {
+    auto pfnCreateExp = context.urDdiTable.CommandBufferExp.pfnCreateExp;
+
+    if (nullptr == pfnCreateExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnCreateExp(hContext, hDevice, pCommandBufferDesc, phCommandBuffer);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferRetainExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
+
+    if (nullptr == pfnRetainExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnRetainExp(hCommandBuffer);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hCommandBuffer);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferReleaseExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
+
+    if (nullptr == pfnReleaseExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnReleaseExp(hCommandBuffer);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hCommandBuffer);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferFinalizeExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    auto pfnFinalizeExp = context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
+
+    if (nullptr == pfnFinalizeExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnFinalizeExp(hCommandBuffer);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,         ///< [in] handle of the command-buffer object
+    ur_kernel_handle_t hKernel, ///< [in] kernel to append
+    uint32_t workDim,           ///< [in] dimension of the kernel execution
+    const size_t
+        *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
+    const size_t *
+        pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
+    const size_t
+        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendKernelLaunchExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
+
+    if (nullptr == pfnAppendKernelLaunchExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hKernel) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pGlobalWorkOffset) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pGlobalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pLocalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnAppendKernelLaunchExp(
+        hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList,
+        pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    void *pDst,         ///< [in] Location the data will be copied to.
+    const void *pSrc,   ///< [in] The data to be copied.
+    size_t size,        ///< [in] The number of bytes to copy
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMemcpyUSMExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
+
+    if (nullptr == pfnAppendMemcpyUSMExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pDst) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pSrc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+                                               numSyncPointsInWaitList,
+                                               pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    size_t srcOffset,        ///< [in] Offset into the source memory.
+    size_t dstOffset,        ///< [in] Offset into the destination memory
+    size_t size,             ///< [in] The number of bytes to be copied.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferCopyExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
+
+    if (nullptr == pfnAppendMembufferCopyExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hSrcMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDstMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnAppendMembufferCopyExp(
+        hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    ur_rect_offset_t
+        srcOrigin, ///< [in] Origin for the region of data to be copied from the source.
+    ur_rect_offset_t
+        dstOrigin, ///< [in] Origin for the region of data to be copied to in the destination.
+    ur_rect_region_t
+        region, ///< [in] The extents describing the region to be copied.
+    size_t srcRowPitch,   ///< [in] Row pitch of the source memory.
+    size_t srcSlicePitch, ///< [in] Slice pitch of the source memory.
+    size_t dstRowPitch,   ///< [in] Row pitch of the destination memory.
+    size_t dstSlicePitch, ///< [in] Slice pitch of the destination memory.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferCopyRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
+
+    if (nullptr == pfnAppendMembufferCopyRectExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hSrcMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDstMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnAppendMembufferCopyRectExp(
+        hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
+        srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferEnqueueExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    ur_queue_handle_t
+        hQueue, ///< [in] the queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command-buffer execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command-buffer execution instance.
+) {
+    auto pfnEnqueueExp = context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
+
+    if (nullptr == pfnEnqueueExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+    }
+
+    ur_result_t result = pfnEnqueueExp(
+        hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -5503,9 +5471,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     dditable.pfnFinalizeExp = pDdiTable->pfnFinalizeExp;
     pDdiTable->pfnFinalizeExp = ur_validation_layer::urCommandBufferFinalizeExp;
 
-    dditable.pfnAppendKernelExp = pDdiTable->pfnAppendKernelExp;
-    pDdiTable->pfnAppendKernelExp =
-        ur_validation_layer::urCommandBufferAppendKernelExp;
+    dditable.pfnAppendKernelLaunchExp = pDdiTable->pfnAppendKernelLaunchExp;
+    pDdiTable->pfnAppendKernelLaunchExp =
+        ur_validation_layer::urCommandBufferAppendKernelLaunchExp;
 
     dditable.pfnAppendMemcpyUSMExp = pDdiTable->pfnAppendMemcpyUSMExp;
     pDdiTable->pfnAppendMemcpyUSMExp =
