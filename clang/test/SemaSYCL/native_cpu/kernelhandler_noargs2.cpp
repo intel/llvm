@@ -15,7 +15,4 @@ int main() {
 
 //CHECK-HC: #pragma once
 //CHECK-HC-NEXT: #include <sycl/detail/native_cpu.hpp>
-//CHECK-HC:extern "C" void _ZZ4mainE10TestKernel();
-//CHECK-HC:inline static void _ZZ4mainE10TestKernelsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
-//CHECK-HC-NEXT:  _ZZ4mainE10TestKernel();
-//CHECK-HC-NEXT:};
+//CHECK-HC:extern "C" void _ZZ4mainE10TestKernelsubhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state);

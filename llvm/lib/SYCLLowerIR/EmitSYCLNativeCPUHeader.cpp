@@ -39,7 +39,7 @@ void emitSubKernelHandler(const Function *F, raw_ostream &O) {
 
   O << "\nextern \"C\" void " << F->getName() << "subhandler(";
   O << "const sycl::detail::NativeCPUArgDesc *MArgs, "
-       "__nativecpu_state *state) ;\n";
+       "__nativecpu_state *state);\n";
   return;
 }
 

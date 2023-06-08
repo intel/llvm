@@ -253,6 +253,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       StructType::create({PointerType::getUnqual(M.getContext())});
   for (auto &NewK : NewKernels) {
     emitSubkernelForKernel(NewK, NativeCPUArgDescType, StatePtrType);
+    // Todo: we need to ensure that the kernel name is not mangled as a type
+    // name, otherwise this may lead to runtime failures due to *weird* 
+    // codegen/linking behaviour
+    std::string NewName = NewK->getName().str() + "_ncpu";
+    NewK->setName(NewName); 
   }
 
   // Then we iterate over all the supported builtins, find their uses and

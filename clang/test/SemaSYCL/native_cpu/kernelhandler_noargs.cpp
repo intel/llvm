@@ -22,7 +22,4 @@ int main() {
 
 //CHECK-HC: #pragma once
 //CHECK-HC-NEXT: #include <sycl/detail/native_cpu.hpp>
-//CHECK-HC:extern "C" void _Z5Test1();
-//CHECK-HC:inline static void _Z5Test1subhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state) {
-//CHECK-HC-NEXT:  _Z5Test1();
-//CHECK-HC-NEXT:};
+//CHECK-HC:extern "C" void _Z5Test1subhandler(const sycl::detail::NativeCPUArgDesc *MArgs, __nativecpu_state *state);
