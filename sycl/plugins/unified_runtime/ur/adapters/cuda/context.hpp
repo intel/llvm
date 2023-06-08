@@ -60,78 +60,78 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 struct ur_context_handle_t_ {
 
   struct deleter_data {
-    ur_context_extended_deleter_t function;
-    void *user_data;
+    ur_context_extended_deleter_t Function;
+    void *UserData;
 
-    void operator()() { function(user_data); }
+    void operator()() { Function(UserData); }
   };
 
   using native_type = CUcontext;
 
-  native_type cuContext_;
-  ur_device_handle_t deviceId_;
-  std::atomic_uint32_t refCount_;
+  native_type CUContext;
+  ur_device_handle_t DeviceID;
+  std::atomic_uint32_t RefCount;
 
-  ur_context_handle_t_(ur_device_handle_t_ *devId)
-      : cuContext_{devId->get_context()}, deviceId_{devId}, refCount_{1} {
-    urDeviceRetain(deviceId_);
+  ur_context_handle_t_(ur_device_handle_t_ *DevID)
+      : CUContext{DevID->getContext()}, DeviceID{DevID}, RefCount{1} {
+    urDeviceRetain(DeviceID);
   };
 
-  ~ur_context_handle_t_() { urDeviceRelease(deviceId_); }
+  ~ur_context_handle_t_() { urDeviceRelease(DeviceID); }
 
-  void invoke_extended_deleters() {
-    std::lock_guard<std::mutex> guard(mutex_);
-    for (auto &deleter : extended_deleters_) {
-      deleter();
+  void invokeExtendedDeleters() {
+    std::lock_guard<std::mutex> Guard(Mutex);
+    for (auto &Deleter : ExtendedDeleters) {
+      Deleter();
     }
   }
 
-  void set_extended_deleter(ur_context_extended_deleter_t function,
-                            void *user_data) {
-    std::lock_guard<std::mutex> guard(mutex_);
-    extended_deleters_.emplace_back(deleter_data{function, user_data});
+  void setExtendedDeleter(ur_context_extended_deleter_t Function,
+                          void *UserData) {
+    std::lock_guard<std::mutex> Guard(Mutex);
+    ExtendedDeleters.emplace_back(deleter_data{Function, UserData});
   }
 
-  ur_device_handle_t get_device() const noexcept { return deviceId_; }
+  ur_device_handle_t getDevice() const noexcept { return DeviceID; }
 
-  native_type get() const noexcept { return cuContext_; }
+  native_type get() const noexcept { return CUContext; }
 
-  uint32_t increment_reference_count() noexcept { return ++refCount_; }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
-  uint32_t decrement_reference_count() noexcept { return --refCount_; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
-  uint32_t get_reference_count() const noexcept { return refCount_; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
 private:
-  std::mutex mutex_;
-  std::vector<deleter_data> extended_deleters_;
+  std::mutex Mutex;
+  std::vector<deleter_data> ExtendedDeleters;
 };
 
 namespace {
 class ScopedContext {
 public:
-  ScopedContext(ur_context_handle_t ctxt) {
-    if (!ctxt) {
+  ScopedContext(ur_context_handle_t Context) {
+    if (!Context) {
       throw UR_RESULT_ERROR_INVALID_CONTEXT;
     }
 
-    set_context(ctxt->get());
+    setContext(Context->get());
   }
 
-  ScopedContext(CUcontext ctxt) { set_context(ctxt); }
+  ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
 
   ~ScopedContext() {}
 
 private:
-  void set_context(CUcontext desired) {
-    CUcontext original = nullptr;
+  void setContext(CUcontext Desired) {
+    CUcontext Original = nullptr;
 
-    UR_CHECK_ERROR(cuCtxGetCurrent(&original));
+    UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
 
     // Make sure the desired context is active on the current thread, setting
     // it if necessary
-    if (original != desired) {
-      UR_CHECK_ERROR(cuCtxSetCurrent(desired));
+    if (Original != Desired) {
+      UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
     }
   }
 };

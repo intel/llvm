@@ -19,104 +19,100 @@ using ur_stream_guard_ = std::unique_lock<std::mutex>;
 struct ur_queue_handle_t_ {
 
   using native_type = CUstream;
-  static constexpr int default_num_compute_streams = 128;
-  static constexpr int default_num_transfer_streams = 64;
+  static constexpr int DefaultNumComputeStreams = 128;
+  static constexpr int DefaultNumTransferStreams = 64;
 
-  std::vector<native_type> compute_streams_;
-  std::vector<native_type> transfer_streams_;
+  std::vector<native_type> ComputeStreams;
+  std::vector<native_type> TransferStreams;
   // delay_compute_ keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
   // skipped, its delay flag is cleared.
-  std::vector<bool> delay_compute_;
+  std::vector<bool> DelayCompute;
   // keep track of which streams have applied barrier
-  std::vector<bool> compute_applied_barrier_;
-  std::vector<bool> transfer_applied_barrier_;
-  ur_context_handle_t_ *context_;
-  ur_device_handle_t_ *device_;
-  // ur_queue_properties_t properties_;
-  CUevent barrier_event_ = nullptr;
-  CUevent barrier_tmp_event_ = nullptr;
-  std::atomic_uint32_t refCount_;
-  std::atomic_uint32_t eventCount_;
-  std::atomic_uint32_t compute_stream_idx_;
-  std::atomic_uint32_t transfer_stream_idx_;
-  unsigned int num_compute_streams_;
-  unsigned int num_transfer_streams_;
-  unsigned int last_sync_compute_streams_;
-  unsigned int last_sync_transfer_streams_;
-  unsigned int flags_;
-  ur_queue_flags_t ur_flags_;
-  // When compute_stream_sync_mutex_ and compute_stream_mutex_ both need to be
-  // locked at the same time, compute_stream_sync_mutex_ should be locked first
+  std::vector<bool> ComputeAppliedBarrier;
+  std::vector<bool> TransferAppliedBarrier;
+  ur_context_handle_t_ *Context;
+  ur_device_handle_t_ *Device;
+  CUevent BarrierEvent = nullptr;
+  CUevent BarrierTmpEvent = nullptr;
+  std::atomic_uint32_t RefCount;
+  std::atomic_uint32_t EventCount;
+  std::atomic_uint32_t ComputeStreamIndex;
+  std::atomic_uint32_t TransferStreamIndex;
+  unsigned int NumComputeStreams;
+  unsigned int NumTransferStreams;
+  unsigned int LastSyncComputeStreams;
+  unsigned int LastSyncTransferStreams;
+  unsigned int Flags;
+  ur_queue_flags_t URFlags;
+  // When ComputeStreamSyncMutex and ComputeStreamMutex both need to be
+  // locked at the same time, ComputeStreamSyncMutex should be locked first
   // to avoid deadlocks
-  std::mutex compute_stream_sync_mutex_;
-  std::mutex compute_stream_mutex_;
-  std::mutex transfer_stream_mutex_;
-  std::mutex barrier_mutex_;
-  bool has_ownership_;
+  std::mutex ComputeStreamSyncMutex;
+  std::mutex ComputeStreamMutex;
+  std::mutex TransferStreamMutex;
+  std::mutex BarrierMutex;
+  bool HasOwnership;
 
-  ur_queue_handle_t_(std::vector<CUstream> &&compute_streams,
-                     std::vector<CUstream> &&transfer_streams,
-                     ur_context_handle_t_ *context, ur_device_handle_t_ *device,
-                     unsigned int flags, ur_queue_flags_t ur_flags,
-                     bool backend_owns = true)
-      : compute_streams_{std::move(compute_streams)},
-        transfer_streams_{std::move(transfer_streams)},
-        delay_compute_(compute_streams_.size(), false),
-        compute_applied_barrier_(compute_streams_.size()),
-        transfer_applied_barrier_(transfer_streams_.size()), context_{context},
-        device_{device}, refCount_{1}, eventCount_{0}, compute_stream_idx_{0},
-        transfer_stream_idx_{0}, num_compute_streams_{0},
-        num_transfer_streams_{0}, last_sync_compute_streams_{0},
-        last_sync_transfer_streams_{0}, flags_(flags), ur_flags_(ur_flags),
-        has_ownership_{backend_owns} {
-    urContextRetain(context_);
-    urDeviceRetain(device_);
+  ur_queue_handle_t_(std::vector<CUstream> &&ComputeStreams,
+                     std::vector<CUstream> &&TransferStreams,
+                     ur_context_handle_t_ *Context, ur_device_handle_t_ *Device,
+                     unsigned int Flags, ur_queue_flags_t URFlags,
+                     bool BackendOwns = true)
+      : ComputeStreams{std::move(ComputeStreams)},
+        TransferStreams{std::move(TransferStreams)},
+        DelayCompute(this->ComputeStreams.size(), false),
+        ComputeAppliedBarrier(this->ComputeStreams.size()),
+        TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
+        Device{Device}, RefCount{1}, EventCount{0}, ComputeStreamIndex{0},
+        TransferStreamIndex{0}, NumComputeStreams{0}, NumTransferStreams{0},
+        LastSyncComputeStreams{0}, LastSyncTransferStreams{0}, Flags(Flags),
+        URFlags(URFlags), HasOwnership{BackendOwns} {
+    urContextRetain(Context);
+    urDeviceRetain(Device);
   }
 
   ~ur_queue_handle_t_() {
-    urContextRelease(context_);
-    urDeviceRelease(device_);
+    urContextRelease(Context);
+    urDeviceRelease(Device);
   }
 
-  void compute_stream_wait_for_barrier_if_needed(CUstream stream,
-                                                 uint32_t stream_i);
-  void transfer_stream_wait_for_barrier_if_needed(CUstream stream,
-                                                  uint32_t stream_i);
+  void computeStreamWaitForBarrierIfNeeded(CUstream Strean, uint32_t StreamI);
+  void transferStreamWaitForBarrierIfNeeded(CUstream Stream, uint32_t StreamI);
 
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
-  native_type get_next_compute_stream(uint32_t *stream_token = nullptr);
+  native_type getNextComputeStream(uint32_t *StreamToken = nullptr);
   // this overload tries select a stream that was used by one of dependancies.
   // If that is not possible returns a new stream. If a stream is reused it
   // returns a lock that needs to remain locked as long as the stream is in use
-  native_type get_next_compute_stream(uint32_t num_events_in_wait_list,
-                                      const ur_event_handle_t *event_wait_list,
-                                      ur_stream_guard_ &guard,
-                                      uint32_t *stream_token = nullptr);
-  native_type get_next_transfer_stream();
-  native_type get() { return get_next_compute_stream(); };
+  native_type getNextComputeStream(uint32_t NumEventsInWaitList,
+                                   const ur_event_handle_t *EventWaitList,
+                                   ur_stream_guard_ &Guard,
+                                   uint32_t *StreamToken = nullptr);
+  native_type getNextTransferStream();
+  native_type get() { return getNextComputeStream(); };
 
-  bool has_been_synchronized(uint32_t stream_token) {
+  bool hasBeenSynchronized(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
-    if (stream_token == std::numeric_limits<uint32_t>::max()) {
+    if (StreamToken == std::numeric_limits<uint32_t>::max()) {
       return false;
     }
-    return last_sync_compute_streams_ >= stream_token;
+    return LastSyncComputeStreams >= StreamToken;
   }
 
-  bool can_reuse_stream(uint32_t stream_token) {
+  bool canReuseStream(uint32_t StreamToken) {
     // stream token not associated with one of the compute streams
-    if (stream_token == std::numeric_limits<uint32_t>::max()) {
+    if (StreamToken == std::numeric_limits<uint32_t>::max()) {
       return false;
     }
     // If the command represented by the stream token was not the last command
     // enqueued to the stream we can not reuse the stream - we need to allow for
     // commands enqueued after it and the one we are about to enqueue to run
     // concurrently
-    bool is_last_command =
-        (compute_stream_idx_ - stream_token) <= compute_streams_.size();
+    bool IsLastCommand =
+        (ComputeStreamIndex - StreamToken) <= ComputeStreams.size();
     // If there was a barrier enqueued to the queue after the command
     // represented by the stream token we should not reuse the stream, as we can
     // not take that stream into account for the bookkeeping for the next
@@ -125,129 +121,124 @@ struct ur_queue_handle_t_ {
     // represented by the stream token is guaranteed to be complete by the
     // barrier before any work we are about to enqueue to the stream will start,
     // so the event does not need to be synchronized with.
-    return is_last_command && !has_been_synchronized(stream_token);
+    return IsLastCommand && !hasBeenSynchronized(StreamToken);
   }
 
-  template <typename T> bool all_of(T &&f) {
+  template <typename T> bool allOf(T &&F) {
     {
-      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
-      unsigned int end =
-          std::min(static_cast<unsigned int>(compute_streams_.size()),
-                   num_compute_streams_);
-      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
-                       f))
+      std::lock_guard<std::mutex> ComputeGuard(ComputeStreamMutex);
+      unsigned int End = std::min(
+          static_cast<unsigned int>(ComputeStreams.size()), NumComputeStreams);
+      if (!std::all_of(ComputeStreams.begin(), ComputeStreams.begin() + End, F))
         return false;
     }
     {
-      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
-      unsigned int end =
-          std::min(static_cast<unsigned int>(transfer_streams_.size()),
-                   num_transfer_streams_);
-      if (!std::all_of(transfer_streams_.begin(),
-                       transfer_streams_.begin() + end, f))
+      std::lock_guard<std::mutex> TransferGuard(TransferStreamMutex);
+      unsigned int End =
+          std::min(static_cast<unsigned int>(TransferStreams.size()),
+                   NumTransferStreams);
+      if (!std::all_of(TransferStreams.begin(), TransferStreams.begin() + End,
+                       F))
         return false;
     }
     return true;
   }
 
-  template <typename T> void for_each_stream(T &&f) {
+  template <typename T> void forEachStream(T &&F) {
     {
-      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
-      unsigned int end =
-          std::min(static_cast<unsigned int>(compute_streams_.size()),
-                   num_compute_streams_);
-      for (unsigned int i = 0; i < end; i++) {
-        f(compute_streams_[i]);
+      std::lock_guard<std::mutex> compute_guard(ComputeStreamMutex);
+      unsigned int End = std::min(
+          static_cast<unsigned int>(ComputeStreams.size()), NumComputeStreams);
+      for (unsigned int i = 0; i < End; i++) {
+        F(ComputeStreams[i]);
       }
     }
     {
-      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
-      unsigned int end =
-          std::min(static_cast<unsigned int>(transfer_streams_.size()),
-                   num_transfer_streams_);
-      for (unsigned int i = 0; i < end; i++) {
-        f(transfer_streams_[i]);
+      std::lock_guard<std::mutex> transfer_guard(TransferStreamMutex);
+      unsigned int End =
+          std::min(static_cast<unsigned int>(TransferStreams.size()),
+                   NumTransferStreams);
+      for (unsigned int i = 0; i < End; i++) {
+        F(TransferStreams[i]);
       }
     }
   }
 
-  template <bool ResetUsed = false, typename T> void sync_streams(T &&f) {
-    auto sync_compute = [&f, &streams = compute_streams_,
-                         &delay = delay_compute_](unsigned int start,
-                                                  unsigned int stop) {
-      for (unsigned int i = start; i < stop; i++) {
-        f(streams[i]);
-        delay[i] = false;
+  template <bool ResetUsed = false, typename T> void syncStreams(T &&F) {
+    auto SyncCompute = [&F, &Streams = ComputeStreams, &Delay = DelayCompute](
+                           unsigned int Start, unsigned int Stop) {
+      for (unsigned int i = Start; i < Stop; i++) {
+        F(Streams[i]);
+        Delay[i] = false;
       }
     };
-    auto sync_transfer = [&f, &streams = transfer_streams_](unsigned int start,
-                                                            unsigned int stop) {
-      for (unsigned int i = start; i < stop; i++) {
-        f(streams[i]);
+    auto SyncTransfer = [&F, &streams = TransferStreams](unsigned int Start,
+                                                         unsigned int Stop) {
+      for (unsigned int i = Start; i < Stop; i++) {
+        F(streams[i]);
       }
     };
     {
-      unsigned int size = static_cast<unsigned int>(compute_streams_.size());
-      std::lock_guard compute_sync_guard(compute_stream_sync_mutex_);
-      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
-      unsigned int start = last_sync_compute_streams_;
-      unsigned int end = num_compute_streams_ < size
-                             ? num_compute_streams_
-                             : compute_stream_idx_.load();
+      unsigned int Size = static_cast<unsigned int>(ComputeStreams.size());
+      std::lock_guard ComputeSyncGuard(ComputeStreamSyncMutex);
+      std::lock_guard<std::mutex> ComputeGuard(ComputeStreamMutex);
+      unsigned int Start = LastSyncComputeStreams;
+      unsigned int End = NumComputeStreams < Size ? NumComputeStreams
+                                                  : ComputeStreamIndex.load();
       if (ResetUsed) {
-        last_sync_compute_streams_ = end;
+        LastSyncComputeStreams = End;
       }
-      if (end - start >= size) {
-        sync_compute(0, size);
+      if (End - Start >= Size) {
+        SyncCompute(0, Size);
       } else {
-        start %= size;
-        end %= size;
-        if (start <= end) {
-          sync_compute(start, end);
+        Start %= Size;
+        End %= Size;
+        if (Start <= End) {
+          SyncCompute(Start, End);
         } else {
-          sync_compute(start, size);
-          sync_compute(0, end);
+          SyncCompute(Start, Size);
+          SyncCompute(0, End);
         }
       }
     }
     {
-      unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
-      if (size > 0) {
-        std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
-        unsigned int start = last_sync_transfer_streams_;
-        unsigned int end = num_transfer_streams_ < size
-                               ? num_transfer_streams_
-                               : transfer_stream_idx_.load();
+      unsigned int Size = static_cast<unsigned int>(TransferStreams.size());
+      if (Size > 0) {
+        std::lock_guard<std::mutex> TransferGuard(TransferStreamMutex);
+        unsigned int Start = LastSyncTransferStreams;
+        unsigned int End = NumTransferStreams < Size
+                               ? NumTransferStreams
+                               : TransferStreamIndex.load();
         if (ResetUsed) {
-          last_sync_transfer_streams_ = end;
+          LastSyncTransferStreams = End;
         }
-        if (end - start >= size) {
-          sync_transfer(0, size);
+        if (End - Start >= Size) {
+          SyncTransfer(0, Size);
         } else {
-          start %= size;
-          end %= size;
-          if (start <= end) {
-            sync_transfer(start, end);
+          Start %= Size;
+          End %= Size;
+          if (Start <= End) {
+            SyncTransfer(Start, End);
           } else {
-            sync_transfer(start, size);
-            sync_transfer(0, end);
+            SyncTransfer(Start, Size);
+            SyncTransfer(0, End);
           }
         }
       }
     }
   }
 
-  ur_context_handle_t_ *get_context() const { return context_; };
+  ur_context_handle_t_ *getContext() const { return Context; };
 
-  ur_device_handle_t_ *get_device() const { return device_; };
+  ur_device_handle_t_ *get_device() const { return Device; };
 
-  uint32_t increment_reference_count() noexcept { return ++refCount_; }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
-  uint32_t decrement_reference_count() noexcept { return --refCount_; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
-  uint32_t get_reference_count() const noexcept { return refCount_; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  uint32_t get_next_event_id() noexcept { return ++eventCount_; }
+  uint32_t getNextEventID() noexcept { return ++EventCount; }
 
-  bool backend_has_ownership() const noexcept { return has_ownership_; }
+  bool backendHasOwnership() const noexcept { return HasOwnership; }
 };

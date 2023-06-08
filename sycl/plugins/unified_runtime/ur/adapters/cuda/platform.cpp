@@ -33,8 +33,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
   case UR_PLATFORM_INFO_PROFILE:
     return ReturnValue("FULL PROFILE");
   case UR_PLATFORM_INFO_VERSION: {
-    auto version = getCudaVersionString();
-    return ReturnValue(version.c_str());
+    auto Version = getCudaVersionString();
+    return ReturnValue(Version.c_str());
   }
   case UR_PLATFORM_INFO_EXTENSIONS: {
     return ReturnValue("");
@@ -62,102 +62,103 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
               uint32_t *pNumPlatforms) {
 
   try {
-    static std::once_flag initFlag;
-    static uint32_t numPlatforms = 1;
-    static std::vector<ur_platform_handle_t_> platformIds;
+    static std::once_flag InitFlag;
+    static uint32_t NumPlatforms = 1;
+    static std::vector<ur_platform_handle_t_> Platforms;
 
     UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
     UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
 
-    ur_result_t err = UR_RESULT_SUCCESS;
+    ur_result_t Result = UR_RESULT_SUCCESS;
 
     std::call_once(
-        initFlag,
-        [](ur_result_t &err) {
+        InitFlag,
+        [](ur_result_t &Result) {
           if (cuInit(0) != CUDA_SUCCESS) {
-            numPlatforms = 0;
+            NumPlatforms = 0;
             return;
           }
-          int numDevices = 0;
-          err = UR_CHECK_ERROR(cuDeviceGetCount(&numDevices));
-          if (numDevices == 0) {
-            numPlatforms = 0;
+          int NumDevices = 0;
+          Result = UR_CHECK_ERROR(cuDeviceGetCount(&NumDevices));
+          if (NumDevices == 0) {
+            NumPlatforms = 0;
             return;
           }
           try {
             // make one platform per device
-            numPlatforms = numDevices;
-            platformIds.resize(numDevices);
+            NumPlatforms = NumDevices;
+            Platforms.resize(NumDevices);
 
-            for (int i = 0; i < numDevices; ++i) {
-              CUdevice device;
-              err = UR_CHECK_ERROR(cuDeviceGet(&device, i));
-              CUcontext context;
-              err = UR_CHECK_ERROR(cuDevicePrimaryCtxRetain(&context, device));
+            for (int i = 0; i < NumDevices; ++i) {
+              CUdevice Device;
+              Result = UR_CHECK_ERROR(cuDeviceGet(&Device, i));
+              CUcontext Context;
+              Result =
+                  UR_CHECK_ERROR(cuDevicePrimaryCtxRetain(&Context, Device));
 
-              ScopedContext active(context);
-              CUevent evBase;
-              err = UR_CHECK_ERROR(cuEventCreate(&evBase, CU_EVENT_DEFAULT));
+              ScopedContext active(Context);
+              CUevent EvBase;
+              Result = UR_CHECK_ERROR(cuEventCreate(&EvBase, CU_EVENT_DEFAULT));
 
               // Use default stream to record base event counter
-              err = UR_CHECK_ERROR(cuEventRecord(evBase, 0));
+              Result = UR_CHECK_ERROR(cuEventRecord(EvBase, 0));
 
-              platformIds[i].devices_.emplace_back(new ur_device_handle_t_{
-                  device, context, evBase, &platformIds[i]});
+              Platforms[i].Devices.emplace_back(new ur_device_handle_t_{
+                  Device, Context, EvBase, &Platforms[i]});
               {
-                const auto &dev = platformIds[i].devices_.back().get();
-                size_t maxWorkGroupSize = 0u;
-                size_t maxThreadsPerBlock[3] = {};
-                ur_result_t retError = urDeviceGetInfo(
-                    dev, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-                    sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
-                if (retError != UR_RESULT_SUCCESS) {
-                  throw retError;
+                const auto &Dev = Platforms[i].Devices.back().get();
+                size_t MaxWorkGroupSize = 0u;
+                size_t MaxThreadsPerBlock[3] = {};
+                ur_result_t RetError = urDeviceGetInfo(
+                    Dev, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                    sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
+                if (RetError != UR_RESULT_SUCCESS) {
+                  throw RetError;
                 }
 
-                retError = urDeviceGetInfo(
-                    dev, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                    sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
-                if (retError != UR_RESULT_SUCCESS) {
-                  throw retError;
+                RetError = urDeviceGetInfo(
+                    Dev, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                    sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
+                if (RetError != UR_RESULT_SUCCESS) {
+                  throw RetError;
                 }
 
-                dev->save_max_work_item_sizes(sizeof(maxThreadsPerBlock),
-                                              maxThreadsPerBlock);
-                dev->save_max_work_group_size(maxWorkGroupSize);
+                Dev->saveMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
+                                          MaxThreadsPerBlock);
+                Dev->saveMaxWorkGroupSize(MaxWorkGroupSize);
               }
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            for (int i = 0; i < numDevices; ++i) {
-              platformIds[i].devices_.clear();
+            for (int i = 0; i < NumDevices; ++i) {
+              Platforms[i].Devices.clear();
             }
-            platformIds.clear();
-            err = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+            Platforms.clear();
+            Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
-            for (int i = 0; i < numDevices; ++i) {
-              platformIds[i].devices_.clear();
+            for (int i = 0; i < NumDevices; ++i) {
+              Platforms[i].Devices.clear();
             }
-            platformIds.clear();
+            Platforms.clear();
             throw;
           }
         },
-        err);
+        Result);
 
     if (pNumPlatforms != nullptr) {
-      *pNumPlatforms = numPlatforms;
+      *pNumPlatforms = NumPlatforms;
     }
 
     if (phPlatforms != nullptr) {
-      for (unsigned i = 0; i < std::min(NumEntries, numPlatforms); ++i) {
-        phPlatforms[i] = &platformIds[i];
+      for (unsigned i = 0; i < std::min(NumEntries, NumPlatforms); ++i) {
+        phPlatforms[i] = &Platforms[i];
       }
     }
 
-    return err;
-  } catch (ur_result_t err) {
-    return err;
+    return Result;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -189,7 +190,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *) {
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     ur_platform_handle_t hPlatform, const char *pFrontendOption,
     const char **ppPlatformOption) {
-  (void)hPlatform;
+  std::ignore = hPlatform;
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;

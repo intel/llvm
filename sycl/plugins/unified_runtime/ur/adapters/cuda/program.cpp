@@ -8,48 +8,47 @@
 
 #include "program.hpp"
 
-bool getMaxRegistersJitOptionValue(const std::string &build_options,
-                                   unsigned int &value) {
+bool getMaxRegistersJitOptionValue(const std::string &BuildOptions,
+                                   unsigned int &Value) {
   using namespace std::string_view_literals;
-  const std::size_t optionPos = build_options.find_first_of("maxrregcount"sv);
-  if (optionPos == std::string::npos) {
+  const std::size_t OptionPos = BuildOptions.find_first_of("maxrregcount"sv);
+  if (OptionPos == std::string::npos) {
     return false;
   }
 
-  const std::size_t delimPos = build_options.find('=', optionPos + 1u);
-  if (delimPos == std::string::npos) {
+  const std::size_t DelimPos = BuildOptions.find('=', OptionPos + 1u);
+  if (DelimPos == std::string::npos) {
     return false;
   }
 
-  const std::size_t length = build_options.length();
-  const std::size_t startPos = delimPos + 1u;
-  if (delimPos == std::string::npos || startPos >= length) {
+  const std::size_t Length = BuildOptions.length();
+  const std::size_t StartPos = DelimPos + 1u;
+  if (DelimPos == std::string::npos || StartPos >= Length) {
     return false;
   }
 
-  std::size_t pos = startPos;
-  while (pos < length &&
-         std::isdigit(static_cast<unsigned char>(build_options[pos]))) {
-    pos++;
+  std::size_t Pos = StartPos;
+  while (Pos < Length &&
+         std::isdigit(static_cast<unsigned char>(BuildOptions[Pos]))) {
+    Pos++;
   }
 
-  const std::string valueString =
-      build_options.substr(startPos, pos - startPos);
-  if (valueString.empty()) {
+  const std::string ValueString = BuildOptions.substr(StartPos, Pos - StartPos);
+  if (ValueString.empty()) {
     return false;
   }
 
-  value = static_cast<unsigned int>(std::stoi(valueString));
+  Value = static_cast<unsigned int>(std::stoi(ValueString));
   return true;
 }
 
-ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t ctxt)
-    : module_{nullptr}, binary_{}, binarySizeInBytes_{0}, refCount_{1},
-      context_{ctxt}, kernelReqdWorkGroupSizeMD_{} {
-  urContextRetain(context_);
+ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
+    : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
+      Context{Context}, KernelReqdWorkGroupSizeMD{} {
+  urContextRetain(Context);
 }
 
-ur_program_handle_t_::~ur_program_handle_t_() { urContextRelease(context_); }
+ur_program_handle_t_::~ur_program_handle_t_() { urContextRelease(Context); }
 
 std::pair<std::string, std::string>
 splitMetadataName(const std::string &metadataName) {
@@ -61,18 +60,18 @@ splitMetadataName(const std::string &metadataName) {
 }
 
 ur_result_t
-ur_program_handle_t_::set_metadata(const ur_program_metadata_t *metadata,
-                                   size_t length) {
-  for (size_t i = 0; i < length; ++i) {
-    const ur_program_metadata_t metadataElement = metadata[i];
-    std::string metadataElementName{metadataElement.pName};
+ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
+                                  size_t Length) {
+  for (size_t i = 0; i < Length; ++i) {
+    const ur_program_metadata_t MetadataElement = Metadata[i];
+    std::string MetadataElementName{MetadataElement.pName};
 
-    auto [prefix, tag] = splitMetadataName(metadataElementName);
+    auto [Prefix, Tag] = splitMetadataName(MetadataElementName);
 
-    if (tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
+    if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
       // If metadata is reqd_work_group_size, record it for the corresponding
       // kernel name.
-      size_t MDElemsSize = metadataElement.size - sizeof(std::uint64_t);
+      size_t MDElemsSize = MetadataElement.size - sizeof(std::uint64_t);
 
       // Expect between 1 and 3 32-bit integer values.
       UR_ASSERT(MDElemsSize >= sizeof(std::uint32_t) &&
@@ -81,80 +80,79 @@ ur_program_handle_t_::set_metadata(const ur_program_metadata_t *metadata,
 
       // Get pointer to data, skipping 64-bit size at the start of the data.
       const char *ValuePtr =
-          reinterpret_cast<const char *>(metadataElement.value.pData) +
+          reinterpret_cast<const char *>(MetadataElement.value.pData) +
           sizeof(std::uint64_t);
       // Read values and pad with 1's for values not present.
-      std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
-      std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
-      kernelReqdWorkGroupSizeMD_[prefix] =
-          std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
-                          reqdWorkGroupElements[2]);
-    } else if (tag == __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
-      const char *metadataValPtr =
-          reinterpret_cast<const char *>(metadataElement.value.pData) +
+      std::uint32_t ReqdWorkGroupElements[] = {1, 1, 1};
+      std::memcpy(ReqdWorkGroupElements, ValuePtr, MDElemsSize);
+      KernelReqdWorkGroupSizeMD[Prefix] =
+          std::make_tuple(ReqdWorkGroupElements[0], ReqdWorkGroupElements[1],
+                          ReqdWorkGroupElements[2]);
+    } else if (Tag == __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
+      const char *MetadataValPtr =
+          reinterpret_cast<const char *>(MetadataElement.value.pData) +
           sizeof(std::uint64_t);
-      const char *metadataValPtrEnd =
-          metadataValPtr + metadataElement.size - sizeof(std::uint64_t);
-      globalIDMD_[prefix] = std::string{metadataValPtr, metadataValPtrEnd};
+      const char *MetadataValPtrEnd =
+          MetadataValPtr + MetadataElement.size - sizeof(std::uint64_t);
+      GlobalIDMD[Prefix] = std::string{MetadataValPtr, MetadataValPtrEnd};
     }
   }
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_program_handle_t_::set_binary(const char *source,
-                                             size_t length) {
+ur_result_t ur_program_handle_t_::setBinary(const char *Source, size_t Length) {
   // Do not re-set program binary data which has already been set as that will
   // delete the old binary data.
-  UR_ASSERT(binary_ == nullptr && binarySizeInBytes_ == 0,
+  UR_ASSERT(Binary == nullptr && BinarySizeInBytes == 0,
             UR_RESULT_ERROR_INVALID_OPERATION);
-  binary_ = source;
-  binarySizeInBytes_ = length;
+  Binary = Source;
+  BinarySizeInBytes = Length;
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_program_handle_t_::build_program(const char *build_options) {
-  if (build_options) {
-    this->buildOptions_ = build_options;
+ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
+  if (BuildOptions) {
+    this->BuildOptions = BuildOptions;
   }
 
-  constexpr const unsigned int numberOfOptions = 4u;
+  constexpr const unsigned int NumberOfOptions = 4u;
 
-  std::vector<CUjit_option> options(numberOfOptions);
-  std::vector<void *> optionVals(numberOfOptions);
+  std::vector<CUjit_option> Options(NumberOfOptions);
+  std::vector<void *> OptionVals(NumberOfOptions);
 
   // Pass a buffer for info messages
-  options[0] = CU_JIT_INFO_LOG_BUFFER;
-  optionVals[0] = (void *)infoLog_;
+  Options[0] = CU_JIT_INFO_LOG_BUFFER;
+  OptionVals[0] = (void *)InfoLog;
   // Pass the size of the info buffer
-  options[1] = CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES;
-  optionVals[1] = (void *)(long)MAX_LOG_SIZE;
+  Options[1] = CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES;
+  OptionVals[1] = (void *)(long)MaxLogSize;
   // Pass a buffer for error message
-  options[2] = CU_JIT_ERROR_LOG_BUFFER;
-  optionVals[2] = (void *)errorLog_;
+  Options[2] = CU_JIT_ERROR_LOG_BUFFER;
+  OptionVals[2] = (void *)ErrorLog;
   // Pass the size of the error buffer
-  options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
-  optionVals[3] = (void *)(long)MAX_LOG_SIZE;
+  Options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
+  OptionVals[3] = (void *)(long)MaxLogSize;
 
-  if (!buildOptions_.empty()) {
-    unsigned int maxRegs;
-    bool valid = getMaxRegistersJitOptionValue(buildOptions_, maxRegs);
-    if (valid) {
-      options.push_back(CU_JIT_MAX_REGISTERS);
-      optionVals.push_back(reinterpret_cast<void *>(maxRegs));
+  if (!this->BuildOptions.empty()) {
+    unsigned int MaxRegs;
+    bool Valid = getMaxRegistersJitOptionValue(BuildOptions, MaxRegs);
+    if (Valid) {
+      Options.push_back(CU_JIT_MAX_REGISTERS);
+      OptionVals.push_back(reinterpret_cast<void *>(MaxRegs));
     }
   }
 
   auto result = UR_CHECK_ERROR(
-      cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         options.size(), options.data(), optionVals.data()));
+      cuModuleLoadDataEx(&Module, static_cast<const void *>(Binary),
+                         Options.size(), Options.data(), OptionVals.data()));
 
-  const auto success = (result == UR_RESULT_SUCCESS);
+  const auto Success = (result == UR_RESULT_SUCCESS);
 
-  buildStatus_ =
-      success ? UR_PROGRAM_BUILD_STATUS_SUCCESS : UR_PROGRAM_BUILD_STATUS_ERROR;
+  BuildStatus =
+      Success ? UR_PROGRAM_BUILD_STATUS_SUCCESS : UR_PROGRAM_BUILD_STATUS_ERROR;
 
   // If no exception, result is correct
-  return success ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
+  return Success ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
 }
 
 /// Finds kernel names by searching for entry points in the PTX source, as the
@@ -178,7 +176,7 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
                       ur_program_handle_t *phProgram) {
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ur_device_handle_t hDevice = hContext->get_device();
+  ur_device_handle_t hDevice = hContext->getDevice();
   auto pBinary = reinterpret_cast<const uint8_t *>(pIL);
 
   return urProgramCreateWithBinary(hContext, hDevice, length, pBinary,
@@ -204,17 +202,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
                                                    const char *pOptions) {
   UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ur_result_t retError = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext active(hProgram->get_context());
+    ScopedContext Active(hProgram->getContext());
 
-    hProgram->build_program(pOptions);
+    hProgram->buildProgram(pOptions);
 
-  } catch (ur_result_t err) {
-    retError = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retError;
+  return Result;
 }
 
 /// Creates a new UR program object that is the outcome of linking all input
@@ -230,44 +228,44 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   UR_ASSERT(phPrograms, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ur_result_t retError = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext active(hContext);
+    ScopedContext Active(hContext);
 
-    CUlinkState state;
-    std::unique_ptr<ur_program_handle_t_> retProgram{
+    CUlinkState State;
+    std::unique_ptr<ur_program_handle_t_> RetProgram{
         new ur_program_handle_t_{hContext}};
 
-    retError = UR_CHECK_ERROR(cuLinkCreate(0, nullptr, nullptr, &state));
+    Result = UR_CHECK_ERROR(cuLinkCreate(0, nullptr, nullptr, &State));
     try {
       for (size_t i = 0; i < count; ++i) {
-        ur_program_handle_t program = phPrograms[i];
-        retError = UR_CHECK_ERROR(cuLinkAddData(
-            state, CU_JIT_INPUT_PTX, const_cast<char *>(program->binary_),
-            program->binarySizeInBytes_, nullptr, 0, nullptr, nullptr));
+        ur_program_handle_t Program = phPrograms[i];
+        Result = UR_CHECK_ERROR(cuLinkAddData(
+            State, CU_JIT_INPUT_PTX, const_cast<char *>(Program->Binary),
+            Program->BinarySizeInBytes, nullptr, 0, nullptr, nullptr));
       }
-      void *cubin = nullptr;
-      size_t cubinSize = 0;
-      retError = UR_CHECK_ERROR(cuLinkComplete(state, &cubin, &cubinSize));
+      void *CuBin = nullptr;
+      size_t CuBinSize = 0;
+      Result = UR_CHECK_ERROR(cuLinkComplete(State, &CuBin, &CuBinSize));
 
-      retError =
-          retProgram->set_binary(static_cast<const char *>(cubin), cubinSize);
+      Result =
+          RetProgram->setBinary(static_cast<const char *>(CuBin), CuBinSize);
 
-      retError = retProgram->build_program(pOptions);
+      Result = RetProgram->buildProgram(pOptions);
     } catch (...) {
       // Upon error attempt cleanup
-      UR_CHECK_ERROR(cuLinkDestroy(state));
+      UR_CHECK_ERROR(cuLinkDestroy(State));
       throw;
     }
 
-    retError = UR_CHECK_ERROR(cuLinkDestroy(state));
-    *phProgram = retProgram.release();
+    Result = UR_CHECK_ERROR(cuLinkDestroy(State));
+    *phProgram = RetProgram.release();
 
-  } catch (ur_result_t err) {
-    retError = err;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
-  return retError;
+  return Result;
 }
 
 /// Created a UR program object from a CUDA program handle.
@@ -299,12 +297,12 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
 
   switch (propName) {
   case UR_PROGRAM_BUILD_INFO_STATUS: {
-    return ReturnValue(hProgram->buildStatus_);
+    return ReturnValue(hProgram->BuildStatus);
   }
   case UR_PROGRAM_BUILD_INFO_OPTIONS:
-    return ReturnValue(hProgram->buildOptions_.c_str());
+    return ReturnValue(hProgram->BuildOptions.c_str());
   case UR_PROGRAM_BUILD_INFO_LOG:
-    return ReturnValue(hProgram->infoLog_, hProgram->MAX_LOG_SIZE);
+    return ReturnValue(hProgram->InfoLog, hProgram->MaxLogSize);
   default:
     break;
   }
@@ -320,19 +318,19 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(hProgram->get_reference_count());
+    return ReturnValue(hProgram->getReferenceCount());
   case UR_PROGRAM_INFO_CONTEXT:
-    return ReturnValue(hProgram->context_);
+    return ReturnValue(hProgram->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:
     return ReturnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
-    return ReturnValue(&hProgram->context_->deviceId_, 1);
+    return ReturnValue(&hProgram->Context->DeviceID, 1);
   case UR_PROGRAM_INFO_SOURCE:
-    return ReturnValue(hProgram->binary_);
+    return ReturnValue(hProgram->Binary);
   case UR_PROGRAM_INFO_BINARY_SIZES:
-    return ReturnValue(&hProgram->binarySizeInBytes_, 1);
+    return ReturnValue(&hProgram->BinarySizeInBytes, 1);
   case UR_PROGRAM_INFO_BINARIES:
-    return ReturnValue(&hProgram->binary_, 1);
+    return ReturnValue(&hProgram->Binary, 1);
   case UR_PROGRAM_INFO_KERNEL_NAMES:
     return getKernelNames(hProgram);
   default:
@@ -344,9 +342,8 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t program) {
   UR_ASSERT(program, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(program->get_reference_count() > 0,
-            UR_RESULT_ERROR_INVALID_PROGRAM);
-  program->increment_reference_count();
+  UR_ASSERT(program->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_PROGRAM);
+  program->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
@@ -354,38 +351,38 @@ urProgramRetain(ur_program_handle_t program) {
 /// When the reference count reaches 0, it unloads the module from
 /// the context.
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramRelease(ur_program_handle_t program) {
-  UR_ASSERT(program, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+urProgramRelease(ur_program_handle_t hProgram) {
+  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  UR_ASSERT(program->get_reference_count() != 0,
+  UR_ASSERT(hProgram->getReferenceCount() != 0,
             UR_RESULT_ERROR_INVALID_PROGRAM);
 
   // decrement ref count. If it is 0, delete the program.
-  if (program->decrement_reference_count() == 0) {
+  if (hProgram->decrementReferenceCount() == 0) {
 
-    std::unique_ptr<ur_program_handle_t_> program_ptr{program};
+    std::unique_ptr<ur_program_handle_t_> ProgramPtr{hProgram};
 
-    ur_result_t result = UR_RESULT_ERROR_INVALID_PROGRAM;
+    ur_result_t Result = UR_RESULT_ERROR_INVALID_PROGRAM;
 
     try {
-      ScopedContext active(program->get_context());
-      auto cuModule = program->get();
+      ScopedContext Active(hProgram->getContext());
+      auto cuModule = hProgram->get();
       // "0" is a valid handle for a cuModule, so the best way to check if we
       // actually loaded a module and need to unload it is to look at the build
       // status.
-      if (program->buildStatus_ == UR_PROGRAM_BUILD_STATUS_SUCCESS) {
-        result = UR_CHECK_ERROR(cuModuleUnload(cuModule));
-      } else if (program->buildStatus_ == UR_PROGRAM_BUILD_STATUS_NONE) {
+      if (hProgram->BuildStatus == UR_PROGRAM_BUILD_STATUS_SUCCESS) {
+        Result = UR_CHECK_ERROR(cuModuleUnload(cuModule));
+      } else if (hProgram->BuildStatus == UR_PROGRAM_BUILD_STATUS_NONE) {
         // Nothing to free.
-        result = UR_RESULT_SUCCESS;
+        Result = UR_RESULT_SUCCESS;
       }
     } catch (...) {
-      result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
 
-    return result;
+    return Result;
   }
 
   return UR_RESULT_SUCCESS;
@@ -419,13 +416,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pBinary != nullptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hContext->get_device()->get() == hDevice->get(),
+  UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
   UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_result_t retError = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
-  std::unique_ptr<ur_program_handle_t_> retProgram{
+  std::unique_ptr<ur_program_handle_t_> RetProgram{
       new ur_program_handle_t_{hContext}};
 
   if (pProperties) {
@@ -434,19 +431,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
-    retError =
-        retProgram->set_metadata(pProperties->pMetadatas, pProperties->count);
+    Result =
+        RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count);
   }
-  UR_ASSERT(retError == UR_RESULT_SUCCESS, retError);
+  UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
 
   auto pBinary_string = reinterpret_cast<const char *>(pBinary);
 
-  retError = retProgram->set_binary(pBinary_string, size);
-  UR_ASSERT(retError == UR_RESULT_SUCCESS, retError);
+  Result = RetProgram->setBinary(pBinary_string, size);
+  UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
 
-  *phProgram = retProgram.release();
+  *phProgram = RetProgram.release();
 
-  return retError;
+  return Result;
 }
 
 // This entry point is only used for native specialization constants (SPIR-V),
@@ -462,22 +459,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   // Check if device passed is the same the device bound to the context
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice == hProgram->get_context()->get_device(),
+  UR_ASSERT(hDevice == hProgram->getContext()->getDevice(),
             UR_RESULT_ERROR_INVALID_DEVICE);
   UR_ASSERT(pFunctionName, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(ppFunctionPointer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  CUfunction func;
-  CUresult ret = cuModuleGetFunction(&func, hProgram->get(), pFunctionName);
-  *ppFunctionPointer = func;
-  ur_result_t retError = UR_RESULT_SUCCESS;
+  CUfunction Func;
+  CUresult Ret = cuModuleGetFunction(&Func, hProgram->get(), pFunctionName);
+  *ppFunctionPointer = Func;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
-  if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_FOUND)
-    retError = UR_CHECK_ERROR(ret);
-  if (ret == CUDA_ERROR_NOT_FOUND) {
+  if (Ret != CUDA_SUCCESS && Ret != CUDA_ERROR_NOT_FOUND)
+    Result = UR_CHECK_ERROR(Ret);
+  if (Ret == CUDA_ERROR_NOT_FOUND) {
     *ppFunctionPointer = 0;
-    retError = UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+    Result = UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
   }
 
-  return retError;
+  return Result;
 }

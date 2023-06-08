@@ -11,20 +11,20 @@
 #include <sycl/detail/defines.hpp>
 #include <ur/ur.hpp>
 
-ur_result_t map_error_ur(CUresult result);
+ur_result_t mapErrorUR(CUresult Result);
 
 /// Converts CUDA error into UR error codes, and outputs error information
 /// to stderr.
 /// If PI_CUDA_ABORT env variable is defined, it aborts directly instead of
 /// throwing the error. This is intended for debugging purposes.
-/// \return UR_RESULT_SUCCESS if \param result was CUDA_SUCCESS.
+/// \return UR_RESULT_SUCCESS if \param Result was CUDA_SUCCESS.
 /// \throw ur_result_t exception (integer) if input was not success.
 ///
-ur_result_t check_error_ur(CUresult result, const char *function, int line,
-                           const char *file);
+ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
+                         const char *File);
 
-#define UR_CHECK_ERROR(result)                                                 \
-  check_error_ur(result, __func__, __LINE__, __FILE__)
+#define UR_CHECK_ERROR(Result)                                                 \
+  checkErrorUR(Result, __func__, __LINE__, __FILE__)
 
 std::string getCudaVersionString();
 
@@ -33,8 +33,8 @@ extern thread_local ur_result_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code);
+[[maybe_unused]] void setErrorMessage(const char *pMessage,
+                                      ur_result_t ErrorCode);
 
 /// ------ Error handling, matching OpenCL plugin semantics.
 namespace sycl {

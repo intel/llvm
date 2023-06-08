@@ -11,5 +11,5 @@
 #include <vector>
 
 struct ur_platform_handle_t_ {
-  std::vector<std::unique_ptr<ur_device_handle_t_>> devices_;
+  std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
 };

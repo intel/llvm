@@ -35,38 +35,37 @@
 struct ur_kernel_handle_t_ {
   using native_type = CUfunction;
 
-  native_type function_;
-  native_type functionWithOffsetParam_;
-  std::string name_;
-  ur_context_handle_t context_;
-  ur_program_handle_t program_;
-  std::atomic_uint32_t refCount_;
+  native_type Function;
+  native_type FunctionWithOffsetParam;
+  std::string Name;
+  ur_context_handle_t Context;
+  ur_program_handle_t Program;
+  std::atomic_uint32_t RefCount;
 
-  static constexpr uint32_t REQD_THREADS_PER_BLOCK_DIMENSIONS = 3u;
-  size_t reqdThreadsPerBlock_[REQD_THREADS_PER_BLOCK_DIMENSIONS];
+  static constexpr uint32_t ReqdThreadsPerBlockDimensions = 3u;
+  size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
 
   /// Structure that holds the arguments to the kernel.
-  /// Note earch argument size is known, since it comes
+  /// Note each argument size is known, since it comes
   /// from the kernel signature.
   /// This is not something can be queried from the CUDA API
   /// so there is a hard-coded size (\ref MAX_PARAM_BYTES)
   /// and a storage.
-  ///
   struct arguments {
-    static constexpr size_t MAX_PARAM_BYTES = 4000u;
-    using args_t = std::array<char, MAX_PARAM_BYTES>;
+    static constexpr size_t MaxParamBytes = 4000u;
+    using args_t = std::array<char, MaxParamBytes>;
     using args_size_t = std::vector<size_t>;
     using args_index_t = std::vector<void *>;
-    args_t storage_;
-    args_size_t paramSizes_;
-    args_index_t indices_;
-    args_size_t offsetPerIndex_;
+    args_t Storage;
+    args_size_t ParamSizes;
+    args_index_t Indices;
+    args_size_t OffsetPerIndex;
 
-    std::uint32_t implicitOffsetArgs_[3] = {0, 0, 0};
+    std::uint32_t ImplicitOffsetArgs[3] = {0, 0, 0};
 
     arguments() {
       // Place the implicit offset index at the end of the indicies collection
-      indices_.emplace_back(&implicitOffsetArgs_);
+      Indices.emplace_back(&ImplicitOffsetArgs);
     }
 
     /// Adds an argument to the kernel.
@@ -74,126 +73,127 @@ struct ur_kernel_handle_t_ {
     /// Otherwise, it is added.
     /// Gaps are filled with empty arguments.
     /// Implicit offset argument is kept at the back of the indices collection.
-    void add_arg(size_t index, size_t size, const void *arg,
-                 size_t localSize = 0) {
-      if (index + 2 > indices_.size()) {
+    void addArg(size_t Index, size_t Size, const void *Arg,
+                size_t LocalSize = 0) {
+      if (Index + 2 > Indices.size()) {
         // Move implicit offset argument index with the end
-        indices_.resize(index + 2, indices_.back());
+        Indices.resize(Index + 2, Indices.back());
         // Ensure enough space for the new argument
-        paramSizes_.resize(index + 1);
-        offsetPerIndex_.resize(index + 1);
+        ParamSizes.resize(Index + 1);
+        OffsetPerIndex.resize(Index + 1);
       }
-      paramSizes_[index] = size;
+      ParamSizes[Index] = Size;
       // calculate the insertion point on the array
-      size_t insertPos = std::accumulate(std::begin(paramSizes_),
-                                         std::begin(paramSizes_) + index, 0);
+      size_t InsertPos = std::accumulate(std::begin(ParamSizes),
+                                         std::begin(ParamSizes) + Index, 0);
       // Update the stored value for the argument
-      std::memcpy(&storage_[insertPos], arg, size);
-      indices_[index] = &storage_[insertPos];
-      offsetPerIndex_[index] = localSize;
+      std::memcpy(&Storage[InsertPos], Arg, Size);
+      Indices[Index] = &Storage[InsertPos];
+      OffsetPerIndex[Index] = LocalSize;
     }
 
-    void add_local_arg(size_t index, size_t size) {
-      size_t localOffset = this->get_local_size();
+    void addLocalArg(size_t Index, size_t Size) {
+      size_t LocalOffset = this->getLocalSize();
 
       // maximum required alignment is the size of the largest vector type
-      const size_t max_alignment = sizeof(double) * 16;
+      const size_t MaxAlignment = sizeof(double) * 16;
 
       // for arguments smaller than the maximum alignment simply align to the
       // size of the argument
-      const size_t alignment = std::min(max_alignment, size);
+      const size_t Alignment = std::min(MaxAlignment, Size);
 
       // align the argument
-      size_t alignedLocalOffset = localOffset;
-      if (localOffset % alignment != 0) {
-        alignedLocalOffset += alignment - (localOffset % alignment);
+      size_t AlignedLocalOffset = LocalOffset;
+      if (LocalOffset % Alignment != 0) {
+        AlignedLocalOffset += Alignment - (LocalOffset % Alignment);
       }
 
-      add_arg(index, sizeof(size_t), (const void *)&(alignedLocalOffset),
-              size + (alignedLocalOffset - localOffset));
+      addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
+             Size + (AlignedLocalOffset - LocalOffset));
     }
 
-    void set_implicit_offset(size_t size, std::uint32_t *implicitOffset) {
-      assert(size == sizeof(std::uint32_t) * 3);
-      std::memcpy(implicitOffsetArgs_, implicitOffset, size);
+    void setImplicitOffset(size_t Size, std::uint32_t *ImplicitOffset) {
+      assert(Size == sizeof(std::uint32_t) * 3);
+      std::memcpy(ImplicitOffsetArgs, ImplicitOffset, Size);
     }
 
-    void clear_local_size() {
-      std::fill(std::begin(offsetPerIndex_), std::end(offsetPerIndex_), 0);
+    void clearLocalSize() {
+      std::fill(std::begin(OffsetPerIndex), std::end(OffsetPerIndex), 0);
     }
 
-    const args_index_t &get_indices() const noexcept { return indices_; }
+    const args_index_t &getIndices() const noexcept { return Indices; }
 
-    uint32_t get_local_size() const {
-      return std::accumulate(std::begin(offsetPerIndex_),
-                             std::end(offsetPerIndex_), 0);
+    uint32_t getLocalSize() const {
+      return std::accumulate(std::begin(OffsetPerIndex),
+                             std::end(OffsetPerIndex), 0);
     }
-  } args_;
+  } Args;
 
-  ur_kernel_handle_t_(CUfunction func, CUfunction funcWithOffsetParam,
-                      const char *name, ur_program_handle_t program,
-                      ur_context_handle_t ctxt)
-      : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
-        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
-    urProgramRetain(program_);
-    urContextRetain(context_);
+  ur_kernel_handle_t_(CUfunction Func, CUfunction FuncWithOffsetParam,
+                      const char *Name, ur_program_handle_t Program,
+                      ur_context_handle_t Context)
+      : Function{Func}, FunctionWithOffsetParam{FuncWithOffsetParam},
+        Name{Name}, Context{Context}, Program{Program}, RefCount{1} {
+    urProgramRetain(Program);
+    urContextRetain(Context);
     /// Note: this code assumes that there is only one device per context
     ur_result_t retError = urKernelGetGroupInfo(
-        this, ctxt->get_device(), UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
+        this, Context->getDevice(),
+        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
     assert(retError == UR_RESULT_SUCCESS);
   }
 
   ~ur_kernel_handle_t_() {
-    urProgramRelease(program_);
-    urContextRelease(context_);
+    urProgramRelease(Program);
+    urContextRelease(Context);
   }
 
-  ur_program_handle_t get_program() const noexcept { return program_; }
+  ur_program_handle_t get_program() const noexcept { return Program; }
 
-  uint32_t increment_reference_count() noexcept { return ++refCount_; }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
-  uint32_t decrement_reference_count() noexcept { return --refCount_; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
-  uint32_t get_reference_count() const noexcept { return refCount_; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  native_type get() const noexcept { return function_; };
+  native_type get() const noexcept { return Function; };
 
   native_type get_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_;
+    return FunctionWithOffsetParam;
   };
 
   bool has_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_ != nullptr;
+    return FunctionWithOffsetParam != nullptr;
   }
 
-  ur_context_handle_t get_context() const noexcept { return context_; };
+  ur_context_handle_t getContext() const noexcept { return Context; };
 
-  const char *get_name() const noexcept { return name_.c_str(); }
+  const char *getName() const noexcept { return Name.c_str(); }
 
   /// Returns the number of arguments, excluding the implicit global offset.
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
   /// the CUDA Driver API
-  size_t get_num_args() const noexcept { return args_.indices_.size() - 1; }
+  size_t getNumArgs() const noexcept { return Args.Indices.size() - 1; }
 
-  void set_kernel_arg(int index, size_t size, const void *arg) {
-    args_.add_arg(index, size, arg);
+  void setKernelArg(int Index, size_t Size, const void *Arg) {
+    Args.addArg(Index, Size, Arg);
   }
 
-  void set_kernel_local_arg(int index, size_t size) {
-    args_.add_local_arg(index, size);
+  void setKernelLocalArg(int Index, size_t Size) {
+    Args.addLocalArg(Index, Size);
   }
 
-  void set_implicit_offset_arg(size_t size, std::uint32_t *implicitOffset) {
-    return args_.set_implicit_offset(size, implicitOffset);
+  void setImplicitOffsetArg(size_t Size, std::uint32_t *ImplicitOffset) {
+    return Args.setImplicitOffset(Size, ImplicitOffset);
   }
 
-  const arguments::args_index_t &get_arg_indices() const {
-    return args_.get_indices();
+  const arguments::args_index_t &getArgIndices() const {
+    return Args.getIndices();
   }
 
-  uint32_t get_local_size() const noexcept { return args_.get_local_size(); }
+  uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
 
-  void clear_local_size() { args_.clear_local_size(); }
+  void clearLocalSize() { Args.clearLocalSize(); }
 };

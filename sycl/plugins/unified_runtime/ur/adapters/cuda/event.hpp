@@ -24,68 +24,68 @@ public:
 
   ur_result_t start();
 
-  native_type get() const noexcept { return evEnd_; };
+  native_type get() const noexcept { return EvEnd; };
 
-  ur_queue_handle_t get_queue() const noexcept { return queue_; }
+  ur_queue_handle_t getQueue() const noexcept { return Queue; }
 
-  CUstream get_stream() const noexcept { return stream_; }
+  CUstream getStream() const noexcept { return Stream; }
 
-  uint32_t get_compute_stream_token() const noexcept { return streamToken_; }
+  uint32_t getComputeStreamToken() const noexcept { return StreamToken; }
 
-  ur_command_t get_command_type() const noexcept { return commandType_; }
+  ur_command_t getCommandType() const noexcept { return CommandType; }
 
-  uint32_t get_reference_count() const noexcept { return refCount_; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  bool is_recorded() const noexcept { return isRecorded_; }
+  bool isRecorded() const noexcept { return IsRecorded; }
 
-  bool is_started() const noexcept { return isStarted_; }
+  bool isStarted() const noexcept { return IsStarted; }
 
-  bool is_completed() const noexcept;
+  bool isCompleted() const noexcept;
 
-  uint32_t get_execution_status() const noexcept {
+  uint32_t getExecutionStatus() const noexcept {
 
-    if (!is_recorded()) {
+    if (!isRecorded()) {
       return UR_EVENT_STATUS_SUBMITTED;
     }
 
-    if (!is_completed()) {
+    if (!isCompleted()) {
       return UR_EVENT_STATUS_RUNNING;
     }
     return UR_EVENT_STATUS_COMPLETE;
   }
 
-  ur_context_handle_t get_context() const noexcept { return context_; };
+  ur_context_handle_t getContext() const noexcept { return Context; };
 
-  uint32_t increment_reference_count() { return ++refCount_; }
+  uint32_t incrementReferenceCount() { return ++RefCount; }
 
-  uint32_t decrement_reference_count() { return --refCount_; }
+  uint32_t decrementReferenceCount() { return --RefCount; }
 
-  uint32_t get_event_id() const noexcept { return eventId_; }
+  uint32_t getEventID() const noexcept { return EventID; }
 
-  bool backend_has_ownership() const noexcept { return has_ownership_; }
+  bool backendHasOwnership() const noexcept { return HasOwnership; }
 
   // Returns the counter time when the associated command(s) were enqueued
   //
-  uint64_t get_queued_time() const;
+  uint64_t getQueuedTime() const;
 
   // Returns the counter time when the associated command(s) started execution
   //
-  uint64_t get_start_time() const;
+  uint64_t getStartTime() const;
 
   // Returns the counter time when the associated command(s) completed
   //
-  uint64_t get_end_time() const;
+  uint64_t getEndTime() const;
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
   static ur_event_handle_t
-  make_native(ur_command_t type, ur_queue_handle_t queue, CUstream stream,
-              uint32_t stream_token = std::numeric_limits<uint32_t>::max()) {
-    return new ur_event_handle_t_(type, queue->get_context(), queue, stream,
-                                  stream_token);
+  makeNative(ur_command_t Type, ur_queue_handle_t Queue, CUstream Stream,
+             uint32_t StreamToken = std::numeric_limits<uint32_t>::max()) {
+    return new ur_event_handle_t_(Type, Queue->getContext(), Queue, Stream,
+                                  StreamToken);
   }
 
-  static ur_event_handle_t make_with_native(ur_context_handle_t context,
-                                            CUevent eventNative) {
+  static ur_event_handle_t makeWithNative(ur_context_handle_t context,
+                                          CUevent eventNative) {
     return new ur_event_handle_t_(context, eventNative);
   }
 
@@ -94,95 +94,94 @@ public:
   ~ur_event_handle_t_();
 
 private:
-  // This constructor is private to force programmers to use the make_native /
+  // This constructor is private to force programmers to use the makeNative /
   // make_user static members in order to create a pi_event for CUDA.
-  ur_event_handle_t_(ur_command_t type, ur_context_handle_t context,
-                     ur_queue_handle_t queue, CUstream stream,
-                     uint32_t stream_token);
+  ur_event_handle_t_(ur_command_t Type, ur_context_handle_t Context,
+                     ur_queue_handle_t Queue, CUstream Stream,
+                     uint32_t StreamToken);
 
   // This constructor is private to force programmers to use the
-  // make_with_native for event introp
-  ur_event_handle_t_(ur_context_handle_t context, CUevent eventNative);
+  // makeWithNative for event introp
+  ur_event_handle_t_(ur_context_handle_t Context, CUevent EventNative);
 
-  ur_command_t commandType_; // The type of command associated with event.
+  ur_command_t CommandType; // The type of command associated with event.
 
-  std::atomic_uint32_t refCount_; // Event reference count.
+  std::atomic_uint32_t RefCount; // Event reference count.
 
-  bool has_ownership_; // Signifies if event owns the native type.
+  bool HasOwnership; // Signifies if event owns the native type.
 
-  bool hasBeenWaitedOn_; // Signifies whether the event has been waited
-                         // on through a call to wait(), which implies
-                         // that it has completed.
+  bool HasBeenWaitedOn; // Signifies whether the event has been waited
+                        // on through a call to wait(), which implies
+                        // that it has completed.
 
-  bool isRecorded_; // Signifies wether a native CUDA event has been recorded
-                    // yet.
-  bool isStarted_;  // Signifies wether the operation associated with the
-                    // PI event has started or not
-                    //
+  bool IsRecorded; // Signifies wether a native CUDA event has been recorded
+                   // yet.
+  bool IsStarted;  // Signifies wether the operation associated with the
+                   // PI event has started or not
 
-  uint32_t streamToken_;
-  uint32_t eventId_; // Queue identifier of the event.
+  uint32_t StreamToken;
+  uint32_t EventID; // Queue identifier of the event.
 
-  native_type evEnd_; // CUDA event handle. If this _pi_event represents a user
-                      // event, this will be nullptr.
+  native_type EvEnd; // CUDA event handle. If this _pi_event represents a user
+                     // event, this will be nullptr.
 
-  native_type evStart_; // CUDA event handle associated with the start
+  native_type EvStart; // CUDA event handle associated with the start
 
-  native_type evQueued_; // CUDA event handle associated with the time
-                         // the command was enqueued
+  native_type EvQueued; // CUDA event handle associated with the time
+                        // the command was enqueued
 
-  ur_queue_handle_t queue_; // pi_queue associated with the event. If this is a
-                            // user event, this will be nullptr.
+  ur_queue_handle_t Queue; // pi_queue associated with the event. If this is a
+                           // user event, this will be nullptr.
 
-  CUstream stream_; // CUstream associated with the event. If this is a user
-                    // event, this will be uninitialized.
+  CUstream Stream; // CUstream associated with the event. If this is a user
+                   // event, this will be uninitialized.
 
-  ur_context_handle_t context_; // pi_context associated with the event. If this
-                                // is a native event, this will be the same
-                                // context associated with the queue_ member.
+  ur_context_handle_t Context; // pi_context associated with the event. If this
+                               // is a native event, this will be the same
+                               // context associated with the queue_ member.
 };
 
 // Iterates over the event wait list, returns correct ur_result_t error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a ur_result_t.
 template <typename Func>
-ur_result_t forLatestEvents(const ur_event_handle_t *event_wait_list,
-                            std::size_t num_events_in_wait_list, Func &&f) {
+ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
+                            std::size_t NumEventsInWaitList, Func &&F) {
 
-  if (event_wait_list == nullptr || num_events_in_wait_list == 0) {
+  if (EventWaitList == nullptr || NumEventsInWaitList == 0) {
     return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
   }
 
   // Fast path if we only have a single event
-  if (num_events_in_wait_list == 1) {
-    return f(event_wait_list[0]);
+  if (NumEventsInWaitList == 1) {
+    return F(EventWaitList[0]);
   }
 
-  std::vector<ur_event_handle_t> events{
-      event_wait_list, event_wait_list + num_events_in_wait_list};
-  std::sort(events.begin(), events.end(),
-            [](ur_event_handle_t e0, ur_event_handle_t e1) {
+  std::vector<ur_event_handle_t> Events{EventWaitList,
+                                        EventWaitList + NumEventsInWaitList};
+  std::sort(Events.begin(), Events.end(),
+            [](ur_event_handle_t Event0, ur_event_handle_t Event1) {
               // Tiered sort creating sublists of streams (smallest value first)
               // in which the corresponding events are sorted into a sequence of
               // newest first.
-              return e0->get_stream() < e1->get_stream() ||
-                     (e0->get_stream() == e1->get_stream() &&
-                      e0->get_event_id() > e1->get_event_id());
+              return Event0->getStream() < Event1->getStream() ||
+                     (Event0->getStream() == Event1->getStream() &&
+                      Event0->getEventID() > Event1->getEventID());
             });
 
-  bool first = true;
-  CUstream lastSeenStream = 0;
-  for (ur_event_handle_t event : events) {
-    if (!event || (!first && event->get_stream() == lastSeenStream)) {
+  bool First = true;
+  CUstream LastSeenStream = 0;
+  for (ur_event_handle_t Event : Events) {
+    if (!Event || (!First && Event->getStream() == LastSeenStream)) {
       continue;
     }
 
-    first = false;
-    lastSeenStream = event->get_stream();
+    First = false;
+    LastSeenStream = Event->getStream();
 
-    auto result = f(event);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
+    auto Result = F(Event);
+    if (Result != UR_RESULT_SUCCESS) {
+      return Result;
     }
   }
 

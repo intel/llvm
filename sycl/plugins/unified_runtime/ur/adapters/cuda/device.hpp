@@ -13,49 +13,47 @@ struct ur_device_handle_t_ {
 private:
   using native_type = CUdevice;
 
-  native_type cuDevice_;
-  CUcontext cuContext_;
-  CUevent evBase_; // CUDA event used as base counter
-  std::atomic_uint32_t refCount_;
-  ur_platform_handle_t platform_;
+  native_type CuDevice;
+  CUcontext CuContext;
+  CUevent EvBase; // CUDA event used as base counter
+  std::atomic_uint32_t RefCount;
+  ur_platform_handle_t Platform;
 
-  static constexpr uint32_t max_work_item_dimensions = 3u;
-  size_t max_work_item_sizes[max_work_item_dimensions];
-  int max_work_group_size;
+  static constexpr uint32_t MaxWorkItemDimensions = 3u;
+  size_t MaxWorkItemSizes[MaxWorkItemDimensions];
+  int MaxWorkGroupSize;
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
                       ur_platform_handle_t platform)
-      : cuDevice_(cuDevice), cuContext_(cuContext), evBase_(evBase),
-        refCount_{1}, platform_(platform) {}
+      : CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase), RefCount{1},
+        Platform(platform) {}
 
-  ur_device_handle_t_() { cuDevicePrimaryCtxRelease(cuDevice_); }
+  ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
-  native_type get() const noexcept { return cuDevice_; };
+  native_type get() const noexcept { return CuDevice; };
 
-  CUcontext get_context() const noexcept { return cuContext_; };
+  CUcontext getContext() const noexcept { return CuContext; };
 
-  uint32_t get_reference_count() const noexcept { return refCount_; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
-  ur_platform_handle_t get_platform() const noexcept { return platform_; };
+  ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
-  uint64_t get_elapsed_time(CUevent) const;
+  uint64_t getElapsedTime(CUevent) const;
 
-  void save_max_work_item_sizes(size_t size,
-                                size_t *save_max_work_item_sizes) noexcept {
-    memcpy(max_work_item_sizes, save_max_work_item_sizes, size);
+  void saveMaxWorkItemSizes(size_t Size,
+                            size_t *SaveMaxWorkItemSizes) noexcept {
+    memcpy(MaxWorkItemSizes, SaveMaxWorkItemSizes, Size);
   };
 
-  void save_max_work_group_size(int value) noexcept {
-    max_work_group_size = value;
+  void saveMaxWorkGroupSize(int Value) noexcept { MaxWorkGroupSize = Value; };
+
+  void getMaxWorkItemSizes(size_t RetSize,
+                           size_t *RetMaxWorkItemSizes) const noexcept {
+    memcpy(RetMaxWorkItemSizes, MaxWorkItemSizes, RetSize);
   };
 
-  void get_max_work_item_sizes(size_t ret_size,
-                               size_t *ret_max_work_item_sizes) const noexcept {
-    memcpy(ret_max_work_item_sizes, max_work_item_sizes, ret_size);
-  };
-
-  int get_max_work_group_size() const noexcept { return max_work_group_size; };
+  int getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
 };
 
-int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute);
+int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);

@@ -26,19 +26,19 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
   UR_ASSERT(phContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   assert(DeviceCount == 1);
-  ur_result_t errcode_ret = UR_RESULT_SUCCESS;
+  ur_result_t RetErr = UR_RESULT_SUCCESS;
 
-  std::unique_ptr<ur_context_handle_t_> piContextPtr{nullptr};
+  std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
-    piContextPtr = std::unique_ptr<ur_context_handle_t_>(
+    ContextPtr = std::unique_ptr<ur_context_handle_t_>(
         new ur_context_handle_t_{*phDevices});
-    *phContext = piContextPtr.release();
-  } catch (ur_result_t err) {
-    errcode_ret = err;
+    *phContext = ContextPtr.release();
+  } catch (ur_result_t Err) {
+    RetErr = Err;
   } catch (...) {
-    errcode_ret = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    RetErr = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
-  return errcode_ret;
+  return RetErr;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
@@ -52,24 +52,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(1);
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(hContext->get_device());
+    return ReturnValue(hContext->getDevice());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hContext->get_reference_count());
+    return ReturnValue(hContext->getReferenceCount());
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint32_t capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+    uint32_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
                             UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
                             UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
                             UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
-    return ReturnValue(capabilities);
+    return ReturnValue(Capabilities);
   }
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    int major = 0;
+    int Major = 0;
     sycl::detail::ur::assertion(
-        cuDeviceGetAttribute(&major,
+        cuDeviceGetAttribute(&Major,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hContext->get_device()->get()) == CUDA_SUCCESS);
-    uint32_t capabilities =
-        (major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+                             hContext->getDevice()->get()) == CUDA_SUCCESS);
+    uint32_t Capabilities =
+        (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
@@ -78,7 +78,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
-    return ReturnValue(capabilities);
+    return ReturnValue(Capabilities);
   }
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
@@ -94,25 +94,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(ur_context_handle_t ctxt) {
-  UR_ASSERT(ctxt, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextRelease(ur_context_handle_t hContext) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  if (ctxt->decrement_reference_count() > 0) {
+  if (hContext->decrementReferenceCount() > 0) {
     return UR_RESULT_SUCCESS;
   }
-  ctxt->invoke_extended_deleters();
+  hContext->invokeExtendedDeleters();
 
-  std::unique_ptr<ur_context_handle_t_> context{ctxt};
+  std::unique_ptr<ur_context_handle_t_> Context{hContext};
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(ur_context_handle_t ctxt) {
-  UR_ASSERT(ctxt, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextRetain(ur_context_handle_t hContext) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  assert(ctxt->get_reference_count() > 0);
+  assert(hContext->getReferenceCount() > 0);
 
-  ctxt->increment_reference_count();
+  hContext->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
@@ -142,6 +144,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pfnDeleter, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  hContext->set_extended_deleter(pfnDeleter, pUserData);
+  hContext->setExtendedDeleter(pfnDeleter, pUserData);
   return UR_RESULT_SUCCESS;
 }

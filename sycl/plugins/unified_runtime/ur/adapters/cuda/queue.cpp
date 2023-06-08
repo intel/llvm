@@ -14,102 +14,101 @@
 #include <cassert>
 #include <cuda.h>
 
-void ur_queue_handle_t_::compute_stream_wait_for_barrier_if_needed(
-    CUstream stream, uint32_t stream_i) {
-  if (barrier_event_ && !compute_applied_barrier_[stream_i]) {
-    UR_CHECK_ERROR(cuStreamWaitEvent(stream, barrier_event_, 0));
-    compute_applied_barrier_[stream_i] = true;
+void ur_queue_handle_t_::computeStreamWaitForBarrierIfNeeded(CUstream Stream,
+                                                             uint32_t StreamI) {
+  if (BarrierEvent && !ComputeAppliedBarrier[StreamI]) {
+    UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
+    ComputeAppliedBarrier[StreamI] = true;
   }
 }
 
-void ur_queue_handle_t_::transfer_stream_wait_for_barrier_if_needed(
-    CUstream stream, uint32_t stream_i) {
-  if (barrier_event_ && !transfer_applied_barrier_[stream_i]) {
-    UR_CHECK_ERROR(cuStreamWaitEvent(stream, barrier_event_, 0));
-    transfer_applied_barrier_[stream_i] = true;
+void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
+    CUstream Stream, uint32_t StreamI) {
+  if (BarrierEvent && !TransferAppliedBarrier[StreamI]) {
+    UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
+    TransferAppliedBarrier[StreamI] = true;
   }
 }
 
-CUstream ur_queue_handle_t_::get_next_compute_stream(uint32_t *stream_token) {
-  uint32_t stream_i;
-  uint32_t token;
+CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
+  uint32_t StreamI;
+  uint32_t Token;
   while (true) {
-    if (num_compute_streams_ < compute_streams_.size()) {
+    if (NumComputeStreams < ComputeStreams.size()) {
       // the check above is for performance - so as not to lock mutex every time
-      std::lock_guard<std::mutex> guard(compute_stream_mutex_);
+      std::lock_guard<std::mutex> guard(ComputeStreamMutex);
       // The second check is done after mutex is locked so other threads can not
-      // change num_compute_streams_ after that
-      if (num_compute_streams_ < compute_streams_.size()) {
+      // change NumComputeStreams after that
+      if (NumComputeStreams < ComputeStreams.size()) {
         UR_CHECK_ERROR(
-            cuStreamCreate(&compute_streams_[num_compute_streams_++], flags_));
+            cuStreamCreate(&ComputeStreams[NumComputeStreams++], Flags));
       }
     }
-    token = compute_stream_idx_++;
-    stream_i = token % compute_streams_.size();
+    Token = ComputeStreamIndex++;
+    StreamI = Token % ComputeStreams.size();
     // if a stream has been reused before it was next selected round-robin
     // fashion, we want to delay its next use and instead select another one
     // that is more likely to have completed all the enqueued work.
-    if (delay_compute_[stream_i]) {
-      delay_compute_[stream_i] = false;
+    if (DelayCompute[StreamI]) {
+      DelayCompute[StreamI] = false;
     } else {
       break;
     }
   }
-  if (stream_token) {
-    *stream_token = token;
+  if (StreamToken) {
+    *StreamToken = Token;
   }
-  CUstream res = compute_streams_[stream_i];
-  compute_stream_wait_for_barrier_if_needed(res, stream_i);
+  CUstream res = ComputeStreams[StreamI];
+  computeStreamWaitForBarrierIfNeeded(res, StreamI);
   return res;
 }
 
-CUstream ur_queue_handle_t_::get_next_compute_stream(
-    uint32_t num_events_in_wait_list, const ur_event_handle_t *event_wait_list,
-    ur_stream_guard_ &guard, uint32_t *stream_token) {
-  for (uint32_t i = 0; i < num_events_in_wait_list; i++) {
-    uint32_t token = event_wait_list[i]->get_compute_stream_token();
-    if (reinterpret_cast<ur_queue_handle_t>(event_wait_list[i]->get_queue()) ==
+CUstream ur_queue_handle_t_::getNextComputeStream(
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
+    ur_stream_guard_ &Guard, uint32_t *StreamToken) {
+  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+    uint32_t Token = EventWaitList[i]->getComputeStreamToken();
+    if (reinterpret_cast<ur_queue_handle_t>(EventWaitList[i]->getQueue()) ==
             this &&
-        can_reuse_stream(token)) {
-      std::unique_lock<std::mutex> compute_sync_guard(
-          compute_stream_sync_mutex_);
+        canReuseStream(Token)) {
+      std::unique_lock<std::mutex> ComputeSyncGuard(ComputeStreamSyncMutex);
       // redo the check after lock to avoid data races on
-      // last_sync_compute_streams_
-      if (can_reuse_stream(token)) {
-        uint32_t stream_i = token % delay_compute_.size();
-        delay_compute_[stream_i] = true;
-        if (stream_token) {
-          *stream_token = token;
+      // LastSyncComputeStreams
+      if (canReuseStream(Token)) {
+        uint32_t StreamI = Token % DelayCompute.size();
+        DelayCompute[StreamI] = true;
+        if (StreamToken) {
+          *StreamToken = Token;
         }
-        guard = ur_stream_guard_{std::move(compute_sync_guard)};
-        CUstream res = event_wait_list[i]->get_stream();
-        compute_stream_wait_for_barrier_if_needed(res, stream_i);
-        return res;
+        Guard = ur_stream_guard_{std::move(ComputeSyncGuard)};
+        CUstream Result = EventWaitList[i]->getStream();
+        computeStreamWaitForBarrierIfNeeded(Result, StreamI);
+        return Result;
       }
     }
   }
-  guard = {};
-  return get_next_compute_stream(stream_token);
+  Guard = {};
+  return getNextComputeStream(StreamToken);
 }
 
-CUstream ur_queue_handle_t_::get_next_transfer_stream() {
-  if (transfer_streams_.empty()) { // for example in in-order queue
-    return get_next_compute_stream();
+CUstream ur_queue_handle_t_::getNextTransferStream() {
+  if (TransferStreams.empty()) { // for example in in-order queue
+    return getNextComputeStream();
   }
-  if (num_transfer_streams_ < transfer_streams_.size()) {
+  if (NumTransferStreams < TransferStreams.size()) {
     // the check above is for performance - so as not to lock mutex every time
-    std::lock_guard<std::mutex> guard(transfer_stream_mutex_);
+    std::lock_guard<std::mutex> Guuard(TransferStreamMutex);
     // The second check is done after mutex is locked so other threads can not
-    // change num_transfer_streams_ after that
-    if (num_transfer_streams_ < transfer_streams_.size()) {
+    // change NumTransferStreams after that
+    if (NumTransferStreams < TransferStreams.size()) {
       UR_CHECK_ERROR(
-          cuStreamCreate(&transfer_streams_[num_transfer_streams_++], flags_));
+          cuStreamCreate(&TransferStreams[NumTransferStreams++], Flags));
     }
   }
-  uint32_t stream_i = transfer_stream_idx_++ % transfer_streams_.size();
-  CUstream res = transfer_streams_[stream_i];
-  transfer_stream_wait_for_barrier_if_needed(res, stream_i);
-  return res;
+  uint32_t StreamI = TransferStreamIndex++ % TransferStreams.size();
+  CUstream Result = TransferStreams[StreamI];
+  transferStreamWaitForBarrierIfNeeded(Result, StreamI);
+  return Result;
 }
 
 /// Creates a `ur_queue_handle_t` object on the CUDA backend.
@@ -121,47 +120,47 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
               const ur_queue_properties_t *pProps, ur_queue_handle_t *phQueue) {
   try {
-    std::unique_ptr<ur_queue_handle_t_> queueImpl{nullptr};
+    std::unique_ptr<ur_queue_handle_t_> Queue{nullptr};
     UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
     UR_ASSERT(phQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
     UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-    if (hContext->get_device() != hDevice) {
+    if (hContext->getDevice() != hDevice) {
       *phQueue = nullptr;
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
-    unsigned int flags = CU_STREAM_NON_BLOCKING;
-    ur_queue_flags_t urFlags = 0;
-    bool is_out_of_order = false;
+    unsigned int Flags = CU_STREAM_NON_BLOCKING;
+    ur_queue_flags_t URFlags = 0;
+    bool IsOutOfOrder = false;
     if (pProps && pProps->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
-      urFlags = pProps->flags;
-      if (urFlags == __SYCL_UR_CUDA_USE_DEFAULT_STREAM) {
-        flags = CU_STREAM_DEFAULT;
-      } else if (urFlags == __SYCL_UR_CUDA_SYNC_WITH_DEFAULT) {
-        flags = 0;
+      URFlags = pProps->flags;
+      if (URFlags == __SYCL_UR_CUDA_USE_DEFAULT_STREAM) {
+        Flags = CU_STREAM_DEFAULT;
+      } else if (URFlags == __SYCL_UR_CUDA_SYNC_WITH_DEFAULT) {
+        Flags = 0;
       }
 
-      if (urFlags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-        is_out_of_order = true;
+      if (URFlags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+        IsOutOfOrder = true;
       }
     }
 
-    std::vector<CUstream> computeCuStreams(
-        is_out_of_order ? ur_queue_handle_t_::default_num_compute_streams : 1);
-    std::vector<CUstream> transferCuStreams(
-        is_out_of_order ? ur_queue_handle_t_::default_num_transfer_streams : 0);
+    std::vector<CUstream> ComputeCuStreams(
+        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumComputeStreams : 1);
+    std::vector<CUstream> TransferCuStreams(
+        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumTransferStreams : 0);
 
-    queueImpl = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        std::move(computeCuStreams), std::move(transferCuStreams), hContext,
-        hDevice, flags, urFlags});
+    Queue = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
+        std::move(ComputeCuStreams), std::move(TransferCuStreams), hContext,
+        hDevice, Flags, URFlags});
 
-    *phQueue = queueImpl.release();
+    *phQueue = Queue.release();
 
     return UR_RESULT_SUCCESS;
-  } catch (ur_result_t err) {
+  } catch (ur_result_t Err) {
 
-    return err;
+    return Err;
 
   } catch (...) {
 
@@ -171,61 +170,61 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  assert(hQueue->get_reference_count() > 0);
+  assert(hQueue->getReferenceCount() > 0);
 
-  hQueue->increment_reference_count();
+  hQueue->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  if (hQueue->decrement_reference_count() > 0) {
+  if (hQueue->decrementReferenceCount() > 0) {
     return UR_RESULT_SUCCESS;
   }
 
   try {
-    std::unique_ptr<ur_queue_handle_t_> queueImpl(hQueue);
+    std::unique_ptr<ur_queue_handle_t_> Queue(hQueue);
 
-    if (!hQueue->backend_has_ownership())
+    if (!hQueue->backendHasOwnership())
       return UR_RESULT_SUCCESS;
 
-    ScopedContext active(hQueue->get_context());
+    ScopedContext Active(hQueue->getContext());
 
-    hQueue->for_each_stream([](CUstream s) {
-      UR_CHECK_ERROR(cuStreamSynchronize(s));
-      UR_CHECK_ERROR(cuStreamDestroy(s));
+    hQueue->forEachStream([](CUstream S) {
+      UR_CHECK_ERROR(cuStreamSynchronize(S));
+      UR_CHECK_ERROR(cuStreamDestroy(S));
     });
 
     return UR_RESULT_SUCCESS;
-  } catch (ur_result_t err) {
-    return err;
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  ur_result_t result = UR_RESULT_SUCCESS;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
     UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-    ScopedContext active(hQueue->get_context());
+    ScopedContext active(hQueue->getContext());
 
-    hQueue->sync_streams</*ResetUsed=*/true>([&result](CUstream s) {
-      result = UR_CHECK_ERROR(cuStreamSynchronize(s));
+    hQueue->syncStreams</*ResetUsed=*/true>([&Result](CUstream s) {
+      Result = UR_CHECK_ERROR(cuStreamSynchronize(s));
     });
 
-  } catch (ur_result_t err) {
+  } catch (ur_result_t Err) {
 
-    result = err;
+    Result = Err;
 
   } catch (...) {
 
-    result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
-  return result;
+  return Result;
 }
 
 // There is no CUDA counterpart for queue flushing and we don't run into the
@@ -242,9 +241,9 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phNativeQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ScopedContext active(hQueue->get_context());
+  ScopedContext Active(hQueue->getContext());
   *phNativeQueue =
-      reinterpret_cast<ur_native_handle_t>(hQueue->get_next_compute_stream());
+      reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
   return UR_RESULT_SUCCESS;
 }
 
@@ -254,35 +253,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_queue_handle_t *phQueue) {
   (void)pProperties;
 
-  unsigned int cuFlags;
-  CUstream cuStream = reinterpret_cast<CUstream>(hNativeQueue);
-  UR_ASSERT(hContext->get_device() == hDevice, UR_RESULT_ERROR_INVALID_DEVICE);
+  unsigned int CuFlags;
+  CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
+  UR_ASSERT(hContext->getDevice() == hDevice, UR_RESULT_ERROR_INVALID_DEVICE);
 
-  auto retErr = UR_CHECK_ERROR(cuStreamGetFlags(cuStream, &cuFlags));
+  auto Return = UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 
-  ur_queue_flags_t flags = 0;
-  if (cuFlags == CU_STREAM_DEFAULT)
-    flags = __SYCL_UR_CUDA_USE_DEFAULT_STREAM;
-  else if (cuFlags == CU_STREAM_NON_BLOCKING)
-    flags = __SYCL_UR_CUDA_SYNC_WITH_DEFAULT;
+  ur_queue_flags_t Flags = 0;
+  if (CuFlags == CU_STREAM_DEFAULT)
+    Flags = __SYCL_UR_CUDA_USE_DEFAULT_STREAM;
+  else if (CuFlags == CU_STREAM_NON_BLOCKING)
+    Flags = __SYCL_UR_CUDA_SYNC_WITH_DEFAULT;
   else
     sycl::detail::ur::die("Unknown cuda stream");
 
-  std::vector<CUstream> computeCuStreams(1, cuStream);
-  std::vector<CUstream> transferCuStreams(0);
+  std::vector<CUstream> ComputeCuStreams(1, CuStream);
+  std::vector<CUstream> TransferCuStreams(0);
 
   // Create queue and set num_compute_streams to 1, as computeCuStreams has
   // valid stream
-  *phQueue = new ur_queue_handle_t_{std::move(computeCuStreams),
-                                    std::move(transferCuStreams),
+  *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
+                                    std::move(TransferCuStreams),
                                     hContext,
                                     hDevice,
-                                    cuFlags,
-                                    flags,
+                                    CuFlags,
+                                    Flags,
                                     /*backend_owns*/ false};
-  (*phQueue)->num_compute_streams_ = 1;
+  (*phQueue)->NumComputeStreams = 1;
 
-  return retErr;
+  return Return;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
@@ -297,29 +296,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 
   switch (uint32_t{propName}) {
   case UR_QUEUE_INFO_CONTEXT:
-    return ReturnValue(hQueue->context_);
+    return ReturnValue(hQueue->Context);
   case UR_QUEUE_INFO_DEVICE:
-    return ReturnValue(hQueue->device_);
+    return ReturnValue(hQueue->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(hQueue->get_reference_count());
+    return ReturnValue(hQueue->getReferenceCount());
   case UR_QUEUE_INFO_FLAGS:
-    return ReturnValue(hQueue->ur_flags_);
+    return ReturnValue(hQueue->URFlags);
   case UR_QUEUE_INFO_EMPTY: {
     try {
-      bool IsReady = hQueue->all_of([](CUstream s) -> bool {
-        const CUresult ret = cuStreamQuery(s);
-        if (ret == CUDA_SUCCESS)
+      bool IsReady = hQueue->allOf([](CUstream S) -> bool {
+        const CUresult Ret = cuStreamQuery(S);
+        if (Ret == CUDA_SUCCESS)
           return true;
 
-        if (ret == CUDA_ERROR_NOT_READY)
+        if (Ret == CUDA_ERROR_NOT_READY)
           return false;
 
-        UR_CHECK_ERROR(ret);
+        UR_CHECK_ERROR(Ret);
         return false;
       });
       return ReturnValue(IsReady);
-    } catch (ur_result_t err) {
-      return err;
+    } catch (ur_result_t Err) {
+      return Err;
     } catch (...) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }

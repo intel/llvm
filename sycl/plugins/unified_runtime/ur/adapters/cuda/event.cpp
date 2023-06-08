@@ -15,150 +15,148 @@
 #include <cassert>
 #include <cuda.h>
 
-ur_event_handle_t_::ur_event_handle_t_(ur_command_t type,
-                                       ur_context_handle_t context,
-                                       ur_queue_handle_t queue, CUstream stream,
-                                       uint32_t stream_token)
-    : commandType_{type}, refCount_{1}, has_ownership_{true},
-      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
-      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
+ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
+                                       ur_context_handle_t Context,
+                                       ur_queue_handle_t Queue, CUstream Stream,
+                                       uint32_t StreamToken)
+    : CommandType{Type}, RefCount{1}, HasOwnership{true},
+      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
+      StreamToken{StreamToken}, EvEnd{nullptr}, EvStart{nullptr},
+      EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
 
-  bool profilingEnabled = queue_->ur_flags_ & UR_QUEUE_FLAG_PROFILING_ENABLE;
+  bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
 
   UR_CHECK_ERROR(cuEventCreate(
-      &evEnd_, profilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
+      &EvEnd, ProfilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
 
-  if (profilingEnabled) {
-    UR_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
-    UR_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
+  if (ProfilingEnabled) {
+    UR_CHECK_ERROR(cuEventCreate(&EvQueued, CU_EVENT_DEFAULT));
+    UR_CHECK_ERROR(cuEventCreate(&EvStart, CU_EVENT_DEFAULT));
   }
 
-  if (queue_ != nullptr) {
-    urQueueRetain(queue_);
+  if (Queue != nullptr) {
+    urQueueRetain(Queue);
   }
-  urContextRetain(context_);
+  urContextRetain(Context);
 }
 
-ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t context,
-                                       CUevent eventNative)
-    // TODO(ur): Missing user command type
-    : commandType_{UR_COMMAND_EVENTS_WAIT}, refCount_{1}, has_ownership_{false},
-      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
-      streamToken_{std::numeric_limits<uint32_t>::max()}, evEnd_{eventNative},
-      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr},
-      context_{context} {
-  urContextRetain(context_);
+ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
+                                       CUevent EventNative)
+    : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
+      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
+      StreamToken{std::numeric_limits<uint32_t>::max()}, EvEnd{EventNative},
+      EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr}, Context{Context} {
+  urContextRetain(Context);
 }
 
 ur_event_handle_t_::~ur_event_handle_t_() {
-  if (queue_ != nullptr) {
-    urQueueRelease(queue_);
+  if (Queue != nullptr) {
+    urQueueRelease(Queue);
   }
-  urContextRelease(context_);
+  urContextRelease(Context);
 }
 
 ur_result_t ur_event_handle_t_::start() {
-  assert(!is_started());
-  ur_result_t result = UR_RESULT_SUCCESS;
+  assert(!isStarted());
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    if (queue_->ur_flags_ & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+    if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
-      result = UR_CHECK_ERROR(cuEventRecord(evQueued_, 0));
-      result = UR_CHECK_ERROR(cuEventRecord(evStart_, stream_));
+      Result = UR_CHECK_ERROR(cuEventRecord(EvQueued, 0));
+      Result = UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
     }
-  } catch (ur_result_t error) {
-    result = error;
+  } catch (ur_result_t Err) {
+    Result = Err;
   }
 
-  isStarted_ = true;
-  return result;
+  IsStarted = true;
+  return Result;
 }
 
-bool ur_event_handle_t_::is_completed() const noexcept {
-  if (!isRecorded_) {
+bool ur_event_handle_t_::isCompleted() const noexcept {
+  if (!IsRecorded) {
     return false;
   }
-  if (!hasBeenWaitedOn_) {
-    const CUresult ret = cuEventQuery(evEnd_);
-    if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_READY) {
-      UR_CHECK_ERROR(ret);
+  if (!HasBeenWaitedOn) {
+    const CUresult Result = cuEventQuery(EvEnd);
+    if (Result != CUDA_SUCCESS && Result != CUDA_ERROR_NOT_READY) {
+      UR_CHECK_ERROR(Result);
       return false;
     }
-    if (ret == CUDA_ERROR_NOT_READY) {
+    if (Result == CUDA_ERROR_NOT_READY) {
       return false;
     }
   }
   return true;
 }
 
-uint64_t ur_event_handle_t_::get_queued_time() const {
-  assert(is_started());
-  return queue_->get_device()->get_elapsed_time(evQueued_);
+uint64_t ur_event_handle_t_::getQueuedTime() const {
+  assert(isStarted());
+  return Queue->get_device()->getElapsedTime(EvQueued);
 }
 
-uint64_t ur_event_handle_t_::get_start_time() const {
-  assert(is_started());
-  return queue_->get_device()->get_elapsed_time(evStart_);
+uint64_t ur_event_handle_t_::getStartTime() const {
+  assert(isStarted());
+  return Queue->get_device()->getElapsedTime(EvStart);
 }
 
-uint64_t ur_event_handle_t_::get_end_time() const {
-  assert(is_started() && is_recorded());
-  return queue_->get_device()->get_elapsed_time(evEnd_);
+uint64_t ur_event_handle_t_::getEndTime() const {
+  assert(isStarted() && isRecorded());
+  return Queue->get_device()->getElapsedTime(EvEnd);
 }
 
 ur_result_t ur_event_handle_t_::record() {
 
-  if (is_recorded() || !is_started()) {
+  if (isRecorded() || !isStarted()) {
     return UR_RESULT_ERROR_INVALID_EVENT;
   }
 
-  ur_result_t result = UR_RESULT_ERROR_INVALID_OPERATION;
+  ur_result_t Result = UR_RESULT_ERROR_INVALID_OPERATION;
 
-  UR_ASSERT(queue_, UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(Queue, UR_RESULT_ERROR_INVALID_QUEUE);
 
   try {
-    eventId_ = queue_->get_next_event_id();
-    if (eventId_ == 0) {
+    EventID = Queue->getNextEventID();
+    if (EventID == 0) {
       sycl::detail::ur::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
-    result = UR_CHECK_ERROR(cuEventRecord(evEnd_, stream_));
+    Result = UR_CHECK_ERROR(cuEventRecord(EvEnd, Stream));
   } catch (ur_result_t error) {
-    result = error;
+    Result = error;
   }
 
-  if (result == UR_RESULT_SUCCESS) {
-    isRecorded_ = true;
+  if (Result == UR_RESULT_SUCCESS) {
+    IsRecorded = true;
   }
 
-  return result;
+  return Result;
 }
 
 ur_result_t ur_event_handle_t_::wait() {
-  ur_result_t retErr;
+  ur_result_t Result;
   try {
-    retErr = UR_CHECK_ERROR(cuEventSynchronize(evEnd_));
-    hasBeenWaitedOn_ = true;
+    Result = UR_CHECK_ERROR(cuEventSynchronize(EvEnd));
+    HasBeenWaitedOn = true;
   } catch (ur_result_t error) {
-    retErr = error;
+    Result = error;
   }
 
-  return retErr;
+  return Result;
 }
 
 ur_result_t ur_event_handle_t_::release() {
-  if (!backend_has_ownership())
+  if (!backendHasOwnership())
     return UR_RESULT_SUCCESS;
 
-  assert(queue_ != nullptr);
+  assert(Queue != nullptr);
 
-  UR_CHECK_ERROR(cuEventDestroy(evEnd_));
+  UR_CHECK_ERROR(cuEventDestroy(EvEnd));
 
-  if (queue_->ur_flags_ & UR_QUEUE_FLAG_PROFILING_ENABLE) {
-    UR_CHECK_ERROR(cuEventDestroy(evQueued_));
-    UR_CHECK_ERROR(cuEventDestroy(evStart_));
+  if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+    UR_CHECK_ERROR(cuEventDestroy(EvQueued));
+    UR_CHECK_ERROR(cuEventDestroy(EvStart));
   }
 
   return UR_RESULT_SUCCESS;
@@ -174,15 +172,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
 
   switch (propName) {
   case UR_EVENT_INFO_COMMAND_QUEUE:
-    return ReturnValue(hEvent->get_queue());
+    return ReturnValue(hEvent->getQueue());
   case UR_EVENT_INFO_COMMAND_TYPE:
-    return ReturnValue(hEvent->get_command_type());
+    return ReturnValue(hEvent->getCommandType());
   case UR_EVENT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hEvent->get_reference_count());
+    return ReturnValue(hEvent->getReferenceCount());
   case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS:
-    return ReturnValue(hEvent->get_execution_status());
+    return ReturnValue(hEvent->getExecutionStatus());
   case UR_EVENT_INFO_CONTEXT:
-    return ReturnValue(hEvent->get_context());
+    return ReturnValue(hEvent->getContext());
   default:
     sycl::detail::ur::die("Event info request not implemented");
   }
@@ -198,9 +196,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
-  ur_queue_handle_t queue = hEvent->get_queue();
-  if (queue == nullptr ||
-      !(queue->ur_flags_ & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+  ur_queue_handle_t Queue = hEvent->getQueue();
+  if (Queue == nullptr || !(Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
@@ -208,11 +205,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   case UR_PROFILING_INFO_COMMAND_QUEUED:
   case UR_PROFILING_INFO_COMMAND_SUBMIT:
     // Note: No user for this case
-    return ReturnValue(static_cast<uint64_t>(hEvent->get_queued_time()));
+    return ReturnValue(static_cast<uint64_t>(hEvent->getQueuedTime()));
   case UR_PROFILING_INFO_COMMAND_START:
-    return ReturnValue(static_cast<uint64_t>(hEvent->get_start_time()));
+    return ReturnValue(static_cast<uint64_t>(hEvent->getStartTime()));
   case UR_PROFILING_INFO_COMMAND_END:
-    return ReturnValue(static_cast<uint64_t>(hEvent->get_end_time()));
+    return ReturnValue(static_cast<uint64_t>(hEvent->getEndTime()));
   default:
     break;
   }
@@ -234,19 +231,19 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
     UR_ASSERT(phEventWaitList, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
     UR_ASSERT(numEvents > 0, UR_RESULT_ERROR_INVALID_VALUE);
 
-    auto context = phEventWaitList[0]->get_context();
-    ScopedContext active(context);
+    auto Context = phEventWaitList[0]->getContext();
+    ScopedContext Active(Context);
 
-    auto waitFunc = [context](ur_event_handle_t event) -> ur_result_t {
-      UR_ASSERT(event, UR_RESULT_ERROR_INVALID_EVENT);
-      UR_ASSERT(event->get_context() == context,
+    auto WaitFunc = [Context](ur_event_handle_t Event) -> ur_result_t {
+      UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);
+      UR_ASSERT(Event->getContext() == Context,
                 UR_RESULT_ERROR_INVALID_CONTEXT);
 
-      return event->wait();
+      return Event->wait();
     };
-    return forLatestEvents(phEventWaitList, numEvents, waitFunc);
-  } catch (ur_result_t err) {
-    return err;
+    return forLatestEvents(phEventWaitList, numEvents, WaitFunc);
+  } catch (ur_result_t Err) {
+    return Err;
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -255,10 +252,10 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
   UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  const auto refCount = hEvent->increment_reference_count();
+  const auto RefCount = hEvent->incrementReferenceCount();
 
   sycl::detail::ur::assertion(
-      refCount != 0, "Reference count overflow detected in urEventRetain.");
+      RefCount != 0, "Reference count overflow detected in urEventRetain.");
 
   return UR_RESULT_SUCCESS;
 }
@@ -269,20 +266,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   sycl::detail::ur::assertion(
-      hEvent->get_reference_count() != 0,
+      hEvent->getReferenceCount() != 0,
       "Reference count overflow detected in urEventRelease.");
 
   // decrement ref count. If it is 0, delete the event.
-  if (hEvent->decrement_reference_count() == 0) {
+  if (hEvent->decrementReferenceCount() == 0) {
     std::unique_ptr<ur_event_handle_t_> event_ptr{hEvent};
-    ur_result_t result = UR_RESULT_ERROR_INVALID_EVENT;
+    ur_result_t Result = UR_RESULT_ERROR_INVALID_EVENT;
     try {
-      ScopedContext active(hEvent->get_context());
-      result = hEvent->release();
+      ScopedContext Active(hEvent->getContext());
+      Result = hEvent->release();
     } catch (...) {
-      result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
-    return result;
+    return Result;
   }
 
   return UR_RESULT_SUCCESS;
@@ -298,11 +295,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
     const ur_event_native_properties_t *pProperties,
     ur_event_handle_t *phEvent) {
-  (void)pProperties;
+  std::ignore = pProperties;
 
-  std::unique_ptr<ur_event_handle_t_> event_ptr{nullptr};
+  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
-  *phEvent = ur_event_handle_t_::make_with_native(
+  *phEvent = ur_event_handle_t_::makeWithNative(
       hContext, reinterpret_cast<CUevent>(hNativeEvent));
 
   return UR_RESULT_SUCCESS;
