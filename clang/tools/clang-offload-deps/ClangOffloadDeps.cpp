@@ -74,6 +74,11 @@ static void reportError(Error E) {
   logAllUnhandledErrors(std::move(E), WithColor::error(errs(), ToolPath));
 }
 
+// clang-offload-bundler is currently generating a 'standardized' target triple.
+// This is of the following form - Kind-Triple-TargetID.
+// Triple's format - Architecture-Vendor-OS-Environment
+// This routine transforms the target triple specified by user as input to
+// clang-offload-deps to this 'standardized' format.
 static std::string standardizedTarget(std::string OrigTarget) {
   if (OrigTarget.back() == '-') // Already standardized
     return OrigTarget;
