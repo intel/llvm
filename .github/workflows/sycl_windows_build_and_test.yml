@@ -90,10 +90,10 @@ jobs:
       if: always() && !cancelled() && contains(inputs.check_filters, 'xptifw')
       run: |
         cmake --build build --target check-xptifw
-    - name: check-libclc
-      if: always() && !cancelled() && contains(inputs.check_filters, 'libclc')
+    - name: check-libdevice
+      if: always() && !cancelled() && contains(inputs.check_filters, 'libdevice')
       run: |
-        cmake --build build --target check-libclc
+        cmake --build build --target check-libdevice
     - name: Install
       shell: bash
       # TODO replace utility installation with a single CMake target
