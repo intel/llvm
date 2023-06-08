@@ -2890,6 +2890,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     FPContract = "on";
   bool StrictFPModel = false;
   StringRef Float16ExcessPrecision = "";
+  StringRef BFloat16ExcessPrecision = "";
   StringRef FPAccuracy = "";
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
@@ -3118,6 +3119,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
           D.Diag(diag::err_drv_unsupported_option_argument)
               << A->getSpelling() << Val;
       }
+      BFloat16ExcessPrecision = Float16ExcessPrecision;
       break;
     }
     case options::OPT_ffinite_math_only:
@@ -3294,6 +3296,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!Float16ExcessPrecision.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffloat16-excess-precision=" +
                                          Float16ExcessPrecision));
+  if (!BFloat16ExcessPrecision.empty())
+    CmdArgs.push_back(Args.MakeArgString("-fbfloat16-excess-precision=" +
+                                         BFloat16ExcessPrecision));
 
   ParseMRecip(D, Args, CmdArgs);
 
@@ -4236,6 +4241,9 @@ static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
   Args.addOptOutFlag(CmdArgs, options::OPT_fshow_source_location,
                      options::OPT_fno_show_source_location);
 
+  Args.addOptOutFlag(CmdArgs, options::OPT_fdiagnostics_show_line_numbers,
+                     options::OPT_fno_diagnostics_show_line_numbers);
+
   if (Args.hasArg(options::OPT_fdiagnostics_absolute_paths))
     CmdArgs.push_back("-fdiagnostics-absolute-paths");
 
@@ -5051,6 +5059,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back(Args.MakeArgString(
               Twine("-target-sdk-version=") +
               CudaVersionToString(CTC->CudaInstallation.version())));
+        // Unsized function arguments used for variadics were introduced in
+        // CUDA-9.0. We still do not support generating code that actually uses
+        // variadic arguments yet, but we do need to allow parsing them as
+        // recent CUDA headers rely on that.
+        // https://github.com/llvm/llvm-project/issues/58410
+        if (CTC->CudaInstallation.version() >= CudaVersion::CUDA_90)
+          CmdArgs.push_back("-fcuda-allow-variadic-functions");
       }
     }
     CmdArgs.push_back("-aux-triple");
@@ -5893,19 +5908,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Triple.isOSAIX())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getSpelling() << RawTriple.str();
-  }
-
-  if (Args.hasArg(options::OPT_mxcoff_roptr) ||
-      Args.hasArg(options::OPT_mno_xcoff_roptr)) {
-    bool HasRoptr = Args.hasFlag(options::OPT_mxcoff_roptr,
-                                 options::OPT_mno_xcoff_roptr, false);
-    StringRef OptStr = HasRoptr ? "-mxcoff-roptr" : "-mno-xcoff-roptr";
-    if (!Triple.isOSAIX())
-      D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << OptStr << RawTriple.str();
-
-    if (HasRoptr)
-      CmdArgs.push_back("-mxcoff-roptr");
   }
 
   if (Arg *A = Args.getLastArg(options::OPT_Wframe_larger_than_EQ)) {
@@ -6821,23 +6823,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (const Arg *A = Args.getLastArg(options::OPT_mignore_xcoff_visibility)) {
-    if (Triple.isOSAIX())
-      CmdArgs.push_back("-mignore-xcoff-visibility");
-    else
-      D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << A->getAsString(Args) << TripleStr;
-  }
-
-  if (const Arg *A =
-          Args.getLastArg(options::OPT_mdefault_visibility_export_mapping_EQ)) {
-    if (Triple.isOSAIX())
-      A->render(Args, CmdArgs);
-    else
-      D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << A->getAsString(Args) << TripleStr;
-  }
-
   if (Args.hasFlag(options::OPT_fvisibility_inlines_hidden,
                     options::OPT_fno_visibility_inlines_hidden, false))
     CmdArgs.push_back("-fvisibility-inlines-hidden");
@@ -7050,10 +7035,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (Arg *A = Args.getLastArgNoClaim(options::OPT_K);
-      A && !TC.getTriple().isOSAIX())
-    D.Diag(diag::err_drv_unsupported_opt_for_target)
-        << A->getAsString(Args) << TripleStr;
+  // Reject AIX-specific link options on other targets.
+  if (!TC.getTriple().isOSAIX()) {
+    for (const Arg *A : Args.filtered(options::OPT_b, options::OPT_K,
+                                      options::OPT_mxcoff_build_id_EQ)) {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << TripleStr;
+    }
+  }
 
   if (Args.getLastArg(options::OPT_fapple_kext) ||
       (Args.hasArg(options::OPT_mkernel) && types::isCXX(InputType)))
@@ -7659,10 +7648,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.addOptInFlag(CmdArgs, options::OPT_fapple_pragma_pack,
                     options::OPT_fno_apple_pragma_pack);
-
-  if (Args.hasFlag(options::OPT_fxl_pragma_pack,
-                   options::OPT_fno_xl_pragma_pack, RawTriple.isOSAIX()))
-    CmdArgs.push_back("-fxl-pragma-pack");
 
   // Remarks can be enabled with any of the `-f.*optimization-record.*` flags.
   if (willEmitRemarks(Args) && checkRemarksOptions(D, Args, Triple))

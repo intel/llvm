@@ -2846,14 +2846,16 @@ void ASTWriter::WriteSubmodules(Module *WritingModule) {
     }
 
     // Emit the umbrella header, if there is one.
-    if (auto UmbrellaHeader = Mod->getUmbrellaHeader()) {
+    if (std::optional<Module::Header> UmbrellaHeader =
+            Mod->getUmbrellaHeaderAsWritten()) {
       RecordData::value_type Record[] = {SUBMODULE_UMBRELLA_HEADER};
       Stream.EmitRecordWithBlob(UmbrellaAbbrev, Record,
-                                UmbrellaHeader.NameAsWritten);
-    } else if (auto UmbrellaDir = Mod->getUmbrellaDir()) {
+                                UmbrellaHeader->NameAsWritten);
+    } else if (std::optional<Module::DirectoryName> UmbrellaDir =
+                   Mod->getUmbrellaDirAsWritten()) {
       RecordData::value_type Record[] = {SUBMODULE_UMBRELLA_DIR};
       Stream.EmitRecordWithBlob(UmbrellaDirAbbrev, Record,
-                                UmbrellaDir.NameAsWritten);
+                                UmbrellaDir->NameAsWritten);
     }
 
     // Emit the headers.
@@ -4378,6 +4380,7 @@ void ASTRecordWriter::AddAttr(const Attr *A) {
   Record.push_back(A->getParsedKind());
   Record.push_back(A->getSyntax());
   Record.push_back(A->getAttributeSpellingListIndexRaw());
+  Record.push_back(A->isRegularKeywordAttribute());
 
 #include "clang/Serialization/AttrPCHWrite.inc"
 }

@@ -329,6 +329,7 @@ cc_library(
     deps = [
         ":TestTransformDialectExtensionIncGen",
         "//llvm:Support",
+        "//mlir:BytecodeOpInterface",
         "//mlir:IR",
         "//mlir:PDLDialect",
         "//mlir:Pass",
@@ -602,6 +603,7 @@ cc_library(
         "//mlir:GPUDialect",
         "//mlir:GPUTransforms",
         "//mlir:IR",
+        "//mlir:IndexDialect",
         "//mlir:MemRefDialect",
         "//mlir:NVVMToLLVMIRTranslation",
         "//mlir:Pass",
@@ -855,7 +857,9 @@ cc_library(
         "//mlir:Pass",
         "//mlir:SCFDialect",
         "//mlir:TensorDialect",
+        "//mlir:TensorTransformOps",
         "//mlir:TensorTransforms",
+        "//mlir:TransformDialect",
         "//mlir:Transforms",
     ],
 )
