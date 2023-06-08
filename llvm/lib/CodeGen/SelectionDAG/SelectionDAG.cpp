@@ -1956,6 +1956,15 @@ SDValue SelectionDAG::getVScale(const SDLoc &DL, EVT VT, APInt MulImm,
   return getNode(ISD::VSCALE, DL, VT, getConstant(MulImm, DL, VT));
 }
 
+SDValue SelectionDAG::getElementCount(const SDLoc &DL, EVT VT, ElementCount EC,
+                                      bool ConstantFold) {
+  if (EC.isScalable())
+    return getVScale(DL, VT,
+                     APInt(VT.getSizeInBits(), EC.getKnownMinValue()));
+
+  return getConstant(EC.getKnownMinValue(), DL, VT);
+}
+
 SDValue SelectionDAG::getStepVector(const SDLoc &DL, EVT ResVT) {
   APInt One(ResVT.getScalarSizeInBits(), 1);
   return getStepVector(DL, ResVT, One);
@@ -3086,6 +3095,12 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     }
     break;
   }
+  case ISD::VSCALE: {
+    const Function &F = getMachineFunction().getFunction();
+    const APInt &Multiplier = Op.getConstantOperandAPInt(0);
+    Known = getVScaleRange(&F, BitWidth).multiply(Multiplier).toKnownBits();
+    break;
+  }
   case ISD::CONCAT_VECTORS: {
     if (Op.getValueType().isScalableVector())
       break;
@@ -3631,6 +3646,15 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     // All bits are zero except the low bit.
     Known.Zero.setBitsFrom(1);
     break;
+  case ISD::ADD:
+  case ISD::SUB: {
+    SDNodeFlags Flags = Op.getNode()->getFlags();
+    Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+    Known = KnownBits::computeForAddSub(Op.getOpcode() == ISD::ADD,
+                                        Flags.hasNoSignedWrap(), Known, Known2);
+    break;
+  }
   case ISD::USUBO:
   case ISD::SSUBO:
   case ISD::USUBO_CARRY:
@@ -3644,7 +3668,6 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       break;
     }
     [[fallthrough]];
-  case ISD::SUB:
   case ISD::SUBC: {
     assert(Op.getResNo() == 0 &&
            "We only compute knownbits for the difference here.");
@@ -3672,7 +3695,6 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       break;
     }
     [[fallthrough]];
-  case ISD::ADD:
   case ISD::ADDC:
   case ISD::ADDE: {
     assert(Op.getResNo() == 0 && "We only compute knownbits for the sum here.");

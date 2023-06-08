@@ -207,6 +207,11 @@ bool ParsedAttr::supportsNonconformingLambdaSyntax() const {
 }
 
 bool ParsedAttr::slidesFromDeclToDeclSpecLegacyBehavior() const {
+  if (isRegularKeywordAttribute())
+    // The appurtenance rules are applied strictly for all regular keyword
+    // atributes.
+    return false;
+
   assert(isStandardAttributeSyntax());
 
   // We have historically allowed some type attributes with standard attribute
