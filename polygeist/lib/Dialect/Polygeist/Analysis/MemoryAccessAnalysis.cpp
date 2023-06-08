@@ -165,14 +165,15 @@ struct Helper {
       resSMin = lhsSMin + rhsSMin;
       resSMax = lhsSMax + rhsSMax;
     } else if constexpr (std::is_same_v<T, arith::SubIOp>) {
-      resUMin = std::max(0ul, lhsUMin - rhsUMax);
-      resUMax = lhsUMax - rhsUMin;
+      resUMin = std::max(0l, (int64_t)(lhsUMin - rhsUMax));
+      resUMax = std::max(0l, (int64_t)(lhsUMax - rhsUMin));
       resSMin = lhsSMin - rhsSMax;
       resSMax = lhsSMax - rhsSMin;
     } else if constexpr (std::is_same_v<T, arith::MulIOp>) {
       resUMin = lhsUMin * rhsUMin;
       resUMax = lhsUMax * rhsUMax;
-      resSMin = std::min(lhsSMin * rhsSMin, lhsSMin * rhsSMax);
+      resSMin = std::min(std::min(lhsSMin * rhsSMin, lhsSMin * rhsSMax),
+                         rhsSMin * lhsSMax);
       resSMax = std::max(lhsSMin * rhsSMin, lhsSMax * rhsSMax);
     } else
       llvm_unreachable("Unexpected type for template argument 'T'");
@@ -520,7 +521,7 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
                            : Offset::sub(range->getValue(), rhs.get<Offset>());
           }
 
-          return Value();
+          llvm_unreachable("Should not happen");
         };
 
         return visitBinaryOp(binOp, loopAndThreadVars, solver, getOffset,
@@ -551,7 +552,7 @@ getOffset(const Value expr, const SmallVectorImpl<Value> &loopAndThreadVars,
               return Offset::mul(range->getValue(), rhs.get<Offset>());
           }
 
-          return Value();
+          llvm_unreachable("Should not happen");
         };
 
         return visitBinaryOp(mulOp, loopAndThreadVars, solver, getOffset,
