@@ -27,7 +27,7 @@
 #include <sycl/ext/oneapi/experimental/compat/atomic.hpp>
 #include <sycl/ext/oneapi/experimental/compat/device.hpp>
 #include <sycl/ext/oneapi/experimental/compat/dims.hpp>
-#include <sycl/ext/oneapi/experimental/compat/dpct.hpp>
+#include <sycl/ext/oneapi/experimental/compat/defs.hpp>
 #include <sycl/ext/oneapi/experimental/compat/kernel.hpp>
 #include <sycl/ext/oneapi/experimental/compat/kernel_function.hpp>
 #include <sycl/ext/oneapi/experimental/compat/launch.hpp>
