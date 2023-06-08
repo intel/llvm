@@ -14,7 +14,7 @@
 
 /// Creates a UR Memory object using a CUDA memory allocation.
 /// Can trigger a manual copy depending on the mode.
-/// \TODO Implement USE_HOST_PTR using cuHostRegister
+/// \TODO Implement USE_HOST_PTR using cuHostRegister - See #9789
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
@@ -109,7 +109,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
 /// Decreases the reference count of the Mem object.
 /// If this is zero, calls the relevant CUDA Free function
 /// \return UR_RESULT_SUCCESS unless deallocation error
-///
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
@@ -435,7 +434,6 @@ urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t ImgInfoType,
 /// Implements a buffer partition in the CUDA backend.
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing CUDA allocation.
-///
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
     ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,

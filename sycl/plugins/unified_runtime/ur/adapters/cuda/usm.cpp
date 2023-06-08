@@ -18,7 +18,7 @@
 #include <cuda.h>
 
 /// USM: Implements USM Host allocations using CUDA Pinned Memory
-///
+/// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#page-locked-host-memory
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
@@ -62,6 +62,9 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
+                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   size_t DeviceMaxMemAllocSize = 0;
   UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
@@ -77,11 +80,8 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ScopedContext Active(hContext);
     Result = UR_CHECK_ERROR(cuMemAlloc((CUdeviceptr *)ppMem, size));
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
-                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
 
   assert(Result == UR_RESULT_SUCCESS &&
          (!pUSMDesc || pUSMDesc->align == 0 ||
@@ -99,6 +99,9 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
+                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
+            UR_RESULT_ERROR_INVALID_VALUE);
 
   size_t DeviceMaxMemAllocSize = 0;
   UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
@@ -115,11 +118,8 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     Result = UR_CHECK_ERROR(
         cuMemAllocManaged((CUdeviceptr *)ppMem, size, CU_MEM_ATTACH_GLOBAL));
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
-                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
 
   assert(Result == UR_RESULT_SUCCESS &&
          (!pUSMDesc || pUSMDesc->align == 0 ||
@@ -206,7 +206,6 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 #else
       __builtin_unreachable();
 #endif
-      return ReturnValue(UR_USM_TYPE_UNKNOWN);
     }
     case UR_USM_ALLOC_INFO_BASE_PTR: {
 #if __CUDA_API_VERSION >= 10020

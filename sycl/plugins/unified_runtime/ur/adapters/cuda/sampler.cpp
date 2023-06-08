@@ -17,8 +17,8 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
 
   if (pDesc && pDesc->stype == UR_STRUCTURE_TYPE_SAMPLER_DESC) {
     Sampler->Props |= pDesc->normalizedCoords;
-    Sampler->Props |= (pDesc->filterMode << 1);
-    Sampler->Props |= (pDesc->addressingMode << 2);
+    Sampler->Props |= pDesc->filterMode << 1;
+    Sampler->Props |= pDesc->addressingMode << 2;
   } else {
     // Set default values
     Sampler->Props |= true; // Normalized Coords
@@ -46,7 +46,7 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
   }
   case UR_SAMPLER_INFO_FILTER_MODE: {
     auto FilterProp =
-        static_cast<ur_sampler_filter_mode_t>(((hSampler->Props >> 1) & 0x1));
+        static_cast<ur_sampler_filter_mode_t>((hSampler->Props >> 1) & 0x1);
     return ReturnValue(FilterProp);
   }
   case UR_SAMPLER_INFO_ADDRESSING_MODE: {

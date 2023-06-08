@@ -84,7 +84,7 @@ struct ur_queue_handle_t_ {
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
   native_type getNextComputeStream(uint32_t *StreamToken = nullptr);
-  // this overload tries select a stream that was used by one of dependancies.
+  // this overload tries select a stream that was used by one of dependencies.
   // If that is not possible returns a new stream. If a stream is reused it
   // returns a lock that needs to remain locked as long as the stream is in use
   native_type getNextComputeStream(uint32_t NumEventsInWaitList,
@@ -203,26 +203,26 @@ struct ur_queue_handle_t_ {
     }
     {
       unsigned int Size = static_cast<unsigned int>(TransferStreams.size());
-      if (Size > 0) {
-        std::lock_guard<std::mutex> TransferGuard(TransferStreamMutex);
-        unsigned int Start = LastSyncTransferStreams;
-        unsigned int End = NumTransferStreams < Size
-                               ? NumTransferStreams
-                               : TransferStreamIndex.load();
-        if (ResetUsed) {
-          LastSyncTransferStreams = End;
-        }
-        if (End - Start >= Size) {
-          SyncTransfer(0, Size);
+      if (!Size) {
+        return;
+      }
+      std::lock_guard<std::mutex> TransferGuard(TransferStreamMutex);
+      unsigned int Start = LastSyncTransferStreams;
+      unsigned int End = NumTransferStreams < Size ? NumTransferStreams
+                                                   : TransferStreamIndex.load();
+      if (ResetUsed) {
+        LastSyncTransferStreams = End;
+      }
+      if (End - Start >= Size) {
+        SyncTransfer(0, Size);
+      } else {
+        Start %= Size;
+        End %= Size;
+        if (Start <= End) {
+          SyncTransfer(Start, End);
         } else {
-          Start %= Size;
-          End %= Size;
-          if (Start <= End) {
-            SyncTransfer(Start, End);
-          } else {
-            SyncTransfer(Start, Size);
-            SyncTransfer(0, End);
-          }
+          SyncTransfer(Start, Size);
+          SyncTransfer(0, End);
         }
       }
     }

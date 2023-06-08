@@ -66,7 +66,6 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                      void *pPropValue, size_t *pPropSizeRet) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  // Here we want to query about a kernel's cuda blocks!
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -356,6 +355,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_program_handle_t hProgram,
     const ur_kernel_native_properties_t *pProperties,
     ur_kernel_handle_t *phKernel) {
+  std::ignore = hNativeKernel;
+  std::ignore = hContext;
+  std::ignore = hProgram;
+  std::ignore = pProperties;
+  std::ignore = phKernel;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -56,7 +56,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 ///
 /// However because multiple devices in a context is not currently supported,
 /// place each device in a separate platform.
-///
 UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
               uint32_t *pNumPlatforms) {
@@ -183,7 +182,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-// Returns plugin specific backend option.
+// Get CUDA plugin specific backend option.
 // Current support is only for optimization options.
 // Return empty string for cuda.
 // TODO: Determine correct string to be passed.

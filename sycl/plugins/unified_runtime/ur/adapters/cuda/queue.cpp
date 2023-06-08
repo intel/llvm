@@ -115,7 +115,6 @@ CUstream ur_queue_handle_t_::getNextTransferStream() {
 /// Valid properties
 /// * __SYCL_PI_CUDA_USE_DEFAULT_STREAM -> CU_STREAM_DEFAULT
 /// * __SYCL_PI_CUDA_SYNC_WITH_DEFAULT -> CU_STREAM_NON_BLOCKING
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
               const ur_queue_properties_t *pProps, ur_queue_handle_t *phQueue) {
@@ -294,7 +293,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropSizeRet);
 
-  switch (uint32_t{propName}) {
+  switch (propName) {
   case UR_QUEUE_INFO_CONTEXT:
     return ReturnValue(hQueue->Context);
   case UR_QUEUE_INFO_DEVICE:
@@ -324,7 +323,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     }
   }
   default:
-    break;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;

@@ -159,7 +159,7 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
 /// CUDA driver API doesn't expose an operation for this.
 /// Note: This is currently only being used by the SYCL program class for the
 ///       has_kernel method, so an alternative would be to move the has_kernel
-///       query to PI and use cuModuleGetFunction to check for a kernel.
+///       query to UR and use cuModuleGetFunction to check for a kernel.
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
 ur_result_t getKernelNames(ur_program_handle_t) {
@@ -169,7 +169,6 @@ ur_result_t getKernelNames(ur_program_handle_t) {
 /// CUDA will handle the PTX/CUBIN binaries internally through CUmodule object.
 /// So, urProgramCreateWithIL and urProgramCreateWithBinary are equivalent in
 /// terms of CUDA adapter. See \ref urProgramCreateWithBinary.
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
                       size_t length, const ur_program_properties_t *pProperties,
@@ -186,7 +185,6 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
 /// CUDA will handle the PTX/CUBIN binaries internally through a call to
 /// cuModuleLoadDataEx. So, urProgramCompile and urProgramBuild are equivalent
 /// in terms of CUDA adapter. \TODO Implement asynchronous compilation
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
                  const char *pOptions) {
@@ -196,7 +194,6 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
 /// Loads the images from a UR program into a CUmodule that can be
 /// used later on to extract functions (kernels).
 /// See \ref ur_program_handle_t for implementation details.
-///
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
@@ -218,7 +215,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
 /// Creates a new UR program object that is the outcome of linking all input
 /// programs.
 /// \TODO Implement linker options, requires mapping of OpenCL to CUDA
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramLink(ur_context_handle_t hContext, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
@@ -390,10 +386,10 @@ urProgramRelease(ur_program_handle_t hProgram) {
 
 /// Gets the native CUDA handle of a UR program object
 ///
-/// \param[in] program The PI program to get the native CUDA object of.
-/// \param[out] nativeHandle Set to the native handle of the PI program object.
+/// \param[in] program The UR program handle to get the native CUDA object of.
+/// \param[out] nativeHandle Set to the native handle of the UR program object.
 ///
-/// \return TBD
+/// \return ur_result_t
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t program, ur_native_handle_t *nativeHandle) {
   UR_ASSERT(program, UR_RESULT_ERROR_INVALID_NULL_HANDLE);

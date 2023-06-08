@@ -21,8 +21,8 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 
 /// UR context mapping to a CUDA context object.
 ///
-/// There is no direct mapping between a CUDA context and a UR context,
-/// main differences described below:
+/// There is no direct mapping between a CUDA context and a UR context.
+/// The main differences are described below:
 ///
 /// <b> CUDA context vs UR context </b>
 ///
@@ -32,21 +32,21 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 /// with a given device and control access to said device from the user side.
 /// UR API context are objects that are passed to functions, and not bound
 /// to threads.
-/// The _ur_context object doesn't implement this behavior, only holds the
-/// CUDA context data. The RAII object \ref ScopedContext implements the active
-/// context behavior.
+/// The ur_context_handle_t_ object doesn't implement this behavior. It only
+/// holds the CUDA context data. The RAII object \ref ScopedContext implements
+/// the active context behavior.
 ///
 /// <b> Primary vs User-defined context </b>
 ///
 /// CUDA has two different types of context, the Primary context,
 /// which is usable by all threads on a given process for a given device, and
 /// the aforementioned custom contexts.
-/// CUDA documentation, and performance analysis, indicates it is recommended
-/// to use Primary context whenever possible.
-/// Primary context is used as well by the CUDA Runtime API.
+/// The CUDA documentation, confirmed with performance analysis, suggest using
+/// the Primary context whenever possible.
+/// The Primary context is also used by the CUDA Runtime API.
 /// For UR applications to interop with CUDA Runtime API, they have to use
 /// the primary context - and make that active in the thread.
-/// The `_ur_context` object can be constructed with a `kind` parameter
+/// The `ur_context_handle_t_` object can be constructed with a `kind` parameter
 /// that allows to construct a Primary or `user-defined` context, so that
 /// the UR object interface is always the same.
 ///
@@ -56,6 +56,7 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 ///  the PI Context can store a number of callback functions that will be
 ///  called upon destruction of the UR Context.
 ///  See proposal for details.
+///  https://github.com/codeplaysoftware/standards-proposals/blob/master/extended-context-destruction/index.md
 ///
 struct ur_context_handle_t_ {
 

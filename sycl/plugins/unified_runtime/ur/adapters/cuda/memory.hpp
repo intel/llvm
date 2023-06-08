@@ -18,7 +18,7 @@
 /// Keeps tracks of all mapped regions used for Map/Unmap calls.
 /// Only one region can be active at the same time per allocation.
 struct ur_mem_handle_t_ {
-  // Context where the memory object is accessibles
+  // Context where the memory object is accessible
   ur_context_handle_t Context;
 
   /// Reference counting of the handler
@@ -31,7 +31,7 @@ struct ur_mem_handle_t_ {
   /// A UR Memory object represents either plain memory allocations ("Buffers"
   /// in OpenCL) or typed allocations ("Images" in OpenCL).
   /// In CUDA their API handlers are different. Whereas "Buffers" are allocated
-  /// as pointer-like structs, "Images" are stored in Textures or Surfaces
+  /// as pointer-like structs, "Images" are stored in Textures or Surfaces.
   /// This union allows implementation to use either from the same handler.
   union MemImpl {
     // Handler for plain, pointer-based CUDA allocations
@@ -80,7 +80,6 @@ struct ur_mem_handle_t_ {
       /// Returns a pointer to data visible on the host that contains
       /// the data on the device associated with this allocation.
       /// The offset is used to index into the CUDA allocation.
-      ///
       void *mapToPtr(size_t Offset, ur_map_flags_t Flags) noexcept {
         assert(MapPtr == nullptr);
         MapOffset = Offset;
@@ -152,7 +151,6 @@ struct ur_mem_handle_t_ {
                    ur_mem_type_t ImageType, void *HostPtr)
       : Context{Context}, RefCount{1}, MemType{Type::Surface},
         MemFlags{MemFlags} {
-    // Ignore unused parameter
     (void)HostPtr;
 
     Mem.SurfaceMem.Array = Array;
@@ -162,16 +160,13 @@ struct ur_mem_handle_t_ {
   }
 
   ~ur_mem_handle_t_() {
-    if (MemType == Type::Buffer) {
-      if (isSubBuffer()) {
-        urMemRelease(Mem.BufferMem.Parent);
-        return;
-      }
+    if (isBuffer() && isSubBuffer()) {
+      urMemRelease(Mem.BufferMem.Parent);
+      return;
     }
     urContextRelease(Context);
   }
 
-  // TODO: Move as many shared funcs up as possible
   bool isBuffer() const noexcept { return MemType == Type::Buffer; }
 
   bool isSubBuffer() const noexcept {

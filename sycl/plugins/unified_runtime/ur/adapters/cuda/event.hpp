@@ -101,7 +101,7 @@ private:
                      uint32_t StreamToken);
 
   // This constructor is private to force programmers to use the
-  // makeWithNative for event introp
+  // makeWithNative for event interop
   ur_event_handle_t_(ur_context_handle_t Context, CUevent EventNative);
 
   ur_command_t CommandType; // The type of command associated with event.
@@ -117,33 +117,34 @@ private:
   bool IsRecorded; // Signifies wether a native CUDA event has been recorded
                    // yet.
   bool IsStarted;  // Signifies wether the operation associated with the
-                   // PI event has started or not
+                   // UR event has started or not
 
   uint32_t StreamToken;
   uint32_t EventID; // Queue identifier of the event.
 
-  native_type EvEnd; // CUDA event handle. If this _pi_event represents a user
-                     // event, this will be nullptr.
+  native_type EvEnd; // CUDA event handle. If this ur_event_handle_t represents
+                     // a user event, this will be nullptr.
 
   native_type EvStart; // CUDA event handle associated with the start
 
   native_type EvQueued; // CUDA event handle associated with the time
                         // the command was enqueued
 
-  ur_queue_handle_t Queue; // pi_queue associated with the event. If this is a
-                           // user event, this will be nullptr.
+  ur_queue_handle_t Queue; // ur_queue_handle_t associated with the event. If
+                           // this is a user event, this will be nullptr.
 
   CUstream Stream; // CUstream associated with the event. If this is a user
                    // event, this will be uninitialized.
 
-  ur_context_handle_t Context; // pi_context associated with the event. If this
-                               // is a native event, this will be the same
-                               // context associated with the queue_ member.
+  ur_context_handle_t Context; // ur_context_handle_t associated with the event.
+                               // If this is a native event, this will be the
+                               // same context associated with the queue member.
 };
 
-// Iterates over the event wait list, returns correct ur_result_t error codes.
-// Invokes the callback for the latest event of each queue in the wait list.
-// The callback must take a single pi_event argument and return a ur_result_t.
+// Iterate over `event_wait_list` and apply the given callback `f` to the
+// latest event on each queue therein. The callback must take a single
+// ur_event_handle_t argument and return a ur_result_t. If the callback returns
+// an error, the iteration terminates and the error is returned.
 template <typename Func>
 ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
                             std::size_t NumEventsInWaitList, Func &&F) {
@@ -169,14 +170,13 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
                       Event0->getEventID() > Event1->getEventID());
             });
 
-  bool First = true;
   CUstream LastSeenStream = 0;
-  for (ur_event_handle_t Event : Events) {
-    if (!Event || (!First && Event->getStream() == LastSeenStream)) {
+  for (size_t i = 0; i < Events.size(); i++) {
+    auto Event = Events[i];
+    if (!Event || (i != 0 && Event->getStream() == LastSeenStream)) {
       continue;
     }
 
-    First = false;
     LastSeenStream = Event->getStream();
 
     auto Result = F(Event);

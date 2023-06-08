@@ -23,7 +23,7 @@
 /// invocation. This is not the case of CUFunction objects,
 /// which are simply passed together with the arguments on the invocation.
 /// The UR Kernel implementation for CUDA stores the list of arguments,
-/// argument sizes and offsets to emulate the interface of UR Kernel,
+/// argument sizes, and offsets to emulate the interface of UR Kernel,
 /// saving the arguments for the later dispatch.
 /// Note that in UR API, the Local memory is specified as a size per
 /// individual argument, but in CUDA only the total usage of shared
@@ -31,7 +31,6 @@
 /// A compiler pass converts the UR API local memory model into the
 /// CUDA shared model. This object simply calculates the total of
 /// shared memory, and the initial offsets of each parameter.
-///
 struct ur_kernel_handle_t_ {
   using native_type = CUfunction;
 
@@ -68,7 +67,7 @@ struct ur_kernel_handle_t_ {
       Indices.emplace_back(&ImplicitOffsetArgs);
     }
 
-    /// Adds an argument to the kernel.
+    /// Add an argument to the kernel.
     /// If the argument existed before, it is replaced.
     /// Otherwise, it is added.
     /// Gaps are filled with empty arguments.
@@ -104,8 +103,9 @@ struct ur_kernel_handle_t_ {
 
       // align the argument
       size_t AlignedLocalOffset = LocalOffset;
-      if (LocalOffset % Alignment != 0) {
-        AlignedLocalOffset += Alignment - (LocalOffset % Alignment);
+      size_t Pad = LocalOffset % Alignment;
+      if (Pad != 0) {
+        AlignedLocalOffset += Alignment - Pad;
       }
 
       addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
@@ -171,7 +171,7 @@ struct ur_kernel_handle_t_ {
 
   const char *getName() const noexcept { return Name.c_str(); }
 
-  /// Returns the number of arguments, excluding the implicit global offset.
+  /// Get the number of kernel arguments, excluding the implicit global offset.
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
   /// the CUDA Driver API
