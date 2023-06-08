@@ -1,4 +1,4 @@
-= sycl_ext_intel_register_mode
+= sycl_ext_intel_grf_size
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -68,7 +68,7 @@ is not able to issue a diagnostic to warn you if this happens.
 
 There are devices where the size of the general register file (GRF) used by a kernel is 
 configurable. Developers may want to change the GRF size based on their
-application. This extension adds the kernel property `register_mode` which provides a way
+application. This extension adds the kernel property `grf_size` which provides a way
 to specify the GRF size.
 
 == Specification
@@ -77,7 +77,7 @@ to specify the GRF size.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_INTEL_REGISTER_MODE` to one of the values defined in the table
+macro `SYCL_EXT_INTEL_GRF_SIZE` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -94,22 +94,22 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== Register Mode Property
+=== GRF Size Property
 
-The `register_mode` kernel property provides a way to specify the GRF size used by a kernel. 
+The `grf_size` kernel property provides a way to specify the GRF size used by a kernel. 
 It accepts a single integer value. It is defined as follows:
 ```c++
 namespace sycl::ext::intel::experimental {
 
-struct register_mode_key {
+struct grf_size_key {
   template <int Mode>
   using value_t = 
-      oneapi::experimental::property_value<register_mode_key, 
+      oneapi::experimental::property_value<grf_size_key, 
                                            std::integral_constant<int, Mode>>;
 };
 
 template <int Mode>
-inline constexpr register_mode_key::value_t<Mode> register_mode;
+inline constexpr grf_size_key::value_t<Mode> grf_size;
 
 } // namespace sycl::ext::intel::experimental
 ```
@@ -117,8 +117,8 @@ The supported values are as follows:
 [%header,cols="1,5"]
 |===
 |GPU |Supported Values
-| PVC | 128, 256
-| DG2 | 128, 256
+| PVC | 128 (small register file), 256 (large register file)
+| DG2 | 128 (small register file), 256 (large register file)
 |===
 
 Providing a value not consistent with the supported values may result in undefined behavior.
@@ -128,10 +128,11 @@ Providing a value not consistent with the supported values may result in undefin
 A simple example of using this extension is below.
 
 ```c++
-using namespace sycl::ext::intel::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
 {
   ...
-  properties kernel_properties{register_mode<256>};
+  syclex::properties kernel_properties{intelex::grf_size<256>};
 
   q.single_task(kernel_properties, [=] {
    ...
