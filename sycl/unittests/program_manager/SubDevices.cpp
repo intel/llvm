@@ -134,13 +134,11 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
 
   // Build program via getBuiltPIProgram API
   sycl::detail::ProgramManager::getInstance().getBuiltPIProgram(
-      sycl::detail::OSUtil::getOSModuleHandle(&devBin),
       sycl::detail::getSyclObjImpl(Ctx), subDev1,
       sycl::detail::KernelInfo<TestKernel<>>::getName());
   // This call should re-use built binary from the cache. If piProgramBuild is
   // called again, the test will fail as second call of redefinedProgramBuild
   sycl::detail::ProgramManager::getInstance().getBuiltPIProgram(
-      sycl::detail::OSUtil::getOSModuleHandle(&devBin),
       sycl::detail::getSyclObjImpl(Ctx), subDev2,
       sycl::detail::KernelInfo<TestKernel<>>::getName());
 }

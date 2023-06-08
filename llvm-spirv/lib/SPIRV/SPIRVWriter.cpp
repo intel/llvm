@@ -1199,13 +1199,22 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   F->getContext().getMDKindNames(MDNames);
   F->getAllMetadata(AllMD);
   for (auto MD : AllMD) {
+    std::string MDName = MDNames[MD.first].str();
+
+    // spirv.Decorations and spirv.ParameterDecorations are handled
+    // elsewhere for both forward and reverse translation and are complicated
+    // to support here, so just skip them.
+    if (MDName == SPIRV_MD_DECORATIONS ||
+        MDName == SPIRV_MD_PARAMETER_DECORATIONS)
+      continue;
+
     // Format for metadata is:
     // NonSemanticAuxDataFunctionMetadata Fcn MDName MDVals...
     // MDName is always a String, MDVals have different types as explained
     // below. Also note this instruction has a variable number of operands
     std::vector<SPIRVWord> Ops;
     Ops.push_back(BF->getId());
-    Ops.push_back(BM->getString(MDNames[MD.first].str())->getId());
+    Ops.push_back(BM->getString(MDName)->getId());
     for (unsigned int OpIdx = 0; OpIdx < MD.second->getNumOperands(); OpIdx++) {
       const auto &CurOp = MD.second->getOperand(OpIdx);
       if (auto *MDStr = dyn_cast<MDString>(CurOp)) {
