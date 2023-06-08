@@ -353,7 +353,8 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (x_global_work_size % threadsPerBlock[0]) || !isPowerOf2(threadsPerBlock[0]) {
+  while (0u != (x_global_work_size % threadsPerBlock[0]) || 
+    !isPowerOf2(threadsPerBlock[0]) {
     --threadsPerBlock[0];
   }
 }
@@ -649,8 +650,8 @@ _pi_event::_pi_event(pi_context context, CUevent eventNative)
     : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
-      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr},
-      context_{context} {
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
+                                                                  context} {
   cuda_piContextRetain(context_);
 }
 
@@ -2180,7 +2181,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
         cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
         CUDA_SUCCESS);
     // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
-    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) ==
+                                12);
     return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
                         param_value_size, param_value, param_value_size_ret,
                         AddressBuffer);
