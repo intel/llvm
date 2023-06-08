@@ -78,27 +78,17 @@ TEST_P(urQueueCreateTest, InvalidValueProperties) {
 
 TEST_P(urQueueCreateTest, InvalidQueueProperties) {
     ur_queue_handle_t queue = nullptr;
-
-    // It should be an error to specify both low/high priorities
     ur_queue_properties_t props = {
         /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         /*.pNext =*/nullptr,
-        /*.flags =*/UR_QUEUE_FLAG_PRIORITY_HIGH | UR_QUEUE_FLAG_PRIORITY_LOW,
+        /*.flags =*/UR_QUEUE_FLAG_PRIORITY_HIGH | UR_QUEUE_FLAG_PRIORITY_LOW |
+            UR_QUEUE_FLAG_SUBMISSION_BATCHED |
+            UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE,
     };
+    // It should be an error to specify both low/high priorities
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
                      urQueueCreate(context, device, &props, &queue));
-}
-
-TEST_P(urQueueCreateTest, InvalidQueueProperties) {
-  ur_queue_handle_t queue = nullptr;
-
-  // It should be an error to specify both batched and immediate submission
-  ur_queue_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
-      /*.pNext =*/nullptr,
-      /*.flags =*/UR_QUEUE_FLAG_SUBMISSION_BATCHED |
-          UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE,
-  };
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
-                   urQueueCreate(context, device, &props, &queue));
+    // It should be an error to specify both batched and immediate submission
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
+                     urQueueCreate(context, device, &props, &queue));
 }

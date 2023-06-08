@@ -1518,6 +1518,9 @@ class ur_queue_flags_v(IntEnum):
     DISCARD_EVENTS = UR_BIT(4)                      ## Events will be discarded
     PRIORITY_LOW = UR_BIT(5)                        ## Low priority queue
     PRIORITY_HIGH = UR_BIT(6)                       ## High priority queue
+    SUBMISSION_BATCHED = UR_BIT(7)                  ## Enqueue and submit in a batch later, as determined by adaptor or
+                                                    ## driver
+    SUBMISSION_IMMEDIATE = UR_BIT(8)                ## Enqueue and submit immediately
 
 class ur_queue_flags_t(c_int):
     def __str__(self):
