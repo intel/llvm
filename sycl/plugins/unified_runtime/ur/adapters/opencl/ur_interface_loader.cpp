@@ -41,6 +41,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetInfo = urPlatformGetInfo;
   pDdiTable->pfnGetNativeHandle = urPlatformGetNativeHandle;
+  pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
   return UR_RESULT_SUCCESS;
 }
 
@@ -115,9 +116,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
   pDdiTable->pfnSetArgLocal = nullptr;
-  pDdiTable->pfnSetArgMemObj = nullptr;
+  pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
-  pDdiTable->pfnSetArgSampler = nullptr;
+  pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = nullptr;
@@ -244,7 +245,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   }
   pDdiTable->pfnCreateWithNativeHandle = urDeviceCreateWithNativeHandle;
   pDdiTable->pfnGet = urDeviceGet;
-  //  pDdiTable->pfnGetGlobalTimestamps = urDeviceGetGlobalTimestamps;
+  pDdiTable->pfnGetGlobalTimestamps = urDeviceGetGlobalTimestamps;
   pDdiTable->pfnGetInfo = urDeviceGetInfo;
   pDdiTable->pfnGetNativeHandle = urDeviceGetNativeHandle;
   pDdiTable->pfnPartition = urDevicePartition;

@@ -153,3 +153,28 @@ UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *pParams) {
   }
   return UR_RESULT_SUCCESS;
 }
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-cl-opt-disable' for pFrontendOption = -O0 and '' for others.
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
+    ur_platform_handle_t hPlatform, const char *pFrontendOption,
+    const char **ppPlatformOption) {
+  using namespace std::literals;
+  if (pFrontendOption == nullptr)
+    return UR_RESULT_SUCCESS;
+  if (pFrontendOption == ""sv) {
+    *ppPlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  if (!strcmp(pFrontendOption, "-O0")) {
+    *ppPlatformOption = "-cl-opt-disable";
+    return UR_RESULT_SUCCESS;
+  }
+  if (pFrontendOption == "-O1"sv || pFrontendOption == "-O2"sv ||
+      pFrontendOption == "-O3"sv) {
+    *ppPlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
+}

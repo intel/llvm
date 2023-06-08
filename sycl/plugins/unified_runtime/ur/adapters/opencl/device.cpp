@@ -8,6 +8,7 @@
 
 #include "device.hpp"
 #include "common.hpp"
+#include "platform.hpp"
 
 #include <cassert>
 #include <sycl/detail/cl.h>
@@ -1004,5 +1005,42 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   UR_ASSERT(hNativeDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   *phDevice = reinterpret_cast<ur_device_handle_t>(hNativeDevice);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
+    ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
+    uint64_t *pHostTimestamp) {
+  OCLV::OpenCLVersion devVer, platVer;
+  cl_platform_id platform;
+  cl_device_id deviceID = cl_adapter::cast<cl_device_id>(hDevice);
+
+  // TODO: Cache OpenCL version for each device and platform
+  auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
+                                 sizeof(cl_platform_id), &platform, nullptr);
+  CL_RETURN_ON_FAILURE(ret_err);
+
+  ret_err = cl_adapter::getDeviceVersion(deviceID, devVer);
+  CL_RETURN_ON_FAILURE(ret_err);
+
+  ret_err = cl_adapter::getPlatformVersion(platform, platVer);
+
+  if (platVer < OCLV::V2_1 || devVer < OCLV::V2_1) {
+    cl_adapter::setErrorMessage(
+        "OpenCL version for device and/or platform is less than 2.1",
+        UR_RESULT_ERROR_INVALID_OPERATION);
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  if (pDeviceTimestamp) {
+    uint64_t dummy;
+    clGetDeviceAndHostTimer(deviceID, pDeviceTimestamp,
+                            pHostTimestamp == nullptr ? &dummy
+                                                      : pHostTimestamp);
+
+  } else if (pHostTimestamp) {
+    clGetHostTimer(deviceID, pHostTimestamp);
+  }
+
   return UR_RESULT_SUCCESS;
 }

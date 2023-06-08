@@ -166,13 +166,12 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     uint32_t MaxDims = 0;
     ur_result_t UrRet =
         urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
-                               sizeof(uint32_t), &MaxDims, nullptr);
+                        sizeof(uint32_t), &MaxDims, nullptr);
     if (UrRet != UR_RESULT_SUCCESS)
       return UrRet;
     std::shared_ptr<size_t[]> WGSizes{new size_t[MaxDims]};
-    UrRet = urDeviceGetInfo(
-        hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES, MaxDims * sizeof(size_t),
-        WGSizes.get(), nullptr);
+    UrRet = urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                            MaxDims * sizeof(size_t), WGSizes.get(), nullptr);
     if (UrRet != UR_RESULT_SUCCESS)
       return UrRet;
     for (size_t i = 1; i < MaxDims; ++i)
@@ -359,5 +358,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   UR_ASSERT(hNativeKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, ur_mem_handle_t hArgValue) {
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  cl_int ret_err = clSetKernelArg(
+      cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),
+      sizeof(hArgValue), cl_adapter::cast<const cl_mem *>(hArgValue));
+  CL_RETURN_ON_FAILURE(ret_err);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      ur_sampler_handle_t hArgValue) {
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hArgValue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  cl_int ret_err = clSetKernelArg(
+      cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),
+      sizeof(hArgValue), cl_adapter::cast<const cl_sampler *>(&hArgValue));
+  CL_RETURN_ON_FAILURE(ret_err);
   return UR_RESULT_SUCCESS;
 }
