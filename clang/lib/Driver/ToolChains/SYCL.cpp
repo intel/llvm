@@ -834,19 +834,22 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   DerivedArgList *DAL =
       HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
 
-  if (!DAL) {
+  if (!DAL)
     DAL = new DerivedArgList(Args.getBaseArgs());
-    for (Arg *A : Args) {
-      // Filter out any options we do not want to pass along to the device
-      // compilation.
-      switch ((options::ID)A->getOption().getID()) {
-      case options::OPT_fsanitize_EQ:
-      case options::OPT_fcf_protection_EQ:
-        break;
-      default:
-        DAL->append(A);
-        break;
-      }
+
+  for (Arg *A : Args) {
+    // Filter out any options we do not want to pass along to the device
+    // compilation.
+    auto Opt(A->getOption().getID());
+    switch (Opt) {
+    case options::OPT_fsanitize_EQ:
+    case options::OPT_fcf_protection_EQ:
+      if (llvm::is_contained(*DAL, A))
+        DAL->eraseArg(Opt);
+      break;
+    default:
+      DAL->append(A);
+      break;
     }
   }
   // Strip out -O0 for FPGA Hardware device compilation.
