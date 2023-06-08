@@ -62,7 +62,7 @@ namespace ext::intel::esimd::detail {
 /// object type (simd or simd_mask):
 /// - bitwise logic operations - for integral element types (both simd and
 ///   simd_mask)
-/// - bit shift operations and and '%' - for the simd type
+/// - bit shift operations and '%' - for the simd type
 ///   with integral element types
 /// - arithmetic binary operations - for the simd type
 /// In all cases, when an operation has a simd_view and a simd_obj_impl's
@@ -555,17 +555,17 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(+, __ESIMD_ARITH_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(-, __ESIMD_ARITH_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_BIN_OP(*, __ESIMD_ARITH_OP_FILTER)
-__ESIMD_DEF_SIMD_MASK_BIN_OP(/, __ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
 
-#define __ESIMD_SHIFT_OP_FILTER std::is_integral_v<T1> &&std::is_integral_v<T2>
-__ESIMD_DEF_SIMD_MASK_BIN_OP(%, __ESIMD_SHIFT_OP_FILTER)
-__ESIMD_DEF_SIMD_MASK_BIN_OP(<<, __ESIMD_SHIFT_OP_FILTER)
-__ESIMD_DEF_SIMD_MASK_BIN_OP(>>, __ESIMD_SHIFT_OP_FILTER)
+#define __ESIMD_INT_ARITH_OP_FILTER                                            \
+  std::is_integral_v<T1> &&std::is_integral_v<T2>
+__ESIMD_DEF_SIMD_MASK_BIN_OP(<<, __ESIMD_INT_ARITH_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_BIN_OP(>>, __ESIMD_INT_ARITH_OP_FILTER)
 #undef __ESIMD_SHIFT_OP_FILTER
 
 #undef __ESIMD_DEF_SIMD_MASK_BIN_OP
-
+// Binary bit operators between scalar and simd_mask are supported by
+// operators implementation between vectors and scalars.
 #define __ESIMD_DEF_SIMD_MASK_BIN_BIT_OP(BINOP, COND)                          \
   /* simd BINOP simd_mask */                                                   \
   template <class SimdT1, class SimdT2,                                        \
@@ -672,8 +672,6 @@ __ESIMD_DEF_SIMD_MASK_BIN_BIT_OP(&, __ESIMD_BITWISE_OP_FILTER)
 // Equality comparison is defined for all simd_obj_impl subclasses.
 __ESIMD_DEF_SIMD_MASK_CMP_OP(==, __ESIMD_CMP_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_CMP_OP(!=, __ESIMD_CMP_OP_FILTER)
-
-// Relational operators are defined only for the simd type.
 __ESIMD_DEF_SIMD_MASK_CMP_OP(<, __ESIMD_CMP_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_CMP_OP(>, __ESIMD_CMP_OP_FILTER)
 __ESIMD_DEF_SIMD_MASK_CMP_OP(<=, __ESIMD_CMP_OP_FILTER)
@@ -797,7 +795,8 @@ __ESIMD_DEF_SIMD_VIEW_MASK_BIN_OP(/, __ESIMD_ARITH_OP_FILTER)
   __ESIMD_DNS::is_valid_simd_elem_type_v<T1>                                   \
       &&__ESIMD_DNS::is_valid_simd_elem_type_v<T2>
 
-// Equality comparison is defined for views of all simd_obj_impl derivatives.
+// Equality comparison is defined for views of all simd_obj_impl
+// derivatives.
 __ESIMD_DEF_SIMD_VIEW_MASK_CMP_OP(==, __ESIMD_CMP_OP_FILTER)
 __ESIMD_DEF_SIMD_VIEW_MASK_CMP_OP(!=, __ESIMD_CMP_OP_FILTER)
 
