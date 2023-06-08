@@ -3326,7 +3326,7 @@ bool FunctionDecl::isInlineBuiltinDeclaration() const {
     return false;
 
   ASTContext &Context = getASTContext();
-  switch (Context.GetGVALinkageForFunction(this)) {
+  switch (Context.GetGVALinkageForFunction(Definition)) {
   case GVA_Internal:
   case GVA_DiscardableODR:
   case GVA_StrongODR:

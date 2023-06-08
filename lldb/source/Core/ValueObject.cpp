@@ -427,16 +427,13 @@ lldb::ValueObjectSP ValueObject::GetChildAtIndexPath(
 }
 
 lldb::ValueObjectSP
-ValueObject::GetChildAtNamePath(llvm::ArrayRef<ConstString> names,
-                                ConstString *name_of_error) {
+ValueObject::GetChildAtNamePath(llvm::ArrayRef<llvm::StringRef> names) {
   if (names.size() == 0)
     return GetSP();
   ValueObjectSP root(GetSP());
-  for (ConstString name : names) {
+  for (llvm::StringRef name : names) {
     root = root->GetChildMemberWithName(name, true);
     if (!root) {
-      if (name_of_error)
-        *name_of_error = name;
       return root;
     }
   }
@@ -460,9 +457,9 @@ lldb::ValueObjectSP ValueObject::GetChildAtNamePath(
   return root;
 }
 
-size_t ValueObject::GetIndexOfChildWithName(ConstString name) {
+size_t ValueObject::GetIndexOfChildWithName(llvm::StringRef name) {
   bool omit_empty_base_classes = true;
-  return GetCompilerType().GetIndexOfChildWithName(name.GetCString(),
+  return GetCompilerType().GetIndexOfChildWithName(name,
                                                    omit_empty_base_classes);
 }
 
@@ -483,7 +480,7 @@ ValueObjectSP ValueObject::GetChildMemberWithName(llvm::StringRef name,
 
   const size_t num_child_indexes =
       GetCompilerType().GetIndexOfChildMemberWithName(
-          name.str().data(), omit_empty_base_classes, child_indexes);
+          name, omit_empty_base_classes, child_indexes);
   if (num_child_indexes == 0)
     return nullptr;
 
