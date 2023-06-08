@@ -202,6 +202,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     Atomic,
     Group,
     HItem,
+    Half,
     ID,
     ItemBase,
     Item,
@@ -232,6 +233,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"atomic", TypeEnum::Atomic},
       {"group", TypeEnum::Group},
       {"h_item", TypeEnum::HItem},
+      {"half", TypeEnum::Half},
       {"id", TypeEnum::ID},
       {"ItemBase", TypeEnum::ItemBase},
       {"item", TypeEnum::Item},
@@ -456,6 +458,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   if (const auto *CXXRD = llvm::dyn_cast<clang::CXXRecordDecl>(RD)) {
     switch (StrToTypeEnum[CXXRD->getName().str()]) {
     // Keep in alphabetical order.
+    case TypeEnum::Half:
+      return mlir::sycl::HalfType::get(CGT.getModule()->getContext(), Body);
     case TypeEnum::KernelHandler:
       return mlir::sycl::KernelHandlerType::get(CGT.getModule()->getContext(),
                                                 Body);

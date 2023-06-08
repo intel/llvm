@@ -82,6 +82,7 @@ def AccessorSubscriptMemRef : MemRefOf<[SYCL_AccessorSubscriptType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
 def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
+def HalfMemRef : MemRefOf<[SYCL_HalfType]>;
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
 def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
@@ -109,6 +110,7 @@ def SYCLMemref : AnyTypeOf<[
   ArrayMemRef,
   AtomicMemRef,
   GroupMemRef,  
+  HalfMemRef,
   IDMemRef,
   ItemBaseMemRef,
   ItemMemRef,
