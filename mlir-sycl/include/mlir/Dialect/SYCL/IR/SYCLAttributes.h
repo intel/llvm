@@ -40,6 +40,7 @@ class ReqdWorkGroupSize {
 public:
   ReqdWorkGroupSize(ArrayRef<gpu::GPUFuncOp> kernels);
   bool empty() const;
+  unsigned size() const;
   unsigned operator[](unsigned dim) const;
 
 private:
