@@ -402,16 +402,9 @@ bool mayConflictWithWriteInLoop(affine::MemRefAccess memRefAccess,
   return walkResult.wasInterrupted();
 }
 
-sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                                    OpBuilder builder, Location loc) {
-  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  const auto resTy = builder.getIndexType();
-  return builder.create<sycl::SYCLIDGetOp>(
-      loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
-}
-
-Value constructSYCLID(sycl::IDType idTy, ArrayRef<Value> indexes,
-                      OpBuilder builder, Location loc) {
+TypedValue<MemRefType> constructSYCLID(sycl::IDType idTy,
+                                       ArrayRef<Value> indexes,
+                                       OpBuilder builder, Location loc) {
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   for (unsigned dim = 0; dim < idTy.getDimension(); ++dim) {
@@ -848,13 +841,16 @@ void LoopInternalization::transform(T loop,
   std::variant<Value, unsigned> offset =
       ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
   for (Operation *memref : memrefs) {
-    sycl::AccessorType accTy =
-        getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
+    auto accSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
+    sycl::AccessorType accTy = getAccessorType(accSub);
     const auto idTy = cast<sycl::IDType>(
         cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
     // TODO: The current indexes used are incorrect.
     SmallVector<Value> indexes(localIDs.begin(), localIDs.end());
-    constructSYCLID(idTy, indexes, builder, builder.getUnknownLoc());
+    TypedValue<MemRefType> id =
+        constructSYCLID(idTy, indexes, builder, builder.getUnknownLoc());
+    createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder,
+                                  builder.getUnknownLoc());
 
     createViewOp(accTy, ValueOrUnsigned::getValue(offset, builder), getGlobalOp,
                  workGroupSize, builder, memref->getLoc());

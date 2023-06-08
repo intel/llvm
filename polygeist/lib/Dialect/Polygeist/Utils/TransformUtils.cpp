@@ -683,9 +683,8 @@ bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
-                                           unsigned index, OpBuilder builder,
-                                           Location loc) {
+sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
+                                    OpBuilder builder, Location loc) {
   const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
   const auto resTy = builder.getIndexType();
   return builder.create<sycl::SYCLIDGetOp>(
@@ -710,7 +709,7 @@ createSYCLAccessorGetRangeOp(sycl::AccessorPtrValue accessor, OpBuilder builder,
   return builder.create<sycl::SYCLAccessorGetRangeOp>(loc, rangeTy, accessor);
 }
 
-static sycl::SYCLAccessorSubscriptOp
+sycl::SYCLAccessorSubscriptOp
 createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
                               TypedValue<MemRefType> id, OpBuilder builder,
                               Location loc) {

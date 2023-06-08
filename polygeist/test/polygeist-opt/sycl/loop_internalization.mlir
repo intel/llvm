@@ -30,12 +30,14 @@
 // CHECK:           memref.store [[LOCALID0_]], [[ID0GET0]][%c0{{.*}}] : memref<?xindex>
 // CHECK:           [[ID0GET1:%.*]] = sycl.id.get [[ID0]][%c1{{.*}}] : (memref<1x!sycl_id_2_>, i32) -> memref<?xindex>
 // CHECK:           memref.store [[LOCALID1_]], [[ID0GET1]][%c0{{.*}}] : memref<?xindex>
+// CHECK:           [[ACCSUB0:%.*]] = sycl.accessor.subscript %arg0[[[ID0]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK:           [[VIEW0:%.*]] = memref.view [[GETGLOBAL]][%c0{{.*}}][] : memref<64xi8, #sycl.access.address_space<local>> to memref<4x2xf32, #sycl.access.address_space<local>>
 // CHECK:           [[ID1:%.*]] = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK:           [[ID1GET0:%.*]] = sycl.id.get [[ID1]][%c0{{.*}}] : (memref<1x!sycl_id_2_>, i32) -> memref<?xindex>
 // CHECK:           memref.store [[LOCALID0_]], [[ID1GET0]][%c0{{.*}}] : memref<?xindex>
 // CHECK:           [[ID1GET1:%.*]] = sycl.id.get [[ID1]][%c1{{.*}}] : (memref<1x!sycl_id_2_>, i32) -> memref<?xindex>
 // CHECK:           memref.store [[LOCALID1_]], [[ID1GET1]][%c0{{.*}}] : memref<?xindex>
+// CHECK:           [[ACCSUB1:%.*]] = sycl.accessor.subscript %arg0[[[ID1]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK:           [[VIEW1:%.*]] = memref.view [[GETGLOBAL]][%c32][] : memref<64xi8, #sycl.access.address_space<local>> to memref<4x2xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:      spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      affine.for [[IV2:%.*]] = [[MAP2]]([[IV1]])[[[TILESIZE]]] to min [[MAP3]]([[IV1]])[[[TILESIZE]]] {
@@ -115,6 +117,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK:             memref.store [[LOCALID1_]], [[ID0GET1]][%c0{{.*}}] : memref<?xindex>
 // CHECK:             [[ID0GET2:%.*]] = sycl.id.get [[ID0]][%c2_i32{{.*}}] : (memref<1x!sycl_id_3_>, i32) -> memref<?xindex>
 // CHECK:             memref.store [[LOCALID2_]], [[ID0GET2]][%c0{{.*}}] : memref<?xindex>
+// CHECK:             [[ACCSUB0:%.*]] = sycl.accessor.subscript %arg0[[[ID0]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<1x!sycl_id_3_>) -> memref<?xf32, 1>
 // CHECK:             [[VIEW0:%.*]] = memref.view [[GETGLOBAL]][%c0{{.*}}][[[LOCALRANGE2_]], [[LOCALRANGE1_]], [[LOCALRANGE0_]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?x?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:        affine.for [[IV3:%.*]] = [[MAP2]]([[IV2]])[[[TILESIZE]]] to min [[MAP3]]([[IV2]])[[[TILESIZE]]] {
@@ -187,6 +190,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK:           memref.store [[LOCALID0_]], [[ID0GET0]][%c0{{.*}}] : memref<?xindex>
 // CHECK:           [[ID0GET1:%.*]] = sycl.id.get [[ID0]][%c1_i32{{.*}}] : (memref<1x!sycl_id_2_>, i32) -> memref<?xindex>
 // CHECK:           memref.store [[LOCALID1_]], [[ID0GET1]][%c0{{.*}}] : memref<?xindex>
+// CHECK:           [[ACCSUB0:%.*]] = sycl.accessor.subscript %arg0[[[ID0]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK:           [[VIEW0:%.*]] = memref.view [[GETGLOBAL]][%c0{{.*}}][[[LOCALRANGE1_]], [[LOCALRANGE0_]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
 // CHECK:           [[MUL1:%.*]] = arith.muli %c4, [[LOCALRANGE0_]] : index 
 // CHECK:           [[MUL2:%.*]] = arith.muli [[MUL1]], [[LOCALRANGE1_]] : index 
@@ -196,6 +200,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK:           memref.store [[LOCALID0_]], [[ID1GET0]][%c0{{.*}}] : memref<?xindex>
 // CHECK:           [[ID1GET1:%.*]] = sycl.id.get [[ID1]][%c1_i32{{.*}}] : (memref<1x!sycl_id_2_>, i32) -> memref<?xindex>
 // CHECK:           memref.store [[LOCALID1_]], [[ID1GET1]][%c0{{.*}}] : memref<?xindex>
+// CHECK:           [[ACCSUB1:%.*]] = sycl.accessor.subscript %arg0[[[ID1]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK:           [[VIEW1:%.*]] = memref.view [[GETGLOBAL]][[[OFFSET]]][[[LOCALRANGE1_]], [[LOCALRANGE0_]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:      spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      [[VAL_1:%.*]] = arith.addi [[IV1]], [[STEP]] : index
@@ -274,12 +279,13 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:      scf.for [[IV2:.*]] = %c1 to %c512 step [[STEP]] {
 // CHECK:             [[ID0:%.*]] = memref.alloca() : memref<1x!sycl_id_3_>
 // CHECK:             [[ID0GET0:%.*]] = sycl.id.get [[ID0]][%c0_i32{{.*}}] : (memref<1x!sycl_id_3_>, i32) -> memref<?xindex>
-// CHECK-NEXT:        memref.store [[LOCALID0_]], [[ID0GET0]][%c0{{.*}}] : memref<?xindex>
+// CHECK:             memref.store [[LOCALID0_]], [[ID0GET0]][%c0{{.*}}] : memref<?xindex>
 // CHECK:             [[ID0GET1:%.*]] = sycl.id.get [[ID0]][%c1_i32{{.*}}] : (memref<1x!sycl_id_3_>, i32) -> memref<?xindex>
-// CHECK-NEXT:        memref.store [[LOCALID1_]], [[ID0GET1]][%c0{{.*}}] : memref<?xindex>
+// CHECK:             memref.store [[LOCALID1_]], [[ID0GET1]][%c0{{.*}}] : memref<?xindex>
 // CHECK:             [[ID0GET2:%.*]] = sycl.id.get [[ID0]][%c2_i32{{.*}}] : (memref<1x!sycl_id_3_>, i32) -> memref<?xindex>
-// CHECK-NEXT:        memref.store [[LOCALID2_]], [[ID0GET2]][%c0{{.*}}] : memref<?xindex>
-// CHECK-NEXT:        [[VIEW0:%.*]] = memref.view [[GETGLOBAL]][%c0{{.*}}][[[LOCALRANGE2_]], [[LOCALRANGE1_]], [[LOCALRANGE0_]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?x?xf32, #sycl.access.address_space<local>>
+// CHECK:             memref.store [[LOCALID2_]], [[ID0GET2]][%c0{{.*}}] : memref<?xindex>
+// CHECK:             [[ACCSUB:%.*]] = sycl.accessor.subscript %arg0[[[ID0]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<1x!sycl_id_3_>) -> memref<?xf32, 1>
+// CHECK:             [[VIEW0:%.*]] = memref.view [[GETGLOBAL]][%c0{{.*}}][[[LOCALRANGE2_]], [[LOCALRANGE1_]], [[LOCALRANGE0_]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?x?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:        [[VAL_2:%.*]] = arith.addi [[IV2]], [[STEP]] : index
 // CHECK-NEXT:        [[VAL_6:%.*]] = arith.cmpi slt, %c512, [[VAL_2]] : index
