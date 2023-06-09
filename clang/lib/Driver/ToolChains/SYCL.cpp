@@ -834,8 +834,11 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   DerivedArgList *DAL =
       HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
 
-  if (!DAL)
+  bool IsNewDAL = false;
+  if (!DAL) {
     DAL = new DerivedArgList(Args.getBaseArgs());
+    IsNewDAL = true;
+  }
 
   for (Arg *A : Args) {
     // Filter out any options we do not want to pass along to the device
@@ -844,11 +847,12 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     switch (Opt) {
     case options::OPT_fsanitize_EQ:
     case options::OPT_fcf_protection_EQ:
-      if (llvm::is_contained(*DAL, A))
+      if (!IsNewDAL)
         DAL->eraseArg(Opt);
       break;
     default:
-      DAL->append(A);
+      if (IsNewDAL)
+        DAL->append(A);
       break;
     }
   }
