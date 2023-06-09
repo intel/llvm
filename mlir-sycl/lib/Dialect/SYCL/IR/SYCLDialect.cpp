@@ -155,11 +155,11 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << Ty.getCurrentDimension() << "_";
         return AliasResult::OverridableAlias;
       })
-      .Case<mlir::sycl::KernelHandlerType, mlir::sycl::StreamType>(
-          [&](auto Ty) {
-            OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
-            return AliasResult::FinalAlias;
-          })
+      .Case<mlir::sycl::HalfType, mlir::sycl::KernelHandlerType,
+            mlir::sycl::StreamType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
+        return AliasResult::FinalAlias;
+      })
       .Case<mlir::sycl::AtomicType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
            << "_" << getAlias(Ty.getAddrSpace());

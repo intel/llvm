@@ -235,3 +235,10 @@ func.func @test_swizzled_vec(%arg0: !sycl_swizzled_vec_f32_4_) {
 }
 
 // -----
+
+!sycl_half_ = !sycl.half<(f16)>
+
+// CHECK: llvm.func @test_half(%arg0: !llvm.[[HALF:struct<"class.sycl::_V1::half"]], (f16)>) {
+func.func @test_half(%arg0: !sycl_half_) {
+  return
+}
