@@ -543,15 +543,17 @@ MemorySelector::selectMemorySpace(const MemoryAccess &memAccess,
 
   MemorySpace memSpace = MemorySpace::Global;
   switch (accessKind) {
-  case AccessKind::ReadOnly: {
+  case AccessKind::ReadOnly:
     if (hasTemporalReuse)
-      return MemorySpace::Shared;
-    if (!hasTemporalReuse && isCoalesced(memAccess))
-      return MemorySpace::Global;
-  } break;
+      memSpace = MemorySpace::Shared;
+    else if (!hasTemporalReuse && isCoalesced(memAccess))
+      memSpace = MemorySpace::Global;
+    else
+      memSpace = MemorySpace::Texture;
+    break;
   case AccessKind::ReadWrite:
   case AccessKind::WriteOnly:
-    return hasTemporalReuse ? MemorySpace::Shared : MemorySpace::Global;
+    memSpace = hasTemporalReuse ? MemorySpace::Shared : MemorySpace::Global;
     break;
   }
 
