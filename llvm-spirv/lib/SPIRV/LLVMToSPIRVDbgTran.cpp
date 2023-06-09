@@ -558,7 +558,8 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
   Ops[DWARFVersionIdx] = M->getDwarfVersion();
   Ops[SourceIdx] = getSource(CU)->getId();
 
-  generateBuildIdentifierAndStoragePath(CU);
+  if (isNonSemanticDebugInfo())
+    generateBuildIdentifierAndStoragePath(CU);
 
   auto DwarfLang =
       static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());

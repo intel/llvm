@@ -205,30 +205,31 @@ SPIRVToLLVMDbgTran::transCompilationUnit(const SPIRVExtInst *DebugInst,
 
   BuilderMap[DebugInst->getId()] = std::make_unique<DIBuilder>(*M);
 
-  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_100) {
+  assert(BuilderMap.size() != 0 && "No debug compile units");
+  if (isNonSemanticDebugInfo(DebugInst->getExtSetKind())) {
+    // Only initialize once
+    if (BuilderMap.size() == 1)
+      setBuildIdentifierAndStoragePath();
+
+    // This assertion is a guard/reminder to update the Producer argument to
+    // createCompileUnit() if a new DebugInfo type is ever created
+    assert(DebugInst->getExtSetKind() ==
+               SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+           DebugInst->getExtSetKind() ==
+               SPIRVEIS_NonSemantic_Shader_DebugInfo_200);
+
     return BuilderMap[DebugInst->getId()]->createCompileUnit(
-        SourceLang, getFile(Ops[SourceIdx]), CompilerVersion, false, Flags, 0);
+        SourceLang, getFile(Ops[SourceIdx]),
+        DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_100
+            ? CompilerVersion
+            : getString(Ops[ProducerIdx]),
+        false, Flags, 0, StoragePath,
+        DICompileUnit::DebugEmissionKind::FullDebug, BuildIdentifier);
   }
-  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
-    StringRef Producer = getString(Ops[ProducerIdx]);
-    return BuilderMap[DebugInst->getId()]->createCompileUnit(
-        SourceLang, getFile(Ops[SourceIdx]), Producer, false, Flags, 0);
-  }
+
   // TODO: Remove this workaround once we switch to NonSemantic.Shader.* debug
   // info by default
   auto Producer = findModuleProducer();
-  assert(BuilderMap.size() != 0 && "No debug compile units");
-  if (BuilderMap.size()==1)
-    // Only initialize once
-    setBuildIdentifierAndStoragePath();
-
-  if (!StoragePath.empty()) {
-    return BuilderMap[DebugInst->getId()]->createCompileUnit(
-        SourceLang, getFile(Ops[SourceIdx]), Producer, false, "", 0,
-        StoragePath, DICompileUnit::DebugEmissionKind::FullDebug,
-        BuildIdentifier);
-  }
-
   return BuilderMap[DebugInst->getId()]->createCompileUnit(
       SourceLang, getFile(Ops[SourceIdx]), Producer, false, Flags, 0);
 }
