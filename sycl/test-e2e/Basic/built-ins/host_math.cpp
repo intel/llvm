@@ -37,7 +37,6 @@ void testCospi() {
 void testRemquo() {
   {
     int quo = 0;
-    sycl::multi_ptr<int, sycl::access::address_space::global_space> x(&quo);
     float rem = sycl::remquo(
         86.0f, 10.0f,
         sycl::multi_ptr<int, sycl::access::address_space::global_space>{&quo});
