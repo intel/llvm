@@ -10,9 +10,7 @@ from fileinput import FileInput
 import util
 import yaml
 
-MAX_FUNCS = 1024 # We could go up to UINT32_MAX...
 ENUM_NAME = '$x_function_t'
-valid_ids = set(range(1, MAX_FUNCS))
 
 class quoted(str):
     pass
@@ -25,17 +23,19 @@ def generate_registry(path, specs):
     etors = dict()
 
     for s in specs:
-        for i, obj in enumerate(s['objects']):
+        for obj in s['objects']:
             if obj['type'] == 'function':
                 functions.append(obj['class'][len('$x'):] + obj['name'])
-
+    
+    # find the function with the largest ID
+    max_reg_entry = 0
     try:
         existing_registry = list(util.yamlRead(path))[1]['etors']
+        max_reg_entry = int(max(existing_registry, key=lambda x: int(x['value']))['value'])
         for etor in existing_registry:
-            valid_ids.discard(int(etor['value']))
             etors[etor['name']] = etor['value']
     except (TypeError, IndexError, KeyError) as e:
-        print('invalid existing registry, ignoring... ' + str(e))
+        raise Exception('invalid existing registry... ' + str(e))
 
     updated = False
 
@@ -45,7 +45,8 @@ def generate_registry(path, specs):
         id = etors.get(etor_name)
         if id is None:
             updated = True
-            id = valid_ids.pop()
+            max_reg_entry += 1
+            id = max_reg_entry
         new_registry.append({'name': util.to_snake_case(fname), 'desc': 'Enumerator for $x'+fname, 'value': str(id)})
 
     if updated is False:
@@ -56,7 +57,7 @@ def generate_registry(path, specs):
     ids = new_registry
     ids = sorted(ids, key=lambda x: int(x['value']))
     wrapper = { 'name': ENUM_NAME, 'type': 'enum', 'desc': 'Defines unique stable identifiers for all functions' , 'etors': ids}
-    header = {'type': 'header', 'desc': quoted('Intel$OneApi Unified Rutime function registry'), 'ordinal': quoted(9)}
+    header = {'type': 'header', 'desc': quoted('Intel$OneApi Unified Runtime function registry'), 'ordinal': quoted(9)}
 
     try:
         with open(path, 'w') as fout:
