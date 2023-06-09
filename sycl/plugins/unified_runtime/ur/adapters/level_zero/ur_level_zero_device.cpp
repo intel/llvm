@@ -721,7 +721,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return UR_RESULT_ERROR_INVALID_VALUE;
   case UR_DEVICE_INFO_BFLOAT16: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
-    return ReturnValue(bool{false});
+    return ReturnValue(uint32_t{false});
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
