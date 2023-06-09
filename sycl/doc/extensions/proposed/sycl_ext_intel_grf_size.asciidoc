@@ -111,6 +111,8 @@ It accepts a single unsigned integer value.
 
 At most one of the `grf_size` and `grf_size_automatic` properties may be associated with a kernel.
 
+If a kernel is not associated with a `grf_size` or `grf_size_automatic` property, the manner in which the GRF size is selected is implementation-defined.
+
 The properties are defined as follows:
 ```c++
 namespace sycl::ext::intel::experimental {
