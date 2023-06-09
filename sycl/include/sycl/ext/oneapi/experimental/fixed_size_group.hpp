@@ -161,11 +161,14 @@ template <size_t PartitionSize, typename ParentGroup>
 struct is_user_constructed_group<fixed_size_group<PartitionSize, ParentGroup>>
     : std::true_type {};
 
-template <size_t PartitionSize, typename ParentGroup>
-struct is_fixed_size_group<fixed_size_group<PartitionSize, ParentGroup>>
-    : std::true_type {};
-
 } // namespace ext::oneapi::experimental
+
+namespace detail {
+template <size_t PartitionSize, typename ParentGroup>
+struct is_fixed_size_group<
+    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>>
+    : std::true_type {};
+} // namespace detail
 
 template <size_t PartitionSize, typename ParentGroup>
 struct is_group<

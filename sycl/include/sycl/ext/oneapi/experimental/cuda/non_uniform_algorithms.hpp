@@ -96,10 +96,9 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 
 // fixed_size_group group reduction using shfls
 template <typename Group, typename T, class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group>, T>
-    masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                                const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<is_fixed_size_group_v<Group>, T>
+masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                            const uint32_t MemberMask) {
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
     T tmp;
     if constexpr (std::is_same_v<T, double>) {
@@ -139,7 +138,7 @@ template <typename Group, typename T>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>, T>
 non_uniform_shfl_T(const uint32_t MemberMask, T x, int shfl_param) {
-  if constexpr (ext::oneapi::experimental::is_fixed_size_group_v<Group>) {
+  if constexpr (is_fixed_size_group_v<Group>) {
     return __nvvm_shfl_sync_up_i32(MemberMask, x, shfl_param, 0);
   } else {
     return __nvvm_shfl_sync_idx_i32(MemberMask, x, shfl_param, 31);
@@ -186,7 +185,7 @@ non_uniform_shfl(Group g, const uint32_t MemberMask, T x, int shfl_param) {
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !ext::oneapi::experimental::is_fixed_size_group_v<Group>,
+        !is_fixed_size_group_v<Group>,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {
@@ -284,10 +283,9 @@ GET_ID(IsMaximum, min)
 // fixed_size_group group scan using shfls
 template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<ext::oneapi::experimental::is_fixed_size_group_v<Group>, T>
-    masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                           const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<is_fixed_size_group_v<Group>, T>
+masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                       const uint32_t MemberMask) {
   unsigned localIdVal = g.get_local_id()[0];
   for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
     auto tmp = non_uniform_shfl(g, MemberMask, x, i);
@@ -308,7 +306,7 @@ template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !ext::oneapi::experimental::is_fixed_size_group_v<Group>,
+        !is_fixed_size_group_v<Group>,
     T>
 masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                        const uint32_t MemberMask) {
