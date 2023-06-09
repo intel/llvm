@@ -37,27 +37,22 @@ def generate_registry(path, specs):
     except (TypeError, IndexError, KeyError) as e:
         raise Exception('invalid existing registry... ' + str(e))
 
-    updated = False
-
     new_registry = list()
     for fname in functions:
         etor_name = util.to_snake_case(fname)
         id = etors.get(etor_name)
         if id is None:
-            updated = True
             max_reg_entry += 1
             id = max_reg_entry
         new_registry.append({'name': util.to_snake_case(fname), 'desc': 'Enumerator for $x'+fname, 'value': str(id)})
 
-    if updated is False:
-        return
 
-    print("Updating registry %s"%path)
+    print("Generating registry %s"%path)
 
     ids = new_registry
     ids = sorted(ids, key=lambda x: int(x['value']))
     wrapper = { 'name': ENUM_NAME, 'type': 'enum', 'desc': 'Defines unique stable identifiers for all functions' , 'etors': ids}
-    header = {'type': 'header', 'desc': quoted('Intel$OneApi Unified Runtime function registry'), 'ordinal': quoted(9)}
+    header = {'type': 'header', 'desc': quoted('Intel $OneApi Unified Runtime function registry'), 'ordinal': quoted(9)}
 
     try:
         with open(path, 'w') as fout:
