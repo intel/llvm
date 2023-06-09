@@ -20,9 +20,8 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generic floating-point types (§4.17.1).
-// TODO: Check that vector element type is float.
-// TODO: Add marrays.
-def SYCLGenfloat : AnyTypeOf<[F32, F64, SYCL_VecType]>;
+// TODO: Add vectors and marrays.
+def SYCLGenfloat : AnyTypeOf<[F32, F64]>;
 
 // Base class for SYCL-specific math operations (§4.17.5), which have no side
 // effects and can be applied to scalars, vectors and marrarys.

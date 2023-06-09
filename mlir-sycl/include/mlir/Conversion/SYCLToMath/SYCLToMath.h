@@ -25,8 +25,7 @@ class TypeConverter;
 #undef GEN_PASS_DECL_CONVERTSYCLTOMATH
 
 /// Populates the given list with patterns that convert from SYCL to Math.
-void populateSYCLToMathConversionPatterns(TypeConverter &typeConverter,
-                                          RewritePatternSet &patterns);
+void populateSYCLToMathConversionPatterns(RewritePatternSet &patterns);
 
 } // namespace mlir
 

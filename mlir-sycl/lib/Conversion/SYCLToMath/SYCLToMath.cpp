@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
 #define GEN_PASS_DEF_CONVERTSYCLTOMATH
@@ -30,6 +31,26 @@ using namespace mlir;
 using namespace mlir::sycl;
 
 namespace {
+
+template <typename SYCLOpT, typename TargetOpT>
+struct FloatUnaryOpPattern : public OpConversionPattern<SYCLOpT> {
+  using OpConversionPattern<SYCLOpT>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<TargetOpT>(op, adaptor.getOperand());
+    return success();
+  }
+};
+
+} // anonymous namespace
+
+void mlir::populateSYCLToMathConversionPatterns(RewritePatternSet &patterns) {
+  auto *context = patterns.getContext();
+  patterns.insert<FloatUnaryOpPattern<SYCLAtanOp, math::AtanOp>>(context);
+}
+
+namespace {
 /// A pass converting MLIR SYCL operations into Math dialect.
 class ConvertSYCLToMathPass
     : public impl::ConvertSYCLToMathBase<ConvertSYCLToMathPass> {
@@ -38,8 +59,19 @@ class ConvertSYCLToMathPass
 } // namespace
 
 void ConvertSYCLToMathPass::runOnOperation() {
-  auto *context = &getContext();
-  auto module = getOperation();
+  auto &context = getContext();
 
-  llvm::dbgs() << "SYCLToMath!\n";
+  RewritePatternSet patterns(&context);
+  ConversionTarget target(context);
+
+  target.addLegalDialect<math::MathDialect>();
+  target.addDynamicallyLegalDialect<sycl::SYCLDialect>([](Operation *op) {
+    return !op->getName().getStringRef().starts_with("sycl.math.");
+  });
+
+  populateSYCLToMathConversionPatterns(patterns);
+
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
+    signalPassFailure();
 }
