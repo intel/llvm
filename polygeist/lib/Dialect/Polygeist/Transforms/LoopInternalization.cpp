@@ -424,13 +424,14 @@ public:
   void analyze(LoopLikeOpInterface loop, AccessKind accessKind);
 
 private:
+  /// Return the ideal memory space for \p memAccess.
+  MemorySpace selectMemorySpace(const MemoryAccess &memAccess,
+                                ArrayRef<Value> threadVars,
+                                AccessKind accessKind) const;
+
   /// Return true iff no memref accesses in \p accesses are stores.
   bool areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
                    LoopLikeOpInterface loop);
-
-  /// Determine whether \p memRefAccess exhibits temporal reuse.
-  bool hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
-                        ArrayRef<Value> threadVars) const;
 
 private:
   MemoryAccessAnalysis &memAccessAnalysis;
@@ -454,7 +455,6 @@ MemorySelector::getMemorySpace(Value memref) const {
 void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
   // Collect the global thread ids used in the function the loop is in.
   auto funcOp = loop->template getParentOfType<FunctionOpInterface>();
-  unsigned gridDim = memAccessAnalysis.getGridDimension(funcOp);
   SmallVector<Value> threadVars =
       memAccessAnalysis.getThreadVector(funcOp, solver);
 
@@ -491,68 +491,8 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       continue;
     }
 
-    // Get the inter-thread access pattern and classify the memory access.
-    MemoryAccessMatrix interThreadMatrix =
-        memAccess->getInterThreadAccessMatrix(gridDim);
-    MemoryAccessPattern interThreadAccessPattern =
-        MemoryAccess::classify(interThreadMatrix, memAccess->getOffsetVector());
-
-    switch (interThreadAccessPattern) {
-    case Linear:
-    case Reverse:
-    case ReverseLinear:
-      // These patterns imply fully coalesced memory accesses.
-      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
-      break;
-    case Shifted:
-    case LinearShifted:
-    case ReverseLinearShifted:
-    case LinearOverlapped:
-    case ReverseLinearOverlapped:
-      // These patterns imply partially coalesced memory accesses.
-      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
-      break;
-    case Strided:
-    case ReverseStrided:
-    case StridedShifted:
-    case ReverseStridedShifted:
-    case Overlapped:
-    case StridedOverlapped:
-    case ReverseStridedOverlapped: {
-      dataflow::IntegerValueRange strideRange =
-          interThreadMatrix(interThreadMatrix.getNumRows() - 1,
-                            interThreadMatrix.getNumColumns() - 1);
-
-      if (strideRange.isUninitialized()) {
-        memRefAccessToMemSpace[memRef] = MemorySpace::Global;
-        break;
-      }
-
-      // Use shared memory iff:
-      //   - the memory access exhibits temporal reuse, and
-      //   - the stride is greater than a sufficiently large value (small
-      //     stride values yield partially coalesed memory accesses).
-      // Note that a zero stride is indicative of non-coalesed accesses.
-      // Example (assume tx,ty are global thread ids):
-      //     for(k)
-      //       ... = A[{tx, k}] // increasing tx's values read across rows.
-      // The inter-thread access matrix for A's load is:
-      //   1 0
-      //   0 C <- where C == 0 (C is the stride).
-      bool useSharedMemory = false;
-      ConstantIntRanges range = strideRange.getValue();
-      if (std::optional<APInt> stride = range.getConstantValue()) {
-        bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
-        useSharedMemory = hasTemporalReuse(memRefAccess, threadVars) &&
-                          (stride->isZero() || strideIsLargeEnough);
-      }
-
-      memRefAccessToMemSpace[memRef] =
-          useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
-    } break;
-    default:
-      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
-    }
+    memRefAccessToMemSpace[memRef] =
+        selectMemorySpace(*memAccess, threadVars, accessKind);
 
     LLVM_DEBUG({
       if (memRefAccessToMemSpace.at(memRef) == MemorySpace::Shared)
@@ -565,6 +505,59 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
   }
 }
 
+MemorySelector::MemorySpace
+MemorySelector::selectMemorySpace(const MemoryAccess &memAccess,
+                                  ArrayRef<Value> threadVars,
+                                  AccessKind accessKind) const {
+  const unsigned gridDimension = threadVars.size();
+
+  // Whether the memory access is (partially) coalesced or not.
+  auto isCoalesced = [&](const MemoryAccess &memAccess) {
+    MemoryAccessMatrix interThreadMatrix =
+        memAccess.getInterThreadAccessMatrix(gridDimension);
+    MemoryAccessPattern interThreadAccessPattern =
+        MemoryAccess::classify(interThreadMatrix, memAccess.getOffsetVector());
+
+    switch (interThreadAccessPattern) {
+    case Linear:
+    case Reverse:
+    case ReverseLinear:
+      // These patterns imply fully coalesced memory accesses.
+      return true;
+    case Shifted:
+    case LinearShifted:
+    case ReverseLinearShifted:
+    case LinearOverlapped:
+    case ReverseLinearOverlapped:
+      // These patterns imply partially coalesced memory accesses.
+      return true;
+    default:
+      return false;
+    }
+  };
+
+  // A non-zero intra-thread access matrix implies several threads access
+  // the same array element (in a loop).
+  bool hasTemporalReuse =
+      !memAccess.getIntraThreadAccessMatrix(gridDimension).isZero();
+
+  MemorySpace memSpace = MemorySpace::Global;
+  switch (accessKind) {
+  case AccessKind::ReadOnly: {
+    if (hasTemporalReuse)
+      return MemorySpace::Shared;
+    if (!hasTemporalReuse && isCoalesced(memAccess))
+      return MemorySpace::Global;
+  } break;
+  case AccessKind::ReadWrite:
+  case AccessKind::WriteOnly:
+    return hasTemporalReuse ? MemorySpace::Shared : MemorySpace::Global;
+    break;
+  }
+
+  return memSpace;
+}
+
 bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
                                  LoopLikeOpInterface loop) {
   return llvm::none_of(
@@ -572,18 +565,6 @@ bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
         return memRefAccess.isStore() ||
                mayConflictWithWriteInLoop(memRefAccess, loop, aliasAnalysis);
       });
-}
-
-bool MemorySelector::hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
-                                      ArrayRef<Value> threadVars) const {
-  std::optional<MemoryAccess> access =
-      memAccessAnalysis.getMemoryAccess(memRefAccess);
-  if (!access)
-    return false;
-
-  // A non-zero intra-thread access matrix implies that multiple threads access
-  // the same array element (in a loop).
-  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero();
 }
 
 //===----------------------------------------------------------------------===//
@@ -643,8 +624,8 @@ void LoopInternalization::runOnOperation() {
     else
       toRemove.insert(func);
   });
-  // If func is a kernel body function of a non-candidate kernel, then remove it
-  // from the set.
+  // If func is a kernel body function of a non-candidate kernel, then remove
+  // it from the set.
   for (FunctionOpInterface func : toRemove)
     kernelBodyFuncs.erase(func);
 
