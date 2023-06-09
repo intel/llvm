@@ -211,19 +211,19 @@ MCSymbol *MCContext::getOrCreateSymbol(const Twine &Name) {
   return Sym;
 }
 
-MCSymbol *MCContext::getOrCreateFrameAllocSymbol(StringRef FuncName,
+MCSymbol *MCContext::getOrCreateFrameAllocSymbol(const Twine &FuncName,
                                                  unsigned Idx) {
-  return getOrCreateSymbol(Twine(MAI->getPrivateGlobalPrefix()) + FuncName +
+  return getOrCreateSymbol(MAI->getPrivateGlobalPrefix() + FuncName +
                            "$frame_escape_" + Twine(Idx));
 }
 
-MCSymbol *MCContext::getOrCreateParentFrameOffsetSymbol(StringRef FuncName) {
-  return getOrCreateSymbol(Twine(MAI->getPrivateGlobalPrefix()) + FuncName +
+MCSymbol *MCContext::getOrCreateParentFrameOffsetSymbol(const Twine &FuncName) {
+  return getOrCreateSymbol(MAI->getPrivateGlobalPrefix() + FuncName +
                            "$parent_frame_offset");
 }
 
-MCSymbol *MCContext::getOrCreateLSDASymbol(StringRef FuncName) {
-  return getOrCreateSymbol(Twine(MAI->getPrivateGlobalPrefix()) + "__ehtable$" +
+MCSymbol *MCContext::getOrCreateLSDASymbol(const Twine &FuncName) {
+  return getOrCreateSymbol(MAI->getPrivateGlobalPrefix() + "__ehtable$" +
                            FuncName);
 }
 
@@ -259,8 +259,8 @@ MCSymbol *MCContext::createSymbolImpl(const StringMapEntry<bool> *Name,
     return new (Name, *this)
         MCSymbol(MCSymbol::SymbolKindUnset, Name, IsTemporary);
   }
-  return new (Name, *this) MCSymbol(MCSymbol::SymbolKindUnset, Name,
-                                    IsTemporary);
+  return new (Name, *this)
+      MCSymbol(MCSymbol::SymbolKindUnset, Name, IsTemporary);
 }
 
 MCSymbol *MCContext::createSymbol(StringRef Name, bool AlwaysAddSuffix,
@@ -362,9 +362,8 @@ MCSymbol *MCContext::lookupSymbol(const Twine &Name) const {
   return Symbols.lookup(NameRef);
 }
 
-void MCContext::setSymbolValue(MCStreamer &Streamer,
-                              StringRef Sym,
-                              uint64_t Val) {
+void MCContext::setSymbolValue(MCStreamer &Streamer, const Twine &Sym,
+                               uint64_t Val) {
   auto Symbol = getOrCreateSymbol(Sym);
   Streamer.emitAssignment(Symbol, MCConstantExpr::create(Val, *this));
 }
@@ -498,14 +497,13 @@ MCSectionELF *MCContext::createELFSectionImpl(StringRef Section, unsigned Type,
   return Ret;
 }
 
-MCSectionELF *MCContext::createELFRelSection(const Twine &Name, unsigned Type,
-                                             unsigned Flags, unsigned EntrySize,
-                                             const MCSymbolELF *Group,
-                                             const MCSectionELF *RelInfoSection) {
+MCSectionELF *
+MCContext::createELFRelSection(const Twine &Name, unsigned Type, unsigned Flags,
+                               unsigned EntrySize, const MCSymbolELF *Group,
+                               const MCSectionELF *RelInfoSection) {
   StringMap<bool>::iterator I;
   bool Inserted;
-  std::tie(I, Inserted) =
-      RelSecNames.insert(std::make_pair(Name.str(), true));
+  std::tie(I, Inserted) = RelSecNames.insert(std::make_pair(Name.str(), true));
 
   return createELFSectionImpl(
       I->getKey(), Type, Flags, SectionKind::getReadOnly(), EntrySize, Group,
@@ -577,8 +575,10 @@ MCSectionELF *MCContext::getELFSection(const Twine &Section, unsigned Type,
                .Case(".data", SectionKind::getData())
                .Case(".data1", SectionKind::getData())
                .Case(".data.rel.ro", SectionKind::getReadOnlyWithRel())
+               .StartsWith(".data.", SectionKind::getData())
                .Case(".rodata", SectionKind::getReadOnly())
                .Case(".rodata1", SectionKind::getReadOnly())
+               .StartsWith(".rodata.", SectionKind::getReadOnly())
                .Case(".tbss", SectionKind::getThreadBSS())
                .StartsWith(".tbss.", SectionKind::getThreadData())
                .StartsWith(".gnu.linkonce.tb.", SectionKind::getThreadData())
@@ -666,7 +666,6 @@ MCSectionCOFF *MCContext::getCOFFSection(StringRef Section,
     COMDATSymbol = getOrCreateSymbol(COMDATSymName);
     COMDATSymName = COMDATSymbol->getName();
   }
-
 
   // Do the lookup, if we have a hit, return it.
   COFFSectionKey T{Section, COMDATSymName, Selection, UniqueID};
@@ -778,9 +777,8 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
 
   // Do the lookup. If we have a hit, return it.
   auto IterBool = XCOFFUniquingMap.insert(std::make_pair(
-      IsDwarfSec
-          ? XCOFFSectionKey(Section.str(), DwarfSectionSubtypeFlags.value())
-          : XCOFFSectionKey(Section.str(), CsectProp->MappingClass),
+      IsDwarfSec ? XCOFFSectionKey(Section.str(), *DwarfSectionSubtypeFlags)
+                 : XCOFFSectionKey(Section.str(), CsectProp->MappingClass),
       nullptr));
   auto &Entry = *IterBool.first;
   if (!IterBool.second) {
@@ -810,10 +808,9 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   // CachedName contains invalid character(s) such as '$' for an XCOFF symbol.
   MCSectionXCOFF *Result = nullptr;
   if (IsDwarfSec)
-    Result = new (XCOFFAllocator.Allocate())
-        MCSectionXCOFF(QualName->getUnqualifiedName(), Kind, QualName,
-                       DwarfSectionSubtypeFlags.value(), Begin, CachedName,
-                       MultiSymbolsAllowed);
+    Result = new (XCOFFAllocator.Allocate()) MCSectionXCOFF(
+        QualName->getUnqualifiedName(), Kind, QualName,
+        *DwarfSectionSubtypeFlags, Begin, CachedName, MultiSymbolsAllowed);
   else
     Result = new (XCOFFAllocator.Allocate())
         MCSectionXCOFF(QualName->getUnqualifiedName(), CsectProp->MappingClass,
@@ -849,9 +846,6 @@ MCSectionSPIRV *MCContext::getSPIRVSection() {
   Result->getFragmentList().insert(Result->begin(), F);
   F->setParent(Result);
 
-  if (Begin)
-    Begin->setFragment(F);
-
   return Result;
 }
 
@@ -884,11 +878,11 @@ MCSubtargetInfo &MCContext::getSubtargetCopy(const MCSubtargetInfo &STI) {
 
 void MCContext::addDebugPrefixMapEntry(const std::string &From,
                                        const std::string &To) {
-  DebugPrefixMap.insert(std::make_pair(From, To));
+  DebugPrefixMap.emplace_back(From, To);
 }
 
 void MCContext::remapDebugPath(SmallVectorImpl<char> &Path) {
-  for (const auto &[From, To] : DebugPrefixMap)
+  for (const auto &[From, To] : llvm::reverse(DebugPrefixMap))
     if (llvm::sys::path::replace_path_prefix(Path, From, To))
       break;
 }

@@ -1,13 +1,14 @@
-// RUN: %clangxx -DSYCL2020_CONFORMANT_APIS -fsycl -fsyntax-only %s
-// RUN: %clangxx -sycl-std=121 -fsycl -fsyntax-only %s
+// RUN: %clangxx -fsycl %s -o %t.out
+
+// NOTE: Compile the test fully to ensure the library exports the right host
+// symbols.
 
 #include <CL/sycl.hpp>
 
 // Some helper macros to verify return type of the builtins. To be used like
 // this
 //
-//   CHECK(Expected return type in SYCL 1.2.1,
-//         Expected return type in SYCL 2020,
+//   CHECK(Expected return type,
 //         builtin name,
 //         parameters' types...)
 //
@@ -17,25 +18,12 @@ template <class... Args> struct CheckHelper {
   template <class F> static auto call(F f) { return f(Args()...); }
 };
 
-#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
-#define CHECK(EXPECTED121, EXPECTED2020, FUNC, ...)                            \
+#define CHECK(EXPECTED, FUNC, ...)                            \
   {                                                                            \
     auto ret = CheckHelper<__VA_ARGS__>::call(                                 \
         [](auto... args) { return cl::sycl::FUNC(args...); });                 \
-    static_assert(std::is_same_v<decltype(ret), EXPECTED2020>);                \
+    static_assert(std::is_same_v<decltype(ret), EXPECTED>);                \
   }
-// To be used for marray tests. Not yet implemented
-// #define CHECK2020(...) CHECK(__VA_ARGS__)
-#define CHECK2020(...)
-#else
-#define CHECK(EXPECTED121, EXPECTED2020, FUNC, ...)                            \
-  {                                                                            \
-    auto ret = CheckHelper<__VA_ARGS__>::call(                                 \
-        [](auto... args) { return cl::sycl::FUNC(args...); });                 \
-    static_assert(std::is_same_v<decltype(ret), EXPECTED121>);                 \
-  }
-#define CHECK2020(...)
-#endif
 
 void foo() {
   using namespace cl::sycl;
@@ -69,277 +57,192 @@ void foo() {
   using doublem = marray<double, 2>;
 
   // isequal
-  CHECK(int32_t, bool, isequal, half, half);
-  CHECK(int16v, int16v, isequal, halfv, halfv);
-  CHECK2020(_, boolm, isequal, halfm, halfm);
+  CHECK(bool, isequal, half, half);
+  CHECK(int16v, isequal, halfv, halfv);
 
-  CHECK(int32_t, bool, isequal, float, float);
-  CHECK(int32v, int32v, isequal, floatv, floatv);
-  CHECK2020(_, boolm, isequal, floatm, floatm);
+  CHECK(bool, isequal, float, float);
+  CHECK(int32v, isequal, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isequal, double, double);
-  CHECK(int64v, int64v, isequal, doublev, doublev);
-  CHECK2020(_, boolm, isequal, doublem, doublem);
+  CHECK(bool, isequal, double, double);
+  CHECK(int64v, isequal, doublev, doublev);
 
   // isnotequal
-  CHECK(int32_t, bool, isnotequal, half, half);
-  CHECK(int16v, int16v, isnotequal, halfv, halfv);
-  CHECK2020(_, boolm, isnotequal, halfm, halfm);
+  CHECK(bool, isnotequal, half, half);
+  CHECK(int16v, isnotequal, halfv, halfv);
 
-  CHECK(int32_t, bool, isnotequal, float, float);
-  CHECK(int32v, int32v, isnotequal, floatv, floatv);
-  CHECK2020(_, boolm, isnotequal, floatm, floatm);
+  CHECK(bool, isnotequal, float, float);
+  CHECK(int32v, isnotequal, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isnotequal, double, double);
-  CHECK(int64v, int64v, isnotequal, doublev, doublev);
-  CHECK2020(_, boolm, isnotequal, doublem, doublem);
+  CHECK(bool, isnotequal, double, double);
+  CHECK(int64v, isnotequal, doublev, doublev);
 
   // isgreater
-  CHECK(int32_t, bool, isgreater, half, half);
-  CHECK(int16v, int16v, isgreater, halfv, halfv);
-  CHECK2020(_, boolm, isgreater, halfm, halfm);
+  CHECK(bool, isgreater, half, half);
+  CHECK(int16v, isgreater, halfv, halfv);
 
-  CHECK(int32_t, bool, isgreater, float, float);
-  CHECK(int32v, int32v, isgreater, floatv, floatv);
-  CHECK2020(_, boolm, isgreater, floatm, floatm);
+  CHECK(bool, isgreater, float, float);
+  CHECK(int32v, isgreater, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isgreater, double, double);
-  CHECK(int64v, int64v, isgreater, doublev, doublev);
-  CHECK2020(_, boolm, isgreater, doublem, doublem);
+  CHECK(bool, isgreater, double, double);
+  CHECK(int64v, isgreater, doublev, doublev);
 
   // isgreaterequal
-  CHECK(int32_t, bool, isgreaterequal, half, half);
-  CHECK(int16v, int16v, isgreaterequal, halfv, halfv);
-  CHECK2020(_, boolm, isgreaterequal, halfm, halfm);
+  CHECK(bool, isgreaterequal, half, half);
+  CHECK(int16v, isgreaterequal, halfv, halfv);
 
-  CHECK(int32_t, bool, isgreaterequal, float, float);
-  CHECK(int32v, int32v, isgreaterequal, floatv, floatv);
-  CHECK2020(_, boolm, isgreaterequal, floatm, floatm);
+  CHECK(bool, isgreaterequal, float, float);
+  CHECK(int32v, isgreaterequal, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isgreaterequal, double, double);
-  CHECK(int64v, int64v, isgreaterequal, doublev, doublev);
-  CHECK2020(_, boolm, isgreaterequal, doublem, doublem);
+  CHECK(bool, isgreaterequal, double, double);
+  CHECK(int64v, isgreaterequal, doublev, doublev);
 
   // isless
-  CHECK(int32_t, bool, isless, half, half);
-  CHECK(int16v, int16v, isless, halfv, halfv);
-  CHECK2020(_, boolm, isless, halfm, halfm);
+  CHECK(bool, isless, half, half);
+  CHECK(int16v, isless, halfv, halfv);
 
-  CHECK(int32_t, bool, isless, float, float);
-  CHECK(int32v, int32v, isless, floatv, floatv);
-  CHECK2020(_, boolm, isless, floatm, floatm);
+  CHECK(bool, isless, float, float);
+  CHECK(int32v, isless, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isless, double, double);
-  CHECK(int64v, int64v, isless, doublev, doublev);
-  CHECK2020(_, boolm, isless, doublem, doublem);
+  CHECK(bool, isless, double, double);
+  CHECK(int64v, isless, doublev, doublev);
 
   // islessequal
-  CHECK(int32_t, bool, islessequal, half, half);
-  CHECK(int16v, int16v, islessequal, halfv, halfv);
-  CHECK2020(_, boolm, islessequal, halfm, halfm);
+  CHECK(bool, islessequal, half, half);
+  CHECK(int16v, islessequal, halfv, halfv);
 
-  CHECK(int32_t, bool, islessequal, float, float);
-  CHECK(int32v, int32v, islessequal, floatv, floatv);
-  CHECK2020(_, boolm, islessequal, floatm, floatm);
+  CHECK(bool, islessequal, float, float);
+  CHECK(int32v, islessequal, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, islessequal, double, double);
-  CHECK(int64v, int64v, islessequal, doublev, doublev);
-  CHECK2020(_, boolm, islessequal, doublem, doublem);
+  CHECK(bool, islessequal, double, double);
+  CHECK(int64v, islessequal, doublev, doublev);
 
   // islessgreater
-  CHECK(int32_t, bool, islessgreater, half, half);
-  CHECK(int16v, int16v, islessgreater, halfv, halfv);
-  CHECK2020(_, boolm, islessgreater, halfm, halfm);
+  CHECK(bool, islessgreater, half, half);
+  CHECK(int16v, islessgreater, halfv, halfv);
 
-  CHECK(int32_t, bool, islessgreater, float, float);
-  CHECK(int32v, int32v, islessgreater, floatv, floatv);
-  CHECK2020(_, boolm, islessgreater, floatm, floatm);
+  CHECK(bool, islessgreater, float, float);
+  CHECK(int32v, islessgreater, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, islessgreater, double, double);
-  CHECK(int64v, int64v, islessgreater, doublev, doublev);
-  CHECK2020(_, boolm, islessgreater, doublem, doublem);
+  CHECK(bool, islessgreater, double, double);
+  CHECK(int64v, islessgreater, doublev, doublev);
 
   // isfinite
-  CHECK(int32_t, bool, isfinite, half);
-  CHECK(int16v, int16v, isfinite, halfv);
-  CHECK2020(_, boolm, isfinite, halfm);
+  CHECK(bool, isfinite, half);
+  CHECK(int16v, isfinite, halfv);
 
-  CHECK(int32_t, bool, isfinite, float);
-  CHECK(int32v, int32v, isfinite, floatv);
-  CHECK2020(_, boolm, isfinite, floatm);
+  CHECK(bool, isfinite, float);
+  CHECK(int32v, isfinite, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isfinite, double);
-  CHECK(int64v, int64v, isfinite, doublev);
-  CHECK2020(_, boolm, isfinite, doublem);
+  CHECK(bool, isfinite, double);
+  CHECK(int64v, isfinite, doublev);
 
   // isinf
-  CHECK(int32_t, bool, isinf, half);
-  CHECK(int16v, int16v, isinf, halfv);
-  CHECK2020(_, boolm, isinf, halfm);
+  CHECK(bool, isinf, half);
+  CHECK(int16v, isinf, halfv);
 
-  CHECK(int32_t, bool, isinf, float);
-  CHECK(int32v, int32v, isinf, floatv);
-  CHECK2020(_, boolm, isinf, floatm);
+  CHECK(bool, isinf, float);
+  CHECK(int32v, isinf, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isinf, double);
-  CHECK(int64v, int64v, isinf, doublev);
-  CHECK2020(_, boolm, isinf, doublem);
+  CHECK(bool, isinf, double);
+  CHECK(int64v, isinf, doublev);
 
   // isnan
-  CHECK(int32_t, bool, isnan, half);
-  CHECK(int16v, int16v, isnan, halfv);
-  CHECK2020(_, boolm, isnan, halfm);
+  CHECK(bool, isnan, half);
+  CHECK(int16v, isnan, halfv);
 
-  CHECK(int32_t, bool, isnan, float);
-  CHECK(int32v, int32v, isnan, floatv);
-  CHECK2020(_, boolm, isnan, floatm);
+  CHECK(bool, isnan, float);
+  CHECK(int32v, isnan, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isnan, double);
-  CHECK(int64v, int64v, isnan, doublev);
-  CHECK2020(_, boolm, isnan, doublem);
+  CHECK(bool, isnan, double);
+  CHECK(int64v, isnan, doublev);
 
   // isnormal
-  CHECK(int32_t, bool, isnormal, half);
-  CHECK(int16v, int16v, isnormal, halfv);
-  CHECK2020(_, boolm, isnormal, halfm);
+  CHECK(bool, isnormal, half);
+  CHECK(int16v, isnormal, halfv);
 
-  CHECK(int32_t, bool, isnormal, float);
-  CHECK(int32v, int32v, isnormal, floatv);
-  CHECK2020(_, boolm, isnormal, floatm);
+  CHECK(bool, isnormal, float);
+  CHECK(int32v, isnormal, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isnormal, double);
-  CHECK(int64v, int64v, isnormal, doublev);
-  CHECK2020(_, boolm, isnormal, doublem);
+  CHECK(bool, isnormal, double);
+  CHECK(int64v, isnormal, doublev);
 
   // isordered
-  CHECK(int32_t, bool, isordered, half, half);
-  CHECK(int16v, int16v, isordered, halfv, halfv);
-  CHECK2020(_, boolm, isordered, halfm, halfm);
+  CHECK(bool, isordered, half, half);
+  CHECK(int16v, isordered, halfv, halfv);
 
-  CHECK(int32_t, bool, isordered, float, float);
-  CHECK(int32v, int32v, isordered, floatv, floatv);
-  CHECK2020(_, boolm, isordered, floatm, floatm);
+  CHECK(bool, isordered, float, float);
+  CHECK(int32v, isordered, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isordered, double, double);
-  CHECK(int64v, int64v, isordered, doublev, doublev);
-  CHECK2020(_, boolm, isordered, doublem, doublem);
+  CHECK(bool, isordered, double, double);
+  CHECK(int64v, isordered, doublev, doublev);
 
   // isunordered
-  CHECK(int32_t, bool, isunordered, half, half);
-  CHECK(int16v, int16v, isunordered, halfv, halfv);
-  CHECK2020(_, boolm, isunordered, halfm, halfm);
+  CHECK(bool, isunordered, half, half);
+  CHECK(int16v, isunordered, halfv, halfv);
 
-  CHECK(int32_t, bool, isunordered, float, float);
-  CHECK(int32v, int32v, isunordered, floatv, floatv);
-  CHECK2020(_, boolm, isunordered, floatm, floatm);
+  CHECK(bool, isunordered, float, float);
+  CHECK(int32v, isunordered, floatv, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, isunordered, double, double);
-  CHECK(int64v, int64v, isunordered, doublev, doublev);
-  CHECK2020(_, boolm, isunordered, doublem, doublem);
+  CHECK(bool, isunordered, double, double);
+  CHECK(int64v, isunordered, doublev, doublev);
 
   // signbit
-  CHECK(int32_t, bool, signbit, half);
-  CHECK(int16v, int16v, signbit, halfv);
-  CHECK2020(_, boolm, signbit, halfm);
+  CHECK(bool, signbit, half);
+  CHECK(int16v, signbit, halfv);
 
-  CHECK(int32_t, bool, signbit, float);
-  CHECK(int32v, int32v, signbit, floatv);
-  CHECK2020(_, boolm, signbit, floatm);
+  CHECK(bool, signbit, float);
+  CHECK(int32v, signbit, floatv);
 
-  // SYCL 1.2.1 has an ABI-affecting bug here (int32_t instead of int64_t for
-  // scalar case).
-  CHECK(int32_t, bool, signbit, double);
-  CHECK(int64v, int64v, signbit, doublev);
-  CHECK2020(_, boolm, signbit, doublem);
+  CHECK(bool, signbit, double);
+  CHECK(int64v, signbit, doublev);
 
   // any
-  CHECK(int, bool, any, int16_t)
-  CHECK(int, bool, any, int16v)
-  CHECK2020(_, bool, any, int16m)
+  CHECK(bool, any, int16_t)
+  CHECK(int, any, int16v)
 
-  CHECK(int, bool, any, int32_t)
-  CHECK(int, bool, any, int32v)
-  CHECK2020(_, bool, any, int32m)
+  CHECK(bool, any, int32_t)
+  CHECK(int, any, int32v)
 
-  CHECK(int, bool, any, int64_t)
-  CHECK(int, bool, any, int64v)
-  CHECK2020(_, bool, any, int64m)
+  CHECK(bool, any, int64_t)
+  CHECK(int, any, int64v)
 
   // all
-  CHECK(int, bool, all, int16_t)
-  CHECK(int, bool, all, int16v)
-  CHECK2020(_, bool, all, int16m)
+  CHECK(bool, all, int16_t)
+  CHECK(int, all, int16v)
 
-  CHECK(int, bool, all, int32_t)
-  CHECK(int, bool, all, int32v)
-  CHECK2020(_, bool, all, int32m)
+  CHECK(bool, all, int32_t)
+  CHECK(int, all, int32v)
 
-  CHECK(int, bool, all, int64_t)
-  CHECK(int, bool, all, int64v)
-  CHECK2020(_, bool, all, int64m)
+  CHECK(bool, all, int64_t)
+  CHECK(int, all, int64v)
 
   // bitselect
-  CHECK(int16_t, int16_t, bitselect, int16_t, int16_t, int16_t)
-  CHECK(int16v, int16v, bitselect, int16v, int16v, int16v)
-  CHECK2020(int16m, int16m, bitselect, int16m, int16m, int16m)
+  CHECK(int16_t, bitselect, int16_t, int16_t, int16_t)
+  CHECK(int16v, bitselect, int16v, int16v, int16v)
 
-  CHECK(uint16_t, uint16_t, bitselect, uint16_t, uint16_t, uint16_t)
-  CHECK(uint16v, uint16v, bitselect, uint16v, uint16v, uint16v)
-  CHECK2020(uint16m, uint16m, bitselect, uint16m, uint16m, uint16m)
+  CHECK(uint16_t, bitselect, uint16_t, uint16_t, uint16_t)
+  CHECK(uint16v, bitselect, uint16v, uint16v, uint16v)
 
-  CHECK(half, half, bitselect, half, half, half)
-  CHECK(halfv, halfv, bitselect, halfv, halfv, halfv)
+  CHECK(half, bitselect, half, half, half)
+  CHECK(halfv, bitselect, halfv, halfv, halfv)
 
-  CHECK(int32_t, int32_t, bitselect, int32_t, int32_t, int32_t)
-  CHECK(int32v, int32v, bitselect, int32v, int32v, int32v)
-  CHECK2020(int32m, int32m, bitselect, int32m, int32m, int32m)
+  CHECK(int32_t, bitselect, int32_t, int32_t, int32_t)
+  CHECK(int32v, bitselect, int32v, int32v, int32v)
 
-  CHECK(uint32_t, uint32_t, bitselect, uint32_t, uint32_t, uint32_t)
-  CHECK(uint32v, uint32v, bitselect, uint32v, uint32v, uint32v)
-  CHECK2020(uint32m, uint32m, bitselect, uint32m, uint32m, uint32m)
+  CHECK(uint32_t, bitselect, uint32_t, uint32_t, uint32_t)
+  CHECK(uint32v, bitselect, uint32v, uint32v, uint32v)
 
-  CHECK(float, float, bitselect, float, float, float)
-  CHECK(floatv, floatv, bitselect, floatv, floatv, floatv)
-  CHECK2020(floatm, floatm, bitselect, floatm, floatm, floatm)
-  CHECK2020(floatm, floatm, bitselect, floatm, floatm, floatm)
+  CHECK(float, bitselect, float, float, float)
+  CHECK(floatv, bitselect, floatv, floatv, floatv)
 
-  CHECK(int64_t, int64_t, bitselect, int64_t, int64_t, int64_t)
-  CHECK(int64v, int64v, bitselect, int64v, int64v, int64v)
-  CHECK2020(int64m, int64m, bitselect, int64m, int64m, int64m)
+  CHECK(int64_t, bitselect, int64_t, int64_t, int64_t)
+  CHECK(int64v, bitselect, int64v, int64v, int64v)
 
-  CHECK(uint64_t, uint64_t, bitselect, uint64_t, uint64_t, uint64_t)
-  CHECK(uint64v, uint64v, bitselect, uint64v, uint64v, uint64v)
-  CHECK2020(uint64m, uint64m, bitselect, uint64m, uint64m, uint64m)
+  CHECK(uint64_t, bitselect, uint64_t, uint64_t, uint64_t)
+  CHECK(uint64v, bitselect, uint64v, uint64v, uint64v)
 
-  CHECK(double, double, bitselect, double, double, double)
-  CHECK(doublev, doublev, bitselect, doublev, doublev, doublev)
-  CHECK2020(doublem, doublem, bitselect, doublem, doublem, doublem)
+  CHECK(double, bitselect, double, double, double)
+  CHECK(doublev, bitselect, doublev, doublev, doublev)
 }
 
 int main() {

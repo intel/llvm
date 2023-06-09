@@ -24,10 +24,6 @@ enum class aspect {
 template <fake_cl::sycl::aspect Aspect>
 [[sycl::device_has(Aspect)]] void func4() {} // expected-error 2{{'device_has' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
 
-void checkTemplate() {
-  func4<fake_cl::sycl::aspect::aspect1>(); // expected-note {{in instantiation of function template specialization 'func4<fake_cl::sycl::aspect::aspect1>' requested here}}
-}
-
 [[sycl::device_has(1)]] void func5() {} // expected-error{{'device_has' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
 
 template <typename Ty>
@@ -36,3 +32,12 @@ template <typename Ty>
 [[sycl::device_has(sycl::aspect::cpu)]] // expected-note{{previous attribute is here}}
 [[sycl::device_has(sycl::aspect::gpu)]] void
 func7() {} // expected-warning@-1{{attribute 'device_has' is already applied}}
+
+template <fake_cl::sycl::aspect... Aspect>
+[[sycl::device_has(Aspect...)]] void func8() {} // expected-error {{'device_has' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
+
+void checkTemplate() {
+  func4<fake_cl::sycl::aspect::aspect1>(); // expected-note {{in instantiation of function template specialization 'func4<fake_cl::sycl::aspect::aspect1>' requested here}}
+  func8<fake_cl::sycl::aspect::aspect1>(); // expected-note {{in instantiation of function template specialization 'func8<fake_cl::sycl::aspect::aspect1>' requested here}}
+}
+

@@ -16,7 +16,6 @@
 
 #include "llvm/Transforms/Utils/BypassSlowDivision.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -203,7 +202,7 @@ bool FastDivInsertionTask::isHashLikeValue(Value *V, VisitedSetTy &Visited) {
     ConstantInt *C = dyn_cast<ConstantInt>(Op1);
     if (!C && isa<BitCastInst>(Op1))
       C = dyn_cast<ConstantInt>(cast<BitCastInst>(Op1)->getOperand(0));
-    return C && C->getValue().getMinSignedBits() > BypassType->getBitWidth();
+    return C && C->getValue().getSignificantBits() > BypassType->getBitWidth();
   }
   case Instruction::PHI:
     // Stop IR traversal in case of a crazy input code. This limits recursion

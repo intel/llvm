@@ -22,6 +22,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace llvm {
 template <typename T>
@@ -67,7 +68,7 @@ struct ExecutionEngineOptions {
 
   /// `jitCodeGenOptLevel`, when provided, is used as the optimization level for
   /// target code generation.
-  Optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel = std::nullopt;
+  std::optional<llvm::CodeGenOpt::Level> jitCodeGenOptLevel;
 
   /// If `sharedLibPaths` are provided, the underlying JIT-compilation will
   /// open and link the shared libraries for symbol resolution.
@@ -107,9 +108,12 @@ public:
   ExecutionEngine(bool enableObjectDump, bool enableGDBNotificationListener,
                   bool enablePerfNotificationListener);
 
-  /// Creates an execution engine for the given MLIR IR.
+  /// Creates an execution engine for the given MLIR IR. If TargetMachine is
+  /// not provided, default TM is created (i.e. ignoring any command line flags
+  /// that could affect the set-up).
   static llvm::Expected<std::unique_ptr<ExecutionEngine>>
-  create(Operation *op, const ExecutionEngineOptions &options = {});
+  create(Operation *op, const ExecutionEngineOptions &options = {},
+         std::unique_ptr<llvm::TargetMachine> tm = nullptr);
 
   /// Looks up a packed-argument function wrapping the function with the given
   /// name and returns a pointer to it. Propagates errors in case of failure.
@@ -179,9 +183,11 @@ public:
     return invokePacked(adapterName, argsArray);
   }
 
-  /// Set the target triple on the module. This is implicitly done when creating
-  /// the engine.
-  static bool setupTargetTriple(llvm::Module *llvmModule);
+  /// Set the target triple and the data layout for the input module based on
+  /// the input TargetMachine. This is implicitly done when creating the
+  /// engine.
+  static void setupTargetTripleAndDataLayout(llvm::Module *llvmModule,
+                                             llvm::TargetMachine *tm);
 
   /// Dump object code to output file `filename`.
   void dumpToObjectFile(StringRef filename);

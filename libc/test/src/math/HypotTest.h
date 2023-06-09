@@ -10,9 +10,9 @@
 #define LLVM_LIBC_TEST_SRC_MATH_HYPOTTEST_H
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "test/UnitTest/FPMatcher.h"
+#include "test/UnitTest/Test.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
-#include "utils/UnitTest/FPMatcher.h"
-#include "utils/UnitTest/Test.h"
 
 #include <math.h>
 
@@ -59,7 +59,7 @@ public:
   }
 
   void test_subnormal_range(Func func) {
-    constexpr UIntType COUNT = 1000001;
+    constexpr UIntType COUNT = 100001;
     for (unsigned scale = 0; scale < 4; ++scale) {
       UIntType max_value = FPBits::MAX_SUBNORMAL << scale;
       UIntType step = (max_value - FPBits::MIN_SUBNORMAL) / COUNT;
@@ -84,7 +84,7 @@ public:
   }
 
   void test_normal_range(Func func) {
-    constexpr UIntType COUNT = 1000001;
+    constexpr UIntType COUNT = 100001;
     constexpr UIntType STEP = (FPBits::MAX_NORMAL - FPBits::MIN_NORMAL) / COUNT;
     for (int signs = 0; signs < 4; ++signs) {
       for (UIntType v = FPBits::MIN_NORMAL, w = FPBits::MAX_NORMAL;

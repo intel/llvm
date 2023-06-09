@@ -363,12 +363,10 @@ ObjectFile *LLVMSymbolizer::lookUpBuildIDObject(const std::string &Path,
                                                 const ELFObjectFileBase *Obj,
                                                 const std::string &ArchName) {
   auto BuildID = getBuildID(Obj);
-  if (!BuildID)
-    return nullptr;
-  if (BuildID->size() < 2)
+  if (BuildID.size() < 2)
     return nullptr;
   std::string DebugBinaryPath;
-  if (!getOrFindDebugBinary(*BuildID, DebugBinaryPath))
+  if (!getOrFindDebugBinary(BuildID, DebugBinaryPath))
     return nullptr;
   auto DbgObjOrErr = getOrCreateObject(DebugBinaryPath, ArchName);
   if (!DbgObjOrErr) {
@@ -634,8 +632,7 @@ LLVMSymbolizer::getOrCreateModuleInfo(ArrayRef<uint8_t> BuildID) {
   std::string Path;
   if (!getOrFindDebugBinary(BuildID, Path)) {
     return createStringError(errc::no_such_file_or_directory,
-                             Twine("could not find build ID '") +
-                                 toHex(BuildID) + "'");
+                             "could not find build ID");
   }
   return getOrCreateModuleInfo(Path);
 }
@@ -649,22 +646,29 @@ namespace {
 // vectorcall  - foo@@12
 // These are all different linkage names for 'foo'.
 StringRef demanglePE32ExternCFunc(StringRef SymbolName) {
-  // Remove any '_' or '@' prefix.
   char Front = SymbolName.empty() ? '\0' : SymbolName[0];
-  if (Front == '_' || Front == '@')
-    SymbolName = SymbolName.drop_front();
 
   // Remove any '@[0-9]+' suffix.
+  bool HasAtNumSuffix = false;
   if (Front != '?') {
     size_t AtPos = SymbolName.rfind('@');
     if (AtPos != StringRef::npos &&
-        all_of(drop_begin(SymbolName, AtPos + 1), isDigit))
+        all_of(drop_begin(SymbolName, AtPos + 1), isDigit)) {
       SymbolName = SymbolName.substr(0, AtPos);
+      HasAtNumSuffix = true;
+    }
   }
 
   // Remove any ending '@' for vectorcall.
-  if (SymbolName.endswith("@"))
+  bool IsVectorCall = false;
+  if (HasAtNumSuffix && SymbolName.endswith("@")) {
     SymbolName = SymbolName.drop_back();
+    IsVectorCall = true;
+  }
+
+  // If not vectorcall, remove any '_' or '@' prefix.
+  if (!IsVectorCall && (Front == '_' || Front == '@'))
+    SymbolName = SymbolName.drop_front();
 
   return SymbolName;
 }
@@ -682,7 +686,7 @@ LLVMSymbolizer::DemangleName(const std::string &Name,
     // Only do MSVC C++ demangling on symbols starting with '?'.
     int status = 0;
     char *DemangledName = microsoftDemangle(
-        Name.c_str(), nullptr, nullptr, nullptr, &status,
+        Name.c_str(), nullptr, &status,
         MSDemangleFlags(MSDF_NoAccessSpecifier | MSDF_NoCallingConvention |
                         MSDF_NoMemberType | MSDF_NoReturnType));
     if (status != 0)
@@ -692,8 +696,14 @@ LLVMSymbolizer::DemangleName(const std::string &Name,
     return Result;
   }
 
-  if (DbiModuleDescriptor && DbiModuleDescriptor->isWin32Module())
-    return std::string(demanglePE32ExternCFunc(Name));
+  if (DbiModuleDescriptor && DbiModuleDescriptor->isWin32Module()) {
+    std::string DemangledCName(demanglePE32ExternCFunc(Name));
+    // On i386 Windows, the C name mangling for different calling conventions
+    // may also be applied on top of the Itanium or Rust name mangling.
+    if (nonMicrosoftDemangle(DemangledCName.c_str(), Result))
+      return Result;
+    return DemangledCName;
+  }
   return Name;
 }
 

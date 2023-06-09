@@ -21,6 +21,7 @@
 #define DEBUG_TYPE "test-memref-dependence-check"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 namespace {
 
@@ -53,13 +54,13 @@ getDirectionVectorStr(bool ret, unsigned numCommonLoops, unsigned loopNestDepth,
   for (const auto &dependenceComponent : dependenceComponents) {
     std::string lbStr = "-inf";
     if (dependenceComponent.lb.has_value() &&
-        dependenceComponent.lb.value() != std::numeric_limits<int64_t>::min())
-      lbStr = std::to_string(dependenceComponent.lb.value());
+        *dependenceComponent.lb != std::numeric_limits<int64_t>::min())
+      lbStr = std::to_string(*dependenceComponent.lb);
 
     std::string ubStr = "+inf";
     if (dependenceComponent.ub.has_value() &&
-        dependenceComponent.ub.value() != std::numeric_limits<int64_t>::max())
-      ubStr = std::to_string(dependenceComponent.ub.value());
+        *dependenceComponent.ub != std::numeric_limits<int64_t>::max())
+      ubStr = std::to_string(*dependenceComponent.ub);
 
     result += "[" + lbStr + ", " + ubStr + "]";
   }
@@ -81,10 +82,9 @@ static void checkDependences(ArrayRef<Operation *> loadsAndStores) {
       unsigned numCommonLoops =
           getNumCommonSurroundingLoops(*srcOpInst, *dstOpInst);
       for (unsigned d = 1; d <= numCommonLoops + 1; ++d) {
-        FlatAffineValueConstraints dependenceConstraints;
         SmallVector<DependenceComponent, 2> dependenceComponents;
         DependenceResult result = checkMemrefAccessDependence(
-            srcAccess, dstAccess, d, &dependenceConstraints,
+            srcAccess, dstAccess, d, /*dependenceConstraints=*/nullptr,
             &dependenceComponents);
         if (result.value == DependenceResult::Failure) {
           srcOpInst->emitError("dependence check failed");

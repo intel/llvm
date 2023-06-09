@@ -98,7 +98,7 @@ template <typename Ty> inline Ty atomic_and(Ty *ptr, Ty val) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  static_assert(std::is_integral<Ty>::value);
+  static_assert(std::is_integral_v<Ty>);
   return __atomic_fetch_and(ptr, val, __ATOMIC_SEQ_CST);
 #endif
 }
@@ -108,7 +108,7 @@ template <typename Ty> inline Ty atomic_or(Ty *ptr, Ty val) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  static_assert(std::is_integral<Ty>::value);
+  static_assert(std::is_integral_v<Ty>);
   return __atomic_fetch_or(ptr, val, __ATOMIC_SEQ_CST);
 #endif
 }
@@ -118,7 +118,7 @@ template <typename Ty> inline Ty atomic_xor(Ty *ptr, Ty val) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  static_assert(std::is_integral<Ty>::value);
+  static_assert(std::is_integral_v<Ty>);
   return __atomic_fetch_xor(ptr, val, __ATOMIC_SEQ_CST);
 #endif
 }

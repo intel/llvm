@@ -18,10 +18,12 @@
 #include <limits>
 
 namespace mlir {
+
 namespace func {
 class FuncOp;
 } // namespace func
 
+namespace affine {
 class AffineForOp;
 
 /// Fusion mode to attempt. The default mode `Greedy` does both
@@ -73,10 +75,11 @@ createAffineScalarReplacementPass();
 /// bounds into a single loop.
 std::unique_ptr<OperationPass<func::FuncOp>> createLoopCoalescingPass();
 
-/// Creates a loop fusion pass which fuses loops according to type of fusion
+/// Creates a loop fusion pass which fuses affine loop nests at the top-level of
+/// the operation the pass is created on according to the type of fusion
 /// specified in `fusionMode`. Buffers of size less than or equal to
 /// `localBufSizeThreshold` are promoted to memory space `fastMemorySpace`.
-std::unique_ptr<OperationPass<func::FuncOp>>
+std::unique_ptr<Pass>
 createLoopFusionPass(unsigned fastMemorySpace = 0,
                      uint64_t localBufSizeThreshold = 0,
                      bool maximalFusion = false,
@@ -109,10 +112,6 @@ createLoopUnrollAndJamPass(int unrollJamFactor = -1);
 /// memory hierarchy.
 std::unique_ptr<OperationPass<func::FuncOp>> createPipelineDataTransferPass();
 
-/// Populate patterns that expand affine index operations into more fundamental
-/// operations (not necessarily restricted to Affine dialect).
-void populateAffineExpandIndexOpsPatterns(RewritePatternSet &patterns);
-
 /// Creates a pass to expand affine index operations into more fundamental
 /// operations (not necessarily restricted to Affine dialect).
 std::unique_ptr<Pass> createAffineExpandIndexOpsPass();
@@ -125,6 +124,7 @@ std::unique_ptr<Pass> createAffineExpandIndexOpsPass();
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/Affine/Passes.h.inc"
 
+} // namespace affine
 } // namespace mlir
 
 #endif // MLIR_DIALECT_AFFINE_PASSES_H

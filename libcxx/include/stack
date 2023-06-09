@@ -102,9 +102,9 @@ template <class T, class Container>
 #include <__config>
 #include <__iterator/iterator_traits.h>
 #include <__memory/uses_allocator.h>
+#include <__type_traits/is_same.h>
 #include <__utility/forward.h>
 #include <deque>
-#include <type_traits>
 #include <version>
 
 // standard-mandated includes
@@ -204,15 +204,15 @@ public:
             : c(_VSTD::move(__s.c), __a) {}
 #endif // _LIBCPP_CXX03_LANG
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
     template <class _InputIterator,
-              class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>>
+              class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>>
     _LIBCPP_HIDE_FROM_ABI
     stack(_InputIterator __first, _InputIterator __last) : c(__first, __last) {}
 
     template <class _InputIterator,
               class _Alloc,
-              class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+              class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
               class = __enable_if_t<uses_allocator<container_type, _Alloc>::value>>
     _LIBCPP_HIDE_FROM_ABI
     stack(_InputIterator __first, _InputIterator __last, const _Alloc& __alloc) : c(__first, __last, __alloc) {}
@@ -235,7 +235,7 @@ public:
 
     template <class... _Args>
         _LIBCPP_INLINE_VISIBILITY
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
         decltype(auto) emplace(_Args&&... __args)
         { return c.emplace_back(_VSTD::forward<_Args>(__args)...);}
 #else
@@ -255,6 +255,8 @@ public:
         swap(c, __s.c);
     }
 
+    _LIBCPP_NODISCARD _LIBCPP_HIDE_FROM_ABI const _Container& __get_container() const { return c; }
+
     template <class T1, class _C1>
     friend
     bool
@@ -266,7 +268,7 @@ public:
     operator< (const stack<T1, _C1>& __x, const stack<T1, _C1>& __y);
 };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template<class _Container,
          class = enable_if_t<!__is_allocator<_Container>::value>
 >
@@ -282,15 +284,15 @@ stack(_Container, _Alloc)
     -> stack<typename _Container::value_type, _Container>;
 #endif
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
 template<class _InputIterator,
-         class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>>
+         class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>>
 stack(_InputIterator, _InputIterator)
     -> stack<__iter_value_type<_InputIterator>>;
 
 template<class _InputIterator,
          class _Alloc,
-         class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+         class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
          class = __enable_if_t<__is_allocator<_Alloc>::value>>
 stack(_InputIterator, _InputIterator, _Alloc)
     -> stack<__iter_value_type<_InputIterator>, deque<__iter_value_type<_InputIterator>, _Alloc>>;
@@ -364,6 +366,7 @@ _LIBCPP_END_NAMESPACE_STD
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
 #  include <concepts>
 #  include <functional>
+#  include <type_traits>
 #endif
 
 #endif // _LIBCPP_STACK

@@ -30,6 +30,7 @@
 #include "lldb/Utility/StreamString.h"
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 using namespace lldb;
@@ -55,7 +56,7 @@ public:
   ~BreakpointOptionGroup() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-    return llvm::makeArrayRef(g_breakpoint_modify_options);
+    return llvm::ArrayRef(g_breakpoint_modify_options);
   }
 
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
@@ -185,7 +186,7 @@ public:
   ~BreakpointDummyOptionGroup() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-    return llvm::makeArrayRef(g_breakpoint_dummy_options);
+    return llvm::ArrayRef(g_breakpoint_dummy_options);
   }
 
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
@@ -496,7 +497,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_set_options);
+      return llvm::ArrayRef(g_breakpoint_set_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -1158,7 +1159,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_list_options);
+      return llvm::ArrayRef(g_breakpoint_list_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -1281,7 +1282,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_clear_options);
+      return llvm::ArrayRef(g_breakpoint_clear_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -1438,7 +1439,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_delete_options);
+      return llvm::ArrayRef(g_breakpoint_delete_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -1564,7 +1565,7 @@ public:
   ~BreakpointNameOptionGroup() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-    return llvm::makeArrayRef(g_breakpoint_name_options);
+    return llvm::ArrayRef(g_breakpoint_name_options);
   }
 
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
@@ -1624,7 +1625,7 @@ public:
   ~BreakpointAccessOptionGroup() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-    return llvm::makeArrayRef(g_breakpoint_access_options);
+    return llvm::ArrayRef(g_breakpoint_access_options);
   }
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
                         ExecutionContext *execution_context) override {
@@ -1738,7 +1739,8 @@ protected:
     // check the error:
     BreakpointSP bp_sp;
     if (m_bp_id.m_breakpoint.OptionWasSet()) {
-      lldb::break_id_t bp_id = m_bp_id.m_breakpoint.GetUInt64Value();
+      lldb::break_id_t bp_id =
+          m_bp_id.m_breakpoint.GetValueAs<uint64_t>().value_or(0);
       bp_sp = target.GetBreakpointByID(bp_id);
       if (!bp_sp) {
         result.AppendErrorWithFormatv("Could not find specified breakpoint {0}",
@@ -1754,7 +1756,10 @@ protected:
       if (!bp_name)
         continue;
       if (m_bp_id.m_help_string.OptionWasSet())
-        bp_name->SetHelp(m_bp_id.m_help_string.GetStringValue().str().c_str());
+        bp_name->SetHelp(m_bp_id.m_help_string.GetValueAs<llvm::StringRef>()
+                             .value_or("")
+                             .str()
+                             .c_str());
 
       if (bp_sp)
         target.ConfigureBreakpointName(*bp_name, bp_sp->GetOptions(),
@@ -2187,7 +2192,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_read_options);
+      return llvm::ArrayRef(g_breakpoint_read_options);
     }
 
     void HandleOptionArgumentCompletion(
@@ -2204,7 +2209,7 @@ public:
         break;
 
       case 'N':
-        llvm::Optional<FileSpec> file_spec;
+        std::optional<FileSpec> file_spec;
         const llvm::StringRef dash_f("-f");
         for (int arg_idx = 0; arg_idx < opt_arg_pos; arg_idx++) {
           if (dash_f == request.GetParsedLine().GetArgumentAtIndex(arg_idx)) {
@@ -2376,7 +2381,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_write_options);
+      return llvm::ArrayRef(g_breakpoint_write_options);
     }
 
     // Instance variables to hold the values for command options.

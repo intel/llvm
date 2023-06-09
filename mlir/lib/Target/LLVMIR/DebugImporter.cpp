@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Location.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Metadata.h"
@@ -42,34 +43,44 @@ DIBasicTypeAttr DebugImporter::translateImpl(llvm::DIBasicType *node) {
 }
 
 DICompileUnitAttr DebugImporter::translateImpl(llvm::DICompileUnit *node) {
-  Optional<DIEmissionKind> emissionKind =
+  std::optional<DIEmissionKind> emissionKind =
       symbolizeDIEmissionKind(node->getEmissionKind());
   return DICompileUnitAttr::get(context, node->getSourceLanguage(),
                                 translate(node->getFile()),
-                                StringAttr::get(context, node->getProducer()),
+                                getStringAttrOrNull(node->getRawProducer()),
                                 node->isOptimized(), emissionKind.value());
 }
 
 DICompositeTypeAttr DebugImporter::translateImpl(llvm::DICompositeType *node) {
-  Optional<DIFlags> flags = symbolizeDIFlags(node->getFlags());
+  std::optional<DIFlags> flags = symbolizeDIFlags(node->getFlags());
   SmallVector<DINodeAttr> elements;
   for (llvm::DINode *element : node->getElements()) {
     assert(element && "expected a non-null element type");
     elements.push_back(translate(element));
   }
+  // Drop the elements parameter if a cyclic dependency is detected. We
+  // currently cannot model these cycles and thus drop the parameter if
+  // required. A cyclic dependency is detected if one of the element nodes
+  // translates to a nullptr since the node is already on the translation stack.
+  // TODO: Support debug metadata with cyclic dependencies.
+  if (llvm::is_contained(elements, nullptr))
+    elements.clear();
   return DICompositeTypeAttr::get(
-      context, node->getTag(), StringAttr::get(context, node->getName()),
+      context, node->getTag(), getStringAttrOrNull(node->getRawName()),
       translate(node->getFile()), node->getLine(), translate(node->getScope()),
       translate(node->getBaseType()), flags.value_or(DIFlags::Zero),
       node->getSizeInBits(), node->getAlignInBits(), elements);
 }
 
 DIDerivedTypeAttr DebugImporter::translateImpl(llvm::DIDerivedType *node) {
+  // Return nullptr if the base type is a cyclic dependency.
+  DITypeAttr baseType = translate(node->getBaseType());
+  if (node->getBaseType() && !baseType)
+    return nullptr;
   return DIDerivedTypeAttr::get(
-      context, node->getTag(),
-      node->getRawName() ? StringAttr::get(context, node->getName()) : nullptr,
-      translate(node->getBaseType()), node->getSizeInBits(),
-      node->getAlignInBits(), node->getOffsetInBits());
+      context, node->getTag(), getStringAttrOrNull(node->getRawName()),
+      baseType, node->getSizeInBits(), node->getAlignInBits(),
+      node->getOffsetInBits());
 }
 
 DIFileAttr DebugImporter::translateImpl(llvm::DIFile *node) {
@@ -91,7 +102,7 @@ DebugImporter::translateImpl(llvm::DILexicalBlockFile *node) {
 
 DILocalVariableAttr DebugImporter::translateImpl(llvm::DILocalVariable *node) {
   return DILocalVariableAttr::get(context, translate(node->getScope()),
-                                  StringAttr::get(context, node->getName()),
+                                  getStringAttrOrNull(node->getRawName()),
                                   translate(node->getFile()), node->getLine(),
                                   node->getArg(), node->getAlignInBits(),
                                   translate(node->getType()));
@@ -101,17 +112,28 @@ DIScopeAttr DebugImporter::translateImpl(llvm::DIScope *node) {
   return cast<DIScopeAttr>(translate(static_cast<llvm::DINode *>(node)));
 }
 
+DINamespaceAttr DebugImporter::translateImpl(llvm::DINamespace *node) {
+  return DINamespaceAttr::get(context, getStringAttrOrNull(node->getRawName()),
+                              translate(node->getScope()),
+                              node->getExportSymbols());
+}
+
 DISubprogramAttr DebugImporter::translateImpl(llvm::DISubprogram *node) {
-  Optional<DISubprogramFlags> subprogramFlags =
+  std::optional<DISubprogramFlags> subprogramFlags =
       symbolizeDISubprogramFlags(node->getSubprogram()->getSPFlags());
-  return DISubprogramAttr::get(
-      context, translate(node->getUnit()), translate(node->getScope()),
-      StringAttr::get(context, node->getName()),
-      node->getRawLinkageName()
-          ? StringAttr::get(context, node->getLinkageName())
-          : nullptr,
-      translate(node->getFile()), node->getLine(), node->getScopeLine(),
-      subprogramFlags.value(), translate(node->getType()));
+  // Return nullptr if the scope or type is a cyclic dependency.
+  DIScopeAttr scope = translate(node->getScope());
+  if (node->getScope() && !scope)
+    return nullptr;
+  DISubroutineTypeAttr type = translate(node->getType());
+  if (node->getType() && !type)
+    return nullptr;
+  return DISubprogramAttr::get(context, translate(node->getUnit()), scope,
+                               getStringAttrOrNull(node->getRawName()),
+                               getStringAttrOrNull(node->getRawLinkageName()),
+                               translate(node->getFile()), node->getLine(),
+                               node->getScopeLine(), subprogramFlags.value(),
+                               type);
 }
 
 DISubrangeAttr DebugImporter::translateImpl(llvm::DISubrange *node) {
@@ -129,15 +151,22 @@ DISubrangeAttr DebugImporter::translateImpl(llvm::DISubrange *node) {
 
 DISubroutineTypeAttr
 DebugImporter::translateImpl(llvm::DISubroutineType *node) {
-  // Separate the result type since it is null for void functions.
-  DITypeAttr resultType = translate(*node->getTypeArray().begin());
-  SmallVector<DITypeAttr> argumentTypes;
-  for (llvm::DIType *type : llvm::drop_begin(node->getTypeArray())) {
-    assert(type && "expected a non-null argument type");
-    argumentTypes.push_back(translate(type));
+  SmallVector<DITypeAttr> types;
+  for (llvm::DIType *type : node->getTypeArray()) {
+    if (!type) {
+      // A nullptr entry may appear at the beginning or the end of the
+      // subroutine types list modeling either a void result type or the type of
+      // a variadic argument. Translate the nullptr to an explicit
+      // DINullTypeAttr since the attribute list cannot contain a nullptr entry.
+      types.push_back(DINullTypeAttr::get(context));
+      continue;
+    }
+    types.push_back(translate(type));
   }
-  return DISubroutineTypeAttr::get(context, node->getCC(), resultType,
-                                   argumentTypes);
+  // Return nullptr if any of the types is a cyclic dependency.
+  if (llvm::is_contained(types, nullptr))
+    return nullptr;
+  return DISubroutineTypeAttr::get(context, node->getCC(), types);
 }
 
 DITypeAttr DebugImporter::translateImpl(llvm::DIType *node) {
@@ -151,6 +180,13 @@ DINodeAttr DebugImporter::translate(llvm::DINode *node) {
   // Check for a cached instance.
   if (DINodeAttr attr = nodeToAttr.lookup(node))
     return attr;
+
+  // Return nullptr if a cyclic dependency is detected since the same node is
+  // being traversed twice. This check avoids infinite recursion if the debug
+  // metadata contains cycles.
+  if (!translationStack.insert(node))
+    return nullptr;
+  auto guard = llvm::make_scope_exit([&]() { translationStack.pop_back(); });
 
   // Convert the debug metadata if possible.
   auto translateNode = [this](llvm::DINode *node) -> DINodeAttr {
@@ -172,6 +208,8 @@ DINodeAttr DebugImporter::translate(llvm::DINode *node) {
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DISubprogram>(node))
       return translateImpl(casted);
+    if (auto *casted = dyn_cast<llvm::DINamespace>(node))
+      return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DISubrange>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DISubroutineType>(node))
@@ -191,7 +229,7 @@ DINodeAttr DebugImporter::translate(llvm::DINode *node) {
 
 Location DebugImporter::translateLoc(llvm::DILocation *loc) {
   if (!loc)
-    return UnknownLoc::get(context);
+    return mlirModule.getLoc();
 
   // Get the file location of the instruction.
   Location result = FileLineColLoc::get(context, loc->getFilename(),
@@ -206,4 +244,10 @@ Location DebugImporter::translateLoc(llvm::DILocation *loc) {
   result = FusedLocWith<DIScopeAttr>::get({result}, translate(loc->getScope()),
                                           context);
   return result;
+}
+
+StringAttr DebugImporter::getStringAttrOrNull(llvm::MDString *stringNode) {
+  if (!stringNode)
+    return StringAttr();
+  return StringAttr::get(context, stringNode->getString());
 }

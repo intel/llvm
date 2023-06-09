@@ -12,7 +12,13 @@
 
 #include <__concepts/same_as.h>
 #include <__config>
-#include <type_traits>
+#include <__type_traits/conditional.h>
+#include <__type_traits/is_array.h>
+#include <__type_traits/is_object.h>
+#include <__type_traits/is_primary_template.h>
+#include <__type_traits/remove_cv.h>
+#include <__type_traits/remove_cvref.h>
+#include <__type_traits/remove_extent.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -20,7 +26,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // [readable.traits]
 template<class> struct __cond_value_type {};
@@ -79,7 +85,7 @@ using iter_value_t = typename conditional_t<__is_primary_template<iterator_trait
                                             indirectly_readable_traits<remove_cvref_t<_Ip> >,
                                             iterator_traits<remove_cvref_t<_Ip> > >::value_type;
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

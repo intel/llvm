@@ -39,6 +39,7 @@ protected:
   using COFFSymbolIndex = int32_t;
 
   COFFLinkGraphBuilder(const object::COFFObjectFile &Obj, Triple TT,
+                       LinkGraph::FeatureVector Features,
                        LinkGraph::GetEdgeKindNameFunction GetEdgeKindName);
 
   LinkGraph &getGraph() const { return *G; }
@@ -115,7 +116,7 @@ private:
     jitlink::Linkage Linkage;
     orc::ExecutorAddrDiff Size;
   };
-  std::vector<Optional<ComdatExportRequest>> PendingComdatExports;
+  std::vector<std::optional<ComdatExportRequest>> PendingComdatExports;
 
   // This represents a pending request to create a weak external symbol with a
   // name.

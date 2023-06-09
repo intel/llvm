@@ -4,7 +4,6 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsInfos
   BinaryFormat
   DebugInfoDWARF
-  DebugInfoPDB
   Demangle
   MC
   MCDisassembler
@@ -12,6 +11,7 @@ set(LLVM_LINK_COMPONENTS
   Option
   Support
   Symbolize
+  TargetParser
   )
 
 set(LLVM_TARGET_DEFINITIONS ObjdumpOpts.td)

@@ -1,0 +1,45 @@
+name: 'Run SYCL End-to-End testing'
+description: 'Run SYCL End-to-End testing'
+inputs:
+  sycl_artifact:
+    description: 'Name of the artifact, that contains compiler toolchain'
+    required: true
+  targets:
+    description: 'List of SYCL backends with set of target devices per each to be tested iteratively'
+    required: true
+  cmake_args:
+    description: 'Extra arguments to cmake command'
+    required: false
+
+post-if: false
+runs:
+  using: "composite"
+  steps:
+  - name: Download compiler toolchain
+    uses: actions/download-artifact@v3
+    with:
+      name: ${{ inputs.sycl_artifact }}
+  - name: Extract SYCL toolchain
+    shell: bash
+    run: |
+      mkdir install
+      tar -xf llvm_sycl.tar.gz -C install
+      rm llvm_sycl.tar.gz
+  - name: Configure
+    shell: cmd
+    run: |
+      mkdir build-e2e
+      set PATH=%GITHUB_WORKSPACE%\install\bin;%PATH%
+      cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.targets }}" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py" ${{ inputs.cmake_args }}
+  - name: Run testing
+    shell: bash
+    run: |
+      # Run E2E tests.
+      export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests"
+      cmake --build build-e2e --target check-sycl-e2e
+  - name: Cleanup
+    shell: cmd
+    if: always()
+    run: |
+      rmdir /q /s install
+      rmdir /q /s build-e2e

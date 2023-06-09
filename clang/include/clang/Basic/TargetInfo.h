@@ -26,16 +26,15 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VersionTuple.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cassert>
 #include <optional>
 #include <string>
@@ -203,7 +202,7 @@ enum OpenCLTypeKind : uint8_t {
 
 /// Exposes information about the current target.
 ///
-class TargetInfo : public virtual TransferrableTargetInfo,
+class TargetInfo : public TransferrableTargetInfo,
                    public RefCountedBase<TargetInfo> {
   std::shared_ptr<TargetOptions> TargetOpts;
   llvm::Triple Triple;
@@ -220,13 +219,15 @@ protected:
   bool HasFloat128;
   bool HasFloat16;
   bool HasBFloat16;
+  bool HasFullBFloat16; // True if the backend supports native bfloat16
+                        // arithmetic. Used to determine excess precision
+                        // support in the frontend.
   bool HasIbm128;
   bool HasLongDouble;
   bool HasFPReturn;
   bool HasStrictFP;
 
   unsigned char MaxAtomicPromoteWidth, MaxAtomicInlineWidth;
-  unsigned short SimdDefaultAlign;
   std::string DataLayoutString;
   const char *UserLabelPrefix;
   const char *MCountName;
@@ -255,9 +256,9 @@ protected:
 
   unsigned MaxOpenCLWorkGroupSize;
 
-  Optional<unsigned> MaxBitIntWidth;
+  std::optional<unsigned> MaxBitIntWidth;
 
-  Optional<llvm::Triple> DarwinTargetVariantTriple;
+  std::optional<llvm::Triple> DarwinTargetVariantTriple;
 
   // TargetInfo Constructor.  Default initializes all fields.
   TargetInfo(const llvm::Triple &T);
@@ -650,7 +651,13 @@ public:
   virtual bool hasFloat16Type() const { return HasFloat16; }
 
   /// Determine whether the _BFloat16 type is supported on this target.
-  virtual bool hasBFloat16Type() const { return HasBFloat16; }
+  virtual bool hasBFloat16Type() const {
+    return HasBFloat16 || HasFullBFloat16;
+  }
+
+  /// Determine whether the BFloat type is fully supported on this target, i.e
+  /// arithemtic operations.
+  virtual bool hasFullBFloat16Type() const { return HasFullBFloat16; }
 
   /// Determine whether the __ibm128 type is supported on this target.
   virtual bool hasIbm128Type() const { return HasIbm128; }
@@ -758,9 +765,7 @@ public:
   }
 
   /// Return the mangled code of bfloat.
-  virtual const char *getBFloat16Mangling() const {
-    llvm_unreachable("bfloat not implemented on this target");
-  }
+  virtual const char *getBFloat16Mangling() const { return "DF16b"; }
 
   /// Return the value for the C99 FLT_EVAL_METHOD macro.
   virtual LangOptions::FPEvalMethodKind getFPEvalMethod() const {
@@ -795,10 +800,6 @@ public:
 
   /// Return the maximum vector alignment supported for the given target.
   unsigned getMaxVectorAlign() const { return MaxVectorAlign; }
-  /// Return default simd alignment for the given target. Generally, this
-  /// value is type-specific, but this alignment can be used for most of the
-  /// types for the given target.
-  unsigned getSimdDefaultAlign() const { return SimdDefaultAlign; }
 
   unsigned getMaxOpenCLWorkGroupSize() const { return MaxOpenCLWorkGroupSize; }
 
@@ -933,8 +934,6 @@ public:
     return true;
   }
 
-  virtual bool shouldEmitFloat16WithExcessPrecision() const { return false; }
-
   /// Specify if mangling based on address space map should be used or
   /// not for language specific address spaces
   bool useAddressSpaceMapMangling() const {
@@ -955,7 +954,7 @@ public:
   virtual ArrayRef<Builtin::Info> getTargetBuiltins() const = 0;
 
   /// Returns target-specific min and max values VScale_Range.
-  virtual Optional<std::pair<unsigned, unsigned>>
+  virtual std::optional<std::pair<unsigned, unsigned>>
   getVScaleRange(const LangOptions &LangOpts) const {
     return std::nullopt;
   }
@@ -1181,12 +1180,12 @@ public:
 
   /// Replace some escaped characters with another string based on
   /// target-specific rules
-  virtual llvm::Optional<std::string> handleAsmEscapedChar(char C) const {
+  virtual std::optional<std::string> handleAsmEscapedChar(char C) const {
     return std::nullopt;
   }
 
   /// Returns a string of target-specific clobbers, in LLVM format.
-  virtual const char *getClobbers() const = 0;
+  virtual std::string_view getClobbers() const = 0;
 
   /// Returns true if NaN encoding is IEEE 754-2008.
   /// Only MIPS allows a different encoding.
@@ -1200,7 +1199,7 @@ public:
   }
 
   /// Returns the target ID if supported.
-  virtual llvm::Optional<std::string> getTargetID() const {
+  virtual std::optional<std::string> getTargetID() const {
     return std::nullopt;
   }
 
@@ -1340,6 +1339,17 @@ public:
     return true;
   }
 
+  /// Returns true if feature has an impact on target code
+  /// generation.
+  virtual bool doesFeatureAffectCodeGen(StringRef Feature) const {
+    return true;
+  }
+
+  /// For given feature return dependent ones.
+  virtual StringRef getFeatureDependencies(StringRef Feature) const {
+    return StringRef();
+  }
+
   struct BranchProtectionInfo {
     LangOptions::SignReturnAddressScopeKind SignReturnAddr =
         LangOptions::SignReturnAddressScopeKind::None;
@@ -1386,7 +1396,9 @@ public:
 
   /// Identify whether this target supports multiversioning of functions,
   /// which requires support for cpu_supports and cpu_is functionality.
-  bool supportsMultiVersioning() const { return getTriple().isX86(); }
+  bool supportsMultiVersioning() const {
+    return getTriple().isX86() || getTriple().isAArch64();
+  }
 
   /// Identify whether this target supports IFuncs.
   bool supportsIFunc() const {
@@ -1402,6 +1414,10 @@ public:
   virtual unsigned multiVersionSortPriority(StringRef Name) const {
     return 0;
   }
+
+  // Return the target-specific cost for feature
+  // that taken into account in priority sorting.
+  virtual unsigned multiVersionFeatureCost() const { return 0; }
 
   // Validate the contents of the __builtin_cpu_is(const char*)
   // argument.
@@ -1437,7 +1453,7 @@ public:
 
   // Get the cache line size of a given cpu. This method switches over
   // the given cpu and returns "std::nullopt" if the CPU is not found.
-  virtual Optional<unsigned> getCPUCacheLineSize() const {
+  virtual std::optional<unsigned> getCPUCacheLineSize() const {
     return std::nullopt;
   }
 
@@ -1514,7 +1530,7 @@ public:
   /// for constant global memory. It must be possible to convert pointers into
   /// this address space to LangAS::Default. If no such address space exists,
   /// this may return std::nullopt, and such optimizations will be disabled.
-  virtual llvm::Optional<LangAS> getConstantAddressSpace() const {
+  virtual std::optional<LangAS> getConstantAddressSpace() const {
     return LangAS::Default;
   }
 
@@ -1689,10 +1705,10 @@ public:
 
   /// Returns the version of the darwin target variant SDK which was used during
   /// the compilation if one was specified, or an empty version otherwise.
-  const Optional<VersionTuple> getDarwinTargetVariantSDKVersion() const {
+  const std::optional<VersionTuple> getDarwinTargetVariantSDKVersion() const {
     return !getTargetOpts().DarwinTargetVariantSDKVersion.empty()
                ? getTargetOpts().DarwinTargetVariantSDKVersion
-               : Optional<VersionTuple>();
+               : std::optional<VersionTuple>();
   }
 
 protected:

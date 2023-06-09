@@ -67,9 +67,8 @@ static std::unique_ptr<raw_fd_ostream> openLTOOutputFile(StringRef file) {
 }
 
 static std::string getThinLTOOutputFile(StringRef modulePath) {
-  return lto::getThinLTOOutputFile(
-      std::string(modulePath), std::string(config->thinLTOPrefixReplace.first),
-      std::string(config->thinLTOPrefixReplace.second));
+  return lto::getThinLTOOutputFile(modulePath, config->thinLTOPrefixReplaceOld,
+                                   config->thinLTOPrefixReplaceNew);
 }
 
 static lto::Config createConfig() {
@@ -77,7 +76,6 @@ static lto::Config createConfig() {
 
   // LLD supports the new relocations and address-significance tables.
   c.Options = initTargetOptionsFromCodeGenFlags();
-  c.Options.RelaxELFRelocations = true;
   c.Options.EmitAddrsig = true;
   for (StringRef C : config->mllvmOpts)
     c.MllvmArgs.emplace_back(C.str());
@@ -128,7 +126,7 @@ static lto::Config createConfig() {
   c.OptLevel = config->ltoo;
   c.CPU = getCPUStr();
   c.MAttrs = getMAttrs();
-  c.CGOptLevel = args::getCGOptLevel(config->ltoo);
+  c.CGOptLevel = config->ltoCgo;
 
   c.PTO.LoopVectorization = c.OptLevel > 1;
   c.PTO.SLPVectorization = c.OptLevel > 1;
@@ -177,8 +175,10 @@ static lto::Config createConfig() {
     };
   }
 
-  if (config->ltoEmitAsm)
+  if (config->ltoEmitAsm) {
     c.CGFileType = CGFT_AssemblyFile;
+    c.Options.MCOptions.AsmVerbose = true;
+  }
 
   if (!config->saveTempsArgs.empty())
     checkError(c.addSaveTemps(config->outputFile.str() + ".",
@@ -197,8 +197,9 @@ BitcodeCompiler::BitcodeCompiler() {
   auto onIndexWrite = [&](StringRef s) { thinIndices.erase(s); };
   if (config->thinLTOIndexOnly) {
     backend = lto::createWriteIndexesThinBackend(
-        std::string(config->thinLTOPrefixReplace.first),
-        std::string(config->thinLTOPrefixReplace.second),
+        std::string(config->thinLTOPrefixReplaceOld),
+        std::string(config->thinLTOPrefixReplaceNew),
+        std::string(config->thinLTOPrefixReplaceNativeObject),
         config->thinLTOEmitImportsFiles, indexFile.get(), onIndexWrite);
   } else {
     backend = lto::createInProcessThinBackend(

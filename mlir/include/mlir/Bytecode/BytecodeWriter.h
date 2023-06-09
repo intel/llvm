@@ -40,6 +40,15 @@ public:
   /// Return an instance of the internal implementation.
   const Impl &getImpl() const { return *impl; }
 
+  /// Set the desired bytecode version to emit. This function clamps the version
+  /// to the existing version if larger than existing. The desired version may
+  /// not be used depending on the features used and the actual version required
+  /// is returned by bytecode writer entry point.
+  void setDesiredBytecodeVersion(int64_t bytecodeVersion);
+
+  /// Get the set desired bytecode version to emit.
+  int64_t getDesiredBytecodeVersion() const;
+
   //===--------------------------------------------------------------------===//
   // Resources
   //===--------------------------------------------------------------------===//
@@ -75,8 +84,9 @@ private:
 
 /// Write the bytecode for the given operation to the provided output stream.
 /// For streams where it matters, the given stream should be in "binary" mode.
-void writeBytecodeToFile(Operation *op, raw_ostream &os,
-                         const BytecodeWriterConfig &config = {});
+/// It only ever fails if setDesiredByteCodeVersion can't be honored.
+LogicalResult writeBytecodeToFile(Operation *op, raw_ostream &os,
+                                  const BytecodeWriterConfig &config = {});
 
 } // namespace mlir
 

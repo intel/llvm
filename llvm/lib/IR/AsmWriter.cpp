@@ -329,8 +329,12 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::Swift:         Out << "swiftcc"; break;
   case CallingConv::SwiftTail:     Out << "swifttailcc"; break;
   case CallingConv::X86_INTR:      Out << "x86_intrcc"; break;
-  case CallingConv::HHVM:          Out << "hhvmcc"; break;
-  case CallingConv::HHVM_C:        Out << "hhvm_ccc"; break;
+  case CallingConv::DUMMY_HHVM:
+    Out << "hhvmcc";
+    break;
+  case CallingConv::DUMMY_HHVM_C:
+    Out << "hhvm_ccc";
+    break;
   case CallingConv::AMDGPU_VS:     Out << "amdgpu_vs"; break;
   case CallingConv::AMDGPU_LS:     Out << "amdgpu_ls"; break;
   case CallingConv::AMDGPU_HS:     Out << "amdgpu_hs"; break;
@@ -421,8 +425,8 @@ static void PrintShuffleMask(raw_ostream &Out, Type *Ty, ArrayRef<int> Mask) {
   bool FirstElt = true;
   if (all_of(Mask, [](int Elt) { return Elt == 0; })) {
     Out << "zeroinitializer";
-  } else if (all_of(Mask, [](int Elt) { return Elt == UndefMaskElem; })) {
-    Out << "undef";
+  } else if (all_of(Mask, [](int Elt) { return Elt == PoisonMaskElem; })) {
+    Out << "poison";
   } else {
     Out << "<";
     for (int Elt : Mask) {
@@ -431,8 +435,8 @@ static void PrintShuffleMask(raw_ostream &Out, Type *Ty, ArrayRef<int> Mask) {
       else
         Out << ", ";
       Out << "i32 ";
-      if (Elt == UndefMaskElem)
-        Out << "undef";
+      if (Elt == PoisonMaskElem)
+        Out << "poison";
       else
         Out << Elt;
     }
@@ -622,6 +626,17 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
        << TPTy->getAddressSpace() << ")";
     return;
   }
+  case Type::TargetExtTyID:
+    TargetExtType *TETy = cast<TargetExtType>(Ty);
+    OS << "target(\"";
+    printEscapedString(Ty->getTargetExtName(), OS);
+    OS << "\"";
+    for (Type *Inner : TETy->type_params())
+      OS << ", " << *Inner;
+    for (unsigned IntParam : TETy->int_params())
+      OS << ", " << IntParam;
+    OS << ")";
+    return;
   }
   llvm_unreachable("Invalid TypeID");
 }
@@ -1438,7 +1453,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     return;
   }
 
-  if (isa<ConstantAggregateZero>(CV)) {
+  if (isa<ConstantAggregateZero>(CV) || isa<ConstantTargetNone>(CV)) {
     Out << "zeroinitializer";
     return;
   }
@@ -1574,8 +1589,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     Out << CE->getOpcodeName();
     WriteOptimizationInfo(Out, CE);
     if (CE->isCompare())
-      Out << ' ' << CmpInst::getPredicateName(
-                        static_cast<CmpInst::Predicate>(CE->getPredicate()));
+      Out << ' ' << static_cast<CmpInst::Predicate>(CE->getPredicate());
     Out << " (";
 
     std::optional<unsigned> InRangeOp;
@@ -2754,9 +2768,13 @@ void AssemblyWriter::writeOperandBundles(const CallBase *Call) {
         Out << ", ";
       FirstInput = false;
 
-      TypePrinter.print(Input->getType(), Out);
-      Out << " ";
-      WriteAsOperandInternal(Out, Input, WriterCtx);
+      if (Input == nullptr)
+        Out << "<null operand bundle!>";
+      else {
+        TypePrinter.print(Input->getType(), Out);
+        Out << " ";
+        WriteAsOperandInternal(Out, Input, WriterCtx);
+      }
     }
 
     Out << ')';
@@ -3192,10 +3210,7 @@ void AssemblyWriter::printFunctionSummary(const FunctionSummary *FS) {
     printTypeIdInfo(*TIdInfo);
 
   // The AllocationType identifiers capture the profiled context behavior
-  // reaching a specific static allocation site (possibly cloned). Thus
-  // "notcoldandcold" implies there are multiple contexts which reach this site,
-  // some of which are cold and some of which are not, and that need to
-  // disambiguate via cloning or other context identification.
+  // reaching a specific static allocation site (possibly cloned).
   auto AllocTypeName = [](uint8_t Type) -> const char * {
     switch (Type) {
     case (uint8_t)AllocationType::None:
@@ -3204,8 +3219,8 @@ void AssemblyWriter::printFunctionSummary(const FunctionSummary *FS) {
       return "notcold";
     case (uint8_t)AllocationType::Cold:
       return "cold";
-    case (uint8_t)AllocationType::NotCold | (uint8_t)AllocationType::Cold:
-      return "notcoldandcold";
+    case (uint8_t)AllocationType::Hot:
+      return "hot";
     }
     llvm_unreachable("Unexpected alloc type");
   };
@@ -3997,6 +4012,10 @@ void AssemblyWriter::printInfoComment(const Value &V) {
 static void maybePrintCallAddrSpace(const Value *Operand, const Instruction *I,
                                     raw_ostream &Out) {
   // We print the address space of the call if it is non-zero.
+  if (Operand == nullptr) {
+    Out << " <cannot get addrspace!>";
+    return;
+  }
   unsigned CallAddrSpace = Operand->getType()->getPointerAddressSpace();
   bool PrintAddrSpace = CallAddrSpace != 0;
   if (!PrintAddrSpace) {
@@ -4063,7 +4082,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 
   // Print out the compare instruction predicates
   if (const CmpInst *CI = dyn_cast<CmpInst>(&I))
-    Out << ' ' << CmpInst::getPredicateName(CI->getPredicate());
+    Out << ' ' << CI->getPredicate();
 
   // Print out the atomicrmw operation
   if (const AtomicRMWInst *RMWI = dyn_cast<AtomicRMWInst>(&I))
@@ -4383,9 +4402,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     bool PrintAllTypes = false;
     Type *TheType = Operand->getType();
 
-    // Select, Store, ShuffleVector and CmpXchg always print all types.
+    // Select, Store, ShuffleVector, CmpXchg and AtomicRMW always print all
+    // types.
     if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I) ||
-        isa<ReturnInst>(I) || isa<AtomicCmpXchgInst>(I)) {
+        isa<ReturnInst>(I) || isa<AtomicCmpXchgInst>(I) ||
+        isa<AtomicRMWInst>(I)) {
       PrintAllTypes = true;
     } else {
       for (unsigned i = 1, E = I.getNumOperands(); i != E; ++i) {

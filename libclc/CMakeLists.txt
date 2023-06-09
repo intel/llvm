@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.20.0)
 
 add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
 add_custom_target(libclc-builtins COMMENT "Build libclc builtins")
@@ -20,6 +20,8 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 else()
   include(HandleInLLVMTree)
 endif()
+
+set(CMAKE_CXX_STANDARD 17)
 
 include( GNUInstallDirs )
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -295,11 +297,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
 	# Add the generated convert.cl here to prevent adding
 	# the one listed in SOURCES
-	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" AND
-			NOT ${ARCH} STREQUAL "clspv" AND NOT ${ARCH} STREQUAL "clspv64" )
+	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" )
 		set( rel_files convert.cl )
 		set( objects convert.cl )
-		if( NOT ENABLE_RUNTIME_SUBNORMAL )
+		if( NOT ENABLE_RUNTIME_SUBNORMAL AND NOT ${ARCH} STREQUAL "clspv" AND
+		    NOT ${ARCH} STREQUAL "clspv64" )
 			list( APPEND rel_files generic/lib/subnormal_use_default.ll )
 		endif()
 	else()
@@ -336,8 +338,12 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# Disables NVVM reflection to defer to after linking
 				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx72"
 						 "SHELL:-march=sm_86" "SHELL:-mllvm --nvvm-reflect-enable=false")
-                        else()
-                                set ( flags )
+			elseif( ${ARCH} STREQUAL amdgcn )
+				# AMDGCN needs libclc to be compiled to high bc version since all atomic
+				# clang builtins need to be accessible
+				set( flags "SHELL:-mcpu=gfx940")
+			else()
+				set ( flags )
 			endif()
 			set( arch_suffix "${t}" )
 		else()
@@ -357,14 +363,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			set( spvflags --spirv-max-version=1.1 )
 		elseif( ${ARCH} STREQUAL "clspv" )
 			set( t "spir--" )
-			set( build_flags )
+			set( build_flags "-Wno-unknown-assumption")
 			set( opt_flags -O3 )
 		elseif( ${ARCH} STREQUAL "nvptx" OR ${ARCH} STREQUAL "nvptx64" )
 			set( build_flags )
 			set( opt_flags -O3 "--nvvm-reflect-enable=false" )
 		elseif( ${ARCH} STREQUAL "clspv64" )
 			set( t "spir64--" )
-			set( build_flags )
+			set( build_flags "-Wno-unknown-assumption")
 			set( opt_flags -O3 )
 		else()
 			set( build_flags )
@@ -374,6 +380,28 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                 # Enable SPIR-V builtin function declarations, so they don't
                 # have to be explicity declared in the soruce.
                 list( APPEND flags -Xclang -fdeclare-spirv-builtins)
+                if (${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64")
+                  if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
+                    list(APPEND flags "-UENABLE_OPAQUE_POINTERS")
+                    list(APPEND flags "SHELL:-Xclang -no-opaque-pointers")
+                    list(APPEND opt_flags "-opaque-pointers=0")
+                  endif()
+                endif()
+
+                # OpenCL 3.0 extensions
+                list( APPEND flags -cl-std=CL3.0 "SHELL:-Xclang" )
+                string(CONCAT CL_3_0_EXTENSIONS
+                  "-cl-ext="
+                  "+cl_khr_fp64,"
+                  "+__opencl_c_3d_image_writes,"
+                  "+__opencl_c_images,"
+                  "+cl_khr_3d_image_writes,"
+                  "+__opencl_c_generic_address_space")
+                if ( NOT ${ARCH} STREQUAL amdgcn )
+                  string(APPEND CL_3_0_EXTENSIONS
+                    ",+cl_khr_fp16")
+                endif()
+                list( APPEND flags ${CL_3_0_EXTENSIONS})
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}

@@ -36,7 +36,7 @@ public:
         llvm::TypeSwitch<llvm::Type *, Type>(type)
             .Case<llvm::ArrayType, llvm::FunctionType, llvm::IntegerType,
                   llvm::PointerType, llvm::StructType, llvm::FixedVectorType,
-                  llvm::ScalableVectorType>(
+                  llvm::ScalableVectorType, llvm::TargetExtType>(
                 [this](auto *type) { return this->translate(type); })
             .Default([this](llvm::Type *type) {
               return translatePrimitiveType(type);
@@ -97,12 +97,7 @@ private:
 
   /// Translates the given pointer type.
   Type translate(llvm::PointerType *type) {
-    if (type->isOpaque())
-      return LLVM::LLVMPointerType::get(&context, type->getAddressSpace());
-
-    return LLVM::LLVMPointerType::get(
-        translateType(type->getNonOpaquePointerElementType()),
-        type->getAddressSpace());
+    return LLVM::LLVMPointerType::get(&context, type->getAddressSpace());
   }
 
   /// Translates the given structure type.
@@ -138,6 +133,15 @@ private:
   Type translate(llvm::ScalableVectorType *type) {
     return LLVM::LLVMScalableVectorType::get(
         translateType(type->getElementType()), type->getMinNumElements());
+  }
+
+  /// Translates the given target extension type.
+  Type translate(llvm::TargetExtType *type) {
+    SmallVector<Type> typeParams;
+    translateTypes(type->type_params(), typeParams);
+
+    return LLVM::LLVMTargetExtType::get(&context, type->getName(), typeParams,
+                                        type->int_params());
   }
 
   /// Translates a list of types.

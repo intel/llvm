@@ -19,10 +19,11 @@ def _libc_library(name, copts = None, **kwargs):
       **kwargs: All other attributes relevant for the cc_library rule.
     """
     copts = copts or []
+
     # We want all libc sources to be compiled with "hidden" visibility.
     # The public symbols will be given "default" visibility explicitly.
     # See src/__support/common.h for more information.
-    copts.append("-fvisibility=hidden")
+    copts = copts + ["-fvisibility=hidden"]
     native.cc_library(
         name = name,
         copts = copts,
@@ -35,8 +36,14 @@ def _libc_library(name, copts = None, **kwargs):
 # libc_support_library.
 libc_support_library = _libc_library
 
-def libc_function(name, srcs, weak = False, deps = None, copts = None,
-                  local_defines = None, **kwargs):
+def libc_function(
+        name,
+        srcs,
+        weak = False,
+        deps = None,
+        copts = None,
+        local_defines = None,
+        **kwargs):
     """Add target for a libc function.
 
     The libc function is eventually available as a cc_library target by name
@@ -58,10 +65,12 @@ def libc_function(name, srcs, weak = False, deps = None, copts = None,
       **kwargs: Other attributes relevant for a cc_library. For example, deps.
     """
     deps = deps or []
-    deps.append(LIBC_ROOT_TARGET)
+
+    # We use the explicit equals pattern here because append and += mutate the
+    # original list, where this creates a new list and stores it in deps.
+    deps = deps + [LIBC_ROOT_TARGET]
     copts = copts or []
-    copts.append("-O3")
-    copts.append("-fno-builtin")
+    copts = copts + ["-O3", "-fno-builtin", "-fno-lax-vector-conversions"]
 
     # We compile the code twice, the first target is suffixed with ".__internal__" and contains the
     # C++ functions in the "__llvm_libc" namespace. This allows us to test the function in the
@@ -79,9 +88,9 @@ def libc_function(name, srcs, weak = False, deps = None, copts = None,
 
     func_attrs = ["__attribute__((visibility(\"default\")))"]
     if weak:
-        func_attrs.append("__attribute__((weak))")
-    local_defines = local_defines or ["LLVM_LIBC_PUBLIC_PACKAGING"]
-    local_defines.append("LLVM_LIBC_FUNCTION_ATTR='%s'" % ' '.join(func_attrs))
+        func_attrs = func_attrs + ["__attribute__((weak))"]
+    local_defines = local_defines or ["LIBC_COPT_PUBLIC_PACKAGING"]
+    local_defines = local_defines + ["LLVM_LIBC_FUNCTION_ATTR='%s'" % " ".join(func_attrs)]
     _libc_library(
         name = name,
         srcs = srcs,

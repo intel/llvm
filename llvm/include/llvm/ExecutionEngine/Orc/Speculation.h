@@ -14,7 +14,6 @@
 #define LLVM_EXECUTIONENGINE_ORC_SPECULATION_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
@@ -44,7 +43,7 @@ public:
 private:
   // FIX ME: find a right way to distinguish the pre-compile Symbols, and update
   // the callsite
-  Optional<AliaseeDetails> getImplFor(const SymbolStringPtr &StubSymbol) {
+  std::optional<AliaseeDetails> getImplFor(const SymbolStringPtr &StubSymbol) {
     std::lock_guard<std::mutex> Lockit(ConcurrentAccess);
     auto Position = Maps.find(StubSymbol);
     if (Position != Maps.end())
@@ -60,7 +59,7 @@ private:
 // Defines Speculator Concept,
 class Speculator {
 public:
-  using TargetFAddr = JITTargetAddress;
+  using TargetFAddr = ExecutorAddr;
   using FunctionCandidatesMap = DenseMap<SymbolStringPtr, SymbolNameSet>;
   using StubAddrLikelies = DenseMap<TargetFAddr, SymbolNameSet>;
 
@@ -71,7 +70,7 @@ private:
     GlobalSpecMap.insert({ImplAddr, std::move(likelySymbols)});
   }
 
-  void launchCompile(JITTargetAddress FAddr) {
+  void launchCompile(ExecutorAddr FAddr) {
     SymbolNameSet CandidateSet;
     // Copy CandidateSet is necessary, to avoid unsynchronized access to
     // the datastructure.
@@ -145,8 +144,8 @@ public:
       auto OnReadyFixUp = [Likely, Target,
                            this](Expected<SymbolMap> ReadySymbol) {
         if (ReadySymbol) {
-          auto RAddr = (*ReadySymbol)[Target].getAddress();
-          registerSymbolsWithAddr(RAddr, std::move(Likely));
+          auto RDef = (*ReadySymbol)[Target];
+          registerSymbolsWithAddr(RDef.getAddress(), std::move(Likely));
         } else
           this->getES().reportError(ReadySymbol.takeError());
       };
@@ -171,7 +170,8 @@ private:
 
 class IRSpeculationLayer : public IRLayer {
 public:
-  using IRlikiesStrRef = Optional<DenseMap<StringRef, DenseSet<StringRef>>>;
+  using IRlikiesStrRef =
+      std::optional<DenseMap<StringRef, DenseSet<StringRef>>>;
   using ResultEval = std::function<IRlikiesStrRef(Function &)>;
   using TargetAndLikelies = DenseMap<SymbolStringPtr, SymbolNameSet>;
 

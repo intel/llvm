@@ -466,6 +466,16 @@ SBEvent SBProcess::GetStopEventForStopID(uint32_t stop_id) {
   return sb_event;
 }
 
+void SBProcess::ForceScriptedState(StateType new_state) {
+  LLDB_INSTRUMENT_VA(this, new_state);
+
+  if (ProcessSP process_sp = GetSP()) {
+    std::lock_guard<std::recursive_mutex> guard(
+        process_sp->GetTarget().GetAPIMutex());
+    process_sp->ForceScriptedState(new_state);
+  }
+}
+
 StateType SBProcess::GetState() {
   LLDB_INSTRUMENT_VA(this);
 
@@ -497,14 +507,13 @@ int SBProcess::GetExitStatus() {
 const char *SBProcess::GetExitDescription() {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *exit_desc = nullptr;
   ProcessSP process_sp(GetSP());
-  if (process_sp) {
-    std::lock_guard<std::recursive_mutex> guard(
-        process_sp->GetTarget().GetAPIMutex());
-    exit_desc = process_sp->GetExitDescription();
-  }
-  return exit_desc;
+  if (!process_sp)
+    return nullptr;
+
+  std::lock_guard<std::recursive_mutex> guard(
+      process_sp->GetTarget().GetAPIMutex());
+  return ConstString(process_sp->GetExitDescription()).GetCString();
 }
 
 lldb::pid_t SBProcess::GetProcessID() {
@@ -737,7 +746,9 @@ SBProcess::GetRestartedReasonAtIndexFromEvent(const lldb::SBEvent &event,
                                               size_t idx) {
   LLDB_INSTRUMENT_VA(event, idx);
 
-  return Process::ProcessEventData::GetRestartedReasonAtIndex(event.get(), idx);
+  return ConstString(Process::ProcessEventData::GetRestartedReasonAtIndex(
+                         event.get(), idx))
+      .GetCString();
 }
 
 SBProcess SBProcess::GetProcessFromEvent(const SBEvent &event) {
@@ -769,8 +780,8 @@ SBProcess::GetStructuredDataFromEvent(const lldb::SBEvent &event) {
 bool SBProcess::EventIsProcessEvent(const SBEvent &event) {
   LLDB_INSTRUMENT_VA(event);
 
-  return (event.GetBroadcasterClass() == SBProcess::GetBroadcasterClass()) &&
-         !EventIsStructuredDataEvent(event);
+  return Process::ProcessEventData::GetEventDataFromEvent(event.get()) !=
+         nullptr;
 }
 
 bool SBProcess::EventIsStructuredDataEvent(const lldb::SBEvent &event) {
@@ -802,8 +813,13 @@ size_t SBProcess::ReadMemory(addr_t addr, void *dst, size_t dst_len,
                              SBError &sb_error) {
   LLDB_INSTRUMENT_VA(this, addr, dst, dst_len, sb_error);
 
-  size_t bytes_read = 0;
+  if (!dst) {
+    sb_error.SetErrorStringWithFormat(
+        "no buffer provided to read %zu bytes into", dst_len);
+    return 0;
+  }
 
+  size_t bytes_read = 0;
   ProcessSP process_sp(GetSP());
 
 
@@ -967,7 +983,12 @@ SBProcess::GetNumSupportedHardwareWatchpoints(lldb::SBError &sb_error) const {
   if (process_sp) {
     std::lock_guard<std::recursive_mutex> guard(
         process_sp->GetTarget().GetAPIMutex());
-    sb_error.SetError(process_sp->GetWatchpointSupportInfo(num));
+    std::optional<uint32_t> actual_num = process_sp->GetWatchpointSlotCount();
+    if (actual_num) {
+      num = *actual_num;
+    } else {
+      sb_error.SetErrorString("Unable to determine number of watchpoints");
+    }
   } else {
     sb_error.SetErrorString("SBProcess is invalid");
   }
@@ -1261,4 +1282,10 @@ lldb::SBError SBProcess::DeallocateMemory(lldb::addr_t ptr) {
     sb_error.SetErrorString("SBProcess is invalid");
   }
   return sb_error;
+}
+
+ScriptedObject SBProcess::GetScriptedImplementation() {
+  LLDB_INSTRUMENT_VA(this);
+  ProcessSP process_sp(GetSP());
+  return (process_sp) ? process_sp->GetImplementation() : nullptr;
 }

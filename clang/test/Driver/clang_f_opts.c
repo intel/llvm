@@ -140,6 +140,10 @@
 // CHECK-PROFILE-USE-DIR: "-fprofile-instrument-use-path={{.*}}.d/some/dir{{/|\\\\}}default.profdata"
 // CHECK-PROFILE-USE-FILE: "-fprofile-instrument-use-path=/tmp/somefile.prof"
 
+// RUN: %clang -### -S -fprofile-instr-use=%t.profdata -fdiagnostics-misexpect-tolerance=10 -Wmisexpect %s 2>&1 | FileCheck %s --check-prefix=CHECK-MISEXPECT-TOLLERANCE
+// CHECK-MISEXPECT-TOLLERANCE: "-fdiagnostics-misexpect-tolerance=10"
+// CHECK-MISEXPECT-TOLLERANCE-NOT: argument unused
+
 // RUN: %clang -### -S -fvectorize %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -fno-vectorize -fvectorize %s 2>&1 | FileCheck -check-prefix=CHECK-VECTORIZE %s
 // RUN: %clang -### -S -fno-vectorize %s 2>&1 | FileCheck -check-prefix=CHECK-NO-VECTORIZE %s
@@ -398,7 +402,7 @@
 // CHECK-WARNING-DAG: optimization flag '-falign-loops' is not supported
 // CHECK-WARNING-DAG: optimization flag '-falign-jumps' is not supported
 // CHECK-WARNING-DAG: optimization flag '-falign-jumps=100' is not supported
-// CHECK-WARNING-DAG: optimization flag '-fexcess-precision=100' is not supported
+// CHECK-WARNING-DAG: unsupported argument '100' to option '-fexcess-precision='
 // CHECK-WARNING-DAG: optimization flag '-fbranch-count-reg' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fcaller-saves' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fno-default-inline' is not supported

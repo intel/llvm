@@ -87,6 +87,11 @@ public:
   virtual bool CheckSYCLKernels() const { return false; }
 };
 
+bool isMustTailCalleeAnalyzable(const CallBase &CB) {
+  assert(CB.isMustTailCall());
+  return CB.getCalledFunction() && !CB.getCalledFunction()->isDeclaration();
+}
+
 } // end anonymous namespace
 
 char DAE::ID = 0;
@@ -253,7 +258,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
   // Since we have now created the new function, splice the body of the old
   // function right into the new function, leaving the old rotting hulk of the
   // function empty.
-  NF->getBasicBlockList().splice(NF->begin(), F.getBasicBlockList());
+  NF->splice(NF->begin(), &F);
 
   // Loop over the argument list, transferring uses of the old arguments over to
   // the new arguments, also transferring over the names as well.  While we're
@@ -551,8 +556,16 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
   for (const BasicBlock &BB : F) {
     // If we have any returns of `musttail` results - the signature can't
     // change
-    if (BB.getTerminatingMustTailCall() != nullptr)
+    if (const auto *TC = BB.getTerminatingMustTailCall()) {
       HasMustTailCalls = true;
+      // In addition, if the called function is not locally defined (or unknown,
+      // if this is an indirect call), we can't change the callsite and thus
+      // can't change this function's signature either.
+      if (!isMustTailCalleeAnalyzable(*TC)) {
+        markLive(F);
+        return;
+      }
+    }
   }
 
   if (HasMustTailCalls) {
@@ -1047,7 +1060,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // Since we have now created the new function, splice the body of the old
   // function right into the new function, leaving the old rotting hulk of the
   // function empty.
-  NF->getBasicBlockList().splice(NF->begin(), F->getBasicBlockList());
+  NF->splice(NF->begin(), F);
 
   // Loop over the argument list, transferring uses of the old arguments over to
   // the new arguments, also transferring over the names as well.
@@ -1135,6 +1148,26 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   return true;
 }
 
+void DeadArgumentEliminationPass::propagateVirtMustcallLiveness(
+    const Module &M) {
+  // If a function was marked "live", and it has musttail callers, they in turn
+  // can't change either.
+  LiveFuncSet NewLiveFuncs(LiveFunctions);
+  while (!NewLiveFuncs.empty()) {
+    LiveFuncSet Temp;
+    for (const auto *F : NewLiveFuncs)
+      for (const auto *U : F->users())
+        if (const auto *CB = dyn_cast<CallBase>(U))
+          if (CB->isMustTailCall())
+            if (!LiveFunctions.count(CB->getParent()->getParent()))
+              Temp.insert(CB->getParent()->getParent());
+    NewLiveFuncs.clear();
+    NewLiveFuncs.insert(Temp.begin(), Temp.end());
+    for (const auto *F : Temp)
+      markLive(*F);
+  }
+}
+
 PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
                                                    ModuleAnalysisManager &) {
   bool Changed = false;
@@ -1156,6 +1189,8 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
   LLVM_DEBUG(dbgs() << "DeadArgumentEliminationPass - Determining liveness\n");
   for (auto &F : M)
     surveyFunction(F);
+
+  propagateVirtMustcallLiveness(M);
 
   // Now, remove all dead arguments and return values from each function in
   // turn.  We use make_early_inc_range here because functions will probably get

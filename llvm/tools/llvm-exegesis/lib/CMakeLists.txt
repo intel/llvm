@@ -22,6 +22,7 @@ endforeach()
 set(LLVM_LINK_COMPONENTS
   Analysis
   CodeGen
+  CodeGenTypes
   Core
   ExecutionEngine
   GlobalISel
@@ -34,6 +35,7 @@ set(LLVM_LINK_COMPONENTS
   ObjectYAML
   RuntimeDyld
   Support
+  TargetParser
   )
 
 set(libs)
@@ -50,6 +52,7 @@ add_llvm_library(LLVMExegesis
   BenchmarkRunner.cpp
   Clustering.cpp
   CodeTemplate.cpp
+  DisassemblerHelper.cpp
   Error.cpp
   LatencyBenchmarkRunner.cpp
   LlvmState.cpp

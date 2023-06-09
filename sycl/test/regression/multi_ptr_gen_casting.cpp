@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 //
 // Tests that casting multi_ptr to and from generic compiles for various
 // combinations of valid qualifiers.

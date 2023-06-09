@@ -31,6 +31,7 @@
 #include <functional>
 #include <memory>
 #include <new>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <type_traits>
@@ -470,7 +471,7 @@ template <class T> class [[nodiscard]] Expected {
   template <class T1> friend class ExpectedAsOutParameter;
   template <class OtherT> friend class Expected;
 
-  static constexpr bool isRef = std::is_reference<T>::value;
+  static constexpr bool isRef = std::is_reference_v<T>;
 
   using wrap = std::reference_wrapper<std::remove_reference_t<T>>;
 
@@ -576,9 +577,9 @@ public:
 
   /// Returns \a takeError() after moving the held T (if any) into \p V.
   template <class OtherT>
-  Error moveInto(OtherT &Value,
-                 std::enable_if_t<std::is_assignable<OtherT &, T &&>::value> * =
-                     nullptr) && {
+  Error moveInto(
+      OtherT &Value,
+      std::enable_if_t<std::is_assignable_v<OtherT &, T &&>> * = nullptr) && {
     if (*this)
       Value = std::move(get());
     return takeError();
@@ -1038,7 +1039,7 @@ inline std::string toString(Error E) {
 ///
 /// Uses of this method are potentially indicative of design problems: If it's
 /// legitimate to do nothing while processing an "error", the error-producer
-/// might be more clearly refactored to return an Optional<T>.
+/// might be more clearly refactored to return an std::optional<T>.
 inline void consumeError(Error Err) {
   handleAllErrors(std::move(Err), [](const ErrorInfoBase &) {});
 }
@@ -1050,7 +1051,14 @@ inline void consumeError(Error Err) {
 /// Uses of this method are potentially indicative of problems: perhaps the
 /// error should be propagated further, or the error-producer should just
 /// return an Optional in the first place.
-template <typename T> Optional<T> expectedToOptional(Expected<T> &&E) {
+template <typename T> std::optional<T> expectedToOptional(Expected<T> &&E) {
+  if (E)
+    return std::move(*E);
+  consumeError(E.takeError());
+  return std::nullopt;
+}
+
+template <typename T> std::optional<T> expectedToStdOptional(Expected<T> &&E) {
   if (E)
     return std::move(*E);
   consumeError(E.takeError());
@@ -1269,7 +1277,7 @@ public:
     assert(Err && "Trying to log after takeError().");
     OS << "'" << FileName << "': ";
     if (Line)
-      OS << "line " << Line.value() << ": ";
+      OS << "line " << *Line << ": ";
     Err->log(OS);
   }
 
@@ -1290,7 +1298,7 @@ public:
   static char ID;
 
 private:
-  FileError(const Twine &F, Optional<size_t> LineNum,
+  FileError(const Twine &F, std::optional<size_t> LineNum,
             std::unique_ptr<ErrorInfoBase> E) {
     assert(E && "Cannot create FileError from Error success value.");
     FileName = F.str();
@@ -1298,7 +1306,7 @@ private:
     Line = std::move(LineNum);
   }
 
-  static Error build(const Twine &F, Optional<size_t> Line, Error E) {
+  static Error build(const Twine &F, std::optional<size_t> Line, Error E) {
     std::unique_ptr<ErrorInfoBase> Payload;
     handleAllErrors(std::move(E),
                     [&](std::unique_ptr<ErrorInfoBase> EIB) -> Error {
@@ -1310,20 +1318,20 @@ private:
   }
 
   std::string FileName;
-  Optional<size_t> Line;
+  std::optional<size_t> Line;
   std::unique_ptr<ErrorInfoBase> Err;
 };
 
 /// Concatenate a source file path and/or name with an Error. The resulting
 /// Error is unchecked.
 inline Error createFileError(const Twine &F, Error E) {
-  return FileError::build(F, Optional<size_t>(), std::move(E));
+  return FileError::build(F, std::optional<size_t>(), std::move(E));
 }
 
 /// Concatenate a source file path and/or name with line number and an Error.
 /// The resulting Error is unchecked.
 inline Error createFileError(const Twine &F, size_t Line, Error E) {
-  return FileError::build(F, Optional<size_t>(Line), std::move(E));
+  return FileError::build(F, std::optional<size_t>(Line), std::move(E));
 }
 
 /// Concatenate a source file path and/or name with a std::error_code 

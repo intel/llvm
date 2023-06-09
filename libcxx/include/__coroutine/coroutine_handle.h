@@ -13,14 +13,15 @@
 #include <__config>
 #include <__functional/hash.h>
 #include <__memory/addressof.h>
+#include <__type_traits/remove_cv.h>
 #include <compare>
-#include <type_traits>
+#include <cstddef>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -32,7 +33,6 @@ template <>
 struct _LIBCPP_TEMPLATE_VIS coroutine_handle<void> {
 public:
     // [coroutine.handle.con], construct/reset
-    _LIBCPP_HIDE_FROM_ABI
     constexpr coroutine_handle() noexcept = default;
 
     _LIBCPP_HIDE_FROM_ABI
@@ -85,7 +85,7 @@ public:
     }
 
 private:
-    bool __is_suspended() const {
+    _LIBCPP_HIDE_FROM_ABI bool __is_suspended() const {
         // FIXME actually implement a check for if the coro is suspended.
         return __handle_ != nullptr;
     }
@@ -107,7 +107,6 @@ template <class _Promise>
 struct _LIBCPP_TEMPLATE_VIS coroutine_handle {
 public:
     // [coroutine.handle.con], construct/reset
-    _LIBCPP_HIDE_FROM_ABI
     constexpr coroutine_handle() noexcept = default;
 
     _LIBCPP_HIDE_FROM_ABI
@@ -181,7 +180,7 @@ public:
     }
 
 private:
-    bool __is_suspended() const {
+    _LIBCPP_HIDE_FROM_ABI bool __is_suspended() const {
         // FIXME actually implement a check for if the coro is suspended.
         return __handle_ != nullptr;
     }
@@ -197,6 +196,6 @@ struct hash<coroutine_handle<_Tp>> {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // __LIBCPP_STD_VER > 17
+#endif // __LIBCPP_STD_VER >= 20
 
 #endif // _LIBCPP___COROUTINE_COROUTINE_HANDLE_H

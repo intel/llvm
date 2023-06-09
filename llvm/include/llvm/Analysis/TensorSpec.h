@@ -103,6 +103,9 @@ private:
   size_t ElementSize = 0;
 };
 
+/// For debugging.
+std::string tensorValueToString(const char *Buffer, const TensorSpec &Spec);
+
 /// Construct a TensorSpec from a JSON dictionary of the form:
 /// { "name": <string>,
 ///   "port": <int>,
@@ -110,8 +113,8 @@ private:
 ///   "shape": <array of ints> }
 /// For the "type" field, see the C++ primitive types used in
 /// TFUTILS_SUPPORTED_TYPES.
-Optional<TensorSpec> getTensorSpecFromJSON(LLVMContext &Ctx,
-                                           const json::Value &Value);
+std::optional<TensorSpec> getTensorSpecFromJSON(LLVMContext &Ctx,
+                                                const json::Value &Value);
 
 #define TFUTILS_GETDATATYPE_DEF(T, Name)                                       \
   template <> TensorType TensorSpec::getDataType<T>();

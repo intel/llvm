@@ -31,6 +31,7 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LazyCallGraph.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Argument.h"
@@ -516,13 +517,6 @@ static Function *createCloneDeclaration(Function &OrigF, coro::Shape &Shape,
   Function *NewF =
       Function::Create(FnTy, GlobalValue::LinkageTypes::InternalLinkage,
                        OrigF.getName() + Suffix);
-  if (Shape.ABI != coro::ABI::Async)
-    NewF->addParamAttr(0, Attribute::NonNull);
-
-  // For the async lowering ABI we can't guarantee that the context argument is
-  // not access via a different pointer not based on the argument.
-  if (Shape.ABI != coro::ABI::Async)
-    NewF->addParamAttr(0, Attribute::NoAlias);
 
   M->getFunctionList().insert(InsertBefore, NewF);
 
@@ -686,19 +680,26 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
   }
 }
 
+/// Returns all DbgVariableIntrinsic in F.
+static SmallVector<DbgVariableIntrinsic *, 8>
+collectDbgVariableIntrinsics(Function &F) {
+  SmallVector<DbgVariableIntrinsic *, 8> Intrinsics;
+  for (auto &I : instructions(F))
+    if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
+      Intrinsics.push_back(DVI);
+  return Intrinsics;
+}
+
 void CoroCloner::replaceSwiftErrorOps() {
   ::replaceSwiftErrorOps(*NewF, Shape, &VMap);
 }
 
 void CoroCloner::salvageDebugInfo() {
-  SmallVector<DbgVariableIntrinsic *, 8> Worklist;
-  SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
-  for (auto &BB : *NewF)
-    for (auto &I : BB)
-      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
-        Worklist.push_back(DVI);
+  SmallVector<DbgVariableIntrinsic *, 8> Worklist =
+      collectDbgVariableIntrinsics(*NewF);
+  SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
   for (DbgVariableIntrinsic *DVI : Worklist)
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DVI, Shape.OptimizeFrame);
+    coro::salvageDebugInfo(ArgToAllocaMap, DVI, Shape.OptimizeFrame);
 
   // Remove all salvaged dbg.declare intrinsics that became
   // either unreachable or stale due to the CoroSplit transformation.
@@ -849,11 +850,15 @@ Value *CoroCloner::deriveNewFramePointer() {
 }
 
 static void addFramePointerAttrs(AttributeList &Attrs, LLVMContext &Context,
-                                 unsigned ParamIndex,
-                                 uint64_t Size, Align Alignment) {
+                                 unsigned ParamIndex, uint64_t Size,
+                                 Align Alignment, bool NoAlias) {
   AttrBuilder ParamAttrs(Context);
   ParamAttrs.addAttribute(Attribute::NonNull);
-  ParamAttrs.addAttribute(Attribute::NoAlias);
+  ParamAttrs.addAttribute(Attribute::NoUndef);
+
+  if (NoAlias)
+    ParamAttrs.addAttribute(Attribute::NoAlias);
+
   ParamAttrs.addAlignmentAttr(Alignment);
   ParamAttrs.addDereferenceableAttr(Size);
   Attrs = Attrs.addParamAttributes(Context, ParamIndex, ParamAttrs);
@@ -959,8 +964,8 @@ void CoroCloner::create() {
     NewAttrs = NewAttrs.addFnAttributes(
         Context, AttrBuilder(Context, OrigAttrs.getFnAttrs()));
 
-    addFramePointerAttrs(NewAttrs, Context, 0,
-                         Shape.FrameSize, Shape.FrameAlign);
+    addFramePointerAttrs(NewAttrs, Context, 0, Shape.FrameSize,
+                         Shape.FrameAlign, /*NoAlias=*/false);
     break;
   case coro::ABI::Async: {
     auto *ActiveAsyncSuspend = cast<CoroSuspendAsyncInst>(ActiveSuspend);
@@ -989,9 +994,12 @@ void CoroCloner::create() {
     // full-stop.
     NewAttrs = Shape.RetconLowering.ResumePrototype->getAttributes();
 
+    /// FIXME: Is it really good to add the NoAlias attribute?
     addFramePointerAttrs(NewAttrs, Context, 0,
                          Shape.getRetconCoroId()->getStorageSize(),
-                         Shape.getRetconCoroId()->getStorageAlignment());
+                         Shape.getRetconCoroId()->getStorageAlignment(),
+                         /*NoAlias=*/true);
+
     break;
   }
 
@@ -1929,10 +1937,10 @@ namespace {
   };
 }
 
-static coro::Shape splitCoroutine(Function &F,
-                                  SmallVectorImpl<Function *> &Clones,
-                                  TargetTransformInfo &TTI,
-                                  bool OptimizeFrame) {
+static coro::Shape
+splitCoroutine(Function &F, SmallVectorImpl<Function *> &Clones,
+               TargetTransformInfo &TTI, bool OptimizeFrame,
+               std::function<bool(Instruction &)> MaterializableCallback) {
   PrettyStackTraceFunction prettyStackTrace(F);
 
   // The suspend-crossing algorithm in buildCoroutineFrame get tripped
@@ -1944,7 +1952,7 @@ static coro::Shape splitCoroutine(Function &F,
     return Shape;
 
   simplifySuspendPoints(Shape);
-  buildCoroutineFrame(F, Shape);
+  buildCoroutineFrame(F, Shape, MaterializableCallback);
   replaceFrameSizeAndAlignment(Shape);
 
   // If there are no suspend points, no split required, just remove
@@ -1970,25 +1978,12 @@ static coro::Shape splitCoroutine(Function &F,
   // This invalidates SwiftErrorOps in the Shape.
   replaceSwiftErrorOps(F, Shape, nullptr);
 
-  // Finally, salvage the llvm.dbg.{declare,addr} in our original function that
-  // point into the coroutine frame. We only do this for the current function
-  // since the Cloner salvaged debug info for us in the new coroutine funclets.
-  SmallVector<DbgVariableIntrinsic *, 8> Worklist;
-  SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
-  for (auto &BB : F) {
-    for (auto &I : BB) {
-      if (auto *DDI = dyn_cast<DbgDeclareInst>(&I)) {
-        Worklist.push_back(DDI);
-        continue;
-      }
-      if (auto *DDI = dyn_cast<DbgAddrIntrinsic>(&I)) {
-        Worklist.push_back(DDI);
-        continue;
-      }
-    }
-  }
-  for (auto *DDI : Worklist)
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DDI, Shape.OptimizeFrame);
+  // Salvage debug intrinsics that point into the coroutine frame in the
+  // original function. The Cloner has already salvaged debug info in the new
+  // coroutine funclets.
+  SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
+  for (auto *DDI : collectDbgVariableIntrinsics(F))
+    coro::salvageDebugInfo(ArgToAllocaMap, DDI, Shape.OptimizeFrame);
 
   return Shape;
 }
@@ -2104,6 +2099,10 @@ static void addPrepareFunction(const Module &M,
     Fns.push_back(PrepareFn);
 }
 
+CoroSplitPass::CoroSplitPass(bool OptimizeFrame)
+    : MaterializableCallback(coro::defaultMaterializable),
+      OptimizeFrame(OptimizeFrame) {}
+
 PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
                                      CGSCCAnalysisManager &AM,
                                      LazyCallGraph &CG, CGSCCUpdateResult &UR) {
@@ -2142,9 +2141,18 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     F.setSplittedCoroutine();
 
     SmallVector<Function *, 4> Clones;
-    const coro::Shape Shape = splitCoroutine(
-        F, Clones, FAM.getResult<TargetIRAnalysis>(F), OptimizeFrame);
+    auto &ORE = FAM.getResult<OptimizationRemarkEmitterAnalysis>(F);
+    const coro::Shape Shape =
+        splitCoroutine(F, Clones, FAM.getResult<TargetIRAnalysis>(F),
+                       OptimizeFrame, MaterializableCallback);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
+
+    ORE.emit([&]() {
+      return OptimizationRemark(DEBUG_TYPE, "CoroSplit", &F)
+             << "Split '" << ore::NV("function", F.getName())
+             << "' (frame_size=" << ore::NV("frame_size", Shape.FrameSize)
+             << ", align=" << ore::NV("align", Shape.FrameAlign.value()) << ")";
+    });
 
     if (!Shape.CoroSuspends.empty()) {
       // Run the CGSCC pipeline on the original and newly split functions.

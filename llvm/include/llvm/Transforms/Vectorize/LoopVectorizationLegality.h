@@ -240,15 +240,12 @@ private:
 /// induction variable and the different reduction variables.
 class LoopVectorizationLegality {
 public:
-  LoopVectorizationLegality(Loop *L, PredicatedScalarEvolution &PSE,
-                            DominatorTree *DT, TargetTransformInfo *TTI,
-                            TargetLibraryInfo *TLI, AAResults *AA, Function *F,
-                            LoopAccessInfoManager &LAIs, LoopInfo *LI,
-                            OptimizationRemarkEmitter *ORE,
-                            LoopVectorizationRequirements *R,
-                            LoopVectorizeHints *H, DemandedBits *DB,
-                            AssumptionCache *AC, BlockFrequencyInfo *BFI,
-                            ProfileSummaryInfo *PSI)
+  LoopVectorizationLegality(
+      Loop *L, PredicatedScalarEvolution &PSE, DominatorTree *DT,
+      TargetTransformInfo *TTI, TargetLibraryInfo *TLI, Function *F,
+      LoopAccessInfoManager &LAIs, LoopInfo *LI, OptimizationRemarkEmitter *ORE,
+      LoopVectorizationRequirements *R, LoopVectorizeHints *H, DemandedBits *DB,
+      AssumptionCache *AC, BlockFrequencyInfo *BFI, ProfileSummaryInfo *PSI)
       : TheLoop(L), LI(LI), PSE(PSE), TTI(TTI), TLI(TLI), DT(DT), LAIs(LAIs),
         ORE(ORE), Requirements(R), Hints(H), DB(DB), AC(AC), BFI(BFI),
         PSI(PSI) {}
@@ -295,9 +292,6 @@ public:
 
   /// Return the fixed-order recurrences found in the loop.
   RecurrenceSet &getFixedOrderRecurrences() { return FixedOrderRecurrences; }
-
-  /// Return the set of instructions to sink to handle fixed-order recurrences.
-  MapVector<Instruction *, Instruction *> &getSinkAfter() { return SinkAfter; }
 
   /// Returns the widest induction type.
   Type *getWidestInductionType() { return WidestIndTy; }
@@ -353,12 +347,15 @@ public:
   /// loop. Do not use after invoking 'createVectorizedLoopSkeleton' (PR34965).
   int isConsecutivePtr(Type *AccessTy, Value *Ptr) const;
 
-  /// Returns true if the value V is uniform within the loop.
-  bool isUniform(Value *V) const;
+  /// Returns true if value V is uniform across \p VF lanes, when \p VF is
+  /// provided, and otherwise if \p V is invariant across all loop iterations.
+  bool isUniform(Value *V, std::optional<ElementCount> VF = std::nullopt) const;
 
   /// A uniform memory op is a load or store which accesses the same memory
-  /// location on all lanes.
-  bool isUniformMemOp(Instruction &I) const;
+  /// location on all \p VF lanes, if \p VF is provided and otherwise if the
+  /// memory location is invariant.
+  bool isUniformMemOp(Instruction &I,
+                      std::optional<ElementCount> VF = std::nullopt) const;
 
   /// Returns the information that we collected about runtime memory check.
   const RuntimePointerChecking *getRuntimePointerChecking() const {
@@ -377,8 +374,6 @@ public:
     return LAI->getDepChecker().getMaxSafeVectorWidthInBits();
   }
 
-  bool hasStride(Value *V) { return LAI->hasStride(V); }
-
   /// Returns true if vector representation of the instruction \p I
   /// requires mask.
   bool isMaskRequired(const Instruction *I) const {
@@ -393,6 +388,20 @@ public:
   const SmallPtrSetImpl<Instruction *> &getConditionalAssumes() const {
     return ConditionalAssumes;
   }
+
+  PredicatedScalarEvolution *getPredicatedScalarEvolution() const {
+    return &PSE;
+  }
+
+  Loop *getLoop() const { return TheLoop; }
+
+  LoopInfo *getLoopInfo() const { return LI; }
+
+  AssumptionCache *getAssumptionCache() const { return AC; }
+
+  ScalarEvolution *getScalarEvolution() const { return PSE.getSE(); }
+
+  DominatorTree *getDominatorTree() const { return DT; }
 
 private:
   /// Return true if the pre-header, exiting and latch blocks of \p Lp and all
@@ -455,16 +464,6 @@ private:
   void addInductionPhi(PHINode *Phi, const InductionDescriptor &ID,
                        SmallPtrSetImpl<Value *> &AllowedExit);
 
-  /// If an access has a symbolic strides, this maps the pointer value to
-  /// the stride symbol.
-  const ValueToValueMap *getSymbolicStrides() const {
-    // FIXME: Currently, the set of symbolic strides is sometimes queried before
-    // it's collected.  This happens from canVectorizeWithIfConvert, when the
-    // pointer is checked to reference consecutive elements suitable for a
-    // masked access.
-    return LAI ? &LAI->getSymbolicStrides() : nullptr;
-  }
-
   /// The loop that we evaluate.
   Loop *TheLoop;
 
@@ -517,10 +516,6 @@ private:
 
   /// Holds the phi nodes that are fixed-order recurrences.
   RecurrenceSet FixedOrderRecurrences;
-
-  /// Holds instructions that need to sink past other instructions to handle
-  /// fixed-order recurrences.
-  MapVector<Instruction *, Instruction *> SinkAfter;
 
   /// Holds the widest induction type encountered.
   Type *WidestIndTy = nullptr;

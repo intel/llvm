@@ -93,3 +93,11 @@
 // CHECK-SAVE-TEMPS-CMSE: -cc1as
 // CHECK-SAVE-TEMPS-CMSE: +8msecext
 // CHECK-SAVE-TEMPS-CMSE-NOT: '+cmse' is not a recognized feature for this target (ignoring feature)
+
+// Usage of -save-temps with a file in $CWD should create the intermediate
+// files _not_ in /tmp.
+//
+// RUN: touch dummy.c
+// RUN: %clang -save-temps dummy.c -### 2>&1  \
+// RUN:   | FileCheck %s -check-prefix=CHECK-CWD-FILE
+// CHECK-CWD-FILE: clang{{.*}} "-o" "dummy.ii"

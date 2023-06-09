@@ -17,9 +17,9 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 namespace clang {
@@ -27,7 +27,6 @@ namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY AMDGPUTargetInfo final : public TargetInfo {
 
-  static const Builtin::Info BuiltinInfo[];
   static const char *const GCCRegNames[];
 
   enum AddrSpace {
@@ -43,6 +42,9 @@ class LLVM_LIBRARY_VISIBILITY AMDGPUTargetInfo final : public TargetInfo {
   llvm::AMDGPU::GPUKind GPUKind;
   unsigned GPUFeatures;
   unsigned WavefrontSize;
+
+  /// Whether to use cumode or WGP mode. True for cumode. False for WGP mode.
+  bool CUMode;
 
   /// Target ID is device name followed by optional feature name postfixed
   /// by plus or minus sign delimitted by colon, e.g. gfx908:xnack+:sramecc-.
@@ -115,7 +117,9 @@ public:
     return getTriple().getArch() == llvm::Triple::amdgcn ? 64 : 32;
   }
 
-  const char *getClobbers() const override { return ""; }
+  bool hasBFloat16Type() const override { return isAMDGCN(getTriple()); }
+
+  std::string_view getClobbers() const override { return ""; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
 
@@ -370,7 +374,7 @@ public:
     }
   }
 
-  llvm::Optional<LangAS> getConstantAddressSpace() const override {
+  std::optional<LangAS> getConstantAddressSpace() const override {
     return getLangASFromTargetAS(Constant);
   }
 
@@ -443,17 +447,21 @@ public:
       assert(F.front() == '+' || F.front() == '-');
       if (F == "+wavefrontsize64")
         WavefrontSize = 64;
+      else if (F == "+cumode")
+        CUMode = true;
+      else if (F == "-cumode")
+        CUMode = false;
       bool IsOn = F.front() == '+';
       StringRef Name = StringRef(F).drop_front();
       if (!llvm::is_contained(TargetIDFeatures, Name))
         continue;
-      assert(OffloadArchFeatures.find(Name) == OffloadArchFeatures.end());
+      assert(!OffloadArchFeatures.contains(Name));
       OffloadArchFeatures[Name] = IsOn;
     }
     return true;
   }
 
-  Optional<std::string> getTargetID() const override {
+  std::optional<std::string> getTargetID() const override {
     if (!isAMDGCN(getTriple()))
       return std::nullopt;
     // When -target-cpu is not set, we assume generic code that it is valid

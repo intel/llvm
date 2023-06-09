@@ -5,21 +5,19 @@
 #pragma once
 
 #include <detail/plugin.hpp>
+#include <string>
 
 namespace pi {
-inline const char *GetBackendString(sycl::backend backend) {
-  switch (backend) {
-#define PI_BACKEND_STR(backend_name)                                           \
-  case sycl::backend::backend_name:                                            \
-    return #backend_name
-    PI_BACKEND_STR(hip);
-    PI_BACKEND_STR(cuda);
-    PI_BACKEND_STR(host);
-    PI_BACKEND_STR(opencl);
-    PI_BACKEND_STR(level_zero);
-#undef PI_BACKEND_STR
-  default:
-    return "Unknown Plugin";
+inline std::string GetBackendString(const sycl::detail::PluginPtr &Plugin) {
+  std::stringstream Str;
+  for (sycl::backend Backend :
+       {sycl::backend::opencl, sycl::backend::ext_oneapi_level_zero,
+        sycl::backend::ext_oneapi_cuda, sycl::backend::ext_intel_esimd_emulator,
+        sycl::backend::ext_oneapi_hip}) {
+    if (Plugin->hasBackend(Backend)) {
+      Str << Backend;
+    }
   }
+  return Str.str();
 }
 } // namespace pi

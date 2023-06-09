@@ -17,7 +17,6 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/IVDescriptors.h"
-#include "llvm/Analysis/LoopInfoImpl.h"
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/LoopNestAnalysis.h"
 #include "llvm/Analysis/MemorySSA.h"
@@ -36,6 +35,7 @@
 #include "llvm/IR/PrintPasses.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/GenericLoopInfoImpl.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
@@ -198,9 +198,9 @@ static Value *findFinalIVValue(const Loop &L, const PHINode &IndVar,
   return nullptr;
 }
 
-Optional<Loop::LoopBounds> Loop::LoopBounds::getBounds(const Loop &L,
-                                                       PHINode &IndVar,
-                                                       ScalarEvolution &SE) {
+std::optional<Loop::LoopBounds>
+Loop::LoopBounds::getBounds(const Loop &L, PHINode &IndVar,
+                            ScalarEvolution &SE) {
   InductionDescriptor IndDesc;
   if (!InductionDescriptor::isInductionPHI(&IndVar, &L, &SE, IndDesc))
     return std::nullopt;
@@ -284,7 +284,7 @@ Direction Loop::LoopBounds::getDirection() const {
   return Direction::Unknown;
 }
 
-Optional<Loop::LoopBounds> Loop::getBounds(ScalarEvolution &SE) const {
+std::optional<Loop::LoopBounds> Loop::getBounds(ScalarEvolution &SE) const {
   if (PHINode *IndVar = getInductionVariable(SE))
     return LoopBounds::getBounds(*this, *IndVar, SE);
 
@@ -737,7 +737,7 @@ void UnloopUpdater::updateBlockParents() {
   bool Changed = FoundIB;
   for (unsigned NIters = 0; Changed; ++NIters) {
     assert(NIters < Unloop.getNumBlocks() && "runaway iterative algorithm");
-    (void) NIters;
+    (void)NIters;
 
     // Iterate over the postorder list of blocks, propagating the nearest loop
     // from successors to predecessors as before.
@@ -929,9 +929,8 @@ void LoopInfo::erase(Loop *Unloop) {
   }
 }
 
-bool
-LoopInfo::wouldBeOutOfLoopUseRequiringLCSSA(const Value *V,
-                                            const BasicBlock *ExitBB) const {
+bool LoopInfo::wouldBeOutOfLoopUseRequiringLCSSA(
+    const Value *V, const BasicBlock *ExitBB) const {
   if (V->getType()->isTokenTy())
     // We can't form PHIs of token type, so the definition of LCSSA excludes
     // values of that type.
@@ -1049,8 +1048,8 @@ MDNode *llvm::findOptionMDForLoop(const Loop *TheLoop, StringRef Name) {
 /// If it has a value (e.g. {"llvm.distribute", 1} return the value as an
 /// operand or null otherwise.  If the string metadata is not found return
 /// Optional's not-a-value.
-Optional<const MDOperand *> llvm::findStringMetadataForLoop(const Loop *TheLoop,
-                                                            StringRef Name) {
+std::optional<const MDOperand *>
+llvm::findStringMetadataForLoop(const Loop *TheLoop, StringRef Name) {
   MDNode *MD = findOptionMDForLoop(TheLoop, Name);
   if (!MD)
     return std::nullopt;
@@ -1064,8 +1063,8 @@ Optional<const MDOperand *> llvm::findStringMetadataForLoop(const Loop *TheLoop,
   }
 }
 
-Optional<bool> llvm::getOptionalBoolLoopAttribute(const Loop *TheLoop,
-                                                  StringRef Name) {
+std::optional<bool> llvm::getOptionalBoolLoopAttribute(const Loop *TheLoop,
+                                                       StringRef Name) {
   MDNode *MD = findOptionMDForLoop(TheLoop, Name);
   if (!MD)
     return std::nullopt;

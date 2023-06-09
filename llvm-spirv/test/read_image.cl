@@ -3,7 +3,7 @@
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-// RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
+// RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
 // RUN: llvm-spirv --spirv-max-version=1.3 %t.rev.bc -o %t.rev.spv
 // RUN: spirv-val %t.rev.spv
 // RUN: llvm-spirv --spirv-max-version=1.3 %t.rev.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV

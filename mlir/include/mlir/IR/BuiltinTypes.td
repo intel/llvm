@@ -17,7 +17,6 @@
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinDialect.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
-include "mlir/IR/SubElementInterfaces.td"
 
 // TODO: Currently the types defined in this file are prefixed with `Builtin_`.
 // This is to differentiate the types here with the ones in OpBase.td. We should
@@ -120,6 +119,72 @@ def Builtin_Float8E4M3FN : Builtin_FloatType<"Float8E4M3FN"> {
 }
 
 //===----------------------------------------------------------------------===//
+// Float8E5M2FNUZType
+
+def Builtin_Float8E5M2FNUZ : Builtin_FloatType<"Float8E5M2FNUZ"> {
+  let summary = "8-bit floating point with 2 bit mantissa";
+  let description = [{
+    An 8-bit floating point type with 1 sign bit, 5 bits exponent and 2 bits
+    mantissa. This is not a standard type as defined by IEEE-754, but it follows
+    similar conventions, with the exception that there are no infinity values,
+    no negative zero, and only one NaN representation. This type has the
+    following characteristics:
+
+      * bit encoding: S1E5M2
+      * exponent bias: 16
+      * infinities: Not supported
+      * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s
+      * denormals when exponent is 0
+
+    Described in: https://arxiv.org/abs/2206.02915
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// Float8E4M3FNUZType
+
+def Builtin_Float8E4M3FNUZ : Builtin_FloatType<"Float8E4M3FNUZ"> {
+  let summary = "8-bit floating point with 3 bit mantissa";
+  let description = [{
+    An 8-bit floating point type with 1 sign bit, 4 bits exponent and 3 bits
+    mantissa. This is not a standard type as defined by IEEE-754, but it follows
+    similar conventions, with the exception that there are no infinity values,
+    no negative zero, and only one NaN representation. This type has the
+    following characteristics:
+
+      * bit encoding: S1E4M3
+      * exponent bias: 8
+      * infinities: Not supported
+      * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s
+      * denormals when exponent is 0
+
+    Described in: https://arxiv.org/abs/2209.05433
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// Float8E4M3B11FNUZType
+
+def Builtin_Float8E4M3B11FNUZ : Builtin_FloatType<"Float8E4M3B11FNUZ"> {
+  let summary = "8-bit floating point with 3 bit mantissa";
+  let description = [{
+    An 8-bit floating point type with 1 sign bit, 4 bits exponent and 3 bits
+    mantissa. This is not a standard type as defined by IEEE-754, but it follows
+    similar conventions, with the exception that there are no infinity values,
+    no negative zero, and only one NaN representation. This type has the
+    following characteristics:
+
+      * bit encoding: S1E4M3
+      * exponent bias: 11
+      * infinities: Not supported
+      * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s
+      * denormals when exponent is 0
+
+    Related to: https://dl.acm.org/doi/10.5555/3454287.3454728
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // BFloat16Type
 
 def Builtin_BFloat16 : Builtin_FloatType<"BFloat16"> {
@@ -165,9 +230,7 @@ def Builtin_Float128 : Builtin_FloatType<"Float128"> {
 // FunctionType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Function : Builtin_Type<"Function", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>
-  ]> {
+def Builtin_Function : Builtin_Type<"Function"> {
   let summary = "Map from a list of inputs to a list of results";
   let description = [{
     Syntax:
@@ -314,7 +377,7 @@ def Builtin_Integer : Builtin_Type<"Integer"> {
 //===----------------------------------------------------------------------===//
 
 def Builtin_MemRef : Builtin_Type<"MemRef", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>, ShapedTypeInterface
+    ShapedTypeInterface
   ], "BaseMemRefType"> {
   let summary = "Shaped reference to a region of memory";
   let description = [{
@@ -566,7 +629,7 @@ def Builtin_MemRef : Builtin_Type<"MemRef", [
       "unsigned":$memorySpaceInd)>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<MemRefType>::clone;
+    using BaseMemRefType::clone;
     using ShapedType::Trait<MemRefType>::getElementTypeBitWidth;
     using ShapedType::Trait<MemRefType>::getRank;
     using ShapedType::Trait<MemRefType>::getNumElements;
@@ -649,7 +712,7 @@ def Builtin_Opaque : Builtin_Type<"Opaque"> {
 //===----------------------------------------------------------------------===//
 
 def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>, ShapedTypeInterface
+    ShapedTypeInterface
   ], "TensorType"> {
   let summary = "Multi-dimensional array with a fixed number of dimensions";
   let description = [{
@@ -669,7 +732,7 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
 
     The runtime representation of the MLIR tensor type is intentionally
     abstracted - you cannot control layout or get a pointer to the data. For
-    low level buffer access, MLIR has a [`memref` type](#memref-type). This
+    low level buffer access, MLIR has a [`memref` type](#memreftype). This
     abstracted runtime representation holds both the tensor data values as well
     as information about the (potentially dynamic) shape of the tensor. The
     [`dim` operation](MemRef.md/#memrefdim-mlirmemrefdimop) returns the size of a
@@ -731,7 +794,7 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
     }]>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<RankedTensorType>::clone;
+    using TensorType::clone;
     using ShapedType::Trait<RankedTensorType>::getElementTypeBitWidth;
     using ShapedType::Trait<RankedTensorType>::getRank;
     using ShapedType::Trait<RankedTensorType>::getNumElements;
@@ -744,6 +807,12 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
     /// This is a builder type that keeps local references to arguments.
     /// Arguments that are passed into the builder must outlive the builder.
     class Builder;
+
+    /// Return a clone of this type with the given new element type and the same
+    /// shape as this type.
+    RankedTensorType clone(::mlir::Type elementType) {
+      return ::llvm::cast<RankedTensorType>(cloneWith(getShape(), elementType));
+    }
   }];
   let skipDefaultBuilders = 1;
   let genVerifyDecl = 1;
@@ -753,9 +822,7 @@ def Builtin_RankedTensor : Builtin_Type<"RankedTensor", [
 // TupleType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Tuple : Builtin_Type<"Tuple", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>
-  ]> {
+def Builtin_Tuple : Builtin_Type<"Tuple"> {
   let summary = "Fixed-sized collection of other types";
   let description = [{
     Syntax:
@@ -823,7 +890,7 @@ def Builtin_Tuple : Builtin_Type<"Tuple", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>, ShapedTypeInterface
+    ShapedTypeInterface
   ], "BaseMemRefType"> {
   let summary = "Shaped reference, with unknown rank, to a region of memory";
   let description = [{
@@ -870,7 +937,7 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
     }]>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<UnrankedMemRefType>::clone;
+    using BaseMemRefType::clone;
     using ShapedType::Trait<UnrankedMemRefType>::getElementTypeBitWidth;
     using ShapedType::Trait<UnrankedMemRefType>::getRank;
     using ShapedType::Trait<UnrankedMemRefType>::getNumElements;
@@ -885,6 +952,12 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
     /// [deprecated] Returns the memory space in old raw integer representation.
     /// New `Attribute getMemorySpace()` method should be used instead.
     unsigned getMemorySpaceAsInt() const;
+
+    /// Return a clone of this type with the given new element type and the same
+    /// shape as this type.
+    MemRefType clone(::mlir::Type elementType) {
+      return ::llvm::cast<MemRefType>(cloneWith(getShape(), elementType));
+    }
   }];
   let skipDefaultBuilders = 1;
   let genVerifyDecl = 1;
@@ -895,7 +968,7 @@ def Builtin_UnrankedMemRef : Builtin_Type<"UnrankedMemRef", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>, ShapedTypeInterface
+    ShapedTypeInterface
   ], "TensorType"> {
   let summary = "Multi-dimensional array with unknown dimensions";
   let description = [{
@@ -923,7 +996,7 @@ def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", [
     }]>
   ];
   let extraClassDeclaration = [{
-    using ShapedType::Trait<UnrankedTensorType>::clone;
+    using TensorType::clone;
     using ShapedType::Trait<UnrankedTensorType>::getElementTypeBitWidth;
     using ShapedType::Trait<UnrankedTensorType>::getRank;
     using ShapedType::Trait<UnrankedTensorType>::getNumElements;
@@ -943,9 +1016,7 @@ def Builtin_UnrankedTensor : Builtin_Type<"UnrankedTensor", [
 // VectorType
 //===----------------------------------------------------------------------===//
 
-def Builtin_Vector : Builtin_Type<"Vector", [
-    DeclareTypeInterfaceMethods<SubElementTypeInterface>, ShapedTypeInterface
-  ], "Type"> {
+def Builtin_Vector : Builtin_Type<"Vector", [ShapedTypeInterface], "Type"> {
   let summary = "Multi-dimensional SIMD vector type";
   let description = [{
     Syntax:
@@ -983,7 +1054,7 @@ def Builtin_Vector : Builtin_Type<"Vector", [
     // A 1D scalable-length vector that contains a multiple of 4 f32 elements.
     vector<[4]xf32>
 
-    // A 2D scalable-length vector that contains a multiple of 2x8 i8 elements.
+    // A 2D scalable-length vector that contains a multiple of 2x8 f32 elements.
     vector<[2x8]xf32>
 
     // A 2D mixed fixed/scalable vector that contains 4 scalable vectors of 4 f32 elements.
@@ -1013,7 +1084,7 @@ def Builtin_Vector : Builtin_Type<"Vector", [
     /// type. In particular, vectors can consist of integer, index, or float
     /// primitives.
     static bool isValidElementType(Type t) {
-      return t.isa<IntegerType, IndexType, FloatType>();
+      return ::llvm::isa<IntegerType, IndexType, FloatType>(t);
     }
 
     /// Returns true if the vector contains scalable dimensions.
@@ -1030,8 +1101,8 @@ def Builtin_Vector : Builtin_Type<"Vector", [
     bool hasRank() const { return true; }
 
     /// Clone this vector type with the given shape and element type. If the
-    /// provided shape is `None`, the current shape of the type is used.
-    VectorType cloneWith(Optional<ArrayRef<int64_t>> shape,
+    /// provided shape is `std::nullopt`, the current shape of the type is used.
+    VectorType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                          Type elementType) const;
   }];
   let skipDefaultBuilders = 1;

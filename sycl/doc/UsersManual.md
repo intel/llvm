@@ -4,7 +4,7 @@ This is the list of SYCL specific options supported by compiler and some
 examples.
 
 Options marked as [DEPRECATED] are going to be removed in some future updates.
-Options marked as [EXPERIMENTAL] are expected to be used only in limitted cases
+Options marked as [EXPERIMENTAL] are expected to be used only in limited cases
 and not recommended to use in production environment.
 
 ## Generic options
@@ -32,9 +32,9 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
-    Special target values specific to Intel, NVIDIA and AMD Processor Graphics support are
-    accepted, providing a streamlined interface for AOT. Only one of these
-    values at a time is supported.
+    Special target values specific to Intel, NVIDIA and AMD Processor Graphics
+    support are accepted, providing a streamlined interface for AOT. Only one of
+    these values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
     * intel_gpu_acm_g12 - Alchemist G12 Intel graphics architecture
     * intel_gpu_acm_g11 - Alchemist G11 Intel graphics architecture
@@ -46,7 +46,6 @@ and not recommended to use in production environment.
     * intel_gpu_adl_s - Alder Lake S Intel graphics architecture
     * intel_gpu_rkl - Rocket Lake Intel graphics architecture
     * intel_gpu_tgllp, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
-    * intel_gpu_ehl, intel_gpu_11_2_0 - Elkhart Lake Intel graphics architecture
     * intel_gpu_icllp, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
     * intel_gpu_cml, intel_gpu_9_7_0 - Comet Lake Intel graphics architecture
     * intel_gpu_aml, intel_gpu_9_6_0 - Amber Lake Intel graphics architecture
@@ -92,13 +91,14 @@ and not recommended to use in production environment.
     * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1034 - GCN GFX10.3 (RDNA 2) architecture
 
 ## Language options
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
     SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1
+    * 121 - SYCL 1.2.1 [DEPRECATED]
     * 2020 - SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.

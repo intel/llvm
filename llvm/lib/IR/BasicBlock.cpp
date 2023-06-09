@@ -62,9 +62,9 @@ void BasicBlock::insertInto(Function *NewParent, BasicBlock *InsertBefore) {
   assert(!Parent && "Already has a parent");
 
   if (InsertBefore)
-    NewParent->getBasicBlockList().insert(InsertBefore->getIterator(), this);
+    NewParent->insert(InsertBefore->getIterator(), this);
   else
-    NewParent->getBasicBlockList().push_back(this);
+    NewParent->insert(NewParent->end(), this);
 }
 
 BasicBlock::~BasicBlock() {
@@ -134,14 +134,13 @@ iplist<BasicBlock>::iterator BasicBlock::eraseFromParent() {
 }
 
 void BasicBlock::moveBefore(BasicBlock *MovePos) {
-  MovePos->getParent()->getBasicBlockList().splice(
-      MovePos->getIterator(), getParent()->getBasicBlockList(), getIterator());
+  MovePos->getParent()->splice(MovePos->getIterator(), getParent(),
+                               getIterator());
 }
 
 void BasicBlock::moveAfter(BasicBlock *MovePos) {
-  MovePos->getParent()->getBasicBlockList().splice(
-      ++MovePos->getIterator(), getParent()->getBasicBlockList(),
-      getIterator());
+  MovePos->getParent()->splice(++MovePos->getIterator(), getParent(),
+                               getIterator());
 }
 
 const Module *BasicBlock::getModule() const {
@@ -204,6 +203,15 @@ const CallInst *BasicBlock::getPostdominatingDeoptimizeCall() const {
     BB = Succ;
   }
   return BB->getTerminatingDeoptimizeCall();
+}
+
+const Instruction *BasicBlock::getFirstMayFaultInst() const {
+  if (InstList.empty())
+    return nullptr;
+  for (const Instruction &I : *this)
+    if (isa<LoadInst>(I) || isa<StoreInst>(I) || isa<CallBase>(I))
+      return &I;
+  return nullptr;
 }
 
 const Instruction* BasicBlock::getFirstNonPHI() const {
@@ -482,7 +490,7 @@ void BasicBlock::splice(BasicBlock::iterator ToIt, BasicBlock *FromBB,
 
 BasicBlock::iterator BasicBlock::erase(BasicBlock::iterator FromIt,
                                        BasicBlock::iterator ToIt) {
-  return getInstList().erase(FromIt, ToIt);
+  return InstList.erase(FromIt, ToIt);
 }
 
 void BasicBlock::replacePhiUsesWith(BasicBlock *Old, BasicBlock *New) {

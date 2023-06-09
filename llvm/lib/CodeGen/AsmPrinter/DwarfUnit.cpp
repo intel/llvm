@@ -218,7 +218,7 @@ void DwarfUnit::addFlag(DIE &Die, dwarf::Attribute Attribute) {
 }
 
 void DwarfUnit::addUInt(DIEValueList &Die, dwarf::Attribute Attribute,
-                        Optional<dwarf::Form> Form, uint64_t Integer) {
+                        std::optional<dwarf::Form> Form, uint64_t Integer) {
   if (!Form)
     Form = DIEInteger::BestForm(false, Integer);
   assert(Form != dwarf::DW_FORM_implicit_const &&
@@ -232,13 +232,13 @@ void DwarfUnit::addUInt(DIEValueList &Block, dwarf::Form Form,
 }
 
 void DwarfUnit::addSInt(DIEValueList &Die, dwarf::Attribute Attribute,
-                        Optional<dwarf::Form> Form, int64_t Integer) {
+                        std::optional<dwarf::Form> Form, int64_t Integer) {
   if (!Form)
     Form = DIEInteger::BestForm(true, Integer);
   addAttribute(Die, Attribute, *Form, DIEInteger(Integer));
 }
 
-void DwarfUnit::addSInt(DIELoc &Die, Optional<dwarf::Form> Form,
+void DwarfUnit::addSInt(DIELoc &Die, std::optional<dwarf::Form> Form,
                         int64_t Integer) {
   addSInt(Die, (dwarf::Attribute)0, Form, Integer);
 }
@@ -1056,7 +1056,7 @@ void DwarfUnit::constructTemplateTypeParameterDIE(
     addType(ParamDIE, TP->getType());
   if (!TP->getName().empty())
     addString(ParamDIE, dwarf::DW_AT_name, TP->getName());
-  if (TP->isDefault() && (DD->getDwarfVersion() >= 5))
+  if (TP->isDefault() && isCompatibleWithVersion(5))
     addFlag(ParamDIE, dwarf::DW_AT_default_value);
 }
 
@@ -1070,7 +1070,7 @@ void DwarfUnit::constructTemplateValueParameterDIE(
     addType(ParamDIE, VP->getType());
   if (!VP->getName().empty())
     addString(ParamDIE, dwarf::DW_AT_name, VP->getName());
-  if (VP->isDefault() && (DD->getDwarfVersion() >= 5))
+  if (VP->isDefault() && isCompatibleWithVersion(5))
     addFlag(ParamDIE, dwarf::DW_AT_default_value);
   if (Metadata *Val = VP->getValue()) {
     if (ConstantInt *CI = mdconst::dyn_extract<ConstantInt>(Val))
@@ -1362,16 +1362,16 @@ void DwarfUnit::constructSubrangeDIE(DIE &Buffer, const DISubrange *SR,
 
   auto AddBoundTypeEntry = [&](dwarf::Attribute Attr,
                                DISubrange::BoundType Bound) -> void {
-    if (auto *BV = Bound.dyn_cast<DIVariable *>()) {
+    if (auto *BV = dyn_cast_if_present<DIVariable *>(Bound)) {
       if (auto *VarDIE = getDIE(BV))
         addDIEEntry(DW_Subrange, Attr, *VarDIE);
-    } else if (auto *BE = Bound.dyn_cast<DIExpression *>()) {
+    } else if (auto *BE = dyn_cast_if_present<DIExpression *>(Bound)) {
       DIELoc *Loc = new (DIEValueAllocator) DIELoc;
       DIEDwarfExpression DwarfExpr(*Asm, getCU(), *Loc);
       DwarfExpr.setMemoryLocationKind();
       DwarfExpr.addExpression(BE);
       addBlock(DW_Subrange, Attr, DwarfExpr.finalize());
-    } else if (auto *BI = Bound.dyn_cast<ConstantInt *>()) {
+    } else if (auto *BI = dyn_cast_if_present<ConstantInt *>(Bound)) {
       if (Attr == dwarf::DW_AT_count) {
         if (BI->getSExtValue() != -1)
           addUInt(DW_Subrange, Attr, std::nullopt, BI->getSExtValue());
@@ -1401,10 +1401,10 @@ void DwarfUnit::constructGenericSubrangeDIE(DIE &Buffer,
 
   auto AddBoundTypeEntry = [&](dwarf::Attribute Attr,
                                DIGenericSubrange::BoundType Bound) -> void {
-    if (auto *BV = Bound.dyn_cast<DIVariable *>()) {
+    if (auto *BV = dyn_cast_if_present<DIVariable *>(Bound)) {
       if (auto *VarDIE = getDIE(BV))
         addDIEEntry(DwGenericSubrange, Attr, *VarDIE);
-    } else if (auto *BE = Bound.dyn_cast<DIExpression *>()) {
+    } else if (auto *BE = dyn_cast_if_present<DIExpression *>(Bound)) {
       if (BE->isConstant() &&
           DIExpression::SignedOrUnsignedConstant::SignedConstant ==
               *BE->isConstant()) {
@@ -1463,7 +1463,7 @@ static bool hasVectorBeenPadded(const DICompositeType *CTy) {
   const auto Subrange = cast<DISubrange>(Elements[0]);
   const auto NumVecElements =
       Subrange->getCount()
-          ? Subrange->getCount().get<ConstantInt *>()->getSExtValue()
+          ? cast<ConstantInt *>(Subrange->getCount())->getSExtValue()
           : 0;
 
   // Ensure we found the element count and that the actual size is wide
@@ -1623,7 +1623,7 @@ DIE &DwarfUnit::constructMemberDIE(DIE &Buffer, const DIDerivedType *DT) {
     uint32_t AlignInBytes = DT->getAlignInBytes();
     uint64_t OffsetInBytes;
 
-    bool IsBitfield = FieldSize && Size != FieldSize;
+    bool IsBitfield = DT->isBitField();
     if (IsBitfield) {
       // Handle bitfield, assume bytes are 8 bits.
       if (DD->useDWARF2Bitfields())
@@ -1796,7 +1796,7 @@ void DwarfUnit::addSectionDelta(DIE &Die, dwarf::Attribute Attribute,
 
 void DwarfUnit::addSectionLabel(DIE &Die, dwarf::Attribute Attribute,
                                 const MCSymbol *Label, const MCSymbol *Sec) {
-  if (Asm->MAI->doesDwarfUseRelocationsAcrossSections())
+  if (Asm->doesDwarfUseRelocationsAcrossSections())
     addLabel(Die, Attribute, DD->getDwarfSectionOffsetForm(), Label);
   else
     addSectionDelta(Die, Attribute, Label, Sec);
@@ -1819,7 +1819,7 @@ void DwarfTypeUnit::addGlobalType(const DIType *Ty, const DIE &Die,
 }
 
 const MCSymbol *DwarfUnit::getCrossSectionRelativeBaseAddress() const {
-  if (!Asm->MAI->doesDwarfUseRelocationsAcrossSections())
+  if (!Asm->doesDwarfUseRelocationsAcrossSections())
     return nullptr;
   if (isDwoUnit())
     return nullptr;
@@ -1844,4 +1844,8 @@ void DwarfUnit::addRnglistsBase() {
 
 void DwarfTypeUnit::finishNonUnitTypeDIE(DIE& D, const DICompositeType *CTy) {
   DD->getAddressPool().resetUsedFlag(true);
+}
+
+bool DwarfUnit::isCompatibleWithVersion(uint16_t Version) const {
+  return !Asm->TM.Options.DebugStrictDwarf || DD->getDwarfVersion() >= Version;
 }

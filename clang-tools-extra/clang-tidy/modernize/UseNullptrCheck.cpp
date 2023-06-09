@@ -16,9 +16,7 @@ using namespace clang;
 using namespace clang::ast_matchers;
 using namespace llvm;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 namespace {
 
 const char CastSequence[] = "sequence";
@@ -482,7 +480,7 @@ private:
 
 UseNullptrCheck::UseNullptrCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      NullMacrosStr(Options.get("NullMacros", "")) {
+      NullMacrosStr(Options.get("NullMacros", "NULL")) {
   StringRef(NullMacrosStr).split(NullMacros, ",");
 }
 
@@ -510,6 +508,4 @@ void UseNullptrCheck::check(const MatchFinder::MatchResult &Result) {
       .TraverseStmt(const_cast<CastExpr *>(NullCast));
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

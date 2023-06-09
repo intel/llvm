@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <optional>
 #include <utility>
 
 #include "IRModule.h"
@@ -14,14 +15,13 @@
 
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
+#include "mlir/Bindings/Python/PybindAdaptors.h"
 
 namespace py = pybind11;
 using namespace mlir;
 using namespace mlir::python;
 
-using llvm::Optional;
 using llvm::SmallVector;
-using llvm::Twine;
 
 //------------------------------------------------------------------------------
 // Docstrings (trivial, non-duplicated docstrings are included inline).
@@ -344,15 +344,10 @@ public:
     c.def_static(
         "get",
         [](PyType &type, double value, DefaultingPyLocation loc) {
+          PyMlirContext::ErrorCapture errors(loc->getContext());
           MlirAttribute attr = mlirFloatAttrDoubleGetChecked(loc, type, value);
-          // TODO: Rework error reporting once diagnostic engine is exposed
-          // in C API.
-          if (mlirAttributeIsNull(attr)) {
-            throw SetPyError(PyExc_ValueError,
-                             Twine("invalid '") +
-                                 py::repr(py::cast(type)).cast<std::string>() +
-                                 "' and expected floating point type.");
-          }
+          if (mlirAttributeIsNull(attr))
+            throw MLIRError("Invalid attribute", errors.take());
           return PyFloatAttribute(type.getContext(), attr);
         },
         py::arg("type"), py::arg("value"), py::arg("loc") = py::none(),
@@ -495,9 +490,9 @@ public:
         "data",
         [](PyOpaqueAttribute &self) {
           MlirStringRef stringRef = mlirOpaqueAttrGetData(self);
-          return py::str(stringRef.data, stringRef.length);
+          return py::bytes(stringRef.data, stringRef.length);
         },
-        "Returns the data for the Opaqued attributes as a string");
+        "Returns the data for the Opaqued attributes as `bytes`");
   }
 };
 
@@ -533,6 +528,13 @@ public:
           return py::str(stringRef.data, stringRef.length);
         },
         "Returns the value of the string attribute");
+    c.def_property_readonly(
+        "value_bytes",
+        [](PyStringAttribute &self) {
+          MlirStringRef stringRef = mlirStringAttrGetValue(self);
+          return py::bytes(stringRef.data, stringRef.length);
+        },
+        "Returns the value of the string attribute as `bytes`");
   }
 };
 
@@ -545,8 +547,9 @@ public:
   using PyConcreteAttribute::PyConcreteAttribute;
 
   static PyDenseElementsAttribute
-  getFromBuffer(py::buffer array, bool signless, Optional<PyType> explicitType,
-                Optional<std::vector<int64_t>> explicitShape,
+  getFromBuffer(py::buffer array, bool signless,
+                std::optional<PyType> explicitType,
+                std::optional<std::vector<int64_t>> explicitShape,
                 DefaultingPyMlirContext contextWrapper) {
     // Request a contiguous view. In exotic cases, this will cause a copy.
     int flags = PyBUF_C_CONTIGUOUS | PyBUF_FORMAT;
@@ -572,7 +575,7 @@ public:
     // Notably, this excludes, bool (which needs to be bit-packed) and
     // other exotics which do not have a direct representation in the buffer
     // protocol (i.e. complex, etc).
-    Optional<MlirType> bulkLoadElementType;
+    std::optional<MlirType> bulkLoadElementType;
     if (explicitType) {
       bulkLoadElementType = *explicitType;
     } else if (arrayInfo.format == "f") {
@@ -628,8 +631,17 @@ public:
       }
     }
     if (bulkLoadElementType) {
-      auto shapedType = mlirRankedTensorTypeGet(
-          shape.size(), shape.data(), *bulkLoadElementType, encodingAttr);
+      MlirType shapedType;
+      if (mlirTypeIsAShaped(*bulkLoadElementType)) {
+        if (explicitShape) {
+          throw std::invalid_argument("Shape can only be specified explicitly "
+                                      "when the type is not a shaped type.");
+        }
+        shapedType = *bulkLoadElementType;
+      } else {
+        shapedType = mlirRankedTensorTypeGet(
+            shape.size(), shape.data(), *bulkLoadElementType, encodingAttr);
+      }
       size_t rawBufferSize = arrayInfo.size * arrayInfo.itemsize;
       MlirAttribute attr = mlirDenseElementsAttrRawBufferGet(
           shapedType, rawBufferSize, arrayInfo.ptr);
@@ -655,14 +667,14 @@ public:
         !mlirAttributeIsAFloat(elementAttr)) {
       std::string message = "Illegal element type for DenseElementsAttr: ";
       message.append(py::repr(py::cast(elementAttr)));
-      throw SetPyError(PyExc_ValueError, message);
+      throw py::value_error(message);
     }
     if (!mlirTypeIsAShaped(shapedType) ||
         !mlirShapedTypeHasStaticShape(shapedType)) {
       std::string message =
           "Expected a static ShapedType for the shaped_type parameter: ";
       message.append(py::repr(py::cast(shapedType)));
-      throw SetPyError(PyExc_ValueError, message);
+      throw py::value_error(message);
     }
     MlirType shapedElementType = mlirShapedTypeGetElementType(shapedType);
     MlirType attrType = mlirAttributeGetType(elementAttr);
@@ -672,7 +684,7 @@ public:
       message.append(py::repr(py::cast(shapedType)));
       message.append(", element=");
       message.append(py::repr(py::cast(elementAttr)));
-      throw SetPyError(PyExc_ValueError, message);
+      throw py::value_error(message);
     }
 
     MlirAttribute elements =
@@ -683,13 +695,6 @@ public:
   intptr_t dunderLen() { return mlirElementsAttrGetNumElements(*this); }
 
   py::buffer_info accessBuffer() {
-    if (mlirDenseElementsAttrIsSplat(*this)) {
-      // TODO: Currently crashes the program.
-      // Reported as https://github.com/pybind/pybind11/issues/3336
-      throw std::invalid_argument(
-          "unsupported data type for conversion to Python buffer");
-    }
-
     MlirType shapedType = mlirAttributeGetType(*this);
     MlirType elementType = mlirShapedTypeGetElementType(shapedType);
     std::string format;
@@ -705,6 +710,10 @@ public:
     if (mlirTypeIsAF16(elementType)) {
       // f16
       return bufferInfo<uint16_t>(shapedType, "e");
+    }
+    if (mlirTypeIsAIndex(elementType)) {
+      // Same as IndexType::kInternalStorageBitWidth
+      return bufferInfo<int64_t>(shapedType);
     }
     if (mlirTypeIsAInteger(elementType) &&
         mlirIntegerTypeGetWidth(elementType) == 32) {
@@ -772,6 +781,15 @@ public:
                                [](PyDenseElementsAttribute &self) -> bool {
                                  return mlirDenseElementsAttrIsSplat(self);
                                })
+        .def("get_splat_value",
+             [](PyDenseElementsAttribute &self) -> PyAttribute {
+               if (!mlirDenseElementsAttrIsSplat(self)) {
+                 throw py::value_error(
+                     "get_splat_value called on a non-splat attribute");
+               }
+               return PyAttribute(self.getContext(),
+                                  mlirDenseElementsAttrGetSplatValue(self));
+             })
         .def_buffer(&PyDenseElementsAttribute::accessBuffer);
   }
 
@@ -806,15 +824,18 @@ private:
       shape.push_back(mlirShapedTypeGetDimSize(shapedType, i));
     // Prepare the strides for the buffer_info.
     SmallVector<intptr_t, 4> strides;
-    intptr_t strideFactor = 1;
-    for (intptr_t i = 1; i < rank; ++i) {
-      strideFactor = 1;
-      for (intptr_t j = i; j < rank; ++j) {
-        strideFactor *= mlirShapedTypeGetDimSize(shapedType, j);
+    if (mlirDenseElementsAttrIsSplat(*this)) {
+      // Splats are special, only the single value is stored.
+      strides.assign(rank, 0);
+    } else {
+      for (intptr_t i = 1; i < rank; ++i) {
+        intptr_t strideFactor = 1;
+        for (intptr_t j = i; j < rank; ++j)
+          strideFactor *= mlirShapedTypeGetDimSize(shapedType, j);
+        strides.push_back(sizeof(Type) * strideFactor);
       }
-      strides.push_back(sizeof(Type) * strideFactor);
+      strides.push_back(sizeof(Type));
     }
-    strides.push_back(sizeof(Type));
     std::string format;
     if (explicitFormat) {
       format = explicitFormat;
@@ -840,8 +861,7 @@ public:
   /// out of range.
   py::int_ dunderGetItem(intptr_t pos) {
     if (pos < 0 || pos >= dunderLen()) {
-      throw SetPyError(PyExc_IndexError,
-                       "attempt to access out of bounds element");
+      throw py::index_error("attempt to access out of bounds element");
     }
 
     MlirType type = mlirAttributeGetType(*this);
@@ -888,7 +908,7 @@ public:
         return mlirDenseElementsAttrGetInt64Value(*this, pos);
       }
     }
-    throw SetPyError(PyExc_TypeError, "Unsupported integer type");
+    throw py::type_error("Unsupported integer type");
   }
 
   static void bindDerived(ClassTy &c) {
@@ -936,15 +956,13 @@ public:
       MlirAttribute attr =
           mlirDictionaryAttrGetElementByName(self, toMlirStringRef(name));
       if (mlirAttributeIsNull(attr)) {
-        throw SetPyError(PyExc_KeyError,
-                         "attempt to access a non-existent attribute");
+        throw py::key_error("attempt to access a non-existent attribute");
       }
       return PyAttribute(self.getContext(), attr);
     });
     c.def("__getitem__", [](PyDictAttribute &self, intptr_t index) {
       if (index < 0 || index >= self.dunderLen()) {
-        throw SetPyError(PyExc_IndexError,
-                         "attempt to access out of bounds attribute");
+        throw py::index_error("attempt to access out of bounds attribute");
       }
       MlirNamedAttribute namedAttr = mlirDictionaryAttrGetElement(self, index);
       return PyNamedAttribute(
@@ -966,8 +984,7 @@ public:
 
   py::float_ dunderGetItem(intptr_t pos) {
     if (pos < 0 || pos >= dunderLen()) {
-      throw SetPyError(PyExc_IndexError,
-                       "attempt to access out of bounds element");
+      throw py::index_error("attempt to access out of bounds element");
     }
 
     MlirType type = mlirAttributeGetType(*this);
@@ -983,7 +1000,7 @@ public:
     if (mlirTypeIsAF64(type)) {
       return mlirDenseElementsAttrGetDoubleValue(*this, pos);
     }
-    throw SetPyError(PyExc_TypeError, "Unsupported floating-point type");
+    throw py::type_error("Unsupported floating-point type");
   }
 
   static void bindDerived(ClassTy &c) {
@@ -1007,8 +1024,7 @@ public:
         py::arg("value"), py::arg("context") = py::none(),
         "Gets a uniqued Type attribute");
     c.def_property_readonly("value", [](PyTypeAttribute &self) {
-      return PyType(self.getContext()->getRef(),
-                    mlirTypeAttrGetValue(self.get()));
+      return mlirTypeAttrGetValue(self.get());
     });
   }
 };

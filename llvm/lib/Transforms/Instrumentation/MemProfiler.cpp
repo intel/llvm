@@ -18,7 +18,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DataLayout.h"
@@ -30,11 +29,10 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
@@ -172,7 +170,7 @@ public:
   /// If it is an interesting memory access, populate information
   /// about the access and return a InterestingMemoryAccess struct.
   /// Otherwise return std::nullopt.
-  Optional<InterestingMemoryAccess>
+  std::optional<InterestingMemoryAccess>
   isInterestingMemoryAccess(Instruction *I) const;
 
   void instrumentMop(Instruction *I, const DataLayout &DL,
@@ -267,7 +265,7 @@ void MemProfiler::instrumentMemIntrinsic(MemIntrinsic *MI) {
   MI->eraseFromParent();
 }
 
-Optional<InterestingMemoryAccess>
+std::optional<InterestingMemoryAccess>
 MemProfiler::isInterestingMemoryAccess(Instruction *I) const {
   // Do not instrument the load fetching the dynamic shadow address.
   if (DynamicShadowOffset == I)
@@ -585,7 +583,7 @@ bool MemProfiler::instrumentFunction(Function &F) {
   for (auto *Inst : ToInstrument) {
     if (ClDebugMin < 0 || ClDebugMax < 0 ||
         (NumInstrumented >= ClDebugMin && NumInstrumented <= ClDebugMax)) {
-      Optional<InterestingMemoryAccess> Access =
+      std::optional<InterestingMemoryAccess> Access =
           isInterestingMemoryAccess(Inst);
       if (Access)
         instrumentMop(Inst, F.getParent()->getDataLayout(), *Access);

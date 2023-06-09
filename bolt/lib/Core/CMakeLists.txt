@@ -5,6 +5,7 @@ set(LLVM_LINK_COMPONENTS
   MCDisassembler
   Object
   Support
+  TargetParser
   )
 
 add_llvm_library(LLVMBOLTCore
@@ -19,6 +20,7 @@ add_llvm_library(LLVMBOLTCore
   DynoStats.cpp
   Exceptions.cpp
   FunctionLayout.cpp
+  HashUtilities.cpp
   JumpTable.cpp
   MCPlusBuilder.cpp
   ParallelUtilities.cpp

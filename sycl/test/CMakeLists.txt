@@ -120,3 +120,7 @@ if(SYCL_BUILD_PI_HIP)
 
   add_dependencies(check-sycl check-sycl-hip)
 endif()
+
+if(SYCL_ENABLE_KERNEL_FUSION)
+  add_dependencies(check-sycl check-sycl-fusion)
+endif(SYCL_ENABLE_KERNEL_FUSION)

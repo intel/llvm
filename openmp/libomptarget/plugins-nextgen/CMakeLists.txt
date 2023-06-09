@@ -33,6 +33,9 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "${tmachine}$")
     # Define macro with the ELF ID for this target.
     add_definitions("-DTARGET_ELF_ID=${elf_machine_id}")
 
+    # Define target regiple
+    add_definitions("-DLIBOMPTARGET_NEXTGEN_GENERIC_PLUGIN_TRIPLE=${tmachine}")
+
     add_llvm_library("omptarget.rtl.${tmachine_libname}.nextgen"
       SHARED
 
@@ -46,13 +49,18 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "${tmachine}$")
         PRIVATE
         elf_common
         MemoryManager
+        OMPT
         PluginInterface
         ${LIBOMPTARGET_DEP_LIBFFI_LIBRARIES}
         ${OPENMP_PTHREAD_LIB}
-        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../exports"
 
       NO_INSTALL_RPATH
     )
+
+    if (LIBOMP_HAVE_VERSION_SCRIPT_FLAG)
+      target_link_libraries("omptarget.rtl.${tmachine_libname}.nextgen" PRIVATE
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../exports")
+    endif()
 
     # Install plugin under the lib destination folder.
     install(TARGETS "omptarget.rtl.${tmachine_libname}.nextgen"
@@ -77,6 +85,7 @@ endif()
 endmacro()
 
 add_subdirectory(aarch64)
+add_subdirectory(amdgpu)
 add_subdirectory(cuda)
 add_subdirectory(ppc64)
 add_subdirectory(ppc64le)

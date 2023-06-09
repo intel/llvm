@@ -23,6 +23,7 @@ add_llvm_unittest(IRTests
   DemandedBitsTest.cpp
   DominatorTreeTest.cpp
   DominatorTreeBatchUpdatesTest.cpp
+  FPAccuracyTest.cpp
   FunctionTest.cpp
   PassBuilderCallbacksTest.cpp
   IRBuilderTest.cpp
@@ -33,6 +34,7 @@ add_llvm_unittest(IRTests
   ManglerTest.cpp
   MetadataTest.cpp
   ModuleTest.cpp
+  ModuleSummaryIndexTest.cpp
   PassManagerTest.cpp
   PatternMatch.cpp
   ShuffleVectorInstTest.cpp

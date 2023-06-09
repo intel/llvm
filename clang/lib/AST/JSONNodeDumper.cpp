@@ -3,6 +3,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Lex/Lexer.h"
+#include <optional>
 
 using namespace clang;
 
@@ -661,6 +662,9 @@ void JSONNodeDumper::VisitVectorType(const VectorType *VT) {
   case VectorType::SveFixedLengthPredicateVector:
     JOS.attribute("vectorKind", "fixed-length sve predicate vector");
     break;
+  case VectorType::RVVFixedLengthDataVector:
+    JOS.attribute("vectorKind", "fixed-length rvv data vector");
+    break;
   }
 }
 
@@ -737,7 +741,7 @@ void JSONNodeDumper::VisitObjCInterfaceType(const ObjCInterfaceType *OIT) {
 }
 
 void JSONNodeDumper::VisitPackExpansionType(const PackExpansionType *PET) {
-  if (llvm::Optional<unsigned> N = PET->getNumExpansions())
+  if (std::optional<unsigned> N = PET->getNumExpansions())
     JOS.attribute("numExpansions", *N);
 }
 
@@ -767,6 +771,12 @@ void JSONNodeDumper::VisitNamedDecl(const NamedDecl *ND) {
     // FIXME: There are likely other contexts in which it makes no sense to ask
     // for a mangled name.
     if (isa<RequiresExprBodyDecl>(ND->getDeclContext()))
+      return;
+
+    // If the declaration is dependent or is in a dependent context, then the
+    // mangling is unlikely to be meaningful (and in some cases may cause
+    // "don't know how to mangle this" assertion failures.
+    if (ND->isTemplated())
       return;
 
     // Mangled names are not meaningful for locals, and may not be well-defined
@@ -850,6 +860,9 @@ void JSONNodeDumper::VisitVarDecl(const VarDecl *VD) {
     case VarDecl::CInit: JOS.attribute("init", "c");  break;
     case VarDecl::CallInit: JOS.attribute("init", "call"); break;
     case VarDecl::ListInit: JOS.attribute("init", "list"); break;
+    case VarDecl::ParenListInit:
+      JOS.attribute("init", "paren-list");
+      break;
     }
   }
   attributeOnlyIfTrue("isParameterPack", VD->isParameterPack());

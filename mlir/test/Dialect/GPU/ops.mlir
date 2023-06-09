@@ -83,10 +83,20 @@ module attributes {gpu.container_module} {
       %SgSi = gpu.subgroup_size : index
 
       %one = arith.constant 1.0 : f32
+
+      // CHECK: %{{.*}} = gpu.all_reduce add %{{.*}} {
+      // CHECK-NEXT: } : (f32) -> f32
       %sum = gpu.all_reduce add %one {} : (f32) -> (f32)
+
+      // CHECK: %{{.*}} = gpu.all_reduce add %{{.*}} uniform {
+      // CHECK-NEXT: } : (f32) -> f32
+      %sum1 = gpu.all_reduce add %one uniform {} : (f32) -> f32
 
       // CHECK: %{{.*}} = gpu.subgroup_reduce add %{{.*}} : (f32) -> f32
       %sum_subgroup = gpu.subgroup_reduce add %one : (f32) -> f32
+
+      // CHECK: %{{.*}} = gpu.subgroup_reduce add %{{.*}} uniform : (f32) -> f32
+      %sum_subgroup1 = gpu.subgroup_reduce add %one uniform : (f32) -> f32
 
       %width = arith.constant 7 : i32
       %offset = arith.constant 3 : i32
@@ -111,6 +121,8 @@ module attributes {gpu.container_module} {
     }
   }
 
+  func.func private @two_value_generator() -> (f32, memref<?xf32, 1>)
+
   func.func @foo() {
     %0 = "op"() : () -> (f32)
     %1 = "op"() : () -> (memref<?xf32, 1>)
@@ -129,6 +141,11 @@ module attributes {gpu.container_module} {
 
     // CHECK: %{{.*}} = gpu.launch_func async [%{{.*}}] @kernels::@kernel_2 blocks in (%{{.*}}, %{{.*}}, %{{.*}}) threads in (%{{.*}}, %{{.*}}, %{{.*}})
     %t1 = gpu.launch_func async [%t0] @kernels::@kernel_2  blocks in (%cst, %cst, %cst) threads in (%cst, %cst, %cst)
+
+    // CHECK: %[[VALUES:.*]]:2 = call
+    %values:2 = func.call @two_value_generator() : () -> (f32, memref<?xf32, 1>)
+    // CHECK: gpu.launch_func @kernels::@kernel_1 {{.*}} args(%[[VALUES]]#0 : f32, %[[VALUES]]#1 : memref<?xf32, 1>)
+    gpu.launch_func @kernels::@kernel_1 blocks in (%cst, %cst, %cst) threads in (%cst, %cst, %cst) args(%values#0 : f32, %values#1 : memref<?xf32, 1>)
 
     return
   }
@@ -298,6 +315,49 @@ module attributes {gpu.container_module} {
   func.func @set_default_device(%arg0: i32) {
     // CHECK: gpu.set_default_device
     gpu.set_default_device %arg0
+    return
+  }
+
+  // CHECK-LABEL: func @sparse_ops
+  func.func @sparse_ops(%arg0: index) {
+    // CHECK: gpu.wait async
+    %token0 = gpu.wait async
+    // CHECK: gpu.alloc async
+    %mem1, %token1 = gpu.alloc async [%token0] (%arg0) : memref<?xindex>
+    // CHECK: gpu.alloc async
+    %mem2, %token2 = gpu.alloc async [%token1] (%arg0) : memref<?xf64>
+    // CHECK: gpu.create_sparse_env async
+    %env, %token3 = gpu.create_sparse_env async [%token2]
+    // CHECK: gpu.create_coo async
+    %spmat, %token4 = gpu.create_coo async [%token3] %arg0, %arg0, %arg0, %mem1, %mem1, %mem2 : memref<?xindex>, memref<?xindex>, memref<?xf64>
+    // CHECK: gpu.create_csr async
+    %spmat2, %token5 = gpu.create_csr async [%token4] %arg0, %arg0, %arg0, %mem1, %mem1, %mem2 : memref<?xindex>, memref<?xindex>, memref<?xf64>
+    // CHECK: gpu.create_dn_vec async
+    %dnvec, %token6 = gpu.create_dn_vec async [%token5] %mem2, %arg0 : memref<?xf64>
+    // CHECK: gpu.spmv_buffer_size async
+    %bufferSz, %token7 = gpu.spmv_buffer_size async [%token6] %env, %spmat, %dnvec, %dnvec
+    // CHECK: gpu.spmv async
+    %token8 = gpu.spmv async [%token7] %env, %spmat, %dnvec, %dnvec, %mem2 : memref<?xf64>
+    // CHECK: gpu.create_dn_mat async
+    %dnmat, %token9 = gpu.create_dn_mat async [%token8] %arg0, %arg0, %mem2 : memref<?xf64>
+    // CHECK: gpu.spmm_buffer_size async
+    %bufferSz2, %token10 = gpu.spmm_buffer_size async [%token9] %env, %spmat, %dnmat, %dnmat
+    // CHECK: gpu.spmm async
+    %token11 = gpu.spmm async [%token10] %env, %spmat, %dnmat, %dnmat, %mem2 : memref<?xf64>
+    // CHECK: gpu.sddmm_buffer_size async
+    %bufferSz3, %token12 = gpu.sddmm_buffer_size async [%token11] %env, %dnmat, %dnmat, %spmat
+    // CHECK: gpu.sddmm async
+    %token13 = gpu.sddmm async [%token12] %env, %dnmat, %dnmat, %spmat, %mem2 : memref<?xf64>
+    // CHECK: gpu.destroy_dn_mat async
+    %token14 = gpu.destroy_dn_mat async [%token13] %dnmat
+    // CHECK: gpu.destroy_sp_mat async
+    %token15 = gpu.destroy_sp_mat async [%token14] %spmat
+    // CHECK: gpu.destroy_dn_vec async
+    %token16 = gpu.destroy_dn_vec async [%token15] %dnvec
+    // CHECK: gpu.destroy_sparse_env async
+    %token17 = gpu.destroy_sparse_env async [%token16] %env
+    // CHECK: gpu.wait
+    gpu.wait [%token17]
     return
   }
 }

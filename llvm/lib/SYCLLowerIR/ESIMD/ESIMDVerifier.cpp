@@ -34,11 +34,20 @@ namespace id = itanium_demangle;
 static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::accessor<.+>::accessor",
     "^sycl::_V1::accessor<.+>::~accessor",
-    "^sycl::_V1::accessor<.+>::getNativeImageObj",
+    "^sycl::_V1::accessor<.+>::getQualifiedPtr",
     "^sycl::_V1::accessor<.+>::__init_esimd",
+    "^sycl::_V1::local_accessor<.+>::local_accessor",
+    "^sycl::_V1::local_accessor<.+>::__init_esimd",
+    "^sycl::_V1::local_accessor<.+>::get_pointer",
+    "^sycl::_V1::local_accessor_base<.+>::local_accessor_base",
+    "^sycl::_V1::local_accessor_base<.+>::__init_esimd",
+    "^sycl::_V1::local_accessor_base<.+>::getQualifiedPtr",
+    "^sycl::_V1::local_accessor_base<.+>::getSize",
+    "^sycl::_V1::local_accessor_base<.+>::operator\\[\\]",
     "^sycl::_V1::ext::oneapi::experimental::printf",
     "^sycl::_V1::id<.+>::.+",
     "^sycl::_V1::item<.+>::.+",
+    "^sycl::_V1::multi_ptr<.+>::.+",
     "^sycl::_V1::nd_item<.+>::.+",
     "^sycl::_V1::group<.+>::.+",
     "^sycl::_V1::sub_group<.+>::.+",
@@ -50,30 +59,32 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::exp<.+>",
     "^sycl::_V1::bit_cast<.+>",
     "^sycl::_V1::operator.+<.+>",
-    "^sycl::_V1::ext::intel::experimental::set_kernel_properties",
     "^sycl::_V1::ext::oneapi::sub_group::.+",
     "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",
     "^sycl::_V1::ext::oneapi::experimental::this_sub_group",
-    "^sycl::_V1::ext::oneapi::experimental::bfloat16::.+",
+    "^sycl::_V1::ext::oneapi::bfloat16::.+",
     "^sycl::_V1::ext::oneapi::experimental::if_architecture_is"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
-    "^sycl::_V1::multi_ptr<.+>::get",
-    "^sycl::_V1::multi_ptr<.+>::multi_ptr",
     "^sycl::_V1::accessor<.+>::get_pointer.+",
     "^sycl::_V1::accessor<.+>::getPointerAdjusted",
-    "^sycl::_V1::accessor<.+>::getQualifiedPtr",
-    "^sycl::_V1::accessor<.+>::getTotalOffset"};
+    "^sycl::_V1::accessor<.+>::getTotalOffset",
+    "^sycl::_V1::accessor<.+>::getLinearIndex",
+    "^sycl::_V1::accessor<.+>::getAccessRange",
+    "^sycl::_V1::accessor<.+>::getMemoryRange",
+    "^sycl::_V1::accessor<.+>::getOffset",
+    "^sycl::_V1::accessor<.+>::operator\\[\\]"};
 
 namespace {
 
 class ESIMDVerifierImpl {
   const Module &M;
-  bool ForceStatelessMem;
+  bool MayNeedForceStatelessMemModeAPI;
 
 public:
-  ESIMDVerifierImpl(const Module &M, bool ForceStatelessMem)
-      : M(M), ForceStatelessMem(ForceStatelessMem) {}
+  ESIMDVerifierImpl(const Module &M, bool MayNeedForceStatelessMemModeAPI)
+      : M(M), MayNeedForceStatelessMemModeAPI(MayNeedForceStatelessMemModeAPI) {
+  }
 
   void verify() {
     SmallPtrSet<const Function *, 8u> Visited;
@@ -117,6 +128,14 @@ public:
           if (!NameNode) // Can it be null?
             continue;
 
+          // Skip local names, which are functions whose type
+          // is not exposed outside of the current function,
+          // such as lambdas or local classes. Note we will
+          // still analyze functions called by these constructs,
+          // assuming they are marked as ESIMD functions.
+          if (NameNode->getKind() == id::Node::KLocalName)
+            continue;
+
           id::OutputBuffer NameBuf;
           NameNode->print(NameBuf);
           StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
@@ -136,7 +155,12 @@ public:
             return LegalNameRE.match(Name);
           };
           if (any_of(LegalSYCLFunctions, checkLegalFunc) ||
-              (ForceStatelessMem &&
+              // Methods listed in LegalSYCLFunctionsInStatelessMode are
+              // required to support ESIMD APIs accepting accessors in
+              // stateless-only mode. Attempts to use that API with accessors
+              // lowered to buffer_t will cause runtime error and thus must be
+              // reported at compilation time.
+              (MayNeedForceStatelessMemModeAPI &&
                any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc)))
             continue;
 
@@ -154,7 +178,7 @@ public:
 } // end anonymous namespace
 
 PreservedAnalyses ESIMDVerifierPass::run(Module &M, ModuleAnalysisManager &AM) {
-  ESIMDVerifierImpl(M, ForceStatelessMem).verify();
+  ESIMDVerifierImpl(M, MayNeedForceStatelessMemModeAPI).verify();
   return PreservedAnalyses::all();
 }
 
@@ -162,9 +186,11 @@ namespace {
 
 struct ESIMDVerifier : public ModulePass {
   static char ID;
-  bool ForceStatelessMem;
+  bool MayNeedForceStatelessMemModeAPI;
 
-  ESIMDVerifier() : ModulePass(ID) {
+  ESIMDVerifier(bool MayNeedForceStatelessMemModeAPI = true)
+      : ModulePass(ID),
+        MayNeedForceStatelessMemModeAPI(MayNeedForceStatelessMemModeAPI) {
     initializeESIMDVerifierPass(*PassRegistry::getPassRegistry());
   }
 
@@ -173,7 +199,7 @@ struct ESIMDVerifier : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
-    ESIMDVerifierImpl(M, ForceStatelessMem).verify();
+    ESIMDVerifierImpl(M, MayNeedForceStatelessMemModeAPI).verify();
     return false;
   }
 };
@@ -187,4 +213,7 @@ INITIALIZE_PASS_BEGIN(ESIMDVerifier, DEBUG_TYPE, "ESIMD-specific IR verifier",
 INITIALIZE_PASS_END(ESIMDVerifier, DEBUG_TYPE, "ESIMD-specific IR verifier",
                     false, false)
 
-ModulePass *llvm::createESIMDVerifierPass() { return new ESIMDVerifier(); }
+ModulePass *
+llvm::createESIMDVerifierPass(bool MayNeedForceStatelessMemModeAPI) {
+  return new ESIMDVerifier(MayNeedForceStatelessMemModeAPI);
+}

@@ -139,6 +139,9 @@ private:
   /// or if we should continue compilation.
   ErrorCodeExitMapTy ErrorCodeExitMap;
 
+  /// Optional argument to prepend.
+  const char *PrependArg;
+
   /// The list of program arguments (not including the implicit first
   /// argument, which will be the executable).
   llvm::opt::ArgStringList Arguments;
@@ -192,7 +195,8 @@ public:
   Command(const Action &Source, const Tool &Creator,
           ResponseFileSupport ResponseSupport, const char *Executable,
           const llvm::opt::ArgStringList &Arguments, ArrayRef<InputInfo> Inputs,
-          ArrayRef<InputInfo> Outputs = std::nullopt);
+          ArrayRef<InputInfo> Outputs = std::nullopt,
+          const char *PrependArg = nullptr);
   // FIXME: This really shouldn't be copyable, but is currently copied in some
   // error handling in Driver::generateCompilationDiagnostics.
   Command(const Command &) = default;
@@ -282,7 +286,8 @@ public:
              ResponseFileSupport ResponseSupport, const char *Executable,
              const llvm::opt::ArgStringList &Arguments,
              ArrayRef<InputInfo> Inputs,
-             ArrayRef<InputInfo> Outputs = std::nullopt);
+             ArrayRef<InputInfo> Outputs = std::nullopt,
+             const char *PrependArg = nullptr);
 
   void Print(llvm::raw_ostream &OS, const char *Terminator, bool Quote,
              CrashReportInfo *CrashInfo = nullptr) const override;
@@ -291,23 +296,6 @@ public:
               bool *ExecutionFailed) const override;
 
   void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) override;
-};
-
-/// Like Command, but always pretends that the wrapped command succeeded.
-class ForceSuccessCommand : public Command {
-public:
-  ForceSuccessCommand(const Action &Source_, const Tool &Creator_,
-                      ResponseFileSupport ResponseSupport,
-                      const char *Executable_,
-                      const llvm::opt::ArgStringList &Arguments_,
-                      ArrayRef<InputInfo> Inputs,
-                      ArrayRef<InputInfo> Outputs = std::nullopt);
-
-  void Print(llvm::raw_ostream &OS, const char *Terminator, bool Quote,
-             CrashReportInfo *CrashInfo = nullptr) const override;
-
-  int Execute(ArrayRef<std::optional<StringRef>> Redirects, std::string *ErrMsg,
-              bool *ExecutionFailed) const override;
 };
 
 /// JobList - A sequence of jobs to perform.

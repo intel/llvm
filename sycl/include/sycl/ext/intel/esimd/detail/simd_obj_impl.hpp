@@ -99,6 +99,15 @@ static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 namespace detail {
 
 /// @cond ESIMD_DETAIL
+/// \c dqword_element_aligned_tag type. Flag of this type should be used in load
+/// and store operations when memory address is aligned by simd object's element
+/// type or dword whatever is greater.
+struct dqword_element_aligned_tag {
+  template <typename VT, typename ET = detail::element_type_t<VT>>
+  static constexpr unsigned alignment = alignof(ET) > 4 ? alignof(ET) : 4;
+};
+
+inline constexpr dqword_element_aligned_tag dqword_element_aligned = {};
 
 // Functions to support efficient simd constructors - avoiding internal loop
 // over elements.
@@ -314,22 +323,34 @@ public:
   ///   the generated code. Auto-deduced from the unnamed alignment tag
   ///   argument.
   /// @param acc The accessor to read from.
-  /// @param offset 32-bit offset in bytes of the first element.
+  /// @param offset offset in bytes of the first element.
   template <
       typename AccessorT, typename Flags = element_aligned_tag,
       typename = std::enable_if_t<
           detail::is_sycl_accessor_with<AccessorT, accessor_mode_cap::can_read,
                                         sycl::access::target::device>::value &&
           is_simd_flag_type_v<Flags>>>
-  simd_obj_impl(AccessorT acc, uint32_t offset, Flags = {}) noexcept {
-    __esimd_dbg_print(simd_obj_impl(AccessorT acc, uint32_t offset, Flags));
+  simd_obj_impl(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                uint64_t offset,
+#else
+                uint32_t offset,
+#endif
+                Flags = {}) noexcept {
+    __esimd_dbg_print(simd_obj_impl(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                    uint64_t offset,
+#else
+                                    uint32_t offset,
+#endif
+                                    Flags));
     copy_from(acc, offset, Flags{});
   }
 
   /// Type conversion into a scalar:
   /// <code><simd_obj_impl<RawTy, 1, simd<Ty,1>></code> to \c Ty.
   template <typename T = simd_obj_impl,
-            typename = sycl::detail::enable_if_t<T::length == 1>>
+            typename = std::enable_if_t<T::length == 1>>
   operator Ty() const {
     __esimd_dbg_print(operator Ty());
     return bitcast_to_wrapper_type<Ty>(data()[0]);
@@ -344,6 +365,17 @@ public:
     return __esimd_vload<RawTy, N>(&M_data);
 #endif
   }
+
+  /// @return A reference to the value of the
+  /// underlying raw vector. Intended for use
+  /// with l-value contexts in inline assembly.
+  raw_vector_type &data_ref() { return M_data; }
+
+  /// Commit the current stored underlying raw vector to memory.
+  /// This is required when using inline assembly with private global variables.
+  __SYCL_DEPRECATED(
+      "commit is deprecated and will be removed in a future release")
+  void commit() {}
 
   /// @return Newly constructed (from the underlying data) object of the Derived
   /// type.
@@ -580,7 +612,7 @@ public:
   ///
   /// @return 1 if any element is non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t any() const {
     return __esimd_any<Ty, N>(data());
   }
@@ -589,7 +621,7 @@ public:
   ///
   /// @return 1 if all elements are non-zero, 0 otherwise.
   template <typename T1 = Ty,
-            typename = std::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral_v<T1>>>
   uint16_t all() const {
     return __esimd_all<Ty, N>(data());
   }
@@ -707,7 +739,13 @@ public:
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                                 sycl::access::target::device, void>
-  copy_from(AccessorT acc, uint32_t offset, Flags = {}) SYCL_ESIMD_FUNCTION;
+  copy_from(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+            uint64_t offset,
+#else
+            uint32_t offset,
+#endif
+            Flags = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// None of the template parameters should be be specified by callers.
@@ -733,7 +771,13 @@ public:
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                                 sycl::access::target::device, void>
-  copy_to(AccessorT acc, uint32_t offset, Flags = {}) const SYCL_ESIMD_FUNCTION;
+  copy_to(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+          uint64_t offset,
+#else
+          uint32_t offset,
+#endif
+          Flags = {}) const SYCL_ESIMD_FUNCTION;
 
   // Unary operations.
 
@@ -881,6 +925,9 @@ protected:
 
 } // namespace detail
 
+template <>
+struct is_simd_flag_type<detail::dqword_element_aligned_tag> : std::true_type {
+};
 } // namespace ext::intel::esimd
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -70,9 +70,10 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   }];
   let constructor = "mlir::createSparsificationPass()";
   let dependentDialects = [
-    "AffineDialect",
+    "affine::AffineDialect",
     "arith::ArithDialect",
     "bufferization::BufferizationDialect",
+    "gpu::GPUDialect",
     "LLVM::LLVMDialect",
     "linalg::LinalgDialect",
     "memref::MemRefDialect",
@@ -81,6 +82,9 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   ];
   // TODO(57514): These enum options are duplicated in Passes.h.
   let options = [
+    Option<"enableIndexReduction", "enable-index-reduction", "bool",
+           "false",
+           "Enable dependent index reduction based algorithm to handle non-trivial index expressions on sparse inputs (experimental features)">,
     Option<"parallelization", "parallelization-strategy", "mlir::SparseParallelizationStrategy",
            "mlir::SparseParallelizationStrategy::kNone",
            "Set the parallelization strategy", [{llvm::cl::values(
@@ -97,7 +101,12 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
                         "Enable dense parallelization for any loop."),
              clEnumValN(mlir::SparseParallelizationStrategy::kAnyStorageAnyLoop,
                         "any-storage-any-loop",
-                        "Enable sparse parallelization for any storage and loop."))}]>
+                        "Enable sparse parallelization for any storage and loop."))}]>,
+    Option<"enableGPULibgen", "enable-gpu-libgen", "bool",
+           "false",
+           "Enable GPU acceleration by means of direct library calls (like cuSPARSE)">,
+    Option<"enableRuntimeLibrary", "enable-runtime-library", "bool",
+           "true", "Enable runtime library for manipulating sparse tensors">,
   ];
 }
 
@@ -217,6 +226,12 @@ def SparseTensorCodegen : Pass<"sparse-tensor-codegen", "ModuleOp"> {
   let options = [
     Option<"enableBufferInitialization", "enable-buffer-initialization", "bool",
            "false", "Enable zero-initialization of the memory buffers">,
+    Option<"createSparseDeallocs", "create-sparse-deallocs", "bool",
+           "true", "Specify if the temporary buffers created by the sparse "
+                   "compiler should be deallocated. For compatibility with core "
+                   "bufferization passes. "
+                   "This option is only used when enable-runtime-library=false. "
+                   "See also create-deallocs for BufferizationOption.">,
   ];
 }
 
@@ -298,6 +313,50 @@ def SparseVectorization : Pass<"sparse-vectorization", "ModuleOp"> {
            "false", "Enable vector length agnostic vectorization">,
     Option<"enableSIMDIndex32", "enable-simd-index32", "bool", "false",
            "Enable i32 indexing into vectors (for efficient gather/scatter)">,
+  ];
+}
+
+def SparseGPUCodegen : Pass<"sparse-gpu-codegen", "ModuleOp"> {
+  let summary = "Generates GPU code during sparsification";
+  let description = [{
+    Enables sparse compiler to use GPU acceleration.
+  }];
+  let constructor = "mlir::createSparseGPUCodegenPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "bufferization::BufferizationDialect",
+    "gpu::GPUDialect",
+    "linalg::LinalgDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
+    "sparse_tensor::SparseTensorDialect",
+  ];
+  let options = [
+    Option<"numThreads", "num_threads", "int32_t", "1024", "Sets the number of GPU threads">,
+  ];
+}
+
+def StorageSpecifierToLLVM : Pass<"sparse-storage-specifier-to-llvm", "ModuleOp"> {
+  let summary = "Lower sparse storage specifer to llvm structure";
+  let description = [{
+     This pass rewrites sparse tensor storage specifier-related operations into
+     LLVMDialect, and converts sparse tensor storage specifier into an llvm.struct.
+
+     Example of the conversion:
+     ```mlir
+     Before:
+       %0 = sparse_tensor.storage_specifier.get %arg0 dim_sz at 0
+       : !sparse_tensor.storage_specifier<#CSR> to i64
+
+     After:
+       %0 = llvm.extractvalue %arg0[0, 0] : !llvm.struct<(array<2 x i64>, array<3 x i64>)>
+     ```
+  }];
+  let constructor = "mlir::createStorageSpecifierToLLVMPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "LLVM::LLVMDialect",
+    "sparse_tensor::SparseTensorDialect",
   ];
 }
 

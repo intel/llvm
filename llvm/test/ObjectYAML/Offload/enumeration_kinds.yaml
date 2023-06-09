@@ -10,6 +10,7 @@ Members:
   - ImageKind:        IMG_Cubin
     OffloadKind:      OFK_HIP
   - ImageKind:        IMG_Fatbinary
+    OffloadKind:      OFK_SYCL
   - ImageKind:        IMG_PTX
   - ImageKind:        999
     OffloadKind:      999
@@ -29,7 +30,7 @@ Members:
 # CHECK-NEXT:     OffloadKind:     OFK_HIP
 # CHECK-NEXT:     Flags:           0
 # CHECK-NEXT:   - ImageKind:       IMG_Fatbinary
-# CHECK-NEXT:     OffloadKind:     OFK_None
+# CHECK-NEXT:     OffloadKind:     OFK_SYCL
 # CHECK-NEXT:     Flags:           0
 # CHECK-NEXT:   - ImageKind:       IMG_PTX
 # CHECK-NEXT:     OffloadKind:     OFK_None

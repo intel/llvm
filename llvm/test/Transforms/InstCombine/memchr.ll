@@ -125,7 +125,7 @@ define i1 @test11(i32 %C) {
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[C:%.*]] to i16
 ; CHECK-NEXT:    [[TMP2:%.*]] = and i16 [[TMP1]], 255
 ; CHECK-NEXT:    [[MEMCHR_BOUNDS:%.*]] = icmp ult i16 [[TMP2]], 16
-; CHECK-NEXT:    [[TMP3:%.*]] = shl i16 1, [[TMP2]]
+; CHECK-NEXT:    [[TMP3:%.*]] = shl nuw i16 1, [[TMP2]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = and i16 [[TMP3]], 9217
 ; CHECK-NEXT:    [[MEMCHR_BITS:%.*]] = icmp ne i16 [[TMP4]], 0
 ; CHECK-NEXT:    [[MEMCHR:%.*]] = select i1 [[MEMCHR_BOUNDS]], i1 [[MEMCHR_BITS]], i1 false
@@ -172,13 +172,13 @@ define i1 @test14(i32 %C) {
   ret i1 %cmp
 }
 
-define i1 @test15(i32 %C) {
+define i1 @test15(i32 %C, i32 %n) {
 ; CHECK-LABEL: @test15(
-; CHECK-NEXT:    [[DST:%.*]] = call ptr @memchr(ptr noundef nonnull dereferenceable(1) @negative, i32 [[C:%.*]], i32 3)
+; CHECK-NEXT:    [[DST:%.*]] = call ptr @memchr(ptr nonnull @negative, i32 [[C:%.*]], i32 [[N:%.*]])
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ne ptr [[DST]], null
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
-  %dst = call ptr @memchr(ptr @negative, i32 %C, i32 3)
+  %dst = call ptr @memchr(ptr @negative, i32 %C, i32 %n)
   %cmp = icmp ne ptr %dst, null
   ret i1 %cmp
 }

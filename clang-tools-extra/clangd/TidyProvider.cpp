@@ -8,6 +8,7 @@
 
 #include "TidyProvider.h"
 #include "../clang-tidy/ClangTidyModuleRegistry.h"
+#include "../clang-tidy/ClangTidyOptions.h"
 #include "Config.h"
 #include "support/FileCache.h"
 #include "support/Logger.h"
@@ -42,7 +43,7 @@ public:
     std::shared_ptr<const tidy::ClangTidyOptions> Result;
     read(
         TFS, FreshTime,
-        [this](llvm::Optional<llvm::StringRef> Data) {
+        [this](std::optional<llvm::StringRef> Data) {
           Value.reset();
           if (Data && !Data->empty()) {
             tidy::DiagCallback Diagnostics = [](const llvm::SMDiagnostic &D) {
@@ -205,7 +206,7 @@ TidyProvider disableUnusableChecks(llvm::ArrayRef<std::string> ExtraBadChecks) {
 
                        // Check relies on seeing ifndef/define/endif directives,
                        // clangd doesn't replay those when using a preamble.
-                       "-llvm-header-guard",
+                       "-llvm-header-guard", "-modernize-macro-to-enum",
 
                        // ----- Crashing Checks -----
 
@@ -283,8 +284,15 @@ TidyProvider combine(std::vector<TidyProvider> Providers) {
 
 tidy::ClangTidyOptions getTidyOptionsForFile(TidyProviderRef Provider,
                                              llvm::StringRef Filename) {
-  tidy::ClangTidyOptions Opts = tidy::ClangTidyOptions::getDefaults();
-  Opts.Checks->clear();
+  // getDefaults instantiates all check factories, which are registered at link
+  // time. So cache the results once.
+  static const auto *DefaultOpts = [] {
+    auto *Opts = new tidy::ClangTidyOptions;
+    *Opts = tidy::ClangTidyOptions::getDefaults();
+    Opts->Checks->clear();
+    return Opts;
+  }();
+  auto Opts = *DefaultOpts;
   if (Provider)
     Provider(Opts, Filename);
   return Opts;

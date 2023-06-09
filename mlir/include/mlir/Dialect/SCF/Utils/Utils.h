@@ -18,6 +18,7 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/STLExtras.h"
+#include <optional>
 
 namespace mlir {
 class Location;
@@ -53,6 +54,18 @@ scf::ForOp replaceLoopWithNewYields(OpBuilder &builder, scf::ForOp loop,
                                     ValueRange newIterOperands,
                                     const NewYieldValueFn &newYieldValuesFn,
                                     bool replaceIterOperandsUsesInLoop = true);
+// Simpler API if the new yields are just a list of values that can be
+// determined ahead of time.
+inline scf::ForOp
+replaceLoopWithNewYields(OpBuilder &builder, scf::ForOp loop,
+                         ValueRange newIterOperands, ValueRange newYields,
+                         bool replaceIterOperandsUsesInLoop = true) {
+  auto fn = [&](OpBuilder &b, Location loc, ArrayRef<BlockArgument> newBBArgs) {
+    return SmallVector<Value>(newYields.begin(), newYields.end());
+  };
+  return replaceLoopWithNewYields(builder, loop, newIterOperands, fn,
+                                  replaceIterOperandsUsesInLoop);
+}
 
 /// Update a perfectly nested loop nest to yield new values from the innermost
 /// loop and propagating it up through the loop nest. This function
@@ -112,7 +125,7 @@ bool getInnermostParallelLoops(Operation *rootOp,
 /// from scf.for or scf.parallel loop.
 /// if `loopFilter` is passed, the filter determines which loop to consider.
 /// Other induction variables are ignored.
-Optional<std::pair<AffineExpr, AffineExpr>>
+std::optional<std::pair<AffineExpr, AffineExpr>>
 getSCFMinMaxExpr(Value value, SmallVectorImpl<Value> &dims,
                  SmallVectorImpl<Value> &symbols,
                  llvm::function_ref<bool(Operation *)> loopFilter = nullptr);
@@ -120,7 +133,7 @@ getSCFMinMaxExpr(Value value, SmallVectorImpl<Value> &dims,
 /// Replace a perfect nest of "for" loops with a single linearized loop. Assumes
 /// `loops` contains a list of perfectly nested loops with bounds and steps
 /// independent of any loop induction variable involved in the nest.
-void coalesceLoops(MutableArrayRef<scf::ForOp> loops);
+LogicalResult coalesceLoops(MutableArrayRef<scf::ForOp> loops);
 
 /// Take the ParallelLoop and for each set of dimension indices, combine them
 /// into a single dimension. combinedDimensions must contain each index into

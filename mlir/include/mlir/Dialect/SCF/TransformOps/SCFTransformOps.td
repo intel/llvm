@@ -10,7 +10,6 @@
 #define SCF_TRANSFORM_OPS
 
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
-include "mlir/Dialect/Transform/IR/TransformEffects.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
 include "mlir/Dialect/Transform/IR/TransformTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -32,11 +31,11 @@ def GetParentForOp : Op<Transform_Dialect, "loop.get_parent_for",
   }];
 
   let arguments =
-    (ins TransformTypeInterface:$target,
+    (ins TransformHandleTypeInterface:$target,
          DefaultValuedAttr<ConfinedAttr<I64Attr, [IntPositive]>,
                            "1">:$num_loops,
          DefaultValuedAttr<BoolAttr, "false">:$affine);
-  let results = (outs TransformTypeInterface : $parent);
+  let results = (outs TransformHandleTypeInterface : $parent);
 
   let assemblyFormat =
     "$target attr-dict `:` functional-type(operands, results)";
@@ -47,24 +46,31 @@ def LoopOutlineOp : Op<Transform_Dialect, "loop.outline",
      DeclareOpInterfaceMethods<TransformOpInterface>]> {
   let summary = "Outlines a loop into a named function";
   let description = [{
-     Moves the loop into a separate function with the specified name and
-     replaces the loop in the Payload IR with a call to that function. Takes
-     care of forwarding values that are used in the loop as function arguments.
-     If the operand is associated with more than one loop, each loop will be
-     outlined into a separate function. The provided name is used as a _base_
-     for forming actual function names following SymbolTable auto-renaming
-     scheme to avoid duplicate symbols. Expects that all ops in the Payload IR
-     have a SymbolTable ancestor (typically true because of the top-level
-     module). Returns the handle to the list of outlined functions in the same
-     order as the operand handle.
+    Moves the loop into a separate function with the specified name and replaces
+    the loop in the Payload IR with a call to that function. Takes care of
+    forwarding values that are used in the loop as function arguments. If the
+    operand is associated with more than one loop, each loop will be outlined
+    into a separate function. The provided name is used as a _base_ for forming
+    actual function names following `SymbolTable` auto-renaming scheme to avoid
+    duplicate symbols. Expects that all ops in the Payload IR have a
+    `SymbolTable` ancestor (typically true because of the top-level module).
+
+    #### Return Modes
+
+    Returns a handle to the list of outlined functions and a handle to the
+    corresponding function call operations in the same order as the operand
+    handle.
+
+    Produces a definite failure if outlining failed for any of the targets.
   }];
 
   // Note that despite the name of the transform operation and related utility
   // functions, the actual implementation does not require the operation to be
   // a loop.
-  let arguments = (ins TransformTypeInterface:$target,
+  let arguments = (ins TransformHandleTypeInterface:$target,
                    StrAttr:$func_name);
-  let results = (outs TransformTypeInterface:$transformed);
+  let results = (outs TransformHandleTypeInterface:$function,
+                      TransformHandleTypeInterface:$call);
 
   let assemblyFormat =
     "$target attr-dict `:` functional-type(operands, results)";
@@ -101,7 +107,7 @@ def LoopPeelOp : Op<Transform_Dialect, "loop.peel",
       (ins Transform_ScfForOp:$target,
            DefaultValuedAttr<BoolAttr, "false">:$fail_if_already_divisible);
   // TODO: Return both the peeled loop and the remainder loop.
-  let results = (outs TransformTypeInterface:$transformed);
+  let results = (outs TransformHandleTypeInterface:$transformed);
 
   let assemblyFormat =
     "$target attr-dict `:` functional-type(operands, results)";
@@ -109,7 +115,7 @@ def LoopPeelOp : Op<Transform_Dialect, "loop.peel",
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::scf::ForOp target,
-        ::llvm::SmallVector<::mlir::Operation *> &results,
+        ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
   }];
 }
@@ -143,7 +149,7 @@ def LoopPipelineOp : Op<Transform_Dialect, "loop.pipeline",
   let arguments = (ins Transform_ScfForOp:$target,
                    DefaultValuedAttr<I64Attr, "1">:$iteration_interval,
                    DefaultValuedAttr<I64Attr, "10">:$read_latency);
-  let results = (outs TransformTypeInterface:$transformed);
+  let results = (outs TransformHandleTypeInterface:$transformed);
 
   let assemblyFormat =
     "$target attr-dict `:` functional-type(operands, results)";
@@ -151,7 +157,7 @@ def LoopPipelineOp : Op<Transform_Dialect, "loop.pipeline",
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::scf::ForOp target,
-        ::llvm::SmallVector<::mlir::Operation *> &results,
+        ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
   }];
 }
@@ -176,7 +182,7 @@ def LoopUnrollOp : Op<Transform_Dialect, "loop.unroll",
     removed after a full unrolling.
   }];
 
-  let arguments = (ins TransformTypeInterface:$target,
+  let arguments = (ins TransformHandleTypeInterface:$target,
                        ConfinedAttr<I64Attr, [IntPositive]>:$factor);
 
   let assemblyFormat = "$target attr-dict `:` type($target)";
@@ -184,7 +190,75 @@ def LoopUnrollOp : Op<Transform_Dialect, "loop.unroll",
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::Operation *target,
-        ::llvm::SmallVector<::mlir::Operation *> &results,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def LoopCoalesceOp : Op<Transform_Dialect, "loop.coalesce", [
+  FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+  TransformOpInterface, TransformEachOpTrait]> {
+  let summary = "Coalesces the perfect loop nest enclosed by a given loop";
+  let description = [{
+    Given a perfect loop nest identified by the outermost loop,
+    perform loop coalescing in a bottom-up one-by-one manner.
+
+    #### Return modes
+
+    The return handle points to the coalesced loop if coalescing happens, or
+    the given input loop if coalescing does not happen.
+  }];
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat =
+      "$target attr-dict `:` functional-type($target, $transformed)";
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def TakeAssumedBranchOp : Op<Transform_Dialect, "scf.take_assumed_branch", [
+  DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+  TransformOpInterface, TransformEachOpTrait]> {
+  let description = [{
+    Given an scf.if conditional, inject user-defined information that it is
+    always safe to execute only the if or else branch. 
+    
+    This is achieved by just replacing the scf.if by the content of one of its
+    branches.
+
+    This is particularly useful for user-controlled rewriting of conditionals
+    that exist solely to guard against out-of-bounds behavior.
+
+    At the moment, no assume or assert operation is emitted as it is not always
+    desirable. In the future, this may be controlled by a dedicated attribute.
+
+    #### Return modes
+
+    The transform only consumes its operand and does not produce any result.
+    The transform definitely fails if `take_else_branch` is specified and the
+    `else` region is empty.
+  }];
+  let arguments = (ins TransformHandleTypeInterface:$target,
+                       OptionalAttr<UnitAttr>:$take_else_branch);
+  let results = (outs);
+
+  let assemblyFormat = [{
+      $target
+      (`take_else_branch` $take_else_branch^)?
+      attr-dict
+       `:` functional-type(operands, results)
+  }];
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::scf::IfOp ifOp,
+        ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
   }];
 }

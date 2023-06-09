@@ -259,7 +259,7 @@ private:
     // Initialize the set of values that require a dedicated memory free
     // operation since their operands cannot be safely deallocated in a post
     // dominator.
-    SmallPtrSet<Value, 8> valuesToFree;
+    SetVector<Value> valuesToFree;
     llvm::SmallDenseSet<std::tuple<Value, Block *>> visitedValues;
     SmallVector<std::tuple<Value, Block *>, 8> toProcess;
 
@@ -280,7 +280,7 @@ private:
         // defined in a non-dominated block or it is defined in the same block
         // but the current value is not dominated by the source value.
         if (!dominators.dominates(definingBlock, parentBlock) ||
-            (definingBlock == parentBlock && value.isa<BlockArgument>())) {
+            (definingBlock == parentBlock && isa<BlockArgument>(value))) {
           toProcess.emplace_back(value, parentBlock);
           valuesToFree.insert(value);
         } else if (visitedValues.insert(std::make_tuple(value, definingBlock))
@@ -307,8 +307,8 @@ private:
 
     // Add new allocs and additional clone operations.
     for (Value value : valuesToFree) {
-      if (failed(value.isa<BlockArgument>()
-                     ? introduceBlockArgCopy(value.cast<BlockArgument>())
+      if (failed(isa<BlockArgument>(value)
+                     ? introduceBlockArgCopy(cast<BlockArgument>(value))
                      : introduceValueCopyForRegionResult(value)))
         return failure();
 
@@ -628,13 +628,24 @@ private:
 struct DefaultAllocationInterface
     : public bufferization::AllocationOpInterface::ExternalModel<
           DefaultAllocationInterface, memref::AllocOp> {
-  static Optional<Operation *> buildDealloc(OpBuilder &builder, Value alloc) {
+  static std::optional<Operation *> buildDealloc(OpBuilder &builder,
+                                                 Value alloc) {
     return builder.create<memref::DeallocOp>(alloc.getLoc(), alloc)
         .getOperation();
   }
-  static Optional<Value> buildClone(OpBuilder &builder, Value alloc) {
+  static std::optional<Value> buildClone(OpBuilder &builder, Value alloc) {
     return builder.create<bufferization::CloneOp>(alloc.getLoc(), alloc)
         .getResult();
+  }
+};
+
+struct DefaultReallocationInterface
+    : public bufferization::AllocationOpInterface::ExternalModel<
+          DefaultAllocationInterface, memref::ReallocOp> {
+  static std::optional<Operation *> buildDealloc(OpBuilder &builder,
+                                                 Value realloc) {
+    return builder.create<memref::DeallocOp>(realloc.getLoc(), realloc)
+        .getOperation();
   }
 };
 
@@ -702,6 +713,7 @@ void bufferization::registerAllocationOpInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, memref::MemRefDialect *dialect) {
     memref::AllocOp::attachInterface<DefaultAllocationInterface>(*ctx);
+    memref::ReallocOp::attachInterface<DefaultReallocationInterface>(*ctx);
   });
 }
 

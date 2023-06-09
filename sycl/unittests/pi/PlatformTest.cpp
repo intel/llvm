@@ -17,7 +17,7 @@ namespace {
 
 using namespace sycl;
 
-class PlatformTest : public testing::TestWithParam<detail::plugin> {
+class PlatformTest : public testing::TestWithParam<detail::PluginPtr> {
 protected:
   std::vector<pi_platform> _platforms;
   PlatformTest() : _platforms{} {};
@@ -26,7 +26,7 @@ protected:
 
   void SetUp() override {
 
-    detail::plugin plugin = GetParam();
+    const detail::PluginPtr &plugin = GetParam();
 
     ASSERT_NO_FATAL_FAILURE(Test::SetUp());
 
@@ -39,7 +39,7 @@ protected:
 
     // TODO: Change the test to check this for all plugins present.
     // Currently, it is only checking for the first plugin attached.
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &platform_count)),
               PI_SUCCESS);
 
@@ -56,7 +56,7 @@ protected:
 
     _platforms.resize(platform_count, nullptr);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   _platforms.size(), _platforms.data(), nullptr)),
               PI_SUCCESS);
   }
@@ -66,7 +66,7 @@ INSTANTIATE_TEST_SUITE_P(
     PlatformTestImpl, PlatformTest,
     testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<PlatformTest::ParamType> &info) {
-      return pi::GetBackendString(info.param.getBackend());
+      return pi::GetBackendString(info.param);
     });
 
 TEST_P(PlatformTest, piPlatformsGet) {
@@ -76,18 +76,18 @@ TEST_P(PlatformTest, piPlatformsGet) {
 
 TEST_P(PlatformTest, piPlatformGetInfo) {
 
-  detail::plugin plugin = GetParam();
+  const detail::PluginPtr &plugin = GetParam();
 
   auto get_info_test = [&](pi_platform platform, _pi_platform_info info) {
     size_t reported_string_length = 0;
-    EXPECT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+    EXPECT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
                   platform, info, 0u, nullptr, &reported_string_length)),
               PI_SUCCESS);
 
     // Create a larger result string to catch overwrites.
     std::vector<char> param_value(reported_string_length * 2u, '\0');
     EXPECT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
+        (plugin->call_nocheck<detail::PiApiKind::piPlatformGetInfo>(
             platform, info, param_value.size(), param_value.data(), nullptr)),
         PI_SUCCESS)
         << "piPlatformGetInfo for " << detail::pi::platformInfoToString(info)
@@ -107,6 +107,7 @@ TEST_P(PlatformTest, piPlatformGetInfo) {
     get_info_test(platform, PI_PLATFORM_INFO_PROFILE);
     get_info_test(platform, PI_PLATFORM_INFO_VERSION);
     get_info_test(platform, PI_PLATFORM_INFO_EXTENSIONS);
+    get_info_test(platform, PI_EXT_PLATFORM_INFO_BACKEND);
   }
 }
 } // namespace

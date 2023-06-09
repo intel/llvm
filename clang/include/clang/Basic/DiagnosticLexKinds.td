@@ -132,16 +132,19 @@ def warn_utf8_symbol_homoglyph : Warning<
 def warn_utf8_symbol_zero_width : Warning<
   "identifier contains Unicode character <U+%0> that is invisible in "
   "some environments">, InGroup<DiagGroup<"unicode-zero-width">>;
+def ext_mathematical_notation : ExtWarn<
+  "mathematical notation character <U+%0> in an identifier is a Clang extension">,
+  InGroup<DiagGroup<"mathematical-notation-identifier-extension">>;
 
 def ext_delimited_escape_sequence : Extension<
   "%select{delimited|named}0 escape sequences are a "
-  "%select{Clang|C++2b}1 extension">,
+  "%select{Clang|C++23}1 extension">,
   InGroup<DiagGroup<"delimited-escape-sequence-extension">>;
 
-def warn_cxx2b_delimited_escape_sequence : Warning<
+def warn_cxx23_delimited_escape_sequence : Warning<
   "%select{delimited|named}0 escape sequences are "
-  "incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 
 def err_delimited_escape_empty : Error<
   "delimited escape sequence cannot be empty">;
@@ -393,10 +396,10 @@ def ext_pp_include_next_directive : Extension<
   "#include_next is a language extension">, InGroup<GNUIncludeNext>;
 
 def ext_pp_warning_directive : Extension<
-  "#warning is a %select{C2x|C++2b}0 extension">;
-def warn_cxx2b_compat_warning_directive : Warning<
-  "#warning is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "#warning is a %select{C2x|C++23}0 extension">;
+def warn_cxx23_compat_warning_directive : Warning<
+  "#warning is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def warn_c2x_compat_warning_directive : Warning<
   "#warning is incompatible with C standards before C2x">,
   InGroup<CPre2xCompat>, DefaultIgnore;
@@ -652,10 +655,6 @@ def warn_pragma_debug_missing_command : Warning<
   "missing debug command">, InGroup<IgnoredPragmas>;
 def warn_pragma_debug_unexpected_command : Warning<
   "unexpected debug command '%0'">, InGroup<IgnoredPragmas>;
-def warn_pragma_debug_missing_argument : Warning<
-  "missing argument to debug command '%0'">, InGroup<IgnoredPragmas>;
-def warn_pragma_debug_unexpected_argument : Warning<
-  "unexpected argument to debug command">, InGroup<IgnoredPragmas>;
 def warn_pragma_debug_unknown_module : Warning<
   "unknown module '%0'">, InGroup<IgnoredPragmas>;
 // #pragma module
@@ -740,14 +739,14 @@ def ext_c2x_pp_directive : ExtWarn<
   "use of a '#%select{<BUG IF SEEN>|elifdef|elifndef}0' directive "
   "is a C2x extension">,
   InGroup<C2x>;
-def warn_cxx2b_compat_pp_directive : Warning<
+def warn_cxx23_compat_pp_directive : Warning<
   "use of a '#%select{<BUG IF SEEN>|elifdef|elifndef}0' directive "
-  "is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
-def ext_cxx2b_pp_directive : ExtWarn<
+  "is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
+def ext_cxx23_pp_directive : ExtWarn<
   "use of a '#%select{<BUG IF SEEN>|elifdef|elifndef}0' directive "
-  "is a C++2b extension">,
-  InGroup<CXX2b>;
+  "is a C++23 extension">,
+  InGroup<CXX23>;
 
 def err_pp_visibility_non_macro : Error<"no macro named %0">;
 
@@ -885,6 +884,8 @@ def warn_use_of_private_header_outside_module : Warning<
   InGroup<DiagGroup<"private-header">>, DefaultError;
 def err_undeclared_use_of_module : Error<
   "module %0 does not depend on a module exporting '%1'">;
+def err_undeclared_use_of_module_indirect : Error<
+  "module %0 does not directly depend on a module exporting '%1', which is part of indirectly-used module %2">;
 def warn_non_modular_include_in_framework_module : Warning<
   "include of non-modular header inside framework module '%0': '%1'">,
   InGroup<NonModularIncludeInFrameworkModule>, DefaultIgnore;
@@ -940,4 +941,15 @@ def err_dep_source_scanner_unexpected_tokens_at_import : Error<
 
 }
 
+def err_pp_double_begin_pragma_unsafe_buffer_usage :
+Error<"already inside '#pragma unsafe_buffer_usage'">;
+
+def err_pp_unmatched_end_begin_pragma_unsafe_buffer_usage :
+Error<"not currently inside '#pragma unsafe_buffer_usage'">;
+
+def err_pp_unclosed_pragma_unsafe_buffer_usage :
+Error<"'#pragma unsafe_buffer_usage' was not ended">;
+
+def err_pp_pragma_unsafe_buffer_usage_syntax :
+Error<"Expected 'begin' or 'end'">;
 }

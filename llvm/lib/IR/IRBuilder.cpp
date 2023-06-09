@@ -102,9 +102,17 @@ Value *IRBuilderBase::CreateVScale(Constant *Scaling, const Twine &Name) {
   Function *TheFn =
       Intrinsic::getDeclaration(M, Intrinsic::vscale, {Scaling->getType()});
   CallInst *CI = CreateCall(TheFn, {}, {}, Name);
-  return cast<ConstantInt>(Scaling)->getSExtValue() == 1
-             ? CI
-             : CreateMul(CI, Scaling);
+  return cast<ConstantInt>(Scaling)->isOne() ? CI : CreateMul(CI, Scaling);
+}
+
+Value *IRBuilderBase::CreateElementCount(Type *DstType, ElementCount EC) {
+  Constant *MinEC = ConstantInt::get(DstType, EC.getKnownMinValue());
+  return EC.isScalable() ? CreateVScale(MinEC) : MinEC;
+}
+
+Value *IRBuilderBase::CreateTypeSize(Type *DstType, TypeSize Size) {
+  Constant *MinSize = ConstantInt::get(DstType, Size.getKnownMinValue());
+  return Size.isScalable() ? CreateVScale(MinSize) : MinSize;
 }
 
 Value *IRBuilderBase::CreateStepVector(Type *DstType, const Twine &Name) {
@@ -1257,10 +1265,8 @@ Value *IRBuilderBase::CreateVectorSplat(ElementCount EC, Value *V,
   assert(EC.isNonZero() && "Cannot splat to an empty vector!");
 
   // First insert it into a poison vector so we can shuffle it.
-  Type *I32Ty = getInt32Ty();
   Value *Poison = PoisonValue::get(VectorType::get(V->getType(), EC));
-  V = CreateInsertElement(Poison, V, ConstantInt::get(I32Ty, 0),
-                          Name + ".splatinsert");
+  V = CreateInsertElement(Poison, V, getInt64(0), Name + ".splatinsert");
 
   // Shuffle the value across the desired number of elements.
   SmallVector<int, 16> Zeros;

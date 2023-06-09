@@ -2,7 +2,7 @@
 ; RUN: FileCheck -check-prefix=REMARK %s < %t
 
 ; STDERR: remark: foo.cl:27:0: Function Name: test_kernel
-; STDERR-NEXT: remark: foo.cl:27:0:     SGPRs: 24
+; STDERR-NEXT: remark: foo.cl:27:0:     SGPRs: 28
 ; STDERR-NEXT: remark: foo.cl:27:0:     VGPRs: 9
 ; STDERR-NEXT: remark: foo.cl:27:0:     AGPRs: 43
 ; STDERR-NEXT: remark: foo.cl:27:0:     ScratchSize [bytes/lane]: 0
@@ -27,7 +27,7 @@
 ; REMARK-NEXT: Function:        test_kernel
 ; REMARK-NEXT: Args:
 ; REMARK-NEXT:   - String:          '    SGPRs: '
-; REMARK-NEXT:   - NumSGPR:         '24'
+; REMARK-NEXT:   - NumSGPR:         '28'
 ; REMARK-NEXT: ...
 ; REMARK-NEXT: --- !Analysis
 ; REMARK-NEXT: Pass:            kernel-resource-usage
@@ -99,7 +99,7 @@ define amdgpu_kernel void @test_kernel() !dbg !3 {
   call void asm sideeffect "; clobber v8", "~{v8}"()
   call void asm sideeffect "; clobber s23", "~{s23}"()
   call void asm sideeffect "; clobber a42", "~{a42}"()
-  call void asm sideeffect "; use $0", "v"([128 x i32] addrspace(3)* @lds)
+  call void asm sideeffect "; use $0", "v"(ptr addrspace(3) @lds)
   ret void
 }
 
@@ -120,11 +120,11 @@ define void @test_func() !dbg !6 {
 }
 
 ; STDERR: remark: foo.cl:8:0: Function Name: empty_kernel
-; STDERR-NEXT: remark: foo.cl:8:0:     SGPRs: 0
+; STDERR-NEXT: remark: foo.cl:8:0:     SGPRs: 4
 ; STDERR-NEXT: remark: foo.cl:8:0:     VGPRs: 0
 ; STDERR-NEXT: remark: foo.cl:8:0:     AGPRs: 0
 ; STDERR-NEXT: remark: foo.cl:8:0:     ScratchSize [bytes/lane]: 0
-; STDERR-NEXT: remark: foo.cl:8:0:     Occupancy [waves/SIMD]: 10
+; STDERR-NEXT: remark: foo.cl:8:0:     Occupancy [waves/SIMD]: 8
 ; STDERR-NEXT: remark: foo.cl:8:0:     SGPRs Spill: 0
 ; STDERR-NEXT: remark: foo.cl:8:0:     VGPRs Spill: 0
 ; STDERR-NEXT: remark: foo.cl:8:0:     LDS Size [bytes/block]: 0

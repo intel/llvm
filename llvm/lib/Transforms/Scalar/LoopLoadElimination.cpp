@@ -46,13 +46,10 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/LoopVersioning.h"
@@ -658,70 +655,6 @@ static bool eliminateLoadsAcrossLoops(Function &F, LoopInfo &LI,
   return Changed;
 }
 
-namespace {
-
-/// The pass.  Most of the work is delegated to the per-loop
-/// LoadEliminationForLoop class.
-class LoopLoadElimination : public FunctionPass {
-public:
-  static char ID;
-
-  LoopLoadElimination() : FunctionPass(ID) {
-    initializeLoopLoadEliminationPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnFunction(Function &F) override {
-    if (skipFunction(F))
-      return false;
-
-    auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    auto &LAIs = getAnalysis<LoopAccessLegacyAnalysis>().getLAIs();
-    auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    auto *PSI = &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
-    auto *BFI = (PSI && PSI->hasProfileSummary()) ?
-                &getAnalysis<LazyBlockFrequencyInfoPass>().getBFI() :
-                nullptr;
-    auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-
-    // Process each loop nest in the function.
-    return eliminateLoadsAcrossLoops(F, LI, DT, BFI, PSI, SE, /*AC*/ nullptr,
-                                     LAIs);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequiredID(LoopSimplifyID);
-    AU.addRequired<LoopInfoWrapperPass>();
-    AU.addPreserved<LoopInfoWrapperPass>();
-    AU.addRequired<LoopAccessLegacyAnalysis>();
-    AU.addRequired<ScalarEvolutionWrapperPass>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-    AU.addPreserved<GlobalsAAWrapperPass>();
-    AU.addRequired<ProfileSummaryInfoWrapperPass>();
-    LazyBlockFrequencyInfoPass::getLazyBFIAnalysisUsage(AU);
-  }
-};
-
-} // end anonymous namespace
-
-char LoopLoadElimination::ID;
-
-static const char LLE_name[] = "Loop Load Elimination";
-
-INITIALIZE_PASS_BEGIN(LoopLoadElimination, LLE_OPTION, LLE_name, false, false)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopAccessLegacyAnalysis)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopSimplify)
-INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LazyBlockFrequencyInfoPass)
-INITIALIZE_PASS_END(LoopLoadElimination, LLE_OPTION, LLE_name, false, false)
-
-FunctionPass *llvm::createLoopLoadEliminationPass() {
-  return new LoopLoadElimination();
-}
-
 PreservedAnalyses LoopLoadEliminationPass::run(Function &F,
                                                FunctionAnalysisManager &AM) {
   auto &LI = AM.getResult<LoopAnalysis>(F);
@@ -744,5 +677,7 @@ PreservedAnalyses LoopLoadEliminationPass::run(Function &F,
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
+  PA.preserve<DominatorTreeAnalysis>();
+  PA.preserve<LoopAnalysis>();
   return PA;
 }

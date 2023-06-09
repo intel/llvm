@@ -1,7 +1,9 @@
 set(LLVM_LINK_COMPONENTS
+  AggressiveInstCombine
   Analysis
   BitReader
   BitWriter
+  CodeGenTypes
   Core
   Coroutines
   Coverage
@@ -12,7 +14,6 @@ set(LLVM_LINK_COMPONENTS
   IPO
   IRPrinter
   IRReader
-  AggressiveInstCombine
   InstCombine
   Instrumentation
   LTO
@@ -22,11 +23,11 @@ set(LLVM_LINK_COMPONENTS
   Object
   Passes
   ProfileData
-  Remarks
   ScalarOpts
   Support
   SYCLLowerIR
   Target
+  TargetParser
   TransformUtils
   )
 
@@ -95,8 +96,8 @@ add_clang_library(clangCodeGen
   intrinsics_gen
 
   LINK_LIBS
-  clangAnalysis
   clangAST
+  clangAnalysis
   clangBasic
   clangFrontend
   clangLex

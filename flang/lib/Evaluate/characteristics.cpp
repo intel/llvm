@@ -63,6 +63,11 @@ bool TypeAndShape::operator==(const TypeAndShape &that) const {
 
 TypeAndShape &TypeAndShape::Rewrite(FoldingContext &context) {
   LEN_ = Fold(context, std::move(LEN_));
+  if (LEN_) {
+    if (auto n{ToInt64(*LEN_)}) {
+      type_ = DynamicType{type_.kind(), *n};
+    }
+  }
   shape_ = Fold(context, std::move(shape_));
   return *this;
 }
@@ -73,11 +78,10 @@ std::optional<TypeAndShape> TypeAndShape::Characterize(
   return common::visit(
       common::visitors{
           [&](const semantics::ProcEntityDetails &proc) {
-            const semantics::ProcInterface &interface { proc.interface() };
-            if (interface.type()) {
-              return Characterize(*interface.type(), context);
-            } else if (interface.symbol()) {
-              return Characterize(*interface.symbol(), context);
+            if (proc.procInterface()) {
+              return Characterize(*proc.procInterface(), context);
+            } else if (proc.type()) {
+              return Characterize(*proc.type(), context);
             } else {
               return std::optional<TypeAndShape>{};
             }
@@ -145,7 +149,13 @@ std::optional<TypeAndShape> TypeAndShape::Characterize(
 
 std::optional<TypeAndShape> TypeAndShape::Characterize(
     const ActualArgument &arg, FoldingContext &context) {
-  return Characterize(arg.UnwrapExpr(), context);
+  if (const auto *expr{arg.UnwrapExpr()}) {
+    return Characterize(*expr, context);
+  } else if (const Symbol * assumed{arg.GetAssumedTypeDummy()}) {
+    return Characterize(*assumed, context);
+  } else {
+    return std::nullopt;
+  }
 }
 
 bool TypeAndShape::IsCompatibleWith(parser::ContextualMessages &messages,
@@ -259,8 +269,22 @@ bool DummyDataObject::operator==(const DummyDataObject &that) const {
 }
 
 static bool AreCompatibleDummyDataObjectShapes(const Shape &x, const Shape &y) {
-  // TODO: Validate more than just compatible ranks
-  return GetRank(x) == GetRank(y);
+  int n{GetRank(x)};
+  if (n != GetRank(y)) {
+    return false;
+  }
+  auto xIter{x.begin()};
+  auto yIter{y.begin()};
+  for (; n-- > 0; ++xIter, ++yIter) {
+    if (auto xVal{ToInt64(*xIter)}) {
+      if (auto yVal{ToInt64(*yIter)}) {
+        if (*xVal != *yVal) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 bool DummyDataObject::IsCompatibleWith(
@@ -271,7 +295,7 @@ bool DummyDataObject::IsCompatibleWith(
     }
     return false;
   }
-  if (!type.type().IsTkCompatibleWith(actual.type.type())) {
+  if (!type.type().IsTkLenCompatibleWith(actual.type.type())) {
     if (whyNot) {
       *whyNot = "incompatible dummy data object types: "s +
           type.type().AsFortran() + " vs " + actual.type.type().AsFortran();
@@ -296,6 +320,11 @@ bool DummyDataObject::IsCompatibleWith(
     }
     return false;
   }
+  if (ignoreTKR != actual.ignoreTKR) {
+    if (whyNot) {
+      *whyNot = "incompatible !DIR$ IGNORE_TKR directives";
+    }
+  }
   return true;
 }
 
@@ -313,8 +342,8 @@ static common::Intent GetIntent(const semantics::Attrs &attrs) {
 
 std::optional<DummyDataObject> DummyDataObject::Characterize(
     const semantics::Symbol &symbol, FoldingContext &context) {
-  if (symbol.has<semantics::ObjectEntityDetails>() ||
-      symbol.has<semantics::EntityDetails>()) {
+  if (const auto *object{symbol.detailsIf<semantics::ObjectEntityDetails>()};
+      object || symbol.has<semantics::EntityDetails>()) {
     if (auto type{TypeAndShape::Characterize(symbol, context)}) {
       std::optional<DummyDataObject> result{std::move(*type)};
       using semantics::Attr;
@@ -330,6 +359,7 @@ std::optional<DummyDataObject> DummyDataObject::Characterize(
               {Attr::TARGET, DummyDataObject::Attr::Target},
           });
       result->intent = GetIntent(symbol.attrs());
+      result->ignoreTKR = GetIgnoreTKR(symbol);
       return result;
     }
   }
@@ -369,6 +399,9 @@ llvm::raw_ostream &DummyDataObject::Dump(llvm::raw_ostream &o) const {
       expr.AsFortran(o << sep);
       sep = ',';
     }
+  }
+  if (!ignoreTKR.empty()) {
+    ignoreTKR.Dump(o << ' ', common::EnumToString);
   }
   return o;
 }
@@ -506,8 +539,8 @@ static std::optional<Procedure> CharacterizeProcedure(
               }
               return intrinsic;
             }
-            const semantics::ProcInterface &interface { proc.interface() };
-            if (const semantics::Symbol * interfaceSymbol{interface.symbol()}) {
+            if (const semantics::Symbol *
+                interfaceSymbol{proc.procInterface()}) {
               auto interface {
                 CharacterizeProcedure(*interfaceSymbol, context, seenProcs)
               };
@@ -517,7 +550,7 @@ static std::optional<Procedure> CharacterizeProcedure(
               return interface;
             } else {
               result.attrs.set(Procedure::Attr::ImplicitInterface);
-              const semantics::DeclTypeSpec *type{interface.type()};
+              const semantics::DeclTypeSpec *type{proc.type()};
               if (symbol.test(semantics::Symbol::Flag::Subroutine)) {
                 // ignore any implicit typing
                 result.attrs.set(Procedure::Attr::Subroutine);
@@ -718,6 +751,17 @@ std::optional<DummyArgument> DummyArgument::FromActual(
           },
       },
       expr.u);
+}
+
+std::optional<DummyArgument> DummyArgument::FromActual(
+    std::string &&name, const ActualArgument &arg, FoldingContext &context) {
+  if (const auto *expr{arg.UnwrapExpr()}) {
+    return FromActual(std::move(name), *expr, context);
+  } else if (arg.GetAssumedTypeDummy()) {
+    return std::nullopt;
+  } else {
+    return DummyArgument{AlternateReturn{}};
+  }
 }
 
 bool DummyArgument::IsOptional() const {
@@ -921,10 +965,32 @@ bool FunctionResult::IsCompatibleWith(
         if (whyNot) {
           *whyNot = "function results have distinct constant extents";
         }
-      } else if (!ifaceTypeShape->type().IsTkLenCompatibleWith(
-                     actualTypeShape->type())) {
+      } else if (ifaceTypeShape->type() != actualTypeShape->type()) {
+        if (ifaceTypeShape->type().category() ==
+            actualTypeShape->type().category()) {
+          if (ifaceTypeShape->type().category() == TypeCategory::Character) {
+            if (ifaceTypeShape->type().kind() ==
+                actualTypeShape->type().kind()) {
+              auto ifaceLen{ifaceTypeShape->type().knownLength()};
+              auto actualLen{actualTypeShape->type().knownLength()};
+              if (!ifaceLen || !actualLen || *ifaceLen == *actualLen) {
+                return true;
+              }
+            }
+          } else if (ifaceTypeShape->type().category() ==
+              TypeCategory::Derived) {
+            if (ifaceTypeShape->type().IsPolymorphic() ==
+                    actualTypeShape->type().IsPolymorphic() &&
+                !ifaceTypeShape->type().IsUnlimitedPolymorphic() &&
+                !actualTypeShape->type().IsUnlimitedPolymorphic() &&
+                AreSameDerivedType(ifaceTypeShape->type().GetDerivedTypeSpec(),
+                    actualTypeShape->type().GetDerivedTypeSpec())) {
+              return true;
+            }
+          }
+        }
         if (whyNot) {
-          *whyNot = "function results have incompatible types: "s +
+          *whyNot = "function results have distinct types: "s +
               ifaceTypeShape->type().AsFortran() + " vs "s +
               actualTypeShape->type().AsFortran();
         }
@@ -1018,8 +1084,14 @@ bool Procedure::IsCompatibleWith(const Procedure &actual, std::string *whyNot,
     }
   } else {
     for (std::size_t j{0}; j < dummyArguments.size(); ++j) {
-      if (!dummyArguments[j].IsCompatibleWith(
-              actual.dummyArguments[j], whyNot)) {
+      // Subtlety: the dummy/actual distinction must be reversed for this
+      // compatibility test in order to correctly check extended vs.
+      // base types.  Example:
+      //   subroutine s1(base); subroutine s2(extended)
+      //   procedure(s1), pointer :: p
+      //   p => s2 ! an error, s2 is more restricted, can't handle "base"
+      if (!actual.dummyArguments[j].IsCompatibleWith(
+              dummyArguments[j], whyNot)) {
         if (whyNot) {
           *whyNot = "incompatible dummy argument #"s + std::to_string(j + 1) +
               ": "s + *whyNot;
@@ -1057,8 +1129,11 @@ bool Procedure::CanOverride(
     return false;
   }
   for (int j{0}; j < argCount; ++j) {
-    if ((!passIndex || j != *passIndex) &&
-        dummyArguments[j] != that.dummyArguments[j]) {
+    if (passIndex && j == *passIndex) {
+      if (!that.dummyArguments[j].IsCompatibleWith(dummyArguments[j])) {
+        return false;
+      }
+    } else if (dummyArguments[j] != that.dummyArguments[j]) {
       return false;
     }
   }
@@ -1095,6 +1170,30 @@ std::optional<Procedure> Procedure::Characterize(
     }
   }
   return std::nullopt;
+}
+
+std::optional<Procedure> Procedure::FromActuals(const ProcedureDesignator &proc,
+    const ActualArguments &args, FoldingContext &context) {
+  auto callee{Characterize(proc, context)};
+  if (callee) {
+    if (callee->dummyArguments.empty() &&
+        callee->attrs.test(Procedure::Attr::ImplicitInterface)) {
+      int j{0};
+      for (const auto &arg : args) {
+        ++j;
+        if (arg) {
+          if (auto dummy{DummyArgument::FromActual(
+                  "x"s + std::to_string(j), *arg, context)}) {
+            callee->dummyArguments.emplace_back(std::move(*dummy));
+            continue;
+          }
+        }
+        callee.reset();
+        break;
+      }
+    }
+  }
+  return callee;
 }
 
 bool Procedure::CanBeCalledViaImplicitInterface() const {
@@ -1170,9 +1269,10 @@ private:
   bool Distinguishable(const DummyDataObject &, const DummyDataObject &) const;
   bool Distinguishable(const DummyProcedure &, const DummyProcedure &) const;
   bool Distinguishable(const FunctionResult &, const FunctionResult &) const;
-  bool Distinguishable(const TypeAndShape &, const TypeAndShape &) const;
+  bool Distinguishable(
+      const TypeAndShape &, const TypeAndShape &, common::IgnoreTKRSet) const;
   bool IsTkrCompatible(const DummyArgument &, const DummyArgument &) const;
-  bool IsTkrCompatible(const TypeAndShape &, const TypeAndShape &) const;
+  bool IsTkCompatible(const DummyDataObject &, const DummyDataObject &) const;
   const DummyArgument *GetAtEffectivePosition(
       const DummyArguments &, int) const;
   const DummyArgument *GetPassArg(const Procedure &) const;
@@ -1183,6 +1283,10 @@ private:
 // Simpler distinguishability rules for operators and assignment
 bool DistinguishUtils::DistinguishableOpOrAssign(
     const Procedure &proc1, const Procedure &proc2) const {
+  if ((proc1.IsFunction() && proc2.IsSubroutine()) ||
+      (proc1.IsSubroutine() && proc2.IsFunction())) {
+    return true;
+  }
   auto &args1{proc1.dummyArguments};
   auto &args2{proc2.dummyArguments};
   if (args1.size() != args2.size()) {
@@ -1198,6 +1302,10 @@ bool DistinguishUtils::DistinguishableOpOrAssign(
 
 bool DistinguishUtils::Distinguishable(
     const Procedure &proc1, const Procedure &proc2) const {
+  if ((proc1.IsFunction() && proc2.IsSubroutine()) ||
+      (proc1.IsSubroutine() && proc2.IsFunction())) {
+    return true;
+  }
   auto &args1{proc1.dummyArguments};
   auto &args2{proc2.dummyArguments};
   auto count1{CountDummyProcedures(args1)};
@@ -1340,7 +1448,7 @@ bool DistinguishUtils::Distinguishable(
 bool DistinguishUtils::Distinguishable(
     const DummyDataObject &x, const DummyDataObject &y) const {
   using Attr = DummyDataObject::Attr;
-  if (Distinguishable(x.type, y.type)) {
+  if (Distinguishable(x.type, y.type, x.ignoreTKR | y.ignoreTKR)) {
     return true;
   } else if (x.attrs.test(Attr::Allocatable) && y.attrs.test(Attr::Pointer) &&
       y.intent != common::Intent::In) {
@@ -1389,7 +1497,8 @@ bool DistinguishUtils::Distinguishable(
   return common::visit(
       common::visitors{
           [&](const TypeAndShape &z) {
-            return Distinguishable(z, std::get<TypeAndShape>(y.u));
+            return Distinguishable(
+                z, std::get<TypeAndShape>(y.u), common::IgnoreTKRSet{});
           },
           [&](const CopyableIndirection<Procedure> &z) {
             return Distinguishable(z.value(),
@@ -1399,24 +1508,39 @@ bool DistinguishUtils::Distinguishable(
       x.u);
 }
 
-bool DistinguishUtils::Distinguishable(
-    const TypeAndShape &x, const TypeAndShape &y) const {
-  return !IsTkrCompatible(x, y) && !IsTkrCompatible(y, x);
+bool DistinguishUtils::Distinguishable(const TypeAndShape &x,
+    const TypeAndShape &y, common::IgnoreTKRSet ignoreTKR) const {
+  if (!x.type().IsTkCompatibleWith(y.type(), ignoreTKR) &&
+      !y.type().IsTkCompatibleWith(x.type(), ignoreTKR)) {
+    return true;
+  }
+  if (ignoreTKR.test(common::IgnoreTKR::Rank)) {
+  } else if (x.attrs().test(TypeAndShape::Attr::AssumedRank) ||
+      y.attrs().test(TypeAndShape::Attr::AssumedRank)) {
+  } else if (x.Rank() != y.Rank()) {
+    return true;
+  }
+  return false;
 }
 
 // Compatibility based on type, kind, and rank
+
 bool DistinguishUtils::IsTkrCompatible(
     const DummyArgument &x, const DummyArgument &y) const {
   const auto *obj1{std::get_if<DummyDataObject>(&x.u)};
   const auto *obj2{std::get_if<DummyDataObject>(&y.u)};
-  return obj1 && obj2 && IsTkrCompatible(obj1->type, obj2->type);
+  return obj1 && obj2 && IsTkCompatible(*obj1, *obj2) &&
+      (obj1->type.Rank() == obj2->type.Rank() ||
+          obj1->type.attrs().test(TypeAndShape::Attr::AssumedRank) ||
+          obj2->type.attrs().test(TypeAndShape::Attr::AssumedRank) ||
+          obj1->ignoreTKR.test(common::IgnoreTKR::Rank) ||
+          obj2->ignoreTKR.test(common::IgnoreTKR::Rank));
 }
-bool DistinguishUtils::IsTkrCompatible(
-    const TypeAndShape &x, const TypeAndShape &y) const {
-  return x.type().IsTkCompatibleWith(y.type()) &&
-      (x.attrs().test(TypeAndShape::Attr::AssumedRank) ||
-          y.attrs().test(TypeAndShape::Attr::AssumedRank) ||
-          x.Rank() == y.Rank());
+
+bool DistinguishUtils::IsTkCompatible(
+    const DummyDataObject &x, const DummyDataObject &y) const {
+  return x.type.type().IsTkCompatibleWith(
+      y.type.type(), x.ignoreTKR | y.ignoreTKR);
 }
 
 // Return the argument at the given index, ignoring the passed arg

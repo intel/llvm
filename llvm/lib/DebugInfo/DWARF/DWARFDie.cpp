@@ -39,7 +39,7 @@ using namespace object;
 static void dumpApplePropertyAttribute(raw_ostream &OS, uint64_t Val) {
   OS << " (";
   do {
-    uint64_t Shift = countTrailingZeros(Val);
+    uint64_t Shift = llvm::countr_zero(Val);
     assert(Shift < 64 && "undefined behavior");
     uint64_t Bit = 1ULL << Shift;
     auto PropName = ApplePropertyString(Bit);
@@ -74,7 +74,6 @@ static void dumpLocationList(raw_ostream &OS, const DWARFFormValue &FormValue,
   assert(FormValue.isFormClass(DWARFFormValue::FC_SectionOffset) &&
          "bad FORM for location list");
   DWARFContext &Ctx = U->getContext();
-  const MCRegisterInfo *MRI = Ctx.getRegisterInfo();
   uint64_t Offset = *FormValue.getAsSectionOffset();
 
   if (FormValue.getForm() == DW_FORM_loclistx) {
@@ -85,9 +84,8 @@ static void dumpLocationList(raw_ostream &OS, const DWARFFormValue &FormValue,
     else
       return;
   }
-  U->getLocationTable().dumpLocationList(&Offset, OS, U->getBaseAddress(), MRI,
-                                         Ctx.getDWARFObj(), U, DumpOpts,
-                                         Indent);
+  U->getLocationTable().dumpLocationList(
+      &Offset, OS, U->getBaseAddress(), Ctx.getDWARFObj(), U, DumpOpts, Indent);
 }
 
 static void dumpLocationExpr(raw_ostream &OS, const DWARFFormValue &FormValue,
@@ -97,12 +95,11 @@ static void dumpLocationExpr(raw_ostream &OS, const DWARFFormValue &FormValue,
           FormValue.isFormClass(DWARFFormValue::FC_Exprloc)) &&
          "bad FORM for location expression");
   DWARFContext &Ctx = U->getContext();
-  const MCRegisterInfo *MRI = Ctx.getRegisterInfo();
   ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
   DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()),
                      Ctx.isLittleEndian(), 0);
   DWARFExpression(Data, U->getAddressByteSize(), U->getFormParams().Format)
-      .print(OS, DumpOpts, MRI, U);
+      .print(OS, DumpOpts, U);
 }
 
 static DWARFDie resolveReferencedType(DWARFDie D, DWARFFormValue F) {

@@ -1,4 +1,4 @@
-; RUN: llvm-as %s -o /dev/null
+; RUN: llvm-as -opaque-pointers %s -o /dev/null
 
 ; Make sure speculatable is accepted on a call site if the declaration
 ; is also speculatable.
@@ -13,7 +13,7 @@ define i32 @call_speculatable() {
 }
 
 define float @call_bitcast_speculatable() {
-  %ret = call float bitcast (i32()* @speculatable to float()*)() #0
+  %ret = call float @speculatable() #0
   ret float %ret
 }
 

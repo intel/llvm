@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
@@ -112,6 +113,7 @@ public:
     };
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
+    size_t size() const { return std::distance(begin(), end()); }
     friend class RTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
@@ -130,12 +132,8 @@ public:
   };
 
 public:
-  RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
-      : Bin(nullptr), ModuleHandle(ModuleHandle) {}
-  RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
-      : ModuleHandle(ModuleHandle) {
-    init(Bin);
-  }
+  RTDeviceBinaryImage() : Bin(nullptr) {}
+  RTDeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -143,8 +141,6 @@ public:
   // collections
   RTDeviceBinaryImage(RTDeviceBinaryImage &&) = default;
   RTDeviceBinaryImage &operator=(RTDeviceBinaryImage &&) = default;
-
-  OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
 
   virtual ~RTDeviceBinaryImage() {}
 
@@ -220,6 +216,7 @@ public:
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
   }
+  const PropertyRange &getHostPipes() const { return HostPipes; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -231,7 +228,6 @@ protected:
   pi_device_binary get() const { return Bin; }
 
   pi_device_binary Bin;
-  OSModuleHandle ModuleHandle;
 
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
@@ -243,14 +239,14 @@ protected:
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
+  RTDeviceBinaryImage::PropertyRange HostPipes;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
 // data in destructor.
 class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
 public:
-  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize,
-                         OSModuleHandle M);
+  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize);
   ~DynRTDeviceBinaryImage() override;
 
   void print() const override {

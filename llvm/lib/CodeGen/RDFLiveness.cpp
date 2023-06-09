@@ -941,16 +941,16 @@ void Liveness::resetKills(MachineBasicBlock *B) {
       if (!Op.isReg() || !Op.isDef() || Op.isImplicit())
         continue;
       Register R = Op.getReg();
-      if (!Register::isPhysicalRegister(R))
+      if (!R.isPhysical())
         continue;
-      for (MCSubRegIterator SR(R, &TRI, true); SR.isValid(); ++SR)
-        Live.reset(*SR);
+      for (MCPhysReg SR : TRI.subregs_inclusive(R))
+        Live.reset(SR);
     }
     for (auto &Op : MI.operands()) {
       if (!Op.isReg() || !Op.isUse() || Op.isUndef())
         continue;
       Register R = Op.getReg();
-      if (!Register::isPhysicalRegister(R))
+      if (!R.isPhysical())
         continue;
       bool IsLive = false;
       for (MCRegAliasIterator AR(R, &TRI, true); AR.isValid(); ++AR) {
@@ -961,8 +961,8 @@ void Liveness::resetKills(MachineBasicBlock *B) {
       }
       if (!IsLive)
         Op.setIsKill(true);
-      for (MCSubRegIterator SR(R, &TRI, true); SR.isValid(); ++SR)
-        Live.set(*SR);
+      for (MCPhysReg SR : TRI.subregs_inclusive(R))
+        Live.set(SR);
     }
   }
 }

@@ -14,9 +14,9 @@ define i32 @wc_max() {
 ; CHECK-LABEL: 'wc_max'
 ; CHECK-NEXT:  Classifying expressions for: @wc_max
 ; CHECK-NEXT:    %iv = phi i32 [ 0, %entry ], [ %iv.next, %loop ]
-; CHECK-NEXT:    --> {0,+,1}<%loop> U: [0,2000) S: [0,2000) Exits: <<Unknown>> LoopDispositions: { %loop: Computable }
+; CHECK-NEXT:    --> {0,+,1}<nuw><nsw><%loop> U: [0,2000) S: [0,2000) Exits: <<Unknown>> LoopDispositions: { %loop: Computable }
 ; CHECK-NEXT:    %iv.next = add i32 %iv, 1
-; CHECK-NEXT:    --> {1,+,1}<%loop> U: [1,2001) S: [1,2001) Exits: <<Unknown>> LoopDispositions: { %loop: Computable }
+; CHECK-NEXT:    --> {1,+,1}<nuw><nsw><%loop> U: [1,2001) S: [1,2001) Exits: <<Unknown>> LoopDispositions: { %loop: Computable }
 ; CHECK-NEXT:    %widenable_cond3 = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    --> %widenable_cond3 U: full-set S: full-set Exits: <<Unknown>> LoopDispositions: { %loop: Variant }
 ; CHECK-NEXT:    %exiplicit_guard_cond4 = and i1 %cond_1, %widenable_cond3
@@ -32,7 +32,7 @@ entry:
 loop:
   %iv = phi i32 [0, %entry], [%iv.next, %loop]
   %iv.next = add i32 %iv, 1
-  store i32 %iv, i32 *@G
+  store i32 %iv, ptr @G
   %cond_1 = icmp slt i32 %iv.next, 2000
   %widenable_cond3 = call i1 @llvm.experimental.widenable.condition()
   %exiplicit_guard_cond4 = and i1 %cond_1, %widenable_cond3

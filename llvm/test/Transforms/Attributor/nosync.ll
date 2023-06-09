@@ -379,10 +379,10 @@ define i32 @memset_non_volatile(i8* %ptr1, i8 %val) {
 define i32 @inline_asm_test(i32 %x) {
 ; CHECK-LABEL: define {{[^@]+}}@inline_asm_test
 ; CHECK-SAME: (i32 [[X:%.*]]) {
-; CHECK-NEXT:    [[TMP1:%.*]] = call i32 asm "bswap $0", "=r,r"(i32 [[X]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i32 asm sideeffect "bswap $0", "=r,r"(i32 [[X]])
 ; CHECK-NEXT:    ret i32 4
 ;
-  call i32 asm "bswap $0", "=r,r"(i32 %x)
+  call i32 asm sideeffect "bswap $0", "=r,r"(i32 %x)
   ret i32 4
 }
 
@@ -436,7 +436,7 @@ define float @cos_test2(float %x) {
 ; CHECK: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; CHECK-LABEL: define {{[^@]+}}@cos_test2
 ; CHECK-SAME: (float [[X:%.*]]) #[[ATTR15]] {
-; CHECK-NEXT:    [[C:%.*]] = call float @llvm.cos.f32(float [[X]]) #[[ATTR20]]
+; CHECK-NEXT:    [[C:%.*]] = call nofpclass(inf) float @llvm.cos.f32(float [[X]]) #[[ATTR20]]
 ; CHECK-NEXT:    ret float [[C]]
 ;
   %c = call float @llvm.cos(float %x)

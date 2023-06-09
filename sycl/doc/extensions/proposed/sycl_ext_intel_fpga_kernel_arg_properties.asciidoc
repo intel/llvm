@@ -172,9 +172,9 @@ struct dwidth_key {
 };
 
 enum class read_write_mode_enum {
-  read_write,
   read,
-  write
+  write,
+  read_write
 };
 
 struct read_write_mode_key {

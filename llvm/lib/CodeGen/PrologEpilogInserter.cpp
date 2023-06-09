@@ -96,7 +96,7 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
-  RegScavenger *RS;
+  RegScavenger *RS = nullptr;
 
   // MinCSFrameIndex, MaxCSFrameIndex - Keeps the range of callee saved
   // stack frame indexes.
@@ -111,11 +111,11 @@ private:
   // Flag to control whether to use the register scavenger to resolve
   // frame index materialization registers. Set according to
   // TRI->requiresFrameIndexScavenging() for the current function.
-  bool FrameIndexVirtualScavenging;
+  bool FrameIndexVirtualScavenging = false;
 
   // Flag to control whether the scavenger should be passed even though
   // FrameIndexVirtualScavenging is used.
-  bool FrameIndexEliminationScavenging;
+  bool FrameIndexEliminationScavenging = false;
 
   // Emit remarks.
   MachineOptimizationRemarkEmitter *ORE = nullptr;
@@ -309,19 +309,20 @@ bool PEI::runOnMachineFunction(MachineFunction &MF) {
         SpillSize += MFI.getObjectSize(Idx);
     }
 
-    float SpillPct =
+    [[maybe_unused]] float SpillPct =
         static_cast<float>(SpillSize) / static_cast<float>(StackSize);
-    float VarPct = 1.0f - SpillPct;
-    int64_t VariableSize = StackSize - SpillSize;
-    dbgs() << formatv("{0}/{1} ({3:P}) spills, {2}/{1} ({4:P}) variables",
-                      SpillSize, StackSize, VariableSize, SpillPct, VarPct);
+    LLVM_DEBUG(
+        dbgs() << formatv("{0}/{1} ({3:P}) spills, {2}/{1} ({4:P}) variables",
+                          SpillSize, StackSize, StackSize - SpillSize, SpillPct,
+                          1.0f - SpillPct));
     if (UnsafeStackSize != 0) {
-      float UnsafePct =
-          static_cast<float>(UnsafeStackSize) / static_cast<float>(StackSize);
-      dbgs() << formatv(", {0}/{2} ({1:P}) unsafe stack", UnsafeStackSize,
-                        UnsafePct, StackSize);
+      LLVM_DEBUG(dbgs() << formatv(", {0}/{2} ({1:P}) unsafe stack",
+                                   UnsafeStackSize,
+                                   static_cast<float>(UnsafeStackSize) /
+                                       static_cast<float>(StackSize),
+                                   StackSize));
     }
-    dbgs() << "\n";
+    LLVM_DEBUG(dbgs() << "\n");
   }
 
   ORE->emit([&]() {
@@ -609,7 +610,7 @@ static void insertCSRSaves(MachineBasicBlock &SaveBlock,
       } else {
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
         TII.storeRegToStackSlot(SaveBlock, I, Reg, true, CS.getFrameIdx(), RC,
-                                TRI);
+                                TRI, Register());
       }
     }
   }
@@ -635,7 +636,8 @@ static void insertCSRRestores(MachineBasicBlock &RestoreBlock,
           .addReg(CI.getDstReg(), getKillRegState(true));
       } else {
         const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-        TII.loadRegFromStackSlot(RestoreBlock, I, Reg, CI.getFrameIdx(), RC, TRI);
+        TII.loadRegFromStackSlot(RestoreBlock, I, Reg, CI.getFrameIdx(), RC,
+                                 TRI, Register());
         assert(I != RestoreBlock.begin() &&
                "loadRegFromStackSlot didn't insert any code!");
         // Insert in reverse order.  loadRegFromStackSlot can insert
@@ -691,7 +693,7 @@ void PEI::spillCalleeSavedRegs(MachineFunction &MF) {
 /// AdjustStackOffset - Helper function used to adjust the stack frame offset.
 static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
                                      bool StackGrowsDown, int64_t &Offset,
-                                     Align &MaxAlign, unsigned Skew) {
+                                     Align &MaxAlign) {
   // If the stack grows down, add the object size to find the lowest address.
   if (StackGrowsDown)
     Offset += MFI.getObjectSize(FrameIdx);
@@ -703,7 +705,7 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
   MaxAlign = std::max(MaxAlign, Alignment);
 
   // Adjust to alignment boundary.
-  Offset = alignTo(Offset, Alignment, Skew);
+  Offset = alignTo(Offset, Alignment);
 
   if (StackGrowsDown) {
     LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") at SP[" << -Offset
@@ -827,11 +829,10 @@ static inline bool scavengeStackSlot(MachineFrameInfo &MFI, int FrameIdx,
 static void AssignProtectedObjSet(const StackObjSet &UnassignedObjs,
                                   SmallSet<int, 16> &ProtectedObjs,
                                   MachineFrameInfo &MFI, bool StackGrowsDown,
-                                  int64_t &Offset, Align &MaxAlign,
-                                  unsigned Skew) {
+                                  int64_t &Offset, Align &MaxAlign) {
 
   for (int i : UnassignedObjs) {
-    AdjustStackOffset(MFI, i, StackGrowsDown, Offset, MaxAlign, Skew);
+    AdjustStackOffset(MFI, i, StackGrowsDown, Offset, MaxAlign);
     ProtectedObjs.insert(i);
   }
 }
@@ -856,9 +857,6 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
   assert(LocalAreaOffset >= 0
          && "Local area offset should be in direction of stack growth");
   int64_t Offset = LocalAreaOffset;
-
-  // Skew to be applied to alignment.
-  unsigned Skew = TFI.getStackAlignmentSkew(MF);
 
 #ifdef EXPENSIVE_CHECKS
   for (unsigned i = 0, e = MFI.getObjectIndexEnd(); i != e; ++i)
@@ -907,8 +905,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
       if (!StackGrowsDown && MFI.isDeadObjectIndex(FrameIndex))
         continue;
 
-      AdjustStackOffset(MFI, FrameIndex, StackGrowsDown, Offset, MaxAlign,
-                        Skew);
+      AdjustStackOffset(MFI, FrameIndex, StackGrowsDown, Offset, MaxAlign);
     }
   }
 
@@ -929,7 +926,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     SmallVector<int, 2> SFIs;
     RS->getScavengingFrameIndices(SFIs);
     for (int SFI : SFIs)
-      AdjustStackOffset(MFI, SFI, StackGrowsDown, Offset, MaxAlign, Skew);
+      AdjustStackOffset(MFI, SFI, StackGrowsDown, Offset, MaxAlign);
   }
 
   // FIXME: Once this is working, then enable flag will change to a target
@@ -940,7 +937,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     Align Alignment = MFI.getLocalFrameMaxAlign();
 
     // Adjust to alignment boundary.
-    Offset = alignTo(Offset, Alignment, Skew);
+    Offset = alignTo(Offset, Alignment);
 
     LLVM_DEBUG(dbgs() << "Local frame base offset: " << Offset << "\n");
 
@@ -986,8 +983,8 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
              "Stack protector on non-default stack expected to not be "
              "pre-allocated by LocalStackSlotPass.");
     } else if (!MFI.getUseLocalStackAllocationBlock()) {
-      AdjustStackOffset(MFI, StackProtectorFI, StackGrowsDown, Offset, MaxAlign,
-                        Skew);
+      AdjustStackOffset(MFI, StackProtectorFI, StackGrowsDown, Offset,
+                        MaxAlign);
     } else if (!MFI.isObjectPreAllocated(MFI.getStackProtectorIndex())) {
       llvm_unreachable(
           "Stack protector not pre-allocated by LocalStackSlotPass.");
@@ -1035,11 +1032,11 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
                        "LocalStackSlotPass.");
 
     AssignProtectedObjSet(LargeArrayObjs, ProtectedObjs, MFI, StackGrowsDown,
-                          Offset, MaxAlign, Skew);
+                          Offset, MaxAlign);
     AssignProtectedObjSet(SmallArrayObjs, ProtectedObjs, MFI, StackGrowsDown,
-                          Offset, MaxAlign, Skew);
+                          Offset, MaxAlign);
     AssignProtectedObjSet(AddrOfObjs, ProtectedObjs, MFI, StackGrowsDown,
-                          Offset, MaxAlign, Skew);
+                          Offset, MaxAlign);
   }
 
   SmallVector<int, 8> ObjectsToAllocate;
@@ -1070,7 +1067,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
   // Allocate the EH registration node first if one is present.
   if (EHRegNodeFrameIndex != std::numeric_limits<int>::max())
     AdjustStackOffset(MFI, EHRegNodeFrameIndex, StackGrowsDown, Offset,
-                      MaxAlign, Skew);
+                      MaxAlign);
 
   // Give the targets a chance to order the objects the way they like it.
   if (MF.getTarget().getOptLevel() != CodeGenOpt::None &&
@@ -1092,7 +1089,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
   for (auto &Object : ObjectsToAllocate)
     if (!scavengeStackSlot(MFI, Object, StackGrowsDown, MaxAlign,
                            StackBytesFree))
-      AdjustStackOffset(MFI, Object, StackGrowsDown, Offset, MaxAlign, Skew);
+      AdjustStackOffset(MFI, Object, StackGrowsDown, Offset, MaxAlign);
 
   // Make sure the special register scavenging spill slot is closest to the
   // stack pointer.
@@ -1100,7 +1097,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     SmallVector<int, 2> SFIs;
     RS->getScavengingFrameIndices(SFIs);
     for (int SFI : SFIs)
-      AdjustStackOffset(MFI, SFI, StackGrowsDown, Offset, MaxAlign, Skew);
+      AdjustStackOffset(MFI, SFI, StackGrowsDown, Offset, MaxAlign);
   }
 
   if (!TFI.targetHandlesStackFrameRounding()) {
@@ -1126,7 +1123,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     // SP not FP. Align to MaxAlign so this works.
     StackAlign = std::max(StackAlign, MaxAlign);
     int64_t OffsetBeforeAlignment = Offset;
-    Offset = alignTo(Offset, StackAlign, Skew);
+    Offset = alignTo(Offset, StackAlign);
 
     // If we have increased the offset to fulfill the alignment constrants,
     // then the scavenging spill slots may become harder to reach from the
@@ -1229,7 +1226,11 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
   BitVector UsedRegs(TRI.getNumRegs());
   if (OnlyUsed)
     for (const MachineBasicBlock &MBB : MF)
-      for (const MachineInstr &MI : MBB)
+      for (const MachineInstr &MI : MBB) {
+        // skip debug instructions
+        if (MI.isDebugInstr())
+          continue;
+
         for (const MachineOperand &MO : MI.operands()) {
           if (!MO.isReg())
             continue;
@@ -1239,6 +1240,7 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
               (MO.isDef() || MO.isUse()))
             UsedRegs.set(Reg);
         }
+      }
 
   // Get a list of registers that are used.
   BitVector LiveIns(TRI.getNumRegs());
@@ -1282,7 +1284,13 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
         if (!MO.isReg())
           continue;
 
-        for (MCPhysReg SReg : TRI.sub_and_superregs_inclusive(MO.getReg()))
+        MCRegister Reg = MO.getReg();
+
+        // This picks up sibling registers (e.q. %al -> %ah).
+        for (MCRegUnitIterator Unit(Reg, &TRI); Unit.isValid(); ++Unit)
+          RegsToZero.reset(*Unit);
+
+        for (MCPhysReg SReg : TRI.sub_and_superregs_inclusive(Reg))
           RegsToZero.reset(SReg);
       }
     }

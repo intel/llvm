@@ -78,6 +78,9 @@ enum SPIRVExtInstSetKind {
   SPIRVEIS_OpenCL,
   SPIRVEIS_Debug,
   SPIRVEIS_OpenCL_DebugInfo_100,
+  SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+  SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+  SPIRVEIS_NonSemantic_AuxData,
   SPIRVEIS_Count,
 };
 
@@ -129,6 +132,11 @@ template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
   add(SPIRVEIS_OpenCL, "OpenCL.std");
   add(SPIRVEIS_Debug, "SPIRV.debug");
   add(SPIRVEIS_OpenCL_DebugInfo_100, "OpenCL.DebugInfo.100");
+  add(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+      "NonSemantic.Shader.DebugInfo.100");
+  add(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+      "NonSemantic.Shader.DebugInfo.200");
+  add(SPIRVEIS_NonSemantic_AuxData, "NonSemantic.AuxData");
 }
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string> SPIRVBuiltinSetNameMap;
 
@@ -197,6 +205,16 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
                {CapabilitySubgroupAvcMotionEstimationINTEL});
   ADD_VEC_INIT(CapabilitySubgroupAvcMotionEstimationChromaINTEL,
                {CapabilitySubgroupAvcMotionEstimationIntraINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixWIInstructionsINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixTF32ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixBF16ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixPackedInt2ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVExecutionModelKind, SPIRVCapVec>::init() {
@@ -261,7 +279,9 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
                {internal::CapabilityFastCompositeINTEL});
-  ADD_VEC_INIT(internal::ExecutionModeStreamingInterfaceINTEL,
+  ADD_VEC_INIT(ExecutionModeRegisterMapInterfaceINTEL,
+               {CapabilityFPGAKernelAttributesv2INTEL});
+  ADD_VEC_INIT(ExecutionModeStreamingInterfaceINTEL,
                {CapabilityFPGAKernelAttributesINTEL});
   ADD_VEC_INIT(ExecutionModeNamedBarrierCountINTEL,
                {CapabilityVectorComputeINTEL});
@@ -455,6 +475,28 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {internal::CapabilityGlobalVariableDecorationsINTEL});
   ADD_VEC_INIT(internal::DecorationArgumentAttributeINTEL,
                {CapabilityFunctionPointersINTEL});
+  ADD_VEC_INIT(DecorationConduitKernelArgumentINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationRegisterMapKernelArgumentINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceAddressWidthINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceDataWidthINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceLatencyINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceReadWriteModeINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceMaxBurstINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationMMHostInterfaceWaitRequestINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationStableKernelArgumentINTEL,
+               {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationLatencyControlLabelINTEL,
+               {CapabilityFPGALatencyControlINTEL});
+  ADD_VEC_INIT(DecorationLatencyControlConstraintINTEL,
+               {CapabilityFPGALatencyControlINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

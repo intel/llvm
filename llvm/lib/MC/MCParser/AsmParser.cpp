@@ -1901,16 +1901,14 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
 
   // FIXME: Recurse on local labels?
 
-  // See what kind of statement we have.
-  switch (Lexer.getKind()) {
-  case AsmToken::Colon: {
-    if (!getTargetParser().isLabel(ID))
-      break;
+  // Check for a label.
+  //   ::= identifier ':'
+  //   ::= number ':'
+  if (Lexer.is(AsmToken::Colon) && getTargetParser().isLabel(ID)) {
     if (checkForValidSection())
       return true;
 
-    // identifier ':'   -> Label.
-    Lex();
+    Lex(); // Consume the ':'.
 
     // Diagnose attempt to use '.' as a label.
     if (IDVal == ".")
@@ -1971,16 +1969,11 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
     return false;
   }
 
-  case AsmToken::Equal:
-    if (!getTargetParser().equalIsAsmAssignment())
-      break;
-    // identifier '=' ... -> assignment statement
+  // Check for an assignment statement.
+  //   ::= identifier '='
+  if (Lexer.is(AsmToken::Equal) && getTargetParser().equalIsAsmAssignment()) {
     Lex();
-
     return parseAssignment(IDVal, AssignmentKind::Equal);
-
-  default: // Normal instruction or directive.
-    break;
   }
 
   // If macros are enabled, check to see if this is a macro instantiation.
@@ -3458,7 +3451,7 @@ bool AsmParser::parseDirectiveAlign(bool IsPow2, unsigned ValueSize) {
       Alignment = 1;
     else if (!isPowerOf2_64(Alignment)) {
       ReturnVal |= Error(AlignmentLoc, "alignment must be a power of 2");
-      Alignment = PowerOf2Floor(Alignment);
+      Alignment = llvm::bit_floor<uint64_t>(Alignment);
     }
     if (!isUInt<32>(Alignment)) {
       ReturnVal |= Error(AlignmentLoc, "alignment must be smaller than 2**32");
@@ -4225,10 +4218,10 @@ bool AsmParser::parseDirectiveCFIEndProc() {
 /// parse register name or number.
 bool AsmParser::parseRegisterOrRegisterNumber(int64_t &Register,
                                               SMLoc DirectiveLoc) {
-  unsigned RegNo;
+  MCRegister RegNo;
 
   if (getLexer().isNot(AsmToken::Integer)) {
-    if (getTargetParser().ParseRegister(RegNo, DirectiveLoc, DirectiveLoc))
+    if (getTargetParser().parseRegister(RegNo, DirectiveLoc, DirectiveLoc))
       return true;
     Register = getContext().getRegisterInfo()->getDwarfRegNum(RegNo, true);
   } else
@@ -5860,24 +5853,23 @@ bool AsmParser::parseDirectivePseudoProbe() {
   int64_t Index;
   int64_t Type;
   int64_t Attr;
+  int64_t Discriminator = 0;
 
-  if (getLexer().is(AsmToken::Integer)) {
-    if (parseIntToken(Guid, "unexpected token in '.pseudoprobe' directive"))
-      return true;
-  }
+  if (parseIntToken(Guid, "unexpected token in '.pseudoprobe' directive"))
+    return true;
 
-  if (getLexer().is(AsmToken::Integer)) {
-    if (parseIntToken(Index, "unexpected token in '.pseudoprobe' directive"))
-      return true;
-  }
+  if (parseIntToken(Index, "unexpected token in '.pseudoprobe' directive"))
+    return true;
 
-  if (getLexer().is(AsmToken::Integer)) {
-    if (parseIntToken(Type, "unexpected token in '.pseudoprobe' directive"))
-      return true;
-  }
+  if (parseIntToken(Type, "unexpected token in '.pseudoprobe' directive"))
+    return true;
 
-  if (getLexer().is(AsmToken::Integer)) {
-    if (parseIntToken(Attr, "unexpected token in '.pseudoprobe' directive"))
+  if (parseIntToken(Attr, "unexpected token in '.pseudoprobe' directive"))
+    return true;
+
+  if (hasDiscriminator(Attr)) {
+    if (parseIntToken(Discriminator,
+                      "unexpected token in '.pseudoprobe' directive"))
       return true;
   }
 
@@ -5919,7 +5911,8 @@ bool AsmParser::parseDirectivePseudoProbe() {
   if (parseEOL())
     return true;
 
-  getStreamer().emitPseudoProbe(Guid, Index, Type, Attr, InlineStack, FnSym);
+  getStreamer().emitPseudoProbe(Guid, Index, Type, Attr, Discriminator,
+                                InlineStack, FnSym);
   return false;
 }
 
@@ -6055,7 +6048,7 @@ bool AsmParser::parseMSInlineAsm(
         InputDecls.push_back(OpDecl);
         InputDeclsAddressOf.push_back(Operand.needAddressOf());
         InputConstraints.push_back(Constraint.str());
-        if (Desc.OpInfo[i - 1].isBranchTarget())
+        if (Desc.operands()[i - 1].isBranchTarget())
           AsmStrRewrites.emplace_back(AOK_CallInput, Start, SymName.size(), 0,
                                       Restricted);
         else
@@ -6065,9 +6058,7 @@ bool AsmParser::parseMSInlineAsm(
     }
 
     // Consider implicit defs to be clobbers.  Think of cpuid and push.
-    ArrayRef<MCPhysReg> ImpDefs(Desc.getImplicitDefs(),
-                                Desc.getNumImplicitDefs());
-    llvm::append_range(ClobberRegs, ImpDefs);
+    llvm::append_range(ClobberRegs, Desc.implicit_defs());
   }
 
   // Set the number of Outputs and Inputs.

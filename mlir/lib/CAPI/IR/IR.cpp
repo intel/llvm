@@ -20,11 +20,13 @@
 #include "mlir/IR/Location.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
+#include "mlir/IR/Value.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Parser/Parser.h"
 
 #include <cstddef>
+#include <optional>
 
 using namespace mlir;
 
@@ -140,9 +142,38 @@ void mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags) {
   unwrap(flags)->useLocalScope();
 }
 
+void mlirOpPrintingFlagsAssumeVerified(MlirOpPrintingFlags flags) {
+  unwrap(flags)->assumeVerified();
+}
+
+//===----------------------------------------------------------------------===//
+// Bytecode printing flags API.
+//===----------------------------------------------------------------------===//
+
+MlirBytecodeWriterConfig mlirBytecodeWriterConfigCreate() {
+  return wrap(new BytecodeWriterConfig());
+}
+
+void mlirBytecodeWriterConfigDestroy(MlirBytecodeWriterConfig config) {
+  delete unwrap(config);
+}
+
+void mlirBytecodeWriterConfigDesiredEmitVersion(MlirBytecodeWriterConfig flags,
+                                                int64_t version) {
+  unwrap(flags)->setDesiredBytecodeVersion(version);
+}
+
 //===----------------------------------------------------------------------===//
 // Location API.
 //===----------------------------------------------------------------------===//
+
+MlirAttribute mlirLocationGetAttribute(MlirLocation location) {
+  return wrap(LocationAttr(unwrap(location)));
+}
+
+MlirLocation mlirLocationFromAttribute(MlirAttribute attribute) {
+  return wrap(Location(llvm::cast<LocationAttr>(unwrap(attribute))));
+}
 
 MlirLocation mlirLocationFileLineColGet(MlirContext context,
                                         MlirStringRef filename, unsigned line,
@@ -288,7 +319,7 @@ void mlirOperationStateEnableResultTypeInference(MlirOperationState *state) {
 
 static LogicalResult inferOperationTypes(OperationState &state) {
   MLIRContext *context = state.getContext();
-  Optional<RegisteredOperationName> info = state.name.getRegisteredInfo();
+  std::optional<RegisteredOperationName> info = state.name.getRegisteredInfo();
   if (!info) {
     emitError(state.location)
         << "type inference was requested for the operation " << state.name
@@ -310,7 +341,8 @@ static LogicalResult inferOperationTypes(OperationState &state) {
 
   if (succeeded(inferInterface->inferReturnTypes(
           context, state.location, state.operands,
-          state.attributes.getDictionary(context), state.regions, state.types)))
+          state.attributes.getDictionary(context), state.getRawProperties(),
+          state.regions, state.types)))
     return success();
 
   // Diagnostic emitted by interface.
@@ -353,6 +385,15 @@ MlirOperation mlirOperationCreate(MlirOperationState *state) {
 
   MlirOperation result = wrap(Operation::create(cppState));
   return result;
+}
+
+MlirOperation mlirOperationCreateParse(MlirContext context,
+                                       MlirStringRef sourceStr,
+                                       MlirStringRef sourceName) {
+
+  return wrap(
+      parseSourceString(unwrap(sourceStr), unwrap(context), unwrap(sourceName))
+          .release());
 }
 
 MlirOperation mlirOperationClone(MlirOperation op) {
@@ -488,7 +529,15 @@ void mlirOperationPrintWithFlags(MlirOperation op, MlirOpPrintingFlags flags,
 void mlirOperationWriteBytecode(MlirOperation op, MlirStringCallback callback,
                                 void *userData) {
   detail::CallbackOstream stream(callback, userData);
-  writeBytecodeToFile(unwrap(op), stream);
+  // As no desired version is set, no failure can occur.
+  (void)writeBytecodeToFile(unwrap(op), stream);
+}
+
+MlirLogicalResult mlirOperationWriteBytecodeWithConfig(
+    MlirOperation op, MlirBytecodeWriterConfig config,
+    MlirStringCallback callback, void *userData) {
+  detail::CallbackOstream stream(callback, userData);
+  return wrap(writeBytecodeToFile(unwrap(op), stream, *unwrap(config)));
 }
 
 void mlirOperationDump(MlirOperation op) { return unwrap(op)->dump(); }
@@ -678,33 +727,33 @@ bool mlirValueEqual(MlirValue value1, MlirValue value2) {
 }
 
 bool mlirValueIsABlockArgument(MlirValue value) {
-  return unwrap(value).isa<BlockArgument>();
+  return llvm::isa<BlockArgument>(unwrap(value));
 }
 
 bool mlirValueIsAOpResult(MlirValue value) {
-  return unwrap(value).isa<OpResult>();
+  return llvm::isa<OpResult>(unwrap(value));
 }
 
 MlirBlock mlirBlockArgumentGetOwner(MlirValue value) {
-  return wrap(unwrap(value).cast<BlockArgument>().getOwner());
+  return wrap(llvm::cast<BlockArgument>(unwrap(value)).getOwner());
 }
 
 intptr_t mlirBlockArgumentGetArgNumber(MlirValue value) {
   return static_cast<intptr_t>(
-      unwrap(value).cast<BlockArgument>().getArgNumber());
+      llvm::cast<BlockArgument>(unwrap(value)).getArgNumber());
 }
 
 void mlirBlockArgumentSetType(MlirValue value, MlirType type) {
-  unwrap(value).cast<BlockArgument>().setType(unwrap(type));
+  llvm::cast<BlockArgument>(unwrap(value)).setType(unwrap(type));
 }
 
 MlirOperation mlirOpResultGetOwner(MlirValue value) {
-  return wrap(unwrap(value).cast<OpResult>().getOwner());
+  return wrap(llvm::cast<OpResult>(unwrap(value)).getOwner());
 }
 
 intptr_t mlirOpResultGetResultNumber(MlirValue value) {
   return static_cast<intptr_t>(
-      unwrap(value).cast<OpResult>().getResultNumber());
+      llvm::cast<OpResult>(unwrap(value)).getResultNumber());
 }
 
 MlirType mlirValueGetType(MlirValue value) {
@@ -719,6 +768,13 @@ void mlirValuePrint(MlirValue value, MlirStringCallback callback,
   unwrap(value).print(stream);
 }
 
+void mlirValuePrintAsOperand(MlirValue value, MlirOpPrintingFlags flags,
+                             MlirStringCallback callback, void *userData) {
+  detail::CallbackOstream stream(callback, userData);
+  Value cppValue = unwrap(value);
+  cppValue.printAsOperand(stream, *unwrap(flags));
+}
+
 MlirOpOperand mlirValueGetFirstUse(MlirValue value) {
   Value cppValue = unwrap(value);
   if (cppValue.use_empty())
@@ -727,6 +783,10 @@ MlirOpOperand mlirValueGetFirstUse(MlirValue value) {
   OpOperand *opOperand = cppValue.use_begin().getOperand();
 
   return wrap(opOperand);
+}
+
+void mlirValueReplaceAllUsesOfWith(MlirValue oldValue, MlirValue newValue) {
+  unwrap(oldValue).replaceAllUsesWith(unwrap(newValue));
 }
 
 //===----------------------------------------------------------------------===//
@@ -772,6 +832,10 @@ MlirTypeID mlirTypeGetTypeID(MlirType type) {
   return wrap(unwrap(type).getTypeID());
 }
 
+MlirDialect mlirTypeGetDialect(MlirType type) {
+  return wrap(&unwrap(type).getDialect());
+}
+
 bool mlirTypeEqual(MlirType t1, MlirType t2) {
   return unwrap(t1) == unwrap(t2);
 }
@@ -797,7 +861,7 @@ MlirContext mlirAttributeGetContext(MlirAttribute attribute) {
 
 MlirType mlirAttributeGetType(MlirAttribute attribute) {
   Attribute attr = unwrap(attribute);
-  if (auto typedAttr = attr.dyn_cast<TypedAttr>())
+  if (auto typedAttr = llvm::dyn_cast<TypedAttr>(attr))
     return wrap(typedAttr.getType());
   return wrap(NoneType::get(attr.getContext()));
 }

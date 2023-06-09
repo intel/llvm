@@ -17,6 +17,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::CodeGen;
@@ -39,7 +40,7 @@ MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
                                            bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.PipelineDisabled)
     Enabled = false;
   else if (Attrs.PipelineInitiationInterval != 0)
@@ -84,7 +85,7 @@ LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
@@ -146,7 +147,7 @@ LoopInfo::createUnrollAndJamMetadata(const LoopAttributes &Attrs,
                                      bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollAndJamEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollAndJamEnable == LoopAttributes::Enable ||
@@ -214,7 +215,7 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.VectorizeEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.VectorizeEnable != LoopAttributes::Unspecified ||
@@ -332,7 +333,7 @@ LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
                                        bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.DistributeEnable == LoopAttributes::Disable)
     Enabled = false;
   if (Attrs.DistributeEnable == LoopAttributes::Enable)
@@ -382,7 +383,7 @@ MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
                                            bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
@@ -621,6 +622,15 @@ MDNode *LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
+  // enable_loop_pipelining attribute corresponds to
+  // 'llvm.loop.intel.pipelining.enable, i32 1' metadata
+  if (Attrs.SYCLLoopPipeliningEnable) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
+                        ConstantAsMetadata::get(
+                            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -634,7 +644,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       VectorizeScalable(LoopAttributes::Unspecified), InterleaveCount(0),
       SYCLIInterval(0), SYCLLoopCoalesceEnable(false),
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
-      UnrollCount(0), UnrollAndJamCount(0),
+      SYCLLoopPipeliningEnable(false), UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
       PipelineInitiationInterval(0), SYCLNofusionEnable(false),
       MustProgress(false) {}
@@ -655,6 +665,7 @@ void LoopAttributes::clear() {
   SYCLSpeculatedIterationsNIterations.reset();
   SYCLIntelFPGAVariantCount.clear();
   SYCLMaxReinvocationDelayNCycles.reset();
+  SYCLLoopPipeliningEnable = false;
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -692,8 +703,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !Attrs.SYCLSpeculatedIterationsNIterations &&
       Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
       !Attrs.SYCLMaxReinvocationDelayNCycles &&
-      Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
-      Attrs.PipelineInitiationInterval == 0 &&
+      !Attrs.SYCLLoopPipeliningEnable && Attrs.UnrollAndJamCount == 0 &&
+      !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
@@ -1026,6 +1037,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // For attribute max_reinvocation_delay:
   // n - 'llvm.loop.intel.max_reinvocation_delay.count, i32 n' metadata will be
   // emitted
+  // For attribute enable_loop_pipelining:
+  // 'llvm.loop.intel.pipelining.enable, i32 1' metadata will be emitted
   for (const auto *A : Attrs) {
     if (const auto *SYCLIntelIVDep = dyn_cast<SYCLIntelIVDepAttr>(A))
       addSYCLIVDepInfo(Header->getContext(), SYCLIntelIVDep->getSafelenValue(),
@@ -1098,6 +1111,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxReinvocationDelayNCycles(ArgVal.getSExtValue());
     }
+
+    if (isa<SYCLIntelEnableLoopPipeliningAttr>(A))
+      setSYCLLoopPipeliningEnable();
   }
 
   setMustProgress(MustProgress);

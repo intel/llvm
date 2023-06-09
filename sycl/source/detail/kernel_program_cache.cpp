@@ -14,30 +14,30 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {
-  for (auto &ProgIt : MCachedPrograms) {
+  for (auto &ProgIt : MCachedPrograms.Cache) {
     ProgramWithBuildStateT &ProgWithState = ProgIt.second;
-    PiProgramT *ToBeDeleted = ProgWithState.Ptr.load();
+    RT::PiProgram *ToBeDeleted = ProgWithState.Ptr.load();
 
     if (!ToBeDeleted)
       continue;
 
-    auto KernIt = MKernelsPerProgramCache.find(ToBeDeleted);
+    auto KernIt = MKernelsPerProgramCache.find(*ToBeDeleted);
 
     if (KernIt != MKernelsPerProgramCache.end()) {
       for (auto &p : KernIt->second) {
-        KernelWithBuildStateT &KernelWithState = p.second;
-        PiKernelT *Kern = KernelWithState.Ptr.load();
+        BuildResult<KernelArgMaskPairT> &KernelWithState = p.second;
+        KernelArgMaskPairT *KernelArgMaskPair = KernelWithState.Ptr.load();
 
-        if (Kern) {
-          const detail::plugin &Plugin = MParentContext->getPlugin();
-          Plugin.call<PiApiKind::piKernelRelease>(Kern);
+        if (KernelArgMaskPair) {
+          const PluginPtr &Plugin = MParentContext->getPlugin();
+          Plugin->call<PiApiKind::piKernelRelease>(KernelArgMaskPair->first);
         }
       }
       MKernelsPerProgramCache.erase(KernIt);
     }
 
-    const detail::plugin &Plugin = MParentContext->getPlugin();
-    Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
+    const PluginPtr &Plugin = MParentContext->getPlugin();
+    Plugin->call<PiApiKind::piProgramRelease>(*ToBeDeleted);
   }
 }
 } // namespace detail

@@ -24,11 +24,18 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if __has_builtin(__is_convertible_to) && !defined(_LIBCPP_USE_IS_CONVERTIBLE_FALLBACK)
+#if __has_builtin(__is_convertible) && !defined(_LIBCPP_USE_IS_CONVERTIBLE_FALLBACK)
+
+template <class _T1, class _T2>
+struct _LIBCPP_TEMPLATE_VIS is_convertible : public integral_constant<bool, __is_convertible(_T1, _T2)> {};
+
+#elif __has_builtin(__is_convertible_to) && !defined(_LIBCPP_USE_IS_CONVERTIBLE_FALLBACK)
 
 template <class _T1, class _T2> struct _LIBCPP_TEMPLATE_VIS is_convertible
     : public integral_constant<bool, __is_convertible_to(_T1, _T2)> {};
 
+// TODO: Remove this fallback when GCC < 13 support is no longer required.
+// GCC 13 has the __is_convertible built-in.
 #else  // __has_builtin(__is_convertible_to) && !defined(_LIBCPP_USE_IS_CONVERTIBLE_FALLBACK)
 
 namespace __is_convertible_imp
@@ -40,7 +47,7 @@ struct __is_convertible_test : public false_type {};
 
 template <class _From, class _To>
 struct __is_convertible_test<_From, _To,
-    decltype(__is_convertible_imp::__test_convert<_To>(declval<_From>()))> : public true_type
+    decltype(__is_convertible_imp::__test_convert<_To>(std::declval<_From>()))> : public true_type
 {};
 
 template <class _Tp, bool _IsArray =    is_array<_Tp>::value,
@@ -98,7 +105,7 @@ template <class _T1, class _T2> struct _LIBCPP_TEMPLATE_VIS is_convertible
 
 #endif // __has_builtin(__is_convertible_to) && !defined(_LIBCPP_USE_IS_CONVERTIBLE_FALLBACK)
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _From, class _To>
 inline constexpr bool is_convertible_v = is_convertible<_From, _To>::value;
 #endif

@@ -15,6 +15,7 @@
 #ifndef MLIR_DIALECT_SPIRV_IR_STRUCTURE_OPS
 #define MLIR_DIALECT_SPIRV_IR_STRUCTURE_OPS
 
+include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.td"
 include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/FunctionInterfaces.td"
@@ -257,7 +258,7 @@ def SPIRV_ExecutionModeOp : SPIRV_Op<"ExecutionMode", [InModuleScope]> {
 
 def SPIRV_FuncOp : SPIRV_Op<"func", [
     AutomaticAllocationScope, DeclareOpInterfaceMethods<CallableOpInterface>,
-    FunctionOpInterface, InModuleScope, IsolatedFromAbove, Symbol
+    FunctionOpInterface, InModuleScope, IsolatedFromAbove
   ]> {
   let summary = "Declare or define a function";
 
@@ -294,7 +295,8 @@ def SPIRV_FuncOp : SPIRV_Op<"func", [
     OptionalAttr<DictArrayAttr>:$arg_attrs,
     OptionalAttr<DictArrayAttr>:$res_attrs,
     StrAttr:$sym_name,
-    SPIRV_FunctionControlAttr:$function_control
+    SPIRV_FunctionControlAttr:$function_control,
+    OptionalAttr<SPIRV_LinkageAttributesAttr>:$linkage_attributes
   );
 
   let results = (outs);
@@ -385,7 +387,8 @@ def SPIRV_GlobalVariableOp : SPIRV_Op<"GlobalVariable", [InModuleScope, Symbol]>
     OptionalAttr<I32Attr>:$location,
     OptionalAttr<I32Attr>:$binding,
     OptionalAttr<I32Attr>:$descriptor_set,
-    OptionalAttr<StrAttr>:$builtin
+    OptionalAttr<StrAttr>:$builtin,
+    OptionalAttr<SPIRV_LinkageAttributesAttr>:$linkage_attributes
   );
 
   let results = (outs);
@@ -426,7 +429,7 @@ def SPIRV_GlobalVariableOp : SPIRV_Op<"GlobalVariable", [InModuleScope, Symbol]>
 
   let extraClassDeclaration = [{
     ::mlir::spirv::StorageClass storageClass() {
-      return this->getType().cast<::mlir::spirv::PointerType>().getStorageClass();
+      return ::llvm::cast<::mlir::spirv::PointerType>(this->getType()).getStorageClass();
     }
   }];
 }
@@ -492,11 +495,11 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
   let regions = (region AnyRegion);
 
   let builders = [
-    OpBuilder<(ins CArg<"Optional<StringRef>", "std::nullopt">:$name)>,
+    OpBuilder<(ins CArg<"std::optional<StringRef>", "std::nullopt">:$name)>,
     OpBuilder<(ins "spirv::AddressingModel":$addressing_model,
                    "spirv::MemoryModel":$memory_model,
-                   CArg<"Optional<spirv::VerCapExtAttr>", "std::nullopt">:$vce_triple,
-                   CArg<"Optional<StringRef>", "std::nullopt">:$name)>
+                   CArg<"std::optional<spirv::VerCapExtAttr>", "std::nullopt">:$vce_triple,
+                   CArg<"std::optional<StringRef>", "std::nullopt">:$name)>
   ];
 
   // We need to ensure the block inside the region is properly terminated;
@@ -511,7 +514,7 @@ def SPIRV_ModuleOp : SPIRV_Op<"module",
 
     bool isOptionalSymbol() { return true; }
 
-    Optional<StringRef> getName() { return getSymName(); }
+    std::optional<StringRef> getName() { return getSymName(); }
 
     static StringRef getVCETripleAttrName() { return "vce_triple"; }
   }];

@@ -15,6 +15,7 @@ unittest("CodeGenTests") {
     "//llvm/lib/Support",
     "//llvm/lib/Target",
     "//llvm/lib/Target:TargetsToBuild",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/Testing/Support",
   ]
   sources = [
@@ -22,6 +23,7 @@ unittest("CodeGenTests") {
     "AMDGPUMetadataTest.cpp",
     "AllocationOrderTest.cpp",
     "AsmPrinterDwarfTest.cpp",
+    "CCStateTest.cpp",
     "DIEHashTest.cpp",
     "DIETest.cpp",
     "DwarfStringPoolEntryRefTest.cpp",
@@ -29,6 +31,7 @@ unittest("CodeGenTests") {
     "LexicalScopesTest.cpp",
     "LowLevelTypeTest.cpp",
     "MLRegallocDevelopmentFeatures.cpp",
+    "MachineBasicBlockTest.cpp",
     "MachineInstrBundleIteratorTest.cpp",
     "MachineInstrTest.cpp",
     "MachineOperandTest.cpp",

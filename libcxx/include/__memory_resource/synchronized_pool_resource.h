@@ -22,7 +22,7 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -46,7 +46,7 @@ public:
 
   synchronized_pool_resource(const synchronized_pool_resource&) = delete;
 
-  ~synchronized_pool_resource() override = default;
+  _LIBCPP_HIDE_FROM_ABI_VIRTUAL ~synchronized_pool_resource() override = default;
 
   synchronized_pool_resource& operator=(const synchronized_pool_resource&) = delete;
 
@@ -62,14 +62,14 @@ public:
   _LIBCPP_HIDE_FROM_ABI pool_options options() const { return __unsync_.options(); }
 
 protected:
-  _LIBCPP_HIDE_FROM_ABI void* do_allocate(size_t __bytes, size_t __align) override {
+  _LIBCPP_HIDE_FROM_ABI_VIRTUAL void* do_allocate(size_t __bytes, size_t __align) override {
 #  if !defined(_LIBCPP_HAS_NO_THREADS)
     unique_lock<mutex> __lk(__mut_);
 #  endif
     return __unsync_.allocate(__bytes, __align);
   }
 
-  _LIBCPP_HIDE_FROM_ABI void do_deallocate(void* __p, size_t __bytes, size_t __align) override {
+  _LIBCPP_HIDE_FROM_ABI_VIRTUAL void do_deallocate(void* __p, size_t __bytes, size_t __align) override {
 #  if !defined(_LIBCPP_HAS_NO_THREADS)
     unique_lock<mutex> __lk(__mut_);
 #  endif
@@ -89,6 +89,6 @@ private:
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
 
 #endif // _LIBCPP___MEMORY_RESOURCE_SYNCHRONIZED_POOL_RESOURCE_H

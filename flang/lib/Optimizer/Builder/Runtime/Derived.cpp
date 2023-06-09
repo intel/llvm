@@ -37,6 +37,15 @@ void fir::runtime::genDerivedTypeDestroy(fir::FirOpBuilder &builder,
   builder.create<fir::CallOp>(loc, func, args);
 }
 
+void fir::runtime::genDerivedTypeDestroyWithoutFinalization(
+    fir::FirOpBuilder &builder, mlir::Location loc, mlir::Value box) {
+  auto func = fir::runtime::getRuntimeFunc<mkRTKey(DestroyWithoutFinalization)>(
+      loc, builder);
+  auto fTy = func.getFunctionType();
+  auto args = fir::runtime::createArguments(builder, loc, fTy, box);
+  builder.create<fir::CallOp>(loc, func, args);
+}
+
 void fir::runtime::genNullifyDerivedType(fir::FirOpBuilder &builder,
                                          mlir::Location loc, mlir::Value box,
                                          fir::RecordType derivedType,
@@ -61,4 +70,24 @@ void fir::runtime::genNullifyDerivedType(fir::FirOpBuilder &builder,
   args.push_back(rankCst);
   args.push_back(c0);
   builder.create<fir::CallOp>(loc, callee, args);
+}
+
+mlir::Value fir::runtime::genSameTypeAs(fir::FirOpBuilder &builder,
+                                        mlir::Location loc, mlir::Value a,
+                                        mlir::Value b) {
+  mlir::func::FuncOp sameTypeAsFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(SameTypeAs)>(loc, builder);
+  auto fTy = sameTypeAsFunc.getFunctionType();
+  auto args = fir::runtime::createArguments(builder, loc, fTy, a, b);
+  return builder.create<fir::CallOp>(loc, sameTypeAsFunc, args).getResult(0);
+}
+
+mlir::Value fir::runtime::genExtendsTypeOf(fir::FirOpBuilder &builder,
+                                           mlir::Location loc, mlir::Value a,
+                                           mlir::Value mold) {
+  mlir::func::FuncOp extendsTypeOfFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(ExtendsTypeOf)>(loc, builder);
+  auto fTy = extendsTypeOfFunc.getFunctionType();
+  auto args = fir::runtime::createArguments(builder, loc, fTy, a, mold);
+  return builder.create<fir::CallOp>(loc, extendsTypeOfFunc, args).getResult(0);
 }

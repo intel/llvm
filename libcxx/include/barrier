@@ -46,13 +46,18 @@ namespace std
 */
 
 #include <__assert> // all public C++ headers provide the assertion handler
+#include <__atomic/atomic_base.h>
+#include <__atomic/memory_order.h>
 #include <__availability>
 #include <__config>
 #include <__memory/unique_ptr.h>
+#include <__thread/poll_with_backoff.h>
 #include <__thread/timed_backoff_policy.h>
 #include <__utility/move.h>
-#include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <limits>
+#include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -119,18 +124,18 @@ class __barrier_base {
 public:
     using arrival_token = __barrier_phase_t;
 
-    static constexpr ptrdiff_t max() noexcept {
+    static _LIBCPP_HIDE_FROM_ABI constexpr ptrdiff_t max() noexcept {
         return numeric_limits<ptrdiff_t>::max();
     }
 
     _LIBCPP_AVAILABILITY_SYNC _LIBCPP_INLINE_VISIBILITY
     __barrier_base(ptrdiff_t __expected, _CompletionF __completion = _CompletionF())
-            : __expected_(__expected), __base_(__construct_barrier_algorithm_base(this->__expected_),
+            : __expected_(__expected), __base_(std::__construct_barrier_algorithm_base(this->__expected_),
                                                &__destroy_barrier_algorithm_base),
               __expected_adjustment_(0), __completion_(std::move(__completion)), __phase_(0)
     {
     }
-    [[nodiscard]] _LIBCPP_AVAILABILITY_SYNC _LIBCPP_INLINE_VISIBILITY
+    [[__nodiscard__]] _LIBCPP_AVAILABILITY_SYNC _LIBCPP_INLINE_VISIBILITY
     arrival_token arrive(ptrdiff_t __update)
     {
         auto const __old_phase = __phase_.load(memory_order_relaxed);
@@ -150,7 +155,7 @@ public:
         auto const __test_fn = [this, __old_phase]() -> bool {
             return __phase_.load(memory_order_acquire) != __old_phase;
         };
-        __libcpp_thread_poll_with_backoff(__test_fn, __libcpp_timed_backoff_policy());
+        std::__libcpp_thread_poll_with_backoff(__test_fn, __libcpp_timed_backoff_policy());
     }
     _LIBCPP_AVAILABILITY_SYNC _LIBCPP_INLINE_VISIBILITY
     void arrive_and_drop()
@@ -288,7 +293,7 @@ class barrier {
 public:
     using arrival_token = typename __barrier_base<_CompletionF>::arrival_token;
 
-    static constexpr ptrdiff_t max() noexcept {
+    static _LIBCPP_HIDE_FROM_ABI constexpr ptrdiff_t max() noexcept {
         return __barrier_base<_CompletionF>::max();
     }
 
@@ -300,7 +305,7 @@ public:
     barrier(barrier const&) = delete;
     barrier& operator=(barrier const&) = delete;
 
-    [[nodiscard]] _LIBCPP_AVAILABILITY_SYNC _LIBCPP_INLINE_VISIBILITY
+    [[__nodiscard__]] _LIBCPP_AVAILABILITY_SYNC _LIBCPP_INLINE_VISIBILITY
     arrival_token arrive(ptrdiff_t __update = 1)
     {
         return __b_.arrive(__update);
@@ -329,6 +334,7 @@ _LIBCPP_END_NAMESPACE_STD
 _LIBCPP_POP_MACROS
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <atomic>
 #  include <concepts>
 #  include <iterator>
 #  include <memory>

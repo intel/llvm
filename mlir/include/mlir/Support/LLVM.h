@@ -58,8 +58,7 @@ class DenseSet;
 class MallocAllocator;
 template <typename T>
 class MutableArrayRef;
-template <typename T>
-class Optional;
+template <typename T> using Optional = std::optional<T>;
 template <typename... PT>
 class PointerUnion;
 template <typename T, typename Vector, typename Set>
@@ -97,12 +96,14 @@ class SMRange;
 namespace mlir {
 // Casting operators.
 using llvm::cast;
+using llvm::cast_if_present;
 using llvm::cast_or_null;
 using llvm::dyn_cast;
 using llvm::dyn_cast_if_present;
 using llvm::dyn_cast_or_null;
 using llvm::isa;
 using llvm::isa_and_nonnull;
+using llvm::isa_and_present;
 
 // String types
 using llvm::SmallString;

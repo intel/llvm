@@ -2,10 +2,11 @@
 import sys, os, re, urllib.request
 
 
-default_issue_list_path = 'cwg_index.html'
+clang_www_dir = os.path.dirname(__file__)
+default_issue_list_path = os.path.join(clang_www_dir, 'cwg_index.html')
 issue_list_url = "https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_index.html"
-output = 'cxx_dr_status.html'
-dr_test_dir = '../test/CXX/drs'
+output = os.path.join(clang_www_dir, 'cxx_dr_status.html')
+dr_test_dir = os.path.join(clang_www_dir, '../test/CXX/drs')
 
 class DR:
   def __init__(self, section, issue, url, status, title):
@@ -15,10 +16,14 @@ class DR:
     return '%s (%s): %s' % (self.issue, self.status, self.title)
 
 def parse(dr):
-  section, issue_link, status, liaison, title = [
-      col.split('>', 1)[1].split('</TD>')[0]
-      for col in dr.split('</TR>', 1)[0].split('<TD')[1:]
-  ]
+  try:
+    section, issue_link, status, liaison, title = [
+        col.split('>', 1)[1].split('</TD>')[0]
+        for col in dr.split('</TR>', 1)[0].split('<TD')[1:]
+    ]
+  except Exception as ex:
+    print(f"Parse error: {ex}\n{dr}", file=sys.stderr)
+    sys.exit(1)
   _, url, issue = issue_link.split('"', 2)
   url = url.strip()
   issue = int(issue.split('>', 1)[1].split('<', 1)[0])
@@ -117,7 +122,7 @@ out_file.write('''\
     <th>Available in Clang?</th>
   </tr>''')
 
-latest_release = 15
+latest_release = 16
 
 def availability(issue):
   status = status_map.get(issue, 'unknown')
@@ -227,7 +232,7 @@ for dr in drs:
 
   out_file.write('''
   <tr%s id="%s">
-    <td><a href="https://wg21.link/cwg%s">%s</a></td>
+    <td><a href="https://cplusplus.github.io/CWG/issues/%s.html">%s</a></td>
     <td>%s</td>
     <td>%s</td>
     <td%s align="center">%s</td>

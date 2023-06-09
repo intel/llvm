@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
@@ -18,6 +17,7 @@
 
 #include <memory>
 #include <mutex>
+#include <utility>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -38,7 +38,7 @@ public:
   device_impl();
 
   /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(pi_native_handle, const plugin &Plugin);
+  explicit device_impl(pi_native_handle, const PluginPtr &Plugin);
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
@@ -46,7 +46,7 @@ public:
 
   /// Constructs a SYCL device instance using the provided
   /// PI device instance.
-  explicit device_impl(RT::PiDevice Device, const plugin &Plugin);
+  explicit device_impl(RT::PiDevice Device, const PluginPtr &Plugin);
 
   ~device_impl();
 
@@ -122,7 +122,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated plugin with this device.
-  const plugin &getPlugin() const { return MPlatform->getPlugin(); }
+  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
 
   /// Check SYCL extension support by device
   ///
@@ -197,12 +197,7 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <typename Param> typename Param::return_type get_info() const {
-    if (is_host()) {
-      return get_device_info_host<Param>();
-    }
-    return get_device_info<Param>(this->getHandleRef(), this->getPlugin());
-  }
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Check if affinity partitioning by specified domain is supported by
   /// device
@@ -237,9 +232,23 @@ public:
 
   std::string getDeviceName() const;
 
+  /// Gets the current device timestamp
+  /// @throw sycl::feature_not_supported if feature is not supported on device
+  uint64_t getCurrentDeviceTime();
+
+  /// Get the backend of this device
+  backend getBackend() const { return MPlatform->getBackend(); }
+
+  /// @brief  Get the platform impl serving this device
+  /// @return PlatformImplPtr
+  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+
+  /// Get device info string
+  std::string get_device_info_string(RT::PiDeviceInfo InfoCode) const;
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
-                       PlatformImplPtr Platform, const plugin &Plugin);
+                       PlatformImplPtr Platform, const PluginPtr &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   RT::PiDevice MRootDevice = nullptr;
@@ -248,6 +257,7 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl
 
 } // namespace detail

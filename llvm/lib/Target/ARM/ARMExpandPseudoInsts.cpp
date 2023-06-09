@@ -953,6 +953,7 @@ static bool IsAnAddressOperand(const MachineOperand &MO) {
   case MachineOperand::MO_Metadata:
   case MachineOperand::MO_MCSymbol:
     return true;
+  case MachineOperand::MO_DbgInstrRef:
   case MachineOperand::MO_CFIIndex:
     return false;
   case MachineOperand::MO_IntrinsicID:
@@ -1219,7 +1220,7 @@ ARMExpandPseudo::CMSEClearFPRegsV8(MachineBasicBlock &MBB,
       Register Reg = Op.getReg();
       if (Reg == ARM::NoRegister || Reg == ARM::LR)
         continue;
-      assert(Register::isPhysicalRegister(Reg) && "Unallocated register");
+      assert(Reg.isPhysical() && "Unallocated register");
       ClearBB->addLiveIn(Reg);
       DoneBB->addLiveIn(Reg);
     }
@@ -2170,6 +2171,9 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       // Update call site info and delete the pseudo instruction TCRETURN.
       if (MI.isCandidateForCallSiteEntry())
         MI.getMF()->moveCallSiteInfo(&MI, &*NewMI);
+      // Copy nomerge flag over to new instruction.
+      if (MI.getFlag(MachineInstr::NoMerge))
+        NewMI->setFlag(MachineInstr::NoMerge);
       MBB.erase(MBBI);
 
       MBBI = NewMI;
@@ -2453,14 +2457,14 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       return true;
     }
 
-    case ARM::MOVsrl_flag:
-    case ARM::MOVsra_flag: {
+    case ARM::MOVsrl_glue:
+    case ARM::MOVsra_glue: {
       // These are just fancy MOVs instructions.
       BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(ARM::MOVsi),
               MI.getOperand(0).getReg())
           .add(MI.getOperand(1))
           .addImm(ARM_AM::getSORegOpc(
-              (Opcode == ARM::MOVsrl_flag ? ARM_AM::lsr : ARM_AM::asr), 1))
+              (Opcode == ARM::MOVsrl_glue ? ARM_AM::lsr : ARM_AM::asr), 1))
           .add(predOps(ARMCC::AL))
           .addReg(ARM::CPSR, RegState::Define);
       MI.eraseFromParent();

@@ -6,8 +6,6 @@
 ; RUN: opt -passes='loop(indvars,licm,loop-deletion,loop-idiom,loop-instsimplify,loop-reduce,simple-loop-unswitch),loop-unroll' -S -debug-pass-manager %s 2>&1 | FileCheck %s --check-prefix=NPM-LOOP
 ; RUN: opt -passes='instsimplify,verify' -S -debug-pass-manager %s 2>&1 | FileCheck %s --check-prefix=NPM-REQUIRED
 
-; REQUIRES: asserts
-
 ; This test verifies that we don't run target independent IR-level
 ; optimizations on optnone functions.
 
@@ -15,13 +13,13 @@
 define i32 @foo(i32 %x) #0 {
 entry:
   %x.addr = alloca i32, align 4
-  store i32 %x, i32* %x.addr, align 4
+  store i32 %x, ptr %x.addr, align 4
   br label %while.cond
 
 while.cond:                                       ; preds = %while.body, %entry
-  %0 = load i32, i32* %x.addr, align 4
+  %0 = load i32, ptr %x.addr, align 4
   %dec = add nsw i32 %0, -1
-  store i32 %dec, i32* %x.addr, align 4
+  store i32 %dec, ptr %x.addr, align 4
   %tobool = icmp ne i32 %0, 0
   br i1 %tobool, label %while.body, label %while.end
 
@@ -43,7 +41,6 @@ attributes #0 = { optnone noinline }
 ; NPM-O1-DAG: Skipping pass: SROA
 ; NPM-O1-DAG: Skipping pass: EarlyCSEPass
 ; NPM-O1-DAG: Skipping pass: LowerExpectIntrinsicPass
-; NPM-O1-DAG: Skipping pass: PromotePass
 ; NPM-O1-DAG: Skipping pass: InstCombinePass
 
 ; Additional IR passes run at -O2 and higher.

@@ -44,7 +44,6 @@
 #include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 using namespace llvm;
@@ -212,7 +211,7 @@ void ARMAsmPrinter::printOperand(const MachineInstr *MI, int OpNum,
   default: llvm_unreachable("<unknown operand type>");
   case MachineOperand::MO_Register: {
     Register Reg = MO.getReg();
-    assert(Register::isPhysicalRegister(Reg));
+    assert(Reg.isPhysical());
     assert(!MO.getSubReg() && "Subregs should be eliminated!");
     if(ARM::GPRPairRegClass.contains(Reg)) {
       const MachineFunction &MF = *MI->getParent()->getParent();
@@ -287,11 +286,11 @@ bool ARMAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
         const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
         // Find the 'd' register that has this 's' register as a sub-register,
         // and determine the lane number.
-        for (MCSuperRegIterator SR(Reg, TRI); SR.isValid(); ++SR) {
-          if (!ARM::DPRRegClass.contains(*SR))
+        for (MCPhysReg SR : TRI->superregs(Reg)) {
+          if (!ARM::DPRRegClass.contains(SR))
             continue;
-          bool Lane0 = TRI->getSubReg(*SR, ARM::ssub_0) == Reg;
-          O << ARMInstPrinter::getRegisterName(*SR) << (Lane0 ? "[0]" : "[1]");
+          bool Lane0 = TRI->getSubReg(SR, ARM::ssub_0) == Reg;
+          O << ARMInstPrinter::getRegisterName(SR) << (Lane0 ? "[0]" : "[1]");
           return false;
         }
       }
@@ -466,7 +465,7 @@ bool ARMAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
 }
 
 static bool isThumb(const MCSubtargetInfo& STI) {
-  return STI.getFeatureBits()[ARM::ModeThumb];
+  return STI.hasFeature(ARM::ModeThumb);
 }
 
 void ARMAsmPrinter::emitInlineAsmEnd(const MCSubtargetInfo &StartInfo,
@@ -763,7 +762,7 @@ void ARMAsmPrinter::emitAttributes() {
 
     auto *PACValue = mdconst::extract_or_null<ConstantInt>(
         SourceModule->getModuleFlag("sign-return-address"));
-    if (PACValue && PACValue->getZExtValue() == 1) {
+    if (PACValue && PACValue->isOne()) {
       // If "+pacbti" is used as an architecture extension,
       // Tag_PAC_extension is emitted in
       // ARMTargetStreamer::emitTargetAttributes().
@@ -776,7 +775,7 @@ void ARMAsmPrinter::emitAttributes() {
 
     auto *BTIValue = mdconst::extract_or_null<ConstantInt>(
         SourceModule->getModuleFlag("branch-target-enforcement"));
-    if (BTIValue && BTIValue->getZExtValue() == 1) {
+    if (BTIValue && BTIValue->isOne()) {
       // If "+pacbti" is used as an architecture extension,
       // Tag_BTI_extension is emitted in
       // ARMTargetStreamer::emitTargetAttributes().

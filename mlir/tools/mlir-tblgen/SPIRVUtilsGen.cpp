@@ -29,6 +29,7 @@
 #include "llvm/TableGen/TableGenBackend.h"
 
 #include <list>
+#include <optional>
 
 using llvm::ArrayRef;
 using llvm::formatv;
@@ -235,6 +236,8 @@ static void emitModelDecl(const Availability &availability, raw_ostream &os) {
     os << "  template<typename ConcreteOp>\n";
     os << "  class " << modelClass << " : public Concept {\n"
        << "  public:\n"
+       << "    using Interface = " << availability.getInterfaceClassName()
+       << ";\n"
        << "    " << availability.getQueryFnRetType() << " "
        << availability.getQueryFnName()
        << "(const Concept *impl, Operation *tblgen_opaque_op) const final {\n"
@@ -257,6 +260,7 @@ static void emitInterfaceDecl(const Availability &availability,
 
   StringRef cppNamespace = availability.getInterfaceClassNamespace();
   NamespaceEmitter nsEmitter(os, cppNamespace);
+  os << "class " << interfaceName << ";\n\n";
 
   // Emit the traits struct containing the concept and model declarations.
   os << "namespace detail {\n"
@@ -346,7 +350,7 @@ static void emitAvailabilityQueryForIntEnum(const Record &enumDef,
   for (const auto &classCasePair : classCaseMap) {
     Availability avail = classCasePair.getValue().front().second;
 
-    os << formatv("llvm::Optional<{0}> {1}({2} value) {{\n",
+    os << formatv("std::optional<{0}> {1}({2} value) {{\n",
                   avail.getMergeInstanceType(), avail.getQueryFnName(),
                   enumName);
 
@@ -388,12 +392,12 @@ static void emitAvailabilityQueryForBitEnum(const Record &enumDef,
   for (const auto &classCasePair : classCaseMap) {
     Availability avail = classCasePair.getValue().front().second;
 
-    os << formatv("llvm::Optional<{0}> {1}({2} value) {{\n",
+    os << formatv("std::optional<{0}> {1}({2} value) {{\n",
                   avail.getMergeInstanceType(), avail.getQueryFnName(),
                   enumName);
 
     os << formatv(
-        "  assert(::llvm::countPopulation(static_cast<{0}>(value)) <= 1"
+        "  assert(::llvm::popcount(static_cast<{0}>(value)) <= 1"
         " && \"cannot have more than one bit set\");\n",
         underlyingType);
 
@@ -433,7 +437,7 @@ static void emitEnumDecl(const Record &enumDef, raw_ostream &os) {
       StringRef className = avail.getClass();
       if (handledClasses.count(className))
         continue;
-      os << formatv("llvm::Optional<{0}> {1}({2} value);\n",
+      os << formatv("std::optional<{0}> {1}({2} value);\n",
                     avail.getMergeInstanceType(), avail.getQueryFnName(),
                     enumName);
       handledClasses.insert(className);
@@ -527,7 +531,7 @@ static void emitAttributeSerialization(const Attribute &attr,
     os << tabs
        << formatv("  {0}.push_back(prepareConstantInt({1}.getLoc(), "
                   "Builder({1}).getI32IntegerAttr(static_cast<uint32_t>("
-                  "attr.cast<{2}::{3}Attr>().getValue()))));\n",
+                  "::llvm::cast<{2}::{3}Attr>(attr).getValue()))));\n",
                   operandList, opVar, baseEnum.getCppNamespace(),
                   baseEnum.getEnumClassName());
   } else if (attr.isSubClassOf("SPIRV_BitEnumAttr") ||
@@ -535,26 +539,28 @@ static void emitAttributeSerialization(const Attribute &attr,
     EnumAttr baseEnum(attr.getDef().getValueAsDef("enum"));
     os << tabs
        << formatv("  {0}.push_back(static_cast<uint32_t>("
-                  "attr.cast<{1}::{2}Attr>().getValue()));\n",
+                  "::llvm::cast<{1}::{2}Attr>(attr).getValue()));\n",
                   operandList, baseEnum.getCppNamespace(),
                   baseEnum.getEnumClassName());
   } else if (attr.getAttrDefName() == "I32ArrayAttr") {
     // Serialize all the elements of the array
-    os << tabs << "  for (auto attrElem : attr.cast<ArrayAttr>()) {\n";
+    os << tabs << "  for (auto attrElem : llvm::cast<ArrayAttr>(attr)) {\n";
     os << tabs
        << formatv("    {0}.push_back(static_cast<uint32_t>("
-                  "attrElem.cast<IntegerAttr>().getValue().getZExtValue()));\n",
+                  "llvm::cast<IntegerAttr>(attrElem).getValue().getZExtValue())"
+                  ");\n",
                   operandList);
     os << tabs << "  }\n";
   } else if (attr.getAttrDefName() == "I32Attr") {
     os << tabs
-       << formatv("  {0}.push_back(static_cast<uint32_t>("
-                  "attr.cast<IntegerAttr>().getValue().getZExtValue()));\n",
-                  operandList);
+       << formatv(
+              "  {0}.push_back(static_cast<uint32_t>("
+              "llvm::cast<IntegerAttr>(attr).getValue().getZExtValue()));\n",
+              operandList);
   } else if (attr.isEnumAttr() || attr.getAttrDefName() == "TypeAttr") {
     os << tabs
        << formatv("  {0}.push_back(static_cast<uint32_t>("
-                  "getTypeID(attr.cast<TypeAttr>().getValue())));\n",
+                  "getTypeID(llvm::cast<TypeAttr>(attr).getValue())));\n",
                   operandList);
   } else {
     PrintFatalError(
@@ -920,11 +926,11 @@ static void emitOperandDeserialization(const Operator &op, ArrayRef<SMLoc> loc,
   // Process operands/attributes
   for (unsigned i = 0, e = op.getNumArgs(); i < e; ++i) {
     auto argument = op.getArg(i);
-    if (auto *valueArg = argument.dyn_cast<NamedTypeConstraint *>()) {
+    if (auto *valueArg = llvm::dyn_cast_if_present<NamedTypeConstraint *>(argument)) {
       if (valueArg->isVariableLength()) {
         if (i != e - 1) {
           PrintFatalError(loc, "SPIR-V ops can have Variadic<..> or "
-                               "Optional<...> arguments only if "
+                               "std::optional<...> arguments only if "
                                "it's the last argument");
         }
         os << tabs

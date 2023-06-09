@@ -68,7 +68,7 @@ template <> struct __make_signed<__uint128_t,        true> {typedef __int128_t t
 #  endif
 
 template <class _Tp>
-using __make_signed_t = typename __apply_cv<_Tp, typename __make_signed<__remove_cv_t<_Tp> >::type>::type;
+using __make_signed_t = __apply_cv_t<_Tp, typename __make_signed<__remove_cv_t<_Tp> >::type>;
 
 #endif // __has_builtin(__make_signed)
 
@@ -77,7 +77,7 @@ struct make_signed {
   using type _LIBCPP_NODEBUG = __make_signed_t<_Tp>;
 };
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 template <class _Tp> using make_signed_t = __make_signed_t<_Tp>;
 #endif
 

@@ -14,6 +14,7 @@ set(LLVM_LINK_COMPONENTS
   SYCLLowerIR
   Support
   Target
+  TargetParser
   )
 
 add_llvm_tool(llvm-lto2

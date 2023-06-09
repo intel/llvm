@@ -20,6 +20,8 @@ add_llvm_component_library(LLVMCore
   DiagnosticInfo.cpp
   DiagnosticPrinter.cpp
   Dominators.cpp
+  EHPersonalities.cpp
+  FPAccuracy.cpp
   FPEnv.cpp
   Function.cpp
   GCStrategy.cpp
@@ -77,6 +79,8 @@ add_llvm_component_library(LLVMCore
 
   LINK_COMPONENTS
   BinaryFormat
+  Demangle
   Remarks
   Support
+  TargetParser
   )

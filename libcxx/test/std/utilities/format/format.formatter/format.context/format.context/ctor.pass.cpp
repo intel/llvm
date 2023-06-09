@@ -7,7 +7,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: no-localization
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // REQUIRES: locale.en_US.UTF-8
 // REQUIRES: locale.fr_FR.UTF-8
@@ -24,6 +23,7 @@
 
 #include <format>
 #include <cassert>
+#include <iterator>
 #include <type_traits>
 
 #include "test_basic_format_arg.h"

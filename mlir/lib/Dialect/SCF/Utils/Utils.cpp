@@ -15,8 +15,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/MathExtras.h"
@@ -260,7 +260,7 @@ FailureOr<func::FuncOp> mlir::outlineSingleBlockRegion(RewriterBase &rewriter,
     // `originalTerminator` was moved to `outlinedFuncBody` and is still valid.
     // Clone `originalTerminator` to take the callOp results then erase it from
     // `outlinedFuncBody`.
-    BlockAndValueMapping bvm;
+    IRMapping bvm;
     bvm.map(originalTerminator->getOperands(), call->getResults());
     rewriter.clone(*originalTerminator, bvm);
     rewriter.eraseOp(originalTerminator);
@@ -276,7 +276,7 @@ FailureOr<func::FuncOp> mlir::outlineSingleBlockRegion(RewriterBase &rewriter,
       OpBuilder::InsertionGuard g(rewriter);
       rewriter.setInsertionPointToStart(outlinedFuncBody);
       if (Operation *cst = orig.getDefiningOp<arith::ConstantIndexOp>()) {
-        BlockAndValueMapping bvm;
+        IRMapping bvm;
         repl = rewriter.clone(*cst, bvm)->getResult(0);
       }
     }
@@ -381,18 +381,12 @@ static void replaceIterArgsAndYieldResults(scf::ForOp forOp) {
 /// Promotes the loop body of a forOp to its containing block if the forOp
 /// it can be determined that the loop has a single iteration.
 LogicalResult mlir::promoteIfSingleIteration(scf::ForOp forOp) {
-  auto lbCstOp = forOp.getLowerBound().getDefiningOp<arith::ConstantIndexOp>();
-  auto ubCstOp = forOp.getUpperBound().getDefiningOp<arith::ConstantIndexOp>();
-  auto stepCstOp = forOp.getStep().getDefiningOp<arith::ConstantIndexOp>();
-  if (!lbCstOp || !ubCstOp || !stepCstOp || lbCstOp.value() < 0 ||
-      ubCstOp.value() < 0 || stepCstOp.value() < 0)
-    return failure();
-  int64_t tripCount =
-      mlir::ceilDiv(ubCstOp.value() - lbCstOp.value(), stepCstOp.value());
-  if (tripCount != 1)
+  std::optional<int64_t> tripCount = constantTripCount(
+      forOp.getLowerBound(), forOp.getUpperBound(), forOp.getStep());
+  if (!tripCount.has_value() || tripCount != 1)
     return failure();
   auto iv = forOp.getInductionVar();
-  iv.replaceAllUsesWith(lbCstOp);
+  iv.replaceAllUsesWith(forOp.getLowerBound());
 
   replaceIterArgsAndYieldResults(forOp);
 
@@ -430,7 +424,7 @@ static void generateUnrolledLoop(
   SmallVector<Value, 4> lastYielded(yieldedValues);
 
   for (unsigned i = 1; i < unrollFactor; i++) {
-    BlockAndValueMapping operandMap;
+    IRMapping operandMap;
 
     // Prepare operand map.
     operandMap.map(iterArgs, lastYielded);
@@ -656,9 +650,9 @@ static void normalizeLoop(scf::ForOp loop, scf::ForOp outer, scf::ForOp inner) {
   loop.setStep(loopPieces.step);
 }
 
-void mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
+LogicalResult mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
   if (loops.size() < 2)
-    return;
+    return failure();
 
   scf::ForOp innermost = loops.back();
   scf::ForOp outermost = loops.front();
@@ -710,6 +704,7 @@ void mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
       Block::iterator(second.getOperation()),
       innermost.getBody()->getOperations());
   second.erase();
+  return success();
 }
 
 void mlir::collapseParallelLoops(

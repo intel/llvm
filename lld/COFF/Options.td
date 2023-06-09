@@ -161,6 +161,8 @@ def swaprun_net : F<"swaprun:net">, Alias<swaprun>, AliasArgs<["net"]>,
 def verbose : F<"verbose">;
 def wholearchive_flag : F<"wholearchive">,
     HelpText<"Include all object files from all libraries">;
+def release : F<"release">,
+    HelpText<"Set the Checksum in the header of an PE file">;
 
 def force : F<"force">,
     HelpText<"Allow undefined and multiply defined symbols">;
@@ -192,6 +194,9 @@ defm highentropyva : B<"highentropyva",
 defm incremental : B<"incremental",
                      "Keep original import library if contents are unchanged",
                      "Overwrite import library even if contents are unchanged">;
+defm inferasanlibs : B<"inferasanlibs",
+                       "Unused, generates a warning",
+                       "No effect (default)">;
 defm integritycheck : B<"integritycheck",
                         "Set FORCE_INTEGRITY bit in PE header",
                         "No effect (default)">;

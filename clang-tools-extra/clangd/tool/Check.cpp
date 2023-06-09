@@ -24,12 +24,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../clang-tidy/ClangTidyModule.h"
 #include "../clang-tidy/ClangTidyModuleRegistry.h"
+#include "../clang-tidy/ClangTidyOptions.h"
 #include "../clang-tidy/GlobList.h"
 #include "ClangdLSPServer.h"
+#include "ClangdServer.h"
 #include "CodeComplete.h"
 #include "CompileCommands.h"
+#include "Compiler.h"
 #include "Config.h"
+#include "Diagnostics.h"
 #include "Feature.h"
 #include "GlobalCompilationDatabase.h"
 #include "Hover.h"
@@ -37,23 +42,39 @@
 #include "ParsedAST.h"
 #include "Preamble.h"
 #include "Protocol.h"
+#include "Selection.h"
 #include "SemanticHighlighting.h"
 #include "SourceCode.h"
+#include "TidyProvider.h"
 #include "XRefs.h"
 #include "index/CanonicalIncludes.h"
 #include "index/FileIndex.h"
 #include "refactor/Tweak.h"
+#include "support/Context.h"
+#include "support/Logger.h"
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Chrono.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
+#include <array>
+#include <chrono>
+#include <cstdint>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -125,7 +146,7 @@ class Checker {
   format::FormatStyle Style;
   // from buildAST
   std::shared_ptr<const PreambleData> Preamble;
-  llvm::Optional<ParsedAST> AST;
+  std::optional<ParsedAST> AST;
   FileIndex Index;
 
 public:
@@ -145,7 +166,7 @@ public:
         std::make_unique<DirectoryBasedGlobalCompilationDatabase>(CDBOpts);
     auto Mangler = CommandMangler::detect();
     Mangler.SystemIncludeExtractor =
-        getSystemIncludeExtractor(llvm::makeArrayRef(Opts.QueryDriverGlobs));
+        getSystemIncludeExtractor(llvm::ArrayRef(Opts.QueryDriverGlobs));
     if (Opts.ResourceDir)
       Mangler.ResourceDir = *Opts.ResourceDir;
     auto CDB = std::make_unique<OverlayCDB>(
@@ -153,12 +174,13 @@ public:
 
     if (auto TrueCmd = CDB->getCompileCommand(File)) {
       Cmd = std::move(*TrueCmd);
-      log("Compile command {0} is: {1}",
-          Cmd.Heuristic.empty() ? "from CDB" : Cmd.Heuristic,
+      log("Compile command {0} is: [{1}] {2}",
+          Cmd.Heuristic.empty() ? "from CDB" : Cmd.Heuristic, Cmd.Directory,
           printArgv(Cmd.CommandLine));
     } else {
       Cmd = CDB->getFallbackCommand(File);
-      log("Generic fallback command is: {0}", printArgv(Cmd.CommandLine));
+      log("Generic fallback command is: [{0}] {1}", Cmd.Directory,
+          printArgv(Cmd.CommandLine));
     }
 
     return true;
@@ -166,7 +188,7 @@ public:
 
   // Prepare inputs and build CompilerInvocation (parsed compile command).
   bool buildInvocation(const ThreadsafeFS &TFS,
-                       llvm::Optional<std::string> Contents) {
+                       std::optional<std::string> Contents) {
     StoreDiags CaptureInvocationDiags;
     std::vector<std::string> CC1Args;
     Inputs.CompileCommand = Cmd;
@@ -228,7 +250,7 @@ public:
       elog("Failed to build AST");
       return false;
     }
-    ErrCount += showErrors(llvm::makeArrayRef(*AST->getDiagnostics())
+    ErrCount += showErrors(llvm::ArrayRef(*AST->getDiagnostics())
                                .drop_front(Preamble->Diags.size()));
 
     if (Opts.BuildDynamicSymbolIndex) {
@@ -333,7 +355,7 @@ public:
   }
 
   // Build Inlay Hints for the entire AST or the specified range
-  void buildInlayHints(llvm::Optional<Range> LineRange) {
+  void buildInlayHints(std::optional<Range> LineRange) {
     log("Building inlay hints");
     auto Hints = inlayHints(*AST, LineRange);
 
@@ -342,16 +364,17 @@ public:
     }
   }
 
-  void buildSemanticHighlighting(llvm::Optional<Range> LineRange) {
+  void buildSemanticHighlighting(std::optional<Range> LineRange) {
     log("Building semantic highlighting");
-    auto Highlights = getSemanticHighlightings(*AST);
+    auto Highlights =
+        getSemanticHighlightings(*AST, /*IncludeInactiveRegionTokens=*/true);
     for (const auto HL : Highlights)
       if (!LineRange || LineRange->contains(HL.R))
         vlog(" {0} {1} {2}", HL.R, HL.Kind, HL.Modifiers);
   }
 
   // Run AST-based features at each token in the file.
-  void testLocationFeatures(llvm::Optional<Range> LineRange) {
+  void testLocationFeatures(std::optional<Range> LineRange) {
     trace::Span Trace("testLocationFeatures");
     log("Testing features at each token (may be slow in large files)");
     auto &SM = AST->getSourceManager();
@@ -417,7 +440,7 @@ public:
 
 bool check(llvm::StringRef File, const ThreadsafeFS &TFS,
            const ClangdLSPServer::Options &Opts) {
-  llvm::Optional<Range> LineRange;
+  std::optional<Range> LineRange;
   if (!CheckFileLines.empty()) {
     uint32_t Begin = 0, End = std::numeric_limits<uint32_t>::max();
     StringRef RangeStr(CheckFileLines);
@@ -437,7 +460,7 @@ bool check(llvm::StringRef File, const ThreadsafeFS &TFS,
   }
 
   llvm::SmallString<0> FakeFile;
-  llvm::Optional<std::string> Contents;
+  std::optional<std::string> Contents;
   if (File.empty()) {
     llvm::sys::path::system_temp_directory(false, FakeFile);
     llvm::sys::path::append(FakeFile, "test.cc");

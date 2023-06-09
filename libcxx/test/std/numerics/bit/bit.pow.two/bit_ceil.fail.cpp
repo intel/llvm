@@ -15,11 +15,10 @@
 //          T is an unsigned integer type
 
 #include <bit>
+#include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <cassert>
-
-#include "test_macros.h"
 
 class A{};
 enum       E1 : unsigned char { rEd };
@@ -40,13 +39,13 @@ int main(int, char**)
     static_assert(toobig<unsigned long>(),      ""); // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
     static_assert(toobig<unsigned long long>(), ""); // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
 
-    static_assert(toobig<uint8_t>(), "");   // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
-    static_assert(toobig<uint16_t>(), "");  // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
-    static_assert(toobig<uint32_t>(), "");  // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
-    static_assert(toobig<uint64_t>(), "");  // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
-    static_assert(toobig<size_t>(), "");    // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
-    static_assert(toobig<uintmax_t>(), ""); // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
-    static_assert(toobig<uintptr_t>(), ""); // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
+    static_assert(toobig<std::uint8_t>(), "");   // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
+    static_assert(toobig<std::uint16_t>(), "");  // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
+    static_assert(toobig<std::uint32_t>(), "");  // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
+    static_assert(toobig<std::uint64_t>(), "");  // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
+    static_assert(toobig<std::size_t>(), "");    // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
+    static_assert(toobig<std::uintmax_t>(), ""); // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
+    static_assert(toobig<std::uintptr_t>(), ""); // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
 
     return 0;
 }

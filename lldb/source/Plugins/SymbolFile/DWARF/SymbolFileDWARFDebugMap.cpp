@@ -40,6 +40,7 @@
 #include "SymbolFileDWARF.h"
 
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -210,7 +211,7 @@ public:
             // Set the ID of the symbol file DWARF to the index of the OSO
             // shifted left by 32 bits to provide a unique prefix for any
             // UserID's that get created in the symbol file.
-            oso_symfile->SetID(((uint64_t)m_cu_idx + 1ull) << 32ull);
+            oso_symfile->SetFileIndex((uint64_t)m_cu_idx);
           }
           return symfile;
         }
@@ -351,7 +352,8 @@ void SymbolFileDWARFDebugMap::InitOSO() {
           // "i"
           if (sibling_idx == UINT32_MAX) {
             m_objfile_sp->GetModule()->ReportError(
-                "N_SO in symbol with UID %u has invalid sibling in debug map, "
+                "N_SO in symbol with UID {0} has invalid sibling in debug "
+                "map, "
                 "please file a bug and attach the binary listed in this error",
                 so_symbol->GetID());
           } else {
@@ -367,22 +369,25 @@ void SymbolFileDWARFDebugMap::InitOSO() {
         } else {
           if (oso_symbol == nullptr)
             m_objfile_sp->GetModule()->ReportError(
-                "N_OSO symbol[%u] can't be found, please file a bug and attach "
+                "N_OSO symbol[{0}] can't be found, please file a bug and "
+                "attach "
                 "the binary listed in this error",
                 oso_idx);
           else if (so_symbol == nullptr)
             m_objfile_sp->GetModule()->ReportError(
-                "N_SO not found for N_OSO symbol[%u], please file a bug and "
+                "N_SO not found for N_OSO symbol[{0}], please file a bug and "
                 "attach the binary listed in this error",
                 oso_idx);
           else if (so_symbol->GetType() != eSymbolTypeSourceFile)
             m_objfile_sp->GetModule()->ReportError(
-                "N_SO has incorrect symbol type (%u) for N_OSO symbol[%u], "
+                "N_SO has incorrect symbol type ({0}) for N_OSO "
+                "symbol[{1}], "
                 "please file a bug and attach the binary listed in this error",
                 so_symbol->GetType(), oso_idx);
           else if (oso_symbol->GetType() != eSymbolTypeSourceFile)
             m_objfile_sp->GetModule()->ReportError(
-                "N_OSO has incorrect symbol type (%u) for N_OSO symbol[%u], "
+                "N_OSO has incorrect symbol type ({0}) for N_OSO "
+                "symbol[{1}], "
                 "please file a bug and attach the binary listed in this error",
                 oso_symbol->GetType(), oso_idx);
         }
@@ -429,8 +434,8 @@ Module *SymbolFileDWARFDebugMap::GetModuleByCompUnitInfo(
               "will not be loaded", oso_file.GetPath().c_str(),
               (uint32_t)llvm::sys::toTimeT(oso_mod_time),
               (uint32_t)llvm::sys::toTimeT(comp_unit_info->oso_mod_time));
-          obj_file->GetModule()->ReportError("%s",
-              comp_unit_info->oso_load_error.AsCString());
+          obj_file->GetModule()->ReportError(
+              "{0}", comp_unit_info->oso_load_error.AsCString());
           return nullptr;
         }
 
@@ -678,6 +683,17 @@ XcodeSDK SymbolFileDWARFDebugMap::ParseXcodeSDK(CompileUnit &comp_unit) {
   return {};
 }
 
+llvm::SmallSet<lldb::LanguageType, 4>
+SymbolFileDWARFDebugMap::ParseAllLanguages(
+    lldb_private::CompileUnit &comp_unit) {
+  llvm::SmallSet<lldb::LanguageType, 4> langs;
+  auto *info = GetCompUnitInfo(comp_unit);
+  for (auto &comp_unit : info->compile_units_sps) {
+    langs.insert(comp_unit->GetLanguage());
+  }
+  return langs;
+}
+
 size_t SymbolFileDWARFDebugMap::ParseFunctions(CompileUnit &comp_unit) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
@@ -777,7 +793,7 @@ Type *SymbolFileDWARFDebugMap::ResolveTypeUID(lldb::user_id_t type_uid) {
   return nullptr;
 }
 
-llvm::Optional<SymbolFile::ArrayInfo>
+std::optional<SymbolFile::ArrayInfo>
 SymbolFileDWARFDebugMap::GetDynamicArrayInfoForUID(
     lldb::user_id_t type_uid, const lldb_private::ExecutionContext *exe_ctx) {
   const uint64_t oso_idx = GetOSOIndexFromUserID(type_uid);
@@ -1116,7 +1132,8 @@ void SymbolFileDWARFDebugMap::GetTypes(SymbolContextScope *sc_scope,
 }
 
 std::vector<std::unique_ptr<lldb_private::CallEdge>>
-SymbolFileDWARFDebugMap::ParseCallEdgesInFunction(UserID func_id) {
+SymbolFileDWARFDebugMap::ParseCallEdgesInFunction(
+    lldb_private::UserID func_id) {
   uint32_t oso_idx = GetOSOIndexFromUserID(func_id.GetID());
   SymbolFileDWARF *oso_dwarf = GetSymbolFileByOSOIndex(oso_idx);
   if (oso_dwarf)
@@ -1239,13 +1256,14 @@ void SymbolFileDWARFDebugMap::FindTypes(
 }
 
 CompilerDeclContext SymbolFileDWARFDebugMap::FindNamespace(
-    lldb_private::ConstString name,
-    const CompilerDeclContext &parent_decl_ctx) {
+    lldb_private::ConstString name, const CompilerDeclContext &parent_decl_ctx,
+    bool only_root_namespaces) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   CompilerDeclContext matching_namespace;
 
   ForEachSymbolFile([&](SymbolFileDWARF *oso_dwarf) -> bool {
-    matching_namespace = oso_dwarf->FindNamespace(name, parent_decl_ctx);
+    matching_namespace =
+        oso_dwarf->FindNamespace(name, parent_decl_ctx, only_root_namespaces);
 
     return (bool)matching_namespace;
   });
@@ -1463,7 +1481,8 @@ SymbolFileDWARFDebugMap::AddOSOARanges(SymbolFileDWARF *dwarf2Data,
       for (size_t idx = 0; idx < file_range_map.GetSize(); idx++) {
         const FileRangeMap::Entry *entry = file_range_map.GetEntryAtIndex(idx);
         if (entry) {
-          debug_aranges->AppendRange(dwarf2Data->GetID(), entry->GetRangeBase(),
+          debug_aranges->AppendRange(*dwarf2Data->GetFileIndex(),
+                                     entry->GetRangeBase(),
                                      entry->GetRangeEnd());
           num_line_entries_added++;
         }
@@ -1530,4 +1549,13 @@ Status SymbolFileDWARFDebugMap::CalculateFrameVariableError(StackFrame &frame) {
     }
   }
   return Status();
+}
+
+void SymbolFileDWARFDebugMap::GetCompileOptions(
+    std::unordered_map<lldb::CompUnitSP, lldb_private::Args> &args) {
+
+  ForEachSymbolFile([&](SymbolFileDWARF *oso_dwarf) -> bool {
+    oso_dwarf->GetCompileOptions(args);
+    return false;
+  });
 }

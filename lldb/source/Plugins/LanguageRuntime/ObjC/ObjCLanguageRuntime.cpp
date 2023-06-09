@@ -27,6 +27,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DJB.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -234,6 +235,22 @@ ObjCLanguageRuntime::GetDescriptorIteratorPair(bool update_if_needed) {
       m_isa_to_descriptor.begin(), m_isa_to_descriptor.end());
 }
 
+void ObjCLanguageRuntime::ReadObjCLibraryIfNeeded(
+    const ModuleList &module_list) {
+  if (!HasReadObjCLibrary()) {
+    std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
+
+    size_t num_modules = module_list.GetSize();
+    for (size_t i = 0; i < num_modules; i++) {
+      auto mod = module_list.GetModuleAtIndex(i);
+      if (IsModuleObjCLibrary(mod)) {
+        ReadObjCLibrary(mod);
+        break;
+      }
+    }
+  }
+}
+
 ObjCLanguageRuntime::ObjCISA
 ObjCLanguageRuntime::GetParentClass(ObjCLanguageRuntime::ObjCISA isa) {
   ClassDescriptorSP objc_class_sp(GetClassDescriptorFromISA(isa));
@@ -413,7 +430,7 @@ Status ObjCLanguageRuntime::ObjCExceptionPrecondition::ConfigurePrecondition(
   return error;
 }
 
-llvm::Optional<CompilerType>
+std::optional<CompilerType>
 ObjCLanguageRuntime::GetRuntimeType(CompilerType base_type) {
   CompilerType class_type;
   bool is_pointer_type = false;

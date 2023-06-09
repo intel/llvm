@@ -17,6 +17,7 @@
 #include "llvm/ObjectYAML/yaml2obj.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -104,7 +105,7 @@ void MachOWriter::writeHeader(raw_ostream &OS) {
 }
 
 template <typename SectionType>
-SectionType constructSection(MachOYAML::Section Sec) {
+SectionType constructSection(const MachOYAML::Section &Sec) {
   SectionType TempSec;
   memcpy(reinterpret_cast<void *>(&TempSec.sectname[0]), &Sec.sectname[0], 16);
   memcpy(reinterpret_cast<void *>(&TempSec.segname[0]), &Sec.segname[0], 16);
@@ -315,7 +316,12 @@ Error MachOWriter::writeSectionData(raw_ostream &OS) {
         if (OS.tell() - fileStart > Sec.offset && Sec.offset != (uint32_t)0)
           return createStringError(
               errc::invalid_argument,
-              "wrote too much data somewhere, section offsets don't line up");
+              llvm::formatv(
+                  "wrote too much data somewhere, section offsets in "
+                  "section {0} for segment {1} don't line up: "
+                  "[cursor={2:x}], [fileStart={3:x}], [sectionOffset={4:x}]",
+                  Sec.sectname, Sec.segname, OS.tell(), fileStart,
+                  Sec.offset.value));
 
         StringRef SectName(Sec.sectname,
                            strnlen(Sec.sectname, sizeof(Sec.sectname)));
@@ -420,7 +426,7 @@ void MachOWriter::writeRelocations(raw_ostream &OS) {
 void MachOWriter::writeBindOpcodes(
     raw_ostream &OS, std::vector<MachOYAML::BindOpcode> &BindOpcodes) {
 
-  for (auto Opcode : BindOpcodes) {
+  for (auto &Opcode : BindOpcodes) {
     uint8_t OpByte = Opcode.Opcode | Opcode.Imm;
     OS.write(reinterpret_cast<char *>(&OpByte), 1);
     for (auto Data : Opcode.ULEBExtraData) {

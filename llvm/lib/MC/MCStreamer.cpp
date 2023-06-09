@@ -159,20 +159,22 @@ void MCStreamer::emitIntValue(APInt Value) {
 
 /// EmitULEB128IntValue - Special case of EmitULEB128Value that avoids the
 /// client having to pass in a MCExpr for constant integers.
-void MCStreamer::emitULEB128IntValue(uint64_t Value, unsigned PadTo) {
+unsigned MCStreamer::emitULEB128IntValue(uint64_t Value, unsigned PadTo) {
   SmallString<128> Tmp;
   raw_svector_ostream OSE(Tmp);
   encodeULEB128(Value, OSE, PadTo);
   emitBytes(OSE.str());
+  return Tmp.size();
 }
 
 /// EmitSLEB128IntValue - Special case of EmitSLEB128Value that avoids the
 /// client having to pass in a MCExpr for constant integers.
-void MCStreamer::emitSLEB128IntValue(int64_t Value) {
+unsigned MCStreamer::emitSLEB128IntValue(int64_t Value) {
   SmallString<128> Tmp;
   raw_svector_ostream OSE(Tmp);
   encodeSLEB128(Value, OSE);
   emitBytes(OSE.str());
+  return Tmp.size();
 }
 
 void MCStreamer::emitValue(const MCExpr *Value, unsigned Size, SMLoc Loc) {
@@ -217,7 +219,8 @@ void MCStreamer::emitGPRel32Value(const MCExpr *Value) {
 /// Emit NumBytes bytes worth of the value specified by FillValue.
 /// This implements directives such as '.space'.
 void MCStreamer::emitFill(uint64_t NumBytes, uint8_t FillValue) {
-  emitFill(*MCConstantExpr::create(NumBytes, getContext()), FillValue);
+  if (NumBytes)
+    emitFill(*MCConstantExpr::create(NumBytes, getContext()), FillValue);
 }
 
 void llvm::MCStreamer::emitNops(int64_t NumBytes, int64_t ControlledNopLen,
@@ -276,7 +279,7 @@ MCSymbol *MCStreamer::getDwarfLineTableSymbol(unsigned CUID) {
 }
 
 bool MCStreamer::hasUnfinishedDwarfFrameInfo() {
-  return !DwarfFrameInfos.empty() && !DwarfFrameInfos.back().End;
+  return !FrameInfoStack.empty();
 }
 
 MCDwarfFrameInfo *MCStreamer::getCurrentDwarfFrameInfo() {
@@ -286,7 +289,7 @@ MCDwarfFrameInfo *MCStreamer::getCurrentDwarfFrameInfo() {
                              ".cfi_startproc and .cfi_endproc directives");
     return nullptr;
   }
-  return &DwarfFrameInfos.back();
+  return &DwarfFrameInfos[FrameInfoStack.back().first];
 }
 
 bool MCStreamer::emitCVFileDirective(unsigned FileNo, StringRef Filename,
@@ -443,7 +446,8 @@ void MCStreamer::emitConditionalAssignment(MCSymbol *Symbol,
 void MCStreamer::emitCFISections(bool EH, bool Debug) {}
 
 void MCStreamer::emitCFIStartProc(bool IsSimple, SMLoc Loc) {
-  if (hasUnfinishedDwarfFrameInfo())
+  if (!FrameInfoStack.empty() &&
+      getCurrentSectionOnly() == FrameInfoStack.back().second)
     return getContext().reportError(
         Loc, "starting new .cfi frame before finishing the previous one");
 
@@ -462,6 +466,7 @@ void MCStreamer::emitCFIStartProc(bool IsSimple, SMLoc Loc) {
     }
   }
 
+  FrameInfoStack.emplace_back(DwarfFrameInfos.size(), getCurrentSectionOnly());
   DwarfFrameInfos.push_back(Frame);
 }
 
@@ -473,6 +478,7 @@ void MCStreamer::emitCFIEndProc() {
   if (!CurFrame)
     return;
   emitCFIEndProcImpl(*CurFrame);
+  FrameInfoStack.pop_back();
 }
 
 void MCStreamer::emitCFIEndProcImpl(MCDwarfFrameInfo &Frame) {
@@ -1099,7 +1105,7 @@ void MCStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetInfo &) {
 }
 
 void MCStreamer::emitPseudoProbe(uint64_t Guid, uint64_t Index, uint64_t Type,
-                                 uint64_t Attr,
+                                 uint64_t Attr, uint64_t Discriminator,
                                  const MCPseudoProbeInlineStack &InlineStack,
                                  MCSymbol *FnSym) {
   auto &Context = getContext();
@@ -1111,7 +1117,7 @@ void MCStreamer::emitPseudoProbe(uint64_t Guid, uint64_t Index, uint64_t Type,
   emitLabel(ProbeSym);
 
   // Create a (local) probe entry with the symbol.
-  MCPseudoProbe Probe(ProbeSym, Guid, Index, Type, Attr);
+  MCPseudoProbe Probe(ProbeSym, Guid, Index, Type, Attr, Discriminator);
 
   // Add the probe entry to this section's entries.
   Context.getMCPseudoProbeTable().getProbeSections().addPseudoProbe(
@@ -1185,12 +1191,12 @@ void MCStreamer::emitXCOFFRenameDirective(const MCSymbol *Name,
                    "XCOFF targets");
 }
 
-void MCStreamer::emitXCOFFRefDirective(StringRef Name) {
+void MCStreamer::emitXCOFFRefDirective(const MCSymbol *Symbol) {
   llvm_unreachable("emitXCOFFRefDirective is only supported on XCOFF targets");
 }
 
 void MCStreamer::emitXCOFFExceptDirective(const MCSymbol *Symbol,
-                                          const MCSymbol *Trap, 
+                                          const MCSymbol *Trap,
                                           unsigned Lang, unsigned Reason,
                                           unsigned FunctionSize,
                                           bool hasDebug) {

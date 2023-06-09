@@ -20,6 +20,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SourceMgr.h"
+#include <optional>
 #include <system_error>
 
 namespace llvm {
@@ -688,12 +689,12 @@ struct FormatStyle {
     ///   };
     /// \endcode
     SLS_Empty,
-    /// Merge lambda into a single line if argument of a function.
+    /// Merge lambda into a single line if the lambda is argument of a function.
     /// \code
-    ///   auto lambda = [](int a) {
-    ///       return a;
+    ///   auto lambda = [](int x, int y) {
+    ///       return x < y;
     ///   };
-    ///   sort(a.begin(), a.end(), []() { return x < y; });
+    ///   sort(a.begin(), a.end(), [](int x, int y) { return x < y; });
     /// \endcode
     SLS_Inline,
     /// Merge all lambdas fitting on a single line.
@@ -942,6 +943,39 @@ struct FormatStyle {
   /// The BitFieldColonSpacingStyle to use for bitfields.
   /// \version 12
   BitFieldColonSpacingStyle BitFieldColonSpacing;
+
+  /// The number of columns to use to indent the contents of braced init lists.
+  /// If unset, ``ContinuationIndentWidth`` is used.
+  /// \code
+  ///   AlignAfterOpenBracket: AlwaysBreak
+  ///   BracedInitializerIndentWidth: 2
+  ///
+  ///   void f() {
+  ///     SomeClass c{
+  ///       "foo",
+  ///       "bar",
+  ///       "baz",
+  ///     };
+  ///     auto s = SomeStruct{
+  ///       .foo = "foo",
+  ///       .bar = "bar",
+  ///       .baz = "baz",
+  ///     };
+  ///     SomeArrayT a[3] = {
+  ///       {
+  ///         foo,
+  ///         bar,
+  ///       },
+  ///       {
+  ///         foo,
+  ///         bar,
+  ///       },
+  ///       SomeArrayT{},
+  ///     };
+  ///   }
+  /// \endcode
+  /// \version 17
+  std::optional<unsigned> BracedInitializerIndentWidth;
 
   /// Different ways to wrap braces after control statements.
   enum BraceWrappingAfterControlStatementStyle : int8_t {
@@ -1220,6 +1254,36 @@ struct FormatStyle {
   /// \endcode
   /// \version 3.8
   BraceWrappingFlags BraceWrapping;
+
+  /// Different ways to break after attributes.
+  enum AttributeBreakingStyle : int8_t {
+    /// Always break after attributes.
+    /// \code
+    ///   [[nodiscard]]
+    ///   inline int f();
+    ///   [[gnu::const]] [[nodiscard]]
+    ///   int g();
+    /// \endcode
+    ABS_Always,
+    /// Leave the line breaking after attributes as is.
+    /// \code
+    ///   [[nodiscard]] inline int f();
+    ///   [[gnu::const]] [[nodiscard]]
+    ///   int g();
+    /// \endcode
+    ABS_Leave,
+    /// Never break after attributes.
+    /// \code
+    ///   [[nodiscard]] inline int f();
+    ///   [[gnu::const]] [[nodiscard]] int g();
+    /// \endcode
+    ABS_Never,
+  };
+
+  /// Break after a group of C++11 attributes before a function
+  /// declaration/definition name.
+  /// \version 16
+  AttributeBreakingStyle BreakAfterAttributes;
 
   /// If ``true``, clang-format will always break after a Json array `[`
   /// otherwise it will scan until the closing `]` to determine if it should add
@@ -1737,7 +1801,7 @@ struct FormatStyle {
     BBCDS_Never,
     /// Breaking between template declaration and ``concept`` is allowed. The
     /// actual behavior depends on the content and line breaking rules and
-    /// penalities.
+    /// penalties.
     BBCDS_Allowed,
     /// Always break before ``concept``, putting it in the line after the
     /// template declaration.
@@ -1976,10 +2040,10 @@ struct FormatStyle {
   /// \version 3.4
   bool Cpp11BracedListStyle;
 
-  /// \brief Analyze the formatted file for the most used line ending (``\r\n``
-  /// or ``\n``). ``UseCRLF`` is only used as a fallback if none can be derived.
+  /// This option is **deprecated**. See ``DeriveLF`` and ``DeriveCRLF`` of
+  /// ``LineEnding``.
   /// \version 10
-  bool DeriveLineEnding;
+  // bool DeriveLineEnding;
 
   /// If ``true``, analyze the formatted file for the most common
   /// alignment of ``&`` and ``*``.
@@ -2420,6 +2484,10 @@ struct FormatStyle {
   /// \version 15
   bool InsertBraces;
 
+  /// Insert a newline at end of file if missing.
+  /// \version 16
+  bool InsertNewlineAtEOF;
+
   /// The style of inserting trailing commas into container literals.
   enum TrailingCommaStyle : int8_t {
     /// Do not insert trailing commas.
@@ -2449,6 +2517,85 @@ struct FormatStyle {
   /// \endcode
   /// \version 11
   TrailingCommaStyle InsertTrailingCommas;
+
+  /// Separator format of integer literals of different bases.
+  ///
+  /// If negative, remove separators. If  ``0``, leave the literal as is. If
+  /// positive, insert separators between digits starting from the rightmost
+  /// digit.
+  ///
+  /// For example, the config below will leave separators in binary literals
+  /// alone, insert separators in decimal literals to separate the digits into
+  /// groups of 3, and remove separators in hexadecimal literals.
+  /// \code
+  ///   IntegerLiteralSeparator:
+  ///     Binary: 0
+  ///     Decimal: 3
+  ///     Hex: -1
+  /// \endcode
+  ///
+  /// You can also specify a minimum number of digits (``BinaryMinDigits``,
+  /// ``DecimalMinDigits``, and ``HexMinDigits``) the integer literal must
+  /// have in order for the separators to be inserted.
+  struct IntegerLiteralSeparatorStyle {
+    /// Format separators in binary literals.
+    /// \code{.text}
+    ///   /* -1: */ b = 0b100111101101;
+    ///   /*  0: */ b = 0b10011'11'0110'1;
+    ///   /*  3: */ b = 0b100'111'101'101;
+    ///   /*  4: */ b = 0b1001'1110'1101;
+    /// \endcode
+    int8_t Binary;
+    /// Format separators in binary literals with a minimum number of digits.
+    /// \code{.text}
+    ///   // Binary: 3
+    ///   // BinaryMinDigits: 7
+    ///   b1 = 0b101101;
+    ///   b2 = 0b1'101'101;
+    /// \endcode
+    int8_t BinaryMinDigits;
+    /// Format separators in decimal literals.
+    /// \code{.text}
+    ///   /* -1: */ d = 18446744073709550592ull;
+    ///   /*  0: */ d = 184467'440737'0'95505'92ull;
+    ///   /*  3: */ d = 18'446'744'073'709'550'592ull;
+    /// \endcode
+    int8_t Decimal;
+    /// Format separators in decimal literals with a minimum number of digits.
+    /// \code{.text}
+    ///   // Decimal: 3
+    ///   // DecimalMinDigits: 5
+    ///   d1 = 2023;
+    ///   d2 = 10'000;
+    /// \endcode
+    int8_t DecimalMinDigits;
+    /// Format separators in hexadecimal literals.
+    /// \code{.text}
+    ///   /* -1: */ h = 0xDEADBEEFDEADBEEFuz;
+    ///   /*  0: */ h = 0xDEAD'BEEF'DE'AD'BEE'Fuz;
+    ///   /*  2: */ h = 0xDE'AD'BE'EF'DE'AD'BE'EFuz;
+    /// \endcode
+    int8_t Hex;
+    /// Format separators in hexadecimal literals with a minimum number of
+    /// digits.
+    /// \code{.text}
+    ///   // Hex: 2
+    ///   // HexMinDigits: 6
+    ///   h1 = 0xABCDE;
+    ///   h2 = 0xAB'CD'EF;
+    /// \endcode
+    int8_t HexMinDigits;
+    bool operator==(const IntegerLiteralSeparatorStyle &R) const {
+      return Binary == R.Binary && BinaryMinDigits == R.BinaryMinDigits &&
+             Decimal == R.Decimal && DecimalMinDigits == R.DecimalMinDigits &&
+             Hex == R.Hex && HexMinDigits == R.HexMinDigits;
+    }
+  };
+
+  /// Format integer literal separators (``'`` for C++ and ``_`` for C#, Java,
+  /// and JavaScript).
+  /// \version 16
+  IntegerLiteralSeparatorStyle IntegerLiteralSeparator;
 
   /// A vector of prefixes ordered by the desired groups for Java imports.
   ///
@@ -2556,6 +2703,11 @@ struct FormatStyle {
     ///        [](SomeReallyLongLambdaSignatureArgument foo) {
     ///      return;
     ///    });
+    ///
+    ///    someMethod(someOtherMethod(
+    ///        [](SomeReallyLongLambdaSignatureArgument foo) {
+    ///      return;
+    ///    }));
     /// \endcode
     LBI_OuterScope,
   };
@@ -2564,11 +2716,7 @@ struct FormatStyle {
   /// causes the lambda body to be indented one additional level relative to
   /// the indentation level of the signature. ``OuterScope`` forces the lambda
   /// body to be indented one additional level relative to the parent scope
-  /// containing the lambda signature. For callback-heavy code, it may improve
-  /// readability to have the signature indented two levels and to use
-  /// ``OuterScope``. The KJ style guide requires ``OuterScope``.
-  /// `KJ style guide
-  /// <https://github.com/capnproto/capnproto/blob/master/style-guide.md>`_
+  /// containing the lambda signature.
   /// \version 13
   LambdaBodyIndentationKind LambdaBodyIndentation;
 
@@ -2616,6 +2764,22 @@ struct FormatStyle {
   /// \version 3.5
   LanguageKind Language;
 
+  /// Line ending style.
+  enum LineEndingStyle : int8_t {
+    /// Use ``\n``.
+    LE_LF,
+    /// Use ``\r\n``.
+    LE_CRLF,
+    /// Use ``\n`` unless the input has more lines ending in ``\r\n``.
+    LE_DeriveLF,
+    /// Use ``\r\n`` unless the input has more lines ending in ``\n``.
+    LE_DeriveCRLF,
+  };
+
+  /// Line ending style (``\n`` or ``\r\n``) to use.
+  /// \version 16
+  LineEndingStyle LineEnding;
+
   /// A regular expression matching macros that start a block.
   /// \code
   ///    # With:
@@ -2648,6 +2812,46 @@ struct FormatStyle {
   /// A regular expression matching macros that end a block.
   /// \version 3.7
   std::string MacroBlockEnd;
+
+  /// A list of macros of the form \c <definition>=<expansion> .
+  ///
+  /// Code will be parsed with macros expanded, in order to determine how to
+  /// interpret and format the macro arguments.
+  ///
+  /// For example, the code:
+  /// \code
+  ///   A(a*b);
+  /// \endcode
+  ///
+  /// will usually be interpreted as a call to a function A, and the
+  /// multiplication expression will be formatted as `a * b`.
+  ///
+  /// If we specify the macro definition:
+  /// \code{.yaml}
+  ///   Macros:
+  ///   - A(x)=x
+  /// \endcode
+  ///
+  /// the code will now be parsed as a declaration of the variable b of type a*,
+  /// and formatted as `a* b` (depending on pointer-binding rules).
+  ///
+  /// Features and restrictions:
+  ///  * Both function-like macros and object-like macros are supported.
+  ///  * Macro arguments must be used exactly once in the expansion.
+  ///  * No recursive expansion; macros referencing other macros will be
+  ///    ignored.
+  ///  * Overloading by arity is supported: for example, given the macro
+  ///    definitions A=x, A()=y, A(a)=a
+  ///
+  /// \code
+  ///    A; -> x;
+  ///    A(); -> y;
+  ///    A(z); -> z;
+  ///    A(a, b); // will not be expanded.
+  /// \endcode
+  ///
+  /// \version 17.0
+  std::vector<std::string> Macros;
 
   /// The maximum number of consecutive empty lines to keep.
   /// \code
@@ -2833,10 +3037,25 @@ struct FormatStyle {
     ///          cccccccccccccccccccc()
     /// \endcode
     PCIS_NextLine,
+    /// Put all constructor initializers on the next line if they fit.
+    /// Otherwise, put each one on its own line.
+    /// \code
+    ///    Constructor()
+    ///        : a(), b()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(), bbbbbbbbbbbbbbbbbbbb(), ddddddddddddd()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(),
+    ///          bbbbbbbbbbbbbbbbbbbb(),
+    ///          cccccccccccccccccccc()
+    /// \endcode
+    PCIS_NextLineOnly,
   };
 
   /// The pack constructor initializers style to use.
-  /// \version 14;
+  /// \version 14
   PackConstructorInitializersStyle PackConstructorInitializers;
 
   /// The penalty for breaking around an assignment operator.
@@ -2970,6 +3189,7 @@ struct FormatStyle {
   ///   * const
   ///   * inline
   ///   * static
+  ///   * friend
   ///   * constexpr
   ///   * volatile
   ///   * restrict
@@ -3381,11 +3601,6 @@ struct FormatStyle {
   };
 
   /// Controls if and how clang-format will sort ``#includes``.
-  /// If ``Never``, includes are never sorted.
-  /// If ``CaseInsensitive``, includes are sorted in an ASCIIbetical or case
-  /// insensitive fashion.
-  /// If ``CaseSensitive``, includes are sorted in an alphabetical or case
-  /// sensitive fashion.
   /// \version 3.8
   SortIncludesOptions SortIncludes;
 
@@ -3413,22 +3628,49 @@ struct FormatStyle {
   /// \version 12
   SortJavaStaticImportOptions SortJavaStaticImport;
 
-  /// If ``true``, clang-format will sort using declarations.
-  ///
-  /// The order of using declarations is defined as follows:
-  /// Split the strings by "::" and discard any initial empty strings. The last
-  /// element of each list is a non-namespace name; all others are namespace
-  /// names. Sort the lists of names lexicographically, where the sort order of
-  /// individual names is that all non-namespace names come before all namespace
-  /// names, and within those groups, names are in case-insensitive
-  /// lexicographic order.
-  /// \code
-  ///    false:                                 true:
-  ///    using std::cout;               vs.     using std::cin;
-  ///    using std::cin;                        using std::cout;
-  /// \endcode
+  /// Using declaration sorting options.
+  enum SortUsingDeclarationsOptions : int8_t {
+    /// Using declarations are never sorted.
+    /// \code
+    ///    using std::chrono::duration_cast;
+    ///    using std::move;
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::string;
+    /// \endcode
+    SUD_Never,
+    /// Using declarations are sorted in the order defined as follows:
+    /// Split the strings by "::" and discard any initial empty strings. Sort
+    /// the lists of names lexicographically, and within those groups, names are
+    /// in case-insensitive lexicographic order.
+    /// \code
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::chrono::duration_cast;
+    ///    using std::move;
+    ///    using std::string;
+    /// \endcode
+    SUD_Lexicographic,
+    /// Using declarations are sorted in the order defined as follows:
+    /// Split the strings by "::" and discard any initial empty strings. The
+    /// last element of each list is a non-namespace name; all others are
+    /// namespace names. Sort the lists of names lexicographically, where the
+    /// sort order of individual names is that all non-namespace names come
+    /// before all namespace names, and within those groups, names are in
+    /// case-insensitive lexicographic order.
+    /// \code
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::move;
+    ///    using std::string;
+    ///    using std::chrono::duration_cast;
+    /// \endcode
+    SUD_LexicographicNumeric,
+  };
+
+  /// Controls if and how clang-format will sort using declarations.
   /// \version 5
-  bool SortUsingDeclarations;
+  SortUsingDeclarationsOptions SortUsingDeclarations;
 
   /// If ``true``, a space is inserted after C style casts.
   /// \code
@@ -3534,6 +3776,17 @@ struct FormatStyle {
   /// \endcode
   /// \version 7
   bool SpaceBeforeInheritanceColon;
+
+  /// If ``true``, a space will be added before a JSON colon. For other
+  /// languages, e.g. JavaScript, use ``SpacesInContainerLiterals`` instead.
+  /// \code
+  ///    true:                                  false:
+  ///    {                                      {
+  ///      "key" : "value"              vs.       "key": "value"
+  ///    }                                      }
+  /// \endcode
+  /// \version 17
+  bool SpaceBeforeJsonColon;
 
   /// Different ways to put a space before opening parentheses.
   enum SpaceBeforeParensStyle : int8_t {
@@ -3761,9 +4014,12 @@ struct FormatStyle {
   /// The number of spaces before trailing line comments
   /// (``//`` - comments).
   ///
-  /// This does not affect trailing block comments (``/*`` - comments) as
-  /// those commonly have different usage patterns and a number of special
-  /// cases.
+  /// This does not affect trailing block comments (``/*`` - comments) as those
+  /// commonly have different usage patterns and a number of special cases.  In
+  /// the case of Verilog, it doesn't affect a comment right after the opening
+  /// parenthesis in the port or parameter list in a module header, because it
+  /// is probably for the port on the following line instead of the parenthesis
+  /// it follows.
   /// \code
   ///    SpacesBeforeTrailingComments: 3
   ///    void f() {
@@ -3808,8 +4064,9 @@ struct FormatStyle {
   /// \version 10
   bool SpacesInConditionalStatement;
 
-  /// If ``true``, spaces are inserted inside container literals (e.g.
-  /// ObjC and Javascript array and dict literals).
+  /// If ``true``, spaces are inserted inside container literals (e.g.  ObjC and
+  /// Javascript array and dict literals). For JSON, use
+  /// ``SpaceBeforeJsonColon`` instead.
   /// \code{.js}
   ///    true:                                  false:
   ///    var arr = [ 1, 2, 3 ];         vs.     var arr = [1, 2, 3];
@@ -3971,10 +4228,9 @@ struct FormatStyle {
   /// \version 9
   std::vector<std::string> TypenameMacros;
 
-  /// \brief Use ``\r\n`` instead of ``\n`` for line breaks.
-  /// Also used as fallback if ``DeriveLineEnding`` is true.
+  /// This option is **deprecated**. See ``LF`` and ``CRLF`` of ``LineEnding``.
   /// \version 10
-  bool UseCRLF;
+  // bool UseCRLF;
 
   /// Different ways to use tab in formatting.
   enum UseTabStyle : int8_t {
@@ -3996,6 +4252,20 @@ struct FormatStyle {
   /// The way to use tab characters in the resulting file.
   /// \version 3.7
   UseTabStyle UseTab;
+
+  /// For Verilog, put each port on its own line in module instantiations.
+  /// \code
+  ///    true:
+  ///    ffnand ff1(.q(),
+  ///               .qbar(out1),
+  ///               .clear(in1),
+  ///               .preset(in2));
+  ///
+  ///    false:
+  ///    ffnand ff1(.q(), .qbar(out1), .clear(in1), .preset(in2));
+  /// \endcode
+  /// \version 17
+  bool VerilogBreakBetweenInstancePorts;
 
   /// A vector of macros which are whitespace-sensitive and should not
   /// be touched.
@@ -4047,6 +4317,8 @@ struct FormatStyle {
            BinPackArguments == R.BinPackArguments &&
            BinPackParameters == R.BinPackParameters &&
            BitFieldColonSpacing == R.BitFieldColonSpacing &&
+           BracedInitializerIndentWidth == R.BracedInitializerIndentWidth &&
+           BreakAfterAttributes == R.BreakAfterAttributes &&
            BreakAfterJavaFieldAnnotations == R.BreakAfterJavaFieldAnnotations &&
            BreakArrays == R.BreakArrays &&
            BreakBeforeBinaryOperators == R.BreakBeforeBinaryOperators &&
@@ -4063,7 +4335,6 @@ struct FormatStyle {
                R.ConstructorInitializerIndentWidth &&
            ContinuationIndentWidth == R.ContinuationIndentWidth &&
            Cpp11BracedListStyle == R.Cpp11BracedListStyle &&
-           DeriveLineEnding == R.DeriveLineEnding &&
            DerivePointerAlignment == R.DerivePointerAlignment &&
            DisableFormat == R.DisableFormat &&
            EmptyLineAfterAccessModifier == R.EmptyLineAfterAccessModifier &&
@@ -4087,6 +4358,9 @@ struct FormatStyle {
            IndentRequiresClause == R.IndentRequiresClause &&
            IndentWidth == R.IndentWidth &&
            IndentWrappedFunctionNames == R.IndentWrappedFunctionNames &&
+           InsertBraces == R.InsertBraces &&
+           InsertNewlineAtEOF == R.InsertNewlineAtEOF &&
+           IntegerLiteralSeparator == R.IntegerLiteralSeparator &&
            JavaImportGroups == R.JavaImportGroups &&
            JavaScriptQuotes == R.JavaScriptQuotes &&
            JavaScriptWrapImports == R.JavaScriptWrapImports &&
@@ -4094,8 +4368,8 @@ struct FormatStyle {
                R.KeepEmptyLinesAtTheStartOfBlocks &&
            Language == R.Language &&
            LambdaBodyIndentation == R.LambdaBodyIndentation &&
-           MacroBlockBegin == R.MacroBlockBegin &&
-           MacroBlockEnd == R.MacroBlockEnd &&
+           LineEnding == R.LineEnding && MacroBlockBegin == R.MacroBlockBegin &&
+           MacroBlockEnd == R.MacroBlockEnd && Macros == R.Macros &&
            MaxEmptyLinesToKeep == R.MaxEmptyLinesToKeep &&
            NamespaceIndentation == R.NamespaceIndentation &&
            NamespaceMacros == R.NamespaceMacros &&
@@ -4139,6 +4413,7 @@ struct FormatStyle {
            SpaceBeforeCtorInitializerColon ==
                R.SpaceBeforeCtorInitializerColon &&
            SpaceBeforeInheritanceColon == R.SpaceBeforeInheritanceColon &&
+           SpaceBeforeJsonColon == R.SpaceBeforeJsonColon &&
            SpaceBeforeParens == R.SpaceBeforeParens &&
            SpaceBeforeParensOptions == R.SpaceBeforeParensOptions &&
            SpaceAroundPointerQualifiers == R.SpaceAroundPointerQualifiers &&
@@ -4161,12 +4436,13 @@ struct FormatStyle {
            Standard == R.Standard &&
            StatementAttributeLikeMacros == R.StatementAttributeLikeMacros &&
            StatementMacros == R.StatementMacros && TabWidth == R.TabWidth &&
-           TypenameMacros == R.TypenameMacros && UseCRLF == R.UseCRLF &&
-           UseTab == R.UseTab &&
+           TypenameMacros == R.TypenameMacros && UseTab == R.UseTab &&
+           VerilogBreakBetweenInstancePorts ==
+               R.VerilogBreakBetweenInstancePorts &&
            WhitespaceSensitiveMacros == R.WhitespaceSensitiveMacros;
   }
 
-  llvm::Optional<FormatStyle> GetLanguageStyle(LanguageKind Language) const;
+  std::optional<FormatStyle> GetLanguageStyle(LanguageKind Language) const;
 
   // Stores per-language styles. A FormatStyle instance inside has an empty
   // StyleSet. A FormatStyle instance returned by the Get method has its
@@ -4178,7 +4454,7 @@ struct FormatStyle {
   struct FormatStyleSet {
     typedef std::map<FormatStyle::LanguageKind, FormatStyle> MapType;
 
-    llvm::Optional<FormatStyle> Get(FormatStyle::LanguageKind Language) const;
+    std::optional<FormatStyle> Get(FormatStyle::LanguageKind Language) const;
 
     // Adds \p Style to this FormatStyleSet. Style must not have an associated
     // FormatStyleSet.
@@ -4470,6 +4746,9 @@ inline StringRef getLanguageName(FormatStyle::LanguageKind Language) {
     return "Unknown";
   }
 }
+
+bool isClangFormatOn(StringRef Comment);
+bool isClangFormatOff(StringRef Comment);
 
 } // end namespace format
 } // end namespace clang

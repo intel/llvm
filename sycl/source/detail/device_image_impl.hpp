@@ -82,9 +82,17 @@ public:
 
   bool has_kernel(const kernel_id &KernelIDCand,
                   const device &DeviceCand) const noexcept {
+    // If the device is in the device list and the kernel ID is in the kernel
+    // bundle, return true.
     for (const device &Device : MDevices)
       if (Device == DeviceCand)
         return has_kernel(KernelIDCand);
+
+    // Otherwise, if the device candidate is a sub-device it is also valid if
+    // its parent is valid.
+    if (!getSyclObjImpl(DeviceCand)->isRootDevice())
+      return has_kernel(KernelIDCand,
+                        DeviceCand.get_info<info::device::parent_device>());
 
     return false;
   }
@@ -102,8 +110,24 @@ public:
   }
 
   bool all_specialization_constant_native() const noexcept {
-    assert(false && "Not implemented");
-    return false;
+    // Specialization constants are natively supported in JIT mode on backends,
+    // that are using SPIR-V as IR
+
+    // Not sure if it's possible currently, but probably it may happen if the
+    // kernel bundle is created with interop function. Now the only one such
+    // function is make_kernel(), but I'm not sure if it's even possible to
+    // use spec constant with such kernel. So, in such case we need to check
+    // if it's JIT or no somehow.
+    assert(MBinImage &&
+           "native_specialization_constant() called for unimplemented case");
+
+    auto IsJITSPIRVTarget = [](const char *Target) {
+      return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+              strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
+    };
+    return (MContext.get_backend() == backend::opencl ||
+            MContext.get_backend() == backend::ext_oneapi_level_zero) &&
+           IsJITSPIRVTarget(MBinImage->getRawData().DeviceTargetSpec);
   }
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
@@ -194,7 +218,7 @@ public:
   RT::PiMem &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
-      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
       // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
       // since post-enqueue cleanup might trigger destruction of
       // device_image_impl and, as a result, destruction of MSpecConstsBlob
@@ -220,11 +244,13 @@ public:
   pi_native_handle getNative() const {
     assert(MProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
-    const plugin &Plugin = ContextImplPtr->getPlugin();
+    const PluginPtr &Plugin = ContextImplPtr->getPlugin();
 
+    if (ContextImplPtr->getBackend() == backend::opencl)
+      Plugin->call<PiApiKind::piProgramRetain>(MProgram);
     pi_native_handle NativeProgram = 0;
-    Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
-                                                        &NativeProgram);
+    Plugin->call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
+                                                         &NativeProgram);
 
     return NativeProgram;
   }
@@ -232,12 +258,12 @@ public:
   ~device_image_impl() {
 
     if (MProgram) {
-      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      Plugin->call<PiApiKind::piProgramRelease>(MProgram);
     }
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
       memReleaseHelper(Plugin, MSpecConstsBuffer);
     }
   }

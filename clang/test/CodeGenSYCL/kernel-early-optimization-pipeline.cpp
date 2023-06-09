@@ -9,3 +9,8 @@
 // RUN: %clang_cc1 -O2 -fsycl-is-device -triple spir64-unknown-unknown %s -mdebug-pass Structure -emit-llvm -fno-sycl-early-optimizations -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK-NEWPM-NOEARLYOPT
 // CHECK-NEWPM-NOEARLYOPT-NOT: ConstantMergePass
 // CHECK-NEWPM-NOEARLYOPT: SYCLMutatePrintfAddrspacePass
+
+// Checks that the compile time properties pass is added into the compilation pipeline
+//
+// RUN: %clang_cc1 -O2 -fsycl-is-device -triple spir64-unknown-unknown %s -mdebug-pass Structure -emit-llvm -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK-COMPTIMEPROPS
+// CHECK-COMPTIMEPROPS: Running pass: CompileTimePropertiesPass on [module]

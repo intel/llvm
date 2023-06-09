@@ -39,6 +39,7 @@ FUNCTION_PASS("mergeicmps", MergeICmpsPass, ())
 FUNCTION_PASS("lower-constant-intrinsics", LowerConstantIntrinsicsPass, ())
 FUNCTION_PASS("unreachableblockelim", UnreachableBlockElimPass, ())
 FUNCTION_PASS("consthoist", ConstantHoistingPass, ())
+FUNCTION_PASS("fpbuiltin-fn-selection", FPBuiltinFnSelectionPass, ())
 FUNCTION_PASS("replace-with-veclib", ReplaceWithVeclib, ())
 FUNCTION_PASS("partially-inline-libcalls", PartiallyInlineLibCallsPass, ())
 FUNCTION_PASS("ee-instrument", EntryExitInstrumenterPass, (false))
@@ -123,6 +124,7 @@ DUMMY_FUNCTION_PASS("cfguard-dispatch", CFGuardDispatchPass, ())
 DUMMY_FUNCTION_PASS("cfguard-check", CFGuardCheckPass, ())
 DUMMY_FUNCTION_PASS("gc-info-printer", GCInfoPrinterPass, ())
 DUMMY_FUNCTION_PASS("select-optimize", SelectOptimizePass, ())
+DUMMY_FUNCTION_PASS("callbrprepare", CallBrPrepare, ())
 #undef DUMMY_FUNCTION_PASS
 
 #ifndef DUMMY_MODULE_PASS
@@ -205,4 +207,6 @@ DUMMY_MACHINE_FUNCTION_PASS("reset-machine-function", ResetMachineFunctionPass, 
 DUMMY_MACHINE_FUNCTION_PASS("machineverifier", MachineVerifierPass, ())
 DUMMY_MACHINE_FUNCTION_PASS("print-machine-cycles", MachineCycleInfoPrinterPass, ())
 DUMMY_MACHINE_FUNCTION_PASS("machine-sanmd", MachineSanitizerBinaryMetadata, ())
+DUMMY_MACHINE_FUNCTION_PASS("machine-uniformity", MachineUniformityInfoWrapperPass, ())
+DUMMY_MACHINE_FUNCTION_PASS("print-machine-uniformity", MachineUniformityInfoPrinterPass, ())
 #undef DUMMY_MACHINE_FUNCTION_PASS

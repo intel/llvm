@@ -8,6 +8,7 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -85,18 +86,13 @@ class StreamAUXCmdsWait_TestKernel;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<StreamAUXCmdsWait_TestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<StreamAUXCmdsWait_TestKernel>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return "StreamAUXCmdsWait_TestKernel";
   }
   static constexpr bool isESIMD() { return true; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() { return sizeof(sycl::stream); }
 };
 

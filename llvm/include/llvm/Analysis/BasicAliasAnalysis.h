@@ -65,7 +65,7 @@ public:
                   FunctionAnalysisManager::Invalidator &Inv);
 
   AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB,
-                    AAQueryInfo &AAQI);
+                    AAQueryInfo &AAQI, const Instruction *CtxI);
 
   ModRefInfo getModRefInfo(const CallBase *Call, const MemoryLocation &Loc,
                            AAQueryInfo &AAQI);
@@ -134,9 +134,9 @@ private:
                           const Value *V2, LocationSize V2Size,
                           AAQueryInfo &AAQI);
 
-  AliasResult aliasCheck(const Value *V1, LocationSize V1Size,
-                         const Value *V2, LocationSize V2Size,
-                         AAQueryInfo &AAQI);
+  AliasResult aliasCheck(const Value *V1, LocationSize V1Size, const Value *V2,
+                         LocationSize V2Size, AAQueryInfo &AAQI,
+                         const Instruction *CtxI);
 
   AliasResult aliasCheckRecursive(const Value *V1, LocationSize V1Size,
                                   const Value *V2, LocationSize V2Size,
@@ -175,28 +175,6 @@ public:
 };
 
 FunctionPass *createBasicAAWrapperPass();
-
-/// A helper for the legacy pass manager to create a \c BasicAAResult object
-/// populated to the best of our ability for a particular function when inside
-/// of a \c ModulePass or a \c CallGraphSCCPass.
-BasicAAResult createLegacyPMBasicAAResult(Pass &P, Function &F);
-
-/// This class is a functor to be used in legacy module or SCC passes for
-/// computing AA results for a function. We store the results in fields so that
-/// they live long enough to be queried, but we re-use them each time.
-class LegacyAARGetter {
-  Pass &P;
-  std::optional<BasicAAResult> BAR;
-  std::optional<AAResults> AAR;
-
-public:
-  LegacyAARGetter(Pass &P) : P(P) {}
-  AAResults &operator()(Function &F) {
-    BAR.emplace(createLegacyPMBasicAAResult(P, F));
-    AAR.emplace(createLegacyPMAAResults(P, F, *BAR));
-    return *AAR;
-  }
-};
 
 } // end namespace llvm
 

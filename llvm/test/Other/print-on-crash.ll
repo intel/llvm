@@ -3,10 +3,13 @@
 
 ; RUN: not --crash opt -print-on-crash -passes=trigger-crash < %s 2>&1 | FileCheck %s --check-prefix=CHECK_SIMPLE
 
+; RUN: not --crash opt -print-on-crash-path=%t -passes=trigger-crash < %s
+; RUN: FileCheck %s --check-prefix=CHECK_SIMPLE --input-file=%t
+
 ; A test that the signal handler set by the  hidden option -print-on-crash
 ; is not called when no pass crashes.
 
-; RUN: opt -print-on-crash -passes="default<O2>" < %s 2>&1 | FileCheck %s --check-prefix=CHECK_NO_CRASH
+; RUN: opt -disable-output -print-on-crash -passes="default<O2>" < %s 2>&1 | FileCheck %s --check-prefix=CHECK_NO_CRASH --allow-empty
 
 ; RUN: not --crash opt -print-on-crash -print-module-scope -passes=trigger-crash < %s 2>&1 | FileCheck %s --check-prefix=CHECK_MODULE
 
@@ -25,6 +28,6 @@
 define i32 @main() {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0
 }

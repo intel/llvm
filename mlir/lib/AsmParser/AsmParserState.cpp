@@ -73,7 +73,7 @@ void AsmParserState::Impl::resolveSymbolUses() {
     for (auto &it : *opAndUseMapIt.second) {
       symbolOps.clear();
       if (failed(symbolTable.lookupSymbolIn(
-              opAndUseMapIt.first, it.first.cast<SymbolRefAttr>(), symbolOps)))
+              opAndUseMapIt.first, cast<SymbolRefAttr>(it.first), symbolOps)))
         continue;
 
       for (ArrayRef<SMRange> useRange : it.second) {
@@ -102,7 +102,7 @@ AsmParserState &AsmParserState::operator=(AsmParserState &&other) {
 // Access State
 
 auto AsmParserState::getBlockDefs() const -> iterator_range<BlockDefIterator> {
-  return llvm::make_pointee_range(llvm::makeArrayRef(impl->blocks));
+  return llvm::make_pointee_range(llvm::ArrayRef(impl->blocks));
 }
 
 auto AsmParserState::getBlockDef(Block *block) const
@@ -112,7 +112,7 @@ auto AsmParserState::getBlockDef(Block *block) const
 }
 
 auto AsmParserState::getOpDefs() const -> iterator_range<OperationDefIterator> {
-  return llvm::make_pointee_range(llvm::makeArrayRef(impl->operations));
+  return llvm::make_pointee_range(llvm::ArrayRef(impl->operations));
 }
 
 auto AsmParserState::getOpDef(Operation *op) const
@@ -301,7 +301,7 @@ void AsmParserState::addUses(Value value, ArrayRef<SMLoc> locations) {
   }
 
   // Otherwise, this is a block argument.
-  BlockArgument arg = value.cast<BlockArgument>();
+  BlockArgument arg = cast<BlockArgument>(value);
   auto existingIt = impl->blocksToIdx.find(arg.getOwner());
   assert(existingIt != impl->blocksToIdx.end() &&
          "expected valid block definition for block argument");

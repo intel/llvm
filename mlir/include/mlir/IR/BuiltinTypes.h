@@ -11,7 +11,6 @@
 
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
-#include "mlir/IR/SubElementInterfaces.h"
 
 namespace llvm {
 class BitVector;
@@ -28,6 +27,8 @@ class AffineMap;
 class FloatType;
 class IndexType;
 class IntegerType;
+class MemRefType;
+class RankedTensorType;
 class StringAttr;
 class TypeRange;
 
@@ -48,6 +49,9 @@ public:
   static FloatType getF128(MLIRContext *ctx);
   static FloatType getFloat8E5M2(MLIRContext *ctx);
   static FloatType getFloat8E4M3FN(MLIRContext *ctx);
+  static FloatType getFloat8E5M2FNUZ(MLIRContext *ctx);
+  static FloatType getFloat8E4M3FNUZ(MLIRContext *ctx);
+  static FloatType getFloat8E4M3B11FNUZ(MLIRContext *ctx);
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(Type type);
@@ -89,9 +93,20 @@ public:
   ArrayRef<int64_t> getShape() const;
 
   /// Clone this type with the given shape and element type. If the
-  /// provided shape is `None`, the current shape of the type is used.
-  TensorType cloneWith(Optional<ArrayRef<int64_t>> shape,
+  /// provided shape is `std::nullopt`, the current shape of the type is used.
+  TensorType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                        Type elementType) const;
+
+  // Make sure that base class overloads are visible.
+  using ShapedType::Trait<TensorType>::clone;
+
+  /// Return a clone of this type with the given new shape and element type.
+  /// The returned type is ranked, even if this type is unranked.
+  RankedTensorType clone(ArrayRef<int64_t> shape, Type elementType) const;
+
+  /// Return a clone of this type with the given new shape. The returned type
+  /// is ranked, even if this type is unranked.
+  RankedTensorType clone(ArrayRef<int64_t> shape) const;
 
   /// Return true if the specified element type is ok in a tensor.
   static bool isValidElementType(Type type);
@@ -100,7 +115,7 @@ public:
   static bool classof(Type type);
 
   /// Allow implicit conversion to ShapedType.
-  operator ShapedType() const { return cast<ShapedType>(); }
+  operator ShapedType() const { return llvm::cast<ShapedType>(*this); }
 };
 
 //===----------------------------------------------------------------------===//
@@ -125,9 +140,20 @@ public:
   ArrayRef<int64_t> getShape() const;
 
   /// Clone this type with the given shape and element type. If the
-  /// provided shape is `None`, the current shape of the type is used.
-  BaseMemRefType cloneWith(Optional<ArrayRef<int64_t>> shape,
+  /// provided shape is `std::nullopt`, the current shape of the type is used.
+  BaseMemRefType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                            Type elementType) const;
+
+  // Make sure that base class overloads are visible.
+  using ShapedType::Trait<BaseMemRefType>::clone;
+
+  /// Return a clone of this type with the given new shape and element type.
+  /// The returned type is ranked, even if this type is unranked.
+  MemRefType clone(ArrayRef<int64_t> shape, Type elementType) const;
+
+  /// Return a clone of this type with the given new shape. The returned type
+  /// is ranked, even if this type is unranked.
+  MemRefType clone(ArrayRef<int64_t> shape) const;
 
   /// Return true if the specified element type is ok in a memref.
   static bool isValidElementType(Type type);
@@ -143,7 +169,7 @@ public:
   unsigned getMemorySpaceAsInt() const;
 
   /// Allow implicit conversion to ShapedType.
-  operator ShapedType() const { return cast<ShapedType>(); }
+  operator ShapedType() const { return llvm::cast<ShapedType>(*this); }
 };
 
 } // namespace mlir
@@ -337,7 +363,7 @@ private:
 /// which dimensions must be kept when e.g. compute MemRef strides under
 /// rank-reducing operations. Return std::nullopt if reducedShape cannot be
 /// obtained by dropping only `1` entries in `originalShape`.
-llvm::Optional<llvm::SmallDenseSet<unsigned>>
+std::optional<llvm::SmallDenseSet<unsigned>>
 computeRankReductionMask(ArrayRef<int64_t> originalShape,
                          ArrayRef<int64_t> reducedShape);
 
@@ -365,18 +391,21 @@ SliceVerificationResult isRankReducedType(ShapedType originalType,
 //===----------------------------------------------------------------------===//
 
 inline bool BaseMemRefType::classof(Type type) {
-  return type.isa<MemRefType, UnrankedMemRefType>();
+  return llvm::isa<MemRefType, UnrankedMemRefType>(type);
 }
 
 inline bool BaseMemRefType::isValidElementType(Type type) {
   return type.isIntOrIndexOrFloat() ||
-         type.isa<ComplexType, MemRefType, VectorType, UnrankedMemRefType>() ||
-         type.isa<MemRefElementTypeInterface>();
+         llvm::isa<ComplexType, MemRefType, VectorType, UnrankedMemRefType>(
+             type) ||
+         llvm::isa<MemRefElementTypeInterface>(type);
 }
 
 inline bool FloatType::classof(Type type) {
-  return type.isa<Float8E5M2Type, Float8E4M3FNType, BFloat16Type, Float16Type,
-                  Float32Type, Float64Type, Float80Type, Float128Type>();
+  return llvm::isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+                   Float8E4M3FNUZType, Float8E4M3B11FNUZType, BFloat16Type,
+                   Float16Type, Float32Type, Float64Type, Float80Type,
+                   Float128Type>(type);
 }
 
 inline FloatType FloatType::getFloat8E5M2(MLIRContext *ctx) {
@@ -385,6 +414,18 @@ inline FloatType FloatType::getFloat8E5M2(MLIRContext *ctx) {
 
 inline FloatType FloatType::getFloat8E4M3FN(MLIRContext *ctx) {
   return Float8E4M3FNType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E5M2FNUZ(MLIRContext *ctx) {
+  return Float8E5M2FNUZType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E4M3FNUZ(MLIRContext *ctx) {
+  return Float8E4M3FNUZType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E4M3B11FNUZ(MLIRContext *ctx) {
+  return Float8E4M3B11FNUZType::get(ctx);
 }
 
 inline FloatType FloatType::getBF16(MLIRContext *ctx) {
@@ -412,7 +453,7 @@ inline FloatType FloatType::getF128(MLIRContext *ctx) {
 }
 
 inline bool TensorType::classof(Type type) {
-  return type.isa<RankedTensorType, UnrankedTensorType>();
+  return llvm::isa<RankedTensorType, UnrankedTensorType>(type);
 }
 
 //===----------------------------------------------------------------------===//

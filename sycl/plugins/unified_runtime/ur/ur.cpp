@@ -8,10 +8,13 @@
 //===-----------------------------------------------------------------===//
 
 #include "ur.hpp"
+#include <cassert>
 
 // Controls tracing UR calls from within the UR itself.
 bool PrintTrace = [] {
-  const char *Trace = std::getenv("SYCL_PI_TRACE");
+  const char *UrRet = std::getenv("UR_L0_TRACE");
+  const char *PiRet = std::getenv("SYCL_PI_TRACE");
+  const char *Trace = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   const int TraceValue = Trace ? std::stoi(Trace) : 0;
   if (TraceValue == -1 || TraceValue == 2) { // Means print all traces
     return true;
@@ -20,7 +23,7 @@ bool PrintTrace = [] {
 }();
 
 // Apparatus for maintaining immutable cache of platforms.
-std::vector<zer_platform_handle_t> *PiPlatformsCache =
-    new std::vector<zer_platform_handle_t>;
+std::vector<ur_platform_handle_t> *PiPlatformsCache =
+    new std::vector<ur_platform_handle_t>;
 SpinLock *PiPlatformsCacheMutex = new SpinLock;
 bool PiPlatformCachePopulated = false;

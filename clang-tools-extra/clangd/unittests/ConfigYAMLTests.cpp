@@ -81,12 +81,12 @@ Diagnostics:
   EXPECT_THAT(Results[1].CompileFlags.Add, ElementsAre(val("b\naz\n")));
 
   ASSERT_TRUE(Results[2].Index.Background);
-  EXPECT_EQ("Skip", *Results[2].Index.Background.value());
+  EXPECT_EQ("Skip", **Results[2].Index.Background);
   EXPECT_THAT(Results[3].Diagnostics.ClangTidy.CheckOptions,
               ElementsAre(PairVal("IgnoreMacros", "true"),
                           PairVal("example-check.ExampleOption", "0")));
   EXPECT_TRUE(Results[3].Diagnostics.UnusedIncludes);
-  EXPECT_EQ("Strict", *Results[3].Diagnostics.UnusedIncludes.value());
+  EXPECT_EQ("Strict", **Results[3].Diagnostics.UnusedIncludes);
 }
 
 TEST(ParseYAML, Locations) {
@@ -162,10 +162,10 @@ Index:
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
   ASSERT_EQ(Results.size(), 1u);
   ASSERT_TRUE(Results[0].Index.External);
-  EXPECT_FALSE(Results[0].Index.External.value()->File.has_value());
-  EXPECT_FALSE(Results[0].Index.External.value()->MountPoint.has_value());
-  EXPECT_FALSE(Results[0].Index.External.value()->Server.has_value());
-  EXPECT_THAT(*Results[0].Index.External.value()->IsNone, testing::Eq(true));
+  EXPECT_FALSE((*Results[0].Index.External)->File.has_value());
+  EXPECT_FALSE((*Results[0].Index.External)->MountPoint.has_value());
+  EXPECT_FALSE((*Results[0].Index.External)->Server.has_value());
+  EXPECT_THAT(*(*Results[0].Index.External)->IsNone, testing::Eq(true));
 }
 
 TEST(ParseYAML, ExternalBlock) {
@@ -181,10 +181,10 @@ Index:
       Fragment::parseYAML(YAML.code(), "config.yaml", Diags.callback());
   ASSERT_EQ(Results.size(), 1u);
   ASSERT_TRUE(Results[0].Index.External);
-  EXPECT_THAT(*Results[0].Index.External.value()->File, val("foo"));
-  EXPECT_THAT(*Results[0].Index.External.value()->MountPoint, val("baz"));
+  EXPECT_THAT(*(*Results[0].Index.External)->File, val("foo"));
+  EXPECT_THAT(*(*Results[0].Index.External)->MountPoint, val("baz"));
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
-  EXPECT_THAT(*Results[0].Index.External.value()->Server, val("bar"));
+  EXPECT_THAT(*(*Results[0].Index.External)->Server, val("bar"));
 }
 
 TEST(ParseYAML, AllScopes) {
@@ -246,6 +246,23 @@ InlayHints:
   EXPECT_EQ(Results[0].InlayHints.DeducedTypes, std::nullopt);
 }
 
+TEST(ParseYAML, SemanticTokens) {
+  CapturedDiags Diags;
+  Annotations YAML(R"yaml(
+SemanticTokens:
+  DisabledKinds: [ Operator, InactiveCode]
+  DisabledModifiers: Readonly
+  )yaml");
+  auto Results =
+      Fragment::parseYAML(YAML.code(), "config.yaml", Diags.callback());
+  ASSERT_THAT(Diags.Diagnostics, IsEmpty());
+  ASSERT_EQ(Results.size(), 1u);
+  EXPECT_THAT(Results[0].SemanticTokens.DisabledKinds,
+              ElementsAre(val("Operator"), val("InactiveCode")));
+  EXPECT_THAT(Results[0].SemanticTokens.DisabledModifiers,
+              ElementsAre(val("Readonly")));
+}
+
 TEST(ParseYAML, IncludesIgnoreHeader) {
   CapturedDiags Diags;
   Annotations YAML(R"yaml(
@@ -272,6 +289,33 @@ Style:
   ASSERT_EQ(Results.size(), 1u);
   EXPECT_THAT(Results[0].Style.FullyQualifiedNamespaces,
               ElementsAre(val("foo"), val("bar")));
+}
+
+TEST(ParseYAML, DiagnosticsMode) {
+  CapturedDiags Diags;
+  {
+    Annotations YAML(R"yaml(
+Diagnostics:
+  AllowStalePreamble: Yes)yaml");
+    auto Results =
+        Fragment::parseYAML(YAML.code(), "config.yaml", Diags.callback());
+    ASSERT_THAT(Diags.Diagnostics, IsEmpty());
+    ASSERT_EQ(Results.size(), 1u);
+    EXPECT_THAT(Results[0].Diagnostics.AllowStalePreamble,
+                llvm::ValueIs(val(true)));
+  }
+
+  {
+    Annotations YAML(R"yaml(
+Diagnostics:
+  AllowStalePreamble: No)yaml");
+    auto Results =
+        Fragment::parseYAML(YAML.code(), "config.yaml", Diags.callback());
+    ASSERT_THAT(Diags.Diagnostics, IsEmpty());
+    ASSERT_EQ(Results.size(), 1u);
+    EXPECT_THAT(Results[0].Diagnostics.AllowStalePreamble,
+                llvm::ValueIs(val(false)));
+  }
 }
 } // namespace
 } // namespace config

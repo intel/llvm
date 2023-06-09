@@ -165,7 +165,8 @@ typedef enum {
   LLVMTokenTypeKind,     /**< Tokens */
   LLVMScalableVectorTypeKind, /**< Scalable SIMD vector type */
   LLVMBFloatTypeKind,    /**< 16 bit brain floating point type */
-  LLVMX86_AMXTypeKind    /**< X86 AMX */
+  LLVMX86_AMXTypeKind,   /**< X86 AMX */
+  LLVMTargetExtTypeKind, /**< Target extension type */
 } LLVMTypeKind;
 
 typedef enum {
@@ -284,7 +285,8 @@ typedef enum {
   LLVMInlineAsmValueKind,
 
   LLVMInstructionValueKind,
-  LLVMPoisonValueValueKind
+  LLVMPoisonValueValueKind,
+  LLVMConstantTargetNoneValueKind,
 } LLVMValueKind;
 
 typedef enum {
@@ -471,8 +473,6 @@ typedef unsigned LLVMAttributeIndex;
 /**
  * @}
  */
-
-void LLVMInitializeCore(LLVMPassRegistryRef R);
 
 /** Deallocate and destroy all ManagedStatic variables.
     @see llvm::llvm_shutdown
@@ -1416,8 +1416,6 @@ LLVMBool LLVMIsLiteralStruct(LLVMTypeRef StructTy);
 /**
  * Obtain the element type of an array or vector type.
  *
- * This currently also works for pointer types, but this usage is deprecated.
- *
  * @see llvm::SequentialType::getElementType()
  */
 LLVMTypeRef LLVMGetElementType(LLVMTypeRef Ty);
@@ -1442,9 +1440,32 @@ unsigned LLVMGetNumContainedTypes(LLVMTypeRef Tp);
  * The created type will exist in the context that its element type
  * exists in.
  *
+ * @deprecated LLVMArrayType is deprecated in favor of the API accurate
+ * LLVMArrayType2
  * @see llvm::ArrayType::get()
  */
 LLVMTypeRef LLVMArrayType(LLVMTypeRef ElementType, unsigned ElementCount);
+
+/**
+ * Create a fixed size array type that refers to a specific type.
+ *
+ * The created type will exist in the context that its element type
+ * exists in.
+ *
+ * @see llvm::ArrayType::get()
+ */
+LLVMTypeRef LLVMArrayType2(LLVMTypeRef ElementType, uint64_t ElementCount);
+
+/**
+ * Obtain the length of an array type.
+ *
+ * This only works on types that represent arrays.
+ *
+ * @deprecated LLVMGetArrayLength is deprecated in favor of the API accurate
+ * LLVMGetArrayLength2
+ * @see llvm::ArrayType::getNumElements()
+ */
+unsigned LLVMGetArrayLength(LLVMTypeRef ArrayTy);
 
 /**
  * Obtain the length of an array type.
@@ -1453,7 +1474,7 @@ LLVMTypeRef LLVMArrayType(LLVMTypeRef ElementType, unsigned ElementCount);
  *
  * @see llvm::ArrayType::getNumElements()
  */
-unsigned LLVMGetArrayLength(LLVMTypeRef ArrayTy);
+uint64_t LLVMGetArrayLength2(LLVMTypeRef ArrayTy);
 
 /**
  * Create a pointer type that points to a defined type.
@@ -1570,6 +1591,15 @@ LLVMTypeRef LLVMVoidType(void);
 LLVMTypeRef LLVMLabelType(void);
 LLVMTypeRef LLVMX86MMXType(void);
 LLVMTypeRef LLVMX86AMXType(void);
+
+/**
+ * Create a target extension type in LLVM context.
+ */
+LLVMTypeRef LLVMTargetExtTypeInContext(LLVMContextRef C, const char *Name,
+                                       LLVMTypeRef *TypeParams,
+                                       unsigned TypeParamCount,
+                                       unsigned *IntParams,
+                                       unsigned IntParamCount);
 
 /**
  * @}
@@ -1781,6 +1811,7 @@ LLVMBool LLVMIsPoison(LLVMValueRef Val);
 LLVM_FOR_EACH_VALUE_SUBCLASS(LLVM_DECLARE_VALUE_CAST)
 
 LLVMValueRef LLVMIsAMDNode(LLVMValueRef Val);
+LLVMValueRef LLVMIsAValueAsMetadata(LLVMValueRef Val);
 LLVMValueRef LLVMIsAMDString(LLVMValueRef Val);
 
 /** Deprecated: Use LLVMGetValueName2 instead. */
@@ -2113,10 +2144,20 @@ LLVMValueRef LLVMConstStruct(LLVMValueRef *ConstantVals, unsigned Count,
 /**
  * Create a ConstantArray from values.
  *
+ * @deprecated LLVMConstArray is deprecated in favor of the API accurate
+ * LLVMConstArray2
  * @see llvm::ConstantArray::get()
  */
 LLVMValueRef LLVMConstArray(LLVMTypeRef ElementTy,
                             LLVMValueRef *ConstantVals, unsigned Length);
+
+/**
+ * Create a ConstantArray from values.
+ *
+ * @see llvm::ConstantArray::get()
+ */
+LLVMValueRef LLVMConstArray2(LLVMTypeRef ElementTy, LLVMValueRef *ConstantVals,
+                             uint64_t Length);
 
 /**
  * Create a non-anonymous ConstantStruct from values.
@@ -2221,9 +2262,6 @@ LLVMValueRef LLVMConstPointerCast(LLVMValueRef ConstantVal,
 LLVMValueRef LLVMConstIntCast(LLVMValueRef ConstantVal, LLVMTypeRef ToType,
                               LLVMBool isSigned);
 LLVMValueRef LLVMConstFPCast(LLVMValueRef ConstantVal, LLVMTypeRef ToType);
-LLVMValueRef LLVMConstSelect(LLVMValueRef ConstantCondition,
-                             LLVMValueRef ConstantIfTrue,
-                             LLVMValueRef ConstantIfFalse);
 LLVMValueRef LLVMConstExtractElement(LLVMValueRef VectorConstant,
                                      LLVMValueRef IndexConstant);
 LLVMValueRef LLVMConstInsertElement(LLVMValueRef VectorConstant,
@@ -2909,6 +2947,14 @@ unsigned LLVMGetMDNodeNumOperands(LLVMValueRef V);
  * @param Dest Destination array for operands.
  */
 void LLVMGetMDNodeOperands(LLVMValueRef V, LLVMValueRef *Dest);
+
+/**
+ * Replace an operand at a specific index in a llvm::MDNode value.
+ *
+ * @see llvm::MDNode::replaceOperandWith()
+ */
+void LLVMReplaceMDNodeOperandWith(LLVMValueRef V, unsigned Index,
+                                  LLVMMetadataRef Replacement);
 
 /** Deprecated: Use LLVMMDStringInContext2 instead. */
 LLVMValueRef LLVMMDStringInContext(LLVMContextRef C, const char *Str,
@@ -4054,8 +4100,8 @@ int LLVMGetUndefMaskElem(void);
  * Get the mask value at position Elt in the mask of a ShuffleVector
  * instruction.
  *
- * \Returns the result of \c LLVMGetUndefMaskElem() if the mask value is undef
- * at that position.
+ * \Returns the result of \c LLVMGetUndefMaskElem() if the mask value is
+ * poison at that position.
  */
 int LLVMGetMaskValue(LLVMValueRef ShuffleVectorInst, unsigned Elt);
 
@@ -4116,21 +4162,6 @@ LLVMMemoryBufferRef LLVMCreateMemoryBufferWithMemoryRangeCopy(const char *InputD
 const char *LLVMGetBufferStart(LLVMMemoryBufferRef MemBuf);
 size_t LLVMGetBufferSize(LLVMMemoryBufferRef MemBuf);
 void LLVMDisposeMemoryBuffer(LLVMMemoryBufferRef MemBuf);
-
-/**
- * @}
- */
-
-/**
- * @defgroup LLVMCCorePassRegistry Pass Registry
- * @ingroup LLVMCCore
- *
- * @{
- */
-
-/** Return the global pass registry, for use with initialization functions.
-    @see llvm::PassRegistry::getPassRegistry */
-LLVMPassRegistryRef LLVMGetGlobalPassRegistry(void);
 
 /**
  * @}

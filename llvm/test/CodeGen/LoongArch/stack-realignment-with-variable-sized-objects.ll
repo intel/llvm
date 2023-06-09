@@ -4,7 +4,7 @@
 ; RUN: llc --mtriple=loongarch64 --verify-machineinstrs < %s \
 ; RUN:   | FileCheck %s --check-prefix=LA64
 
-declare void @callee(i8*, i32*)
+declare void @callee(ptr, ptr)
 
 define void @caller(i32 %n) {
 ; LA32-LABEL: caller:
@@ -51,11 +51,10 @@ define void @caller(i32 %n) {
 ; LA64-NEXT:    srli.d $a1, $sp, 6
 ; LA64-NEXT:    slli.d $sp, $a1, 6
 ; LA64-NEXT:    move $s8, $sp
-; LA64-NEXT:    addi.w $a1, $zero, -16
-; LA64-NEXT:    lu32i.d $a1, 1
 ; LA64-NEXT:    bstrpick.d $a0, $a0, 31, 0
 ; LA64-NEXT:    addi.d $a0, $a0, 15
-; LA64-NEXT:    and $a0, $a0, $a1
+; LA64-NEXT:    bstrpick.d $a0, $a0, 32, 4
+; LA64-NEXT:    slli.d $a0, $a0, 4
 ; LA64-NEXT:    sub.d $a0, $sp, $a0
 ; LA64-NEXT:    move $sp, $a0
 ; LA64-NEXT:    addi.d $a1, $s8, 0
@@ -68,6 +67,6 @@ define void @caller(i32 %n) {
 ; LA64-NEXT:    ret
   %1 = alloca i8, i32 %n
   %2 = alloca i32, align 64
-  call void @callee(i8* %1, i32 *%2)
+  call void @callee(ptr %1, ptr %2)
   ret void
 }

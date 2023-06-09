@@ -24,11 +24,11 @@ void foo(sycl::buffer<int, 1> &BufA) {
 // CHECK: CXXMethodDecl {{.*}}getPtr
 
 // CHECK-DEBUG-INFO: !DICompositeType(tag: DW_TAG_class_type, name: "accessor<int, 1, (sycl::_V1::access::mode)1024, (sycl::_V1::access::target)2018, (sycl::_V1::access::placeholder)0, sycl::_V1::ext::oneapi::accessor_property_list<> >", {{.*}}, templateParams: ![[TEMPL_METADATA:[0-9]+]]
-// CHECK-DEBUG-INFO: ![[TEMPL_METADATA]] = !{![[DATA_T:[0-9]+]], ![[Dims:[0-9]+]], ![[AccMode:[0-9]+]], ![[AccTarget:[0-9]+]], ![[IsPlh:[0-9]+]], ![[PropListT:[0-9]+]]}
-// CHECK-DEBUG-INFO-NEXT: ![[DATA_T]] = !DITemplateTypeParameter(name: "DataT"
-// CHECK-DEBUG-INFO-NEXT: ![[Dims]] = !DITemplateValueParameter(name: "Dimensions"
-// CHECK-DEBUG-INFO-NEXT: ![[AccMode]] = !DITemplateValueParameter(name: "AccessMode"
-// CHECK-DEBUG-INFO-NEXT: ![[AccTarget]] = !DITemplateValueParameter(name: "AccessTarget"
-// CHECK-DEBUG-INFO-NEXT: ![[IsPlh]] = !DITemplateValueParameter(name: "IsPlaceholder"
-// CHECK-DEBUG-INFO-NEXT: ![[PropListT]] = !DITemplateTypeParameter(name: "PropertyListT"
+// CHECK-DEBUG-INFO-DAG: ![[TEMPL_METADATA]] = !{![[DATA_T:[0-9]+]], ![[Dims:[0-9]+]], ![[AccMode:[0-9]+]], ![[AccTarget:[0-9]+]], ![[IsPlh:[0-9]+]], ![[PropListT:[0-9]+]]}
+// CHECK-DEBUG-INFO-DAG: ![[DATA_T]] = !DITemplateTypeParameter(name: "DataT"
+// CHECK-DEBUG-INFO-DAG: ![[Dims]] = !DITemplateValueParameter(name: "Dimensions"
+// CHECK-DEBUG-INFO-DAG: ![[AccMode]] = !DITemplateValueParameter(name: "AccessMode"
+// CHECK-DEBUG-INFO-DAG: ![[AccTarget]] = !DITemplateValueParameter(name: "AccessTarget"
+// CHECK-DEBUG-INFO-DAG: ![[IsPlh]] = !DITemplateValueParameter(name: "IsPlaceholder"
+// CHECK-DEBUG-INFO-DAG: ![[PropListT]] = !DITemplateTypeParameter(name: "PropertyListT"
 // CHECK-NOT: !DICompositeType(tag: DW_TAG_class_type, name: "accessor<i

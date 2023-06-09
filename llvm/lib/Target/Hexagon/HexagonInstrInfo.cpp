@@ -33,6 +33,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
@@ -48,7 +49,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -954,8 +954,11 @@ void HexagonInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 }
 
 void HexagonInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-      MachineBasicBlock::iterator I, Register SrcReg, bool isKill, int FI,
-      const TargetRegisterClass *RC, const TargetRegisterInfo *TRI) const {
+                                           MachineBasicBlock::iterator I,
+                                           Register SrcReg, bool isKill, int FI,
+                                           const TargetRegisterClass *RC,
+                                           const TargetRegisterInfo *TRI,
+                                           Register VReg) const {
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -998,10 +1001,12 @@ void HexagonInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   }
 }
 
-void HexagonInstrInfo::loadRegFromStackSlot(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg,
-    int FI, const TargetRegisterClass *RC,
-    const TargetRegisterInfo *TRI) const {
+void HexagonInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                            MachineBasicBlock::iterator I,
+                                            Register DestReg, int FI,
+                                            const TargetRegisterClass *RC,
+                                            const TargetRegisterInfo *TRI,
+                                            Register VReg) const {
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -2078,7 +2083,7 @@ HexagonInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
     {MO_IEGOT,  "hexagon-iegot"},
     {MO_TPREL,  "hexagon-tprel"}
   };
-  return makeArrayRef(Flags);
+  return ArrayRef(Flags);
 }
 
 ArrayRef<std::pair<unsigned, const char*>>
@@ -2088,7 +2093,7 @@ HexagonInstrInfo::getSerializableBitmaskMachineOperandTargetFlags() const {
   static const std::pair<unsigned, const char*> Flags[] = {
     {HMOTF_ConstExtended, "hexagon-ext"}
   };
-  return makeArrayRef(Flags);
+  return ArrayRef(Flags);
 }
 
 Register HexagonInstrInfo::createVR(MachineFunction *MF, MVT VT) const {
@@ -2214,14 +2219,14 @@ bool HexagonInstrInfo::isDependent(const MachineInstr &ProdMI,
       if (RegA == RegB)
         return true;
 
-      if (Register::isPhysicalRegister(RegA))
-        for (MCSubRegIterator SubRegs(RegA, &HRI); SubRegs.isValid(); ++SubRegs)
-          if (RegB == *SubRegs)
+      if (RegA.isPhysical())
+        for (MCPhysReg SubReg : HRI.subregs(RegA))
+          if (RegB == SubReg)
             return true;
 
-      if (Register::isPhysicalRegister(RegB))
-        for (MCSubRegIterator SubRegs(RegB, &HRI); SubRegs.isValid(); ++SubRegs)
-          if (RegA == *SubRegs)
+      if (RegB.isPhysical())
+        for (MCPhysReg SubReg : HRI.subregs(RegB))
+          if (RegA == SubReg)
             return true;
     }
 
@@ -3839,7 +3844,7 @@ int HexagonInstrInfo::getDotOldOp(const MachineInstr &MI) const {
     // All Hexagon architectures have prediction bits on dot-new branches,
     // but only Hexagon V60+ has prediction bits on dot-old ones. Make sure
     // to pick the right opcode when converting back to dot-old.
-    if (!Subtarget.getFeatureBits()[Hexagon::ArchV60]) {
+    if (!Subtarget.hasFeature(Hexagon::ArchV60)) {
       switch (NewOp) {
       case Hexagon::J2_jumptpt:
         NewOp = Hexagon::J2_jumpt;
@@ -4297,10 +4302,10 @@ int HexagonInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
   // Get DefIdx and UseIdx for super registers.
   const MachineOperand &DefMO = DefMI.getOperand(DefIdx);
 
-  if (DefMO.isReg() && Register::isPhysicalRegister(DefMO.getReg())) {
+  if (DefMO.isReg() && DefMO.getReg().isPhysical()) {
     if (DefMO.isImplicit()) {
-      for (MCSuperRegIterator SR(DefMO.getReg(), &HRI); SR.isValid(); ++SR) {
-        int Idx = DefMI.findRegisterDefOperandIdx(*SR, false, false, &HRI);
+      for (MCPhysReg SR : HRI.superregs(DefMO.getReg())) {
+        int Idx = DefMI.findRegisterDefOperandIdx(SR, false, false, &HRI);
         if (Idx != -1) {
           DefIdx = Idx;
           break;
@@ -4310,8 +4315,8 @@ int HexagonInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
 
     const MachineOperand &UseMO = UseMI.getOperand(UseIdx);
     if (UseMO.isImplicit()) {
-      for (MCSuperRegIterator SR(UseMO.getReg(), &HRI); SR.isValid(); ++SR) {
-        int Idx = UseMI.findRegisterUseOperandIdx(*SR, false, &HRI);
+      for (MCPhysReg SR : HRI.superregs(UseMO.getReg())) {
+        int Idx = UseMI.findRegisterUseOperandIdx(SR, false, &HRI);
         if (Idx != -1) {
           UseIdx = Idx;
           break;

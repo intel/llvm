@@ -15,7 +15,8 @@
 #include <__iterator/iterator_traits.h>
 #include <__memory/addressof.h>
 #include <__memory/pointer_traits.h>
-#include <type_traits>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_convertible.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -33,7 +34,7 @@ public:
     typedef typename iterator_traits<iterator_type>::pointer           pointer;
     typedef typename iterator_traits<iterator_type>::reference         reference;
     typedef typename iterator_traits<iterator_type>::iterator_category iterator_category;
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
     typedef contiguous_iterator_tag                                    iterator_concept;
 #endif
 
@@ -264,7 +265,7 @@ __wrap_iter<_Iter1> operator+(typename __wrap_iter<_Iter1>::difference_type __n,
 
 #if _LIBCPP_STD_VER <= 17
 template <class _It>
-struct __is_cpp17_contiguous_iterator<__wrap_iter<_It> > : true_type {};
+struct __libcpp_is_contiguous_iterator<__wrap_iter<_It> > : true_type {};
 #endif
 
 template <class _It>

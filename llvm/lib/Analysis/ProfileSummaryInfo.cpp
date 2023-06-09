@@ -37,8 +37,13 @@ static cl::opt<bool> PartialProfile(
     "partial-profile", cl::Hidden, cl::init(false),
     cl::desc("Specify the current profile is used as a partial profile."));
 
+// TODO: Remove this support completely after ensuring that disabling by
+// default has no unexpected effects. This causes the global number of basic
+// blocks to be recorded in the ThinLTO summary, which breaks caching in the
+// distributed ThinLTO case.
 cl::opt<bool> ScalePartialSampleProfileWorkingSetSize(
-    "scale-partial-sample-profile-working-set-size", cl::Hidden, cl::init(true),
+    "scale-partial-sample-profile-working-set-size", cl::Hidden,
+    cl::init(false),
     cl::desc(
         "If true, scale the working set size of the partial sample profile "
         "by the partial profile ratio to reflect the size of the program "
@@ -265,7 +270,7 @@ void ProfileSummaryInfo::computeThresholds() {
   }
 }
 
-Optional<uint64_t>
+std::optional<uint64_t>
 ProfileSummaryInfo::computeThreshold(int PercentileCutoff) const {
   if (!hasProfileSummary())
     return std::nullopt;
@@ -282,19 +287,19 @@ ProfileSummaryInfo::computeThreshold(int PercentileCutoff) const {
 }
 
 bool ProfileSummaryInfo::hasHugeWorkingSetSize() const {
-  return HasHugeWorkingSetSize && HasHugeWorkingSetSize.value();
+  return HasHugeWorkingSetSize && *HasHugeWorkingSetSize;
 }
 
 bool ProfileSummaryInfo::hasLargeWorkingSetSize() const {
-  return HasLargeWorkingSetSize && HasLargeWorkingSetSize.value();
+  return HasLargeWorkingSetSize && *HasLargeWorkingSetSize;
 }
 
 bool ProfileSummaryInfo::isHotCount(uint64_t C) const {
-  return HotCountThreshold && C >= HotCountThreshold.value();
+  return HotCountThreshold && C >= *HotCountThreshold;
 }
 
 bool ProfileSummaryInfo::isColdCount(uint64_t C) const {
-  return ColdCountThreshold && C <= ColdCountThreshold.value();
+  return ColdCountThreshold && C <= *ColdCountThreshold;
 }
 
 template <bool isHot>
@@ -302,9 +307,9 @@ bool ProfileSummaryInfo::isHotOrColdCountNthPercentile(int PercentileCutoff,
                                                        uint64_t C) const {
   auto CountThreshold = computeThreshold(PercentileCutoff);
   if (isHot)
-    return CountThreshold && C >= CountThreshold.value();
+    return CountThreshold && C >= *CountThreshold;
   else
-    return CountThreshold && C <= CountThreshold.value();
+    return CountThreshold && C <= *CountThreshold;
 }
 
 bool ProfileSummaryInfo::isHotCountNthPercentile(int PercentileCutoff,

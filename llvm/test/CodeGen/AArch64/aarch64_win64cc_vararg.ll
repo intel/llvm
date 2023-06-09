@@ -25,20 +25,19 @@ define win64cc void @pass_va(i32 %count, ...) nounwind {
 ; DARWIN-DAG:     stp x5, x6, [sp, #72]
 ; DARWIN-DAG:     str x7, [sp, #88]
 entry:
-  %ap = alloca i8*, align 8
-  %ap1 = bitcast i8** %ap to i8*
-  call void @llvm.va_start(i8* %ap1)
-  %ap2 = load i8*, i8** %ap, align 8
-  call void @other_func(i8* %ap2)
+  %ap = alloca ptr, align 8
+  call void @llvm.va_start(ptr %ap)
+  %ap2 = load ptr, ptr %ap, align 8
+  call void @other_func(ptr %ap2)
   ret void
 }
 
-declare void @other_func(i8*) local_unnamed_addr
+declare void @other_func(ptr) local_unnamed_addr
 
-declare void @llvm.va_start(i8*) nounwind
-declare void @llvm.va_copy(i8*, i8*) nounwind
+declare void @llvm.va_start(ptr) nounwind
+declare void @llvm.va_copy(ptr, ptr) nounwind
 
-define win64cc i8* @f9(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6, i64 %a7, i64 %a8, ...) nounwind {
+define win64cc ptr @f9(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6, i64 %a7, i64 %a8, ...) nounwind {
 ; CHECK-LABEL: f9:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    str x18, [sp, #-16]! // 8-byte Folded Spill
@@ -58,14 +57,13 @@ define win64cc i8* @f9(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64
 ; DARWIN-NEXT:   ldr x18, [sp], #16                  ; 8-byte Folded Reload
 ; DARWIN-NEXT:   ret
 entry:
-  %ap = alloca i8*, align 8
-  %ap1 = bitcast i8** %ap to i8*
-  call void @llvm.va_start(i8* %ap1)
-  %ap2 = load i8*, i8** %ap, align 8
-  ret i8* %ap2
+  %ap = alloca ptr, align 8
+  call void @llvm.va_start(ptr %ap)
+  %ap2 = load ptr, ptr %ap, align 8
+  ret ptr %ap2
 }
 
-define win64cc i8* @f8(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6, i64 %a7, ...) nounwind {
+define win64cc ptr @f8(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6, i64 %a7, ...) nounwind {
 ; CHECK-LABEL: f8:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    str x18, [sp, #-16]! // 8-byte Folded Spill
@@ -85,14 +83,13 @@ define win64cc i8* @f8(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64
 ; DARWIN-NEXT:   ldr x18, [sp], #16                  ; 8-byte Folded Reload
 ; DARWIN-NEXT:   ret
 entry:
-  %ap = alloca i8*, align 8
-  %ap1 = bitcast i8** %ap to i8*
-  call void @llvm.va_start(i8* %ap1)
-  %ap2 = load i8*, i8** %ap, align 8
-  ret i8* %ap2
+  %ap = alloca ptr, align 8
+  call void @llvm.va_start(ptr %ap)
+  %ap2 = load ptr, ptr %ap, align 8
+  ret ptr %ap2
 }
 
-define win64cc i8* @f7(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6, ...) nounwind {
+define win64cc ptr @f7(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6, ...) nounwind {
 ; CHECK-LABEL: f7:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    str x18, [sp, #-32]! // 8-byte Folded Spill
@@ -114,9 +111,8 @@ define win64cc i8* @f7(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64
 ; DARWIN-NEXT:   ldr x18, [sp], #32                  ; 8-byte Folded Reload
 ; DARWIN-NEXT:   ret
 entry:
-  %ap = alloca i8*, align 8
-  %ap1 = bitcast i8** %ap to i8*
-  call void @llvm.va_start(i8* %ap1)
-  %ap2 = load i8*, i8** %ap, align 8
-  ret i8* %ap2
+  %ap = alloca ptr, align 8
+  call void @llvm.va_start(ptr %ap)
+  %ap2 = load ptr, ptr %ap, align 8
+  ret ptr %ap2
 }

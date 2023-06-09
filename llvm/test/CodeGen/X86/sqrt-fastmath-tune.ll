@@ -5,6 +5,7 @@
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=skylake     | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=znver1      | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=znver3      | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
+; RUN: llc < %s -mtriple=x86_64-- -mcpu=znver4      | FileCheck %s --check-prefixes=FAST-SCALAR,FAST-VECTOR
 ; RUN: llc < %s -mtriple=x86_64-- -mcpu=x86-64      | FileCheck %s --check-prefixes=X86-64
 
 define float @f32_no_daz(float %f) #0 {
@@ -63,7 +64,7 @@ define <4 x float> @v4f32_no_daz(<4 x float> %f) #0 {
 ; SNB-NEXT:    vaddps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
 ; SNB-NEXT:    vmulps %xmm1, %xmm3, %xmm1
 ; SNB-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
-; SNB-NEXT:    vmovaps {{.*#+}} xmm2 = [1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38]
+; SNB-NEXT:    vbroadcastss {{.*#+}} xmm2 = [1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38]
 ; SNB-NEXT:    vcmpleps %xmm0, %xmm2, %xmm0
 ; SNB-NEXT:    vandps %xmm1, %xmm0, %xmm0
 ; SNB-NEXT:    retq
@@ -151,7 +152,7 @@ define <8 x float> @v8f32_no_daz(<8 x float> %f) #0 {
 ; SNB-NEXT:    vaddps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm1, %ymm1
 ; SNB-NEXT:    vmulps %ymm1, %ymm3, %ymm1
 ; SNB-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
-; SNB-NEXT:    vmovaps {{.*#+}} ymm2 = [1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38]
+; SNB-NEXT:    vbroadcastss {{.*#+}} ymm2 = [1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38,1.17549435E-38]
 ; SNB-NEXT:    vcmpleps %ymm0, %ymm2, %ymm0
 ; SNB-NEXT:    vandps %ymm1, %ymm0, %ymm0
 ; SNB-NEXT:    retq

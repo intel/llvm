@@ -19,6 +19,9 @@
 
 namespace llvm {
 
+class AMDGPUSubtarget;
+class GCNSubtarget;
+
 class AMDGPUMachineFunction : public MachineFunctionInfo {
   /// A map to keep track of local memory objects and their offsets within the
   /// local memory space.
@@ -60,7 +63,7 @@ protected:
   bool WaveLimiter = false;
 
 public:
-  AMDGPUMachineFunction(const MachineFunction &MF);
+  AMDGPUMachineFunction(const Function &F, const AMDGPUSubtarget &ST);
 
   uint64_t getExplicitKernArgSize() const {
     return ExplicitKernArgSize;
@@ -103,24 +106,12 @@ public:
 
   void allocateKnownAddressLDSGlobal(const Function &F);
 
-  // A kernel function may have an associated LDS allocation, and a kernel-scope
-  // LDS allocation must have an associated kernel function
-
-  // LDS allocation should have an associated kernel function
-  static const Function *
-  getKernelLDSFunctionFromGlobal(const GlobalVariable &GV);
-  static const GlobalVariable *
-  getKernelLDSGlobalFromFunction(const Function &F);
-
-  // Module or kernel scope LDS variable
-  static bool isKnownAddressLDSGlobal(const GlobalVariable &GV);
-  static unsigned calculateKnownAddressOfLDSGlobal(const GlobalVariable &GV);
-
-  static Optional<uint32_t> getLDSKernelIdMetadata(const Function &F);
+  static std::optional<uint32_t> getLDSKernelIdMetadata(const Function &F);
+  static std::optional<uint32_t> getLDSAbsoluteAddress(const GlobalValue &GV);
 
   Align getDynLDSAlign() const { return DynLDSAlign; }
 
-  void setDynLDSAlign(const DataLayout &DL, const GlobalVariable &GV);
+  void setDynLDSAlign(const Function &F, const GlobalVariable &GV);
 };
 
 }

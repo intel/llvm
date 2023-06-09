@@ -8,6 +8,7 @@
 declare i32 @llvm.bitreverse.i32(i32) readnone
 declare i64 @llvm.bitreverse.i64(i64) readnone
 declare <4 x i32> @llvm.bitreverse.v4i32(<4 x i32>) readnone
+declare i32 @llvm.bswap.i32(i32) readnone
 
 ; fold (bitreverse undef) -> undef
 define i32 @test_undef() nounwind {
@@ -428,7 +429,7 @@ define <4 x i32> @test_demandedbits_bitreverse(<4 x i32> %a0) nounwind {
 ; X64-LABEL: test_demandedbits_bitreverse:
 ; X64:       # %bb.0:
 ; X64-NEXT:    vpshufb {{.*#+}} xmm0 = xmm0[3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12]
-; X64-NEXT:    vmovdqa {{.*#+}} xmm1 = [15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15]
+; X64-NEXT:    vbroadcastss {{.*#+}} xmm1 = [15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15]
 ; X64-NEXT:    vpand %xmm1, %xmm0, %xmm2
 ; X64-NEXT:    vmovdqa {{.*#+}} xmm3 = [0,128,64,192,32,160,96,224,16,144,80,208,48,176,112,240]
 ; X64-NEXT:    vpshufb %xmm2, %xmm3, %xmm2

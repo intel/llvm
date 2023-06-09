@@ -174,6 +174,14 @@ func.func @failedSameOperandAndResultType_operand_result_mismatch(%t10 : tensor<
 
 // -----
 
+func.func @failedSameOperandAndResultType_encoding_mismatch(%t10 : tensor<10xf32>, %t20 : tensor<10xf32>) {
+  // expected-error@+1 {{requires the same encoding for all operands and results}}
+  "test.same_operand_and_result_type"(%t10, %t20) : (tensor<10xf32>, tensor<10xf32>) -> tensor<10xf32, "enc">
+  return
+}
+
+// -----
+
 func.func @failedElementwiseMappable_different_rankedness(%arg0: tensor<?xf32>, %arg1: tensor<*xf32>) {
   // expected-error@+1 {{all non-scalar operands/results must have the same shape and base type}}
   %0 = "test.elementwise_mappable"(%arg0, %arg1) : (tensor<?xf32>, tensor<*xf32>) -> tensor<*xf32>
@@ -337,8 +345,8 @@ func.func @failedSingleBlockImplicitTerminator_missing_terminator() {
 
 // -----
 
-// expected-error@+1 {{op attribute 'sym_visibility' failed to satisfy constraint: string attribute}}
-"test.symbol"() {sym_name = "foo_2", sym_visibility} : () -> ()
+// expected-error@+1 {{invalid properties {sym_name = "foo_2", sym_visibility} for op test.symbol: Invalid attribute `sym_visibility` in property conversion: unit}}
+"test.symbol"() <{sym_name = "foo_2", sym_visibility}> : () -> ()
 
 // -----
 
@@ -382,14 +390,14 @@ func.func @failedMissingOperandSizeAttr(%arg: i32) {
 // -----
 
 func.func @failedOperandSizeAttrWrongType(%arg: i32) {
-  // expected-error @+1 {{requires dense i32 array attribute 'operand_segment_sizes'}}
+  // expected-error @+1 {{attribute 'operand_segment_sizes' failed to satisfy constraint: i32 dense array attribute}}
   "test.attr_sized_operands"(%arg, %arg, %arg, %arg) {operand_segment_sizes = 10} : (i32, i32, i32, i32) -> ()
 }
 
 // -----
 
 func.func @failedOperandSizeAttrWrongElementType(%arg: i32) {
-  // expected-error @+1 {{requires dense i32 array attribute 'operand_segment_sizes'}}
+  // expected-error @+1 {{attribute 'operand_segment_sizes' failed to satisfy constraint: i32 dense array attribute}}
   "test.attr_sized_operands"(%arg, %arg, %arg, %arg) {operand_segment_sizes = array<i64: 1, 1, 1, 1>} : (i32, i32, i32, i32) -> ()
 }
 
@@ -647,7 +655,7 @@ func.func @failed_type_traits() {
 
 // Check that we can query traits in attributes
 func.func @succeeded_attr_traits() {
-  // CHECK: "test.attr_with_trait"() {attr = #test.attr_with_trait} : () -> ()
+  // CHECK: "test.attr_with_trait"() <{attr = #test.attr_with_trait}> : () -> ()
   "test.attr_with_trait"() {attr = #test.attr_with_trait} : () -> ()
   return
 }

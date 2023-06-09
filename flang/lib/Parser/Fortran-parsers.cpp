@@ -191,7 +191,8 @@ TYPE_CONTEXT_PARSER("declaration type spec"_en_US,
                 // the structure includes the surrounding slashes to avoid
                 // name clashes.
                 construct<DeclarationTypeSpec::Record>(
-                    "RECORD" >> sourced("/" >> name / "/")))))
+                    "RECORD" >> sourced("/" >> name / "/")))) ||
+        construct<DeclarationTypeSpec>(vectorTypeSpec))
 
 // R704 intrinsic-type-spec ->
 //        integer-type-spec | REAL [kind-selector] | DOUBLE PRECISION |
@@ -218,6 +219,28 @@ TYPE_CONTEXT_PARSER("intrinsic type spec"_en_US,
             construct<IntrinsicTypeSpec>(construct<IntegerTypeSpec>(
                 "BYTE" >> construct<std::optional<KindSelector>>(pure(1)))))))
 
+// Extension: Vector type
+// VECTOR(intrinsic-type-spec) | __VECTOR_PAIR | __VECTOR_QUAD
+TYPE_CONTEXT_PARSER("vector type spec"_en_US,
+    extension<LanguageFeature::PPCVector>(
+        "nonstandard usage: Vector type"_port_en_US,
+        first(construct<VectorTypeSpec>(intrinsicVectorTypeSpec),
+            construct<VectorTypeSpec>("__VECTOR_PAIR" >>
+                construct<VectorTypeSpec::PairVectorTypeSpec>()),
+            construct<VectorTypeSpec>("__VECTOR_QUAD" >>
+                construct<VectorTypeSpec::QuadVectorTypeSpec>()))))
+
+// VECTOR(integer-type-spec) | VECTOR(real-type-spec) |
+// VECTOR(unsigend-type-spec) |
+TYPE_PARSER(construct<IntrinsicVectorTypeSpec>("VECTOR" >>
+    parenthesized(construct<VectorElementType>(integerTypeSpec) ||
+        construct<VectorElementType>(unsignedTypeSpec) ||
+        construct<VectorElementType>(construct<IntrinsicTypeSpec::Real>(
+            "REAL" >> maybe(kindSelector))))))
+
+// UNSIGNED type
+TYPE_PARSER(construct<UnsignedTypeSpec>("UNSIGNED" >> maybe(kindSelector)))
+
 // R705 integer-type-spec -> INTEGER [kind-selector]
 TYPE_PARSER(construct<IntegerTypeSpec>("INTEGER" >> maybe(kindSelector)))
 
@@ -230,19 +253,24 @@ TYPE_PARSER(construct<KindSelector>(
         construct<KindSelector>(construct<KindSelector::StarSize>(
             "*" >> digitString64 / spaceCheck))))
 
+constexpr auto noSpace{
+    recovery(withMessage("invalid space"_err_en_US, !" "_ch), space)};
+
 // R707 signed-int-literal-constant -> [sign] int-literal-constant
-TYPE_PARSER(sourced(construct<SignedIntLiteralConstant>(
-    SignedIntLiteralConstantWithoutKind{}, maybe(underscore >> kindParam))))
+TYPE_PARSER(sourced(
+    construct<SignedIntLiteralConstant>(SignedIntLiteralConstantWithoutKind{},
+        maybe(noSpace >> underscore >> noSpace >> kindParam))))
 
 // R708 int-literal-constant -> digit-string [_ kind-param]
 // The negated look-ahead for a trailing underscore prevents misrecognition
 // when the digit string is a numeric kind parameter of a character literal.
-TYPE_PARSER(construct<IntLiteralConstant>(
-    space >> digitString, maybe(underscore >> kindParam) / !underscore))
+TYPE_PARSER(construct<IntLiteralConstant>(space >> digitString,
+    maybe(underscore >> noSpace >> kindParam) / !underscore))
 
 // R709 kind-param -> digit-string | scalar-int-constant-name
 TYPE_PARSER(construct<KindParam>(digitString64) ||
-    construct<KindParam>(scalar(integer(constant(name)))))
+    construct<KindParam>(
+        scalar(integer(constant(sourced(rawName >> construct<Name>()))))))
 
 // R712 sign -> + | -
 // N.B. A sign constitutes a whole token, so a space is allowed in free form
@@ -278,7 +306,7 @@ TYPE_CONTEXT_PARSER("REAL literal constant"_en_US,
                         "."_ch >> digitString >> maybe(exponentPart) >> ok ||
                         digitString >> exponentPart >> ok) >>
                 construct<RealLiteralConstant::Real>()),
-            maybe(underscore >> kindParam)))
+            maybe(noSpace >> underscore >> noSpace >> kindParam)))
 
 // R718 complex-literal-constant -> ( real-part , imag-part )
 TYPE_CONTEXT_PARSER("COMPLEX literal constant"_en_US,
@@ -343,10 +371,10 @@ TYPE_CONTEXT_PARSER(
 // R725 logical-literal-constant ->
 //        .TRUE. [_ kind-param] | .FALSE. [_ kind-param]
 // Also accept .T. and .F. as extensions.
-TYPE_PARSER(construct<LogicalLiteralConstant>(
-                logicalTRUE, maybe(underscore >> kindParam)) ||
+TYPE_PARSER(construct<LogicalLiteralConstant>(logicalTRUE,
+                maybe(noSpace >> underscore >> noSpace >> kindParam)) ||
     construct<LogicalLiteralConstant>(
-        logicalFALSE, maybe(underscore >> kindParam)))
+        logicalFALSE, maybe(noSpace >> underscore >> noSpace >> kindParam)))
 
 // R726 derived-type-def ->
 //        derived-type-stmt [type-param-def-stmt]...
@@ -1208,19 +1236,24 @@ TYPE_PARSER(construct<StatOrErrmsg>("STAT =" >> statVariable) ||
     construct<StatOrErrmsg>("ERRMSG =" >> msgVariable))
 
 // Directives, extensions, and deprecated statements
-// !DIR$ IGNORE_TKR [ [(tkr...)] name ]...
+// !DIR$ IGNORE_TKR [ [(tkrdmac...)] name ]...
+// !DIR$ LOOP COUNT (n1[, n2]...)
 // !DIR$ name...
 constexpr auto beginDirective{skipStuffBeforeStatement >> "!"_ch};
-constexpr auto endDirective{space >> endOfLine};
 constexpr auto ignore_tkr{
     "DIR$ IGNORE_TKR" >> optionalList(construct<CompilerDirective::IgnoreTKR>(
-                             defaulted(parenthesized(some("tkr"_ch))), name))};
+                             maybe(parenthesized(many(letter))), name))};
+constexpr auto loopCount{
+    "DIR$ LOOP COUNT" >> construct<CompilerDirective::LoopCount>(
+                             parenthesized(nonemptyList(digitString64)))};
+
 TYPE_PARSER(beginDirective >>
     sourced(construct<CompilerDirective>(ignore_tkr) ||
+        construct<CompilerDirective>(loopCount) ||
         construct<CompilerDirective>(
             "DIR$" >> many(construct<CompilerDirective::NameValue>(name,
                           maybe(("="_tok || ":"_tok) >> digitString64))))) /
-        endDirective)
+        endOfStmt)
 
 TYPE_PARSER(extension<LanguageFeature::CrayPointer>(
     "nonstandard usage: based POINTER"_port_en_US,

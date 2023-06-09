@@ -42,10 +42,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_11_0_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
 // RUN:             -DMAC_STR=ICLLP
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_ehl -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_11_2_0 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=tgllp \
 // RUN:             -DMAC_STR=TGLLP
@@ -166,12 +162,13 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1031 -DMAC_STR=GFX1031
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1032 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1032 -DMAC_STR=GFX1032
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1034 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1034 -DMAC_STR=GFX1034
 // MACRO_AMD: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
 // DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]{{.*}}"
 // MACRO_AMD: clang{{.*}} "-fsycl-is-host"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
-
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
@@ -381,3 +378,16 @@
 // CHECK_PHASES_MIX: 26: file-table-tform, {22, 25}, tempfiletable, (device-sycl)
 // CHECK_PHASES_MIX: 27: clang-offload-wrapper, {26}, object, (device-sycl)
 // CHECK_PHASES_MIX: 28: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_gen-unknown-unknown:skl)" {20}, "device-sycl (spir64_gen-unknown-unknown)" {27}, image
+
+/// Check that ocloc backend option settings only occur for the expected
+/// toolchains when mixing spir64_gen and intel_gpu
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg1,spir64_gen,intel_gpu_skl \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device skl -DSKL" \
+// RUN:   -Xsycl-target-backend=intel_gpu_dg1 "-DDG1" \
+// RUN:   -Xsycl-target-backend=intel_gpu_skl "-DSKL2" \
+// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS
+// CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "dg1" "-DDG1"
+// CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL"
+// CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL2"

@@ -33,6 +33,7 @@ def Toy_Dialect : Dialect {
   // We set this bit to generate the declarations for the dialect's type parsing
   // and printing hooks.
   let useDefaultTypePrinterParser = 1;
+
 }
 
 // Base class for toy dialect operations. This operation inherits from the base
@@ -47,7 +48,7 @@ class Toy_Op<string mnemonic, list<Trait> traits = []> :
 // using StructType in a similar way to Tensor or MemRef. We use `DialectType`
 // to demarcate the StructType as belonging to the Toy dialect.
 def Toy_StructType :
-    DialectType<Toy_Dialect, CPred<"$_self.isa<StructType>()">,
+    DialectType<Toy_Dialect, CPred<"::llvm::isa<StructType>($_self)">,
                 "Toy struct type">;
 
 // Provide a definition of the types that are used within the Toy dialect.
@@ -165,7 +166,7 @@ def CastOp : Toy_Op<"cast", [
 
 def FuncOp : Toy_Op<"func", [
     DeclareOpInterfaceMethods<CallableOpInterface>, FunctionOpInterface,
-    IsolatedFromAbove, Symbol
+    IsolatedFromAbove
   ]> {
   let summary = "user defined function operation";
   let description = [{

@@ -1441,6 +1441,12 @@ DynamicSection<ELFT>::computeContents() {
       addInt(DT_AARCH64_BTI_PLT, 0);
     if (config->zPacPlt)
       addInt(DT_AARCH64_PAC_PLT, 0);
+
+    if (config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
+      addInt(DT_AARCH64_MEMTAG_MODE, config->androidMemtagMode == NT_MEMTAG_LEVEL_ASYNC);
+      addInt(DT_AARCH64_MEMTAG_HEAP, config->androidMemtagHeap);
+      addInt(DT_AARCH64_MEMTAG_STACK, config->androidMemtagStack);
+    }
   }
 
   addInSec(DT_SYMTAB, *part.dynSymTab);
@@ -1558,9 +1564,11 @@ int64_t DynamicReloc::computeAddend() const {
     assert(sym != nullptr);
     return addend;
   case AddendOnlyWithTargetVA:
-  case AgainstSymbolWithTargetVA:
-    return InputSection::getRelocTargetVA(inputSec->file, type, addend,
-                                          getOffset(), *sym, expr);
+  case AgainstSymbolWithTargetVA: {
+    uint64_t ca = InputSection::getRelocTargetVA(inputSec->file, type, addend,
+                                                 getOffset(), *sym, expr);
+    return config->is64 ? ca : SignExtend64<32>(ca);
+  }
   case MipsMultiGotPage:
     assert(sym == nullptr);
     return getMipsPageAddr(outputSec->addr) + addend;
@@ -2777,12 +2785,12 @@ createSymbols(
   // speed it up.
   constexpr size_t numShards = 32;
   const size_t concurrency =
-      PowerOf2Floor(std::min<size_t>(config->threadCount, numShards));
+      llvm::bit_floor(std::min<size_t>(config->threadCount, numShards));
 
   // A sharded map to uniquify symbols by name.
   auto map =
       std::make_unique<DenseMap<CachedHashStringRef, size_t>[]>(numShards);
-  size_t shift = 32 - countTrailingZeros(numShards);
+  size_t shift = 32 - llvm::countr_zero(numShards);
 
   // Instantiate GdbSymbols while uniqufying them by name.
   auto symbols = std::make_unique<SmallVector<GdbSymbol, 0>[]>(numShards);
@@ -2810,7 +2818,7 @@ createSymbols(
   });
 
   size_t numSymbols = 0;
-  for (ArrayRef<GdbSymbol> v : makeArrayRef(symbols.get(), numShards))
+  for (ArrayRef<GdbSymbol> v : ArrayRef(symbols.get(), numShards))
     numSymbols += v.size();
 
   // The return type is a flattened vector, so we'll copy each vector
@@ -2818,7 +2826,7 @@ createSymbols(
   SmallVector<GdbSymbol, 0> ret;
   ret.reserve(numSymbols);
   for (SmallVector<GdbSymbol, 0> &vec :
-       makeMutableArrayRef(symbols.get(), numShards))
+       MutableArrayRef(symbols.get(), numShards))
     for (GdbSymbol &sym : vec)
       ret.push_back(std::move(sym));
 
@@ -3265,7 +3273,7 @@ void MergeNoTailSection::finalizeContents() {
   // Concurrency level. Must be a power of 2 to avoid expensive modulo
   // operations in the following tight loop.
   const size_t concurrency =
-      PowerOf2Floor(std::min<size_t>(config->threadCount, numShards));
+      llvm::bit_floor(std::min<size_t>(config->threadCount, numShards));
 
   // Add section pieces to the builders.
   parallelFor(0, concurrency, [&](size_t threadId) {
@@ -3403,17 +3411,12 @@ static bool isExtabRef(uint32_t unwind) {
 // EXIDX_CANTUNWIND entries are represented by nullptr as they do not have an
 // InputSection.
 static bool isDuplicateArmExidxSec(InputSection *prev, InputSection *cur) {
-
-  struct ExidxEntry {
-    ulittle32_t fn;
-    ulittle32_t unwind;
-  };
   // Get the last table Entry from the previous .ARM.exidx section. If Prev is
   // nullptr then it will be a synthesized EXIDX_CANTUNWIND entry.
-  ExidxEntry prevEntry = {ulittle32_t(0), ulittle32_t(1)};
+  uint32_t prevUnwind = 1;
   if (prev)
-    prevEntry = prev->getDataAs<ExidxEntry>().back();
-  if (isExtabRef(prevEntry.unwind))
+    prevUnwind = read32(prev->content().data() + prev->content().size() - 4);
+  if (isExtabRef(prevUnwind))
     return false;
 
   // We consider the unwind instructions of an .ARM.exidx table entry
@@ -3426,12 +3429,13 @@ static bool isDuplicateArmExidxSec(InputSection *prev, InputSection *cur) {
 
   // If Cur is nullptr then this is synthesized EXIDX_CANTUNWIND entry.
   if (cur == nullptr)
-    return prevEntry.unwind == 1;
+    return prevUnwind == 1;
 
-  for (const ExidxEntry entry : cur->getDataAs<ExidxEntry>())
-    if (isExtabRef(entry.unwind) || entry.unwind != prevEntry.unwind)
+  for (uint32_t offset = 4; offset < (uint32_t)cur->content().size(); offset +=8) {
+    uint32_t curUnwind = read32(cur->content().data() + offset);
+    if (isExtabRef(curUnwind) || curUnwind != prevUnwind)
       return false;
-
+  }
   // All table entries in this .ARM.exidx Section can be merged into the
   // previous Section.
   return true;
@@ -3494,7 +3498,7 @@ void ARMExidxSyntheticSection::finalizeContents() {
     }
     executableSections = std::move(selectedSections);
   }
-
+  // offset is within the SyntheticSection.
   size_t offset = 0;
   size = 0;
   for (InputSection *isec : executableSections) {
@@ -3525,27 +3529,35 @@ InputSection *ARMExidxSyntheticSection::getLinkOrderDep() const {
 //     the table to terminate the address range of the final entry.
 void ARMExidxSyntheticSection::writeTo(uint8_t *buf) {
 
-  const uint8_t cantUnwindData[8] = {0, 0, 0, 0,  // PREL31 to target
-                                     1, 0, 0, 0}; // EXIDX_CANTUNWIND
-
+  // A linker generated CANTUNWIND entry is made up of two words:
+  // 0x0 with R_ARM_PREL31 relocation to target.
+  // 0x1 with EXIDX_CANTUNWIND.
   uint64_t offset = 0;
   for (InputSection *isec : executableSections) {
     assert(isec->getParent() != nullptr);
     if (InputSection *d = findExidxSection(isec)) {
-      memcpy(buf + offset, d->content().data(), d->content().size());
-      target->relocateAlloc(*d, buf + d->outSecOff);
+      for (int dataOffset = 0; dataOffset != (int)d->content().size();
+           dataOffset += 4)
+        write32(buf + offset + dataOffset,
+                read32(d->content().data() + dataOffset));
+      // Recalculate outSecOff as finalizeAddressDependentContent()
+      // may have altered syntheticSection outSecOff.
+      d->outSecOff = offset + outSecOff;
+      target->relocateAlloc(*d, buf + offset);
       offset += d->getSize();
     } else {
       // A Linker generated CANTUNWIND section.
-      memcpy(buf + offset, cantUnwindData, sizeof(cantUnwindData));
+      write32(buf + offset + 0, 0x0);
+      write32(buf + offset + 4, 0x1);
       uint64_t s = isec->getVA();
       uint64_t p = getVA() + offset;
       target->relocateNoSym(buf + offset, R_ARM_PREL31, s - p);
       offset += 8;
     }
   }
-  // Write Sentinel.
-  memcpy(buf + offset, cantUnwindData, sizeof(cantUnwindData));
+  // Write Sentinel CANTUNWIND entry.
+  write32(buf + offset + 0, 0x0);
+  write32(buf + offset + 4, 0x1);
   uint64_t s = sentinel->getVA(sentinel->getSize());
   uint64_t p = getVA() + offset;
   target->relocateNoSym(buf + offset, R_ARM_PREL31, s - p);
@@ -3698,7 +3710,7 @@ static uint8_t getAbiVersion() {
 
   if (config->emachine == EM_AMDGPU && !ctx.objectFiles.empty()) {
     uint8_t ver = ctx.objectFiles[0]->abiVersion;
-    for (InputFile *file : makeArrayRef(ctx.objectFiles).slice(1))
+    for (InputFile *file : ArrayRef(ctx.objectFiles).slice(1))
       if (file->abiVersion != ver)
         error("incompatible ABI version: " + toString(file));
     return ver;
@@ -3835,16 +3847,16 @@ void InStruct::reset() {
 
 constexpr char kMemtagAndroidNoteName[] = "Android";
 void MemtagAndroidNote::writeTo(uint8_t *buf) {
-  static_assert(sizeof(kMemtagAndroidNoteName) == 8,
-                "ABI check for Android 11 & 12.");
-  assert((config->androidMemtagStack || config->androidMemtagHeap) &&
-         "Should only be synthesizing a note if heap || stack is enabled.");
+  static_assert(
+      sizeof(kMemtagAndroidNoteName) == 8,
+      "Android 11 & 12 have an ABI that the note name is 8 bytes long. Keep it "
+      "that way for backwards compatibility.");
 
   write32(buf, sizeof(kMemtagAndroidNoteName));
   write32(buf + 4, sizeof(uint32_t));
   write32(buf + 8, ELF::NT_ANDROID_TYPE_MEMTAG);
   memcpy(buf + 12, kMemtagAndroidNoteName, sizeof(kMemtagAndroidNoteName));
-  buf += 12 + sizeof(kMemtagAndroidNoteName);
+  buf += 12 + alignTo(sizeof(kMemtagAndroidNoteName), 4);
 
   uint32_t value = 0;
   value |= config->androidMemtagMode;
@@ -3859,7 +3871,7 @@ void MemtagAndroidNote::writeTo(uint8_t *buf) {
 
 size_t MemtagAndroidNote::getSize() const {
   return sizeof(llvm::ELF::Elf64_Nhdr) +
-         /*namesz=*/sizeof(kMemtagAndroidNoteName) +
+         /*namesz=*/alignTo(sizeof(kMemtagAndroidNoteName), 4) +
          /*descsz=*/sizeof(uint32_t);
 }
 

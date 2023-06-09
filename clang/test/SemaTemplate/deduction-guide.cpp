@@ -224,15 +224,13 @@ F s(0);
 // CHECK: |-NonTypeTemplateParmDecl {{.*}} 'char' depth 0 index 0
 // CHECK:   `-TemplateArgument expr
 // CHECK: |   |-inherited from NonTypeTemplateParm {{.*}} '' 'char'
-// CHECK: |   `-ConstantExpr {{.*}} 'char'
-// CHECK: |     |-value: Int 120
-// CHECK: |     `-CharacterLiteral {{.*}} 'char' 120
+// CHECK: |   `-CharacterLiteral {{.*}} 'char' 120
 // CHECK: |-TemplateTypeParmDecl {{.*}} typename depth 0 index 1 U
 // CHECK: |-ParenExpr {{.*}} 'bool'
 // CHECK: | `-CXXBoolLiteralExpr {{.*}} 'bool' false
 // CHECK: |-CXXDeductionGuideDecl {{.*}} implicit <deduction guide for F> 'auto (type-parameter-0-1) -> F<>'
 // CHECK: | `-ParmVarDecl {{.*}} 'type-parameter-0-1'
-// CHECK: `-CXXDeductionGuideDecl {{.*}} implicit <deduction guide for F> 'auto (int) -> F<'x'>'
+// CHECK: `-CXXDeductionGuideDecl {{.*}} implicit <deduction guide for F> 'auto (int) -> F<>'
 // CHECK:   |-TemplateArgument integral 120
 // CHECK:   |-TemplateArgument type 'int'
 // CHECK:   | `-BuiltinType {{.*}} 'int'

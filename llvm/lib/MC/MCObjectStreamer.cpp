@@ -171,8 +171,10 @@ void MCObjectStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi,
 void MCObjectStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
                                                        const MCSymbol *Lo) {
   if (!getAssembler().getContext().getTargetTriple().isRISCV())
-    if (std::optional<uint64_t> Diff = absoluteSymbolDiff(Hi, Lo))
-      return emitULEB128IntValue(*Diff);
+    if (std::optional<uint64_t> Diff = absoluteSymbolDiff(Hi, Lo)) {
+      emitULEB128IntValue(*Diff);
+      return;
+    }
   MCStreamer::emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);
 }
 
@@ -469,8 +471,7 @@ void MCObjectStreamer::emitInstToFragment(const MCInst &Inst,
   insert(IF);
 
   SmallString<128> Code;
-  raw_svector_ostream VecOS(Code);
-  getAssembler().getEmitter().encodeInstruction(Inst, VecOS, IF->getFixups(),
+  getAssembler().getEmitter().encodeInstruction(Inst, Code, IF->getFixups(),
                                                 STI);
   IF->getContents().append(Code.begin(), Code.end());
 }
@@ -540,12 +541,6 @@ void MCObjectStreamer::emitDwarfAdvanceLineAddr(int64_t LineDelta,
     return;
   }
   const MCExpr *AddrDelta = buildSymbolDiff(*this, Label, LastLabel);
-  int64_t Res;
-  if (AddrDelta->evaluateAsAbsolute(Res, getAssemblerPtr())) {
-    MCDwarfLineAddr::Emit(this, Assembler->getDWARFLinetableParams(), LineDelta,
-                          Res);
-    return;
-  }
   insert(new MCDwarfLineAddrFragment(LineDelta, *AddrDelta));
 }
 
@@ -570,11 +565,6 @@ void MCObjectStreamer::emitDwarfLineEndEntry(MCSection *Section,
 void MCObjectStreamer::emitDwarfAdvanceFrameAddr(const MCSymbol *LastLabel,
                                                  const MCSymbol *Label) {
   const MCExpr *AddrDelta = buildSymbolDiff(*this, Label, LastLabel);
-  int64_t Res;
-  if (AddrDelta->evaluateAsAbsolute(Res, getAssemblerPtr())) {
-    MCDwarfFrameEmitter::EmitAdvanceLoc(*this, Res);
-    return;
-  }
   insert(new MCDwarfCallFrameFragment(*AddrDelta));
 }
 

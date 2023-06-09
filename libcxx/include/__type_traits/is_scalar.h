@@ -14,6 +14,7 @@
 #include <__type_traits/is_arithmetic.h>
 #include <__type_traits/is_enum.h>
 #include <__type_traits/is_member_pointer.h>
+#include <__type_traits/is_null_pointer.h>
 #include <__type_traits/is_pointer.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -27,7 +28,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 template<class _Tp>
 struct _LIBCPP_TEMPLATE_VIS is_scalar : _BoolConstant<__is_scalar(_Tp)> { };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _Tp>
 inline constexpr bool is_scalar_v = __is_scalar(_Tp);
 #endif
@@ -49,7 +50,7 @@ template <class _Tp> struct _LIBCPP_TEMPLATE_VIS is_scalar
 
 template <> struct _LIBCPP_TEMPLATE_VIS is_scalar<nullptr_t> : public true_type {};
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _Tp>
 inline constexpr bool is_scalar_v = is_scalar<_Tp>::value;
 #endif

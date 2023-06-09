@@ -19,17 +19,17 @@ define i32 @simple(i32* %a, i32* %b, i32 %x) nounwind {
 ; X64-NEXT:    movslq %edx, %rcx
 ; X64-NEXT:    shlq $2, %rcx
 ; X64-NEXT:    xorl %eax, %eax
+; X64-NEXT:    leaq (%rcx,%rcx), %rdx
 ; X64-NEXT:    .p2align 4, 0x90
 ; X64-NEXT:  .LBB0_1: # %loop
 ; X64-NEXT:    # =>This Inner Loop Header: Depth=1
 ; X64-NEXT:    addl (%rdi), %eax
-; X64-NEXT:    leaq (%rdi,%rcx), %rdx
 ; X64-NEXT:    addl (%rdi,%rcx), %eax
-; X64-NEXT:    leaq (%rdx,%rcx), %r8
-; X64-NEXT:    addl (%rcx,%rdx), %eax
+; X64-NEXT:    leaq (%rdi,%rcx), %r8
 ; X64-NEXT:    addl (%rcx,%r8), %eax
 ; X64-NEXT:    addq %rcx, %r8
-; X64-NEXT:    addq %rcx, %r8
+; X64-NEXT:    addl (%rcx,%r8), %eax
+; X64-NEXT:    addq %rdx, %r8
 ; X64-NEXT:    movq %r8, %rdi
 ; X64-NEXT:    cmpq %rsi, %r8
 ; X64-NEXT:    jne .LBB0_1
@@ -42,22 +42,22 @@ define i32 @simple(i32* %a, i32* %b, i32 %x) nounwind {
 ; X32-NEXT:    pushl %edi
 ; X32-NEXT:    pushl %esi
 ; X32-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X32-NEXT:    movl {{[0-9]+}}(%esp), %esi
+; X32-NEXT:    movl {{[0-9]+}}(%esp), %edi
 ; X32-NEXT:    movl {{[0-9]+}}(%esp), %edx
 ; X32-NEXT:    shll $2, %edx
 ; X32-NEXT:    xorl %eax, %eax
+; X32-NEXT:    leal (%edx,%edx), %esi
 ; X32-NEXT:    .p2align 4, 0x90
 ; X32-NEXT:  .LBB0_1: # %loop
 ; X32-NEXT:    # =>This Inner Loop Header: Depth=1
-; X32-NEXT:    addl (%esi), %eax
-; X32-NEXT:    leal (%esi,%edx), %edi
-; X32-NEXT:    addl (%esi,%edx), %eax
+; X32-NEXT:    addl (%edi), %eax
+; X32-NEXT:    addl (%edi,%edx), %eax
 ; X32-NEXT:    leal (%edi,%edx), %ebx
-; X32-NEXT:    addl (%edx,%edi), %eax
 ; X32-NEXT:    addl (%edx,%ebx), %eax
 ; X32-NEXT:    addl %edx, %ebx
-; X32-NEXT:    addl %edx, %ebx
-; X32-NEXT:    movl %ebx, %esi
+; X32-NEXT:    addl (%edx,%ebx), %eax
+; X32-NEXT:    addl %esi, %ebx
+; X32-NEXT:    movl %ebx, %edi
 ; X32-NEXT:    cmpl %ecx, %ebx
 ; X32-NEXT:    jne .LBB0_1
 ; X32-NEXT:  # %bb.2: # %exit
@@ -182,12 +182,12 @@ exit:
 define void @extrastride(i8* nocapture %main, i32 %main_stride, i32* nocapture %res, i32 %x, i32 %y, i32 %z) nounwind {
 ; X64-LABEL: extrastride:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    pushq %rbx
 ; X64-NEXT:    # kill: def $ecx killed $ecx def $rcx
 ; X64-NEXT:    # kill: def $esi killed $esi def $rsi
 ; X64-NEXT:    testl %r9d, %r9d
-; X64-NEXT:    je .LBB2_3
+; X64-NEXT:    je .LBB2_4
 ; X64-NEXT:  # %bb.1: # %for.body.lr.ph
+; X64-NEXT:    pushq %rbx
 ; X64-NEXT:    leal (%rsi,%rsi), %r10d
 ; X64-NEXT:    leal (%rsi,%rsi,2), %r11d
 ; X64-NEXT:    addl %esi, %ecx
@@ -213,8 +213,9 @@ define void @extrastride(i8* nocapture %main, i32 %main_stride, i32* nocapture %
 ; X64-NEXT:    addq %r8, %rdx
 ; X64-NEXT:    decl %r9d
 ; X64-NEXT:    jne .LBB2_2
-; X64-NEXT:  .LBB2_3: # %for.end
+; X64-NEXT:  # %bb.3:
 ; X64-NEXT:    popq %rbx
+; X64-NEXT:  .LBB2_4: # %for.end
 ; X64-NEXT:    retq
 ;
 ; X32-LABEL: extrastride:

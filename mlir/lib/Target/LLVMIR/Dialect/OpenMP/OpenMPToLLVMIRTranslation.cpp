@@ -12,22 +12,27 @@
 //===----------------------------------------------------------------------===//
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/Dialect/OpenMP/OpenMPInterfaces.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Target/LLVMIR/Dialect/OpenMPCommon.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
+#include "mlir/Transforms/RegionUtils.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/FileSystem.h"
 
 using namespace mlir;
 
 namespace {
 static llvm::omp::ScheduleKind
-convertToScheduleKind(Optional<omp::ClauseScheduleKind> schedKind) {
+convertToScheduleKind(std::optional<omp::ClauseScheduleKind> schedKind) {
   if (!schedKind.has_value())
     return llvm::omp::OMP_SCHEDULE_Default;
   switch (schedKind.value()) {
@@ -362,7 +367,7 @@ convertOmpCritical(Operation &opInst, llvm::IRBuilderBase &builder,
   if (criticalOp.getNameAttr()) {
     // The verifiers in OpenMP Dialect guarentee that all the pointers are
     // non-null
-    auto symbolRef = criticalOp.getNameAttr().cast<SymbolRefAttr>();
+    auto symbolRef = cast<SymbolRefAttr>(criticalOp.getNameAttr());
     auto criticalDeclareOp =
         SymbolTable::lookupNearestSymbolFrom<omp::CriticalDeclareOp>(criticalOp,
                                                                      symbolRef);
@@ -384,7 +389,7 @@ static omp::ReductionDeclareOp findReductionDecl(omp::WsLoopOp container,
   for (unsigned i = 0, e = container.getNumReductionVars(); i < e; ++i) {
     if (container.getReductionVars()[i] != reduction.getAccumulator())
       continue;
-    reductionSymbol = (*container.getReductions())[i].cast<SymbolRefAttr>();
+    reductionSymbol = cast<SymbolRefAttr>((*container.getReductions())[i]);
     break;
   }
   assert(reductionSymbol &&
@@ -398,7 +403,7 @@ static omp::ReductionDeclareOp findReductionDecl(omp::WsLoopOp container,
 static void
 collectReductionDecls(omp::WsLoopOp loop,
                       SmallVectorImpl<omp::ReductionDeclareOp> &reductions) {
-  Optional<ArrayAttr> attr = loop.getReductions();
+  std::optional<ArrayAttr> attr = loop.getReductions();
   if (!attr)
     return;
 
@@ -689,15 +694,46 @@ convertOmpTaskOp(omp::TaskOp taskOp, llvm::IRBuilderBase &builder,
     return taskOp.emitError("unhandled clauses for translation to LLVM IR");
   }
   auto bodyCB = [&](InsertPointTy allocaIP, InsertPointTy codegenIP) {
+    // Save the alloca insertion point on ModuleTranslation stack for use in
+    // nested regions.
+    LLVM::ModuleTranslation::SaveStack<OpenMPAllocaStackFrame> frame(
+        moduleTranslation, allocaIP);
+
     builder.restoreIP(codegenIP);
     convertOmpOpRegions(taskOp.getRegion(), "omp.task.region", builder,
                         moduleTranslation, bodyGenStatus);
   };
+
+  SmallVector<llvm::OpenMPIRBuilder::DependData> dds;
+  if (!taskOp.getDependVars().empty() && taskOp.getDepends()) {
+    for (auto dep :
+         llvm::zip(taskOp.getDependVars(), taskOp.getDepends()->getValue())) {
+      llvm::omp::RTLDependenceKindTy type;
+      switch (
+          cast<mlir::omp::ClauseTaskDependAttr>(std::get<1>(dep)).getValue()) {
+      case mlir::omp::ClauseTaskDepend::taskdependin:
+        type = llvm::omp::RTLDependenceKindTy::DepIn;
+        break;
+      // The OpenMP runtime requires that the codegen for 'depend' clause for
+      // 'out' dependency kind must be the same as codegen for 'depend' clause
+      // with 'inout' dependency.
+      case mlir::omp::ClauseTaskDepend::taskdependout:
+      case mlir::omp::ClauseTaskDepend::taskdependinout:
+        type = llvm::omp::RTLDependenceKindTy::DepInOut;
+        break;
+      };
+      llvm::Value *depVal = moduleTranslation.lookupValue(std::get<0>(dep));
+      llvm::OpenMPIRBuilder::DependData dd(type, depVal->getType(), depVal);
+      dds.emplace_back(dd);
+    }
+  }
+
   llvm::OpenMPIRBuilder::InsertPointTy allocaIP =
       findAllocaInsertPoint(builder, moduleTranslation);
   llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createTask(
-      ompLoc, allocaIP, bodyCB, !taskOp.getUntied()));
+      ompLoc, allocaIP, bodyCB, !taskOp.getUntied(), /*Final*/ nullptr,
+      /*IfCondition*/ nullptr, dds));
   return bodyGenStatus;
 }
 
@@ -759,10 +795,8 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
     llvm::IRBuilderBase::InsertPointGuard guard(builder);
     builder.restoreIP(allocaIP);
     for (unsigned i = 0; i < numReductions; ++i) {
-      auto reductionType =
-          loop.getReductionVars()[i].getType().cast<LLVM::LLVMPointerType>();
       llvm::Value *var = builder.CreateAlloca(
-          moduleTranslation.convertType(reductionType.getElementType()));
+          moduleTranslation.convertType(reductionDecls[i].getType()));
       privateReductionVariables.push_back(var);
       reductionVariableMap.try_emplace(loop.getReductionVars()[i], var);
     }
@@ -855,7 +889,8 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
 
   // TODO: Handle doacross loops when the ordered clause has a parameter.
   bool isOrdered = loop.getOrderedVal().has_value();
-  Optional<omp::ScheduleModifier> scheduleModifier = loop.getScheduleModifier();
+  std::optional<omp::ScheduleModifier> scheduleModifier =
+      loop.getScheduleModifier();
   bool isSimd = loop.getSimdModifier();
 
   ompBuilder->applyWorkshareLoop(
@@ -892,14 +927,11 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
     llvm::OpenMPIRBuilder::AtomicReductionGenTy atomicGen = nullptr;
     if (owningAtomicReductionGens[i])
       atomicGen = owningAtomicReductionGens[i];
-    auto reductionType =
-        loop.getReductionVars()[i].getType().cast<LLVM::LLVMPointerType>();
     llvm::Value *variable =
         moduleTranslation.lookupValue(loop.getReductionVars()[i]);
     reductionInfos.push_back(
-        {moduleTranslation.convertType(reductionType.getElementType()),
-         variable, privateReductionVariables[i], owningReductionGens[i],
-         atomicGen});
+        {moduleTranslation.convertType(reductionDecls[i].getType()), variable,
+         privateReductionVariables[i], owningReductionGens[i], atomicGen});
   }
 
   // The call to createReductions below expects the block to have a
@@ -989,11 +1021,11 @@ convertOmpSimdLoop(Operation &opInst, llvm::IRBuilderBase &builder,
       ompBuilder->collapseLoops(ompLoc.DL, loopInfos, {});
 
   llvm::ConstantInt *simdlen = nullptr;
-  if (llvm::Optional<uint64_t> simdlenVar = loop.getSimdlen())
+  if (std::optional<uint64_t> simdlenVar = loop.getSimdlen())
     simdlen = builder.getInt64(simdlenVar.value());
 
   llvm::ConstantInt *safelen = nullptr;
-  if (llvm::Optional<uint64_t> safelenVar = loop.getSafelen())
+  if (std::optional<uint64_t> safelenVar = loop.getSafelen())
     safelen = builder.getInt64(safelenVar.value());
 
   llvm::MapVector<llvm::Value *, llvm::Value *> alignedVars;
@@ -1009,7 +1041,7 @@ convertOmpSimdLoop(Operation &opInst, llvm::IRBuilderBase &builder,
 
 /// Convert an Atomic Ordering attribute to llvm::AtomicOrdering.
 llvm::AtomicOrdering
-convertAtomicOrdering(Optional<omp::ClauseMemoryOrderKind> ao) {
+convertAtomicOrdering(std::optional<omp::ClauseMemoryOrderKind> ao) {
   if (!ao)
     return llvm::AtomicOrdering::Monotonic; // Default Memory Ordering
 
@@ -1040,15 +1072,13 @@ convertOmpAtomicRead(Operation &opInst, llvm::IRBuilderBase &builder,
 
   llvm::AtomicOrdering AO = convertAtomicOrdering(readOp.getMemoryOrderVal());
   llvm::Value *x = moduleTranslation.lookupValue(readOp.getX());
-  Type xTy =
-      readOp.getX().getType().cast<omp::PointerLikeType>().getElementType();
   llvm::Value *v = moduleTranslation.lookupValue(readOp.getV());
-  Type vTy =
-      readOp.getV().getType().cast<omp::PointerLikeType>().getElementType();
-  llvm::OpenMPIRBuilder::AtomicOpValue V = {
-      v, moduleTranslation.convertType(vTy), false, false};
-  llvm::OpenMPIRBuilder::AtomicOpValue X = {
-      x, moduleTranslation.convertType(xTy), false, false};
+
+  llvm::Type *elementType =
+      moduleTranslation.convertType(readOp.getElementType());
+
+  llvm::OpenMPIRBuilder::AtomicOpValue V = {v, elementType, false, false};
+  llvm::OpenMPIRBuilder::AtomicOpValue X = {x, elementType, false, false};
   builder.restoreIP(ompBuilder->createAtomicRead(ompLoc, X, V, AO));
   return success();
 }
@@ -1119,10 +1149,8 @@ convertOmpAtomicUpdate(omp::AtomicUpdateOp &opInst,
                                        : innerUpdateOp.getOperand(0));
   llvm::Value *llvmExpr = moduleTranslation.lookupValue(mlirExpr);
   llvm::Value *llvmX = moduleTranslation.lookupValue(opInst.getX());
-  LLVM::LLVMPointerType mlirXType =
-      opInst.getX().getType().cast<LLVM::LLVMPointerType>();
-  llvm::Type *llvmXElementType =
-      moduleTranslation.convertType(mlirXType.getElementType());
+  llvm::Type *llvmXElementType = moduleTranslation.convertType(
+      opInst.getRegion().getArgument(0).getType());
   llvm::OpenMPIRBuilder::AtomicOpValue llvmAtomicX = {llvmX, llvmXElementType,
                                                       /*isSigned=*/false,
                                                       /*isVolatile=*/false};
@@ -1207,12 +1235,8 @@ convertOmpAtomicCapture(omp::AtomicCaptureOp atomicCaptureOp,
       moduleTranslation.lookupValue(atomicCaptureOp.getAtomicReadOp().getX());
   llvm::Value *llvmV =
       moduleTranslation.lookupValue(atomicCaptureOp.getAtomicReadOp().getV());
-  auto mlirXType = atomicCaptureOp.getAtomicReadOp()
-                       .getX()
-                       .getType()
-                       .cast<LLVM::LLVMPointerType>();
-  llvm::Type *llvmXElementType =
-      moduleTranslation.convertType(mlirXType.getElementType());
+  llvm::Type *llvmXElementType = moduleTranslation.convertType(
+      atomicCaptureOp.getAtomicReadOp().getElementType());
   llvm::OpenMPIRBuilder::AtomicOpValue llvmAtomicX = {llvmX, llvmXElementType,
                                                       /*isSigned=*/false,
                                                       /*isVolatile=*/false};
@@ -1325,7 +1349,7 @@ convertOmpThreadprivate(Operation &opInst, llvm::IRBuilderBase &builder,
   llvm::TypeSize typeSize =
       builder.GetInsertBlock()->getModule()->getDataLayout().getTypeStoreSize(
           type);
-  llvm::ConstantInt *size = builder.getInt64(typeSize.getFixedSize());
+  llvm::ConstantInt *size = builder.getInt64(typeSize.getFixedValue());
   llvm::StringRef suffix = llvm::StringRef(".cache", 6);
   std::string cacheName = (Twine(global.getSymName()).concat(suffix)).str();
   // Emit runtime function and bitcast its type (i8*) to real data type.
@@ -1335,6 +1359,320 @@ convertOmpThreadprivate(Operation &opInst, llvm::IRBuilderBase &builder,
   llvm::Value *result = builder.CreateBitCast(callInst, globalValue->getType());
   moduleTranslation.mapValue(opInst.getResult(0), result);
   return success();
+}
+
+/// Process MapOperands for Target Data directives.
+static LogicalResult processMapOperand(
+    llvm::IRBuilderBase &builder, LLVM::ModuleTranslation &moduleTranslation,
+    const SmallVector<Value> &mapOperands, const ArrayAttr &mapTypes,
+    SmallVector<uint64_t> &mapTypeFlags,
+    SmallVectorImpl<llvm::Constant *> &mapNames,
+    struct llvm::OpenMPIRBuilder::MapperAllocas &mapperAllocas) {
+  auto numMapOperands = mapOperands.size();
+  llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();
+  llvm::PointerType *i8PtrTy = builder.getInt8PtrTy();
+  llvm::ArrayType *arrI8PtrTy = llvm::ArrayType::get(i8PtrTy, numMapOperands);
+  llvm::IntegerType *i64Ty = builder.getInt64Ty();
+  llvm::ArrayType *arrI64Ty = llvm::ArrayType::get(i64Ty, numMapOperands);
+
+  unsigned index = 0;
+  for (const auto &mapOp : mapOperands) {
+    const auto &mapTypeOp = mapTypes[index];
+
+    llvm::Value *mapOpValue = moduleTranslation.lookupValue(mapOp);
+    llvm::Value *mapOpPtrBase;
+    llvm::Value *mapOpPtr;
+    llvm::Value *mapOpSize;
+
+    if (isa<LLVM::LLVMPointerType>(mapOp.getType())) {
+      mapOpPtrBase = mapOpValue;
+      mapOpPtr = mapOpValue;
+      mapOpSize = ompBuilder->getSizeInBytes(mapOpValue);
+    } else {
+      return failure();
+    }
+
+    // Store base pointer extracted from operand into the i-th position of
+    // argBase.
+    llvm::Value *ptrBaseGEP = builder.CreateInBoundsGEP(
+        arrI8PtrTy, mapperAllocas.ArgsBase,
+        {builder.getInt32(0), builder.getInt32(index)});
+    llvm::Value *ptrBaseCast = builder.CreateBitCast(
+        ptrBaseGEP, mapOpPtrBase->getType()->getPointerTo());
+    builder.CreateStore(mapOpPtrBase, ptrBaseCast);
+
+    // Store pointer extracted from operand into the i-th position of args.
+    llvm::Value *ptrGEP = builder.CreateInBoundsGEP(
+        arrI8PtrTy, mapperAllocas.Args,
+        {builder.getInt32(0), builder.getInt32(index)});
+    llvm::Value *ptrCast =
+        builder.CreateBitCast(ptrGEP, mapOpPtr->getType()->getPointerTo());
+    builder.CreateStore(mapOpPtr, ptrCast);
+
+    // Store size extracted from operand into the i-th position of argSizes.
+    llvm::Value *sizeGEP = builder.CreateInBoundsGEP(
+        arrI64Ty, mapperAllocas.ArgSizes,
+        {builder.getInt32(0), builder.getInt32(index)});
+    builder.CreateStore(mapOpSize, sizeGEP);
+
+    mapTypeFlags.push_back(dyn_cast<mlir::IntegerAttr>(mapTypeOp).getInt());
+    llvm::Constant *mapName =
+        mlir::LLVM::createMappingInformation(mapOp.getLoc(), *ompBuilder);
+    mapNames.push_back(mapName);
+    ++index;
+  }
+
+  return success();
+}
+
+static LogicalResult
+convertOmpTargetData(Operation *op, llvm::IRBuilderBase &builder,
+                     LLVM::ModuleTranslation &moduleTranslation) {
+  unsigned numMapOperands;
+  llvm::Value *ifCond = nullptr;
+  int64_t deviceID = llvm::omp::OMP_DEVICEID_UNDEF;
+  SmallVector<Value> mapOperands;
+  ArrayAttr mapTypes;
+
+  llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();
+
+  LogicalResult result =
+      llvm::TypeSwitch<Operation *, LogicalResult>(op)
+          .Case([&](omp::DataOp dataOp) {
+            if (!dataOp.getUseDeviceAddr().empty() ||
+                !dataOp.getUseDevicePtr().empty())
+              return failure();
+
+            if (auto ifExprVar = dataOp.getIfExpr())
+              ifCond = moduleTranslation.lookupValue(ifExprVar);
+
+            if (auto devId = dataOp.getDevice())
+              if (auto constOp = mlir::dyn_cast<mlir::LLVM::ConstantOp>(
+                      devId.getDefiningOp()))
+                if (auto intAttr =
+                        dyn_cast<mlir::IntegerAttr>(constOp.getValue()))
+                  deviceID = intAttr.getInt();
+
+            numMapOperands = dataOp.getMapOperands().size();
+            mapOperands = dataOp.getMapOperands();
+            mapTypes = dataOp.getMapTypes();
+            return success();
+          })
+          .Case([&](omp::EnterDataOp enterDataOp) {
+            if (enterDataOp.getNowait())
+              return failure();
+
+            if (auto ifExprVar = enterDataOp.getIfExpr())
+              ifCond = moduleTranslation.lookupValue(ifExprVar);
+
+            if (auto devId = enterDataOp.getDevice())
+              if (auto constOp = mlir::dyn_cast<mlir::LLVM::ConstantOp>(
+                      devId.getDefiningOp()))
+                if (auto intAttr =
+                        dyn_cast<mlir::IntegerAttr>(constOp.getValue()))
+                  deviceID = intAttr.getInt();
+
+            numMapOperands = enterDataOp.getMapOperands().size();
+            mapOperands = enterDataOp.getMapOperands();
+            mapTypes = enterDataOp.getMapTypes();
+            return success();
+          })
+          .Case([&](omp::ExitDataOp exitDataOp) {
+            if (exitDataOp.getNowait())
+              return failure();
+
+            if (auto ifExprVar = exitDataOp.getIfExpr())
+              ifCond = moduleTranslation.lookupValue(ifExprVar);
+
+            if (auto devId = exitDataOp.getDevice())
+              if (auto constOp = mlir::dyn_cast<mlir::LLVM::ConstantOp>(
+                      devId.getDefiningOp()))
+                if (auto intAttr =
+                        dyn_cast<mlir::IntegerAttr>(constOp.getValue()))
+                  deviceID = intAttr.getInt();
+
+            numMapOperands = exitDataOp.getMapOperands().size();
+            mapOperands = exitDataOp.getMapOperands();
+            mapTypes = exitDataOp.getMapTypes();
+            return success();
+          })
+          .Default([&](Operation *op) {
+            return op->emitError("unsupported OpenMP operation: ")
+                   << op->getName();
+          });
+
+  if (failed(result))
+    return failure();
+
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
+  llvm::OpenMPIRBuilder::InsertPointTy allocaIP =
+      findAllocaInsertPoint(builder, moduleTranslation);
+
+  struct llvm::OpenMPIRBuilder::MapperAllocas mapperAllocas;
+  SmallVector<uint64_t> mapTypeFlags;
+  SmallVector<llvm::Constant *> mapNames;
+  ompBuilder->createMapperAllocas(builder.saveIP(), allocaIP, numMapOperands,
+                                  mapperAllocas);
+
+  using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
+  LogicalResult processMapOpStatus = success();
+  auto processMapOpCB = [&](InsertPointTy allocaIP, InsertPointTy codeGenIP) {
+    builder.restoreIP(codeGenIP);
+    processMapOpStatus =
+        processMapOperand(builder, moduleTranslation, mapOperands, mapTypes,
+                          mapTypeFlags, mapNames, mapperAllocas);
+  };
+
+  LogicalResult bodyGenStatus = success();
+  auto bodyCB = [&](InsertPointTy allocaIP, InsertPointTy codeGenIP) {
+    // DataOp has only one region associated with it.
+    auto &region = cast<omp::DataOp>(op).getRegion();
+    builder.restoreIP(codeGenIP);
+    bodyGenStatus = inlineConvertOmpRegions(region, "omp.data.region", builder,
+                                            moduleTranslation);
+  };
+
+  if (isa<omp::DataOp>(op)) {
+    builder.restoreIP(ompBuilder->createTargetData(
+        ompLoc, builder.saveIP(), mapTypeFlags, mapNames, mapperAllocas,
+        /*IsBegin=*/false, deviceID, ifCond, processMapOpCB, bodyCB));
+  } else {
+    builder.restoreIP(ompBuilder->createTargetData(
+        ompLoc, builder.saveIP(), mapTypeFlags, mapNames, mapperAllocas,
+        isa<omp::EnterDataOp>(op), deviceID, ifCond, processMapOpCB));
+  }
+
+  if (failed(processMapOpStatus))
+    return processMapOpStatus;
+  return bodyGenStatus;
+}
+
+/// Lowers the FlagsAttr which is applied to the module on the device
+/// pass when offloading, this attribute contains OpenMP RTL globals that can
+/// be passed as flags to the frontend, otherwise they are set to default
+LogicalResult convertFlagsAttr(Operation *op, mlir::omp::FlagsAttr attribute,
+                               LLVM::ModuleTranslation &moduleTranslation) {
+  if (!cast<mlir::ModuleOp>(op))
+    return failure();
+  
+  llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();
+
+  ompBuilder->createGlobalFlag(
+      attribute.getDebugKind() /*LangOpts().OpenMPTargetDebug*/,
+      "__omp_rtl_debug_kind");
+  ompBuilder->createGlobalFlag(
+      attribute
+          .getAssumeTeamsOversubscription() /*LangOpts().OpenMPTeamSubscription*/
+      ,
+      "__omp_rtl_assume_teams_oversubscription");
+  ompBuilder->createGlobalFlag(
+      attribute
+          .getAssumeThreadsOversubscription() /*LangOpts().OpenMPThreadSubscription*/
+      ,
+      "__omp_rtl_assume_threads_oversubscription");
+  ompBuilder->createGlobalFlag(
+      attribute.getAssumeNoThreadState() /*LangOpts().OpenMPNoThreadState*/,
+      "__omp_rtl_assume_no_thread_state");
+  ompBuilder->createGlobalFlag(
+      attribute
+          .getAssumeNoNestedParallelism() /*LangOpts().OpenMPNoNestedParallelism*/
+      ,
+      "__omp_rtl_assume_no_nested_parallelism");
+  ompBuilder->M.addModuleFlag(llvm::Module::Max, "openmp-device",
+                              attribute.getOpenmpDeviceVersion());
+  return success();
+}
+
+static bool getTargetEntryUniqueInfo(llvm::TargetRegionEntryInfo &targetInfo,
+                                     omp::TargetOp targetOp,
+                                     llvm::StringRef parentName = "") {
+  auto fileLoc = targetOp.getLoc()->findInstanceOf<FileLineColLoc>();
+
+  assert(fileLoc && "No file found from location");
+  StringRef fileName = fileLoc.getFilename().getValue();
+
+  llvm::sys::fs::UniqueID id;
+  if (auto ec = llvm::sys::fs::getUniqueID(fileName, id)) {
+    targetOp.emitError("Unable to get unique ID for file");
+    return false;
+  }
+
+  uint64_t line = fileLoc.getLine();
+  targetInfo = llvm::TargetRegionEntryInfo(parentName, id.getDevice(),
+                                           id.getFile(), line);
+  return true;
+}
+
+static bool targetOpSupported(Operation &opInst) {
+  auto targetOp = cast<omp::TargetOp>(opInst);
+  if (targetOp.getIfExpr()) {
+    opInst.emitError("If clause not yet supported");
+    return false;
+  }
+
+  if (targetOp.getDevice()) {
+    opInst.emitError("Device clause not yet supported");
+    return false;
+  }
+
+  if (targetOp.getThreadLimit()) {
+    opInst.emitError("Thread limit clause not yet supported");
+    return false;
+  }
+
+  if (targetOp.getNowait()) {
+    opInst.emitError("Nowait clause not yet supported");
+    return false;
+  }
+
+  return true;
+}
+
+static LogicalResult
+convertOmpTarget(Operation &opInst, llvm::IRBuilderBase &builder,
+                 LLVM::ModuleTranslation &moduleTranslation) {
+
+  if (!targetOpSupported(opInst))
+    return failure();
+
+  auto targetOp = cast<omp::TargetOp>(opInst);
+  auto &targetRegion = targetOp.getRegion();
+
+  llvm::SetVector<Value> operandSet;
+  getUsedValuesDefinedAbove(targetRegion, operandSet);
+
+  // Collect the input arguments.
+  llvm::SmallVector<llvm::Value *> inputs;
+  for (Value operand : operandSet)
+    inputs.push_back(moduleTranslation.lookupValue(operand));
+
+  LogicalResult bodyGenStatus = success();
+
+  using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
+  auto bodyCB = [&](InsertPointTy allocaIP,
+                    InsertPointTy codeGenIP) -> InsertPointTy {
+    builder.restoreIP(codeGenIP);
+    llvm::BasicBlock *exitBlock = convertOmpOpRegions(
+        targetRegion, "omp.target", builder, moduleTranslation, bodyGenStatus);
+    builder.SetInsertPoint(exitBlock);
+    return builder.saveIP();
+  };
+
+  llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
+  StringRef parentName = opInst.getParentOfType<LLVM::LLVMFuncOp>().getName();
+  llvm::TargetRegionEntryInfo entryInfo;
+
+  if (!getTargetEntryUniqueInfo(entryInfo, targetOp, parentName))
+    return failure();
+
+  int32_t defaultValTeams = -1;
+  int32_t defaultValThreads = -1;
+
+  builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createTarget(
+      ompLoc, builder.saveIP(), entryInfo, defaultValTeams, defaultValThreads,
+      inputs, bodyCB));
+
+  return bodyGenStatus;
 }
 
 namespace {
@@ -1351,9 +1689,39 @@ public:
   LogicalResult
   convertOperation(Operation *op, llvm::IRBuilderBase &builder,
                    LLVM::ModuleTranslation &moduleTranslation) const final;
+
+  LogicalResult
+  amendOperation(Operation *op, NamedAttribute attribute,
+                 LLVM::ModuleTranslation &moduleTranslation) const final;
 };
 
 } // namespace
+
+/// Given an OpenMP MLIR attribute, create the corresponding LLVM-IR, runtime
+/// calls, or operation amendments
+LogicalResult OpenMPDialectLLVMIRTranslationInterface::amendOperation(
+    Operation *op, NamedAttribute attribute,
+    LLVM::ModuleTranslation &moduleTranslation) const {
+
+  return llvm::TypeSwitch<Attribute, LogicalResult>(attribute.getValue())
+      .Case([&](mlir::omp::FlagsAttr rtlAttr) {
+        return convertFlagsAttr(op, rtlAttr, moduleTranslation);
+      })
+      .Case([&](mlir::omp::VersionAttr versionAttr) {
+        llvm::OpenMPIRBuilder *ompBuilder =
+            moduleTranslation.getOpenMPBuilder();
+        ompBuilder->M.addModuleFlag(llvm::Module::Max, "openmp",
+                                    versionAttr.getVersion());
+        return success();
+      })
+      .Default([&](Attribute attr) {
+        // fall through for omp attributes that do not require lowering and/or
+        // have no concrete definition and thus no type to define a case on
+        return success();
+      });
+
+  return failure();
+}
 
 /// Given an OpenMP MLIR operation, create the corresponding LLVM IR
 /// (including OpenMP runtime calls).
@@ -1450,6 +1818,12 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
       })
       .Case([&](omp::ThreadprivateOp) {
         return convertOmpThreadprivate(*op, builder, moduleTranslation);
+      })
+      .Case<omp::DataOp, omp::EnterDataOp, omp::ExitDataOp>([&](auto op) {
+        return convertOmpTargetData(op, builder, moduleTranslation);
+      })
+      .Case([&](omp::TargetOp) {
+        return convertOmpTarget(*op, builder, moduleTranslation);
       })
       .Default([&](Operation *inst) {
         return inst->emitError("unsupported OpenMP operation: ")

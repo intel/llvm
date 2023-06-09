@@ -66,18 +66,17 @@ NSDictionary_Additionals::GetAdditionalSynthetics() {
 static CompilerType GetLLDBNSPairType(TargetSP target_sp) {
   CompilerType compiler_type;
 
-  TypeSystemClang *target_ast_context =
+  TypeSystemClangSP scratch_ts_sp =
       ScratchTypeSystemClang::GetForTarget(*target_sp);
 
-  if (target_ast_context) {
+  if (scratch_ts_sp) {
     ConstString g_lldb_autogen_nspair("__lldb_autogen_nspair");
 
-    compiler_type =
-        target_ast_context->GetTypeForIdentifier<clang::CXXRecordDecl>(
-            g_lldb_autogen_nspair);
+    compiler_type = scratch_ts_sp->GetTypeForIdentifier<clang::CXXRecordDecl>(
+        g_lldb_autogen_nspair);
 
     if (!compiler_type) {
-      compiler_type = target_ast_context->CreateRecordType(
+      compiler_type = scratch_ts_sp->CreateRecordType(
           nullptr, OptionalClangModuleID(), lldb::eAccessPublic,
           g_lldb_autogen_nspair.GetCString(), clang::TTK_Struct,
           lldb::eLanguageTypeC);
@@ -85,7 +84,7 @@ static CompilerType GetLLDBNSPairType(TargetSP target_sp) {
       if (compiler_type) {
         TypeSystemClang::StartTagDeclarationDefinition(compiler_type);
         CompilerType id_compiler_type =
-            target_ast_context->GetBasicType(eBasicTypeObjCID);
+            scratch_ts_sp->GetBasicType(eBasicTypeObjCID);
         TypeSystemClang::AddFieldToRecordType(
             compiler_type, "key", id_compiler_type, lldb::eAccessPublic, 0);
         TypeSystemClang::AddFieldToRecordType(
@@ -410,7 +409,7 @@ namespace Foundation1437 {
 template <bool name_entries>
 bool lldb_private::formatters::NSDictionarySummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-  static ConstString g_TypeHint("NSDictionary");
+  static constexpr llvm::StringLiteral g_TypeHint("NSDictionary");
   ProcessSP process_sp = valobj.GetProcessSP();
   if (!process_sp)
     return false;
@@ -502,17 +501,14 @@ bool lldb_private::formatters::NSDictionarySummaryProvider(
     return false;
   }
 
-  std::string prefix, suffix;
-  if (Language *language = Language::FindPlugin(options.GetLanguage())) {
-    if (!language->GetFormatterPrefixSuffix(valobj, g_TypeHint, prefix,
-                                            suffix)) {
-      prefix.clear();
-      suffix.clear();
-    }
-  }
+  llvm::StringRef prefix, suffix;
+  if (Language *language = Language::FindPlugin(options.GetLanguage()))
+    std::tie(prefix, suffix) = language->GetFormatterPrefixSuffix(g_TypeHint);
 
-  stream.Printf("%s%" PRIu64 " %s%s%s", prefix.c_str(), value, "key/value pair",
-                value == 1 ? "" : "s", suffix.c_str());
+  stream << prefix;
+  stream.Printf("%" PRIu64 " %s%s", value, "key/value pair",
+                value == 1 ? "" : "s");
+  stream << suffix;
   return true;
 }
 

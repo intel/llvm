@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringRef.h"
 #include <list>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace clang {
@@ -50,6 +51,12 @@ public:
   BugReporterVisitor() = default;
   BugReporterVisitor(const BugReporterVisitor &) = default;
   BugReporterVisitor(BugReporterVisitor &&) {}
+
+  // The copy and move assignment operator is defined as deleted pending further
+  // motivation.
+  BugReporterVisitor &operator=(const BugReporterVisitor &) = delete;
+  BugReporterVisitor &operator=(BugReporterVisitor &&) = delete;
+
   virtual ~BugReporterVisitor();
 
   /// Return a diagnostic piece which should be associated with the
@@ -502,13 +509,9 @@ public:
   bool printValue(const Expr *CondVarExpr, raw_ostream &Out,
                   const ExplodedNode *N, bool TookTrue, bool IsAssuming);
 
-  bool patternMatch(const Expr *Ex,
-                    const Expr *ParentEx,
-                    raw_ostream &Out,
-                    BugReporterContext &BRC,
-                    PathSensitiveBugReport &R,
-                    const ExplodedNode *N,
-                    Optional<bool> &prunable,
+  bool patternMatch(const Expr *Ex, const Expr *ParentEx, raw_ostream &Out,
+                    BugReporterContext &BRC, PathSensitiveBugReport &R,
+                    const ExplodedNode *N, std::optional<bool> &prunable,
                     bool IsSameFieldName);
 
   static bool isPieceMessageGeneric(const PathDiagnosticPiece *Piece);

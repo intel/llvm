@@ -101,7 +101,6 @@ public:
   explicit GCNTTIImpl(const AMDGPUTargetMachine *TM, const Function &F);
 
   bool hasBranchDivergence() { return true; }
-  bool useGPUDivergenceAnalysis() const;
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,
@@ -143,7 +142,7 @@ public:
       unsigned RemainingBytes, unsigned SrcAddrSpace, unsigned DestAddrSpace,
       unsigned SrcAlign, unsigned DestAlign,
       std::optional<uint32_t> AtomicCpySize) const;
-  unsigned getMaxInterleaveFactor(unsigned VF);
+  unsigned getMaxInterleaveFactor(ElementCount VF);
 
   bool getTgtMemIntrinsic(IntrinsicInst *Inst, MemIntrinsicInfo &Info) const;
 
@@ -162,11 +161,34 @@ public:
 
   using BaseT::getVectorInstrCost;
   InstructionCost getVectorInstrCost(unsigned Opcode, Type *ValTy,
-                                     unsigned Index);
+                                     TTI::TargetCostKind CostKind,
+                                     unsigned Index, Value *Op0, Value *Op1);
 
   bool isReadRegisterSourceOfDivergence(const IntrinsicInst *ReadReg) const;
   bool isSourceOfDivergence(const Value *V) const;
   bool isAlwaysUniform(const Value *V) const;
+
+  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const {
+    if (ToAS == AMDGPUAS::FLAT_ADDRESS) {
+      switch (FromAS) {
+      case AMDGPUAS::GLOBAL_ADDRESS:
+      case AMDGPUAS::CONSTANT_ADDRESS:
+      case AMDGPUAS::CONSTANT_ADDRESS_32BIT:
+      case AMDGPUAS::LOCAL_ADDRESS:
+      case AMDGPUAS::PRIVATE_ADDRESS:
+        return true;
+      default:
+        break;
+      }
+      return false;
+    }
+    if ((FromAS == AMDGPUAS::CONSTANT_ADDRESS_32BIT &&
+         ToAS == AMDGPUAS::CONSTANT_ADDRESS) ||
+        (FromAS == AMDGPUAS::CONSTANT_ADDRESS &&
+         ToAS == AMDGPUAS::CONSTANT_ADDRESS_32BIT))
+      return true;
+    return false;
+  }
 
   unsigned getFlatAddressSpace() const {
     // Don't bother running InferAddressSpaces pass on graphics shaders which
@@ -187,8 +209,8 @@ public:
   Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II, Value *OldV,
                                           Value *NewV) const;
 
-  bool canSimplifyLegacyMulToMul(const Value *Op0, const Value *Op1,
-                                 InstCombiner &IC) const;
+  bool canSimplifyLegacyMulToMul(const Instruction &I, const Value *Op0,
+                                 const Value *Op1, InstCombiner &IC) const;
   std::optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
                                                     IntrinsicInst &II) const;
   std::optional<Value *> simplifyDemandedVectorEltsIntrinsic(
@@ -219,9 +241,9 @@ public:
 
   InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                         TTI::TargetCostKind CostKind);
-  InstructionCost getMinMaxReductionCost(
-      VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
-      TTI::TargetCostKind CostKind);
+  InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
+                                         bool IsUnsigned, FastMathFlags FMF,
+                                         TTI::TargetCostKind CostKind);
 };
 
 } // end namespace llvm

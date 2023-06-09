@@ -164,6 +164,9 @@ inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
     break;
   case SPIRVDbgErrorHandlingKinds::Ignore:
     // Still print info about the error into debug output stream
+    // TODO: The value Ignore is not currently used but if it would be used
+    // then places where this routine is called must be checked as just
+    // ignoring the error may lead to NULL pointer dereferences
     spvdbgs() << SS.str() << '\n';
     spvdbgs().flush();
     break;

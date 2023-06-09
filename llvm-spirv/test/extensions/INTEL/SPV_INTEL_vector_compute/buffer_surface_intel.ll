@@ -1,8 +1,8 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_vector_compute --spirv-allow-unknown-intrinsics
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv --spirv-ext=+SPV_INTEL_vector_compute --spirv-allow-unknown-intrinsics
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
-; RUN: llvm-dis %t.bc -o %t.ll
+; RUN: llvm-dis -opaque-pointers=0 %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
 

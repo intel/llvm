@@ -1,11 +1,13 @@
-; RUN: llc < %s -mtriple=arm64-eabi -aarch64-neon-syntax=apple -asm-verbose=false | FileCheck %s
+; RUN: llc < %s -mtriple=arm64-eabi -aarch64-neon-syntax=apple -asm-verbose=false | FileCheck %s --check-prefix CHECK --check-prefix SDAG
+; RUN: llc < %s -global-isel=1 -mtriple=arm64-eabi -aarch64-neon-syntax=apple -asm-verbose=false | FileCheck %s --check-prefix CHECK --check-prefix GISEL
 
 define i32 @vmax_u8x8(<8 x i8> %a) nounwind ssp {
 ; CHECK-LABEL: vmax_u8x8:
 ; CHECK: umaxv.8b        b[[REG:[0-9]+]], v0
 ; CHECK: fmov    [[REG2:w[0-9]+]], s[[REG]]
 ; CHECK-NOT: and
-; CHECK: cbz     [[REG2]],
+; SDAG: cbz     [[REG2]],
+; GISEL: b
 entry:
   %vmaxv.i = tail call i32 @llvm.aarch64.neon.umaxv.i32.v8i8(<8 x i8> %a) nounwind
   %tmp = trunc i32 %vmaxv.i to i8
@@ -13,7 +15,7 @@ entry:
   br i1 %tobool, label %return, label %if.then
 
 if.then:
-  %call1 = tail call i32 bitcast (i32 (...)* @bar to i32 ()*)() nounwind
+  %call1 = tail call i32 @bar() nounwind
   br label %return
 
 return:
@@ -28,7 +30,8 @@ define i32 @vmax_u4x16(<4 x i16> %a) nounwind ssp {
 ; CHECK: umaxv.4h        h[[REG:[0-9]+]], v0
 ; CHECK: fmov    [[REG2:w[0-9]+]], s[[REG]]
 ; CHECK-NOT: and
-; CHECK: cbz     [[REG2]],
+; SDAG: cbz     [[REG2]],
+; GISEL: b
 entry:
   %vmaxv.i = tail call i32 @llvm.aarch64.neon.umaxv.i32.v4i16(<4 x i16> %a) nounwind
   %tmp = trunc i32 %vmaxv.i to i16
@@ -36,7 +39,7 @@ entry:
   br i1 %tobool, label %return, label %if.then
 
 if.then:
-  %call1 = tail call i32 bitcast (i32 (...)* @bar to i32 ()*)() nounwind
+  %call1 = tail call i32 @bar() nounwind
   br label %return
 
 return:
@@ -49,7 +52,8 @@ define i32 @vmax_u8x16(<8 x i16> %a) nounwind ssp {
 ; CHECK: umaxv.8h        h[[REG:[0-9]+]], v0
 ; CHECK: fmov    [[REG2:w[0-9]+]], s[[REG]]
 ; CHECK-NOT: and
-; CHECK: cbz     [[REG2]],
+; SDAG: cbz     [[REG2]],
+; GISEL: b
 entry:
   %vmaxv.i = tail call i32 @llvm.aarch64.neon.umaxv.i32.v8i16(<8 x i16> %a) nounwind
   %tmp = trunc i32 %vmaxv.i to i16
@@ -57,7 +61,7 @@ entry:
   br i1 %tobool, label %return, label %if.then
 
 if.then:
-  %call1 = tail call i32 bitcast (i32 (...)* @bar to i32 ()*)() nounwind
+  %call1 = tail call i32 @bar() nounwind
   br label %return
 
 return:
@@ -70,7 +74,8 @@ define i32 @vmax_u16x8(<16 x i8> %a) nounwind ssp {
 ; CHECK: umaxv.16b        b[[REG:[0-9]+]], v0
 ; CHECK: fmov     [[REG2:w[0-9]+]], s[[REG]]
 ; CHECK-NOT: and
-; CHECK: cbz     [[REG2]],
+; SDAG: cbz     [[REG2]],
+; GISEL: b
 entry:
   %vmaxv.i = tail call i32 @llvm.aarch64.neon.umaxv.i32.v16i8(<16 x i8> %a) nounwind
   %tmp = trunc i32 %vmaxv.i to i8
@@ -78,7 +83,7 @@ entry:
   br i1 %tobool, label %return, label %if.then
 
 if.then:
-  %call1 = tail call i32 bitcast (i32 (...)* @bar to i32 ()*)() nounwind
+  %call1 = tail call i32 @bar() nounwind
   br label %return
 
 return:

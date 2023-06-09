@@ -157,6 +157,7 @@ nub_size_t DNBProcessGetAvailableProfileData(nub_process_t pid, char *buf,
 nub_size_t DNBProcessGetStopCount(nub_process_t pid) DNB_EXPORT;
 uint32_t DNBProcessGetCPUType(nub_process_t pid) DNB_EXPORT;
 size_t DNBGetAllInfos(std::vector<struct kinfo_proc> &proc_infos);
+JSONGenerator::ObjectSP DNBGetDyldProcessState(nub_process_t pid);
 
 // Process executable and arguments
 const char *DNBProcessGetExecutablePath(nub_process_t pid);
@@ -209,9 +210,8 @@ DNBGetTSDAddressForThread(nub_process_t pid, nub_thread_t tid,
                           uint64_t plo_pthread_tsd_base_address_offset,
                           uint64_t plo_pthread_tsd_base_offset,
                           uint64_t plo_pthread_tsd_entry_size);
-JSONGenerator::ObjectSP DNBGetLoadedDynamicLibrariesInfos(
-    nub_process_t pid, nub_addr_t image_list_address, nub_addr_t image_count);
-JSONGenerator::ObjectSP DNBGetAllLoadedLibrariesInfos(nub_process_t pid);
+JSONGenerator::ObjectSP
+DNBGetAllLoadedLibrariesInfos(nub_process_t pid, bool report_load_commands);
 JSONGenerator::ObjectSP
 DNBGetLibrariesInfoForAddresses(nub_process_t pid,
                                 std::vector<uint64_t> &macho_addresses);

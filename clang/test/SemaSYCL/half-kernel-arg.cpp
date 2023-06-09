@@ -23,5 +23,5 @@ int main() {
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::detail::half_impl::half'{{.*}}
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::detail::half_impl::half'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const half':'const sycl::detail::half_impl::half'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::half':'sycl::detail::half_impl::half' lvalue ParmVar {{.*}} '_arg_HostHalf' 'sycl::half':'sycl::detail::half_impl::half'

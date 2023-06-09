@@ -411,9 +411,14 @@ public:
     // condition code) and cbz (where it is a register).
     const auto &Desc = Info->get(Inst.getOpcode());
     for (unsigned i = 0, e = Inst.getNumOperands(); i != e; i++) {
-      if (Desc.OpInfo[i].OperandType == MCOI::OPERAND_PCREL) {
-        int64_t Imm = Inst.getOperand(i).getImm() * 4;
-        Target = Addr + Imm;
+      if (Desc.operands()[i].OperandType == MCOI::OPERAND_PCREL) {
+        int64_t Imm = Inst.getOperand(i).getImm();
+        if (Inst.getOpcode() == AArch64::ADR)
+          Target = Addr + Imm;
+        else if (Inst.getOpcode() == AArch64::ADRP)
+          Target = (Addr & -4096) + Imm * 4096;
+        else
+          Target = Addr + Imm * 4;
         return true;
       }
     }
@@ -422,7 +427,6 @@ public:
 
   std::vector<std::pair<uint64_t, uint64_t>>
   findPltEntries(uint64_t PltSectionVA, ArrayRef<uint8_t> PltContents,
-                 uint64_t GotPltSectionVA,
                  const Triple &TargetTriple) const override {
     // Do a lightweight parsing of PLT entries.
     std::vector<std::pair<uint64_t, uint64_t>> Result;

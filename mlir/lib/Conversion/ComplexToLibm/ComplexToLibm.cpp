@@ -26,9 +26,9 @@ namespace {
 // result type.
 struct ComplexTypeResolver {
   std::optional<bool> operator()(Type type) const {
-    auto complexType = type.cast<ComplexType>();
+    auto complexType = cast<ComplexType>(type);
     auto elementType = complexType.getElementType();
-    if (!elementType.isa<Float32Type, Float64Type>())
+    if (!isa<Float32Type, Float64Type>(elementType))
       return {};
 
     return elementType.getIntOrFloatBitWidth() == 64;
@@ -39,8 +39,8 @@ struct ComplexTypeResolver {
 // type.
 struct FloatTypeResolver {
   std::optional<bool> operator()(Type type) const {
-    auto elementType = type.cast<FloatType>();
-    if (!elementType.isa<Float32Type, Float64Type>())
+    auto elementType = cast<FloatType>(type);
+    if (!isa<Float32Type, Float64Type>(elementType))
       return {};
 
     return elementType.getIntOrFloatBitWidth() == 64;
@@ -77,7 +77,7 @@ LogicalResult ScalarOpToLibmCall<Op, TypeResolver>::matchAndRewrite(
   if (!isDouble.has_value())
     return failure();
 
-  auto name = isDouble.value() ? doubleFunc : floatFunc;
+  auto name = *isDouble ? doubleFunc : floatFunc;
 
   auto opFunc = dyn_cast_or_null<SymbolOpInterface>(
       SymbolTable::lookupSymbolIn(module, name));

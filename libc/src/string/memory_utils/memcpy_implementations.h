@@ -9,132 +9,101 @@
 #ifndef LLVM_LIBC_SRC_STRING_MEMORY_UTILS_MEMCPY_IMPLEMENTATIONS_H
 #define LLVM_LIBC_SRC_STRING_MEMORY_UTILS_MEMCPY_IMPLEMENTATIONS_H
 
-#include "src/__support/architectures.h"
-#include "src/__support/common.h"
-#include "src/string/memory_utils/op_aarch64.h"
+#include "src/__support/macros/config.h"       // LIBC_INLINE
+#include "src/__support/macros/optimization.h" // LIBC_LOOP_NOUNROLL
+#include "src/__support/macros/properties/architectures.h"
 #include "src/string/memory_utils/op_builtin.h"
-#include "src/string/memory_utils/op_generic.h"
-#include "src/string/memory_utils/op_x86.h"
 #include "src/string/memory_utils/utils.h"
 
 #include <stddef.h> // size_t
 
+#if defined(LIBC_TARGET_ARCH_IS_X86)
+#include "src/string/memory_utils/x86_64/memcpy_implementations.h"
+#elif defined(LIBC_TARGET_ARCH_IS_AARCH64)
+#include "src/string/memory_utils/aarch64/memcpy_implementations.h"
+#endif
+
 namespace __llvm_libc {
 
-[[maybe_unused]] static inline void
-inline_memcpy_embedded_tiny(Ptr __restrict dst, CPtr __restrict src,
-                            size_t count) {
-#pragma nounroll
-  for (size_t offset = 0; offset < count; ++offset)
-    builtin::Memcpy<1>::block(dst + offset, src + offset);
+[[maybe_unused]] LIBC_INLINE void
+inline_memcpy_byte_per_byte(Ptr dst, CPtr src, size_t offset, size_t count) {
+  LIBC_LOOP_NOUNROLL
+  for (; offset < count; ++offset)
+    dst[offset] = src[offset];
 }
 
-#if defined(LLVM_LIBC_ARCH_X86)
-[[maybe_unused]] static inline void
-inline_memcpy_x86(Ptr __restrict dst, CPtr __restrict src, size_t count) {
-  if (count == 0)
-    return;
-  if (count == 1)
-    return builtin::Memcpy<1>::block(dst, src);
-  if (count == 2)
-    return builtin::Memcpy<2>::block(dst, src);
-  if (count == 3)
-    return builtin::Memcpy<3>::block(dst, src);
-  if (count == 4)
-    return builtin::Memcpy<4>::block(dst, src);
-  if (count < 8)
-    return builtin::Memcpy<4>::head_tail(dst, src, count);
-  if (count < 16)
-    return builtin::Memcpy<8>::head_tail(dst, src, count);
-  if (count < 32)
-    return builtin::Memcpy<16>::head_tail(dst, src, count);
-  if (count < 64)
-    return builtin::Memcpy<32>::head_tail(dst, src, count);
-  if (count < 128)
-    return builtin::Memcpy<64>::head_tail(dst, src, count);
-  if (x86::kAvx && count < 256)
-    return builtin::Memcpy<128>::head_tail(dst, src, count);
-  builtin::Memcpy<32>::block(dst, src);
-  align_to_next_boundary<32, Arg::Dst>(dst, src, count);
-  static constexpr size_t kBlockSize = x86::kAvx ? 64 : 32;
-  return builtin::Memcpy<kBlockSize>::loop_and_tail(dst, src, count);
-}
-
-[[maybe_unused]] static inline void
-inline_memcpy_x86_maybe_interpose_repmovsb(Ptr __restrict dst,
-                                           CPtr __restrict src, size_t count) {
-  // Whether to use rep;movsb exclusively, not at all, or only above a certain
-  // threshold.
-#ifndef LLVM_LIBC_MEMCPY_X86_USE_REPMOVSB_FROM_SIZE
-#define LLVM_LIBC_MEMCPY_X86_USE_REPMOVSB_FROM_SIZE -1
-#endif
-
-#ifdef LLVM_LIBC_MEMCPY_X86_USE_ONLY_REPMOVSB
-#error LLVM_LIBC_MEMCPY_X86_USE_ONLY_REPMOVSB is deprecated use LLVM_LIBC_MEMCPY_X86_USE_REPMOVSB_FROM_SIZE=0 instead.
-#endif // LLVM_LIBC_MEMCPY_X86_USE_ONLY_REPMOVSB
-
-  static constexpr size_t kRepMovsbThreshold =
-      LLVM_LIBC_MEMCPY_X86_USE_REPMOVSB_FROM_SIZE;
-  if constexpr (kRepMovsbThreshold == 0)
-    return x86::Memcpy::repmovsb(dst, src, count);
-  else if constexpr (kRepMovsbThreshold > 0) {
-    if (unlikely(count >= kRepMovsbThreshold))
-      return x86::Memcpy::repmovsb(dst, src, count);
+[[maybe_unused]] LIBC_INLINE void
+inline_memcpy_aligned_access_32bit(Ptr __restrict dst, CPtr __restrict src,
+                                   size_t count) {
+  constexpr size_t kAlign = sizeof(uint32_t);
+  if (count <= 2 * kAlign)
+    return inline_memcpy_byte_per_byte(dst, src, 0, count);
+  size_t bytes_to_dst_align = distance_to_align_up<kAlign>(dst);
+  inline_memcpy_byte_per_byte(dst, src, 0, bytes_to_dst_align);
+  size_t offset = bytes_to_dst_align;
+  size_t src_alignment = distance_to_align_down<kAlign>(src + offset);
+  for (; offset < count - kAlign; offset += kAlign) {
+    uint32_t value;
+    if (src_alignment == 0)
+      value = load32_aligned<uint32_t>(src, offset);
+    else if (src_alignment == 2)
+      value = load32_aligned<uint16_t, uint16_t>(src, offset);
     else
-      return inline_memcpy_x86(dst, src, count);
-  } else {
-    return inline_memcpy_x86(dst, src, count);
+      value = load32_aligned<uint8_t, uint16_t, uint8_t>(src, offset);
+    store32_aligned<uint32_t>(value, dst, offset);
   }
+  // remainder
+  inline_memcpy_byte_per_byte(dst, src, offset, count);
 }
-#endif // defined(LLVM_LIBC_ARCH_X86)
 
-#if defined(LLVM_LIBC_ARCH_AARCH64)
-[[maybe_unused]] static inline void
-inline_memcpy_aarch64(Ptr __restrict dst, CPtr __restrict src, size_t count) {
-  if (count == 0)
-    return;
-  if (count == 1)
-    return builtin::Memcpy<1>::block(dst, src);
-  if (count == 2)
-    return builtin::Memcpy<2>::block(dst, src);
-  if (count == 3)
-    return builtin::Memcpy<3>::block(dst, src);
-  if (count == 4)
-    return builtin::Memcpy<4>::block(dst, src);
-  if (count < 8)
-    return builtin::Memcpy<4>::head_tail(dst, src, count);
-  if (count < 16)
-    return builtin::Memcpy<8>::head_tail(dst, src, count);
-  if (count < 32)
-    return builtin::Memcpy<16>::head_tail(dst, src, count);
-  if (count < 64)
-    return builtin::Memcpy<32>::head_tail(dst, src, count);
-  if (count < 128)
-    return builtin::Memcpy<64>::head_tail(dst, src, count);
-  builtin::Memcpy<16>::block(dst, src);
-  align_to_next_boundary<16, Arg::Src>(dst, src, count);
-  return builtin::Memcpy<64>::loop_and_tail(dst, src, count);
+[[maybe_unused]] LIBC_INLINE void
+inline_memcpy_aligned_access_64bit(Ptr __restrict dst, CPtr __restrict src,
+                                   size_t count) {
+  constexpr size_t kAlign = sizeof(uint64_t);
+  if (count <= 2 * kAlign)
+    return inline_memcpy_byte_per_byte(dst, src, 0, count);
+  size_t bytes_to_dst_align = distance_to_align_up<kAlign>(dst);
+  inline_memcpy_byte_per_byte(dst, src, 0, bytes_to_dst_align);
+  size_t offset = bytes_to_dst_align;
+  size_t src_alignment = distance_to_align_down<kAlign>(src + offset);
+  for (; offset < count - kAlign; offset += kAlign) {
+    uint64_t value;
+    if (src_alignment == 0)
+      value = load64_aligned<uint64_t>(src, offset);
+    else if (src_alignment == 4)
+      value = load64_aligned<uint32_t, uint32_t>(src, offset);
+    else if (src_alignment == 2)
+      value =
+          load64_aligned<uint16_t, uint16_t, uint16_t, uint16_t>(src, offset);
+    else
+      value = load64_aligned<uint8_t, uint16_t, uint16_t, uint16_t, uint8_t>(
+          src, offset);
+    store64_aligned<uint64_t>(value, dst, offset);
+  }
+  // remainder
+  inline_memcpy_byte_per_byte(dst, src, offset, count);
 }
-#endif // defined(LLVM_LIBC_ARCH_AARCH64)
 
-static inline void inline_memcpy(Ptr __restrict dst, CPtr __restrict src,
-                                 size_t count) {
+LIBC_INLINE void inline_memcpy(Ptr __restrict dst, CPtr __restrict src,
+                               size_t count) {
   using namespace __llvm_libc::builtin;
-#if defined(LLVM_LIBC_ARCH_X86)
+#if defined(LIBC_COPT_MEMCPY_USE_EMBEDDED_TINY)
+  return inline_memcpy_byte_per_byte(dst, src, 0, count);
+#elif defined(LIBC_TARGET_ARCH_IS_X86)
   return inline_memcpy_x86_maybe_interpose_repmovsb(dst, src, count);
-#elif defined(LLVM_LIBC_ARCH_AARCH64)
+#elif defined(LIBC_TARGET_ARCH_IS_AARCH64)
   return inline_memcpy_aarch64(dst, src, count);
-#elif defined(LLVM_LIBC_ARCH_ARM)
-  return inline_memcpy_embedded_tiny(dst, src, count);
-#elif defined(LLVM_LIBC_ARCH_GPU)
-  return inline_memcpy_embedded_tiny(dst, src, count);
+#elif defined(LIBC_TARGET_ARCH_IS_RISCV64)
+  return inline_memcpy_aligned_access_64bit(dst, src, count);
+#elif defined(LIBC_TARGET_ARCH_IS_RISCV32)
+  return inline_memcpy_aligned_access_32bit(dst, src, count);
 #else
-#error "Unsupported platform"
+  return inline_memcpy_byte_per_byte(dst, src, 0, count);
 #endif
 }
 
-static inline void inline_memcpy(void *__restrict dst,
-                                 const void *__restrict src, size_t count) {
+LIBC_INLINE void inline_memcpy(void *__restrict dst, const void *__restrict src,
+                               size_t count) {
   inline_memcpy(reinterpret_cast<Ptr>(dst), reinterpret_cast<CPtr>(src), count);
 }
 

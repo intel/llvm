@@ -1,0 +1,59 @@
+//===--- llvm/IR/FPBuiltinOps.def - Constrained intrinsics ------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// Defines properties of floating point builtin intrinsics.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef OPERATION
+#define OPERATION(N,I)
+#endif
+
+// Arguments of the entries are:
+// - operation name.
+// - name of the fpbuiltin intrinsic to represent this operation.
+
+// These are definitions for instructions, that are converted into constrained
+// intrinsics.
+//
+OPERATION(FAdd,   fpbuiltin_fadd)
+OPERATION(FSub,   fpbuiltin_fsub)
+OPERATION(FMul,   fpbuiltin_fmul)
+OPERATION(FDiv,   fpbuiltin_fdiv)
+OPERATION(FRem,   fpbuiltin_frem)
+OPERATION(Sin,    fpbuiltin_sin)
+OPERATION(Cos,    fpbuiltin_cos)
+OPERATION(Tan,    fpbuiltin_tan)
+OPERATION(Sinh,   fpbuiltin_sinh)
+OPERATION(Cosh,   fpbuiltin_cosh)
+OPERATION(Tanh,   fpbuiltin_tanh)
+OPERATION(Asin,   fpbuiltin_asin)
+OPERATION(Acos,   fpbuiltin_acos)
+OPERATION(Atan,   fpbuiltin_atan)
+OPERATION(Atan2,  fpbuiltin_atan2)
+OPERATION(Asinh,  fpbuiltin_asinh)
+OPERATION(Acosh,  fpbuiltin_acosh)
+OPERATION(Atanh,  fpbuiltin_atanh)
+OPERATION(Exp,    fpbuiltin_exp)
+OPERATION(Exp2,   fpbuiltin_exp2)
+OPERATION(Exp10,  fpbuiltin_exp10)
+OPERATION(Expm1,  fpbuiltin_expm1)
+OPERATION(Log,    fpbuiltin_log)
+OPERATION(Log2,   fpbuiltin_log2)
+OPERATION(Log10,  fpbuiltin_log10)
+OPERATION(Log1p,  fpbuiltin_log1p)
+OPERATION(Hypot,  fpbuiltin_hypot)
+OPERATION(Pow,    fpbuiltin_pow)
+OPERATION(Ldexp,  fpbuiltin_ldexp)
+OPERATION(Sqrt,   fpbuiltin_sqrt)
+OPERATION(Rsqrt,  fpbuiltin_rsqrt)
+OPERATION(Erf,    fpbuiltin_erf)
+OPERATION(Erfc,   fpbuiltin_erfc)
+OPERATION(Sincos, fpbuiltin_sincos)
+
+#undef OPERATION

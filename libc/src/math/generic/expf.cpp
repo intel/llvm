@@ -15,6 +15,7 @@
 #include "src/__support/FPUtil/multiply_add.h"
 #include "src/__support/FPUtil/nearest_integer.h"
 #include "src/__support/common.h"
+#include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
 
 #include <errno.h>
 
@@ -28,12 +29,12 @@ LLVM_LIBC_FUNCTION(float, expf, (float x)) {
   uint32_t x_abs = x_u & 0x7fff'ffffU;
 
   // Exceptional values
-  if (unlikely(x_u == 0xc236'bd8cU)) { // x = -0x1.6d7b18p+5f
+  if (LIBC_UNLIKELY(x_u == 0xc236'bd8cU)) { // x = -0x1.6d7b18p+5f
     return 0x1.108a58p-66f - x * 0x1.0p-95f;
   }
 
   // When |x| >= 89, |x| < 2^-25, or x is nan
-  if (unlikely(x_abs >= 0x42b2'0000U || x_abs <= 0x3280'0000U)) {
+  if (LIBC_UNLIKELY(x_abs >= 0x42b2'0000U || x_abs <= 0x3280'0000U)) {
     // |x| < 2^-25
     if (xbits.get_unbiased_exponent() <= 101) {
       return 1.0f + x;
@@ -49,7 +50,8 @@ LLVM_LIBC_FUNCTION(float, expf, (float x)) {
         return x;
       if (fputil::get_round() == FE_UPWARD)
         return static_cast<float>(FPBits(FPBits::MIN_SUBNORMAL));
-      errno = ERANGE;
+      fputil::set_errno_if_required(ERANGE);
+      fputil::raise_except_if_required(FE_UNDERFLOW);
       return 0.0f;
     }
     // x >= 89 or nan
@@ -60,7 +62,8 @@ LLVM_LIBC_FUNCTION(float, expf, (float x)) {
         if (rounding == FE_DOWNWARD || rounding == FE_TOWARDZERO)
           return static_cast<float>(FPBits(FPBits::MAX_NORMAL));
 
-        errno = ERANGE;
+        fputil::set_errno_if_required(ERANGE);
+        fputil::raise_except_if_required(FE_OVERFLOW);
       }
       // x is +inf or nan
       return x + static_cast<float>(FPBits::inf());

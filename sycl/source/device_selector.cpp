@@ -10,6 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/device.hpp>
@@ -40,7 +41,7 @@ static int getDevicePreference(const device &Device) {
     Score += 1000;
 
   // Prefer level_zero backend devices.
-  if (detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
+  if (detail::getSyclObjImpl(Device)->getBackend() ==
       backend::ext_oneapi_level_zero)
     Score += 50;
 
@@ -143,9 +144,16 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable) {
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
               const context &SyclContext) {
-  std::vector<device> devices = SyclContext.get_devices();
+  device SelectedDevice = select_device(DeviceSelectorInvocable);
 
-  return select_device(DeviceSelectorInvocable, devices);
+  // Throw exception if selected device is not in context.
+  std::vector<device> Devices = SyclContext.get_devices();
+  if (std::find(Devices.begin(), Devices.end(), SelectedDevice) ==
+      Devices.end())
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Selected device is not in the given context.");
+
+  return SelectedDevice;
 }
 
 } // namespace detail

@@ -55,8 +55,7 @@ using namespace llvm;
 
 LLVM_INSTANTIATE_REGISTRY(clang::tidy::ClangTidyModuleRegistry)
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 namespace {
 #if CLANG_TIDY_ENABLE_STATIC_ANALYZER
@@ -499,6 +498,11 @@ getCheckOptions(const ClangTidyOptions &Options,
       std::make_unique<DefaultOptionsProvider>(ClangTidyGlobalOptions(),
                                                 Options),
       AllowEnablingAnalyzerAlphaCheckers);
+  ClangTidyDiagnosticConsumer DiagConsumer(Context);
+  DiagnosticsEngine DE(llvm::makeIntrusiveRefCnt<DiagnosticIDs>(),
+                       llvm::makeIntrusiveRefCnt<DiagnosticOptions>(),
+                       &DiagConsumer, /*ShouldOwnClient=*/false);
+  Context.setDiagnosticsEngine(&DE);
   ClangTidyASTConsumerFactory Factory(Context);
   return Factory.getCheckOptions();
 }
@@ -658,5 +662,4 @@ getAllChecksAndOptions(bool AllowEnablingAnalyzerAlphaCheckers) {
 
   return Result;
 }
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

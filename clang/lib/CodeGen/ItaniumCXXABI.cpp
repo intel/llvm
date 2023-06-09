@@ -581,7 +581,7 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
   CGBuilderTy &Builder = CGF.Builder;
 
   const FunctionProtoType *FPT =
-    MPT->getPointeeType()->getAs<FunctionProtoType>();
+      MPT->getPointeeType()->castAs<FunctionProtoType>();
   auto *RD =
       cast<CXXRecordDecl>(MPT->getClass()->castAs<RecordType>()->getDecl());
 
@@ -1884,7 +1884,7 @@ llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
 
   VTable = CGM.CreateOrReplaceCXXRuntimeVariable(
       Name, VTableType, llvm::GlobalValue::ExternalLinkage,
-      getContext().toCharUnitsFromBits(PAlign).getQuantity());
+      getContext().toCharUnitsFromBits(PAlign).getAsAlign());
   VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
 
   // In MS C++ if you have a class with virtual functions in which you are using
@@ -2190,7 +2190,7 @@ Address ItaniumCXXABI::InitializeArrayCookie(CodeGenFunction &CGF,
       (expr->getOperatorNew()->isReplaceableGlobalAllocationFunction() ||
        CGM.getCodeGenOpts().SanitizeAddressPoisonCustomArrayCookie)) {
     // The store to the CookiePtr does not need to be instrumented.
-    CGM.getSanitizerMetadata()->disableSanitizerForInstruction(SI);
+    SI->setNoSanitizeMetadata();
     llvm::FunctionType *FTy =
         llvm::FunctionType::get(CGM.VoidTy, NumElementsPtr.getType(), false);
     llvm::FunctionCallee F =
@@ -2369,8 +2369,8 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
       guardAlignment = CGF.getSizeAlign();
     } else {
       guardTy = CGF.Int64Ty;
-      guardAlignment = CharUnits::fromQuantity(
-                             CGM.getDataLayout().getABITypeAlignment(guardTy));
+      guardAlignment =
+          CharUnits::fromQuantity(CGM.getDataLayout().getABITypeAlign(guardTy));
     }
   }
   llvm::PointerType *guardPtrTy = guardTy->getPointerTo(
@@ -3182,7 +3182,7 @@ llvm::GlobalVariable *ItaniumRTTIBuilder::GetAddrOfTypeName(
   auto Align = CGM.getContext().getTypeAlignInChars(CGM.getContext().CharTy);
 
   llvm::GlobalVariable *GV = CGM.CreateOrReplaceCXXRuntimeVariable(
-      Name, Init->getType(), Linkage, Align.getQuantity());
+      Name, Init->getType(), Linkage, Align.getAsAlign());
 
   GV->setInitializer(Init);
 
@@ -3296,6 +3296,8 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
+#define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
     case BuiltinType::ShortAccum:
     case BuiltinType::Accum:
     case BuiltinType::LongAccum:
@@ -3650,7 +3652,6 @@ static llvm::GlobalVariable::LinkageTypes getTypeInfoLinkage(CodeGenModule &CGM,
     return llvm::GlobalValue::InternalLinkage;
 
   case VisibleNoLinkage:
-  case ModuleInternalLinkage:
   case ModuleLinkage:
   case ExternalLinkage:
     // RTTI is not enabled, which means that this type info struct is going
@@ -4695,6 +4696,7 @@ static llvm::FunctionCallee getClangCallTerminateFn(CodeGenModule &CGM) {
       cast<llvm::Function>(fnRef.getCallee()->stripPointerCasts());
   if (fn->empty()) {
     CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, fn, /*IsThunk=*/false);
+    CGM.SetLLVMFunctionAttributesForDefinition(nullptr, fn);
     fn->setDoesNotThrow();
     fn->setDoesNotReturn();
 

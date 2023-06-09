@@ -20,3 +20,12 @@ vector_swizzles
 kernel_bundle
 specialization_constants
 device_selector
+math_builtin_api
+stream
+marray
+image_accessor
+atomic_fence
+function_objects
+group_functions
+image
+atomic_ref

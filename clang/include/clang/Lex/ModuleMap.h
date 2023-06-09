@@ -30,6 +30,7 @@
 #include "llvm/ADT/Twine.h"
 #include <ctime>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -333,7 +334,7 @@ private:
   /// \param NeedsFramework If M is not a framework but a missing header would
   ///        be found in case M was, set it to true. False otherwise.
   /// \return The resolved file, if any.
-  Optional<FileEntryRef>
+  OptionalFileEntryRef
   findHeader(Module *M, const Module::UnresolvedHeaderDirective &Header,
              SmallVectorImpl<char> &RelativePathName, bool &NeedsFramework);
 
@@ -379,8 +380,8 @@ private:
     return static_cast<bool>(findHeaderInUmbrellaDirs(File, IntermediateDirs));
   }
 
-  Module *inferFrameworkModule(const DirectoryEntry *FrameworkDir,
-                               Attributes Attrs, Module *Parent);
+  Module *inferFrameworkModule(DirectoryEntryRef FrameworkDir, Attributes Attrs,
+                               Module *Parent);
 
 public:
   /// Construct a new module map.
@@ -447,9 +448,13 @@ public:
   /// and does not consult the external source. (Those checks are the
   /// responsibility of \ref HeaderSearch.)
   ///
+  /// \param AllowCreation Whether to allow inference of a new submodule, or to
+  ///        only return existing known modules.
+  ///
   /// Typically, \ref findModuleForHeader should be used instead, as it picks
   /// the preferred module for the header.
-  ArrayRef<KnownHeader> findAllModulesForHeader(const FileEntry *File);
+  ArrayRef<KnownHeader> findAllModulesForHeader(const FileEntry *File,
+                                                bool AllowCreation = true);
 
   /// Like \ref findAllModulesForHeader, but do not attempt to infer module
   /// ownership from umbrella headers if we've not already done so.
@@ -466,7 +471,7 @@ public:
   /// provided, only headers with same size and modtime are resolved. If File
   /// is not set, all headers are resolved.
   void resolveHeaderDirectives(Module *Mod,
-                               llvm::Optional<const FileEntry *> File) const;
+                               std::optional<const FileEntry *> File) const;
 
   /// Reports errors if a module must not include a specific file.
   ///
@@ -552,10 +557,17 @@ public:
   /// parent.
   Module *createGlobalModuleFragmentForModuleUnit(SourceLocation Loc,
                                                   Module *Parent = nullptr);
+  Module *createImplicitGlobalModuleFragmentForModuleUnit(
+      SourceLocation Loc, bool IsExported, Module *Parent = nullptr);
 
   /// Create a global module fragment for a C++ module interface unit.
   Module *createPrivateModuleFragmentForInterfaceUnit(Module *Parent,
                                                       SourceLocation Loc);
+
+  /// Create a new C++ module with the specified kind, and reparent any pending
+  /// global module fragment(s) to it.
+  Module *createModuleUnitWithKind(SourceLocation Loc, StringRef Name,
+                                   Module::ModuleKind Kind);
 
   /// Create a new module for a C++ module interface unit.
   /// The module must not already exist, and will be configured for the current
@@ -566,14 +578,21 @@ public:
   /// \returns The newly-created module.
   Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name);
 
+  /// Create a new module for a C++ module implementation unit.
+  /// The interface module for this implementation (implicitly imported) must
+  /// exist and be loaded and present in the modules map.
+  ///
+  /// \returns The newly-created module.
+  Module *createModuleForImplementationUnit(SourceLocation Loc, StringRef Name);
+
   /// Create a C++20 header unit.
   Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
                            Module::Header H);
 
   /// Infer the contents of a framework module map from the given
   /// framework directory.
-  Module *inferFrameworkModule(const DirectoryEntry *FrameworkDir,
-                               bool IsSystem, Module *Parent);
+  Module *inferFrameworkModule(DirectoryEntryRef FrameworkDir, bool IsSystem,
+                               Module *Parent);
 
   /// Create a new top-level module that is shadowed by
   /// \p ShadowingModule.
@@ -606,7 +625,7 @@ public:
   ///
   /// \returns The file entry for the module map file containing the given
   /// module, or nullptr if the module definition was inferred.
-  Optional<FileEntryRef> getContainingModuleMapFile(const Module *Module) const;
+  OptionalFileEntryRef getContainingModuleMapFile(const Module *Module) const;
 
   /// Get the module map file that (along with the module name) uniquely
   /// identifies this module.
@@ -617,7 +636,7 @@ public:
   /// of inferred modules, returns the module map that allowed the inference
   /// (e.g. contained 'module *'). Otherwise, returns
   /// getContainingModuleMapFile().
-  Optional<FileEntryRef> getModuleMapFileForUniquing(const Module *M) const;
+  OptionalFileEntryRef getModuleMapFileForUniquing(const Module *M) const;
 
   void setInferredModuleAllowedBy(Module *M, const FileEntry *ModMap);
 
@@ -673,17 +692,16 @@ public:
   /// false otherwise.
   bool resolveConflicts(Module *Mod, bool Complain);
 
-  /// Sets the umbrella header of the given module to the given
-  /// header.
-  void setUmbrellaHeader(Module *Mod, const FileEntry *UmbrellaHeader,
-                         const Twine &NameAsWritten,
-                         const Twine &PathRelativeToRootModuleDirectory);
+  /// Sets the umbrella header of the given module to the given header.
+  void
+  setUmbrellaHeaderAsWritten(Module *Mod, FileEntryRef UmbrellaHeader,
+                             const Twine &NameAsWritten,
+                             const Twine &PathRelativeToRootModuleDirectory);
 
-  /// Sets the umbrella directory of the given module to the given
-  /// directory.
-  void setUmbrellaDir(Module *Mod, const DirectoryEntry *UmbrellaDir,
-                      const Twine &NameAsWritten,
-                      const Twine &PathRelativeToRootModuleDirectory);
+  /// Sets the umbrella directory of the given module to the given directory.
+  void setUmbrellaDirAsWritten(Module *Mod, DirectoryEntryRef UmbrellaDir,
+                               const Twine &NameAsWritten,
+                               const Twine &PathRelativeToRootModuleDirectory);
 
   /// Adds this header to the given module.
   /// \param Role The role of the header wrt the module.
@@ -711,8 +729,8 @@ public:
   ///
   /// \returns true if an error occurred, false otherwise.
   bool parseModuleMapFile(const FileEntry *File, bool IsSystem,
-                          const DirectoryEntry *HomeDir,
-                          FileID ID = FileID(), unsigned *Offset = nullptr,
+                          DirectoryEntryRef HomeDir, FileID ID = FileID(),
+                          unsigned *Offset = nullptr,
                           SourceLocation ExternModuleLoc = SourceLocation());
 
   /// Dump the contents of the module map, for debugging purposes.
@@ -732,7 +750,7 @@ public:
   }
 
   /// Return a cached module load.
-  llvm::Optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
+  std::optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
     auto I = CachedModuleLoads.find(&II);
     if (I == CachedModuleLoads.end())
       return std::nullopt;

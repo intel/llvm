@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -triple %itanium_abi_triple
 // RUN: %clang_cc1 -std=c++17 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -triple %itanium_abi_triple
 // RUN: %clang_cc1 -std=c++20 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -triple %itanium_abi_triple
-// RUN: %clang_cc1 -std=c++2b %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -triple %itanium_abi_triple
+// RUN: %clang_cc1 -std=c++23 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors -triple %itanium_abi_triple
 
 namespace dr1 { // dr1: no
   namespace X { extern "C" void dr1_f(int a = 1); }
@@ -988,10 +988,10 @@ namespace dr70 { // dr70: yes
 // dr72: dup 69
 
 #if __cplusplus >= 201103L
-namespace dr73 { // dr73: no
-  // The resolution to dr73 is unworkable. Consider:
+namespace dr73 { // dr73: sup 1652
   int a, b;
   static_assert(&a + 1 != &b, ""); // expected-error {{not an integral constant expression}}
+  // expected-note@-1 {{comparison against pointer '&a + 1' that points past the end of a complete object}}
 }
 #endif
 

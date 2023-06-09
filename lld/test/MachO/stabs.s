@@ -5,8 +5,8 @@
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/foo.s -o %t/foo.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/no-debug.s -o %t/no-debug.o
 ## Set modtimes of the files for deterministic test output.
-# RUN: env TZ=UTC touch -t "197001010000.16" %t/test.o
-# RUN: env TZ=UTC touch -t "197001010000.32" %t/foo.o
+# RUN: env TZ=GMT touch -t "197001010000.16" %t/test.o
+# RUN: env TZ=GMT touch -t "197001010000.32" %t/foo.o
 # RUN: llvm-ar rcsU %t/foo.a %t/foo.o
 
 # RUN: ZERO_AR_DATE=0 %lld -lSystem %t/test.o %t/foo.o %t/no-debug.o -o %t/test
@@ -41,6 +41,11 @@
 # RUN:     -force_load %t/foo.a -o %t/test
 # RUN: (llvm-objdump --section-headers %t/test; dsymutil -s %t/test) | \
 # RUN:   FileCheck %s -DDIR=%t -DFOO_PATH=%t/foo.a\(foo.o\) \
+# RUN:       -D#TEST_TIME=0 -D#FOO_TIME=0
+# RUN: env ZERO_AR_DATE=0 %lld -lSystem -reproducible %t/test.o %t/foo.o \
+# RUN:     %t/no-debug.o -o %t/test
+# RUN: (llvm-objdump --section-headers %t/test; dsymutil -s %t/test) | \
+# RUN:   FileCheck %s -DDIR=%t -DFOO_PATH=%t/foo.o \
 # RUN:       -D#TEST_TIME=0 -D#FOO_TIME=0
 
 ## Check that we emit absolute paths to the object files in our OSO entries

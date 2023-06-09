@@ -10,30 +10,23 @@
 #include "AnalysisInternal.h"
 #include "clang-include-cleaner/Record.h"
 #include "clang-include-cleaner/Types.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Tooling/Core/Replacement.h"
-#include "clang/Tooling/Inclusions/HeaderIncludes.h"
 #include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Error.h"
+#include <string>
 
 namespace clang::include_cleaner {
-
-namespace {
-// Gets all the providers for a symbol by tarversing each location.
-llvm::SmallVector<Header> headersForSymbol(const Symbol &S,
-                                           const SourceManager &SM,
-                                           const PragmaIncludes *PI) {
-  llvm::SmallVector<Header> Headers;
-  for (auto &Loc : locateSymbol(S))
-    Headers.append(findHeaders(Loc, SM, PI));
-  return Headers;
-}
-} // namespace
 
 void walkUsed(llvm::ArrayRef<Decl *> ASTRoots,
               llvm::ArrayRef<SymbolReference> MacroRefs,
@@ -43,9 +36,10 @@ void walkUsed(llvm::ArrayRef<Decl *> ASTRoots,
   tooling::stdlib::Recognizer Recognizer;
   for (auto *Root : ASTRoots) {
     walkAST(*Root, [&](SourceLocation Loc, NamedDecl &ND, RefType RT) {
-      if (!SM.isWrittenInMainFile(SM.getSpellingLoc(Loc)))
+      auto FID = SM.getFileID(SM.getSpellingLoc(Loc));
+      if (FID != SM.getMainFileID() && FID != SM.getPreambleFileID())
         return;
-      // FIXME: Most of the work done here is repetative. It might be useful to
+      // FIXME: Most of the work done here is repetitive. It might be useful to
       // have a cache/batching.
       SymbolReference SymRef{Loc, ND, RT};
       return CB(SymRef, headersForSymbol(ND, SM, PI));
@@ -55,12 +49,12 @@ void walkUsed(llvm::ArrayRef<Decl *> ASTRoots,
     assert(MacroRef.Target.kind() == Symbol::Macro);
     if (!SM.isWrittenInMainFile(SM.getSpellingLoc(MacroRef.RefLocation)))
       continue;
-    CB(MacroRef, findHeaders(MacroRef.Target.macro().Definition, SM, PI));
+    CB(MacroRef, headersForSymbol(MacroRef.Target, SM, PI));
   }
 }
 
-static std::string spellHeader(const Header &H, HeaderSearch &HS,
-                               const FileEntry *Main) {
+std::string spellHeader(const Header &H, HeaderSearch &HS,
+                        const FileEntry *Main) {
   switch (H.kind()) {
   case Header::Physical: {
     bool IsSystem = false;
@@ -100,9 +94,25 @@ AnalysisResults analyze(llvm::ArrayRef<Decl *> ASTRoots,
            });
 
   AnalysisResults Results;
-  for (const Include &I : Inc.all())
-    if (!Used.contains(&I))
-      Results.Unused.push_back(&I);
+  for (const Include &I : Inc.all()) {
+    if (Used.contains(&I) || !I.Resolved)
+      continue;
+    if (PI) {
+      if (PI->shouldKeep(I.Line))
+        continue;
+      // Check if main file is the public interface for a private header. If so
+      // we shouldn't diagnose it as unused.
+      if (auto PHeader = PI->getPublic(I.Resolved); !PHeader.empty()) {
+        PHeader = PHeader.trim("<>\"");
+        // Since most private -> public mappings happen in a verbatim way, we
+        // check textually here. This might go wrong in presence of symlinks or
+        // header mappings. But that's not different than rest of the places.
+        if (MainFile->tryGetRealPathName().endswith(PHeader))
+          continue;
+      }
+    }
+    Results.Unused.push_back(&I);
+  }
   for (llvm::StringRef S : Missing.keys())
     Results.Missing.push_back(S.str());
   llvm::sort(Results.Missing);

@@ -20,6 +20,7 @@
 #include "PlatformAndroid.h"
 #include "PlatformAndroidRemoteGDBServer.h"
 #include "lldb/Target/Target.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -148,7 +149,7 @@ Status PlatformAndroid::ConnectRemote(Args &args) {
   const char *url = args.GetArgumentAtIndex(0);
   if (!url)
     return Status("URL is null.");
-  llvm::Optional<URI> parsed_url = URI::Parse(url);
+  std::optional<URI> parsed_url = URI::Parse(url);
   if (!parsed_url)
     return Status("Invalid URL: %s", url);
   if (parsed_url->hostname != "localhost")
@@ -280,7 +281,7 @@ uint32_t PlatformAndroid::GetSdkVersion() {
 Status PlatformAndroid::DownloadSymbolFile(const lldb::ModuleSP &module_sp,
                                            const FileSpec &dst_file_spec) {
   // For oat file we can try to fetch additional debug info from the device
-  ConstString extension = module_sp->GetFileSpec().GetFileNameExtension();
+  llvm::StringRef extension = module_sp->GetFileSpec().GetFileNameExtension();
   if (extension != ".oat" && extension != ".odex")
     return Status(
         "Symbol file downloading only supported for oat and odex files");

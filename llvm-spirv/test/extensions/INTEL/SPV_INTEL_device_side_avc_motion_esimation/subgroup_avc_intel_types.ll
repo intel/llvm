@@ -19,8 +19,8 @@
 ;   intel_sub_group_avc_ime_dual_reference_streamin_t dstreamin = 0x0;
 ; }
 
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_device_side_avc_motion_estimation -o - -spirv-text | FileCheck %s
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_device_side_avc_motion_estimation -o - -spirv-text | FileCheck %s
 
 ; CHECK: Capability Groups
 ; CHECK: Capability SubgroupAvcMotionEstimationINTEL

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 //==- queue_parallel_for_generic.cpp - SYCL queue parallel_for interface test -=//
 //

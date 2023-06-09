@@ -61,7 +61,7 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
   /// Returns true if the given region 'src' can be inlined into the region
   /// 'dest' that is attached to an operation registered to the current dialect.
   bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     // Return true here when inlining into spirv.func, spirv.mlir.selection, and
     // spirv.mlir.loop operations.
     auto *op = dest->getParentOp();
@@ -72,7 +72,7 @@ struct SPIRVInlinerInterface : public DialectInlinerInterface {
   /// dialect, can be inlined into the region 'dest' that is attached to an
   /// operation registered to the current dialect.
   bool isLegalToInline(Operation *op, Region *dest, bool wouldBeCloned,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     // TODO: Enable inlining structured control flows with return.
     if ((isa<spirv::SelectionOp, spirv::LoopOp>(op)) &&
         containsReturn(op->getRegion(0)))
@@ -142,15 +142,15 @@ std::string SPIRVDialect::getAttributeName(Decoration decoration) {
 
 // Forward declarations.
 template <typename ValTy>
-static Optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
-                                      DialectAsmParser &parser);
+static std::optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
+                                           DialectAsmParser &parser);
 template <>
-Optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
-                                    DialectAsmParser &parser);
+std::optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
+                                         DialectAsmParser &parser);
 
 template <>
-Optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
-                                            DialectAsmParser &parser);
+std::optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
+                                                 DialectAsmParser &parser);
 
 static Type parseAndVerifyType(SPIRVDialect const &dialect,
                                DialectAsmParser &parser) {
@@ -164,19 +164,19 @@ static Type parseAndVerifyType(SPIRVDialect const &dialect,
     return type;
 
   // Check other allowed types
-  if (auto t = type.dyn_cast<FloatType>()) {
+  if (auto t = llvm::dyn_cast<FloatType>(type)) {
     if (type.isBF16()) {
       parser.emitError(typeLoc, "cannot use 'bf16' to compose SPIR-V types");
       return Type();
     }
-  } else if (auto t = type.dyn_cast<IntegerType>()) {
+  } else if (auto t = llvm::dyn_cast<IntegerType>(type)) {
     if (!ScalarType::isValid(t)) {
       parser.emitError(typeLoc,
                        "only 1/8/16/32/64-bit integer type allowed but found ")
           << type;
       return Type();
     }
-  } else if (auto t = type.dyn_cast<VectorType>()) {
+  } else if (auto t = llvm::dyn_cast<VectorType>(type)) {
     if (t.getRank() != 1) {
       parser.emitError(typeLoc, "only 1-D vector allowed but found ") << t;
       return Type();
@@ -203,7 +203,7 @@ static Type parseAndVerifyMatrixType(SPIRVDialect const &dialect,
   if (parser.parseType(type))
     return Type();
 
-  if (auto t = type.dyn_cast<VectorType>()) {
+  if (auto t = llvm::dyn_cast<VectorType>(type)) {
     if (t.getRank() != 1) {
       parser.emitError(typeLoc, "only 1-D vector allowed but found ") << t;
       return Type();
@@ -216,7 +216,7 @@ static Type parseAndVerifyMatrixType(SPIRVDialect const &dialect,
       return Type();
     }
 
-    if (!t.getElementType().isa<FloatType>()) {
+    if (!llvm::isa<FloatType>(t.getElementType())) {
       parser.emitError(typeLoc, "matrix columns' elements must be of "
                                 "Float type, got ")
           << t.getElementType();
@@ -239,7 +239,7 @@ static Type parseAndVerifySampledImageType(SPIRVDialect const &dialect,
   if (parser.parseType(type))
     return Type();
 
-  if (!type.isa<ImageType>()) {
+  if (!llvm::isa<ImageType>(type)) {
     parser.emitError(typeLoc,
                      "sampled image must be composed using image type, got ")
         << type;
@@ -264,7 +264,7 @@ static LogicalResult parseOptionalArrayStride(const SPIRVDialect &dialect,
     return failure();
 
   SMLoc strideLoc = parser.getCurrentLocation();
-  Optional<unsigned> optStride = parseAndVerify<unsigned>(dialect, parser);
+  std::optional<unsigned> optStride = parseAndVerify<unsigned>(dialect, parser);
   if (!optStride)
     return failure();
 
@@ -474,8 +474,8 @@ static Type parseMatrixType(SPIRVDialect const &dialect,
 // Specialize this function to parse each of the parameters that define an
 // ImageType. By default it assumes this is an enum type.
 template <typename ValTy>
-static Optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
-                                      DialectAsmParser &parser) {
+static std::optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
+                                           DialectAsmParser &parser) {
   StringRef enumSpec;
   SMLoc enumLoc = parser.getCurrentLocation();
   if (parser.parseKeyword(&enumSpec)) {
@@ -489,8 +489,8 @@ static Optional<ValTy> parseAndVerify(SPIRVDialect const &dialect,
 }
 
 template <>
-Optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
-                                    DialectAsmParser &parser) {
+std::optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
+                                         DialectAsmParser &parser) {
   // TODO: Further verify that the element type can be sampled
   auto ty = parseAndVerifyType(dialect, parser);
   if (!ty)
@@ -499,8 +499,8 @@ Optional<Type> parseAndVerify<Type>(SPIRVDialect const &dialect,
 }
 
 template <typename IntTy>
-static Optional<IntTy> parseAndVerifyInteger(SPIRVDialect const &dialect,
-                                             DialectAsmParser &parser) {
+static std::optional<IntTy> parseAndVerifyInteger(SPIRVDialect const &dialect,
+                                                  DialectAsmParser &parser) {
   IntTy offsetVal = std::numeric_limits<IntTy>::max();
   if (parser.parseInteger(offsetVal))
     return std::nullopt;
@@ -508,8 +508,8 @@ static Optional<IntTy> parseAndVerifyInteger(SPIRVDialect const &dialect,
 }
 
 template <>
-Optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
-                                            DialectAsmParser &parser) {
+std::optional<unsigned> parseAndVerify<unsigned>(SPIRVDialect const &dialect,
+                                                 DialectAsmParser &parser) {
   return parseAndVerifyInteger<unsigned>(dialect, parser);
 }
 
@@ -520,7 +520,7 @@ namespace {
 // (termination condition) needs partial specialization.
 template <typename ParseType, typename... Args>
 struct ParseCommaSeparatedList {
-  Optional<std::tuple<ParseType, Args...>>
+  std::optional<std::tuple<ParseType, Args...>>
   operator()(SPIRVDialect const &dialect, DialectAsmParser &parser) const {
     auto parseVal = parseAndVerify<ParseType>(dialect, parser);
     if (!parseVal)
@@ -541,8 +541,8 @@ struct ParseCommaSeparatedList {
 // specs to parse the last element of the list.
 template <typename ParseType>
 struct ParseCommaSeparatedList<ParseType> {
-  Optional<std::tuple<ParseType>> operator()(SPIRVDialect const &dialect,
-                                             DialectAsmParser &parser) const {
+  std::optional<std::tuple<ParseType>>
+  operator()(SPIRVDialect const &dialect, DialectAsmParser &parser) const {
     if (auto value = parseAndVerify<ParseType>(dialect, parser))
       return std::tuple<ParseType>(*value);
     return std::nullopt;
@@ -939,12 +939,12 @@ LogicalResult SPIRVDialect::verifyOperationAttribute(Operation *op,
   Attribute attr = attribute.getValue();
 
   if (symbol == spirv::getEntryPointABIAttrName()) {
-    if (!attr.isa<spirv::EntryPointABIAttr>()) {
+    if (!llvm::isa<spirv::EntryPointABIAttr>(attr)) {
       return op->emitError("'")
              << symbol << "' attribute must be an entry point ABI attribute";
     }
   } else if (symbol == spirv::getTargetEnvAttrName()) {
-    if (!attr.isa<spirv::TargetEnvAttr>())
+    if (!llvm::isa<spirv::TargetEnvAttr>(attr))
       return op->emitError("'") << symbol << "' must be a spirv::TargetEnvAttr";
   } else {
     return op->emitError("found unsupported '")
@@ -965,7 +965,7 @@ static LogicalResult verifyRegionAttribute(Location loc, Type valueType,
     return emitError(loc, "found unsupported '")
            << symbol << "' attribute on region argument";
 
-  auto varABIAttr = attr.dyn_cast<spirv::InterfaceVarABIAttr>();
+  auto varABIAttr = llvm::dyn_cast<spirv::InterfaceVarABIAttr>(attr);
   if (!varABIAttr)
     return emitError(loc, "'")
            << symbol << "' must be a spirv::InterfaceVarABIAttr";

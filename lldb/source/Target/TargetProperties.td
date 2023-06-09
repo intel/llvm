@@ -24,6 +24,15 @@ let Definition = "target" in {
     DefaultUnsignedValue<5>,
     Desc<"The maximum amount of errors to emit while parsing an expression. "
          "A value of 0 means to always continue parsing if possible.">;
+  def ExprAllocAddress: Property<"expr-alloc-address", "UInt64">,
+    DefaultUnsignedValue<0>,
+    Desc<"Start address within the process address space of memory allocation for expression evaluation.">;
+  def ExprAllocSize: Property<"expr-alloc-size", "UInt64">,
+    DefaultUnsignedValue<0>,
+    Desc<"Amount of memory in bytes to allocate for expression evaluation.">;
+  def ExprAllocAlign: Property<"expr-alloc-align", "UInt64">,
+    DefaultUnsignedValue<0>,
+    Desc<"Alignment for each memory allocation for expression evaluation.">;
   def PreferDynamic: Property<"prefer-dynamic-value", "Enum">,
     DefaultEnumValue<"eDynamicDontRunTarget">,
     EnumValues<"OptionEnumValues(g_dynamic_value_types)">,
@@ -216,7 +225,7 @@ let Definition = "process" in {
   def DisableLangRuntimeUnwindPlans: Property<"disable-language-runtime-unwindplans", "Boolean">,
     Global,
     DefaultFalse,
-    Desc<"If true, LanguageRuntime plugins' UnwindPlans will not be used when backtracing.">;
+    Desc<"If true, language runtime augmented/overidden backtraces will not be used when printing a stack trace.">;
   def DetachKeepsStopped: Property<"detach-keeps-stopped", "Boolean">,
     Global,
     DefaultFalse,

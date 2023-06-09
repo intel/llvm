@@ -22,6 +22,7 @@
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::pdll;
@@ -238,7 +239,7 @@ void CodeGen::genImpl(const ast::ReplaceStmt *stmt) {
   // replacement values.
   bool usesReplOperation =
       replValues.size() == 1 &&
-      replValues.front().getType().isa<pdl::OperationType>();
+      isa<pdl::OperationType>(replValues.front().getType());
   builder.create<pdl::ReplaceOp>(
       loc, rootExpr, usesReplOperation ? replValues[0] : Value(),
       usesReplOperation ? ValueRange() : ValueRange(replValues));
@@ -282,7 +283,8 @@ void CodeGen::genImpl(const ast::PatternDecl *decl) {
   // here.
   pdl::PatternOp pattern = builder.create<pdl::PatternOp>(
       genLoc(decl->getLoc()), decl->getBenefit(),
-      name ? Optional<StringRef>(name->getName()) : Optional<StringRef>());
+      name ? std::optional<StringRef>(name->getName())
+           : std::optional<StringRef>());
 
   OpBuilder::InsertionGuard savedInsertPoint(builder);
   builder.setInsertionPointToStart(pattern.getBody());
@@ -439,7 +441,7 @@ Value CodeGen::genExprImpl(const ast::MemberAccessExpr *expr) {
   if (ast::OperationType opType = parentType.dyn_cast<ast::OperationType>()) {
     if (isa<ast::AllResultsMemberAccessExpr>(expr)) {
       Type mlirType = genType(expr->getType());
-      if (mlirType.isa<pdl::ValueType>())
+      if (isa<pdl::ValueType>(mlirType))
         return builder.create<pdl::ResultOp>(loc, mlirType, parentExprs[0],
                                              builder.getI32IntegerAttr(0));
       return builder.create<pdl::ResultsOp>(loc, mlirType, parentExprs[0]);
@@ -495,7 +497,7 @@ Value CodeGen::genExprImpl(const ast::MemberAccessExpr *expr) {
 
 Value CodeGen::genExprImpl(const ast::OperationExpr *expr) {
   Location loc = genLoc(expr->getLoc());
-  Optional<StringRef> opName = expr->getName();
+  std::optional<StringRef> opName = expr->getName();
 
   // Operands.
   SmallVector<Value> operands;

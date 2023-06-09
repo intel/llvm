@@ -72,7 +72,7 @@ def HasFSMULD : Predicate<"!Subtarget->hasNoFSMULD()">;
 // V8, or when it is V9 but the V8 deprecated instructions are efficient enough
 // to use when appropriate.  In either of these cases, the instruction selector
 // will pick deprecated instructions.
-def UseDeprecatedInsts : Predicate<"Subtarget->useDeprecatedV8Instructions()">;
+def UseDeprecatedInsts : Predicate<"Subtarget->useV8DeprecatedInsts()">;
 
 //===----------------------------------------------------------------------===//
 // Instruction Pattern Stuff
@@ -224,6 +224,8 @@ def SDTSPcmpfcc :
 SDTypeProfile<0, 2, [SDTCisFP<0>, SDTCisSameAs<0, 1>]>;
 def SDTSPbrcc :
 SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>]>;
+def SDTSPbrreg :
+SDTypeProfile<0, 3, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>, SDTCisVT<2, i64>]>;
 def SDTSPselectcc :
 SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisSameAs<1, 2>, SDTCisVT<3, i32>]>;
 def SDTSPselectreg :
@@ -253,6 +255,7 @@ def SPbpicc : SDNode<"SPISD::BPICC", SDTSPbrcc, [SDNPHasChain, SDNPInGlue]>;
 def SPbpxcc : SDNode<"SPISD::BPXCC", SDTSPbrcc, [SDNPHasChain, SDNPInGlue]>;
 def SPbrfcc : SDNode<"SPISD::BRFCC", SDTSPbrcc, [SDNPHasChain, SDNPInGlue]>;
 def SPbrfccv9 : SDNode<"SPISD::BRFCC_V9", SDTSPbrcc, [SDNPHasChain, SDNPInGlue]>;
+def SPbrreg : SDNode<"SPISD::BR_REG", SDTSPbrreg, [SDNPHasChain, SDNPInGlue]>;
 
 def SPhi    : SDNode<"SPISD::Hi", SDTIntUnaryOp>;
 def SPlo    : SDNode<"SPISD::Lo", SDTIntUnaryOp>;
@@ -288,7 +291,7 @@ def tailcall      : SDNode<"SPISD::TAIL_CALL", SDT_SPCall,
                             SDNPVariadic]>;
 
 def SDT_SPRet     : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
-def retflag       : SDNode<"SPISD::RET_FLAG", SDT_SPRet,
+def retglue       : SDNode<"SPISD::RET_GLUE", SDT_SPRet,
                            [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
 def flushw        : SDNode<"SPISD::FLUSHW", SDTNone,
@@ -850,15 +853,8 @@ class BranchPredictAlways<dag ins, string asmstr, list<dag> pattern>
   : F2_3<0b001, 0, 1, (outs), ins, asmstr, pattern>;
 }
 
-let cond = 8 in {
-  // If we're compiling for v9, prefer BPA rather than BA
-  // TODO: Disallow BA emission when FeatureV8Deprecated isn't enabled
-  let Predicates = [HasV9], cc = 0b00 in
-    def BPA : BranchPredictAlways<(ins bprtarget:$imm19),
-      "ba %icc, $imm19", [(br bb:$imm19)]>;
-
+let cond = 8 in
   def BA : BranchAlways<(ins brtarget:$imm22), "ba $imm22", [(br bb:$imm22)]>;
-}
 
 let isBranch = 1, isTerminator = 1, hasDelaySlot = 1 in {
 
@@ -1041,7 +1037,7 @@ let isReturn = 1, isTerminator = 1, hasDelaySlot = 1, isBarrier = 1,
     def RETL: F3_2<2, 0b111000,
                    (outs), (ins i32imm:$simm13),
                    "jmp %o7+$simm13",
-                   [(retflag simm13:$simm13)],
+                   [(retglue simm13:$simm13)],
                    IIC_jmp_or_call>;
 
   let rd = 0, rs1 = 31 in
@@ -1782,8 +1778,7 @@ let Predicates = [HasV9] in {
 //===----------------------------------------------------------------------===//
 
 // Zero immediate.
-def : Pat<(i32 0),
-          (ORrr (i32 G0), (i32 G0))>;
+def : Pat<(i32 0), (COPY (i32 G0))>;
 // Small immediates.
 def : Pat<(i32 simm13:$val),
           (ORri (i32 G0), imm:$val)>;
@@ -1863,6 +1858,16 @@ def : Pat<(atomic_store_16 ADDRrr:$dst, i32:$val), (STHrr ADDRrr:$dst, $val)>;
 def : Pat<(atomic_store_16 ADDRri:$dst, i32:$val), (STHri ADDRri:$dst, $val)>;
 def : Pat<(atomic_store_32 ADDRrr:$dst, i32:$val), (STrr ADDRrr:$dst, $val)>;
 def : Pat<(atomic_store_32 ADDRri:$dst, i32:$val), (STri ADDRri:$dst, $val)>;
+
+// A register pair with zero upper half.
+// The upper part is done with ORrr instead of `COPY G0`
+// or a normal register copy, since `COPY G0`s in that place
+// will be converted into `COPY G0_G1` later on, which is not
+// what we want in this case.
+def : Pat<(build_vector (i32 0), (i32 IntRegs:$a2)),
+          (INSERT_SUBREG (INSERT_SUBREG (v2i32 (IMPLICIT_DEF)),
+            (ORrr (i32 G0), (i32 G0)), sub_even),
+            (i32 IntRegs:$a2), sub_odd)>;
 
 // extract_vector
 def : Pat<(extractelt (v2i32 IntPair:$Rn), 0),

@@ -19,27 +19,16 @@ namespace detail {
 
 template <typename Param>
 typename Param::return_type get_context_info(RT::PiContext Ctx,
-                                             const plugin &Plugin) {
+                                             const PluginPtr &Plugin) {
   static_assert(is_context_info_desc<Param>::value,
                 "Invalid context information descriptor");
   typename Param::return_type Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piContextGetInfo>(Ctx, PiInfoCode<Param>::value,
-                                           sizeof(Result), &Result, nullptr);
+  Plugin->call<PiApiKind::piContextGetInfo>(Ctx, PiInfoCode<Param>::value,
+                                            sizeof(Result), &Result, nullptr);
   return Result;
 }
 
-// Specialization for atomic_memory_order_capabilities, PI returns a bitfield
-template <>
-std::vector<sycl::memory_order>
-get_context_info<info::context::atomic_memory_order_capabilities>(
-    RT::PiContext Ctx, const plugin &Plugin) {
-  pi_memory_order_capabilities Result;
-  Plugin.call<PiApiKind::piContextGetInfo>(
-      Ctx, PiInfoCode<info::context::atomic_memory_order_capabilities>::value,
-      sizeof(Result), &Result, nullptr);
-  return readMemoryOrderBitfield(Result);
-}
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

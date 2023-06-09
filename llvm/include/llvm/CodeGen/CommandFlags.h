@@ -94,8 +94,6 @@ std::string getTrapFuncName();
 
 bool getUseCtors();
 
-bool getLowerGlobalDtorsViaCxaAtExit();
-
 bool getRelaxELFRelocations();
 
 bool getDataSections();
@@ -113,6 +111,7 @@ std::string getBBSections();
 unsigned getTLSSize();
 
 bool getEmulatedTLS();
+std::optional<bool> getExplicitEmulatedTLS();
 
 bool getUniqueSectionNames();
 
@@ -133,7 +132,7 @@ bool getEnableMachineFunctionSplitter();
 bool getEnableDebugEntryValues();
 
 bool getValueTrackingVariableLocations();
-Optional<bool> getExplicitValueTrackingVariableLocations();
+std::optional<bool> getExplicitValueTrackingVariableLocations();
 
 bool getForceDwarfFrameSection();
 
@@ -144,6 +143,8 @@ bool getDebugStrictDwarf();
 unsigned getAlignLoops();
 
 bool getJMCInstrument();
+
+bool getXCOFFReadOnlyPointers();
 
 /// Create this object with static storage to register codegen-related command
 /// line options.

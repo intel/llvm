@@ -30,7 +30,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 namespace ranges {
 
 // construct_at
@@ -39,7 +39,7 @@ namespace __construct_at {
 
 struct __fn {
   template<class _Tp, class... _Args, class = decltype(
-    ::new (declval<void*>()) _Tp(declval<_Args>()...)
+    ::new (std::declval<void*>()) _Tp(std::declval<_Args>()...)
   )>
   _LIBCPP_HIDE_FROM_ABI
   constexpr _Tp* operator()(_Tp* __location, _Args&& ...__args) const {
@@ -118,7 +118,7 @@ inline namespace __cpo {
 
 } // namespace ranges
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

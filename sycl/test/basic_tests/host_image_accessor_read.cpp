@@ -26,7 +26,7 @@ int foo(float *image_data) {
 
     sycl::range<2> pitch = Image.get_pitch();
 
-    sycl::cl_int4 Coords{0, 1, 2, 0};
+    sycl::vec<sycl::opencl::cl_int, 4> Coords{0, 1, 2, 0};
     {
       auto host_image_acc =
           Image.template get_access<sycl::float4, sycl::access::mode::read>();
@@ -35,14 +35,16 @@ int foo(float *image_data) {
           sycl::coordinate_normalization_mode::unnormalized,
           sycl::addressing_mode::none, sycl::filtering_mode::nearest);
       // Test image read function.
-      sycl::cl_float4 Ret_data = host_image_acc.read(Coords);
+      sycl::vec<sycl::opencl::cl_float, 4> Ret_data =
+          host_image_acc.read(Coords);
       assert((float)Ret_data.x() == 85);
       assert((float)Ret_data.y() == 86);
       assert((float)Ret_data.z() == 87);
       assert((float)Ret_data.w() == 88);
 
       // Test image read with sampler.
-      sycl::cl_float4 Ret_data2 = host_image_acc.read(Coords, Sampler);
+      sycl::vec<sycl::opencl::cl_float, 4> Ret_data2 =
+          host_image_acc.read(Coords, Sampler);
       assert((float)Ret_data2.x() == 85);
       assert((float)Ret_data2.y() == 86);
       assert((float)Ret_data2.z() == 87);
@@ -54,13 +56,15 @@ int foo(float *image_data) {
           Image.template get_access<sycl::float4, sycl::access::mode::write>();
 
       // Test image write function.
-      host_image_acc.write(Coords, sycl::cl_float4{120, 121, 122, 123});
+      host_image_acc.write(
+          Coords, sycl::vec<sycl::opencl::cl_float, 4>{120, 121, 122, 123});
     }
 
     {
       auto host_image_acc =
           Image.template get_access<sycl::float4, sycl::access::mode::read>();
-      sycl::cl_float4 Ret_data = host_image_acc.read(Coords);
+      sycl::vec<sycl::opencl::cl_float, 4> Ret_data =
+          host_image_acc.read(Coords);
       assert((float)Ret_data.x() == 120);
       assert((float)Ret_data.y() == 121);
       assert((float)Ret_data.z() == 122);
@@ -70,15 +74,14 @@ int foo(float *image_data) {
       auto Sampler = sycl::sampler(
           sycl::coordinate_normalization_mode::unnormalized,
           sycl::addressing_mode::clamp_to_edge, sycl::filtering_mode::nearest);
-      sycl::cl_int4 OutBnds_Coords{2, 2, 3, 0};
-      sycl::cl_float4 OutBnds_RetData =
+      sycl::vec<sycl::opencl::cl_int, 4> OutBnds_Coords{2, 2, 3, 0};
+      sycl::vec<sycl::opencl::cl_float, 4> OutBnds_RetData =
           host_image_acc.read(OutBnds_Coords, Sampler);
       assert((float)OutBnds_RetData.x() == 105);
       assert((float)OutBnds_RetData.y() == 106);
       assert((float)OutBnds_RetData.z() == 107);
       assert((float)OutBnds_RetData.w() == 108);
     }
-
   }
   return 0;
 }

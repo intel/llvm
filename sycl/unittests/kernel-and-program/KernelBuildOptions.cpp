@@ -11,6 +11,7 @@
 #define __SYCL_INTERNAL_API
 #endif
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
@@ -23,17 +24,10 @@ static std::string BuildOpts;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<BuildOptsTestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<BuildOptsTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "BuildOptsTestKernel"; }
   static constexpr bool isESIMD() { return true; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail

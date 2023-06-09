@@ -23,11 +23,10 @@ template <class _Compare>
 struct __debug_less
 {
     _Compare &__comp_;
-    _LIBCPP_CONSTEXPR_SINCE_CXX14
-    __debug_less(_Compare& __c) : __comp_(__c) {}
+    _LIBCPP_CONSTEXPR_SINCE_CXX14 _LIBCPP_HIDE_FROM_ABI __debug_less(_Compare& __c) : __comp_(__c) {}
 
     template <class _Tp, class _Up>
-    _LIBCPP_CONSTEXPR_SINCE_CXX14
+    _LIBCPP_CONSTEXPR_SINCE_CXX14 _LIBCPP_HIDE_FROM_ABI
     bool operator()(const _Tp& __x,  const _Up& __y)
     {
         bool __r = __comp_(__x, __y);
@@ -37,7 +36,7 @@ struct __debug_less
     }
 
     template <class _Tp, class _Up>
-    _LIBCPP_CONSTEXPR_SINCE_CXX14
+    _LIBCPP_CONSTEXPR_SINCE_CXX14 _LIBCPP_HIDE_FROM_ABI
     bool operator()(_Tp& __x,  _Up& __y)
     {
         bool __r = __comp_(__x, __y);
@@ -49,8 +48,8 @@ struct __debug_less
     template <class _LHS, class _RHS>
     _LIBCPP_CONSTEXPR_SINCE_CXX14
     inline _LIBCPP_INLINE_VISIBILITY
-    decltype((void)declval<_Compare&>()(
-        declval<_LHS &>(), declval<_RHS &>()))
+    decltype((void)std::declval<_Compare&>()(
+        std::declval<_LHS &>(), std::declval<_RHS &>()))
     __do_compare_assert(int, _LHS & __l, _RHS & __r) {
         _LIBCPP_DEBUG_ASSERT(!__comp_(__l, __r),
             "Comparator does not induce a strict weak ordering");

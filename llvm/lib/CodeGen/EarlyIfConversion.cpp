@@ -119,10 +119,10 @@ public:
 
   SmallVector<PHIInfo, 8> PHIs;
 
-private:
   /// The branch condition determined by analyzeBranch.
   SmallVector<MachineOperand, 4> Cond;
 
+private:
   /// Instructions in Head that define values used by the conditional blocks.
   /// The hoisted instructions must be inserted after these instructions.
   SmallPtrSet<MachineInstr*, 8> InsertAfter;
@@ -262,12 +262,12 @@ bool SSAIfConv::InstrDependenciesAllowIfConv(MachineInstr *I) {
     Register Reg = MO.getReg();
 
     // Remember clobbered regunits.
-    if (MO.isDef() && Register::isPhysicalRegister(Reg))
+    if (MO.isDef() && Reg.isPhysical())
       for (MCRegUnitIterator Units(Reg.asMCReg(), TRI); Units.isValid();
            ++Units)
         ClobberedRegUnits.set(*Units);
 
-    if (!MO.readsReg() || !Register::isVirtualRegister(Reg))
+    if (!MO.readsReg() || !Reg.isVirtual())
       continue;
     MachineInstr *DefMI = MRI->getVRegDef(Reg);
     if (!DefMI || DefMI->getParent() != Head)
@@ -321,9 +321,15 @@ bool SSAIfConv::canPredicateInstrs(MachineBasicBlock *MBB) {
       return false;
     }
 
-    // Check that instruction is predicable and that it is not already
-    // predicated.
-    if (!TII->isPredicable(*I) || TII->isPredicated(*I)) {
+    // Check that instruction is predicable
+    if (!TII->isPredicable(*I)) {
+      LLVM_DEBUG(dbgs() << "Isn't predicable: " << *I);
+      return false;
+    }
+
+    // Check that instruction is not already predicated.
+    if (TII->isPredicated(*I) && !TII->canPredicatePredicatedInstr(*I)) {
+      LLVM_DEBUG(dbgs() << "Is already predicated: " << *I);
       return false;
     }
 
@@ -337,8 +343,11 @@ bool SSAIfConv::canPredicateInstrs(MachineBasicBlock *MBB) {
 // Apply predicate to all instructions in the machine block.
 void SSAIfConv::PredicateBlock(MachineBasicBlock *MBB, bool ReversePredicate) {
   auto Condition = Cond;
-  if (ReversePredicate)
-    TII->reverseBranchCondition(Condition);
+  if (ReversePredicate) {
+    bool CanRevCond = !TII->reverseBranchCondition(Condition);
+    assert(CanRevCond && "Reversed predicate is not supported");
+    (void)CanRevCond;
+  }
   // Terminators don't need to be predicated as they will be removed.
   for (MachineBasicBlock::iterator I = MBB->begin(),
                                    E = MBB->getFirstTerminator();
@@ -381,7 +390,7 @@ bool SSAIfConv::findInsertionPoint() {
       if (!MO.isReg())
         continue;
       Register Reg = MO.getReg();
-      if (!Register::isPhysicalRegister(Reg))
+      if (!Reg.isPhysical())
         continue;
       // I clobbers Reg, so it isn't live before I.
       if (MO.isDef())
@@ -754,14 +763,14 @@ void SSAIfConv::convertIf(SmallVectorImpl<MachineBasicBlock *> &RemovedBlocks,
 
 namespace {
 class EarlyIfConverter : public MachineFunctionPass {
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
+  const TargetInstrInfo *TII = nullptr;
+  const TargetRegisterInfo *TRI = nullptr;
   MCSchedModel SchedModel;
-  MachineRegisterInfo *MRI;
-  MachineDominatorTree *DomTree;
-  MachineLoopInfo *Loops;
-  MachineTraceMetrics *Traces;
-  MachineTraceMetrics::Ensemble *MinInstr;
+  MachineRegisterInfo *MRI = nullptr;
+  MachineDominatorTree *DomTree = nullptr;
+  MachineLoopInfo *Loops = nullptr;
+  MachineTraceMetrics *Traces = nullptr;
+  MachineTraceMetrics::Ensemble *MinInstr = nullptr;
   SSAIfConv IfConv;
 
 public:
@@ -867,8 +876,40 @@ bool EarlyIfConverter::shouldConvertIf() {
   if (Stress)
     return true;
 
+  // Do not try to if-convert if the condition has a high chance of being
+  // predictable.
+  MachineLoop *CurrentLoop = Loops->getLoopFor(IfConv.Head);
+  // If the condition is in a loop, consider it predictable if the condition
+  // itself or all its operands are loop-invariant. E.g. this considers a load
+  // from a loop-invariant address predictable; we were unable to prove that it
+  // doesn't alias any of the memory-writes in the loop, but it is likely to
+  // read to same value multiple times.
+  if (CurrentLoop && any_of(IfConv.Cond, [&](MachineOperand &MO) {
+        if (!MO.isReg() || !MO.isUse())
+          return false;
+        Register Reg = MO.getReg();
+        if (Register::isPhysicalRegister(Reg))
+          return false;
+
+        MachineInstr *Def = MRI->getVRegDef(Reg);
+        return CurrentLoop->isLoopInvariant(*Def) ||
+               all_of(Def->operands(), [&](MachineOperand &Op) {
+                 if (Op.isImm())
+                   return true;
+                 if (!MO.isReg() || !MO.isUse())
+                   return false;
+                 Register Reg = MO.getReg();
+                 if (Register::isPhysicalRegister(Reg))
+                   return false;
+
+                 MachineInstr *Def = MRI->getVRegDef(Reg);
+                 return CurrentLoop->isLoopInvariant(*Def);
+               });
+      }))
+    return false;
+
   if (!MinInstr)
-    MinInstr = Traces->getEnsemble(MachineTraceMetrics::TS_MinInstrCount);
+    MinInstr = Traces->getEnsemble(MachineTraceStrategy::TS_MinInstrCount);
 
   MachineTraceMetrics::Trace TBBTrace = MinInstr->getTrace(IfConv.getTPred());
   MachineTraceMetrics::Trace FBBTrace = MinInstr->getTrace(IfConv.getFPred());
@@ -1078,13 +1119,13 @@ bool EarlyIfConverter::runOnMachineFunction(MachineFunction &MF) {
 
 namespace {
 class EarlyIfPredicator : public MachineFunctionPass {
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
+  const TargetInstrInfo *TII = nullptr;
+  const TargetRegisterInfo *TRI = nullptr;
   TargetSchedModel SchedModel;
-  MachineRegisterInfo *MRI;
-  MachineDominatorTree *DomTree;
-  MachineBranchProbabilityInfo *MBPI;
-  MachineLoopInfo *Loops;
+  MachineRegisterInfo *MRI = nullptr;
+  MachineDominatorTree *DomTree = nullptr;
+  MachineBranchProbabilityInfo *MBPI = nullptr;
+  MachineLoopInfo *Loops = nullptr;
   SSAIfConv IfConv;
 
 public:

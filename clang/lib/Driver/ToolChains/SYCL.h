@@ -113,7 +113,7 @@ constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
 constexpr char AmdGPU[] = "amd_gpu_";
 
-template <auto GPUArh> llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
+template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
   if (Target.startswith(GPUArh)) {
@@ -172,6 +172,11 @@ public:
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs) const;
+  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+                          llvm::opt::ArgStringList &CmdArgs,
+                          llvm::opt::OptSpecifier Opt,
+                          llvm::opt::OptSpecifier Opt_EQ,
+                          StringRef Device) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }
@@ -198,11 +203,6 @@ protected:
   Tool *buildLinker() const override;
 
 private:
-  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
-                          llvm::opt::ArgStringList &CmdArgs,
-                          llvm::opt::OptSpecifier Opt,
-                          llvm::opt::OptSpecifier Opt_EQ,
-                          StringRef Device) const;
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;

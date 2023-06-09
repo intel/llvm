@@ -179,6 +179,13 @@ func.func @int_vector234(%arg0: vector<2xi8>, %arg1: vector<4xi64>) {
   return
 }
 
+// CHECK-LABEL: @index_vector
+func.func @index_vector(%arg0: vector<4xindex>) {
+  // CHECK: spirv.UMod %{{.*}}, %{{.*}}: vector<4xi32>
+  %0 = arith.remui %arg0, %arg0: vector<4xindex>
+  return
+}
+
 // CHECK-LABEL: @vector_srem
 // CHECK-SAME: (%[[LHS:.+]]: vector<3xi16>, %[[RHS:.+]]: vector<3xi16>)
 func.func @vector_srem(%arg0: vector<3xi16>, %arg1: vector<3xi16>) {
@@ -414,6 +421,31 @@ func.func @cmpi(%arg0 : i32, %arg1 : i32) {
   %8 = arith.cmpi ugt, %arg0, %arg1 : i32
   // CHECK: spirv.UGreaterThanEqual
   %9 = arith.cmpi uge, %arg0, %arg1 : i32
+  return
+}
+
+// CHECK-LABEL: @indexcmpi
+func.func @indexcmpi(%arg0 : index, %arg1 : index) {
+  // CHECK: spirv.IEqual
+  %0 = arith.cmpi eq, %arg0, %arg1 : index
+  // CHECK: spirv.INotEqual
+  %1 = arith.cmpi ne, %arg0, %arg1 : index
+  // CHECK: spirv.SLessThan
+  %2 = arith.cmpi slt, %arg0, %arg1 : index
+  // CHECK: spirv.SLessThanEqual
+  %3 = arith.cmpi sle, %arg0, %arg1 : index
+  // CHECK: spirv.SGreaterThan
+  %4 = arith.cmpi sgt, %arg0, %arg1 : index
+  // CHECK: spirv.SGreaterThanEqual
+  %5 = arith.cmpi sge, %arg0, %arg1 : index
+  // CHECK: spirv.ULessThan
+  %6 = arith.cmpi ult, %arg0, %arg1 : index
+  // CHECK: spirv.ULessThanEqual
+  %7 = arith.cmpi ule, %arg0, %arg1 : index
+  // CHECK: spirv.UGreaterThan
+  %8 = arith.cmpi ugt, %arg0, %arg1 : index
+  // CHECK: spirv.UGreaterThanEqual
+  %9 = arith.cmpi uge, %arg0, %arg1 : index
   return
 }
 
@@ -901,6 +933,20 @@ func.func @trunc_to_veci1(%arg0: vector<4xi32>) -> vector<4xi1> {
   // CHECK: spirv.Select %[[IS_ONE]], %[[TRUE]], %[[FALSE]] : vector<4xi1>, vector<4xi1>
   %0 = arith.trunci %arg0 : vector<4xi32> to vector<4xi1>
   return %0 : vector<4xi1>
+}
+
+// CHECK-LABEL: @fptoui1
+func.func @fptoui1(%arg0 : f32) -> i32 {
+  // CHECK: spirv.ConvertFToU %{{.*}} : f32 to i32
+  %0 = arith.fptoui %arg0 : f32 to i32
+  return %0 : i32
+}
+
+// CHECK-LABEL: @fptoui2
+func.func @fptoui2(%arg0 : f16) -> i16 {
+  // CHECK: spirv.ConvertFToU %{{.*}} : f16 to i16
+  %0 = arith.fptoui %arg0 : f16 to i16
+  return %0 : i16
 }
 
 // CHECK-LABEL: @fptosi1

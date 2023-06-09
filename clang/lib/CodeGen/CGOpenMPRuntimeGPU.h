@@ -110,54 +110,10 @@ private:
                                   bool IsOffloadEntry,
                                   const RegionCodeGenTy &CodeGen) override;
 
-  /// Emits code for parallel or serial call of the \a OutlinedFn with
-  /// variables captured in a record which address is stored in \a
-  /// CapturedStruct.
-  /// This call is for the Non-SPMD Execution Mode.
-  /// \param OutlinedFn Outlined function to be run in parallel threads. Type of
-  /// this function is void(*)(kmp_int32 *, kmp_int32, struct context_vars*).
-  /// \param CapturedVars A pointer to the record with the references to
-  /// variables used in \a OutlinedFn function.
-  /// \param IfCond Condition in the associated 'if' clause, if it was
-  /// specified, nullptr otherwise.
-  void emitNonSPMDParallelCall(CodeGenFunction &CGF, SourceLocation Loc,
-                               llvm::Value *OutlinedFn,
-                               ArrayRef<llvm::Value *> CapturedVars,
-                               const Expr *IfCond);
-
-  /// Emits code for parallel or serial call of the \a OutlinedFn with
-  /// variables captured in a record which address is stored in \a
-  /// CapturedStruct.
-  /// This call is for a parallel directive within an SPMD target directive.
-  /// \param OutlinedFn Outlined function to be run in parallel threads. Type of
-  /// this function is void(*)(kmp_int32 *, kmp_int32, struct context_vars*).
-  /// \param CapturedVars A pointer to the record with the references to
-  /// variables used in \a OutlinedFn function.
-  /// \param IfCond Condition in the associated 'if' clause, if it was
-  /// specified, nullptr otherwise.
-  ///
-  void emitSPMDParallelCall(CodeGenFunction &CGF, SourceLocation Loc,
-                            llvm::Function *OutlinedFn,
-                            ArrayRef<llvm::Value *> CapturedVars,
-                            const Expr *IfCond);
-
 protected:
-  /// Get the function name of an outlined region.
-  //  The name can be customized depending on the target.
-  //
-  StringRef getOutlinedHelperName() const override {
-    return "__omp_outlined__";
-  }
-
   /// Check if the default location must be constant.
   /// Constant for NVPTX for better optimization.
   bool isDefaultLocationConstant() const override { return true; }
-
-  /// Returns additional flags that can be stored in reserved_2 field of the
-  /// default location.
-  /// For NVPTX target contains data about SPMD/Non-SPMD execution mode +
-  /// Full/Lightweight runtime mode. Used for better optimization.
-  unsigned getDefaultLocationReserved2Flags() const override;
 
 public:
   explicit CGOpenMPRuntimeGPU(CodeGenModule &CGM);
@@ -203,31 +159,31 @@ public:
   //  directive.
   /// \a D. This outlined function has type void(*)(kmp_int32 *ThreadID,
   /// kmp_int32 BoundID, struct context_vars*).
+  /// \param CGF Reference to current CodeGenFunction.
   /// \param D OpenMP directive.
   /// \param ThreadIDVar Variable for thread id in the current OpenMP region.
   /// \param InnermostKind Kind of innermost directive (for simple directives it
   /// is a directive itself, for combined - its innermost directive).
   /// \param CodeGen Code generation sequence for the \a D directive.
-  llvm::Function *
-  emitParallelOutlinedFunction(const OMPExecutableDirective &D,
-                               const VarDecl *ThreadIDVar,
-                               OpenMPDirectiveKind InnermostKind,
-                               const RegionCodeGenTy &CodeGen) override;
+  llvm::Function *emitParallelOutlinedFunction(
+      CodeGenFunction &CGF, const OMPExecutableDirective &D,
+      const VarDecl *ThreadIDVar, OpenMPDirectiveKind InnermostKind,
+      const RegionCodeGenTy &CodeGen) override;
 
   /// Emits inlined function for the specified OpenMP teams
   //  directive.
   /// \a D. This outlined function has type void(*)(kmp_int32 *ThreadID,
   /// kmp_int32 BoundID, struct context_vars*).
+  /// \param CGF Reference to current CodeGenFunction.
   /// \param D OpenMP directive.
   /// \param ThreadIDVar Variable for thread id in the current OpenMP region.
   /// \param InnermostKind Kind of innermost directive (for simple directives it
   /// is a directive itself, for combined - its innermost directive).
   /// \param CodeGen Code generation sequence for the \a D directive.
-  llvm::Function *
-  emitTeamsOutlinedFunction(const OMPExecutableDirective &D,
-                            const VarDecl *ThreadIDVar,
-                            OpenMPDirectiveKind InnermostKind,
-                            const RegionCodeGenTy &CodeGen) override;
+  llvm::Function *emitTeamsOutlinedFunction(
+      CodeGenFunction &CGF, const OMPExecutableDirective &D,
+      const VarDecl *ThreadIDVar, OpenMPDirectiveKind InnermostKind,
+      const RegionCodeGenTy &CodeGen) override;
 
   /// Emits code for teams call of the \a OutlinedFn with
   /// variables captured in a record which address is stored in \a
@@ -380,14 +336,9 @@ private:
   /// to emit optimized code.
   ExecutionMode CurrentExecutionMode = EM_Unknown;
 
-  /// true if we're emitting the code for the target region and next parallel
-  /// region is L0 for sure.
-  bool IsInTargetMasterThreadRegion = false;
   /// true if currently emitting code for target/teams/distribute region, false
   /// - otherwise.
   bool IsInTTDRegion = false;
-  /// true if we're definitely in the parallel region.
-  bool IsInParallelRegion = false;
 
   /// Map between an outlined function and its wrapper.
   llvm::DenseMap<llvm::Function *, llvm::Function *> WrapperFunctionsMap;
@@ -412,12 +363,10 @@ private:
   using EscapedParamsTy = llvm::SmallPtrSet<const Decl *, 4>;
   struct FunctionData {
     DeclToAddrMapTy LocalVarData;
-    llvm::Optional<DeclToAddrMapTy> SecondaryLocalVarData = std::nullopt;
     EscapedParamsTy EscapedParameters;
     llvm::SmallVector<const ValueDecl*, 4> EscapedVariableLengthDecls;
     llvm::SmallVector<std::pair<llvm::Value *, llvm::Value *>, 4>
         EscapedVariableLengthDeclsAddrs;
-    llvm::Value *IsInSPMDModeFlag = nullptr;
     std::unique_ptr<CodeGenFunction::OMPMapVars> MappedParams;
   };
   /// Maps the function to the list of the globalized variables with their
@@ -429,9 +378,6 @@ private:
   /// reductions.
   /// All the records are gathered into a union `union.type` is created.
   llvm::SmallVector<const RecordDecl *, 4> TeamsReductions;
-  /// Shared pointer for the global memory in the global memory buffer used for
-  /// the given kernel.
-  llvm::GlobalVariable *KernelStaticGlobalized = nullptr;
   /// Pair of the Non-SPMD team and all reductions variables in this team
   /// region.
   std::pair<const Decl *, llvm::SmallVector<const ValueDecl *, 4>>

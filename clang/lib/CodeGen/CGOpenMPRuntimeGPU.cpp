@@ -15,6 +15,7 @@
 #include "CodeGenFunction.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclOpenMP.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/Cuda.h"
@@ -94,9 +95,6 @@ enum MachineConfiguration : unsigned {
 
   /// Global memory alignment for performance.
   GlobalMemoryAlignment = 128,
-
-  /// Maximal size of the shared memory buffer.
-  SharedMemorySize = 128,
 };
 
 static const ValueDecl *getPrivateItem(const Expr *RefExpr) {
@@ -192,7 +190,7 @@ static RecordDecl *buildRecordForGlobalizedVars(
           IntegerLiteral::Create(C, Align,
                                  C.getIntTypeForBitwidth(32, /*Signed=*/0),
                                  SourceLocation()),
-          {}, AttributeCommonInfo::AS_GNU, AlignedAttr::GNU_aligned));
+          {}, AlignedAttr::GNU_aligned));
     }
     GlobalizedRD->addDecl(Field);
     MappedDeclsFields.try_emplace(VD, Field);
@@ -771,8 +769,7 @@ void CGOpenMPRuntimeGPU::emitNonSPMDKernel(const OMPExecutableDirective &D,
 void CGOpenMPRuntimeGPU::emitKernelInit(CodeGenFunction &CGF,
                                         EntryFunctionState &EST, bool IsSPMD) {
   CGBuilderTy &Bld = CGF.Builder;
-  Bld.restoreIP(OMPBuilder.createTargetInit(Bld, IsSPMD, true));
-  IsInTargetMasterThreadRegion = IsSPMD;
+  Bld.restoreIP(OMPBuilder.createTargetInit(Bld, IsSPMD));
   if (!IsSPMD)
     emitGenericVarsProlog(CGF, EST.Loc);
 }
@@ -784,7 +781,7 @@ void CGOpenMPRuntimeGPU::emitKernelDeinit(CodeGenFunction &CGF,
     emitGenericVarsEpilog(CGF);
 
   CGBuilderTy &Bld = CGF.Builder;
-  OMPBuilder.createTargetDeinit(Bld, IsSPMD, true);
+  OMPBuilder.createTargetDeinit(Bld, IsSPMD);
 }
 
 void CGOpenMPRuntimeGPU::emitSPMDKernel(const OMPExecutableDirective &D,
@@ -860,41 +857,12 @@ void CGOpenMPRuntimeGPU::emitTargetOutlinedFunction(
   setPropertyExecutionMode(CGM, OutlinedFn->getName(), Mode);
 }
 
-namespace {
-LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
-/// Enum for accessing the reserved_2 field of the ident_t struct.
-enum ModeFlagsTy : unsigned {
-  /// Bit set to 1 when in SPMD mode.
-  KMP_IDENT_SPMD_MODE = 0x01,
-  /// Bit set to 1 when a simplified runtime is used.
-  KMP_IDENT_SIMPLE_RT_MODE = 0x02,
-  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/KMP_IDENT_SIMPLE_RT_MODE)
-};
-
-/// Special mode Undefined. Is the combination of Non-SPMD mode + SimpleRuntime.
-static const ModeFlagsTy UndefinedMode =
-    (~KMP_IDENT_SPMD_MODE) & KMP_IDENT_SIMPLE_RT_MODE;
-} // anonymous namespace
-
-unsigned CGOpenMPRuntimeGPU::getDefaultLocationReserved2Flags() const {
-  switch (getExecutionMode()) {
-  case EM_SPMD:
-    return KMP_IDENT_SPMD_MODE & (~KMP_IDENT_SIMPLE_RT_MODE);
-  case EM_NonSPMD:
-    return (~KMP_IDENT_SPMD_MODE) & (~KMP_IDENT_SIMPLE_RT_MODE);
-  case EM_Unknown:
-    return UndefinedMode;
-  }
-  llvm_unreachable("Unknown flags are requested.");
-}
-
 CGOpenMPRuntimeGPU::CGOpenMPRuntimeGPU(CodeGenModule &CGM)
     : CGOpenMPRuntime(CGM) {
   llvm::OpenMPIRBuilderConfig Config(CGM.getLangOpts().OpenMPIsDevice, true,
                                      hasRequiresUnifiedSharedMemory(),
                                      CGM.getLangOpts().OpenMPOffloadMandatory);
   OMPBuilder.setConfig(Config);
-  OffloadEntriesInfoManager.setConfig(Config);
 
   if (!CGM.getLangOpts().OpenMPIsDevice)
     llvm_unreachable("OpenMP can only handle device code.");
@@ -937,36 +905,17 @@ void CGOpenMPRuntimeGPU::emitNumTeamsClause(CodeGenFunction &CGF,
                                               SourceLocation Loc) {}
 
 llvm::Function *CGOpenMPRuntimeGPU::emitParallelOutlinedFunction(
-    const OMPExecutableDirective &D, const VarDecl *ThreadIDVar,
-    OpenMPDirectiveKind InnermostKind, const RegionCodeGenTy &CodeGen) {
+    CodeGenFunction &CGF, const OMPExecutableDirective &D,
+    const VarDecl *ThreadIDVar, OpenMPDirectiveKind InnermostKind,
+    const RegionCodeGenTy &CodeGen) {
   // Emit target region as a standalone region.
-  class NVPTXPrePostActionTy : public PrePostActionTy {
-    bool &IsInParallelRegion;
-    bool PrevIsInParallelRegion;
-
-  public:
-    NVPTXPrePostActionTy(bool &IsInParallelRegion)
-        : IsInParallelRegion(IsInParallelRegion) {}
-    void Enter(CodeGenFunction &CGF) override {
-      PrevIsInParallelRegion = IsInParallelRegion;
-      IsInParallelRegion = true;
-    }
-    void Exit(CodeGenFunction &CGF) override {
-      IsInParallelRegion = PrevIsInParallelRegion;
-    }
-  } Action(IsInParallelRegion);
-  CodeGen.setAction(Action);
   bool PrevIsInTTDRegion = IsInTTDRegion;
   IsInTTDRegion = false;
-  bool PrevIsInTargetMasterThreadRegion = IsInTargetMasterThreadRegion;
-  IsInTargetMasterThreadRegion = false;
   auto *OutlinedFun =
       cast<llvm::Function>(CGOpenMPRuntime::emitParallelOutlinedFunction(
-          D, ThreadIDVar, InnermostKind, CodeGen));
-  IsInTargetMasterThreadRegion = PrevIsInTargetMasterThreadRegion;
+          CGF, D, ThreadIDVar, InnermostKind, CodeGen));
   IsInTTDRegion = PrevIsInTTDRegion;
-  if (getExecutionMode() != CGOpenMPRuntimeGPU::EM_SPMD &&
-      !IsInParallelRegion) {
+  if (getExecutionMode() != CGOpenMPRuntimeGPU::EM_SPMD) {
     llvm::Function *WrapperFun =
         createParallelDataSharingWrapper(OutlinedFun, D);
     WrapperFunctionsMap[OutlinedFun] = WrapperFun;
@@ -1014,8 +963,9 @@ getTeamsReductionVars(ASTContext &Ctx, const OMPExecutableDirective &D,
 }
 
 llvm::Function *CGOpenMPRuntimeGPU::emitTeamsOutlinedFunction(
-    const OMPExecutableDirective &D, const VarDecl *ThreadIDVar,
-    OpenMPDirectiveKind InnermostKind, const RegionCodeGenTy &CodeGen) {
+    CodeGenFunction &CGF, const OMPExecutableDirective &D,
+    const VarDecl *ThreadIDVar, OpenMPDirectiveKind InnermostKind,
+    const RegionCodeGenTy &CodeGen) {
   SourceLocation Loc = D.getBeginLoc();
 
   const RecordDecl *GlobalizedRD = nullptr;
@@ -1076,7 +1026,7 @@ llvm::Function *CGOpenMPRuntimeGPU::emitTeamsOutlinedFunction(
   } Action(Loc, GlobalizedRD, MappedDeclsFields);
   CodeGen.setAction(Action);
   llvm::Function *OutlinedFun = CGOpenMPRuntime::emitTeamsOutlinedFunction(
-      D, ThreadIDVar, InnermostKind, CodeGen);
+      CGF, D, ThreadIDVar, InnermostKind, CodeGen);
 
   return OutlinedFun;
 }
@@ -1178,7 +1128,7 @@ void CGOpenMPRuntimeGPU::emitGenericVarsEpilog(CodeGenFunction &CGF,
   const auto I = FunctionGlobalizedDecls.find(CGF.CurFn);
   if (I != FunctionGlobalizedDecls.end()) {
     // Deallocate the memory for each globalized VLA object
-    for (auto AddrSizePair :
+    for (const auto &AddrSizePair :
          llvm::reverse(I->getSecond().EscapedVariableLengthDeclsAddrs)) {
       CGF.EmitRuntimeCall(OMPBuilder.getOrCreateRuntimeFunction(
                               CGM.getModule(), OMPRTL___kmpc_free_shared),
@@ -2974,9 +2924,9 @@ void CGOpenMPRuntimeGPU::emitReduction(
 
   llvm::Value *RL = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
       ReductionList.getPointer(), CGF.VoidPtrTy);
-  llvm::Function *ReductionFn =
-      emitReductionFunction(Loc, CGF.ConvertTypeForMem(ReductionArrayTy),
-                            Privates, LHSExprs, RHSExprs, ReductionOps);
+  llvm::Function *ReductionFn = emitReductionFunction(
+      CGF.CurFn->getName(), Loc, CGF.ConvertTypeForMem(ReductionArrayTy),
+      Privates, LHSExprs, RHSExprs, ReductionOps);
   llvm::Value *ReductionArrayTySize = CGF.getTypeSize(ReductionArrayTy);
   llvm::Function *ShuffleAndReduceFn = emitShuffleAndReduceFunction(
       CGM, Privates, ReductionArrayTy, ReductionFn, Loc);
@@ -3358,16 +3308,6 @@ void CGOpenMPRuntimeGPU::emitFunctionProlog(CodeGenFunction &CGF,
     assert(VD->isCanonicalDecl() && "Expected canonical declaration");
     Data.insert(std::make_pair(VD, MappedVarData()));
   }
-  if (!IsInTTDRegion && !NeedToDelayGlobalization && !IsInParallelRegion) {
-    CheckVarsEscapingDeclContext VarChecker(CGF, std::nullopt);
-    VarChecker.Visit(Body);
-    I->getSecond().SecondaryLocalVarData.emplace();
-    DeclToAddrMapTy &Data = *I->getSecond().SecondaryLocalVarData;
-    for (const ValueDecl *VD : VarChecker.getEscapedDecls()) {
-      assert(VD->isCanonicalDecl() && "Expected canonical declaration");
-      Data.insert(std::make_pair(VD, MappedVarData()));
-    }
-  }
   if (!NeedToDelayGlobalization) {
     emitGenericVarsProlog(CGF, D->getBeginLoc(), /*WithSPMDCheck=*/true);
     struct GlobalizationScope final : EHScopeStack::Cleanup {
@@ -3413,7 +3353,7 @@ Address CGOpenMPRuntimeGPU::getAddressOfLocalVariable(CodeGenFunction &CGF,
     llvm::Type *VarTy = CGF.ConvertTypeForMem(VD->getType());
     auto *GV = new llvm::GlobalVariable(
         CGM.getModule(), VarTy, /*isConstant=*/false,
-        llvm::GlobalValue::InternalLinkage, llvm::Constant::getNullValue(VarTy),
+        llvm::GlobalValue::InternalLinkage, llvm::PoisonValue::get(VarTy),
         VD->getName(),
         /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal,
         CGM.getContext().getTargetAddressSpace(AS));
@@ -3640,6 +3580,8 @@ void CGOpenMPRuntimeGPU::processRequiresDirective(
       case CudaArch::GFX90a:
       case CudaArch::GFX90c:
       case CudaArch::GFX940:
+      case CudaArch::GFX941:
+      case CudaArch::GFX942:
       case CudaArch::GFX1010:
       case CudaArch::GFX1011:
       case CudaArch::GFX1012:

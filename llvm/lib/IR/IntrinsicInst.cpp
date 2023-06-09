@@ -30,6 +30,7 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Statepoint.h"
 #include <optional>
+#include <string>
 
 using namespace llvm;
 
@@ -71,11 +72,9 @@ bool IntrinsicInst::mayLowerToFunctionCall(Intrinsic::ID IID) {
 /// intrinsics for variables.
 ///
 
-iterator_range<DbgVariableIntrinsic::location_op_iterator>
-DbgVariableIntrinsic::location_ops() const {
-  auto *MD = getRawLocation();
+iterator_range<location_op_iterator> RawLocationWrapper::location_ops() const {
+  Metadata *MD = getRawLocation();
   assert(MD && "First operand of DbgVariableIntrinsic should be non-null.");
-
   // If operand is ValueAsMetadata, return a range over just that operand.
   if (auto *VAM = dyn_cast<ValueAsMetadata>(MD)) {
     return {location_op_iterator(VAM), location_op_iterator(VAM + 1)};
@@ -89,8 +88,17 @@ DbgVariableIntrinsic::location_ops() const {
           location_op_iterator(static_cast<ValueAsMetadata *>(nullptr))};
 }
 
+iterator_range<location_op_iterator>
+DbgVariableIntrinsic::location_ops() const {
+  return getWrappedLocation().location_ops();
+}
+
 Value *DbgVariableIntrinsic::getVariableLocationOp(unsigned OpIdx) const {
-  auto *MD = getRawLocation();
+  return getWrappedLocation().getVariableLocationOp(OpIdx);
+}
+
+Value *RawLocationWrapper::getVariableLocationOp(unsigned OpIdx) const {
+  Metadata *MD = getRawLocation();
   assert(MD && "First operand of DbgVariableIntrinsic should be non-null.");
   if (auto *AL = dyn_cast<DIArgList>(MD))
     return AL->getArgs()[OpIdx]->getValue();
@@ -128,14 +136,14 @@ void DbgVariableIntrinsic::replaceVariableLocationOp(Value *OldValue,
   assert(NewValue && "Values must be non-null");
   auto Locations = location_ops();
   auto OldIt = find(Locations, OldValue);
-  assert((OldIt != Locations.end() || DbgAssignAddrReplaced) &&
-         "OldValue must be a current location");
+  if (OldIt == Locations.end()) {
+    assert(DbgAssignAddrReplaced &&
+           "OldValue must be dbg.assign addr if unused in DIArgList");
+    return;
+  }
+
+  assert(OldIt != Locations.end() && "OldValue must be a current location");
   if (!hasArgList()) {
-    // Additional check necessary to avoid unconditionally replacing this
-    // operand when a dbg.assign address is replaced (DbgAssignAddrReplaced is
-    // true).
-    if (OldValue != getVariableLocationOp(0))
-      return;
     Value *NewOperand = isa<MetadataAsValue>(NewValue)
                             ? NewValue
                             : MetadataAsValue::get(
@@ -206,10 +214,19 @@ void DbgAssignIntrinsic::setAssignId(DIAssignID *New) {
 }
 
 void DbgAssignIntrinsic::setAddress(Value *V) {
-  assert(V->getType()->isPointerTy() &&
-         "Destination Component must be a pointer type");
   setOperand(OpAddress,
              MetadataAsValue::get(getContext(), ValueAsMetadata::get(V)));
+}
+
+void DbgAssignIntrinsic::setKillAddress() {
+  if (isKillAddress())
+    return;
+  setAddress(UndefValue::get(getAddress()->getType()));
+}
+
+bool DbgAssignIntrinsic::isKillAddress() const {
+  Value *Addr = getAddress();
+  return !Addr || isa<UndefValue>(Addr);
 }
 
 void DbgAssignIntrinsic::setValue(Value *V) {
@@ -275,6 +292,72 @@ Value *InstrProfIncrementInst::getStep() const {
   return ConstantInt::get(Type::getInt64Ty(Context), 1);
 }
 
+Type::TypeID FPBuiltinIntrinsic::getBaseTypeID() const {
+  // All currently supported FP builtins are characterized by the type of their
+  // first argument. Since llvm.fpbuiltin.sincos doesn't return a value, using
+  // the type of the first argument is the most consistent technique.
+  Type *OperandTy = getArgOperand(0)->getType();
+  assert((OperandTy->isFloatingPointTy() ||
+          (OperandTy->isVectorTy() &&
+           OperandTy->getScalarType()->isFloatingPointTy())) &&
+         "Unexpected type for floating point builtin intrinsic!");
+  return OperandTy->getScalarType()->getTypeID();
+}
+
+ElementCount FPBuiltinIntrinsic::getElementCount() const {
+  Type *OperandTy = getArgOperand(0)->getType();
+  assert((OperandTy->isFloatingPointTy() ||
+          (OperandTy->isVectorTy() &&
+           OperandTy->getScalarType()->isFloatingPointTy())) &&
+         "Unexpected type for floating point builtin intrinsic!");
+  if (auto *VecTy = dyn_cast<VectorType>(OperandTy))
+    return VecTy->getElementCount();
+  return ElementCount::getFixed(1);
+}
+
+const std::string FPBuiltinIntrinsic::FPBUILTIN_PREFIX = "fpbuiltin-";
+const std::string FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR =
+    "fpbuiltin-max-error";
+
+std::optional<float> FPBuiltinIntrinsic::getRequiredAccuracy() const {
+  if (!hasFnAttr(FPBUILTIN_MAX_ERROR))
+    return std::nullopt;
+  // This should be a string attribute with a floating-point value
+  // If it isn't the IR verifier should report the problem. Here
+  // we handle that as if the attribute were absent.
+  // TODO: Create Attribute::getValueAsDouble()?
+  double Accuracy;
+  // getAsDouble returns false if it succeeds
+  if (getFnAttr(FPBUILTIN_MAX_ERROR).getValueAsString().getAsDouble(Accuracy))
+    return std::nullopt;
+  return (float)Accuracy;
+}
+
+bool FPBuiltinIntrinsic::hasUnrecognizedFPAttrs(
+    const StringSet<> recognizedAttrs) {
+  AttributeSet FnAttrs = getAttributes().getFnAttrs();
+  for (const Attribute &Attr : FnAttrs) {
+    if (!Attr.isStringAttribute())
+      continue;
+    auto AttrStr = Attr.getKindAsString();
+    if (!AttrStr.starts_with(FPBUILTIN_PREFIX))
+      continue;
+    if (!recognizedAttrs.contains(AttrStr))
+      return true;
+  }
+  return false;
+}
+
+bool FPBuiltinIntrinsic::classof(const IntrinsicInst *I) {
+  switch (I->getIntrinsicID()) {
+#define OPERATION(NAME, INTRINSIC) case Intrinsic::INTRINSIC:
+#include "llvm/IR/FPBuiltinOps.def"
+    return true;
+  default:
+    return false;
+  }
+}
+
 std::optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
   unsigned NumOperands = arg_size();
   Metadata *MD = nullptr;
@@ -301,13 +384,13 @@ ConstrainedFPIntrinsic::getExceptionBehavior() const {
 bool ConstrainedFPIntrinsic::isDefaultFPEnvironment() const {
   std::optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
   if (Except) {
-    if (Except.value() != fp::ebIgnore)
+    if (*Except != fp::ebIgnore)
       return false;
   }
 
   std::optional<RoundingMode> Rounding = getRoundingMode();
   if (Rounding) {
-    if (Rounding.value() != RoundingMode::NearestTiesToEven)
+    if (*Rounding != RoundingMode::NearestTiesToEven)
       return false;
   }
 
@@ -444,13 +527,13 @@ MaybeAlign VPIntrinsic::getPointerAlignment() const {
   std::optional<unsigned> PtrParamOpt =
       getMemoryPointerParamPos(getIntrinsicID());
   assert(PtrParamOpt && "no pointer argument!");
-  return getParamAlign(PtrParamOpt.value());
+  return getParamAlign(*PtrParamOpt);
 }
 
 /// \return The pointer operand of this load,store, gather or scatter.
 Value *VPIntrinsic::getMemoryPointerParam() const {
   if (auto PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID()))
-    return getArgOperand(PtrParamOpt.value());
+    return getArgOperand(*PtrParamOpt);
   return nullptr;
 }
 
@@ -472,7 +555,7 @@ Value *VPIntrinsic::getMemoryDataParam() const {
   auto DataParamOpt = getMemoryDataParamPos(getIntrinsicID());
   if (!DataParamOpt)
     return nullptr;
-  return getArgOperand(DataParamOpt.value());
+  return getArgOperand(*DataParamOpt);
 }
 
 std::optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
@@ -513,6 +596,20 @@ VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
   return std::nullopt;
 }
 
+// Equivalent non-predicated constrained intrinsic
+std::optional<unsigned>
+VPIntrinsic::getConstrainedIntrinsicIDForVP(Intrinsic::ID ID) {
+  switch (ID) {
+  default:
+    break;
+#define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) case Intrinsic::VPID:
+#define VP_PROPERTY_CONSTRAINEDFP(HASRND, HASEXCEPT, CID) return Intrinsic::CID;
+#define END_REGISTER_VP_INTRINSIC(VPID) break;
+#include "llvm/IR/VPIntrinsics.def"
+  }
+  return std::nullopt;
+}
+
 Intrinsic::ID VPIntrinsic::getForOpcode(unsigned IROPC) {
   switch (IROPC) {
   default:
@@ -543,17 +640,11 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
 
   // Check whether "W == vscale * EC.getKnownMinValue()"
   if (EC.isScalable()) {
-    // Undig the DL
-    const auto *ParMod = this->getModule();
-    if (!ParMod)
-      return false;
-    const auto &DL = ParMod->getDataLayout();
-
     // Compare vscale patterns
     uint64_t VScaleFactor;
-    if (match(VLParam, m_c_Mul(m_ConstantInt(VScaleFactor), m_VScale(DL))))
+    if (match(VLParam, m_c_Mul(m_ConstantInt(VScaleFactor), m_VScale())))
       return VScaleFactor >= EC.getKnownMinValue();
-    return (EC.getKnownMinValue() == 1) && match(VLParam, m_VScale(DL));
+    return (EC.getKnownMinValue() == 1) && match(VLParam, m_VScale());
   }
 
   // standard SIMD operation

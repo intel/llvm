@@ -204,7 +204,7 @@ class CodeGenAction : public FrontendAction {
   /// Runs prescan, parsing, sema and lowers to MLIR.
   bool beginSourceFileAction() override;
   /// Sets up LLVM's TargetMachine.
-  void setUpTargetMachine();
+  bool setUpTargetMachine();
   /// Runs the optimization (aka middle-end) pipeline on the LLVM module
   /// associated with this action.
   void runOptimizationPipeline(llvm::raw_pwrite_stream &os);
@@ -220,6 +220,9 @@ protected:
   /// @name LLVM IR
   std::unique_ptr<llvm::LLVMContext> llvmCtx;
   std::unique_ptr<llvm::Module> llvmModule;
+
+  /// Embeds offload objects given with specified with -fembed-offload-object
+  void embedOffloadObjects();
 
   /// Generates an LLVM IR module from CodeGenAction::mlirModule and saves it
   /// in CodeGenAction::llvmModule.

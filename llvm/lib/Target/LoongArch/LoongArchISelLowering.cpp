@@ -26,6 +26,7 @@
 #include "llvm/IR/IntrinsicsLoongArch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/KnownBits.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
@@ -33,10 +34,9 @@ using namespace llvm;
 
 STATISTIC(NumTailCalls, "Number of tail calls");
 
-static cl::opt<bool> ZeroDivCheck(
-    "loongarch-check-zero-division", cl::Hidden,
-    cl::desc("Trap on integer division by zero."),
-    cl::init(false));
+static cl::opt<bool> ZeroDivCheck("loongarch-check-zero-division", cl::Hidden,
+                                  cl::desc("Trap on integer division by zero."),
+                                  cl::init(false));
 
 LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
                                                  const LoongArchSubtarget &STI)
@@ -94,6 +94,7 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::CTLZ, MVT::i32, Custom);
     setOperationAction(ISD::INTRINSIC_VOID, MVT::i32, Custom);
     setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i32, Custom);
+    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
     setOperationAction(ISD::READ_REGISTER, MVT::i32, Custom);
     setOperationAction(ISD::WRITE_REGISTER, MVT::i32, Custom);
     if (Subtarget.hasBasicF() && !Subtarget.hasBasicD())
@@ -193,8 +194,7 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
   setMinCmpXchgSizeInBits(32);
 
   // Function alignments.
-  const Align FunctionAlignment(4);
-  setMinFunctionAlignment(FunctionAlignment);
+  setMinFunctionAlignment(Align(4));
 
   setTargetDAGCombine(ISD::AND);
   setTargetDAGCombine(ISD::OR);
@@ -548,13 +548,15 @@ SDValue LoongArchTargetLowering::getDynamicTLSAddr(GlobalAddressSDNode *N,
 SDValue
 LoongArchTargetLowering::lowerGlobalTLSAddress(SDValue Op,
                                                SelectionDAG &DAG) const {
+  if (DAG.getMachineFunction().getFunction().getCallingConv() ==
+      CallingConv::GHC)
+    report_fatal_error("In GHC calling convention TLS is not supported");
+
   GlobalAddressSDNode *N = cast<GlobalAddressSDNode>(Op);
   assert(N->getOffset() == 0 && "unexpected offset in global node");
 
   SDValue Addr;
-  TLSModel::Model Model = getTargetMachine().getTLSModel(N->getGlobal());
-
-  switch (Model) {
+  switch (getTargetMachine().getTLSModel(N->getGlobal())) {
   case TLSModel::GeneralDynamic:
     // In this model, application code calls the dynamic linker function
     // __tls_get_addr to locate TLS offsets into the dynamic thread vector at
@@ -686,6 +688,42 @@ LoongArchTargetLowering::lowerINTRINSIC_W_CHAIN(SDValue Op,
     IOCSRRD_CASE(iocsrrd_h, IOCSRRD_H);
     IOCSRRD_CASE(iocsrrd_w, IOCSRRD_W);
 #undef IOCSRRD_CASE
+  case Intrinsic::loongarch_cpucfg: {
+    return DAG.getMergeValues(
+        {DAG.getNode(LoongArchISD::CPUCFG, DL, GRLenVT, Op0, Op.getOperand(2)),
+         Op0},
+        DL);
+  }
+  case Intrinsic::loongarch_lddir_d: {
+    unsigned Imm = cast<ConstantSDNode>(Op.getOperand(3))->getZExtValue();
+    if (!isUInt<8>(Imm)) {
+      DAG.getContext()->emitError("argument to '" + Op->getOperationName(0) +
+                                  "' out of range");
+      return DAG.getMergeValues({DAG.getUNDEF(Op.getValueType()), Op0}, DL);
+    }
+
+    return Op;
+  }
+  case Intrinsic::loongarch_movfcsr2gr: {
+    if (!Subtarget.hasBasicF()) {
+      DAG.getContext()->emitError(
+          "llvm.loongarch.movfcsr2gr expects basic f target feature");
+      return DAG.getMergeValues(
+          {DAG.getUNDEF(Op.getValueType()), Op.getOperand(0)}, SDLoc(Op));
+    }
+    unsigned Imm = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
+    if (!isUInt<2>(Imm)) {
+      DAG.getContext()->emitError("argument to '" + Op->getOperationName(0) +
+                                  "' " + ErrorMsgOOR);
+      return DAG.getMergeValues(
+          {DAG.getUNDEF(Op.getValueType()), Op.getOperand(0)}, SDLoc(Op));
+    }
+    return DAG.getMergeValues(
+        {DAG.getNode(LoongArchISD::MOVFCSR2GR, DL, Op.getValueType(),
+                     DAG.getConstant(Imm, DL, GRLenVT)),
+         Op.getOperand(0)},
+        DL);
+  }
   }
 }
 
@@ -704,13 +742,38 @@ SDValue LoongArchTargetLowering::lowerINTRINSIC_VOID(SDValue Op,
   SDLoc DL(Op);
   MVT GRLenVT = Subtarget.getGRLenVT();
   SDValue Op0 = Op.getOperand(0);
+  uint64_t IntrinsicEnum = Op.getConstantOperandVal(1);
   SDValue Op2 = Op.getOperand(2);
   const StringRef ErrorMsgOOR = "out of range";
 
-  switch (Op.getConstantOperandVal(1)) {
+  switch (IntrinsicEnum) {
   default:
     // TODO: Add more Intrinsics.
     return SDValue();
+  case Intrinsic::loongarch_cacop_d:
+  case Intrinsic::loongarch_cacop_w: {
+    if (IntrinsicEnum == Intrinsic::loongarch_cacop_d && !Subtarget.is64Bit()) {
+      DAG.getContext()->emitError(
+          "llvm.loongarch.cacop.d requires target: loongarch64");
+      return Op.getOperand(0);
+    }
+    if (IntrinsicEnum == Intrinsic::loongarch_cacop_w && Subtarget.is64Bit()) {
+      DAG.getContext()->emitError(
+          "llvm.loongarch.cacop.w requires target: loongarch32");
+      return Op.getOperand(0);
+    }
+    // call void @llvm.loongarch.cacop.[d/w](uimm5, rj, simm12)
+    unsigned Imm1 = cast<ConstantSDNode>(Op2)->getZExtValue();
+    if (!isUInt<5>(Imm1))
+      return emitIntrinsicErrorMessage(Op, ErrorMsgOOR, DAG);
+    SDValue Op4 = Op.getOperand(4);
+    int Imm2 = cast<ConstantSDNode>(Op4)->getSExtValue();
+    if (!isInt<12>(Imm2))
+      return emitIntrinsicErrorMessage(Op, ErrorMsgOOR, DAG);
+
+    return Op;
+  }
+
   case Intrinsic::loongarch_dbar: {
     unsigned Imm = cast<ConstantSDNode>(Op2)->getZExtValue();
     if (!isUInt<15>(Imm))
@@ -735,6 +798,21 @@ SDValue LoongArchTargetLowering::lowerINTRINSIC_VOID(SDValue Op,
     return DAG.getNode(LoongArchISD::BREAK, DL, MVT::Other, Op0,
                        DAG.getConstant(Imm, DL, GRLenVT));
   }
+  case Intrinsic::loongarch_movgr2fcsr: {
+    if (!Subtarget.hasBasicF()) {
+      DAG.getContext()->emitError(
+          "llvm.loongarch.movgr2fcsr expects basic f target feature");
+      return Op0;
+    }
+    unsigned Imm = cast<ConstantSDNode>(Op2)->getZExtValue();
+    if (!isUInt<2>(Imm))
+      return emitIntrinsicErrorMessage(Op, ErrorMsgOOR, DAG);
+
+    return DAG.getNode(
+        LoongArchISD::MOVGR2FCSR, DL, MVT::Other, Op0,
+        DAG.getConstant(Imm, DL, GRLenVT),
+        DAG.getNode(ISD::ANY_EXTEND, DL, GRLenVT, Op.getOperand(3)));
+  }
   case Intrinsic::loongarch_syscall: {
     unsigned Imm = cast<ConstantSDNode>(Op2)->getZExtValue();
     if (!isUInt<15>(Imm))
@@ -756,6 +834,7 @@ SDValue LoongArchTargetLowering::lowerINTRINSIC_VOID(SDValue Op,
     IOCSRWR_CASE(iocsrwr_b, IOCSRWR_B);
     IOCSRWR_CASE(iocsrwr_h, IOCSRWR_H);
     IOCSRWR_CASE(iocsrwr_w, IOCSRWR_W);
+#undef IOCSRWR_CASE
   case Intrinsic::loongarch_iocsrwr_d: {
     if (Subtarget.is64Bit())
       return DAG.getNode(
@@ -766,6 +845,29 @@ SDValue LoongArchTargetLowering::lowerINTRINSIC_VOID(SDValue Op,
           "llvm.loongarch.iocsrwr.d requires target: loongarch64");
       return Op.getOperand(0);
     }
+  }
+#define ASRT_LE_GT_CASE(NAME)                                                  \
+  case Intrinsic::loongarch_##NAME: {                                          \
+    if (!Subtarget.is64Bit()) {                                                \
+      DAG.getContext()->emitError(Op->getOperationName(0) +                    \
+                                  " requires target: loongarch64");            \
+      return Op.getOperand(0);                                                 \
+    }                                                                          \
+    return Op;                                                                 \
+  }
+    ASRT_LE_GT_CASE(asrtle_d)
+    ASRT_LE_GT_CASE(asrtgt_d)
+#undef ASRT_LE_GT_CASE
+  case Intrinsic::loongarch_ldpte_d: {
+    unsigned Imm = cast<ConstantSDNode>(Op.getOperand(3))->getZExtValue();
+    if (!isUInt<8>(Imm))
+      return emitIntrinsicErrorMessage(Op, ErrorMsgOOR, DAG);
+    if (!Subtarget.is64Bit()) {
+      DAG.getContext()->emitError(Op->getOperationName(0) +
+                                  " requires target: loongarch64");
+      return Op.getOperand(0);
+    }
+    return Op;
   }
   }
 }
@@ -1039,11 +1141,38 @@ void LoongArchTargetLowering::ReplaceNodeResults(
   }
   case ISD::INTRINSIC_W_CHAIN: {
     SDValue Op0 = N->getOperand(0);
-    SDValue Op2 = N->getOperand(2);
+    EVT VT = N->getValueType(0);
+    uint64_t Op1 = N->getConstantOperandVal(1);
     MVT GRLenVT = Subtarget.getGRLenVT();
+    if (Op1 == Intrinsic::loongarch_movfcsr2gr) {
+      if (!Subtarget.hasBasicF()) {
+        DAG.getContext()->emitError(
+            "llvm.loongarch.movfcsr2gr expects basic f target feature");
+        Results.push_back(DAG.getMergeValues(
+            {DAG.getUNDEF(N->getValueType(0)), N->getOperand(0)}, SDLoc(N)));
+        Results.push_back(N->getOperand(0));
+        return;
+      }
+      unsigned Imm = cast<ConstantSDNode>(N->getOperand(2))->getZExtValue();
+      if (!isUInt<2>(Imm)) {
+        DAG.getContext()->emitError("argument to '" + N->getOperationName(0) +
+                                    "' " + "out of range");
+        Results.push_back(DAG.getMergeValues(
+            {DAG.getUNDEF(N->getValueType(0)), N->getOperand(0)}, SDLoc(N)));
+        Results.push_back(N->getOperand(0));
+        return;
+      }
+      Results.push_back(
+          DAG.getNode(ISD::TRUNCATE, DL, VT,
+                      DAG.getNode(LoongArchISD::MOVFCSR2GR, SDLoc(N), MVT::i64,
+                                  DAG.getConstant(Imm, DL, GRLenVT))));
+      Results.push_back(N->getOperand(0));
+      return;
+    }
+    SDValue Op2 = N->getOperand(2);
     std::string Name = N->getOperationName(0);
 
-    switch (N->getConstantOperandVal(1)) {
+    switch (Op1) {
     default:
       llvm_unreachable("Unexpected Intrinsic.");
 #define CRC_CASE_EXT_BINARYOP(NAME, NODE)                                      \
@@ -1063,6 +1192,7 @@ void LoongArchTargetLowering::ReplaceNodeResults(
       CRC_CASE_EXT_BINARYOP(crcc_w_b_w, CRCC_W_B_W)
       CRC_CASE_EXT_BINARYOP(crcc_w_h_w, CRCC_W_H_W)
       CRC_CASE_EXT_BINARYOP(crcc_w_w_w, CRCC_W_W_W)
+#undef CRC_CASE_EXT_BINARYOP
 
 #define CRC_CASE_EXT_UNARYOP(NAME, NODE)                                       \
   case Intrinsic::loongarch_##NAME: {                                          \
@@ -1076,6 +1206,7 @@ void LoongArchTargetLowering::ReplaceNodeResults(
   }
       CRC_CASE_EXT_UNARYOP(crc_w_d_w, CRC_W_D_W)
       CRC_CASE_EXT_UNARYOP(crcc_w_d_w, CRCC_W_D_W)
+#undef CRC_CASE_EXT_UNARYOP
 #define CSR_CASE(ID)                                                           \
   case Intrinsic::loongarch_##ID: {                                            \
     if (!Subtarget.is64Bit()) {                                                \
@@ -1089,6 +1220,7 @@ void LoongArchTargetLowering::ReplaceNodeResults(
       CSR_CASE(csrwr_d);
       CSR_CASE(csrxchg_d);
       CSR_CASE(iocsrrd_d);
+#undef CSR_CASE
     case Intrinsic::loongarch_csrrd_w: {
       unsigned Imm = cast<ConstantSDNode>(Op2)->getZExtValue();
       if (!isUInt<14>(Imm)) {
@@ -1154,6 +1286,24 @@ void LoongArchTargetLowering::ReplaceNodeResults(
       IOCSRRD_CASE(iocsrrd_h, IOCSRRD_H);
       IOCSRRD_CASE(iocsrrd_w, IOCSRRD_W);
 #undef IOCSRRD_CASE
+    case Intrinsic::loongarch_cpucfg: {
+      Results.push_back(DAG.getNode(
+          ISD::TRUNCATE, DL, VT,
+          DAG.getNode(LoongArchISD::CPUCFG, DL, GRLenVT, Op0,
+                      DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, Op2))));
+      Results.push_back(Op0);
+      break;
+    }
+    case Intrinsic::loongarch_lddir_d: {
+      if (!Subtarget.is64Bit()) {
+        DAG.getContext()->emitError(N->getOperationName(0) +
+                                    " requires target: loongarch64");
+        Results.push_back(DAG.getUNDEF(VT));
+        Results.push_back(Op0);
+        break;
+      }
+      break;
+    }
     }
     break;
   }
@@ -1221,16 +1371,39 @@ static SDValue performANDCombine(SDNode *N, SelectionDAG &DAG,
     if (CN->getZExtValue() <= 0xfff)
       return SDValue();
 
-    // Return if the mask doesn't start at position 0.
-    if (SMIdx)
+    // Return if the MSB exceeds.
+    if (SMIdx + SMLen > ValTy.getSizeInBits())
       return SDValue();
 
-    lsb = 0;
+    if (SMIdx > 0) {
+      // Omit if the constant has more than 2 uses. This a conservative
+      // decision. Whether it is a win depends on the HW microarchitecture.
+      // However it should always be better for 1 and 2 uses.
+      if (CN->use_size() > 2)
+        return SDValue();
+      // Return if the constant can be composed by a single LU12I.W.
+      if ((CN->getZExtValue() & 0xfff) == 0)
+        return SDValue();
+      // Return if the constand can be composed by a single ADDI with
+      // the zero register.
+      if (CN->getSExtValue() >= -2048 && CN->getSExtValue() < 0)
+        return SDValue();
+    }
+
+    lsb = SMIdx;
     NewOperand = FirstOperand;
   }
+
   msb = lsb + SMLen - 1;
-  return DAG.getNode(LoongArchISD::BSTRPICK, DL, ValTy, NewOperand,
-                     DAG.getConstant(msb, DL, GRLenVT),
+  SDValue NR0 = DAG.getNode(LoongArchISD::BSTRPICK, DL, ValTy, NewOperand,
+                            DAG.getConstant(msb, DL, GRLenVT),
+                            DAG.getConstant(lsb, DL, GRLenVT));
+  if (FirstOperandOpc == ISD::SRA || FirstOperandOpc == ISD::SRL || lsb == 0)
+    return NR0;
+  // Try to optimize to
+  //   bstrpick $Rd, $Rs, msb, lsb
+  //   slli     $Rd, $Rd, lsb
+  return DAG.getNode(ISD::SHL, DL, ValTy, NR0,
                      DAG.getConstant(lsb, DL, GRLenVT));
 }
 
@@ -1577,6 +1750,8 @@ static MachineBasicBlock *insertDivByZeroTrap(MachineInstr &MI,
 
 MachineBasicBlock *LoongArchTargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
 
   switch (MI.getOpcode()) {
   default:
@@ -1591,6 +1766,22 @@ MachineBasicBlock *LoongArchTargetLowering::EmitInstrWithCustomInserter(
   case LoongArch::MOD_DU:
     return insertDivByZeroTrap(MI, BB);
     break;
+  case LoongArch::WRFCSR: {
+    BuildMI(*BB, MI, DL, TII->get(LoongArch::MOVGR2FCSR),
+            LoongArch::FCSR0 + MI.getOperand(0).getImm())
+        .addReg(MI.getOperand(1).getReg());
+    MI.eraseFromParent();
+    return BB;
+  }
+  case LoongArch::RDFCSR: {
+    MachineInstr *ReadFCSR =
+        BuildMI(*BB, MI, DL, TII->get(LoongArch::MOVFCSR2GR),
+                MI.getOperand(0).getReg())
+            .addReg(LoongArch::FCSR0 + MI.getOperand(1).getImm());
+    ReadFCSR->getOperand(1).setIsUndef();
+    MI.eraseFromParent();
+    return BB;
+  }
   }
 }
 
@@ -1646,6 +1837,11 @@ const char *LoongArchTargetLowering::getTargetNodeName(unsigned Opcode) const {
     NODE_NAME_CASE(IOCSRWR_H)
     NODE_NAME_CASE(IOCSRWR_W)
     NODE_NAME_CASE(IOCSRWR_D)
+    NODE_NAME_CASE(CPUCFG)
+    NODE_NAME_CASE(MOVGR2FCSR)
+    NODE_NAME_CASE(MOVFCSR2GR)
+    NODE_NAME_CASE(CACOP_D)
+    NODE_NAME_CASE(CACOP_W)
   }
 #undef NODE_NAME_CASE
   return nullptr;
@@ -1732,7 +1928,6 @@ static bool CC_LoongArch(const DataLayout &DL, LoongArchABI::ABI ABI,
   default:
     llvm_unreachable("Unexpected ABI");
   case LoongArchABI::ABI_ILP32S:
-  case LoongArchABI::ABI_LP64S:
   case LoongArchABI::ABI_ILP32F:
   case LoongArchABI::ABI_LP64F:
     report_fatal_error("Unimplemented ABI");
@@ -1740,6 +1935,8 @@ static bool CC_LoongArch(const DataLayout &DL, LoongArchABI::ABI ABI,
   case LoongArchABI::ABI_ILP32D:
   case LoongArchABI::ABI_LP64D:
     UseGPRForFloat = !IsFixed;
+    break;
+  case LoongArchABI::ABI_LP64S:
     break;
   }
 
@@ -1873,8 +2070,8 @@ void LoongArchTargetLowering::analyzeInputArgs(
         MF.getSubtarget<LoongArchSubtarget>().getTargetABI();
     if (Fn(MF.getDataLayout(), ABI, i, ArgVT, CCValAssign::Full, Ins[i].Flags,
            CCInfo, /*IsFixed=*/true, IsRet, ArgTy)) {
-      LLVM_DEBUG(dbgs() << "InputArg #" << i << " has unhandled type "
-                        << EVT(ArgVT).getEVTString() << '\n');
+      LLVM_DEBUG(dbgs() << "InputArg #" << i << " has unhandled type " << ArgVT
+                        << '\n');
       llvm_unreachable("");
     }
   }
@@ -1891,8 +2088,8 @@ void LoongArchTargetLowering::analyzeOutputArgs(
         MF.getSubtarget<LoongArchSubtarget>().getTargetABI();
     if (Fn(MF.getDataLayout(), ABI, i, ArgVT, CCValAssign::Full, Outs[i].Flags,
            CCInfo, Outs[i].IsFixed, IsRet, OrigTy)) {
-      LLVM_DEBUG(dbgs() << "OutputArg #" << i << " has unhandled type "
-                        << EVT(ArgVT).getEVTString() << "\n");
+      LLVM_DEBUG(dbgs() << "OutputArg #" << i << " has unhandled type " << ArgVT
+                        << "\n");
       llvm_unreachable("");
     }
   }
@@ -1979,6 +2176,48 @@ static SDValue convertValVTToLocVT(SelectionDAG &DAG, SDValue Val,
   return Val;
 }
 
+static bool CC_LoongArch_GHC(unsigned ValNo, MVT ValVT, MVT LocVT,
+                             CCValAssign::LocInfo LocInfo,
+                             ISD::ArgFlagsTy ArgFlags, CCState &State) {
+  if (LocVT == MVT::i32 || LocVT == MVT::i64) {
+    // Pass in STG registers: Base, Sp, Hp, R1, R2, R3, R4, R5, SpLim
+    //                        s0    s1  s2  s3  s4  s5  s6  s7  s8
+    static const MCPhysReg GPRList[] = {
+        LoongArch::R23, LoongArch::R24, LoongArch::R25,
+        LoongArch::R26, LoongArch::R27, LoongArch::R28,
+        LoongArch::R29, LoongArch::R30, LoongArch::R31};
+    if (unsigned Reg = State.AllocateReg(GPRList)) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return false;
+    }
+  }
+
+  if (LocVT == MVT::f32) {
+    // Pass in STG registers: F1, F2, F3, F4
+    //                        fs0,fs1,fs2,fs3
+    static const MCPhysReg FPR32List[] = {LoongArch::F24, LoongArch::F25,
+                                          LoongArch::F26, LoongArch::F27};
+    if (unsigned Reg = State.AllocateReg(FPR32List)) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return false;
+    }
+  }
+
+  if (LocVT == MVT::f64) {
+    // Pass in STG registers: D1, D2, D3, D4
+    //                        fs4,fs5,fs6,fs7
+    static const MCPhysReg FPR64List[] = {LoongArch::F28_64, LoongArch::F29_64,
+                                          LoongArch::F30_64, LoongArch::F31_64};
+    if (unsigned Reg = State.AllocateReg(FPR64List)) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return false;
+    }
+  }
+
+  report_fatal_error("No registers left in GHC calling convention");
+  return true;
+}
+
 // Transform physical registers into virtual registers.
 SDValue LoongArchTargetLowering::LowerFormalArguments(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
@@ -1993,6 +2232,11 @@ SDValue LoongArchTargetLowering::LowerFormalArguments(
   case CallingConv::C:
   case CallingConv::Fast:
     break;
+  case CallingConv::GHC:
+    if (!MF.getSubtarget().hasFeature(LoongArch::FeatureBasicF) ||
+        !MF.getSubtarget().hasFeature(LoongArch::FeatureBasicD))
+      report_fatal_error(
+          "GHC calling convention requires the F and D extensions");
   }
 
   EVT PtrVT = getPointerTy(DAG.getDataLayout());
@@ -2005,7 +2249,10 @@ SDValue LoongArchTargetLowering::LowerFormalArguments(
   SmallVector<CCValAssign> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 
-  analyzeInputArgs(MF, CCInfo, Ins, /*IsRet=*/false, CC_LoongArch);
+  if (CallConv == CallingConv::GHC)
+    CCInfo.AnalyzeFormalArguments(Ins, CC_LoongArch_GHC);
+  else
+    analyzeInputArgs(MF, CCInfo, Ins, /*IsRet=*/false, CC_LoongArch);
 
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
@@ -2037,7 +2284,7 @@ SDValue LoongArchTargetLowering::LowerFormalArguments(
   }
 
   if (IsVarArg) {
-    ArrayRef<MCPhysReg> ArgRegs = makeArrayRef(ArgGPRs);
+    ArrayRef<MCPhysReg> ArgRegs = ArrayRef(ArgGPRs);
     unsigned Idx = CCInfo.getFirstUnallocated(ArgRegs);
     const TargetRegisterClass *RC = &LoongArch::GPRRegClass;
     MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -2052,7 +2299,7 @@ SDValue LoongArchTargetLowering::LowerFormalArguments(
     // If all registers are allocated, then all varargs must be passed on the
     // stack and we don't need to save any argregs.
     if (ArgRegs.size() == Idx) {
-      VaArgOffset = CCInfo.getNextStackOffset();
+      VaArgOffset = CCInfo.getStackSize();
       VarArgsSaveSize = 0;
     } else {
       VarArgsSaveSize = GRLenInBytes * (ArgRegs.size() - Idx);
@@ -2102,6 +2349,43 @@ SDValue LoongArchTargetLowering::LowerFormalArguments(
   return Chain;
 }
 
+bool LoongArchTargetLowering::mayBeEmittedAsTailCall(const CallInst *CI) const {
+  return CI->isTailCall();
+}
+
+// Check if the return value is used as only a return value, as otherwise
+// we can't perform a tail-call.
+bool LoongArchTargetLowering::isUsedByReturnOnly(SDNode *N,
+                                                 SDValue &Chain) const {
+  if (N->getNumValues() != 1)
+    return false;
+  if (!N->hasNUsesOfValue(1, 0))
+    return false;
+
+  SDNode *Copy = *N->use_begin();
+  if (Copy->getOpcode() != ISD::CopyToReg)
+    return false;
+
+  // If the ISD::CopyToReg has a glue operand, we conservatively assume it
+  // isn't safe to perform a tail call.
+  if (Copy->getGluedNode())
+    return false;
+
+  // The copy must be used by a LoongArchISD::RET, and nothing else.
+  bool HasRet = false;
+  for (SDNode *Node : Copy->uses()) {
+    if (Node->getOpcode() != LoongArchISD::RET)
+      return false;
+    HasRet = true;
+  }
+
+  if (!HasRet)
+    return false;
+
+  Chain = Copy->getOperand(0);
+  return true;
+}
+
 // Check whether the call is eligible for tail call optimization.
 bool LoongArchTargetLowering::isEligibleForTailCallOptimization(
     CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
@@ -2113,7 +2397,7 @@ bool LoongArchTargetLowering::isEligibleForTailCallOptimization(
   auto CallerCC = Caller.getCallingConv();
 
   // Do not tail call opt if the stack is used to pass parameters.
-  if (CCInfo.getNextStackOffset() != 0)
+  if (CCInfo.getStackSize() != 0)
     return false;
 
   // Do not tail call opt if any parameters need to be passed indirectly.
@@ -2173,7 +2457,10 @@ LoongArchTargetLowering::LowerCall(CallLoweringInfo &CLI,
   SmallVector<CCValAssign> ArgLocs;
   CCState ArgCCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 
-  analyzeOutputArgs(MF, ArgCCInfo, Outs, /*IsRet=*/false, &CLI, CC_LoongArch);
+  if (CallConv == CallingConv::GHC)
+    ArgCCInfo.AnalyzeCallOperands(Outs, CC_LoongArch_GHC);
+  else
+    analyzeOutputArgs(MF, ArgCCInfo, Outs, /*IsRet=*/false, &CLI, CC_LoongArch);
 
   // Check if it's really possible to do a tail call.
   if (IsTailCall)
@@ -2186,7 +2473,7 @@ LoongArchTargetLowering::LowerCall(CallLoweringInfo &CLI,
                        "site marked musttail");
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NumBytes = ArgCCInfo.getNextStackOffset();
+  unsigned NumBytes = ArgCCInfo.getStackSize();
 
   // Create local copies for byval args.
   SmallVector<SDValue> ByValArgs;
@@ -2352,7 +2639,9 @@ LoongArchTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   if (IsTailCall) {
     MF.getFrameInfo().setHasTailCall();
-    return DAG.getNode(LoongArchISD::TAIL, DL, NodeTys, Ops);
+    SDValue Ret = DAG.getNode(LoongArchISD::TAIL, DL, NodeTys, Ops);
+    DAG.addNoMergeSiteInfo(Ret.getNode(), CLI.NoMerge);
+    return Ret;
   }
 
   Chain = DAG.getNode(LoongArchISD::CALL, DL, NodeTys, Ops);
@@ -2416,7 +2705,8 @@ SDValue LoongArchTargetLowering::LowerReturn(
 
   analyzeOutputArgs(DAG.getMachineFunction(), CCInfo, Outs, /*IsRet=*/true,
                     nullptr, CC_LoongArch);
-
+  if (CallConv == CallingConv::GHC && !RVLocs.empty())
+    report_fatal_error("GHC functions return void only");
   SDValue Glue;
   SmallVector<SDValue, 4> RetOps(1, Chain);
 
@@ -2521,7 +2811,9 @@ LoongArchTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
 
   // Since floating-point operation requires a non-trivial set of data
   // operations, use CmpXChg to expand.
-  if (AI->isFloatingPointOperation())
+  if (AI->isFloatingPointOperation() ||
+      AI->getOperation() == AtomicRMWInst::UIncWrap ||
+      AI->getOperation() == AtomicRMWInst::UDecWrap)
     return AtomicExpansionKind::CmpXChg;
 
   unsigned Size = AI->getType()->getPrimitiveSizeInBits();
@@ -2853,4 +3145,104 @@ LoongArchTargetLowering::getRegisterByName(const char *RegName, LLT VT,
     report_fatal_error(Twine("Trying to obtain non-reserved register \"" +
                              StringRef(RegName) + "\"."));
   return Reg;
+}
+
+bool LoongArchTargetLowering::decomposeMulByConstant(LLVMContext &Context,
+                                                     EVT VT, SDValue C) const {
+  // TODO: Support vectors.
+  if (!VT.isScalarInteger())
+    return false;
+
+  // Omit the optimization if the data size exceeds GRLen.
+  if (VT.getSizeInBits() > Subtarget.getGRLen())
+    return false;
+
+  if (auto *ConstNode = dyn_cast<ConstantSDNode>(C.getNode())) {
+    const APInt &Imm = ConstNode->getAPIntValue();
+    // Break MUL into (SLLI + ADD/SUB) or ALSL.
+    if ((Imm + 1).isPowerOf2() || (Imm - 1).isPowerOf2() ||
+        (1 - Imm).isPowerOf2() || (-1 - Imm).isPowerOf2())
+      return true;
+    // Break MUL into (ALSL x, (SLLI x, imm0), imm1).
+    if (ConstNode->hasOneUse() &&
+        ((Imm - 2).isPowerOf2() || (Imm - 4).isPowerOf2() ||
+         (Imm - 8).isPowerOf2() || (Imm - 16).isPowerOf2()))
+      return true;
+    // Break (MUL x, imm) into (ADD (SLLI x, s0), (SLLI x, s1)),
+    // in which the immediate has two set bits. Or Break (MUL x, imm)
+    // into (SUB (SLLI x, s0), (SLLI x, s1)), in which the immediate
+    // equals to (1 << s0) - (1 << s1).
+    if (ConstNode->hasOneUse() && !(Imm.sge(-2048) && Imm.sle(4095))) {
+      unsigned Shifts = Imm.countr_zero();
+      // Reject immediates which can be composed via a single LUI.
+      if (Shifts >= 12)
+        return false;
+      // Reject multiplications can be optimized to
+      // (SLLI (ALSL x, x, 1/2/3/4), s).
+      APInt ImmPop = Imm.ashr(Shifts);
+      if (ImmPop == 3 || ImmPop == 5 || ImmPop == 9 || ImmPop == 17)
+        return false;
+      // We do not consider the case `(-Imm - ImmSmall).isPowerOf2()`,
+      // since it needs one more instruction than other 3 cases.
+      APInt ImmSmall = APInt(Imm.getBitWidth(), 1ULL << Shifts, true);
+      if ((Imm - ImmSmall).isPowerOf2() || (Imm + ImmSmall).isPowerOf2() ||
+          (ImmSmall - Imm).isPowerOf2())
+        return true;
+    }
+  }
+
+  return false;
+}
+
+bool LoongArchTargetLowering::isLegalAddressingMode(const DataLayout &DL,
+                                                    const AddrMode &AM,
+                                                    Type *Ty, unsigned AS,
+                                                    Instruction *I) const {
+  // LoongArch has four basic addressing modes:
+  //  1. reg
+  //  2. reg + 12-bit signed offset
+  //  3. reg + 14-bit signed offset left-shifted by 2
+  //  4. reg1 + reg2
+  // TODO: Add more checks after support vector extension.
+
+  // No global is ever allowed as a base.
+  if (AM.BaseGV)
+    return false;
+
+  // Require a 12 or 14 bit signed offset.
+  if (!isInt<12>(AM.BaseOffs) || !isShiftedInt<14, 2>(AM.BaseOffs))
+    return false;
+
+  switch (AM.Scale) {
+  case 0:
+    // "i" is not allowed.
+    if (!AM.HasBaseReg)
+      return false;
+    // Otherwise we have "r+i".
+    break;
+  case 1:
+    // "r+r+i" is not allowed.
+    if (AM.HasBaseReg && AM.BaseOffs != 0)
+      return false;
+    // Otherwise we have "r+r" or "r+i".
+    break;
+  case 2:
+    // "2*r+r" or "2*r+i" is not allowed.
+    if (AM.HasBaseReg || AM.BaseOffs)
+      return false;
+    // Otherwise we have "r+r".
+    break;
+  default:
+    return false;
+  }
+
+  return true;
+}
+
+bool LoongArchTargetLowering::hasAndNotCompare(SDValue Y) const {
+  // TODO: Support vectors.
+  if (Y.getValueType().isVector())
+    return false;
+
+  return !isa<ConstantSDNode>(Y);
 }

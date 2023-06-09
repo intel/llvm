@@ -73,7 +73,14 @@ enum class UnresolvedPolicy { ReportError, Warn, Ignore };
 enum class OrphanHandlingPolicy { Place, Warn, Error };
 
 // For --sort-section and linkerscript sorting rules.
-enum class SortSectionPolicy { Default, None, Alignment, Name, Priority };
+enum class SortSectionPolicy {
+  Default,
+  None,
+  Alignment,
+  Name,
+  Priority,
+  Reverse,
+};
 
 // For --target2
 enum class Target2Policy { Abs, Rel, GotRel };
@@ -170,7 +177,9 @@ struct Config {
   StringRef zCetReport = "none";
   llvm::StringRef ltoBasicBlockSections;
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;
-  std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
+  llvm::StringRef thinLTOPrefixReplaceOld;
+  llvm::StringRef thinLTOPrefixReplaceNew;
+  llvm::StringRef thinLTOPrefixReplaceNativeObject;
   std::string rpath;
   llvm::SmallVector<VersionDefinition, 0> versionDefinitions;
   llvm::SmallVector<llvm::StringRef, 0> auxiliaryList;
@@ -244,7 +253,9 @@ struct Config {
   bool pie;
   bool printGcSections;
   bool printIcfSections;
+  bool printMemoryUsage;
   bool relax;
+  bool relaxGP;
   bool relocatable;
   bool relrGlibc = false;
   bool relrPackDynRelocs = false;
@@ -318,6 +329,7 @@ struct Config {
   uint64_t zStackSize;
   unsigned ltoPartitions;
   unsigned ltoo;
+  llvm::CodeGenOpt::Level ltoCgo;
   unsigned optimize;
   StringRef thinLTOJobs;
   unsigned timeTraceGranularity;
@@ -397,6 +409,12 @@ struct Config {
   bool androidMemtagStack;
 
   unsigned threadCount;
+
+  // If an input file equals a key, remap it to the value.
+  llvm::DenseMap<llvm::StringRef, llvm::StringRef> remapInputs;
+  // If an input file matches a wildcard pattern, remap it to the value.
+  llvm::SmallVector<std::pair<llvm::GlobPattern, llvm::StringRef>, 0>
+      remapInputsWildcards;
 };
 struct ConfigWrapper {
   Config c;
@@ -450,7 +468,7 @@ LLVM_LIBRARY_VISIBILITY extern Ctx ctx;
 // The first two elements of versionDefinitions represent VER_NDX_LOCAL and
 // VER_NDX_GLOBAL. This helper returns other elements.
 static inline ArrayRef<VersionDefinition> namedVersionDefs() {
-  return llvm::makeArrayRef(config->versionDefinitions).slice(2);
+  return llvm::ArrayRef(config->versionDefinitions).slice(2);
 }
 
 void errorOrWarn(const Twine &msg);

@@ -194,9 +194,9 @@ public:
   void emitXCOFFRenameDirective(const MCSymbol *Name,
                                 StringRef Rename) override;
 
-  void emitXCOFFRefDirective(StringRef Name) override;
+  void emitXCOFFRefDirective(const MCSymbol *Symbol) override;
 
-  void emitXCOFFExceptDirective(const MCSymbol *Symbol, 
+  void emitXCOFFExceptDirective(const MCSymbol *Symbol,
                                 const MCSymbol *Trap,
                                 unsigned Lang, unsigned Reason,
                                 unsigned FunctionSize, bool hasDebug) override;
@@ -377,8 +377,9 @@ public:
   void emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) override;
 
   void emitPseudoProbe(uint64_t Guid, uint64_t Index, uint64_t Type,
-                       uint64_t Attr,
-                       const MCPseudoProbeInlineStack &InlineStack, MCSymbol *FnSym) override;
+                       uint64_t Attr, uint64_t Discriminator,
+                       const MCPseudoProbeInlineStack &InlineStack,
+                       MCSymbol *FnSym) override;
 
   void emitBundleAlignMode(Align Alignment) override;
   void emitBundleLock(bool AlignToEnd) override;
@@ -943,13 +944,14 @@ void MCAsmStreamer::emitXCOFFRenameDirective(const MCSymbol *Name,
   EmitEOL();
 }
 
-void MCAsmStreamer::emitXCOFFRefDirective(StringRef Name) {
-  OS << "\t.ref " << Name;
+void MCAsmStreamer::emitXCOFFRefDirective(const MCSymbol *Symbol) {
+  OS << "\t.ref ";
+  Symbol->print(OS, MAI);
   EmitEOL();
 }
 
 void MCAsmStreamer::emitXCOFFExceptDirective(const MCSymbol *Symbol,
-                                             const MCSymbol *Trap, 
+                                             const MCSymbol *Trap,
                                              unsigned Lang,
                                              unsigned Reason,
                                              unsigned FunctionSize,
@@ -1277,7 +1279,7 @@ void MCAsmStreamer::emitValueImpl(const MCExpr *Value, unsigned Size,
       unsigned Remaining = Size - Emitted;
       // The size of our partial emission must be a power of two less than
       // Size.
-      unsigned EmissionSize = PowerOf2Floor(std::min(Remaining, Size - 1));
+      unsigned EmissionSize = llvm::bit_floor(std::min(Remaining, Size - 1));
       // Calculate the byte offset of our partial emission taking into account
       // the endianness of the target.
       unsigned ByteOffset =
@@ -1449,7 +1451,7 @@ void MCAsmStreamer::emitAlignmentDirective(unsigned ByteAlignment,
     if (Value.has_value() || MaxBytesToEmit) {
       if (Value.has_value()) {
         OS << ", 0x";
-        OS.write_hex(truncateToSize(Value.value(), ValueSize));
+        OS.write_hex(truncateToSize(*Value, ValueSize));
       } else {
         OS << ", ";
       }
@@ -1473,7 +1475,7 @@ void MCAsmStreamer::emitAlignmentDirective(unsigned ByteAlignment,
 
   OS << ' ' << ByteAlignment;
   if (Value.has_value())
-    OS << ", " << truncateToSize(Value.value(), ValueSize);
+    OS << ", " << truncateToSize(*Value, ValueSize);
   else if (MaxBytesToEmit)
     OS << ", ";
   if (MaxBytesToEmit)
@@ -2217,13 +2219,12 @@ void MCAsmStreamer::AddEncodingComment(const MCInst &Inst,
   raw_ostream &OS = getCommentOS();
   SmallString<256> Code;
   SmallVector<MCFixup, 4> Fixups;
-  raw_svector_ostream VecOS(Code);
 
   // If we have no code emitter, don't emit code.
   if (!getAssembler().getEmitterPtr())
     return;
 
-  getAssembler().getEmitter().encodeInstruction(Inst, VecOS, Fixups, STI);
+  getAssembler().getEmitter().encodeInstruction(Inst, Code, Fixups, STI);
 
   // If we are showing fixups, create symbolic markers in the encoded
   // representation. We do this by making a per-bit map to the fixup item index,
@@ -2336,11 +2337,14 @@ void MCAsmStreamer::emitInstruction(const MCInst &Inst,
   EmitEOL();
 }
 
-void MCAsmStreamer::emitPseudoProbe(
-    uint64_t Guid, uint64_t Index, uint64_t Type, uint64_t Attr,
-    const MCPseudoProbeInlineStack &InlineStack, MCSymbol *FnSym) {
-  OS << "\t.pseudoprobe\t" << Guid << " " << Index << " " << Type << " "
-     << Attr;
+void MCAsmStreamer::emitPseudoProbe(uint64_t Guid, uint64_t Index,
+                                    uint64_t Type, uint64_t Attr,
+                                    uint64_t Discriminator,
+                                    const MCPseudoProbeInlineStack &InlineStack,
+                                    MCSymbol *FnSym) {
+  OS << "\t.pseudoprobe\t" << Guid << " " << Index << " " << Type << " " << Attr;
+  if (Discriminator)
+    OS << " " << Discriminator;
   // Emit inline stack like
   //  @ GUIDmain:3 @ GUIDCaller:1 @ GUIDDirectCaller:11
   for (const auto &Site : InlineStack)

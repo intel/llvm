@@ -18,9 +18,9 @@
 #ifndef LLVM_FUZZMUTATE_IRMUTATOR_H
 #define LLVM_FUZZMUTATE_IRMUTATOR_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/FuzzMutate/OpDescriptor.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <optional>
 
 namespace llvm {
 class BasicBlock;
@@ -70,17 +70,30 @@ public:
       : AllowedTypes(std::move(AllowedTypes)),
         Strategies(std::move(Strategies)) {}
 
-  void mutateModule(Module &M, int Seed, size_t CurSize, size_t MaxSize);
+  /// Calculate the size of module as the number of objects in it, i.e.
+  /// instructions, basic blocks, functions, and aliases.
+  ///
+  /// \param M module
+  /// \return number of objects in module
+  static size_t getModuleSize(const Module &M);
+
+  /// Mutate given module. No change will be made if no strategy is selected.
+  ///
+  /// \param M  module to mutate
+  /// \param Seed seed for random mutation
+  /// \param MaxSize max module size (see getModuleSize)
+  void mutateModule(Module &M, int Seed, size_t MaxSize);
 };
 
 /// Strategy that injects operations into the function.
 class InjectorIRStrategy : public IRMutationStrategy {
   std::vector<fuzzerop::OpDescriptor> Operations;
 
-  Optional<fuzzerop::OpDescriptor> chooseOperation(Value *Src,
-                                                   RandomIRBuilder &IB);
+  std::optional<fuzzerop::OpDescriptor> chooseOperation(Value *Src,
+                                                        RandomIRBuilder &IB);
 
 public:
+  InjectorIRStrategy() : Operations(getDefaultOps()) {}
   InjectorIRStrategy(std::vector<fuzzerop::OpDescriptor> &&Operations)
       : Operations(std::move(Operations)) {}
   static std::vector<fuzzerop::OpDescriptor> getDefaultOps();
@@ -116,6 +129,40 @@ public:
 
   using IRMutationStrategy::mutate;
   void mutate(Instruction &Inst, RandomIRBuilder &IB) override;
+};
+
+/// Strategy that generates new function calls and inserts function signatures
+/// to the modules. If any signatures are present in the module it will be
+/// called.
+class InsertFunctionStrategy : public IRMutationStrategy {
+public:
+  uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
+                     uint64_t CurrentWeight) override {
+    return 10;
+  }
+
+  using IRMutationStrategy::mutate;
+  void mutate(BasicBlock &BB, RandomIRBuilder &IB) override;
+};
+
+/// Strategy to split a random block and insert a random CFG in between.
+class InsertCFGStrategy : public IRMutationStrategy {
+private:
+  uint64_t MaxNumCases;
+  enum CFGToSink { Return, DirectSink, SinkOrSelfLoop, EndOfCFGToLink };
+
+public:
+  InsertCFGStrategy(uint64_t MNC = 8) : MaxNumCases(MNC){};
+  uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
+                     uint64_t CurrentWeight) override {
+    return 5;
+  }
+
+  void mutate(BasicBlock &BB, RandomIRBuilder &IB) override;
+
+private:
+  void connectBlocksToSink(ArrayRef<BasicBlock *> Blocks, BasicBlock *Sink,
+                           RandomIRBuilder &IB);
 };
 
 /// Strategy to insert PHI Nodes at the head of each basic block.

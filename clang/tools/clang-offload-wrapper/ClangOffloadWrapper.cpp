@@ -17,7 +17,7 @@
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -37,7 +37,6 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -50,6 +49,7 @@
 #include "llvm/Support/VCSRevision.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <cassert>
 #include <cstddef>
@@ -945,7 +945,7 @@ private:
           return MnfOrErr.takeError();
         MemoryBuffer *Mnf = *MnfOrErr;
         FMnf = addArrayToModule(
-            makeArrayRef(Mnf->getBufferStart(), Mnf->getBufferSize()),
+            ArrayRef<char>(Mnf->getBufferStart(), Mnf->getBufferSize()),
             Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
       }
 
@@ -967,7 +967,7 @@ private:
         Bin = addELFNotes(Bin, Img.File);
       }
       std::pair<Constant *, Constant *> Fbin = addDeviceImageToModule(
-          makeArrayRef(Bin->getBufferStart(), Bin->getBufferSize()),
+          ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
           Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind, Img.Tgt);
 
       if (Kind == OffloadKind::SYCL) {

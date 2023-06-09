@@ -31,7 +31,7 @@ Pre-commit check list
 Before committing or creating a review, please go through this check-list to make
 sure you don't forget anything:
 
-- Do you have tests for every public class and/or function you're adding or modifying?
+- Do you have :ref:`tests <testing>` for every public class and/or function you're adding or modifying?
 - Did you update the synopsis of the relevant headers?
 - Did you update the relevant files to track implementation status (in ``docs/Status/``)?
 - Did you mark all functions and type declarations with the :ref:`proper visibility macro <visibility-macros>`?
@@ -60,16 +60,6 @@ of the group to have approved the patch, excluding the patch author. This is not
 rule -- for very simple patches, use your judgement. The `"libc++" review group <https://reviews.llvm.org/project/members/64/>`__
 consists of frequent libc++ contributors with a good understanding of the project's
 guidelines -- if you would like to be added to it, please reach out on Discord.
-
-Post-release check list
-=======================
-
-After branching for an LLVM release:
-
-1. Update ``_LIBCPP_VERSION`` in ``libcxx/include/__config``
-2. Update the version number in ``libcxx/docs/conf.py``
-3. Update ``_LIBCPPABI_VERSION`` in ``libcxxabi/include/cxxabi.h``
-4. Update ``_LIBUNWIND_VERSION`` in ``libunwind/include/__libunwind_config.h``
 
 Exporting new symbols from the library
 ======================================
@@ -160,8 +150,7 @@ Below is a short description of the most interesting CI builds [#]_:
 * ``ARM`` tests libc++ on various Linux ARM platforms.
 * ``AIX`` tests libc++ on AIX.
 
-.. [#] Not all all steps are listed: steps are added and removed when the need
-   arises.
+.. [#] Not all steps are listed: steps are added and removed when the need arises.
 .. [#] Clang modules are not the same as C++20's modules.
 
 Infrastructure
@@ -192,7 +181,7 @@ your system.
 run-buildbot
 ~~~~~~~~~~~~
 
-Contains the buld script executed on Buildkite. This script can be executed
+Contains the build script executed on Buildkite. This script can be executed
 locally or inside ``run-buildbot-container``. The script must be called with
 the target to test. For example, ``run-buildbot generic-cxx20`` will build
 libc++ and test it using C++20.

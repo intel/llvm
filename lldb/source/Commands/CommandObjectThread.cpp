@@ -9,6 +9,7 @@
 #include "CommandObjectThread.h"
 
 #include <memory>
+#include <optional>
 #include <sstream>
 
 #include "CommandObjectThreadUtil.h"
@@ -95,7 +96,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_backtrace_options);
+      return llvm::ArrayRef(g_thread_backtrace_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -124,8 +125,8 @@ public:
 
   Options *GetOptions() override { return &m_options; }
 
-  llvm::Optional<std::string> GetRepeatCommand(Args &current_args,
-                                               uint32_t idx) override {
+  std::optional<std::string> GetRepeatCommand(Args &current_args,
+                                              uint32_t idx) override {
     llvm::StringRef count_opt("--count");
     llvm::StringRef start_opt("--start");
 
@@ -227,7 +228,7 @@ protected:
           thread->GetIndexID());
       return false;
     }
-    if (m_options.m_extended_backtrace) {
+    if (m_options.m_extended_backtrace && !GetDebugger().InterruptRequested()) {
       DoExtendedBacktrace(thread, result);
     }
 
@@ -253,7 +254,7 @@ public:
   ~ThreadStepScopeOptionGroup() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-    return llvm::makeArrayRef(g_thread_step_scope_options);
+    return llvm::ArrayRef(g_thread_step_scope_options);
   }
 
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
@@ -555,8 +556,9 @@ protected:
     } else if (m_step_type == eStepTypeOut) {
       new_plan_sp = thread->QueueThreadPlanForStepOut(
           abort_other_plans, nullptr, false, bool_stop_other_threads, eVoteYes,
-          eVoteNoOpinion, thread->GetSelectedFrameIndex(), new_plan_status,
-          m_options.m_step_out_avoid_no_debug);
+          eVoteNoOpinion,
+          thread->GetSelectedFrameIndex(DoNoSelectMostRelevantFrame),
+          new_plan_status, m_options.m_step_out_avoid_no_debug);
     } else if (m_step_type == eStepTypeScripted) {
       new_plan_sp = thread->QueueThreadPlanForStepScripted(
           abort_other_plans, m_class_options.GetName().c_str(),
@@ -873,7 +875,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_until_options);
+      return llvm::ArrayRef(g_thread_until_options);
     }
 
     uint32_t m_step_thread_idx = LLDB_INVALID_THREAD_ID;
@@ -1269,7 +1271,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_info_options);
+      return llvm::ArrayRef(g_thread_info_options);
     }
 
     bool m_json_thread;
@@ -1467,7 +1469,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_return_options);
+      return llvm::ArrayRef(g_thread_return_options);
     }
 
     bool m_from_expression = false;
@@ -1526,7 +1528,8 @@ protected:
         bool success =
             thread->SetSelectedFrameByIndexNoisily(0, result.GetOutputStream());
         if (success) {
-          m_exe_ctx.SetFrameSP(thread->GetSelectedFrame());
+          m_exe_ctx.SetFrameSP(
+              thread->GetSelectedFrame(DoNoSelectMostRelevantFrame));
           result.SetStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat(
@@ -1639,7 +1642,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_jump_options);
+      return llvm::ArrayRef(g_thread_jump_options);
     }
 
     FileSpecList m_filenames;
@@ -1773,7 +1776,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_plan_list_options);
+      return llvm::ArrayRef(g_thread_plan_list_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -2153,14 +2156,14 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_trace_dump_function_calls_options);
+      return llvm::ArrayRef(g_thread_trace_dump_function_calls_options);
     }
 
     static const size_t kDefaultCount = 20;
 
     // Instance variables to hold the values for command options.
     TraceDumperOptions m_dumper_options;
-    llvm::Optional<FileSpec> m_output_file;
+    std::optional<FileSpec> m_output_file;
   };
 
   CommandObjectTraceDumpFunctionCalls(CommandInterpreter &interpreter)
@@ -2197,7 +2200,7 @@ protected:
     }
     TraceCursorSP &cursor_sp = *cursor_or_error;
 
-    llvm::Optional<StreamFile> out_file;
+    std::optional<StreamFile> out_file;
     if (m_options.m_output_file) {
       out_file.emplace(m_options.m_output_file->GetPath().c_str(),
                        File::eOpenOptionWriteOnly | File::eOpenOptionCanCreate |
@@ -2326,7 +2329,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_trace_dump_instructions_options);
+      return llvm::ArrayRef(g_thread_trace_dump_instructions_options);
     }
 
     static const size_t kDefaultCount = 20;
@@ -2334,7 +2337,7 @@ public:
     // Instance variables to hold the values for command options.
     size_t m_count;
     size_t m_continue;
-    llvm::Optional<FileSpec> m_output_file;
+    std::optional<FileSpec> m_output_file;
     TraceDumperOptions m_dumper_options;
   };
 
@@ -2355,8 +2358,8 @@ public:
 
   Options *GetOptions() override { return &m_options; }
 
-  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
-                                               uint32_t index) override {
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override {
     std::string cmd;
     current_command_args.GetCommandString(cmd);
     if (cmd.find(" --continue") == std::string::npos)
@@ -2394,7 +2397,7 @@ protected:
       return false;
     }
 
-    llvm::Optional<StreamFile> out_file;
+    std::optional<StreamFile> out_file;
     if (m_options.m_output_file) {
       out_file.emplace(m_options.m_output_file->GetPath().c_str(),
                        File::eOpenOptionWriteOnly | File::eOpenOptionCanCreate |
@@ -2417,9 +2420,9 @@ protected:
   }
 
   CommandOptions m_options;
-  // Last traversed id used to continue a repeat command. None means
+  // Last traversed id used to continue a repeat command. std::nullopt means
   // that all the trace has been consumed.
-  llvm::Optional<lldb::user_id_t> m_last_id;
+  std::optional<lldb::user_id_t> m_last_id;
 };
 
 // CommandObjectTraceDumpInfo
@@ -2460,7 +2463,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_thread_trace_dump_info_options);
+      return llvm::ArrayRef(g_thread_trace_dump_info_options);
     }
 
     // Instance variables to hold the values for command options.

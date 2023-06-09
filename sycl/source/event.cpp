@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/backend_impl.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
@@ -29,7 +30,7 @@ event::event(cl_event ClEvent, const context &SyclContext)
           detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  impl->getPlugin().call<detail::PiApiKind::piEventRetain>(
+  impl->getPlugin()->call<detail::PiApiKind::piEventRetain>(
       detail::pi::cast<RT::PiEvent>(ClEvent));
 }
 
@@ -77,6 +78,15 @@ event::get_info() const {
   return impl->template get_info<Param>();
 }
 
+template <typename Param>
+typename detail::is_event_profiling_info_desc<Param>::return_type
+event::get_profiling_info() const {
+  if constexpr (!std::is_same_v<Param, info::event_profiling::command_submit>) {
+    impl->wait(impl);
+  }
+  return impl->template get_profiling_info<Param>();
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
 
@@ -85,12 +95,8 @@ event::get_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <>                                                                  \
-  __SYCL_EXPORT ReturnT event::get_profiling_info<info::DescType::Desc>()      \
-      const {                                                                  \
-    impl->wait(impl);                                                          \
-    return impl->get_profiling_info<info::DescType::Desc>();                   \
-  }
+  template __SYCL_EXPORT ReturnT                                               \
+  event::get_profiling_info<info::DescType::Desc>() const;
 
 #include <sycl/info/event_profiling_traits.def>
 

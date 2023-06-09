@@ -42,7 +42,7 @@ namespace __lsan {
 
 // This mutex is used to prevent races between DoLeakCheck and IgnoreObject, and
 // also to protect the global list of root regions.
-Mutex global_mutex;
+static Mutex global_mutex;
 
 Flags lsan_flags;
 
@@ -241,11 +241,7 @@ static LeakSuppressionContext *GetSuppressionContext() {
   return suppression_ctx;
 }
 
-static InternalMmapVectorNoCtor<RootRegion> root_regions;
-
-InternalMmapVectorNoCtor<RootRegion> const *GetRootRegions() {
-  return &root_regions;
-}
+static InternalMmapVectorNoCtor<Region> root_regions;
 
 void InitCommonLsan() {
   if (common_flags()->detect_leaks) {
@@ -270,13 +266,20 @@ static inline bool MaybeUserPointer(uptr p) {
   if (p < kMinAddress)
     return false;
 #  if defined(__x86_64__)
+  // TODO: add logic similar to ARM when Intel LAM is available.
   // Accept only canonical form user-space addresses.
   return ((p >> 47) == 0);
 #  elif defined(__mips64)
   return ((p >> 40) == 0);
 #  elif defined(__aarch64__)
+  // TBI (Top Byte Ignore) feature of AArch64: bits [63:56] are ignored in
+  // address translation and can be used to store a tag.
+  constexpr uptr kPointerMask = 255ULL << 48;
   // Accept up to 48 bit VMA.
-  return ((p >> 48) == 0);
+  return ((p & kPointerMask) == 0);
+#  elif defined(__loongarch_lp64)
+  // Allow 47-bit user-space VMA at current.
+  return ((p >> 47) == 0);
 #  else
   return true;
 #  endif
@@ -350,9 +353,12 @@ void ScanGlobalRange(uptr begin, uptr end, Frontier *frontier) {
   }
 }
 
-void ForEachExtraStackRangeCb(uptr begin, uptr end, void *arg) {
-  Frontier *frontier = reinterpret_cast<Frontier *>(arg);
-  ScanRangeForPointers(begin, end, frontier, "FAKE STACK", kReachable);
+void ScanExtraStackRanges(const InternalMmapVector<Range> &ranges,
+                          Frontier *frontier) {
+  for (uptr i = 0; i < ranges.size(); i++) {
+    ScanRangeForPointers(ranges[i].begin, ranges[i].end, frontier, "FAKE STACK",
+                         kReachable);
+  }
 }
 
 #  if SANITIZER_FUCHSIA
@@ -371,8 +377,7 @@ extern "C" SANITIZER_WEAK_ATTRIBUTE void __libc_iterate_dynamic_tls(
 
 static void ProcessThreadRegistry(Frontier *frontier) {
   InternalMmapVector<uptr> ptrs;
-  GetThreadRegistryLocked()->RunCallbackForEachThreadLocked(
-      GetAdditionalThreadContextPtrs, &ptrs);
+  GetAdditionalThreadContextPtrsLocked(&ptrs);
 
   for (uptr i = 0; i < ptrs.size(); ++i) {
     void *ptr = reinterpret_cast<void *>(ptrs[i]);
@@ -395,6 +400,7 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
                            Frontier *frontier, tid_t caller_tid,
                            uptr caller_sp) {
   InternalMmapVector<uptr> registers;
+  InternalMmapVector<Range> extra_ranges;
   for (uptr i = 0; i < suspended_threads.ThreadCount(); i++) {
     tid_t os_id = static_cast<tid_t>(suspended_threads.GetThreadID(i));
     LOG_THREADS("Processing thread %llu.\n", os_id);
@@ -455,7 +461,9 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
       }
       ScanRangeForPointers(stack_begin, stack_end, frontier, "STACK",
                            kReachable);
-      ForEachExtraStackRange(os_id, ForEachExtraStackRangeCb, frontier);
+      extra_ranges.clear();
+      GetThreadExtraStackRangesLocked(os_id, &extra_ranges);
+      ScanExtraStackRanges(extra_ranges, frontier);
     }
 
     if (flags()->use_tls) {
@@ -515,15 +523,17 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
 
 #  endif  // SANITIZER_FUCHSIA
 
-void ScanRootRegion(Frontier *frontier, const RootRegion &root_region,
-                    uptr region_begin, uptr region_end, bool is_readable) {
+bool HasRootRegions() { return !root_regions.empty(); }
+
+static void ScanRootRegion(Frontier *frontier, const Region &root_region,
+                           uptr region_begin, uptr region_end,
+                           bool is_readable) {
   uptr intersection_begin = Max(root_region.begin, region_begin);
-  uptr intersection_end = Min(region_end, root_region.begin + root_region.size);
+  uptr intersection_end = Min(region_end, root_region.end);
   if (intersection_begin >= intersection_end)
     return;
   LOG_POINTERS("Root region %p-%p intersects with mapped region %p-%p (%s)\n",
-               (void *)root_region.begin,
-               (void *)(root_region.begin + root_region.size),
+               (void *)root_region.begin, (void *)root_region.end,
                (void *)region_begin, (void *)region_end,
                is_readable ? "readable" : "unreadable");
   if (is_readable)
@@ -531,22 +541,27 @@ void ScanRootRegion(Frontier *frontier, const RootRegion &root_region,
                          kReachable);
 }
 
-static void ProcessRootRegion(Frontier *frontier,
-                              const RootRegion &root_region) {
-  MemoryMappingLayout proc_maps(/*cache_enabled*/ true);
-  MemoryMappedSegment segment;
-  while (proc_maps.Next(&segment)) {
-    ScanRootRegion(frontier, root_region, segment.start, segment.end,
-                   segment.IsReadable());
-  }
+void ScanRootRegions(Frontier *frontier,
+                     const InternalMmapVectorNoCtor<Region> &mapped_regions) {
+  if (!flags()->use_root_regions || mapped_regions.empty())
+    return;
+
+  for (const auto &m : mapped_regions)
+    for (const auto &r : root_regions)
+      ScanRootRegion(frontier, r, m.begin, m.end, true);
 }
 
 // Scans root regions for heap pointers.
 static void ProcessRootRegions(Frontier *frontier) {
-  if (!flags()->use_root_regions)
+  if (!flags()->use_root_regions || !HasRootRegions())
     return;
-  for (uptr i = 0; i < root_regions.size(); i++)
-    ProcessRootRegion(frontier, root_regions[i]);
+  MemoryMappingLayout proc_maps(/*cache_enabled*/ true);
+  MemoryMappedSegment segment;
+  InternalMmapVector<Region> mapped_regions;
+  while (proc_maps.Next(&segment))
+    if (segment.IsReadable())
+      mapped_regions.push_back({segment.start, segment.end});
+  ScanRootRegions(frontier, mapped_regions);
 }
 
 static void FloodFillTag(Frontier *frontier, ChunkTag tag) {
@@ -669,18 +684,6 @@ void LeakSuppressionContext::PrintMatchedSuppressions() {
   Printf("%s\n\n", line);
 }
 
-static void ReportIfNotSuspended(ThreadContextBase *tctx, void *arg) {
-  const InternalMmapVector<tid_t> &suspended_threads =
-      *(const InternalMmapVector<tid_t> *)arg;
-  if (tctx->status == ThreadStatusRunning) {
-    uptr i = InternalLowerBound(suspended_threads, tctx->os_id);
-    if (i >= suspended_threads.size() || suspended_threads[i] != tctx->os_id)
-      Report(
-          "Running thread %llu was not suspended. False leaks are possible.\n",
-          tctx->os_id);
-  }
-}
-
 #  if SANITIZER_FUCHSIA
 
 // Fuchsia provides a libc interface that guarantees all threads are
@@ -697,8 +700,16 @@ static void ReportUnsuspendedThreads(
 
   Sort(threads.data(), threads.size());
 
-  GetThreadRegistryLocked()->RunCallbackForEachThreadLocked(
-      &ReportIfNotSuspended, &threads);
+  InternalMmapVector<tid_t> unsuspended;
+  GetRunningThreadsLocked(&unsuspended);
+
+  for (auto os_id : unsuspended) {
+    uptr i = InternalLowerBound(threads, os_id);
+    if (i >= threads.size() || threads[i] != os_id)
+      Report(
+          "Running thread %zu was not suspended. False leaks are possible.\n",
+          os_id);
+  }
 }
 
 #  endif  // !SANITIZER_FUCHSIA
@@ -855,7 +866,7 @@ void LeakReport::AddLeakedChunks(const LeakedChunks &chunks) {
       leaks_.push_back(leak);
     }
     if (flags()->report_objects) {
-      LeakedObject obj = {leaks_[i].id, chunk, leaked_size};
+      LeakedObject obj = {leaks_[i].id, GetUserAddr(chunk), leaked_size};
       leaked_objects_.push_back(obj);
     }
   }
@@ -940,7 +951,7 @@ void LeakReport::PrintSummary() {
 
 uptr LeakReport::ApplySuppressions() {
   LeakSuppressionContext *suppressions = GetSuppressionContext();
-  uptr new_suppressions = false;
+  uptr new_suppressions = 0;
   for (uptr i = 0; i < leaks_.size(); i++) {
     if (suppressions->Suppress(leaks_[i].stack_trace_id, leaks_[i].hit_count,
                                leaks_[i].total_size)) {
@@ -989,7 +1000,7 @@ void __lsan_ignore_object(const void *p) {
   // Cannot use PointsIntoChunk or LsanMetadata here, since the allocator is not
   // locked.
   Lock l(&global_mutex);
-  IgnoreObjectResult res = IgnoreObjectLocked(p);
+  IgnoreObjectResult res = IgnoreObject(p);
   if (res == kIgnoreObjectInvalid)
     VReport(1, "__lsan_ignore_object(): no heap object found at %p\n", p);
   if (res == kIgnoreObjectAlreadyIgnored)
@@ -1005,36 +1016,41 @@ void __lsan_ignore_object(const void *p) {
 SANITIZER_INTERFACE_ATTRIBUTE
 void __lsan_register_root_region(const void *begin, uptr size) {
 #if CAN_SANITIZE_LEAKS
-  Lock l(&global_mutex);
-  RootRegion region = {reinterpret_cast<uptr>(begin), size};
-  root_regions.push_back(region);
   VReport(1, "Registered root region at %p of size %zu\n", begin, size);
+  uptr b = reinterpret_cast<uptr>(begin);
+  uptr e = b + size;
+  CHECK_LT(b, e);
+
+  Lock l(&global_mutex);
+  root_regions.push_back({b, e});
 #endif  // CAN_SANITIZE_LEAKS
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void __lsan_unregister_root_region(const void *begin, uptr size) {
 #if CAN_SANITIZE_LEAKS
-  Lock l(&global_mutex);
-  bool removed = false;
-  for (uptr i = 0; i < root_regions.size(); i++) {
-    RootRegion region = root_regions[i];
-    if (region.begin == reinterpret_cast<uptr>(begin) && region.size == size) {
-      removed = true;
-      uptr last_index = root_regions.size() - 1;
-      root_regions[i] = root_regions[last_index];
-      root_regions.pop_back();
-      VReport(1, "Unregistered root region at %p of size %zu\n", begin, size);
-      break;
+  uptr b = reinterpret_cast<uptr>(begin);
+  uptr e = b + size;
+  CHECK_LT(b, e);
+
+  {
+    Lock l(&global_mutex);
+    for (uptr i = 0; i < root_regions.size(); i++) {
+      Region region = root_regions[i];
+      if (region.begin == b && region.end == e) {
+        uptr last_index = root_regions.size() - 1;
+        root_regions[i] = root_regions[last_index];
+        root_regions.pop_back();
+        VReport(1, "Unregistered root region at %p of size %zu\n", begin, size);
+        return;
+      }
     }
   }
-  if (!removed) {
-    Report(
-        "__lsan_unregister_root_region(): region at %p of size %zu has not "
-        "been registered.\n",
-        begin, size);
-    Die();
-  }
+  Report(
+      "__lsan_unregister_root_region(): region at %p of size %zu has not "
+      "been registered.\n",
+      begin, size);
+  Die();
 #endif  // CAN_SANITIZE_LEAKS
 }
 

@@ -1,10 +1,14 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_vector_compute,+SPV_KHR_float_controls,+SPV_INTEL_float_controls2
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-max-version=1.1 --spirv-ext=+SPV_INTEL_vector_compute,+SPV_KHR_float_controls,+SPV_INTEL_float_controls2
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
-; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
+; RUN: FileCheck %s --input-file %t.spt -check-prefixes=SPV,SPVEXT
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-max-version=1.4 --spirv-ext=+SPV_INTEL_vector_compute,+SPV_INTEL_float_controls2
+; RUN: llvm-spirv %t.spv -o %t.spt --to-text
+; RUN: FileCheck %s --input-file %t.spt -check-prefixes=SPV,SPV14
 
 
 ; ModuleID = 'float_control.bc'
@@ -13,7 +17,8 @@ target datalayout = "e-p:64:64-i64:64-n8:16:32"
 target triple = "spir"
 
 
-; SPV-DAG: Extension "SPV_KHR_float_controls"
+; SPVEXT-DAG: Extension "SPV_KHR_float_controls"
+; SPV14-NOT: Extension "SPV_KHR_float_controls"
 ; SPV-DAG: Extension "SPV_INTEL_float_controls2"
 
 ; LLVM-DAG: @k_rte{{[^a-zA-Z0-9_][^#]*}}#[[K_RTE:[0-9]+]]

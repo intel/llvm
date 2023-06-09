@@ -66,7 +66,7 @@ public:
                             BasicBlock *BB,
                             BasicBlock::iterator InsertPt) const {
     if (BB)
-      I->insertAt(BB, InsertPt);
+      I->insertInto(BB, InsertPt);
     I->setName(Name);
   }
 };
@@ -567,6 +567,12 @@ public:
     return DL.getIntPtrType(Context, AddrSpace);
   }
 
+  /// Fetch the type of an integer that should be used to index GEP operations
+  /// within AddressSpace.
+  IntegerType *getIndexTy(const DataLayout &DL, unsigned AddrSpace) {
+    return DL.getIndexType(Context, AddrSpace);
+  }
+
   //===--------------------------------------------------------------------===//
   // Intrinsic creation methods
   //===--------------------------------------------------------------------===//
@@ -830,7 +836,7 @@ public:
                                    const Twine &Name = "");
 
   /// Conveninence function for the common case when CallArgs are filled
-  /// in using makeArrayRef(CS.arg_begin(), CS.arg_end()); Use needs to be
+  /// in using ArrayRef(CS.arg_begin(), CS.arg_end()); Use needs to be
   /// .get()'ed to get the Value pointer.
   CallInst *CreateGCStatepointCall(uint64_t ID, uint32_t NumPatchBytes,
                                    FunctionCallee ActualCallee,
@@ -858,7 +864,7 @@ public:
       const Twine &Name = "");
 
   // Convenience function for the common case when CallArgs are filled in using
-  // makeArrayRef(CS.arg_begin(), CS.arg_end()); Use needs to be .get()'ed to
+  // ArrayRef(CS.arg_begin(), CS.arg_end()); Use needs to be .get()'ed to
   // get the Value *.
   InvokeInst *
   CreateGCStatepointInvoke(uint64_t ID, uint32_t NumPatchBytes,
@@ -892,6 +898,14 @@ public:
   /// Create a call to llvm.vscale, multiplied by \p Scaling. The type of VScale
   /// will be the same type as that of \p Scaling.
   Value *CreateVScale(Constant *Scaling, const Twine &Name = "");
+
+  /// Create an expression which evaluates to the number of elements in \p EC
+  /// at runtime.
+  Value *CreateElementCount(Type *DstType, ElementCount EC);
+
+  /// Create an expression which evaluates to the number of units in \p Size
+  /// at runtime.  This works for both units of bits and bytes.
+  Value *CreateTypeSize(Type *DstType, TypeSize Size);
 
   /// Creates a vector of type \p DstType with the linear sequence <0, 1, ...>
   Value *CreateStepVector(Type *DstType, const Twine &Name = "");
@@ -942,6 +956,14 @@ public:
   /// Create call to the maximum intrinsic.
   CallInst *CreateMaximum(Value *LHS, Value *RHS, const Twine &Name = "") {
     return CreateBinaryIntrinsic(Intrinsic::maximum, LHS, RHS, nullptr, Name);
+  }
+
+  /// Create call to the copysign intrinsic.
+  CallInst *CreateCopySign(Value *LHS, Value *RHS,
+                           Instruction *FMFSource = nullptr,
+                           const Twine &Name = "") {
+    return CreateBinaryIntrinsic(Intrinsic::copysign, LHS, RHS, FMFSource,
+                                 Name);
   }
 
   /// Create a call to the arithmetic_fence intrinsic.
@@ -1039,7 +1061,7 @@ public:
     if (MDSrc) {
       unsigned WL[4] = {LLVMContext::MD_prof, LLVMContext::MD_unpredictable,
                         LLVMContext::MD_make_implicit, LLVMContext::MD_dbg};
-      Br->copyMetadata(*MDSrc, makeArrayRef(&WL[0], 4));
+      Br->copyMetadata(*MDSrc, WL);
     }
     return Insert(Br);
   }
@@ -1199,26 +1221,21 @@ private:
     RoundingMode UseRounding = DefaultConstrainedRounding;
 
     if (Rounding)
-      UseRounding = Rounding.value();
+      UseRounding = *Rounding;
 
     std::optional<StringRef> RoundingStr =
         convertRoundingModeToStr(UseRounding);
     assert(RoundingStr && "Garbage strict rounding mode!");
-    auto *RoundingMDS = MDString::get(Context, RoundingStr.value());
+    auto *RoundingMDS = MDString::get(Context, *RoundingStr);
 
     return MetadataAsValue::get(Context, RoundingMDS);
   }
 
   Value *getConstrainedFPExcept(std::optional<fp::ExceptionBehavior> Except) {
-    fp::ExceptionBehavior UseExcept = DefaultConstrainedExcept;
-
-    if (Except)
-      UseExcept = Except.value();
-
-    std::optional<StringRef> ExceptStr =
-        convertExceptionBehaviorToStr(UseExcept);
+    std::optional<StringRef> ExceptStr = convertExceptionBehaviorToStr(
+        Except.value_or(DefaultConstrainedExcept));
     assert(ExceptStr && "Garbage strict exception behavior!");
-    auto *ExceptMDS = MDString::get(Context, ExceptStr.value());
+    auto *ExceptMDS = MDString::get(Context, *ExceptStr);
 
     return MetadataAsValue::get(Context, ExceptMDS);
   }
@@ -1543,6 +1560,7 @@ public:
       return CreateConstrainedFPBinOp(Intrinsic::experimental_constrained_fdiv,
                                       L, R, FMFSource, Name);
 
+    FastMathFlags FMF = FMFSource->getFastMathFlags();
     if (Value *V = Folder.FoldBinOpFMF(Instruction::FDiv, L, R, FMF))
       return V;
     Instruction *I = setFPAttrs(BinaryOperator::CreateFDiv(L, R), nullptr, FMF);
@@ -1594,6 +1612,19 @@ public:
     assert(Cond2->getType()->isIntOrIntVectorTy(1));
     return CreateSelect(Cond1, ConstantInt::getAllOnesValue(Cond2->getType()),
                         Cond2, Name);
+  }
+
+  Value *CreateLogicalOp(Instruction::BinaryOps Opc, Value *Cond1, Value *Cond2,
+                         const Twine &Name = "") {
+    switch (Opc) {
+    case Instruction::And:
+      return CreateLogicalAnd(Cond1, Cond2, Name);
+    case Instruction::Or:
+      return CreateLogicalOr(Cond1, Cond2, Name);
+    default:
+      break;
+    }
+    llvm_unreachable("Not a logical operation.");
   }
 
   // NOTE: this is sequential, non-commutative, ordered reduction!
@@ -2406,12 +2437,12 @@ public:
 
   /// Return a boolean value testing if \p Arg == 0.
   Value *CreateIsNull(Value *Arg, const Twine &Name = "") {
-    return CreateICmpEQ(Arg, ConstantInt::getNullValue(Arg->getType()), Name);
+    return CreateICmpEQ(Arg, Constant::getNullValue(Arg->getType()), Name);
   }
 
   /// Return a boolean value testing if \p Arg != 0.
   Value *CreateIsNotNull(Value *Arg, const Twine &Name = "") {
-    return CreateICmpNE(Arg, ConstantInt::getNullValue(Arg->getType()), Name);
+    return CreateICmpNE(Arg, Constant::getNullValue(Arg->getType()), Name);
   }
 
   /// Return a boolean value testing if \p Arg < 0.

@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_LINALG_IR_LINALG_H
 #define MLIR_DIALECT_LINALG_IR_LINALG_H
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -25,6 +26,7 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
+#include <optional>
 
 namespace mlir {
 namespace linalg {
@@ -63,7 +65,7 @@ SmallVector<AffineExpr, 4> makeAffineDimExprs(unsigned num, unsigned &startIdx,
 
 /// Returns `maybeMap.get()` if `maybeMap` is set, otherwise returns the
 /// symbol-less identity map of `rank`.
-AffineMap extractOrIdentityMap(Optional<AffineMap> maybeMap, unsigned rank,
+AffineMap extractOrIdentityMap(std::optional<AffineMap> maybeMap, unsigned rank,
                                MLIRContext *context);
 
 /// Return the vector that is the concatenation of `a` and `b`.

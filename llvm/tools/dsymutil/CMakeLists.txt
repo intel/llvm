@@ -7,15 +7,17 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDescs
   AllTargetsInfos
   AsmPrinter
-  DebugInfoDWARF
+  CodeGen
+  CodeGenTypes
   DWARFLinker
+  DebugInfoDWARF
   MC
   Object
-  CodeGen
   Option
   Remarks
   Support
   Target
+  TargetParser
   )
 
 add_llvm_tool(dsymutil
@@ -39,4 +41,4 @@ if(APPLE)
   target_link_libraries(dsymutil PRIVATE "-framework CoreFoundation")
 endif(APPLE)
 
-target_link_libraries(dsymutil PRIVATE ${LLVM_ATOMIC_LIB})
+# target_link_libraries(dsymutil PRIVATE ${LLVM_ATOMIC_LIB})

@@ -16,13 +16,14 @@
 #include "X86.h"
 #include "X86Counter.h"
 #include "X86RegisterInfo.h"
-#include "X86Subtarget.h"
 #include "llvm/ADT/Sequence.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
 
 #include <memory>
 #include <string>
@@ -31,15 +32,12 @@
 #include <immintrin.h>
 #include <intrin.h>
 #endif
-#if defined(__x86_64__) && defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_M_X64)
 #include <float.h> // For _clearfp in ~X86SavedState().
 #endif
 
 namespace llvm {
 namespace exegesis {
-
-static cl::OptionCategory
-    BenchmarkOptions("llvm-exegesis benchmark x86-options");
 
 // If a positive value is specified, we are going to use the LBR in
 // latency-mode.
@@ -217,6 +215,8 @@ static const char *isInvalidOpcode(const Instruction &Instr) {
   case X86::LSS32rm:
   case X86::LSS64rm:
   case X86::SYSENTER:
+  case X86::WRFSBASE:
+  case X86::WRFSBASE64:
     return "unsupported opcode";
   default:
     break;
@@ -368,7 +368,7 @@ X86SerialSnippetGenerator::generateCodeTemplates(
     //   - `ST(0) = fsqrt(ST(0))` (OneArgFPRW)
     //   - `ST(0) = ST(0) + ST(i)` (TwoArgFP)
     // They are intrinsically serial and do not modify the state of the stack.
-    return generateSelfAliasingCodeTemplates(Variant);
+    return generateSelfAliasingCodeTemplates(Variant, ForbiddenRegisters);
   default:
     llvm_unreachable("Unknown FP Type!");
   }
@@ -424,7 +424,7 @@ X86ParallelSnippetGenerator::generateCodeTemplates(
     //   - `ST(0) = ST(0) + ST(i)` (TwoArgFP)
     // They are intrinsically serial and do not modify the state of the stack.
     // We generate the same code for latency and uops.
-    return generateSelfAliasingCodeTemplates(Variant);
+    return generateSelfAliasingCodeTemplates(Variant, ForbiddenRegisters);
   case X86II::CompareFP:
   case X86II::CondMovFP:
     // We can compute uops for any FP instruction that does not grow or shrink
@@ -626,39 +626,35 @@ namespace {
 class X86SavedState : public ExegesisTarget::SavedState {
 public:
   X86SavedState() {
-#ifdef __x86_64__
-# if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_M_X64)
     _fxsave64(FPState);
     Eflags = __readeflags();
-# elif defined(__GNUC__)
+#elif defined(__GNUC__) && defined(__x86_64__)
     __builtin_ia32_fxsave64(FPState);
     Eflags = __builtin_ia32_readeflags_u64();
-# endif
 #else
-    llvm_unreachable("X86 exegesis running on non-X86 target");
+    report_fatal_error("X86 exegesis running on unsupported target");
 #endif
   }
 
   ~X86SavedState() {
     // Restoring the X87 state does not flush pending exceptions, make sure
     // these exceptions are flushed now.
-#ifdef __x86_64__
-# if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_M_X64)
     _clearfp();
     _fxrstor64(FPState);
     __writeeflags(Eflags);
-# elif defined(__GNUC__)
+#elif defined(__GNUC__) && defined(__x86_64__)
     asm volatile("fwait");
     __builtin_ia32_fxrstor64(FPState);
     __builtin_ia32_writeeflags_u64(Eflags);
-# endif
 #else
-    llvm_unreachable("X86 exegesis running on non-X86 target");
+    report_fatal_error("X86 exegesis running on unsupported target");
 #endif
   }
 
 private:
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
   alignas(16) char FPState[512];
   uint64_t Eflags;
 #endif
@@ -714,12 +710,11 @@ private:
 
   ArrayRef<unsigned> getUnavailableRegisters() const override {
     if (DisableUpperSSERegisters)
-      return makeArrayRef(kUnavailableRegistersSSE,
-                          sizeof(kUnavailableRegistersSSE) /
-                              sizeof(kUnavailableRegistersSSE[0]));
+      return ArrayRef(kUnavailableRegistersSSE,
+                      sizeof(kUnavailableRegistersSSE) /
+                          sizeof(kUnavailableRegistersSSE[0]));
 
-    return makeArrayRef(kUnavailableRegisters,
-                        std::size(kUnavailableRegisters));
+    return ArrayRef(kUnavailableRegisters, std::size(kUnavailableRegisters));
   }
 
   bool allowAsBackToBack(const Instruction &Instr) const override {
@@ -769,7 +764,7 @@ private:
       // If the kernel supports it, the hardware still may not have it.
       return X86LbrCounter::checkLbrSupport();
 #else
-    llvm_unreachable("Running X86 exegesis on non-X86 target");
+    report_fatal_error("Running X86 exegesis on unsupported target");
 #endif
 #endif
     return llvm::make_error<llvm::StringError>(

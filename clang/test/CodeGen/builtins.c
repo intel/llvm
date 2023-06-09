@@ -277,7 +277,7 @@ void test_float_builtins(__fp16 *H, float F, double D, long double LD) {
   // CHECK: and i1
 
   res = __builtin_flt_rounds();
-  // CHECK: call i32 @llvm.flt.rounds(
+  // CHECK: call i32 @llvm.get.rounding(
 }
 
 // CHECK-LABEL: define{{.*}} void @test_float_builtin_ops
@@ -411,6 +411,15 @@ void test_float_builtin_ops(float F, double D, long double LD) {
   resld = __builtin_roundl(LD);
   // CHECK: call x86_fp80 @llvm.round.f80
 
+  resf = __builtin_roundevenf(F);
+  // CHECK: call float @llvm.roundeven.f32
+
+  resd = __builtin_roundeven(D);
+  // CHECK: call double @llvm.roundeven.f64
+
+  resld = __builtin_roundevenl(LD);
+  // CHECK: call x86_fp80 @llvm.roundeven.f80
+  
   resli = __builtin_lroundf (F);
   // CHECK: call i64 @llvm.lround.i64.f32
 

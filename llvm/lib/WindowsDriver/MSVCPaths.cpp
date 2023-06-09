@@ -7,18 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/WindowsDriver/MSVCPaths.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 #include <string>
 
@@ -587,7 +586,7 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
         for (StringRef Prefix : ExpectedPrefixes) {
           if (It == End)
             goto NotAToolChain;
-          if (!It->startswith_insensitive(Prefix))
+          if (!It->starts_with_insensitive(Prefix))
             goto NotAToolChain;
           ++It;
         }
@@ -610,8 +609,9 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
   return false;
 }
 
-bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS, std::string &Path,
-                                   ToolsetLayout &VSLayout) {
+bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS,
+                                   std::optional<StringRef> VCToolsVersion,
+                                   std::string &Path, ToolsetLayout &VSLayout) {
 #if !defined(USE_MSVC_SETUP_API)
   return false;
 #else
@@ -651,7 +651,7 @@ bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS, std::string &Path,
     return false;
 
   ISetupInstancePtr NewestInstance;
-  Optional<uint64_t> NewestVersionNum;
+  std::optional<uint64_t> NewestVersionNum;
   do {
     bstr_t VersionString;
     uint64_t VersionNum;
@@ -678,17 +678,24 @@ bool findVCToolChainViaSetupConfig(vfs::FileSystem &VFS, std::string &Path,
   std::string VCRootPath;
   convertWideToUTF8(std::wstring(VCPathWide), VCRootPath);
 
-  SmallString<256> ToolsVersionFilePath(VCRootPath);
-  sys::path::append(ToolsVersionFilePath, "Auxiliary", "Build",
-                    "Microsoft.VCToolsVersion.default.txt");
+  std::string ToolsVersion;
+  if (VCToolsVersion.has_value()) {
+    ToolsVersion = *VCToolsVersion;
+  } else {
+    SmallString<256> ToolsVersionFilePath(VCRootPath);
+    sys::path::append(ToolsVersionFilePath, "Auxiliary", "Build",
+                      "Microsoft.VCToolsVersion.default.txt");
 
-  auto ToolsVersionFile = MemoryBuffer::getFile(ToolsVersionFilePath);
-  if (!ToolsVersionFile)
-    return false;
+    auto ToolsVersionFile = MemoryBuffer::getFile(ToolsVersionFilePath);
+    if (!ToolsVersionFile)
+      return false;
+
+    ToolsVersion = ToolsVersionFile->get()->getBuffer().rtrim();
+  }
+
 
   SmallString<256> ToolchainPath(VCRootPath);
-  sys::path::append(ToolchainPath, "Tools", "MSVC",
-                    ToolsVersionFile->get()->getBuffer().rtrim());
+  sys::path::append(ToolchainPath, "Tools", "MSVC", ToolsVersion);
   auto Status = VFS.status(ToolchainPath);
   if (!Status || !Status->isDirectory())
     return false;
@@ -706,8 +713,10 @@ bool findVCToolChainViaRegistry(std::string &Path, ToolsetLayout &VSLayout) {
       getSystemRegistryString(R"(SOFTWARE\Microsoft\VCExpress\$VERSION)",
                               "InstallDir", VSInstallPath, nullptr)) {
     if (!VSInstallPath.empty()) {
-      SmallString<256> VCPath(StringRef(VSInstallPath.c_str(),
-                                        VSInstallPath.find(R"(\Common7\IDE)")));
+      auto pos = VSInstallPath.find(R"(\Common7\IDE)");
+      if (pos == std::string::npos)
+        return false;
+      SmallString<256> VCPath(StringRef(VSInstallPath.c_str(), pos));
       sys::path::append(VCPath, "VC");
 
       Path = std::string(VCPath.str());

@@ -23,7 +23,8 @@
 #include "clang/Basic/Visibility.h"
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -300,6 +301,8 @@ public:
     FEM_UnsetOnCommandLine = 3
   };
 
+  enum ExcessPrecisionKind { FPP_Standard, FPP_Fast, FPP_None };
+
   /// Possible exception handling behavior.
   enum class ExceptionHandlingKind { None, SjLj, WinEH, DwarfCFI, Wasm };
 
@@ -470,7 +473,7 @@ public:
 
   /// C++ ABI to compile with, if specified by the frontend through -fc++-abi=.
   /// This overrides the default ABI used by the target.
-  llvm::Optional<TargetCXXABI::Kind> CXXABI;
+  std::optional<TargetCXXABI::Kind> CXXABI;
 
   /// Indicates whether the front-end is explicitly told that the
   /// input is a header file (i.e. -x c-header).
@@ -494,9 +497,9 @@ public:
   /// The seed used by the randomize structure layout feature.
   std::string RandstructSeed;
 
-  /// Indicates whether the __FILE__ macro should use the target's
-  /// platform-specific file separator or whether it should use the build
-  /// environment's platform-specific file separator.
+  /// Indicates whether to use target's platform-specific file separator when
+  /// __FILE__ macro is used and when concatenating filename with directory or
+  /// to use build environment environment's platform-specific file separator.
   ///
   /// The plaform-specific path separator is the backslash(\) for Windows and
   /// forward slash (/) elsewhere.

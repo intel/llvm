@@ -183,9 +183,22 @@ BuiltinCallMutator &BuiltinCallMutator::replaceArg(unsigned Index,
 BuiltinCallMutator &BuiltinCallMutator::removeArg(unsigned Index) {
   // If the argument being dropped is the last one, there is nothing to move, so
   // just remove the attributes.
-  if (Index == Args.size() - 1)
-    Attrs = Attrs.removeParamAttributes(CI->getContext(), Index);
-  else
+  if (Index == Args.size() - 1) {
+    // TODO: Remove this workaround when LLVM fixes
+    // https://github.com/llvm/llvm-project/issues/59746 on
+    // AttributeList::removeParamAttributes function.
+    // AttributeList::removeParamAttributes function sets attribute at
+    // specified index empty so that return value of
+    // AttributeList::getNumAttrSet() keeps unchanged after that call. When call
+    // BuiltinCallMutator::removeArg function, there is assert failure on
+    // BuiltinCallMutator::doConversion() since new CallInst removed arg but
+    // still holds attribute of that removed arg.
+    SmallVector<AttributeSet, 4> ArgAttrs;
+    for (unsigned I = 0; I < Index; ++I)
+      ArgAttrs.push_back(Attrs.getParamAttrs(I));
+    Attrs = AttributeList::get(CI->getContext(), Attrs.getFnAttrs(),
+                               Attrs.getRetAttrs(), ArgAttrs);
+  } else
     moveAttributes(CI->getContext(), Attrs, Index + 1, Args.size() - Index - 1,
                    Index);
   Args.erase(Args.begin() + Index);
@@ -266,6 +279,18 @@ Type *BuiltinCallHelper::adjustImageType(Type *T, StringRef OldImageKind,
     }
     return TypedPointerType::get(StructTy, TypedPtrTy->getAddressSpace());
   }
+
+  if (auto *TargetTy = dyn_cast<TargetExtType>(T)) {
+    StringRef Name = TargetTy->getName();
+    if (!Name.consume_front(kSPIRVTypeName::PrefixAndDelim) ||
+        Name != OldImageKind)
+      report_fatal_error("Type did not have expected image kind");
+    return TargetExtType::get(
+        TargetTy->getContext(),
+        (Twine(kSPIRVTypeName::PrefixAndDelim) + NewImageKind).str(),
+        TargetTy->type_params(), TargetTy->int_params());
+  }
+
   report_fatal_error("Expected type to be a SPIRV image type");
 }
 
@@ -294,6 +319,19 @@ Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
                                       StringRef InnerTypeName,
                                       ArrayRef<unsigned> Parameters,
                                       bool UseRealType) {
+  if (UseTargetTypes) {
+    std::string BaseName = (Twine(kSPIRVTypeName::PrefixAndDelim) +
+                            SPIRVOpaqueTypeOpCodeMap::rmap(TypeOpcode))
+                               .str();
+    SmallVector<Type *, 1> TypeParams;
+    if (!InnerTypeName.empty()) {
+      TypeParams.push_back(getLLVMTypeForSPIRVImageSampledTypePostfix(
+          InnerTypeName, M->getContext()));
+    }
+    return TargetExtType::get(M->getContext(), BaseName, TypeParams,
+                              Parameters);
+  }
+
   std::string FullName;
   {
     raw_string_ostream OS(FullName);
@@ -313,6 +351,23 @@ Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
   unsigned AddrSpace = getOCLOpaqueTypeAddrSpace(TypeOpcode);
   return UseRealType ? (Type *)PointerType::get(STy, AddrSpace)
                      : TypedPointerType::get(STy, AddrSpace);
+}
+
+void BuiltinCallHelper::initialize(llvm::Module &M) {
+  this->M = &M;
+  // We want to use pointers-to-opaque-structs for the special types if:
+  // * We are translating from SPIR-V to LLVM IR (which means we are using
+  //   OpenCL mangling rules)
+  // * There are %opencl.* or %spirv.* struct type names already present.
+  UseTargetTypes = Rules != ManglingRules::OpenCL;
+  for (StructType *Ty : M.getIdentifiedStructTypes()) {
+    if (!Ty->isOpaque() || !Ty->hasName())
+      continue;
+    StringRef Name = Ty->getName();
+    if (Name.startswith("opencl.") || Name.startswith("spirv.")) {
+      UseTargetTypes = false;
+    }
+  }
 }
 
 BuiltinCallMutator::ValueTypePair

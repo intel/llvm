@@ -137,7 +137,7 @@ public:
   // Used by --optimize-bb-jumps and RISC-V linker relaxation temporarily to
   // indicate the number of bytes which is not counted in the size. This should
   // be reset to zero after uses.
-  uint16_t bytesDropped = 0;
+  uint32_t bytesDropped = 0;
 
   mutable bool compressed = false;
 
@@ -241,7 +241,7 @@ public:
   template <typename T> llvm::ArrayRef<T> getDataAs() const {
     size_t s = content().size();
     assert(s % sizeof(T) == 0);
-    return llvm::makeArrayRef<T>((const T *)content().data(), s / sizeof(T));
+    return llvm::ArrayRef<T>((const T *)content().data(), s / sizeof(T));
   }
 
 protected:
@@ -401,7 +401,7 @@ private:
   template <class ELFT> void copyShtGroup(uint8_t *buf);
 };
 
-static_assert(sizeof(InputSection) <= 152, "InputSection is too big");
+static_assert(sizeof(InputSection) <= 160, "InputSection is too big");
 
 class SyntheticSection : public InputSection {
 public:

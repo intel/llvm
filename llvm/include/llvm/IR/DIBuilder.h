@@ -47,13 +47,12 @@ namespace llvm {
     Function *DeclareFn;     ///< llvm.dbg.declare
     Function *ValueFn;       ///< llvm.dbg.value
     Function *LabelFn;       ///< llvm.dbg.label
-    Function *AddrFn;        ///< llvm.dbg.addr
     Function *AssignFn;      ///< llvm.dbg.assign
 
     SmallVector<TrackingMDNodeRef, 4> AllEnumTypes;
     /// Track the RetainTypes, since they can be updated later on.
     SmallVector<TrackingMDNodeRef, 4> AllRetainTypes;
-    SmallVector<Metadata *, 4> AllSubprograms;
+    SmallVector<DISubprogram *, 4> AllSubprograms;
     SmallVector<Metadata *, 4> AllGVs;
     SmallVector<TrackingMDNodeRef, 4> AllImportedModules;
     /// Map Macro parent (which can be DIMacroFile or nullptr) to a list of
@@ -101,12 +100,6 @@ namespace llvm {
     insertDbgValueIntrinsic(llvm::Value *Val, DILocalVariable *VarInfo,
                             DIExpression *Expr, const DILocation *DL,
                             BasicBlock *InsertBB, Instruction *InsertBefore);
-
-    /// Internal helper for insertDbgAddrIntrinsic.
-    Instruction *
-    insertDbgAddrIntrinsic(llvm::Value *Val, DILocalVariable *VarInfo,
-                           DIExpression *Expr, const DILocation *DL,
-                           BasicBlock *InsertBB, Instruction *InsertBefore);
 
   public:
     /// Construct a builder for a module.
@@ -518,10 +511,10 @@ namespace llvm {
     /// \param Name         Value parameter name.
     /// \param Ty           Parameter type.
     /// \param Val          The fully qualified name of the template.
-    DITemplateValueParameter *createTemplateTemplateParameter(DIScope *Scope,
-                                                              StringRef Name,
-                                                              DIType *Ty,
-                                                              StringRef Val);
+    /// \param IsDefault    Parameter is default or not.
+    DITemplateValueParameter *
+    createTemplateTemplateParameter(DIScope *Scope, StringRef Name, DIType *Ty,
+                                    StringRef Val, bool IsDefault = false);
 
     /// Create debugging information for a template parameter pack.
     /// \param Scope        Scope in which this type is defined.
@@ -985,30 +978,6 @@ namespace llvm {
                                          DIExpression *Expr,
                                          const DILocation *DL,
                                          Instruction *InsertBefore);
-
-    /// Insert a new llvm.dbg.addr intrinsic call.
-    /// \param Addr          llvm::Value of the address
-    /// \param VarInfo      Variable's debug info descriptor.
-    /// \param Expr         A complex location expression.
-    /// \param DL           Debug info location.
-    /// \param InsertAtEnd Location for the new intrinsic.
-    Instruction *insertDbgAddrIntrinsic(llvm::Value *Addr,
-                                        DILocalVariable *VarInfo,
-                                        DIExpression *Expr,
-                                        const DILocation *DL,
-                                        BasicBlock *InsertAtEnd);
-
-    /// Insert a new llvm.dbg.addr intrinsic call.
-    /// \param Addr         llvm::Value of the address.
-    /// \param VarInfo      Variable's debug info descriptor.
-    /// \param Expr         A complex location expression.
-    /// \param DL           Debug info location.
-    /// \param InsertBefore Location for the new intrinsic.
-    Instruction *insertDbgAddrIntrinsic(llvm::Value *Addr,
-                                        DILocalVariable *VarInfo,
-                                        DIExpression *Expr,
-                                        const DILocation *DL,
-                                        Instruction *InsertBefore);
 
     /// Replace the vtable holder in the given type.
     ///

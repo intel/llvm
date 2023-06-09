@@ -50,7 +50,7 @@ llvm_config.use_clang(use_installed=True)
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 
-tool_dirs = [config.llvm_tools_dir, config.llvm_spirv_dir]
+tool_dirs = [config.llvm_spirv_dir, config.llvm_tools_dir]
 
 tools = ['llvm-as', 'llvm-dis', 'llvm-spirv', 'not']
 if not config.spirv_skip_debug_info_tests:
@@ -76,6 +76,7 @@ if config.spirv_tools_have_spirv_val:
 else:
     config.substitutions.append(('spirv-val', ':'))
 
+llvm_config.with_system_environment('LD_LIBRARY_PATH')
 if using_spirv_tools:
-    llvm_config.with_system_environment('LD_LIBRARY_PATH')
     llvm_config.with_environment('LD_LIBRARY_PATH', config.spirv_tools_lib_dir, append_path=True)
+llvm_config.with_environment('LD_LIBRARY_PATH', config.llvm_spirv_lib_dir, append_path=True)

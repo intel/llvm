@@ -16,9 +16,9 @@ using namespace llvm::orc::shared;
 namespace llvm {
 namespace orc {
 
-Expected<std::unique_ptr<EPCEHFrameRegistrar>>
-EPCEHFrameRegistrar::Create(ExecutionSession &ES,
-                            Optional<ExecutorAddr> RegistrationFunctionsDylib) {
+Expected<std::unique_ptr<EPCEHFrameRegistrar>> EPCEHFrameRegistrar::Create(
+    ExecutionSession &ES,
+    std::optional<ExecutorAddr> RegistrationFunctionsDylib) {
   // FIXME: Proper mangling here -- we really need to decouple linker mangling
   // from DataLayout.
 
@@ -57,9 +57,8 @@ EPCEHFrameRegistrar::Create(ExecutionSession &ES,
   auto RegisterEHFrameWrapperFnAddr = (*Result)[0][0];
   auto DeregisterEHFrameWrapperFnAddr = (*Result)[0][1];
 
-  return std::make_unique<EPCEHFrameRegistrar>(
-      ES, ExecutorAddr(RegisterEHFrameWrapperFnAddr),
-      ExecutorAddr(DeregisterEHFrameWrapperFnAddr));
+  return std::make_unique<EPCEHFrameRegistrar>(ES, RegisterEHFrameWrapperFnAddr,
+                                               DeregisterEHFrameWrapperFnAddr);
 }
 
 Error EPCEHFrameRegistrar::registerEHFrames(ExecutorAddrRange EHFrameSection) {

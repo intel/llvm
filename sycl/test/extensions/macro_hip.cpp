@@ -1,15 +1,17 @@
 // This test checks presence of macros for available extensions.
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 // REQUIRES: hip_be
-#include <iostream>
+
 #include <sycl/sycl.hpp>
-int main() {
+
 #if SYCL_EXT_ONEAPI_BACKEND_HIP == 1
-  std::cout << "SYCL_EXT_ONEAPI_BACKEND_HIP=1" << std::endl;
+constexpr bool macro_defined = true;
 #else
-  std::cerr << "SYCL_EXT_ONEAPI_BACKEND_HIP!=1" << std::endl;
-  exit(1);
+constexpr bool macro_defined = false;
 #endif
-  exit(0);
+
+int main() {
+  static_assert(macro_defined);
+
+  return 0;
 }

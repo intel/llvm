@@ -27,7 +27,7 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -39,7 +39,7 @@ class year_month_weekday {
     chrono::month           __m_;
     chrono::weekday_indexed __wdi_;
 public:
-    _LIBCPP_HIDE_FROM_ABI year_month_weekday() = default;
+    year_month_weekday() = default;
     _LIBCPP_HIDE_FROM_ABI constexpr year_month_weekday(const chrono::year& __yval, const chrono::month& __mval,
                                const chrono::weekday_indexed& __wdival) noexcept
         : __y_{__yval}, __m_{__mval}, __wdi_{__wdival} {}
@@ -250,6 +250,6 @@ _LIBCPP_HIDE_FROM_ABI inline constexpr year_month_weekday_last& year_month_weekd
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 #endif // _LIBCPP___CHRONO_YEAR_MONTH_WEEKDAY_H

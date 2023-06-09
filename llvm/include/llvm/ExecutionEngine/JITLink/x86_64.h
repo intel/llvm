@@ -64,6 +64,17 @@ enum EdgeKind_x86_64 : Edge::Kind {
   ///
   Pointer16,
 
+  /// A plain 8-bit pointer value relocation.
+  ///
+  /// Fixup expression:
+  ///   Fixup <- Target + Addend : uint8
+  ///
+  /// Errors:
+  ///   - The target must reside in the low 8-bits of the address space,
+  ///     otherwise an out-of-range error will be returned.
+  ///
+  Pointer8,
+
   /// A 64-bit delta.
   ///
   /// Delta from the fixup to the target.
@@ -435,6 +446,15 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
     break;
   }
 
+  case Pointer8: {
+    uint64_t Value = E.getTarget().getAddress().getValue() + E.getAddend();
+    if (LLVM_LIKELY(isUInt<8>(Value)))
+      *(uint8_t *)FixupPtr = Value;
+    else
+      return makeTargetOutOfRangeError(G, B, E);
+    break;
+  }
+
   case PCRel32:
   case BranchPCRel32:
   case BranchPCRel32ToPtrJumpStub:
@@ -491,7 +511,7 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
   default:
     return make_error<JITLinkError>(
         "In graph " + G.getName() + ", section " + B.getSection().getName() +
-        "unsupported edge kind" + getEdgeKindName(E.getKind()));
+        " unsupported edge kind " + getEdgeKindName(E.getKind()));
   }
 
   return Error::success();

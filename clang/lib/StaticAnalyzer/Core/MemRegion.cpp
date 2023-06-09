@@ -35,7 +35,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -51,6 +50,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -712,21 +712,17 @@ std::string MemRegion::getDescriptiveName(bool UseQuotes) const {
 }
 
 SourceRange MemRegion::sourceRange() const {
-  const auto *const VR = dyn_cast<VarRegion>(this->getBaseRegion());
-  const auto *const FR = dyn_cast<FieldRegion>(this);
-
   // Check for more specific regions first.
-  // FieldRegion
-  if (FR) {
+  if (auto *FR = dyn_cast<FieldRegion>(this)) {
     return FR->getDecl()->getSourceRange();
   }
-  // VarRegion
-  else if (VR) {
+
+  if (auto *VR = dyn_cast<VarRegion>(this->getBaseRegion())) {
     return VR->getDecl()->getSourceRange();
   }
+
   // Return invalid source range (can be checked by client).
-  else
-    return {};
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -1283,7 +1279,7 @@ const MemSpaceRegion *MemRegion::getMemorySpace() const {
     SR = dyn_cast<SubRegion>(R);
   }
 
-  return dyn_cast<MemSpaceRegion>(R);
+  return cast<MemSpaceRegion>(R);
 }
 
 bool MemRegion::hasStackStorage() const {
@@ -1554,7 +1550,7 @@ static RegionOffset calculateOffset(const MemRegion *R) {
       }
 
       SVal Index = ER->getIndex();
-      if (Optional<nonloc::ConcreteInt> CI =
+      if (std::optional<nonloc::ConcreteInt> CI =
               Index.getAs<nonloc::ConcreteInt>()) {
         // Don't bother calculating precise offsets if we already have a
         // symbolic offset somewhere in the chain.

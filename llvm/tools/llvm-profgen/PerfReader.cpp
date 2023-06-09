@@ -319,7 +319,7 @@ bool VirtualUnwinder::unwind(const PerfSample *Sample, uint64_t Repeat) {
 
 std::unique_ptr<PerfReaderBase>
 PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput,
-                       Optional<uint32_t> PIDFilter) {
+                       std::optional<uint32_t> PIDFilter) {
   std::unique_ptr<PerfReaderBase> PerfReader;
 
   if (PerfInput.Format == PerfFormat::UnsymbolizedProfile) {
@@ -350,8 +350,10 @@ PerfReaderBase::create(ProfiledBinary *Binary, PerfInputFile &PerfInput,
   return PerfReader;
 }
 
-PerfInputFile PerfScriptReader::convertPerfDataToTrace(
-    ProfiledBinary *Binary, PerfInputFile &File, Optional<uint32_t> PIDFilter) {
+PerfInputFile
+PerfScriptReader::convertPerfDataToTrace(ProfiledBinary *Binary,
+                                         PerfInputFile &File,
+                                         std::optional<uint32_t> PIDFilter) {
   StringRef PerfData = File.InputFile;
   // Run perf script to retrieve PIDs matching binary we're interested in.
   auto PerfExecutable = sys::Process::FindInEnvPath("PATH", "perf");
@@ -478,8 +480,6 @@ static std::string getContextKeyStr(ContextKey *K,
 }
 
 void HybridPerfReader::unwindSamples() {
-  if (Binary->useFSDiscriminator())
-    exitWithError("FS discriminator is not supported in CS profile.");
   VirtualUnwinder Unwinder(&SampleCounters, Binary);
   for (const auto &Item : AggregatedSamples) {
     const PerfSample *Sample = Item.first.getPtr();

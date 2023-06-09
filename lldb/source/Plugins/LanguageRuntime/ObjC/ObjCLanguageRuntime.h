@@ -12,17 +12,18 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <unordered_set>
 
 #include "llvm/Support/Casting.h"
 
 #include "lldb/Breakpoint/BreakpointPrecondition.h"
 #include "lldb/Core/PluginInterface.h"
-#include "lldb/Core/ThreadSafeDenseMap.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/ThreadSafeDenseMap.h"
 #include "lldb/lldb-private.h"
 
 class CommandObjectObjC_ClassTable_Dump;
@@ -37,7 +38,8 @@ public:
   enum class ObjCRuntimeVersions {
     eObjC_VersionUnknown = 0,
     eAppleObjC_V1 = 1,
-    eAppleObjC_V2 = 2
+    eAppleObjC_V2 = 2,
+    eGNUstep_libobjc2 = 3,
   };
 
   typedef lldb::addr_t ObjCISA;
@@ -266,7 +268,7 @@ public:
 
   lldb::TypeSP LookupInCompleteClassCache(ConstString &name);
 
-  llvm::Optional<CompilerType> GetRuntimeType(CompilerType base_type) override;
+  std::optional<CompilerType> GetRuntimeType(CompilerType base_type) override;
 
   virtual llvm::Expected<std::unique_ptr<UtilityFunction>>
   CreateObjectChecker(std::string name, ExecutionContext &exe_ctx) = 0;

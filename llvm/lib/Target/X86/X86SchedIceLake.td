@@ -19,7 +19,7 @@ def IceLakeModel : SchedMachineModel {
   // All x86 instructions are modeled as a single micro-op, and Ice Lake can
   // decode 6 instructions per cycle.
   let IssueWidth = 6;
-  let MicroOpBufferSize = 224; // Based on the reorder buffer.
+  let MicroOpBufferSize = 352; // Based on the reorder buffer.
   let LoadLatency = 5;
   let MispredictPenalty = 14;
 
@@ -98,7 +98,7 @@ def : ReadAdvance<ReadInt2Fpu, 0>;
 multiclass ICXWriteResPair<X86FoldableSchedWrite SchedRW,
                           list<ProcResourceKind> ExePorts,
                           int Lat, list<int> Res = [1], int UOps = 1,
-                          int LoadLat = 5> {
+                          int LoadLat = 5, int LoadUOps = 1> {
   // Register variant is using a single cycle on ExePort.
   def : WriteRes<SchedRW, ExePorts> {
     let Latency = Lat;
@@ -111,7 +111,7 @@ multiclass ICXWriteResPair<X86FoldableSchedWrite SchedRW,
   def : WriteRes<SchedRW.Folded, !listconcat([ICXPort23], ExePorts)> {
     let Latency = !add(Lat, LoadLat);
     let ResourceCycles = !listconcat([1], Res);
-    let NumMicroOps = !add(UOps, 1);
+    let NumMicroOps = !add(UOps, LoadUOps);
   }
 }
 

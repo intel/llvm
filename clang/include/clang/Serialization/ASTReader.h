@@ -38,7 +38,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -57,6 +56,7 @@
 #include <ctime>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -462,7 +462,7 @@ private:
   SourceLocation CurrentImportLoc;
 
   /// The module kind that is currently deserializing.
-  Optional<ModuleKind> CurrentDeserializingModuleKind;
+  std::optional<ModuleKind> CurrentDeserializingModuleKind;
 
   /// The global module index, if loaded.
   std::unique_ptr<GlobalModuleIndex> GlobalIndex;
@@ -559,6 +559,10 @@ private:
   /// within them, and those anonymous declarations.
   llvm::DenseMap<Decl*, llvm::SmallVector<NamedDecl*, 2>>
     AnonymousDeclarationsForMerging;
+
+  /// Map from numbering information for lambdas to the corresponding lambdas.
+  llvm::DenseMap<std::pair<const Decl *, unsigned>, NamedDecl *>
+      LambdaDeclarationsForMerging;
 
   /// Key used to identify LifetimeExtendedTemporaryDecl for merging,
   /// containing the lifetime-extending declaration and the mangling number.
@@ -882,7 +886,7 @@ private:
   SourceLocation PointersToMembersPragmaLocation;
 
   /// The pragma float_control state.
-  Optional<FPOptionsOverride> FpPragmaCurrentValue;
+  std::optional<FPOptionsOverride> FpPragmaCurrentValue;
   SourceLocation FpPragmaCurrentLocation;
   struct FpPragmaStackEntry {
     FPOptionsOverride Value;
@@ -894,7 +898,7 @@ private:
   llvm::SmallVector<std::string, 2> FpPragmaStrings;
 
   /// The pragma align/pack state.
-  Optional<Sema::AlignPackInfo> PragmaAlignPackCurrentValue;
+  std::optional<Sema::AlignPackInfo> PragmaAlignPackCurrentValue;
   SourceLocation PragmaAlignPackCurrentLocation;
   struct PragmaAlignPackStackEntry {
     Sema::AlignPackInfo Value;
@@ -944,8 +948,14 @@ public:
 
 private:
   /// A list of modules that were imported by precompiled headers or
-  /// any other non-module AST file.
-  SmallVector<ImportedSubmodule, 2> ImportedModules;
+  /// any other non-module AST file and have not yet been made visible. If a
+  /// module is made visible in the ASTReader, it will be transfered to
+  /// \c PendingImportedModulesSema.
+  SmallVector<ImportedSubmodule, 2> PendingImportedModules;
+
+  /// A list of modules that were imported by precompiled headers or
+  /// any other non-module AST file and have not yet been made visible for Sema.
+  SmallVector<ImportedSubmodule, 2> PendingImportedModulesSema;
   //@}
 
   /// The system include root to be used when loading the
@@ -1101,7 +1111,13 @@ private:
   /// they might contain a deduced return type that refers to a local type
   /// declared within the function.
   SmallVector<std::pair<FunctionDecl *, serialization::TypeID>, 16>
-      PendingFunctionTypes;
+      PendingDeducedFunctionTypes;
+
+  /// The list of deduced variable types that we have not yet read, because
+  /// they might contain a deduced type that refers to a local type declared
+  /// within the variable.
+  SmallVector<std::pair<VarDecl *, serialization::TypeID>, 16>
+      PendingDeducedVarTypes;
 
   /// The list of redeclaration chains that still need to be
   /// reconstructed, and the local offset to the corresponding list
@@ -1139,6 +1155,11 @@ private:
                        2>
       PendingObjCExtensionIvarRedeclarations;
 
+  /// Members that have been added to classes, for which the class has not yet
+  /// been notified. CXXRecordDecl::addedMember will be called for each of
+  /// these once recursive deserialization is complete.
+  SmallVector<std::pair<CXXRecordDecl*, Decl*>, 4> PendingAddedClassMembers;
+
   /// The set of NamedDecls that have been loaded, but are members of a
   /// context that has been merged into another context where the corresponding
   /// declaration is either missing or has not yet been loaded.
@@ -1149,12 +1170,19 @@ private:
 
   using DataPointers =
       std::pair<CXXRecordDecl *, struct CXXRecordDecl::DefinitionData *>;
+  using ObjCInterfaceDataPointers =
+      std::pair<ObjCInterfaceDecl *,
+                struct ObjCInterfaceDecl::DefinitionData *>;
   using ObjCProtocolDataPointers =
       std::pair<ObjCProtocolDecl *, struct ObjCProtocolDecl::DefinitionData *>;
 
   /// Record definitions in which we found an ODR violation.
   llvm::SmallDenseMap<CXXRecordDecl *, llvm::SmallVector<DataPointers, 2>, 2>
       PendingOdrMergeFailures;
+
+  /// C/ObjC record definitions in which we found an ODR violation.
+  llvm::SmallDenseMap<RecordDecl *, llvm::SmallVector<RecordDecl *, 2>, 2>
+      PendingRecordOdrMergeFailures;
 
   /// Function definitions in which we found an ODR violation.
   llvm::SmallDenseMap<FunctionDecl *, llvm::SmallVector<FunctionDecl *, 2>, 2>
@@ -1163,6 +1191,11 @@ private:
   /// Enum definitions in which we found an ODR violation.
   llvm::SmallDenseMap<EnumDecl *, llvm::SmallVector<EnumDecl *, 2>, 2>
       PendingEnumOdrMergeFailures;
+
+  /// ObjCInterfaceDecl in which we found an ODR violation.
+  llvm::SmallDenseMap<ObjCInterfaceDecl *,
+                      llvm::SmallVector<ObjCInterfaceDataPointers, 2>, 2>
+      PendingObjCInterfaceOdrMergeFailures;
 
   /// ObjCProtocolDecl in which we found an ODR violation.
   llvm::SmallDenseMap<ObjCProtocolDecl *,
@@ -1357,7 +1390,6 @@ private:
   void ReadModuleOffsetMap(ModuleFile &F) const;
   void ParseLineTable(ModuleFile &F, const RecordData &Record);
   llvm::Error ReadSourceManagerBlock(ModuleFile &F);
-  llvm::BitstreamCursor &SLocCursorForID(int ID);
   SourceLocation getImportLocation(ModuleFile *F);
   void readIncludedFiles(ModuleFile &F, StringRef Blob, Preprocessor &PP);
   ASTReadResult ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
@@ -1777,8 +1809,8 @@ public:
 
   /// Optionally returns true or false if the preallocated preprocessed
   /// entity with index \p Index came from file \p FID.
-  Optional<bool> isPreprocessedEntityInFileID(unsigned Index,
-                                              FileID FID) override;
+  std::optional<bool> isPreprocessedEntityInFileID(unsigned Index,
+                                                   FileID FID) override;
 
   /// Read a preallocated skipped range from the external source.
   SourceRange ReadSkippedRange(unsigned Index) override;
@@ -2070,6 +2102,8 @@ public:
       llvm::MapVector<const FunctionDecl *, std::unique_ptr<LateParsedTemplate>>
           &LPTMap) override;
 
+  void AssignedLambdaNumbering(const CXXRecordDecl *Lambda) override;
+
   /// Load a selector from disk, registering its ID if it exists.
   void LoadSelector(Selector Sel);
 
@@ -2141,7 +2175,7 @@ public:
   unsigned getModuleFileID(ModuleFile *M);
 
   /// Return a descriptor for the corresponding module.
-  llvm::Optional<ASTSourceDescriptor> getSourceDescriptor(unsigned ID) override;
+  std::optional<ASTSourceDescriptor> getSourceDescriptor(unsigned ID) override;
 
   ExtKind hasExternalDefinitions(const Decl *D) override;
 
@@ -2224,7 +2258,7 @@ public:
                               unsigned &Idx, LocSeq *Seq = nullptr);
 
   // Read a string
-  static std::string ReadString(const RecordData &Record, unsigned &Idx);
+  static std::string ReadString(const RecordDataImpl &Record, unsigned &Idx);
 
   // Skip a string
   static void SkipString(const RecordData &Record, unsigned &Idx) {

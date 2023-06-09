@@ -262,6 +262,7 @@ def ZnVer1PfmCounters : ProcPfmCounters {
     PfmIssueCounter<"ZnFPU1", "fpu_pipe_assignment:total1">,
     PfmIssueCounter<"ZnFPU2", "fpu_pipe_assignment:total2">,
     PfmIssueCounter<"ZnFPU3", "fpu_pipe_assignment:total3">,
+    PfmIssueCounter<"ZnAGU", "ls_dispatch:ld_st_dispatch + ls_dispatch:ld_dispatch + ls_dispatch:store_dispatch">,
     PfmIssueCounter<"ZnDivider", "div_op_count">
   ];
 }
@@ -271,7 +272,7 @@ def ZnVer2PfmCounters : ProcPfmCounters {
   let CycleCounter = PfmCounter<"cycles_not_in_halt">;
   let UopsCounter = PfmCounter<"retired_uops">;
   let IssueCounters = [
-    PfmIssueCounter<"Zn2AGU", "ls_dispatch:ld_dispatch + ls_dispatch:store_dispatch">,
+    PfmIssueCounter<"Zn2AGU", "ls_dispatch:ld_st_dispatch + ls_dispatch:ld_dispatch + ls_dispatch:store_dispatch">,
     PfmIssueCounter<"Zn2Divider", "div_op_count">
   ];
 }
@@ -289,3 +290,17 @@ def ZnVer3PfmCounters : ProcPfmCounters {
   ];
 }
 def : PfmCountersBinding<"znver3", ZnVer3PfmCounters>;
+
+def ZnVer4PfmCounters : ProcPfmCounters {
+  let CycleCounter = PfmCounter<"cycles_not_in_halt">;
+  let UopsCounter = PfmCounter<"retired_ops">;
+  let IssueCounters = [
+    PfmIssueCounter<"Zn4Int", "ops_type_dispatched_from_decoder:int_disp_retire_mode">,
+    PfmIssueCounter<"Zn4FPU", "ops_type_dispatched_from_decoder:fp_disp_retire_mode">,
+    PfmIssueCounter<"Zn4Load", "ls_dispatch:ld_dispatch">,
+    PfmIssueCounter<"Zn4Store", "ls_dispatch:store_dispatch">,
+    PfmIssueCounter<"Zn4Divider", "div_op_count">,
+    PfmIssueCounter<"Zn4AGU", "ls_dispatch:ld_st_dispatch + ls_dispatch:ld_dispatch + ls_dispatch:store_dispatch">
+  ];
+}
+def : PfmCountersBinding<"znver4", ZnVer4PfmCounters>;

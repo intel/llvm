@@ -235,11 +235,24 @@ public:
 
   void EmitCXXDestructors(const CXXDestructorDecl *D) override;
 
-  const CXXRecordDecl *
-  getThisArgumentTypeForMethod(const CXXMethodDecl *MD) override {
-    if (MD->isVirtual() && !isa<CXXDestructorDecl>(MD)) {
+  const CXXRecordDecl *getThisArgumentTypeForMethod(GlobalDecl GD) override {
+    auto *MD = cast<CXXMethodDecl>(GD.getDecl());
+
+    if (MD->isVirtual()) {
+      GlobalDecl LookupGD = GD;
+      if (const auto *DD = dyn_cast<CXXDestructorDecl>(MD)) {
+        // Complete dtors take a pointer to the complete object,
+        // thus don't need adjustment.
+        if (GD.getDtorType() == Dtor_Complete)
+          return MD->getParent();
+
+        // There's only Dtor_Deleting in vftable but it shares the this
+        // adjustment with the base one, so look up the deleting one instead.
+        LookupGD = GlobalDecl(DD, Dtor_Deleting);
+      }
       MethodVFTableLocation ML =
-          CGM.getMicrosoftVTableContext().getMethodVFTableLocation(MD);
+          CGM.getMicrosoftVTableContext().getMethodVFTableLocation(LookupGD);
+
       // The vbases might be ordered differently in the final overrider object
       // and the complete object, so the "this" argument may sometimes point to
       // memory that has no particular type (e.g. past the complete object).
@@ -2123,7 +2136,7 @@ MicrosoftCXXABI::getAddrOfVBTable(const VPtrInfo &VBT, const CXXRecordDecl *RD,
   CharUnits Alignment =
       CGM.getContext().getTypeAlignInChars(CGM.getContext().IntTy);
   llvm::GlobalVariable *GV = CGM.CreateOrReplaceCXXRuntimeVariable(
-      Name, VBTableType, Linkage, Alignment.getQuantity());
+      Name, VBTableType, Linkage, Alignment.getAsAlign());
   GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
 
   if (RD->hasAttr<DLLImportAttr>())
@@ -3655,7 +3668,6 @@ static llvm::GlobalValue::LinkageTypes getLinkageForRTTI(QualType Ty) {
     return llvm::GlobalValue::InternalLinkage;
 
   case VisibleNoLinkage:
-  case ModuleInternalLinkage:
   case ModuleLinkage:
   case ExternalLinkage:
     return llvm::GlobalValue::LinkOnceODRLinkage;
@@ -3745,7 +3757,7 @@ llvm::GlobalVariable *MSRTTIBuilder::getClassHierarchyDescriptor() {
   Classes.front().initialize(/*Parent=*/nullptr, /*Specifier=*/nullptr);
   detectAmbiguousBases(Classes);
   int Flags = 0;
-  for (auto Class : Classes) {
+  for (const MSRTTIClass &Class : Classes) {
     if (Class.RD->getNumBases() > 1)
       Flags |= HasBranchingHierarchy;
     // Note: cl.exe does not calculate "HasAmbiguousBases" correctly.  We
@@ -4142,7 +4154,7 @@ MicrosoftCXXABI::getAddrOfCXXCtorClosure(const CXXConstructorDecl *CD,
   CodeGenFunction::RunCleanupsScope Cleanups(CGF);
 
   const auto *FPT = CD->getType()->castAs<FunctionProtoType>();
-  CGF.EmitCallArgs(Args, FPT, llvm::makeArrayRef(ArgVec), CD, IsCopy ? 1 : 0);
+  CGF.EmitCallArgs(Args, FPT, llvm::ArrayRef(ArgVec), CD, IsCopy ? 1 : 0);
 
   // Insert any ABI-specific implicit constructor arguments.
   AddedStructorArgCounts ExtraArgs =
@@ -4350,10 +4362,10 @@ llvm::GlobalVariable *MicrosoftCXXABI::getCatchableTypeArray(QualType T) {
   llvm::ArrayType *AT = llvm::ArrayType::get(CTType, NumEntries);
   llvm::StructType *CTAType = getCatchableTypeArrayType(NumEntries);
   llvm::Constant *Fields[] = {
-      llvm::ConstantInt::get(CGM.IntTy, NumEntries),    // NumEntries
+      llvm::ConstantInt::get(CGM.IntTy, NumEntries), // NumEntries
       llvm::ConstantArray::get(
-          AT, llvm::makeArrayRef(CatchableTypes.begin(),
-                                 CatchableTypes.end())) // CatchableTypes
+          AT, llvm::ArrayRef(CatchableTypes.begin(),
+                             CatchableTypes.end())) // CatchableTypes
   };
   SmallString<256> MangledName;
   {

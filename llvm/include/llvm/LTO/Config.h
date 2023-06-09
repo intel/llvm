@@ -53,7 +53,7 @@ struct Config {
   /// For adding passes that run right before codegen.
   std::function<void(legacy::PassManager &)> PreCodeGenPassesHook;
   std::optional<Reloc::Model> RelocModel = Reloc::PIC_;
-  std::optional<CodeModel::Model> CodeModel = std::nullopt;
+  std::optional<CodeModel::Model> CodeModel;
   CodeGenOpt::Level CGOptLevel = CodeGenOpt::Default;
   CodeGenFileType CGFileType = CGFT_ObjectFile;
   unsigned OptLevel = 2;
@@ -181,11 +181,7 @@ struct Config {
 
   /// Use opaque pointer types. Used to call LLVMContext::setOpaquePointers
   /// unless already set by the `-opaque-pointers` commandline option.
-#if ENABLE_OPAQUE_POINTERS
   bool OpaquePointers = true;
-#else
-  bool OpaquePointers = false;
-#endif
 
   /// If this field is set, LTO will write input file paths and symbol
   /// resolutions here in llvm-lto2 command line flag format. This can be
@@ -302,8 +298,7 @@ struct LTOLLVMContext : LLVMContext {
     enableDebugTypeODRUniquing();
     setDiagnosticHandler(
         std::make_unique<LTOLLVMDiagnosticHandler>(&DiagHandler), true);
-    if (!hasSetOpaquePointersValue())
-      setOpaquePointers(C.OpaquePointers);
+    setOpaquePointers(C.OpaquePointers);
   }
   DiagnosticHandlerFunction DiagHandler;
 };

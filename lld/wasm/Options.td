@@ -42,6 +42,11 @@ def Bdynamic: F<"Bdynamic">, HelpText<"Link against shared libraries (default)">
 
 def Bstatic: F<"Bstatic">, HelpText<"Do not link against shared libraries">;
 
+def build_id: F<"build-id">, HelpText<"Alias for --build-id=fast">;
+
+def build_id_eq: J<"build-id=">, HelpText<"Generate build ID note">,
+  MetaVarName<"[fast,sha1,uuid,0x<hexstring>]">;
+
 defm color_diagnostics: B<"color-diagnostics",
   "Alias for --color-diagnostics=always",
   "Alias for --color-diagnostics=never">;
@@ -221,6 +226,8 @@ defm whole_archive: B<"whole-archive",
     "Force load of all members in a static library",
     "Do not force load of all members in a static library (default)">;
 
+def why_extract: JJ<"why-extract=">, HelpText<"Print to a file about why archive members are extracted">;
+
 defm check_features: BB<"check-features",
     "Check feature compatibility of linked objects (default)",
     "Ignore feature compatibility of linked objects">;
@@ -256,6 +263,8 @@ def: JoinedOrSeparate<["-"], "u">, Alias<undefined>;
 // LTO-related options.
 def lto_O: JJ<"lto-O">, MetaVarName<"<opt-level>">,
   HelpText<"Optimization level for LTO">;
+def lto_CGO: JJ<"lto-CGO">, MetaVarName<"<cgopt-level>">,
+  HelpText<"Codegen optimization level for LTO">;
 def lto_partitions: JJ<"lto-partitions=">,
   HelpText<"Number of LTO codegen partitions">;
 def disable_verify: F<"disable-verify">;
@@ -265,8 +274,6 @@ def thinlto_cache_dir: JJ<"thinlto-cache-dir=">,
 defm thinlto_cache_policy: EEq<"thinlto-cache-policy", "Pruning policy for the ThinLTO cache">;
 def thinlto_jobs: JJ<"thinlto-jobs=">,
   HelpText<"Number of ThinLTO jobs. Default to --threads=">;
-def no_lto_legacy_pass_manager: FF<"no-lto-legacy-pass-manager">,
-  HelpText<"Use new pass manager">;
 def lto_debug_pass_manager: FF<"lto-debug-pass-manager">,
   HelpText<"Debug new pass manager">;
 

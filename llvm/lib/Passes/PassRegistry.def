@@ -44,6 +44,7 @@ MODULE_PASS("always-inline", AlwaysInlinerPass())
 MODULE_PASS("attributor", AttributorPass())
 MODULE_PASS("annotation2metadata", Annotation2MetadataPass())
 MODULE_PASS("openmp-opt", OpenMPOptPass())
+MODULE_PASS("openmp-opt-postlink", OpenMPOptPass(ThinOrFullLTOPhase::FullLTOPostLink))
 MODULE_PASS("called-value-propagation", CalledValuePropagationPass())
 MODULE_PASS("canonicalize-aliases", CanonicalizeAliasesPass())
 MODULE_PASS("cg-profile", CGProfilePass())
@@ -56,7 +57,7 @@ MODULE_PASS("deadargelim", DeadArgumentEliminationPass())
 MODULE_PASS("debugify", NewPMDebugifyPass())
 MODULE_PASS("dot-callgraph", CallGraphDOTPrinterPass())
 MODULE_PASS("elim-avail-extern", EliminateAvailableExternallyPass())
-MODULE_PASS("extract-blocks", BlockExtractorPass())
+MODULE_PASS("extract-blocks", BlockExtractorPass({}, false))
 MODULE_PASS("forceattrs", ForceFunctionAttrsPass())
 MODULE_PASS("function-import", FunctionImportPass())
 MODULE_PASS("globaldce", GlobalDCEPass())
@@ -75,10 +76,10 @@ MODULE_PASS("instrorderfile", InstrOrderFilePass())
 MODULE_PASS("instrprof", InstrProfiling())
 MODULE_PASS("internalize", InternalizePass())
 MODULE_PASS("invalidate<all>", InvalidateAllAnalysesPass())
-MODULE_PASS("ipsccp", IPSCCPPass())
 MODULE_PASS("iroutliner", IROutlinerPass())
 MODULE_PASS("print-ir-similarity", IRSimilarityAnalysisPrinterPass(dbgs()))
 MODULE_PASS("lower-global-dtors", LowerGlobalDtorsPass())
+MODULE_PASS("lower-ifunc", LowerIFuncPass())
 MODULE_PASS("lowertypetests", LowerTypeTestsPass())
 MODULE_PASS("metarenamer", MetaRenamerPass())
 MODULE_PASS("mergefunc", MergeFunctionsPass())
@@ -86,6 +87,7 @@ MODULE_PASS("name-anon-globals", NameAnonGlobalPass())
 MODULE_PASS("no-op-module", NoOpModulePass())
 MODULE_PASS("objc-arc-apelim", ObjCARCAPElimPass())
 MODULE_PASS("partial-inliner", PartialInlinerPass())
+MODULE_PASS("memprof-context-disambiguation", MemProfContextDisambiguation())
 MODULE_PASS("pgo-icall-prom", PGOIndirectCallPromotion())
 MODULE_PASS("pgo-instr-gen", PGOInstrumentationGen())
 MODULE_PASS("pgo-instr-use", PGOInstrumentationUse())
@@ -127,7 +129,6 @@ MODULE_PASS("memprof-module", ModuleMemProfilerPass())
 MODULE_PASS("poison-checking", PoisonCheckingPass())
 MODULE_PASS("pseudo-probe-update", PseudoProbeUpdatePass())
 MODULE_PASS("LowerESIMD", SYCLLowerESIMDPass())
-MODULE_PASS("lower-kernel-props", SYCLLowerKernelPropsPass())
 MODULE_PASS("ESIMDLowerVecArg", ESIMDLowerVecArgPass())
 MODULE_PASS("esimd-opt-call-conv", ESIMDOptimizeVecArgCallConvPass())
 MODULE_PASS("esimd-verifier", ESIMDVerifierPass())
@@ -138,6 +139,8 @@ MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
 MODULE_PASS("sycllowerwglocalmemory", SYCLLowerWGLocalMemoryPass())
 MODULE_PASS("lower-esimd-kernel-attrs", SYCLFixupESIMDKernelWrapperMDPass())
 MODULE_PASS("sycl-propagate-aspects-usage", SYCLPropagateAspectsUsagePass())
+MODULE_PASS("sycl-add-opt-level-attribute", SYCLAddOptLevelAttributePass())
+MODULE_PASS("compile-time-properties", CompileTimePropertiesPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -173,6 +176,13 @@ MODULE_PASS_WITH_PARAMS("msan",
                         },
                         parseMSanPassOptions,
                         "recover;kernel;eager-checks;track-origins=N")
+MODULE_PASS_WITH_PARAMS("ipsccp",
+                        "IPSCCPPass",
+                        [](IPSCCPOptions Opts) {
+                          return IPSCCPPass(Opts);
+                        },
+                        parseIPSCCPOptions,
+                        "no-func-spec;func-spec")
 #undef MODULE_PASS_WITH_PARAMS
 
 #ifndef CGSCC_ANALYSIS
@@ -188,7 +198,6 @@ CGSCC_ANALYSIS("pass-instrumentation", PassInstrumentationAnalysis(PIC))
 #endif
 CGSCC_PASS("argpromotion", ArgumentPromotionPass())
 CGSCC_PASS("invalidate<all>", InvalidateAllAnalysesPass())
-CGSCC_PASS("function-attrs", PostOrderFunctionAttrsPass())
 CGSCC_PASS("attributor-cgscc", AttributorCGSCCPass())
 CGSCC_PASS("openmp-opt-cgscc", OpenMPOptCGSCCPass())
 CGSCC_PASS("no-op-cgscc", NoOpCGSCCPass())
@@ -211,6 +220,13 @@ CGSCC_PASS_WITH_PARAMS("coro-split",
                        },
                        parseCoroSplitPassOptions,
                        "reuse-storage")
+CGSCC_PASS_WITH_PARAMS("function-attrs",
+                       "PostOrderFunctionAttrsPass",
+                       [](bool SkipNonRecursive) {
+                         return PostOrderFunctionAttrsPass(SkipNonRecursive);
+                       },
+                       parsePostOrderFunctionAttrsPassOptions,
+                       "skip-non-recursive")
 #undef CGSCC_PASS_WITH_PARAMS
 
 #ifndef FUNCTION_ANALYSIS
@@ -246,7 +262,7 @@ FUNCTION_ANALYSIS("targetir",
                   TM ? TM->getTargetIRAnalysis() : TargetIRAnalysis())
 FUNCTION_ANALYSIS("verify", VerifierAnalysis())
 FUNCTION_ANALYSIS("pass-instrumentation", PassInstrumentationAnalysis(PIC))
-FUNCTION_ANALYSIS("divergence", DivergenceAnalysis())
+FUNCTION_ANALYSIS("uniformity", UniformityInfoAnalysis())
 
 #ifndef FUNCTION_ALIAS_ANALYSIS
 #define FUNCTION_ALIAS_ANALYSIS(NAME, CREATE_PASS)                             \
@@ -276,6 +292,7 @@ FUNCTION_PASS("bounds-checking", BoundsCheckingPass())
 FUNCTION_PASS("break-crit-edges", BreakCriticalEdgesPass())
 FUNCTION_PASS("callsite-splitting", CallSiteSplittingPass())
 FUNCTION_PASS("consthoist", ConstantHoistingPass())
+FUNCTION_PASS("count-visits", CountVisitsPass())
 FUNCTION_PASS("constraint-elimination", ConstraintEliminationPass())
 FUNCTION_PASS("chr", ControlHeightReductionPass())
 FUNCTION_PASS("coro-elide", CoroElidePass())
@@ -327,6 +344,7 @@ FUNCTION_PASS("mem2reg", PromotePass())
 FUNCTION_PASS("memcpyopt", MemCpyOptPass())
 FUNCTION_PASS("mergeicmps", MergeICmpsPass())
 FUNCTION_PASS("mergereturn", UnifyFunctionExitNodesPass())
+FUNCTION_PASS("move-auto-init", MoveAutoInitPass())
 FUNCTION_PASS("nary-reassociate", NaryReassociatePass())
 FUNCTION_PASS("newgvn", NewGVNPass())
 FUNCTION_PASS("jump-threading", JumpThreadingPass())
@@ -343,6 +361,7 @@ FUNCTION_PASS("objc-arc-contract", ObjCARCContractPass())
 FUNCTION_PASS("objc-arc-expand", ObjCARCExpandPass())
 FUNCTION_PASS("pa-eval", PAEvalPass())
 FUNCTION_PASS("pgo-memop-opt", PGOMemOPSizeOpt())
+FUNCTION_PASS("place-safepoints", PlaceSafepointsPass())
 FUNCTION_PASS("print", PrintFunctionPass(dbgs()))
 FUNCTION_PASS("print<assumptions>", AssumptionPrinterPass(dbgs()))
 FUNCTION_PASS("print<block-freq>", BlockFrequencyPrinterPass(dbgs()))
@@ -350,7 +369,6 @@ FUNCTION_PASS("print<branch-prob>", BranchProbabilityPrinterPass(dbgs()))
 FUNCTION_PASS("print<cost-model>", CostModelPrinterPass(dbgs()))
 FUNCTION_PASS("print<cycles>", CycleInfoPrinterPass(dbgs()))
 FUNCTION_PASS("print<da>", DependenceAnalysisPrinterPass(dbgs()))
-FUNCTION_PASS("print<divergence>", DivergenceAnalysisPrinterPass(dbgs()))
 FUNCTION_PASS("print<domtree>", DominatorTreePrinterPass(dbgs()))
 FUNCTION_PASS("print<postdomtree>", PostDominatorTreePrinterPass(dbgs()))
 FUNCTION_PASS("print<delinearization>", DelinearizationPrinterPass(dbgs()))
@@ -374,6 +392,7 @@ FUNCTION_PASS("print-cfg-sccs", CFGSCCPrinterPass(dbgs()))
 FUNCTION_PASS("print-predicateinfo", PredicateInfoPrinterPass(dbgs()))
 FUNCTION_PASS("print-mustexecute", MustExecutePrinterPass(dbgs()))
 FUNCTION_PASS("print-memderefs", MemDerefPrinterPass(dbgs()))
+FUNCTION_PASS("print<uniformity>", UniformityInfoPrinterPass(dbgs()))
 FUNCTION_PASS("reassociate", ReassociatePass())
 FUNCTION_PASS("redundant-dbg-inst-elim", RedundantDbgInstEliminationPass())
 FUNCTION_PASS("reg2mem", RegToMemPass())
@@ -388,6 +407,7 @@ FUNCTION_PASS("speculative-execution", SpeculativeExecutionPass())
 FUNCTION_PASS("strip-gc-relocates", StripGCRelocates())
 FUNCTION_PASS("structurizecfg", StructurizeCFGPass())
 FUNCTION_PASS("tailcallelim", TailCallElimPass())
+FUNCTION_PASS("typepromotion", TypePromotionPass(TM))
 FUNCTION_PASS("unify-loop-exits", UnifyLoopExitsPass())
 FUNCTION_PASS("vector-combine", VectorCombinePass())
 FUNCTION_PASS("verify", VerifierPass())
@@ -425,6 +445,18 @@ FUNCTION_PASS_WITH_PARAMS("ee-instrument",
                            },
                           parseEntryExitInstrumenterPassOptions,
                           "post-inline")
+FUNCTION_PASS_WITH_PARAMS("hardware-loops",
+                          "HardwareLoopsPass",
+                          [](HardwareLoopOptions Opts) {
+                              return HardwareLoopsPass(Opts);
+                          },
+                          parseHardwareLoopOptions,
+                          "force-hardware-loops;"
+                          "force-hardware-loop-phi;"
+                          "force-nested-hardware-loop;"
+                          "force-hardware-loop-guard;"
+                          "hardware-loop-decrement=N;"
+                          "hardware-loop-counter-bitwidth=N")
 FUNCTION_PASS_WITH_PARAMS("lower-matrix-intrinsics",
                           "LowerMatrixIntrinsicsPass",
                            [](bool Minimal) {
@@ -466,6 +498,15 @@ FUNCTION_PASS_WITH_PARAMS("loop-vectorize",
                           parseLoopVectorizeOptions,
                           "no-interleave-forced-only;interleave-forced-only;"
                           "no-vectorize-forced-only;vectorize-forced-only")
+FUNCTION_PASS_WITH_PARAMS("instcombine",
+                          "InstCombinePass",
+                           [](InstCombineOptions Opts) {
+                             return InstCombinePass(Opts);
+                           },
+                          parseInstCombineOptions,
+                          "no-use-loop-info;use-loop-info;"
+                          "max-iterations=N"
+                          )
 FUNCTION_PASS_WITH_PARAMS("mldst-motion",
                           "MergedLoadStoreMotionPass",
                            [](MergedLoadStoreMotionOptions Opts) {
@@ -504,6 +545,13 @@ FUNCTION_PASS_WITH_PARAMS("print<da>",
                            },
                           parseDependenceAnalysisPrinterOptions,
                           "normalized-results")
+FUNCTION_PASS_WITH_PARAMS("separate-const-offset-from-gep",
+                          "SeparateConstOffsetFromGEPPass",
+                           [](bool LowerGEP) {
+                             return SeparateConstOffsetFromGEPPass(LowerGEP);
+                           },
+                          parseSeparateConstOffsetFromGEPPassOptions,
+                          "lower-gep")
 #undef FUNCTION_PASS_WITH_PARAMS
 
 #ifndef LOOPNEST_PASS

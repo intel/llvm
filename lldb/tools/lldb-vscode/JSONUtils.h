@@ -14,6 +14,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/JSON.h"
 #include <cstdint>
+#include <optional>
 
 namespace lldb_vscode {
 
@@ -210,8 +211,8 @@ void SetValueForKey(lldb::SBValue &v, llvm::json::Object &object,
 ///     fallback.
 void AppendBreakpoint(
     lldb::SBBreakpoint &bp, llvm::json::Array &breakpoints,
-    llvm::Optional<llvm::StringRef> request_path = std::nullopt,
-    llvm::Optional<uint32_t> request_line = std::nullopt);
+    std::optional<llvm::StringRef> request_path = std::nullopt,
+    std::optional<uint32_t> request_line = std::nullopt);
 
 /// Converts breakpoint location to a Visual Studio Code "Breakpoint"
 ///
@@ -236,8 +237,8 @@ void AppendBreakpoint(
 ///     definition outlined by Microsoft.
 llvm::json::Value
 CreateBreakpoint(lldb::SBBreakpoint &bp,
-                 llvm::Optional<llvm::StringRef> request_path = std::nullopt,
-                 llvm::Optional<uint32_t> request_line = std::nullopt);
+                 std::optional<llvm::StringRef> request_path = std::nullopt,
+                 std::optional<uint32_t> request_line = std::nullopt);
 
 /// Converts a LLDB module to a VS Code DAP module for use in "modules" events.
 ///
@@ -478,13 +479,19 @@ llvm::json::Value CreateCompileUnit(lldb::SBCompileUnit unit);
 /// \param[in] comm_file
 ///     The fifo file used to communicate the with the target launcher.
 ///
+/// \param[in] debugger_pid
+///     The PID of the lldb-vscode instance that will attach to the target. The
+///     launcher uses it on Linux tell the kernel that it should allow the
+///     debugger process to attach.
+///
 /// \return
 ///     A "runInTerminal" JSON object that follows the specification outlined by
 ///     Microsoft.
 llvm::json::Object
 CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
                                   llvm::StringRef debug_adaptor_path,
-                                  llvm::StringRef comm_file);
+                                  llvm::StringRef comm_file,
+                                  lldb::pid_t debugger_pid);
 
 /// Create a "Terminated" JSON object that contains statistics
 ///

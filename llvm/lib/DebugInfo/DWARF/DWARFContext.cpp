@@ -38,7 +38,6 @@
 #include "llvm/DebugInfo/DWARF/DWARFTypeUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFUnitIndex.h"
 #include "llvm/DebugInfo/DWARF/DWARFVerifier.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/Decompressor.h"
 #include "llvm/Object/MachO.h"
@@ -49,6 +48,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -309,9 +309,7 @@ DWARFContext::parseMacroOrMacinfo(MacroSecType SectionType) {
 }
 
 static void dumpLoclistsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
-                                DWARFDataExtractor Data,
-                                const MCRegisterInfo *MRI,
-                                const DWARFObject &Obj,
+                                DWARFDataExtractor Data, const DWARFObject &Obj,
                                 std::optional<uint64_t> DumpOffset) {
   uint64_t Offset = 0;
 
@@ -330,13 +328,13 @@ static void dumpLoclistsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
     if (DumpOffset) {
       if (DumpOffset >= Offset && DumpOffset < EndOffset) {
         Offset = *DumpOffset;
-        Loc.dumpLocationList(&Offset, OS, /*BaseAddr=*/std::nullopt, MRI, Obj,
+        Loc.dumpLocationList(&Offset, OS, /*BaseAddr=*/std::nullopt, Obj,
                              nullptr, DumpOpts, /*Indent=*/0);
         OS << "\n";
         return;
       }
     } else {
-      Loc.dumpRange(Offset, EndOffset - Offset, OS, MRI, Obj, DumpOpts);
+      Loc.dumpRange(Offset, EndOffset - Offset, OS, Obj, DumpOpts);
     }
     Offset = EndOffset;
   }
@@ -424,21 +422,21 @@ void DWARFContext::dump(
 
   if (const auto *Off = shouldDump(Explicit, ".debug_loc", DIDT_ID_DebugLoc,
                                    DObj->getLocSection().Data)) {
-    getDebugLoc()->dump(OS, getRegisterInfo(), *DObj, LLDumpOpts, *Off);
+    getDebugLoc()->dump(OS, *DObj, LLDumpOpts, *Off);
   }
   if (const auto *Off =
           shouldDump(Explicit, ".debug_loclists", DIDT_ID_DebugLoclists,
                      DObj->getLoclistsSection().Data)) {
     DWARFDataExtractor Data(*DObj, DObj->getLoclistsSection(), isLittleEndian(),
                             0);
-    dumpLoclistsSection(OS, LLDumpOpts, Data, getRegisterInfo(), *DObj, *Off);
+    dumpLoclistsSection(OS, LLDumpOpts, Data, *DObj, *Off);
   }
   if (const auto *Off =
           shouldDump(ExplicitDWO, ".debug_loclists.dwo", DIDT_ID_DebugLoclists,
                      DObj->getLoclistsDWOSection().Data)) {
     DWARFDataExtractor Data(*DObj, DObj->getLoclistsDWOSection(),
                             isLittleEndian(), 0);
-    dumpLoclistsSection(OS, LLDumpOpts, Data, getRegisterInfo(), *DObj, *Off);
+    dumpLoclistsSection(OS, LLDumpOpts, Data, *DObj, *Off);
   }
 
   if (const auto *Off =
@@ -450,12 +448,12 @@ void DWARFContext::dump(
     if (*Off) {
       uint64_t Offset = **Off;
       Loc.dumpLocationList(&Offset, OS,
-                           /*BaseAddr=*/std::nullopt, getRegisterInfo(), *DObj,
-                           nullptr, LLDumpOpts, /*Indent=*/0);
+                           /*BaseAddr=*/std::nullopt, *DObj, nullptr,
+                           LLDumpOpts,
+                           /*Indent=*/0);
       OS << "\n";
     } else {
-      Loc.dumpRange(0, Data.getData().size(), OS, getRegisterInfo(), *DObj,
-                    LLDumpOpts);
+      Loc.dumpRange(0, Data.getData().size(), OS, *DObj, LLDumpOpts);
     }
   }
 
@@ -463,7 +461,7 @@ void DWARFContext::dump(
           shouldDump(Explicit, ".debug_frame", DIDT_ID_DebugFrame,
                      DObj->getFrameSection().Data)) {
     if (Expected<const DWARFDebugFrame *> DF = getDebugFrame())
-      (*DF)->dump(OS, DumpOpts, getRegisterInfo(), *Off);
+      (*DF)->dump(OS, DumpOpts, *Off);
     else
       RecoverableErrorHandler(DF.takeError());
   }
@@ -472,7 +470,7 @@ void DWARFContext::dump(
           shouldDump(Explicit, ".eh_frame", DIDT_ID_DebugFrame,
                      DObj->getEHFrameSection().Data)) {
     if (Expected<const DWARFDebugFrame *> DF = getEHFrame())
-      (*DF)->dump(OS, DumpOpts, getRegisterInfo(), *Off);
+      (*DF)->dump(OS, DumpOpts, *Off);
     else
       RecoverableErrorHandler(DF.takeError());
   }
@@ -782,14 +780,130 @@ bool DWARFContext::verify(raw_ostream &OS, DIDumpOptions DumpOpts) {
   return Success;
 }
 
+void fixupIndexV4(const DWARFObject &DObj, DWARFContext &C,
+                DWARFUnitIndex &Index) {
+  using EntryType = DWARFUnitIndex::Entry::SectionContribution;
+  using EntryMap = DenseMap<uint32_t, EntryType>;
+  EntryMap Map;
+  if (DObj.getCUIndexSection().empty())
+    return;
+
+  uint64_t Offset = 0;
+  uint32_t TruncOffset = 0;
+  DObj.forEachInfoDWOSections([&](const DWARFSection &S) {
+    if (!(C.getParseCUTUIndexManually() ||
+          S.Data.size() >= std::numeric_limits<uint32_t>::max()))
+      return;
+
+    DWARFDataExtractor Data(DObj, S, C.isLittleEndian(), 0);
+    while (Data.isValidOffset(Offset)) {
+      DWARFUnitHeader Header;
+      if (!Header.extract(C, Data, &Offset, DWARFSectionKind::DW_SECT_INFO)) {
+        logAllUnhandledErrors(
+            createError("Failed to parse CU header in DWP file"), errs());
+        Map.clear();
+        break;
+      }
+
+      auto Iter = Map.insert({TruncOffset,
+                              {Header.getOffset(), Header.getNextUnitOffset() -
+                                                       Header.getOffset()}});
+      if (!Iter.second) {
+        logAllUnhandledErrors(
+            createError("Collision occured between for truncated offset 0x" +
+                        Twine::utohexstr(TruncOffset)),
+            errs());
+        Map.clear();
+        return;
+      }
+
+      Offset = Header.getNextUnitOffset();
+      TruncOffset = Offset;
+    }
+  });
+
+  if (Map.empty())
+    return;
+
+  for (DWARFUnitIndex::Entry &E : Index.getMutableRows()) {
+    if (!E.isValid())
+      continue;
+    DWARFUnitIndex::Entry::SectionContribution &CUOff = E.getContribution();
+    auto Iter = Map.find(CUOff.getOffset());
+    if (Iter == Map.end()) {
+      logAllUnhandledErrors(createError("Could not find CU offset 0x" +
+                                        Twine::utohexstr(CUOff.getOffset()) +
+                                        " in the Map"),
+                            errs());
+      break;
+    }
+    CUOff.setOffset(Iter->second.getOffset());
+    if (CUOff.getOffset() != Iter->second.getOffset())
+      logAllUnhandledErrors(createError("Length of CU in CU index doesn't "
+                                        "match calculated length at offset 0x" +
+                                        Twine::utohexstr(CUOff.getOffset())),
+                            errs());
+  }
+}
+
+void fixupIndexV5(const DWARFObject &DObj, DWARFContext &C,
+                  DWARFUnitIndex &Index) {
+  DenseMap<uint64_t, uint64_t> Map;
+
+  DObj.forEachInfoDWOSections([&](const DWARFSection &S) {
+    if (!(C.getParseCUTUIndexManually() ||
+          S.Data.size() >= std::numeric_limits<uint32_t>::max()))
+      return;
+    DWARFDataExtractor Data(DObj, S, C.isLittleEndian(), 0);
+    uint64_t Offset = 0;
+    while (Data.isValidOffset(Offset)) {
+      DWARFUnitHeader Header;
+      if (!Header.extract(C, Data, &Offset, DWARFSectionKind::DW_SECT_INFO)) {
+        logAllUnhandledErrors(
+            createError("Failed to parse unit header in DWP file"), errs());
+        break;
+      }
+      bool CU = Header.getUnitType() == DW_UT_split_compile;
+      uint64_t Sig = CU ? *Header.getDWOId() : Header.getTypeHash();
+      Map[Sig] = Header.getOffset();
+      Offset = Header.getNextUnitOffset();
+    }
+  });
+  if (Map.empty())
+    return;
+  for (DWARFUnitIndex::Entry &E : Index.getMutableRows()) {
+    if (!E.isValid())
+      continue;
+    DWARFUnitIndex::Entry::SectionContribution &CUOff = E.getContribution();
+    auto Iter = Map.find(E.getSignature());
+    if (Iter == Map.end()) {
+      logAllUnhandledErrors(
+          createError("Could not find unit with signature 0x" +
+                      Twine::utohexstr(E.getSignature()) + " in the Map"),
+          errs());
+      break;
+    }
+    CUOff.setOffset(Iter->second);
+  }
+}
+
+void fixupIndex(const DWARFObject &DObj, DWARFContext &C,
+                DWARFUnitIndex &Index) {
+  if (Index.getVersion() < 5)
+    fixupIndexV4(DObj, C, Index);
+  else
+    fixupIndexV5(DObj, C, Index);
+}
+
 const DWARFUnitIndex &DWARFContext::getCUIndex() {
   if (CUIndex)
     return *CUIndex;
 
   DataExtractor CUIndexData(DObj->getCUIndexSection(), isLittleEndian(), 0);
-
   CUIndex = std::make_unique<DWARFUnitIndex>(DW_SECT_INFO);
-  CUIndex->parse(CUIndexData);
+  bool IsParseSuccessful = CUIndex->parse(CUIndexData);
+  if (IsParseSuccessful)
+    fixupIndex(*DObj, *this, *CUIndex);
   return *CUIndex;
 }
 
@@ -798,9 +912,12 @@ const DWARFUnitIndex &DWARFContext::getTUIndex() {
     return *TUIndex;
 
   DataExtractor TUIndexData(DObj->getTUIndexSection(), isLittleEndian(), 0);
-
   TUIndex = std::make_unique<DWARFUnitIndex>(DW_SECT_EXT_TYPES);
-  TUIndex->parse(TUIndexData);
+  bool isParseSuccessful = TUIndex->parse(TUIndexData);
+  // If we are parsing TU-index and for .debug_types section we don't need
+  // to do anything.
+  if (isParseSuccessful && TUIndex->getVersion() != 2)
+    fixupIndex(*DObj, *this, *TUIndex);
   return *TUIndex;
 }
 
@@ -1050,14 +1167,17 @@ DWARFCompileUnit *DWARFContext::getCompileUnitForOffset(uint64_t Offset) {
       NormalUnits.getUnitForOffset(Offset));
 }
 
-DWARFCompileUnit *DWARFContext::getCompileUnitForAddress(uint64_t Address) {
-  // First, get the offset of the compile unit.
+DWARFCompileUnit *DWARFContext::getCompileUnitForCodeAddress(uint64_t Address) {
   uint64_t CUOffset = getDebugAranges()->findAddress(Address);
-  // Retrieve the compile unit.
+  return getCompileUnitForOffset(CUOffset);
+}
+
+DWARFCompileUnit *DWARFContext::getCompileUnitForDataAddress(uint64_t Address) {
+  uint64_t CUOffset = getDebugAranges()->findAddress(Address);
   if (DWARFCompileUnit *OffsetCU = getCompileUnitForOffset(CUOffset))
     return OffsetCU;
 
-  // Global variables are often not found by the above search, for one of two
+  // Global variables are often missed by the above search, for one of two
   // reasons:
   //   1. .debug_aranges may not include global variables. On clang, it seems we
   //      put the globals in the aranges, but this isn't true for gcc.
@@ -1078,7 +1198,7 @@ DWARFCompileUnit *DWARFContext::getCompileUnitForAddress(uint64_t Address) {
 DWARFContext::DIEsForAddress DWARFContext::getDIEsForAddress(uint64_t Address) {
   DIEsForAddress Result;
 
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address);
   if (!CU)
     return Result;
 
@@ -1206,13 +1326,12 @@ void DWARFContext::addLocalsForDie(DWARFCompileUnit *CU, DWARFDie Subprogram,
     if (auto DeclFileAttr = Die.find(DW_AT_decl_file)) {
       if (const auto *LT = CU->getContext().getLineTableForUnit(CU))
         LT->getFileNameByIndex(
-            DeclFileAttr->getAsUnsignedConstant().value(),
-            CU->getCompilationDir(),
+            *DeclFileAttr->getAsUnsignedConstant(), CU->getCompilationDir(),
             DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath,
             Local.DeclFile);
     }
     if (auto DeclLineAttr = Die.find(DW_AT_decl_line))
-      Local.DeclLine = DeclLineAttr->getAsUnsignedConstant().value();
+      Local.DeclLine = *DeclLineAttr->getAsUnsignedConstant();
 
     Result.push_back(Local);
     return;
@@ -1230,7 +1349,7 @@ void DWARFContext::addLocalsForDie(DWARFCompileUnit *CU, DWARFDie Subprogram,
 std::vector<DILocal>
 DWARFContext::getLocalsForAddress(object::SectionedAddress Address) {
   std::vector<DILocal> Result;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return Result;
 
@@ -1243,7 +1362,7 @@ DWARFContext::getLocalsForAddress(object::SectionedAddress Address) {
 DILineInfo DWARFContext::getLineInfoForAddress(object::SectionedAddress Address,
                                                DILineInfoSpecifier Spec) {
   DILineInfo Result;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return Result;
 
@@ -1264,7 +1383,7 @@ DILineInfo DWARFContext::getLineInfoForAddress(object::SectionedAddress Address,
 DILineInfo
 DWARFContext::getLineInfoForDataAddress(object::SectionedAddress Address) {
   DILineInfo Result;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForDataAddress(Address.Address);
   if (!CU)
     return Result;
 
@@ -1279,7 +1398,7 @@ DWARFContext::getLineInfoForDataAddress(object::SectionedAddress Address) {
 DILineInfoTable DWARFContext::getLineInfoForAddressRange(
     object::SectionedAddress Address, uint64_t Size, DILineInfoSpecifier Spec) {
   DILineInfoTable Lines;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return Lines;
 
@@ -1335,7 +1454,7 @@ DWARFContext::getInliningInfoForAddress(object::SectionedAddress Address,
                                         DILineInfoSpecifier Spec) {
   DIInliningInfo InliningInfo;
 
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return InliningInfo;
 
@@ -2018,23 +2137,6 @@ DWARFContext::create(const StringMap<std::unique_ptr<MemoryBuffer>> &Sections,
       std::make_unique<DWARFObjInMemory>(Sections, AddrSize, isLittleEndian);
   return std::make_unique<DWARFContext>(
       std::move(DObj), "", RecoverableErrorHandler, WarningHandler);
-}
-
-Error DWARFContext::loadRegisterInfo(const object::ObjectFile &Obj) {
-  // Detect the architecture from the object file. We usually don't need OS
-  // info to lookup a target and create register info.
-  Triple TT;
-  TT.setArch(Triple::ArchType(Obj.getArch()));
-  TT.setVendor(Triple::UnknownVendor);
-  TT.setOS(Triple::UnknownOS);
-  std::string TargetLookupError;
-  const Target *TheTarget =
-      TargetRegistry::lookupTarget(TT.str(), TargetLookupError);
-  if (!TargetLookupError.empty())
-    return createStringError(errc::invalid_argument,
-                             TargetLookupError.c_str());
-  RegInfo.reset(TheTarget->createMCRegInfo(TT.str()));
-  return Error::success();
 }
 
 uint8_t DWARFContext::getCUAddrSize() {

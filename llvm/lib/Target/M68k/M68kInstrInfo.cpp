@@ -609,7 +609,7 @@ bool M68kInstrInfo::isPCRelRegisterOperandLegal(
   const MachineInstr *MI = MO.getParent();
   const unsigned NameIndices = M68kInstrNameIndices[MI->getOpcode()];
   StringRef InstrName(&M68kInstrNameData[NameIndices]);
-  const unsigned OperandNo = MI->getOperandNo(&MO);
+  const unsigned OperandNo = MO.getOperandNo();
 
   // If this machine operand is the 2nd operand, then check
   // whether the instruction has destination addressing mode 'k'.
@@ -739,12 +739,10 @@ bool M68kInstrInfo::getStackSlotRange(const TargetRegisterClass *RC,
   return true;
 }
 
-void M68kInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-                                        MachineBasicBlock::iterator MI,
-                                        Register SrcReg, bool IsKill,
-                                        int FrameIndex,
-                                        const TargetRegisterClass *RC,
-                                        const TargetRegisterInfo *TRI) const {
+void M68kInstrInfo::storeRegToStackSlot(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg,
+    bool IsKill, int FrameIndex, const TargetRegisterClass *RC,
+    const TargetRegisterInfo *TRI, Register VReg) const {
   const MachineFrameInfo &MFI = MBB.getParent()->getFrameInfo();
   assert(MFI.getObjectSize(FrameIndex) >= TRI->getSpillSize(*RC) &&
          "Stack slot is too small to store");
@@ -760,7 +758,8 @@ void M68kInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                          MachineBasicBlock::iterator MI,
                                          Register DstReg, int FrameIndex,
                                          const TargetRegisterClass *RC,
-                                         const TargetRegisterInfo *TRI) const {
+                                         const TargetRegisterInfo *TRI,
+                                         Register VReg) const {
   const MachineFrameInfo &MFI = MBB.getParent()->getFrameInfo();
   assert(MFI.getObjectSize(FrameIndex) >= TRI->getSpillSize(*RC) &&
          "Stack slot is too small to load");
@@ -782,7 +781,7 @@ unsigned M68kInstrInfo::getGlobalBaseReg(MachineFunction *MF) const {
     return GlobalBaseReg;
 
   // Create the register. The code to initialize it is inserted later,
-  // by the CGBR pass (below).
+  // by the M68kGlobalBaseReg pass (below).
   //
   // NOTE
   // Normally M68k uses A5 register as global base pointer but this will
@@ -811,14 +810,19 @@ M68kInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_GOTOFF, "m68k-gotoff"},
       {MO_GOTPCREL, "m68k-gotpcrel"},
       {MO_PLT, "m68k-plt"}};
-  return makeArrayRef(TargetFlags);
+  return ArrayRef(TargetFlags);
 }
 
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "m68k-create-global-base-reg"
+
+#define PASS_NAME "M68k PIC Global Base Reg Initialization"
+
 namespace {
-/// Create Global Base Reg pass. This initializes the PIC global base register
-struct CGBR : public MachineFunctionPass {
+/// This initializes the PIC global base register
+struct M68kGlobalBaseReg : public MachineFunctionPass {
   static char ID;
-  CGBR() : MachineFunctionPass(ID) {}
+  M68kGlobalBaseReg() : MachineFunctionPass(ID) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override {
     const M68kSubtarget &STI = MF.getSubtarget<M68kSubtarget>();
@@ -843,16 +847,16 @@ struct CGBR : public MachineFunctionPass {
     return true;
   }
 
-  StringRef getPassName() const override {
-    return "M68k PIC Global Base Reg Initialization";
-  }
-
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 };
+char M68kGlobalBaseReg::ID = 0;
 } // namespace
 
-char CGBR::ID = 0;
-FunctionPass *llvm::createM68kGlobalBaseRegPass() { return new CGBR(); }
+INITIALIZE_PASS(M68kGlobalBaseReg, DEBUG_TYPE, PASS_NAME, false, false)
+
+FunctionPass *llvm::createM68kGlobalBaseRegPass() {
+  return new M68kGlobalBaseReg();
+}

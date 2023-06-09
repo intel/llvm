@@ -102,6 +102,11 @@ TEST_F(ModuleWithFunctionTest, CallInst) {
   Call->addRetAttr(Attribute::get(Call->getContext(), "test-str-attr"));
   EXPECT_TRUE(Call->hasRetAttr("test-str-attr"));
   EXPECT_FALSE(Call->hasRetAttr("not-on-call"));
+
+  Call->addFnAttr(Attribute::get(Call->getContext(), "test-str-fn-attr"));
+  ASSERT_TRUE(Call->hasFnAttr("test-str-fn-attr"));
+  Call->removeFnAttr("test-str-fn-attr");
+  EXPECT_FALSE(Call->hasFnAttr("test-str-fn-attr"));
 }
 
 TEST_F(ModuleWithFunctionTest, InvokeInst) {
@@ -1516,7 +1521,7 @@ if.end:
 }
 )");
   Function *Foo = M->getFunction("foo");
-  auto BBs = Foo->getBasicBlockList().begin();
+  auto BBs = Foo->begin();
   CallBrInst &CBI = cast<CallBrInst>(BBs->front());
   ++BBs;
   ++BBs;
@@ -1695,7 +1700,7 @@ TEST(InstructionsTest, InsertAtBegin) {
   BasicBlock *BB = &*F->begin();
   Instruction *Ret = &*BB->begin();
   Instruction *I = BinaryOperator::CreateAdd(ArgA, ArgB);
-  auto It = I->insertAt(BB, BB->begin());
+  auto It = I->insertInto(BB, BB->begin());
   EXPECT_EQ(&*It, I);
   EXPECT_EQ(I->getNextNode(), Ret);
 }
@@ -1714,7 +1719,7 @@ TEST(InstructionsTest, InsertAtEnd) {
   BasicBlock *BB = &*F->begin();
   Instruction *Ret = &*BB->begin();
   Instruction *I = BinaryOperator::CreateAdd(ArgA, ArgB);
-  auto It = I->insertAt(BB, BB->end());
+  auto It = I->insertInto(BB, BB->end());
   EXPECT_EQ(&*It, I);
   EXPECT_EQ(Ret->getNextNode(), I);
 }

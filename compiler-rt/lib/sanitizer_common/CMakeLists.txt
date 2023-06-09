@@ -37,6 +37,7 @@ set(SANITIZER_SOURCES_NOTERMINATION
   sanitizer_stoptheworld_win.cpp
   sanitizer_suppressions.cpp
   sanitizer_tls_get_addr.cpp
+  sanitizer_thread_arg_retval.cpp
   sanitizer_thread_registry.cpp
   sanitizer_type_traits.cpp
   sanitizer_win.cpp
@@ -126,6 +127,7 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_common_interceptors.inc
   sanitizer_common_interceptors_format.inc
   sanitizer_common_interceptors_ioctl.inc
+  sanitizer_common_interceptors_memintrinsics.inc
   sanitizer_common_interface.inc
   sanitizer_common_interface_posix.inc
   sanitizer_common_syscalls.inc

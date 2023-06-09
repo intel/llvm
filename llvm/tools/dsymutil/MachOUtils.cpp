@@ -56,7 +56,7 @@ std::string getArchName(StringRef Arch) {
 }
 
 static bool runLipo(StringRef SDKPath, SmallVectorImpl<StringRef> &Args) {
-  auto Path = sys::findProgramByName("lipo", makeArrayRef(SDKPath));
+  auto Path = sys::findProgramByName("lipo", ArrayRef(SDKPath));
   if (!Path)
     Path = sys::findProgramByName("lipo");
 
@@ -78,7 +78,8 @@ static bool runLipo(StringRef SDKPath, SmallVectorImpl<StringRef> &Args) {
 
 bool generateUniversalBinary(SmallVectorImpl<ArchAndFile> &ArchFiles,
                              StringRef OutputFileName,
-                             const LinkOptions &Options, StringRef SDKPath) {
+                             const LinkOptions &Options, StringRef SDKPath,
+                             bool Fat64) {
   // No need to merge one file into a universal fat binary.
   if (ArchFiles.size() == 1) {
     if (auto E = ArchFiles.front().File->keep(OutputFileName)) {
@@ -97,13 +98,17 @@ bool generateUniversalBinary(SmallVectorImpl<ArchAndFile> &ArchFiles,
   for (auto &Thin : ArchFiles)
     Args.push_back(Thin.path());
 
-  // Align segments to match dsymutil-classic alignment
+  // Align segments to match dsymutil-classic alignment.
   for (auto &Thin : ArchFiles) {
     Thin.Arch = getArchName(Thin.Arch);
     Args.push_back("-segalign");
     Args.push_back(Thin.Arch);
     Args.push_back("20");
   }
+
+  // Use a 64-bit fat header if requested.
+  if (Fat64)
+    Args.push_back("-fat64");
 
   Args.push_back("-output");
   Args.push_back(OutputFileName.data());

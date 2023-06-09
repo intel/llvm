@@ -254,12 +254,12 @@ class AttrDef<Dialect dialect, string name, list<Trait> traits = [],
   //
   // For example, `$_self.getValue().getSExtValue()` for `IntegerAttr val` will
   // expand to `getAttrOfType<IntegerAttr>("val").getValue().getSExtValue()`.
-  let convertFromStorage = "$_self.cast<" # dialect.cppNamespace #
-                                 "::" # cppClassName # ">()";
+  let convertFromStorage = "::llvm::cast<" # dialect.cppNamespace #
+                                 "::" # cppClassName # ">($_self)";
 
   // The predicate for when this def is used as a constraint.
-  let predicate = CPred<"$_self.isa<" # dialect.cppNamespace #
-                                 "::" # cppClassName # ">()">;
+  let predicate = CPred<"::llvm::isa<" # dialect.cppNamespace #
+                                 "::" # cppClassName # ">($_self)">;
 }
 
 // Define a new type, named `name`, belonging to `dialect` that inherits from
@@ -277,8 +277,8 @@ class TypeDef<Dialect dialect, string name, list<Trait> traits = [],
                                "::" # cppClassName # ">()",
                            "");
   // The predicate for when this def is used as a constraint.
-  let predicate = CPred<"$_self.isa<" # dialect.cppNamespace #
-                                 "::" # cppClassName # ">()">;
+  let predicate = CPred<"::llvm::isa<" # dialect.cppNamespace #
+                                 "::" # cppClassName # ">($_self)">;
 }
 
 //===----------------------------------------------------------------------===//
@@ -368,7 +368,7 @@ class OptionalArrayRefParameter<string arrayOf, string desc = ""> :
     OptionalParameter<"::llvm::ArrayRef<" # arrayOf # ">", desc> {
   let allocator = [{$_dst = $_allocator.copyInto($_self);}];
   let cppStorageType = "::llvm::SmallVector<" # arrayOf # ">";
-  let comparator = "::llvm::makeArrayRef($_lhs) == ::llvm::makeArrayRef($_rhs)";
+  let comparator = cppType # "($_lhs) == " # cppType # "($_rhs)";
 }
 
 // For classes which require allocation and have their own allocateInto method.

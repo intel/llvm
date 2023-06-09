@@ -1,5 +1,5 @@
-// RUN: mlir-opt -allow-unregistered-dialect %s -affine-loop-fusion -split-input-file | FileCheck %s
-// RUN: mlir-opt -allow-unregistered-dialect %s -affine-loop-fusion="fusion-maximal" -split-input-file | FileCheck %s --check-prefix=MAXIMAL
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline='builtin.module(func.func(affine-loop-fusion))' -split-input-file | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline='builtin.module(func.func(affine-loop-fusion{fusion-maximal}))' -split-input-file | FileCheck %s --check-prefix=MAXIMAL
 
 // Part I of fusion tests in  mlir/test/Transforms/loop-fusion.mlir.
 // Part III of fusion tests in mlir/test/Transforms/loop-fusion-3.mlir
@@ -587,31 +587,31 @@ func.func @fuse_across_varying_dims_complex(%arg0: f32) {
 // MAXIMAL-NEXT:  memref.alloc() : memref<2x2x3x3x16x1xf32>
 // MAXIMAL-NEXT:  memref.alloc() : memref<144x4xf32>
 // MAXIMAL-NEXT:  affine.for %{{.*}} = 0 to 9 {
-// MAXIMAL-NEXT:    affine.for %{{.*}} = 0 to 9 {
-// MAXIMAL-NEXT:      affine.for %{{.*}} = 0 to 4 {
-// MAXIMAL-NEXT:        affine.for %{{.*}} = 0 to 16 {
-// MAXIMAL-NEXT:          affine.for %{{.*}} = 0 to 64 {
-// MAXIMAL-NEXT:            affine.apply [[$MAP0]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:            affine.apply [[$MAP1]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:            affine.apply [[$MAP2]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:            affine.apply [[$MAP3]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:            affine.apply [[$MAP4]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:            affine.load %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}] : memref<2x2x3x3x16x1xf32>
-// MAXIMAL-NEXT:            affine.store %{{.*}}, %{{.*}}[%{{.*}}, 0] : memref<64x1xf32>
-// MAXIMAL-NEXT:          }
+// MAXIMAL-NEXT:    affine.for %{{.*}} = 0 to 4 {
+// MAXIMAL-NEXT:      affine.for %{{.*}} = 0 to 16 {
+// MAXIMAL-NEXT:        affine.for %{{.*}} = 0 to 64 {
+// MAXIMAL-NEXT:          affine.apply [[$MAP0]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:          affine.apply [[$MAP1]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:          affine.apply [[$MAP2]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:          affine.apply [[$MAP3]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:          affine.apply [[$MAP4]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:          affine.load %{{.*}}[%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}] : memref<2x2x3x3x16x1xf32>
+// MAXIMAL-NEXT:          affine.store %{{.*}}, %{{.*}}[%{{.*}}, 0] : memref<64x1xf32>
+// MAXIMAL-NEXT:        }
+// MAXIMAL-NEXT:        affine.apply [[$MAP7]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:        affine.load %{{.*}}[%{{.*}} * 16 + %{{.*}}, 0] : memref<64x1xf32>
+// MAXIMAL-NEXT:        affine.for %{{.*}} = 0 to 9 {
 // MAXIMAL-NEXT:          affine.for %{{.*}} = 0 to 4 {
 // MAXIMAL-NEXT:            affine.for %{{.*}} = 0 to 16 {
-// MAXIMAL-NEXT:              affine.apply [[$MAP7]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:              affine.load %{{.*}}[%{{.*}} * 16 + %{{.*}}, 0] : memref<64x1xf32>
-// MAXIMAL-NEXT:            }
-// MAXIMAL-NEXT:            affine.for %{{.*}} = 0 to 16 {
-// MAXIMAL-NEXT:              affine.apply [[$MAP7]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:              affine.store %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}] : memref<144x4xf32>
+// MAXIMAL-NEXT:              affine.apply [[$MAP8]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:              affine.load %{{.*}}[%{{.*}} * 16 - %{{.*}} + 15, 0] : memref<64x1xf32>
 // MAXIMAL-NEXT:            }
 // MAXIMAL-NEXT:          }
-// MAXIMAL-NEXT:          affine.apply [[$MAP8]](%{{.*}}, %{{.*}})
-// MAXIMAL-NEXT:          affine.load %{{.*}}[%{{.*}} * 16 - %{{.*}} + 15, 0] : memref<64x1xf32>
 // MAXIMAL-NEXT:        }
+// MAXIMAL-NEXT:      }
+// MAXIMAL-NEXT:      affine.for %{{.*}} = 0 to 16 {
+// MAXIMAL-NEXT:        affine.apply [[$MAP7]](%{{.*}}, %{{.*}})
+// MAXIMAL-NEXT:        affine.store %{{.*}}, %{{.*}}[%{{.*}}, %{{.*}}] : memref<144x4xf32>
 // MAXIMAL-NEXT:      }
 // MAXIMAL-NEXT:    }
 // MAXIMAL-NEXT:  }

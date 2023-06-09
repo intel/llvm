@@ -1,5 +1,5 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
@@ -9,8 +9,8 @@
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
 ; CHECK-SPIRV: Name [[F1Name:[0-9]+]] "f1"
 ; CHECK-SPIRV: Name [[F2Name:[0-9]+]] "f2"
-; CHECK-SPIRV: TypeInt [[Int32:[0-9]+]] 32
-; CHECK-SPIRV: TypeInt [[Int64:[0-9]+]] 64
+; CHECK-SPIRV-DAG: TypeInt [[Int32:[0-9]+]] 32
+; CHECK-SPIRV-DAG: TypeInt [[Int64:[0-9]+]] 64
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[XArg:[0-9]+]] 32
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[YArg:[0-9]+]] 2
 

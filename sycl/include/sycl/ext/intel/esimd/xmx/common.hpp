@@ -16,6 +16,9 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::esimd::xmx {
 
+/// Describes the element types in the input matrices.
+/// Used as template parameter to dpas() and may be omitted when
+/// it is deducible from the element types of input matrices.
 enum class dpas_argument_type {
   Invalid = 0,
   u1 = 1, // unsigned 1 bit

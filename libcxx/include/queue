@@ -227,7 +227,6 @@ template <class T, class Container, class Compare>
 #include <__memory/uses_allocator.h>
 #include <__utility/forward.h>
 #include <deque>
-#include <type_traits>
 #include <vector>
 #include <version>
 
@@ -278,15 +277,15 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     queue(const queue& __q) : c(__q.c) {}
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
     template <class _InputIterator,
-              class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>>
+              class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>>
     _LIBCPP_HIDE_FROM_ABI
     queue(_InputIterator __first, _InputIterator __last) : c(__first, __last) {}
 
     template <class _InputIterator,
               class _Alloc,
-              class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+              class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
               class = __enable_if_t<uses_allocator<container_type, _Alloc>::value>>
     _LIBCPP_HIDE_FROM_ABI
     queue(_InputIterator __first, _InputIterator __second, const _Alloc& __alloc) : c(__first, __second, __alloc) {}
@@ -363,7 +362,7 @@ public:
     void push(value_type&& __v)      {c.push_back(_VSTD::move(__v));}
     template <class... _Args>
         _LIBCPP_INLINE_VISIBILITY
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
         decltype(auto) emplace(_Args&&... __args)
             { return c.emplace_back(_VSTD::forward<_Args>(__args)...);}
 #else
@@ -382,6 +381,8 @@ public:
         swap(c, __q.c);
     }
 
+    _LIBCPP_NODISCARD _LIBCPP_HIDE_FROM_ABI const _Container& __get_container() const { return c; }
+
     template <class _T1, class _C1>
     friend
     _LIBCPP_INLINE_VISIBILITY
@@ -395,7 +396,7 @@ public:
     operator< (const queue<_T1, _C1>& __x,const queue<_T1, _C1>& __y);
 };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template<class _Container,
          class = enable_if_t<!__is_allocator<_Container>::value>
 >
@@ -411,15 +412,15 @@ queue(_Container, _Alloc)
     -> queue<typename _Container::value_type, _Container>;
 #endif
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
 template <class _InputIterator,
-          class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>>
+          class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>>
 queue(_InputIterator, _InputIterator)
     -> queue<__iter_value_type<_InputIterator>>;
 
 template <class _InputIterator,
           class _Alloc,
-          class = __enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+          class = __enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
           class = __enable_if_t<__is_allocator<_Alloc>::value>>
 queue(_InputIterator, _InputIterator, _Alloc)
     -> queue<__iter_value_type<_InputIterator>, deque<__iter_value_type<_InputIterator>, _Alloc>>;
@@ -542,16 +543,16 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     priority_queue(const value_compare& __comp, container_type&& __c);
 #endif
-    template <class _InputIter, class = __enable_if_t<__is_cpp17_input_iterator<_InputIter>::value> >
+    template <class _InputIter, class = __enable_if_t<__has_input_iterator_category<_InputIter>::value> >
         _LIBCPP_INLINE_VISIBILITY
         priority_queue(_InputIter __f, _InputIter __l,
                        const value_compare& __comp = value_compare());
-    template <class _InputIter, class = __enable_if_t<__is_cpp17_input_iterator<_InputIter>::value> >
+    template <class _InputIter, class = __enable_if_t<__has_input_iterator_category<_InputIter>::value> >
         _LIBCPP_INLINE_VISIBILITY
         priority_queue(_InputIter __f, _InputIter __l,
                        const value_compare& __comp, const container_type& __c);
 #ifndef _LIBCPP_CXX03_LANG
-    template <class _InputIter, class = __enable_if_t<__is_cpp17_input_iterator<_InputIter>::value> >
+    template <class _InputIter, class = __enable_if_t<__has_input_iterator_category<_InputIter>::value> >
         _LIBCPP_INLINE_VISIBILITY
         priority_queue(_InputIter __f, _InputIter __l,
                        const value_compare& __comp, container_type&& __c);
@@ -585,25 +586,25 @@ public:
                        __enable_if_t<uses_allocator<container_type, _Alloc>::value>* = 0);
 #endif // _LIBCPP_CXX03_LANG
 
-    template <class _InputIter, class _Alloc, class = __enable_if_t<__is_cpp17_input_iterator<_InputIter>::value> >
+    template <class _InputIter, class _Alloc, class = __enable_if_t<__has_input_iterator_category<_InputIter>::value> >
         _LIBCPP_INLINE_VISIBILITY
         priority_queue(_InputIter __f, _InputIter __l, const _Alloc& __a,
                        __enable_if_t<uses_allocator<container_type, _Alloc>::value>* = 0);
 
-    template <class _InputIter, class _Alloc, class = __enable_if_t<__is_cpp17_input_iterator<_InputIter>::value> >
+    template <class _InputIter, class _Alloc, class = __enable_if_t<__has_input_iterator_category<_InputIter>::value> >
         _LIBCPP_INLINE_VISIBILITY
         priority_queue(_InputIter __f, _InputIter __l,
                        const value_compare& __comp, const _Alloc& __a,
                        __enable_if_t<uses_allocator<container_type, _Alloc>::value>* = 0);
 
-    template <class _InputIter, class _Alloc, class = __enable_if_t<__is_cpp17_input_iterator<_InputIter>::value> >
+    template <class _InputIter, class _Alloc, class = __enable_if_t<__has_input_iterator_category<_InputIter>::value> >
         _LIBCPP_INLINE_VISIBILITY
         priority_queue(_InputIter __f, _InputIter __l,
                        const value_compare& __comp, const container_type& __c, const _Alloc& __a,
                        __enable_if_t<uses_allocator<container_type, _Alloc>::value>* = 0);
 
 #ifndef _LIBCPP_CXX03_LANG
-    template <class _InputIter, class _Alloc, class = __enable_if_t<__is_cpp17_input_iterator<_InputIter>::value> >
+    template <class _InputIter, class _Alloc, class = __enable_if_t<__has_input_iterator_category<_InputIter>::value> >
         _LIBCPP_INLINE_VISIBILITY
         priority_queue(_InputIter __f, _InputIter __l,
                        const value_compare& __comp, container_type&& __c, const _Alloc& __a,
@@ -633,6 +634,8 @@ public:
     void swap(priority_queue& __q)
         _NOEXCEPT_(__is_nothrow_swappable<container_type>::value &&
                    __is_nothrow_swappable<value_compare>::value);
+
+    _LIBCPP_NODISCARD _LIBCPP_HIDE_FROM_ABI const _Container& __get_container() const { return c; }
 };
 
 #if _LIBCPP_STD_VER >= 17
@@ -647,7 +650,7 @@ priority_queue(_Compare, _Container)
 template<class _InputIterator,
          class _Compare = less<__iter_value_type<_InputIterator>>,
          class _Container = vector<__iter_value_type<_InputIterator>>,
-         class = enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+         class = enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
          class = enable_if_t<!__is_allocator<_Compare>::value>,
          class = enable_if_t<!__is_allocator<_Container>::value>
 >
@@ -665,7 +668,7 @@ priority_queue(_Compare, _Container, _Alloc)
     -> priority_queue<typename _Container::value_type, _Container, _Compare>;
 
 template<class _InputIterator, class _Allocator,
-         class = enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+         class = enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
          class = enable_if_t<__is_allocator<_Allocator>::value>
 >
 priority_queue(_InputIterator, _InputIterator, _Allocator)
@@ -674,7 +677,7 @@ priority_queue(_InputIterator, _InputIterator, _Allocator)
                       less<__iter_value_type<_InputIterator>>>;
 
 template<class _InputIterator, class _Compare, class _Allocator,
-         class = enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+         class = enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
          class = enable_if_t<!__is_allocator<_Compare>::value>,
          class = enable_if_t<__is_allocator<_Allocator>::value>
 >
@@ -683,7 +686,7 @@ priority_queue(_InputIterator, _InputIterator, _Compare, _Allocator)
                       vector<__iter_value_type<_InputIterator>, _Allocator>, _Compare>;
 
 template<class _InputIterator, class _Compare, class _Container, class _Alloc,
-         class = enable_if_t<__is_cpp17_input_iterator<_InputIterator>::value>,
+         class = enable_if_t<__has_input_iterator_category<_InputIterator>::value>,
          class = enable_if_t<!__is_allocator<_Compare>::value>,
          class = enable_if_t<!__is_allocator<_Container>::value>,
          class = enable_if_t<uses_allocator<_Container, _Alloc>::value>
@@ -960,7 +963,9 @@ _LIBCPP_END_NAMESPACE_STD
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
 #  include <concepts>
+#  include <cstdlib>
 #  include <functional>
+#  include <type_traits>
 #endif
 
 #endif // _LIBCPP_QUEUE

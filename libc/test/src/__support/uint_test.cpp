@@ -9,7 +9,7 @@
 #include "src/__support/CPP/optional.h"
 #include "src/__support/UInt.h"
 
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
 // We want to test __llvm_libc::cpp::UInt<128> explicitly. So, for convenience,
 // we use a sugar which does not conflict with the UInt128 type which can
@@ -326,6 +326,10 @@ TEST(LlvmLibcUIntClassTest, ShiftLeftTests) {
   LL_UInt128 result6({0, 0});
   EXPECT_EQ((val2 << 128), result6);
   EXPECT_EQ((val2 << 256), result6);
+
+  LL_UInt192 val3({1, 0, 0});
+  LL_UInt192 result7({0, 1, 0});
+  EXPECT_EQ((val3 << 64), result7);
 }
 
 TEST(LlvmLibcUIntClassTest, ShiftRightTests) {
@@ -363,6 +367,10 @@ TEST(LlvmLibcUIntClassTest, ShiftRightTests) {
   EXPECT_EQ((v2 >> 64), r2);
   EXPECT_EQ((v2 >> 128), r3);
   EXPECT_EQ((r2 >> 64), r3);
+
+  LL_UInt192 val3({0, 0, 1});
+  LL_UInt192 result7({0, 1, 0});
+  EXPECT_EQ((val3 >> 64), result7);
 }
 
 TEST(LlvmLibcUIntClassTest, AndTests) {
@@ -517,4 +525,38 @@ TEST(LlvmLibcUIntClassTest, QuickMulHiTests) {
   TEST_QUICK_MUL_HI(192, 2);
   TEST_QUICK_MUL_HI(256, 3);
   TEST_QUICK_MUL_HI(512, 7);
+}
+
+TEST(LlvmLibcUIntClassTest, ConstexprInitTests) {
+  constexpr LL_UInt128 add = LL_UInt128(1) + LL_UInt128(2);
+  ASSERT_EQ(add, LL_UInt128(3));
+  constexpr LL_UInt128 sub = LL_UInt128(5) - LL_UInt128(4);
+  ASSERT_EQ(sub, LL_UInt128(1));
+}
+
+#define TEST_QUICK_DIV_UINT32_POW2(x, e)                                       \
+  do {                                                                         \
+    LL_UInt320 y({0x8899aabbccddeeffULL, 0x0011223344556677ULL,                \
+                  0x583715f4d3b29171ULL, 0xffeeddccbbaa9988ULL,                \
+                  0x1f2f3f4f5f6f7f8fULL});                                     \
+    LL_UInt320 d = LL_UInt320(x);                                              \
+    d <<= e;                                                                   \
+    LL_UInt320 q1 = y / d;                                                     \
+    LL_UInt320 r1 = y % d;                                                     \
+    LL_UInt320 r2 = *y.div_uint32_times_pow_2(x, e);                           \
+    EXPECT_EQ(q1, y);                                                          \
+    EXPECT_EQ(r1, r2);                                                         \
+  } while (0)
+
+TEST(LlvmLibcUIntClassTest, DivUInt32TimesPow2Tests) {
+  for (size_t i = 0; i < 320; i += 32) {
+    TEST_QUICK_DIV_UINT32_POW2(1, i);
+    TEST_QUICK_DIV_UINT32_POW2(13151719, i);
+  }
+
+  TEST_QUICK_DIV_UINT32_POW2(1, 75);
+  TEST_QUICK_DIV_UINT32_POW2(1, 101);
+
+  TEST_QUICK_DIV_UINT32_POW2(1000000000, 75);
+  TEST_QUICK_DIV_UINT32_POW2(1000000000, 101);
 }

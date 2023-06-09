@@ -116,16 +116,18 @@ void OutputSection::commitSection(InputSection *isec) {
     if (hasInputSections || typeIsSet) {
       if (typeIsSet || !canMergeToProgbits(type) ||
           !canMergeToProgbits(isec->type)) {
-        // Changing the type of a (NOLOAD) section is fishy, but some projects
-        // (e.g. https://github.com/ClangBuiltLinux/linux/issues/1597)
-        // traditionally rely on the behavior. Issue a warning to not break
-        // them. Other types get an error.
-        auto diagnose = type == SHT_NOBITS ? warn : errorOrWarn;
-        diagnose("section type mismatch for " + isec->name + "\n>>> " +
-                 toString(isec) + ": " +
-                 getELFSectionTypeName(config->emachine, isec->type) +
-                 "\n>>> output section " + name + ": " +
-                 getELFSectionTypeName(config->emachine, type));
+        // The (NOLOAD) changes the section type to SHT_NOBITS, the intention is
+        // that the contents at that address is provided by some other means.
+        // Some projects (e.g.
+        // https://github.com/ClangBuiltLinux/linux/issues/1597) rely on the
+        // behavior. Other types get an error.
+        if (type != SHT_NOBITS) {
+          errorOrWarn("section type mismatch for " + isec->name + "\n>>> " +
+                      toString(isec) + ": " +
+                      getELFSectionTypeName(config->emachine, isec->type) +
+                      "\n>>> output section " + name + ": " +
+                      getELFSectionTypeName(config->emachine, type));
+        }
       }
       if (!typeIsSet)
         type = SHT_PROGBITS;
@@ -217,7 +219,7 @@ void OutputSection::finalizeInputSections() {
       });
       if (i == mergeSections.end()) {
         MergeSyntheticSection *syn =
-            createMergeSynthetic(name, ms->type, ms->flags, ms->addralign);
+            createMergeSynthetic(s->name, ms->type, ms->flags, ms->addralign);
         mergeSections.push_back(syn);
         i = std::prev(mergeSections.end());
         syn->entsize = ms->entsize;
@@ -242,7 +244,7 @@ static void sortByOrder(MutableArrayRef<InputSection *> in,
                         llvm::function_ref<int(InputSectionBase *s)> order) {
   std::vector<std::pair<int, InputSection *>> v;
   for (InputSection *s : in)
-    v.push_back({order(s), s});
+    v.emplace_back(order(s), s);
   llvm::stable_sort(v, less_first());
 
   for (size_t i = 0; i < v.size(); ++i)
@@ -397,7 +399,7 @@ template <class ELFT> void OutputSection::maybeCompress() {
 
   // Split input into 1-MiB shards.
   constexpr size_t shardSize = 1 << 20;
-  auto shardsIn = split(makeArrayRef<uint8_t>(buf.get(), size), shardSize);
+  auto shardsIn = split(ArrayRef<uint8_t>(buf.get(), size), shardSize);
   const size_t numShards = shardsIn.size();
 
   // Compress shards and compute Alder-32 checksums. Use Z_SYNC_FLUSH for all
@@ -534,7 +536,7 @@ void OutputSection::writeTo(uint8_t *buf, parallel::TaskGroup &tg) {
     taskSize += sections[i]->getSize();
     bool done = ++i == numSections;
     if (done || taskSize >= taskSizeLimit) {
-      tg.execute([=] { fn(begin, i); });
+      tg.spawn([=] { fn(begin, i); });
       if (done)
         break;
       begin = i;
@@ -697,7 +699,7 @@ elf::getInputSections(const OutputSection &os,
       storage.insert(storage.end(), isd->sections.begin(), isd->sections.end());
     }
   }
-  return storage.empty() ? ret : makeArrayRef(storage);
+  return storage.empty() ? ret : ArrayRef(storage);
 }
 
 // Sorts input sections by section name suffixes, so that .foo.N comes

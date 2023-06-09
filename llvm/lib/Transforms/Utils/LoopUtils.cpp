@@ -12,7 +12,6 @@
 
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PriorityWorklist.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
@@ -357,7 +356,7 @@ TransformationMode llvm::hasUnrollTransformation(const Loop *L) {
   std::optional<int> Count =
       getOptionalIntLoopAttribute(L, "llvm.loop.unroll.count");
   if (Count)
-    return Count.value() == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
+    return *Count == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
 
   if (getBooleanLoopAttribute(L, "llvm.loop.unroll.enable"))
     return TM_ForcedByUser;
@@ -378,7 +377,7 @@ TransformationMode llvm::hasUnrollAndJamTransformation(const Loop *L) {
   std::optional<int> Count =
       getOptionalIntLoopAttribute(L, "llvm.loop.unroll_and_jam.count");
   if (Count)
-    return Count.value() == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
+    return *Count == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
 
   if (getBooleanLoopAttribute(L, "llvm.loop.unroll_and_jam.enable"))
     return TM_ForcedByUser;
@@ -390,7 +389,7 @@ TransformationMode llvm::hasUnrollAndJamTransformation(const Loop *L) {
 }
 
 TransformationMode llvm::hasVectorizeTransformation(const Loop *L) {
-  Optional<bool> Enable =
+  std::optional<bool> Enable =
       getOptionalBoolLoopAttribute(L, "llvm.loop.vectorize.enable");
 
   if (Enable == false)
@@ -466,6 +465,19 @@ llvm::collectChildrenInLoop(DomTreeNode *N, const Loop *CurLoop) {
 
   return Worklist;
 }
+
+bool llvm::isAlmostDeadIV(PHINode *PN, BasicBlock *LatchBlock, Value *Cond) {
+  int LatchIdx = PN->getBasicBlockIndex(LatchBlock);
+  Value *IncV = PN->getIncomingValue(LatchIdx);
+
+  for (User *U : PN->users())
+    if (U != Cond && U != IncV) return false;
+
+  for (User *U : IncV->users())
+    if (U != Cond && U != PN) return false;
+  return true;
+}
+
 
 void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
                           LoopInfo *LI, MemorySSA *MSSA) {
@@ -638,7 +650,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
            "There should be a non-PHI instruction in exit block, else these "
            "instructions will have no parent.");
     for (auto *DVI : DeadDebugInst) {
-      DVI->setUndef();
+      DVI->setKillLocation();
       DVI->moveBefore(InsertDbgValueBefore);
     }
   }
@@ -757,7 +769,7 @@ void llvm::breakLoopBackedge(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
   // exit blocks.  If that happened, we need to rebuild LCSSA on the outermost
   // loop which might have a had a block removed.
   if (OutermostLoop != L)
-    formLCSSARecursively(*OutermostLoop, DT, &LI, &SE);
+    formLCSSARecursively(*OutermostLoop, DT, &LI);
 }
 
 
@@ -881,6 +893,25 @@ bool llvm::hasIterationCountInvariantInParent(Loop *InnerLoop,
   return true;
 }
 
+Intrinsic::ID llvm::getMinMaxReductionIntrinsicOp(RecurKind RK) {
+  switch (RK) {
+  default:
+    llvm_unreachable("Unknown min/max recurrence kind");
+  case RecurKind::UMin:
+    return Intrinsic::umin;
+  case RecurKind::UMax:
+    return Intrinsic::umax;
+  case RecurKind::SMin:
+    return Intrinsic::smin;
+  case RecurKind::SMax:
+    return Intrinsic::smax;
+  case RecurKind::FMin:
+    return Intrinsic::minnum;
+  case RecurKind::FMax:
+    return Intrinsic::maxnum;
+  }
+}
+
 CmpInst::Predicate llvm::getMinMaxReductionPredicate(RecurKind RK) {
   switch (RK) {
   default:
@@ -911,6 +942,13 @@ Value *llvm::createSelectCmpOp(IRBuilderBase &Builder, Value *StartVal,
 
 Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
                             Value *Right) {
+  Type *Ty = Left->getType();
+  if (Ty->isIntOrIntVectorTy()) {
+    // TODO: Add float minnum/maxnum support when FMF nnan is set.
+    Intrinsic::ID Id = getMinMaxReductionIntrinsicOp(RK);
+    return Builder.CreateIntrinsic(Ty, Id, {Left, Right}, nullptr,
+                                   "rdx.minmax");
+  }
   CmpInst::Predicate Pred = getMinMaxReductionPredicate(RK);
   Value *Cmp = Builder.CreateCmp(Pred, Left, Right, "rdx.minmax.cmp");
   Value *Select = Builder.CreateSelect(Cmp, Left, Right, "rdx.minmax.select");
@@ -1122,6 +1160,20 @@ bool llvm::isKnownNonNegativeInLoop(const SCEV *S, const Loop *L,
   const SCEV *Zero = SE.getZero(S->getType());
   return SE.isAvailableAtLoopEntry(S, L) &&
          SE.isLoopEntryGuardedByCond(L, ICmpInst::ICMP_SGE, S, Zero);
+}
+
+bool llvm::isKnownPositiveInLoop(const SCEV *S, const Loop *L,
+                                 ScalarEvolution &SE) {
+  const SCEV *Zero = SE.getZero(S->getType());
+  return SE.isAvailableAtLoopEntry(S, L) &&
+         SE.isLoopEntryGuardedByCond(L, ICmpInst::ICMP_SGT, S, Zero);
+}
+
+bool llvm::isKnownNonPositiveInLoop(const SCEV *S, const Loop *L,
+                                    ScalarEvolution &SE) {
+  const SCEV *Zero = SE.getZero(S->getType());
+  return SE.isAvailableAtLoopEntry(S, L) &&
+         SE.isLoopEntryGuardedByCond(L, ICmpInst::ICMP_SLE, S, Zero);
 }
 
 bool llvm::cannotBeMinInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE,

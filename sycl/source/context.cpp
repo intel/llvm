@@ -130,7 +130,7 @@ bool context::is_host() const {
   return IsHost;
 }
 
-backend context::get_backend() const noexcept { return getImplBackend(impl); }
+backend context::get_backend() const noexcept { return impl->getBackend(); }
 
 platform context::get_platform() const {
   return impl->get_info<info::context::platform>();

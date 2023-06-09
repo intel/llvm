@@ -450,4 +450,9 @@ _iml_half_internal __devicelib_imf_double2half(double x) {
   return __spirv_FConvert_Rhalf_rte(x);
 #endif
 }
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_double2bfloat16(double x) {
+  return __double2bfloat16(x);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

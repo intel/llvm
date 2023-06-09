@@ -58,7 +58,7 @@ resolveUsesInRepetitiveRegions(Operation *op,
     for (OpOperand &opOperand : bufferizableOp->getOpOperands()) {
       Value operand = opOperand.get();
       // Skip non-tensor operands.
-      if (!operand.getType().isa<TensorType>())
+      if (!isa<TensorType>(operand.getType()))
         continue;
       // Skip operands that do not bufferize to memory writes.
       if (!bufferizableOp.bufferizesToMemoryWrite(opOperand, state))
@@ -85,7 +85,7 @@ resolveUsesInRepetitiveRegions(Operation *op,
       // Insert a tensor copy and replace all uses inside of repetitive regions.
       rewriter.setInsertionPoint(bufferizableOp);
       auto tensorCopy = rewriter.create<AllocTensorOp>(
-          bufferizableOp->getLoc(), operand.getType().cast<TensorType>(),
+          bufferizableOp->getLoc(), cast<TensorType>(operand.getType()),
           /*dynamicSizes=*/ValueRange(),
           /*copy=*/operand, /*memory_space=*/IntegerAttr());
       for (OpOperand *use : usesInsideRegion)
@@ -97,7 +97,8 @@ resolveUsesInRepetitiveRegions(Operation *op,
 }
 
 LogicalResult mlir::bufferization::insertTensorCopies(
-    Operation *op, const OneShotBufferizationOptions &options) {
+    Operation *op, const OneShotBufferizationOptions &options,
+    BufferizationStatistics *statistics) {
   // Preprocessing: Resolve currently unsupported bufferization cases.
   resolveUsesInRepetitiveRegions(op, options);
 
@@ -106,10 +107,10 @@ LogicalResult mlir::bufferization::insertTensorCopies(
   // analysis depending on whether function boundary bufferization is enabled or
   // not.
   if (options.bufferizeFunctionBoundaries) {
-    if (failed(analyzeModuleOp(cast<ModuleOp>(op), state)))
+    if (failed(analyzeModuleOp(cast<ModuleOp>(op), state, statistics)))
       return failure();
   } else {
-    if (failed(analyzeOp(op, state)))
+    if (failed(analyzeOp(op, state, statistics)))
       return failure();
   }
 
@@ -136,7 +137,7 @@ mlir::bufferization::insertTensorCopies(Operation *op,
       SmallVector<bool> escapeAttrValue;
       bool foundTensorResult = false;
       for (OpResult opResult : op->getOpResults()) {
-        if (!opResult.getType().isa<TensorType>() ||
+        if (!isa<TensorType>(opResult.getType()) ||
             !bufferizableOp.bufferizesToAllocation(opResult)) {
           escapeAttrValue.push_back(false);
           continue;
