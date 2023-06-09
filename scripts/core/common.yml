@@ -256,6 +256,15 @@ etors:
     - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
              via the urGetLastResult entry point."
+    - name: ERROR_INVALID_COMMAND_BUFFER_EXP
+      value: "0x1000"
+      desc: "Invalid Command-Buffer"
+    - name: ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+      value: "0x1001"
+      desc: "Sync point is not valid for the command-buffer"
+    - name: ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+      value: "0x1002"
+      desc: "Sync point wait list is invalid"
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"
@@ -318,6 +327,8 @@ etors:
       desc: $x_queue_native_desc_t
     - name: DEVICE_PARTITION_PROPERTIES
       desc: $x_device_partition_properties_t
+    - name: EXP_COMMAND_BUFFER_DESC
+      desc: $x_exp_command_buffer_desc_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
