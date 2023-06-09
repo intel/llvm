@@ -100,6 +100,11 @@ def SYCL_HItemType : SYCL_Type<"HItem", "h_item"> {
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_HalfType : SYCL_Type<"Half", "half"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
 def SYCL_IDType
     : SYCL_Type<"ID", "id", [SYCLInheritanceTypeTrait<"ArrayType">]> {
   let parameters = (ins "unsigned":$dimension,
