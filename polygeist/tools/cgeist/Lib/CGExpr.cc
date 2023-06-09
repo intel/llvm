@@ -1143,6 +1143,36 @@ MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
   return cast<sycl::SYCLMethodOpInterface>(op);
 }
 
+mlir::Operation *MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
+                                               mlir::ValueRange Operands,
+                                               mlir::Type ReturnType) {
+  constexpr std::size_t NumMathFuncs{1};
+  // Sorted array
+  constexpr std::array<std::pair<llvm::StringLiteral, llvm::StringLiteral>,
+                       NumMathFuncs>
+      MathFuncToOpNameMap{{
+#define ADD_MATH_OP(name, opname) {#name, opname::getOperationName()}
+          ADD_MATH_OP(sqrt, sycl::SYCLSqrtOp)
+#undef ADD_MATH_OP
+      }};
+
+  LLVM_DEBUG(llvm::dbgs() << "Trying to replace call to " << FunctionName
+                          << "with a sycl math operation.\n";);
+
+  const auto *Iter = llvm::lower_bound(
+      MathFuncToOpNameMap, FunctionName,
+      [](const auto &el, auto name) { return el.first < name; });
+  if (Iter == MathFuncToOpNameMap.end() || Iter->first != FunctionName) {
+    LLVM_DEBUG(llvm::dbgs()
+                   << FunctionName << " did not match any valid function.\n";);
+    return nullptr;
+  }
+
+  StringRef OpName(Iter->second);
+  return tryToCreateOperation(Builder, Loc, Builder.getStringAttr(OpName),
+                              Operands, /*types=*/ReturnType);
+}
+
 Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
                                             Location Loc) {
   constexpr std::size_t NumNDBuiltins{7};
@@ -1241,12 +1271,17 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
       if (!isa<mlir::NoneType>(RetType))
         OptRetType = RetType;
 
-      // Attempt to create a SYCL method call first, if that fails create a
-      // generic SYCLCallOp.
+      // Attempt to create a SYCL method call first, if that fails try to create
+      // a math op, and ultimately fallback to create a generic SYCLCallOp.
       std::string Name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
       if (OptFuncType)
         Op = createSYCLMethodOp(Func->getNameAsString(), Args, OptRetType)
                  .value_or(nullptr);
+
+      if (!Op && OptRetType.has_value())
+        Op =
+            createSYCLMathOp(Func->getNameAsString(), Args, OptRetType.value());
+
       if (!Op)
         Op = Builder.create<mlir::sycl::SYCLCallOp>(
             Loc, OptRetType, OptFuncType, Func->getNameAsString(), Name, Args);
