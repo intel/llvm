@@ -454,13 +454,20 @@ private:
   bool is_host() { return MIsHost; }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // In device compilation accessor isn't inherited from AccessorBaseHost, so
+  // In device compilation accessor isn't inherited from host base classes, so
   // can't detect by it. Since we don't expect it to be ever called in device
   // execution, just use blind void *.
   void associateWithHandler(void *AccBase, access::target AccTarget);
+  void associateWithHandler(void *AccBase, image_target AccTarget);
 #else
+  void associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
+                                  int AccTarget);
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
                             access::target AccTarget);
+  void associateWithHandler(detail::UnsampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
+  void associateWithHandler(detail::SampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
 #endif
 
   // Recursively calls itself until arguments pack is fully processed.
@@ -2935,6 +2942,10 @@ private:
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
                                            access::target);
+  friend void detail::associateWithHandler(
+      handler &, detail::UnsampledImageAccessorBaseHost *, image_target);
+  friend void detail::associateWithHandler(
+      handler &, detail::SampledImageAccessorBaseHost *, image_target);
 #endif
 
   friend class ::MockHandler;
