@@ -40,6 +40,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          tpCallback);
     auto &GS = USMAnalyzer::getInstance();
+    GS.changeTerminationOnErrorState(true);
     GS.ArgHandlerPostCall.set_piextUSMHostAlloc(
         USMAnalyzer::handleUSMHostAlloc);
     GS.ArgHandlerPostCall.set_piextUSMDeviceAlloc(
