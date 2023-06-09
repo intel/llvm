@@ -44,6 +44,6 @@ class SYCL_FloatUnaryOp<string mnemonic, string synopsis = "",
 // math.atan OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def SYCLAtanOp : SYCL_FloatUnaryOp<"atan", "Inverse tangent function">;
+def SYCLSqrtOp : SYCL_FloatUnaryOp<"sqrt", "Compute square root">;
 
 #endif // SYCL_MATH_OPS

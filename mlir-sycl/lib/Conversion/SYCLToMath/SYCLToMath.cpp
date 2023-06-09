@@ -47,7 +47,7 @@ struct FloatUnaryOpPattern : public OpConversionPattern<SYCLOpT> {
 
 void mlir::populateSYCLToMathConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  patterns.insert<FloatUnaryOpPattern<SYCLAtanOp, math::AtanOp>>(context);
+  patterns.insert<FloatUnaryOpPattern<SYCLSqrtOp, math::SqrtOp>>(context);
 }
 
 namespace {
