@@ -121,9 +121,7 @@ def ConvertSYCLToMath : Pass<"convert-sycl-to-math", "ModuleOp"> {
     TODO: Describe approach.
   }];
   let dependentDialects = [
-      "math::MathDialect",
-      "arith::ArithDialect",
-      "vector::VectorDialect"
+      "math::MathDialect"
   ];
 }
 

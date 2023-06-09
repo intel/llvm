@@ -9,9 +9,7 @@ add_mlir_conversion_library(MLIRSYCLToMath
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRArithDialect
   MLIRMathDialect
   MLIRSYCLDialect
   MLIRTransforms
-  MLIRVectorDialect
   )
