@@ -226,6 +226,12 @@ public:
   std::shared_ptr<node_impl>
   add(const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
+  /// Create an empty node in the graph.
+  /// @param Events List of events associated to this node.
+  /// @return Created node in the graph.
+  std::shared_ptr<node_impl>
+  add(const std::vector<sycl::detail::EventImplPtr> Events);
+
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
   /// @param RecordingQueue Queue to add to set.

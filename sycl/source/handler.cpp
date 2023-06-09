@@ -408,6 +408,21 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
+
+    if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
+      auto EventImpl = std::make_shared<detail::event_impl>();
+
+      // Extract relevant data from the handler and pass to graph to create a
+      // new node representing this command group.
+      std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
+          GraphImpl->add(MEvents);
+
+      // Associate an event with this new node and return the event.
+      GraphImpl->add_event_for_node(EventImpl, NodeImpl);
+
+      return detail::createSyclObjFromImpl<event>(EventImpl);
+    }
+
     detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;

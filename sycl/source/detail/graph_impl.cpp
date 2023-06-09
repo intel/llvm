@@ -152,6 +152,25 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 }
 
 std::shared_ptr<node_impl>
+graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
+
+  std::vector<std::shared_ptr<node_impl>> Deps;
+
+  // Add any nodes specified by event dependencies into the dependency list
+  for (auto Dep : Events) {
+    if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
+      Deps.push_back(NodeImpl->second);
+    } else {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Event dependency from handler::depends_on does "
+                            "not correspond to a node within the graph");
+    }
+  }
+
+  return this->add(Deps);
+}
+
+std::shared_ptr<node_impl>
 graph_impl::add(sycl::detail::CG::CGTYPE CGType,
                 std::unique_ptr<sycl::detail::CG> CommandGroup,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
