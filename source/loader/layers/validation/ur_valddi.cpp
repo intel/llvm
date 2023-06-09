@@ -267,16 +267,19 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urGetLastResult
-__urdlllocal ur_result_t UR_APICALL urGetLastResult(
+/// @brief Intercept function for urPlatformGetLastError
+__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const char **
-        ppMessage ///< [out] pointer to a string containing adapter specific result in string
-                  ///< representation.
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
 ) {
-    auto pfnGetLastResult = context.urDdiTable.Global.pfnGetLastResult;
+    auto pfnGetLastError = context.urDdiTable.Platform.pfnGetLastError;
 
-    if (nullptr == pfnGetLastResult) {
+    if (nullptr == pfnGetLastError) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -288,9 +291,13 @@ __urdlllocal ur_result_t UR_APICALL urGetLastResult(
         if (NULL == ppMessage) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (NULL == pError) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
     }
 
-    ur_result_t result = pfnGetLastResult(hPlatform, ppMessage);
+    ur_result_t result = pfnGetLastError(hPlatform, ppMessage, pError);
 
     return result;
 }
@@ -6183,9 +6190,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     dditable.pfnInit = pDdiTable->pfnInit;
     pDdiTable->pfnInit = ur_validation_layer::urInit;
 
-    dditable.pfnGetLastResult = pDdiTable->pfnGetLastResult;
-    pDdiTable->pfnGetLastResult = ur_validation_layer::urGetLastResult;
-
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
     pDdiTable->pfnTearDown = ur_validation_layer::urTearDown;
 
@@ -6773,6 +6777,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
         ur_validation_layer::urPlatformCreateWithNativeHandle;
+
+    dditable.pfnGetLastError = pDdiTable->pfnGetLastError;
+    pDdiTable->pfnGetLastError = ur_validation_layer::urPlatformGetLastError;
 
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
     pDdiTable->pfnGetApiVersion = ur_validation_layer::urPlatformGetApiVersion;

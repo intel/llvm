@@ -8352,10 +8352,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE";
         break;
 
-    case UR_FUNCTION_GET_LAST_RESULT:
-        os << "UR_FUNCTION_GET_LAST_RESULT";
-        break;
-
     case UR_FUNCTION_PROGRAM_CREATE_WITH_IL:
         os << "UR_FUNCTION_PROGRAM_CREATE_WITH_IL";
         break;
@@ -8632,6 +8628,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP";
         break;
+
+    case UR_FUNCTION_PLATFORM_GET_LAST_ERROR:
+        os << "UR_FUNCTION_PLATFORM_GET_LAST_ERROR";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -8876,21 +8876,6 @@ inline std::ostream &operator<<(std::ostream &os,
 
     ur_params::serializeFlag<ur_device_init_flag_t>(os,
                                                     *(params->pdevice_flags));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_get_last_result_params_t *params) {
-
-    os << ".hPlatform = ";
-
-    ur_params::serializePtr(os, *(params->phPlatform));
-
-    os << ", ";
-    os << ".ppMessage = ";
-
-    ur_params::serializePtr(os, *(params->pppMessage));
 
     return os;
 }
@@ -12203,6 +12188,27 @@ inline std::ostream &operator<<(
 
 inline std::ostream &
 operator<<(std::ostream &os,
+           const struct ur_platform_get_last_error_params_t *params) {
+
+    os << ".hPlatform = ";
+
+    ur_params::serializePtr(os, *(params->phPlatform));
+
+    os << ", ";
+    os << ".ppMessage = ";
+
+    ur_params::serializePtr(os, *(params->pppMessage));
+
+    os << ", ";
+    os << ".pError = ";
+
+    ur_params::serializePtr(os, *(params->ppError));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
            const struct ur_platform_get_api_version_params_t *params) {
 
     os << ".hPlatform = ";
@@ -13347,9 +13353,6 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_INIT: {
         os << (const struct ur_init_params_t *)params;
     } break;
-    case UR_FUNCTION_GET_LAST_RESULT: {
-        os << (const struct ur_get_last_result_params_t *)params;
-    } break;
     case UR_FUNCTION_TEAR_DOWN: {
         os << (const struct ur_tear_down_params_t *)params;
     } break;
@@ -13672,6 +13675,9 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE: {
         os << (const struct ur_platform_create_with_native_handle_params_t *)
                 params;
+    } break;
+    case UR_FUNCTION_PLATFORM_GET_LAST_ERROR: {
+        os << (const struct ur_platform_get_last_error_params_t *)params;
     } break;
     case UR_FUNCTION_PLATFORM_GET_API_VERSION: {
         os << (const struct ur_platform_get_api_version_params_t *)params;
