@@ -37,14 +37,19 @@ void testCospi() {
 void testRemquo() {
   {
     int quo = 0;
-    float rem = sycl::remquo(86.0f, 10.0f, &quo);
+    sycl::multi_ptr<int, sycl::access::address_space::global_space> x(&quo);
+    float rem = sycl::remquo(
+        86.0f, 10.0f,
+        sycl::multi_ptr<int, sycl::access::address_space::global_space>{&quo});
     assert(quo == 9);
     assert(rem == -4);
   }
 
   {
     int quo = 0;
-    float rem = sycl::remquo(-10.0, 3.0, &quo);
+    float rem = sycl::remquo(
+        -10.0, 3.0,
+        sycl::multi_ptr<int, sycl::access::address_space::global_space>{&quo});
     assert(quo == -3);
     assert(rem == -1);
   }
