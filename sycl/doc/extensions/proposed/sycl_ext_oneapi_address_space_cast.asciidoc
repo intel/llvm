@@ -169,6 +169,7 @@ raw pointer to determine which region of memory it points to.
 *UNRESOLVED*:
 Dropping one of the words would be less verbose; either `static_address_cast`
 or `static_space_cast` could be considered.
+--
 
 . Some developers may expect a `dynamic_address_space_cast` to succeed if the
 pointer continues to work, irrespective of where the object the pointer points
@@ -183,3 +184,4 @@ with, in order to ensure that using the result of a dynamic cast is always
 safe. If we can identify use-cases for the more relaxed behavior, it would
 make sense to introduce either a third type of cast or some global check that
 two address spaces use the same representation and are thus "compatible".
+--
