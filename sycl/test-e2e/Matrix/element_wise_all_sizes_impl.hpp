@@ -66,10 +66,10 @@ void matrix_verify_add(const T1 val1, const T1 val2, const T1 result) {
        for (int i = 0; i < wi_slice_a.length(); i++) {
          wi_slice_a[i] = wi_slice_a[i] + val2;
        }
-
        ext::intel::experimental::matrix::joint_matrix_store(
            sg, sub_a,
-           accA.get_pointer() + (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+           accA.template get_multi_ptr<access::decorated::no>() +
+               (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
            K);
      }); // parallel for
    }).wait();
