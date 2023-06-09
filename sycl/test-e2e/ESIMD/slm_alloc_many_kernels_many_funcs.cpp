@@ -1,5 +1,8 @@
 // UNSUPPORTED: esimd_emulator
 //
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+//
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out
 //

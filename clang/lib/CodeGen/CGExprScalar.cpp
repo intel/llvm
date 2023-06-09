@@ -815,13 +815,21 @@ public:
                             Value *(ScalarExprEmitter::*F)(const BinOpInfo &));
 
   QualType getPromotionType(QualType Ty) {
+    const auto &Ctx = CGF.getContext();
     if (auto *CT = Ty->getAs<ComplexType>()) {
       QualType ElementType = CT->getElementType();
-      if (ElementType.UseExcessPrecision(CGF.getContext()))
-        return CGF.getContext().getComplexType(CGF.getContext().FloatTy);
+      if (ElementType.UseExcessPrecision(Ctx))
+        return Ctx.getComplexType(Ctx.FloatTy);
     }
-    if (Ty.UseExcessPrecision(CGF.getContext()))
-      return CGF.getContext().FloatTy;
+
+    if (Ty.UseExcessPrecision(Ctx)) {
+      if (auto *VT = Ty->getAs<VectorType>()) {
+        unsigned NumElements = VT->getNumElements();
+        return Ctx.getVectorType(Ctx.FloatTy, NumElements, VT->getVectorKind());
+      }
+      return Ctx.FloatTy;
+    }
+
     return QualType();
   }
 
@@ -1642,7 +1650,7 @@ ScalarExprEmitter::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
 Value *
 ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   ASTContext &Context = CGF.getContext();
-  llvm::Optional<LangAS> GlobalAS =
+  std::optional<LangAS> GlobalAS =
       Context.getTargetInfo().getConstantAddressSpace();
   llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
       E->ComputeName(Context), "__usid_str",

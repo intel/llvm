@@ -380,8 +380,8 @@ private:
     return static_cast<bool>(findHeaderInUmbrellaDirs(File, IntermediateDirs));
   }
 
-  Module *inferFrameworkModule(const DirectoryEntry *FrameworkDir,
-                               Attributes Attrs, Module *Parent);
+  Module *inferFrameworkModule(DirectoryEntryRef FrameworkDir, Attributes Attrs,
+                               Module *Parent);
 
 public:
   /// Construct a new module map.
@@ -591,8 +591,8 @@ public:
 
   /// Infer the contents of a framework module map from the given
   /// framework directory.
-  Module *inferFrameworkModule(const DirectoryEntry *FrameworkDir,
-                               bool IsSystem, Module *Parent);
+  Module *inferFrameworkModule(DirectoryEntryRef FrameworkDir, bool IsSystem,
+                               Module *Parent);
 
   /// Create a new top-level module that is shadowed by
   /// \p ShadowingModule.
@@ -692,17 +692,16 @@ public:
   /// false otherwise.
   bool resolveConflicts(Module *Mod, bool Complain);
 
-  /// Sets the umbrella header of the given module to the given
-  /// header.
-  void setUmbrellaHeader(Module *Mod, FileEntryRef UmbrellaHeader,
-                         const Twine &NameAsWritten,
-                         const Twine &PathRelativeToRootModuleDirectory);
+  /// Sets the umbrella header of the given module to the given header.
+  void
+  setUmbrellaHeaderAsWritten(Module *Mod, FileEntryRef UmbrellaHeader,
+                             const Twine &NameAsWritten,
+                             const Twine &PathRelativeToRootModuleDirectory);
 
-  /// Sets the umbrella directory of the given module to the given
-  /// directory.
-  void setUmbrellaDir(Module *Mod, const DirectoryEntry *UmbrellaDir,
-                      const Twine &NameAsWritten,
-                      const Twine &PathRelativeToRootModuleDirectory);
+  /// Sets the umbrella directory of the given module to the given directory.
+  void setUmbrellaDirAsWritten(Module *Mod, DirectoryEntryRef UmbrellaDir,
+                               const Twine &NameAsWritten,
+                               const Twine &PathRelativeToRootModuleDirectory);
 
   /// Adds this header to the given module.
   /// \param Role The role of the header wrt the module.
@@ -730,8 +729,8 @@ public:
   ///
   /// \returns true if an error occurred, false otherwise.
   bool parseModuleMapFile(const FileEntry *File, bool IsSystem,
-                          const DirectoryEntry *HomeDir,
-                          FileID ID = FileID(), unsigned *Offset = nullptr,
+                          DirectoryEntryRef HomeDir, FileID ID = FileID(),
+                          unsigned *Offset = nullptr,
                           SourceLocation ExternModuleLoc = SourceLocation());
 
   /// Dump the contents of the module map, for debugging purposes.
