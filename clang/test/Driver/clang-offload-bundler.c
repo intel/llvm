@@ -1,5 +1,7 @@
 // REQUIRES: x86-registered-target
-// UNSUPPORTED: target={{.*}}-darwin{{.*}}, target={{.*}}-aix{{.*}}
+
+// TODO: Windows-related issue with temporary file creation - Fix and enable
+// UNSUPPORTED: target={{.*}}-darwin{{.*}}, target={{.*}}-aix{{.*}}, system-windows
 
 //
 // Generate all the types of files we can bundle.
