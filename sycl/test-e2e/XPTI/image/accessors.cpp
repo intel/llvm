@@ -18,12 +18,12 @@ int main() {
 
   /* Unsampled images */
   {
-    // CHECK:{{[0-9]+}}|Create unsampled image|[[UIMGID:[0-9,a-f,x]+]]|0x0|1|{3,0,0}|r32b32g32a32_uint|{{.*}}accessors.cpp:[[# @LINE + 1]]:30
+    // CHECK:{{[0-9]+}}|Create unsampled image|[[UIMGID:[0-9,a-f,x]+]]|0x{{[0-9,a-f]+}}|1|{3,0,0}|r32b32g32a32_uint|{{.*}}accessors.cpp:[[# @LINE + 1]]:30
     sycl::unsampled_image<1> UImg(sycl::image_format::r32b32g32a32_uint, 3);
 
     try {
       Q.submit([&](sycl::handler &CGH) {
-        // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x0|1|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+        // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1024|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
         auto A1 = UImg.get_access<sycl::uint4, mode::read,
                                   sycl::image_target::host_task>(CGH);
       });
@@ -34,7 +34,7 @@ int main() {
 
     try {
       Q.submit([&](sycl::handler &CGH) {
-        // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x0|1|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
+        // CHECK:{{[0-9]+}}|Construct unsampled image accessor|[[UIMGID]]|0x{{[0-9,a-f]+}}|1|1025|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 1]]:19
         auto A1 = UImg.get_access<sycl::uint4, mode::write,
                                   sycl::image_target::host_task>(CGH);
       });
@@ -60,14 +60,14 @@ int main() {
                                 sycl::coordinate_normalization_mode::normalized,
                                 sycl::filtering_mode::linear};
 
-    // CHECK:{{[0-9]+}}|Create sampled image|[[SIMGID:[0-9,a-f,x]+]]|0x0|1|{3,0,0}|r16g16b16a16_sint|repeat|normalized|linear|{{.*}}accessors.cpp:[[# @LINE + 1]]:28
+    // CHECK:{{[0-9]+}}|Create sampled image|[[SIMGID:[0-9,a-f,x]+]]|0x{{[0-9,a-f]+}}|1|{3,0,0}|r16g16b16a16_sint|repeat|normalized|linear|{{.*}}accessors.cpp:[[# @LINE + 1]]:28
     sycl::sampled_image<1> SImg(SampledImgData,
                                 sycl::image_format::r16g16b16a16_sint, Sampler,
                                 SampledImgElemCount);
 
     try {
       Q.submit([&](sycl::handler &CGH) {
-        // CHECK:{{[0-9]+}}|Construct sampled image accessor|[[SIMGID]]|0x0|1|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 2]]:13
+        // CHECK:{{[0-9]+}}|Construct sampled image accessor|[[SIMGID]]|0x{{[0-9,a-f]+}}|1|{{.*}}vec{{.*}}|16|{{.*}}accessors.cpp:[[# @LINE + 2]]:13
         auto A1 =
             SImg.get_access<sycl::uint4, sycl::image_target::host_task>(CGH);
       });
