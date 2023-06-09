@@ -70,18 +70,19 @@ static bool isSmallerThanNegativeOne(IntegerValueRange range) {
   return (constVal && constVal->slt(-1));
 }
 
-/// Return a vector with \p gridDim entries, containing pairs of thread values
-/// and grid dimensions for each global thread declarations in in \p funcOp.
-/// For example given:
+/// Return a vector with \p gridDim entries, containing thread values
+/// corresponding to each global thread declarations in \p funcOp.
+/// For example, assuming that the thread grid dimension is two, and \p funcOp
+/// contains:
 ///   %c1_i32 = arith.constant 1 : i32
 ///   %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32)
-/// The corresponding vector entry is [ty, 1].
+/// The result vector is [null, %ty].
 template <typename T,
           typename = std::enable_if_t<llvm::is_one_of<
               T, sycl::SYCLNDItemGetGlobalIDOp, sycl::SYCLItemGetIDOp>::value>>
-static SmallVector<std::pair<Value, unsigned>>
-computeThreadVector(FunctionOpInterface funcOp, unsigned gridDim,
-                    DataFlowSolver &solver) {
+static SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
+                                              unsigned gridDim,
+                                              DataFlowSolver &solver) {
   if (gridDim == 0)
     return {};
 
@@ -109,13 +110,13 @@ computeThreadVector(FunctionOpInterface funcOp, unsigned gridDim,
   }
 
   // Collect the thread values/index.
-  SmallVector<std::pair<Value, unsigned>> threadVars;
+  SmallVector<Value> threadVars;
   for (unsigned dim = 0; dim < gridDim; ++dim) {
     auto it = indexToGlobalOp.find(dim);
-    threadVars.emplace_back(std::make_pair(
-        it != indexToGlobalOp.end() ? it->second : Value(), dim));
+    threadVars.emplace_back(it != indexToGlobalOp.end() ? it->second : Value());
   }
-  assert(threadVars.size() == gridDim && "Should never happen");
+  assert(threadVars.size() == gridDim &&
+         "Expecting size of threadVars to be same as the grid dimension");
 
   return threadVars;
 }
@@ -1248,7 +1249,7 @@ MemoryAccessAnalysis::getGridDimension(FunctionOpInterface func) const {
       .Default([](auto) { return 0; });
 }
 
-SmallVector<std::pair<Value, unsigned>>
+SmallVector<Value>
 MemoryAccessAnalysis::getThreadVector(FunctionOpInterface funcOp,
                                       DataFlowSolver &solver) const {
   unsigned gridDim = getGridDimension(funcOp);
@@ -1256,10 +1257,10 @@ MemoryAccessAnalysis::getThreadVector(FunctionOpInterface funcOp,
     return {};
 
   // Collect global thread ids.
-  SmallVector<std::pair<Value, unsigned>> ndItemThreadVars =
+  SmallVector<Value> ndItemThreadVars =
       computeThreadVector<sycl::SYCLNDItemGetGlobalIDOp>(funcOp, gridDim,
                                                          solver);
-  SmallVector<std::pair<Value, unsigned>> itemThreadVars =
+  SmallVector<Value> itemThreadVars =
       computeThreadVector<sycl::SYCLItemGetIDOp>(funcOp, gridDim, solver);
 
   if (!ndItemThreadVars.empty() && itemThreadVars.empty())
@@ -1348,8 +1349,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 
   // Collect the global thread ids used in the function.
   auto funcOp = memoryOp->template getParentOfType<FunctionOpInterface>();
-  SmallVector<std::pair<Value, unsigned>> threadVars =
-      getThreadVector(funcOp, solver);
+  SmallVector<Value> threadVars = getThreadVector(funcOp, solver);
 
   // Collect the loops enclosing the memory access operation.
   SetVector<LoopLikeOpInterface> enclosingLoops =
@@ -1385,7 +1385,7 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 
 std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
     sycl::SYCLAccessorSubscriptOp accessorSubscriptOp,
-    ArrayRef<std::pair<Value, unsigned>> threadVars, ArrayRef<Value> loopIVs,
+    ArrayRef<Value> threadVars, ArrayRef<Value> loopIVs,
     ArrayRef<Value> underlyingVals, DataFlowSolver &solver) {
   LLVM_DEBUG(llvm::dbgs() << "Computing access matrix\n");
 
@@ -1434,13 +1434,13 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
       // The leftmost 'threadVars.size()' columns correspond to the thread
       // variables, create the corresponding matrix entries.
       if (col < threadVars.size()) {
-        std::pair<Value, unsigned> threadVar = threadVars[col];
-        if (threadVar.first == nullptr) {
+        Value threadVar = threadVars[col];
+        if (threadVar == nullptr) {
           accessMatrix.setZero(row, col);
           continue;
         }
 
-        if (!createMatrixEntry(val, threadVar.first, row, col))
+        if (!createMatrixEntry(val, threadVar, row, col))
           return std::nullopt;
 
         continue;
@@ -1459,15 +1459,12 @@ std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
 }
 
 std::optional<OffsetVector> MemoryAccessAnalysis::buildOffsetVector(
-    const MemoryAccessMatrix &matrix,
-    ArrayRef<std::pair<Value, unsigned>> threadVars, ArrayRef<Value> loopIVs,
-    ArrayRef<Value> underlyingVals, DataFlowSolver &solver) {
+    const MemoryAccessMatrix &matrix, ArrayRef<Value> threadVars,
+    ArrayRef<Value> loopIVs, ArrayRef<Value> underlyingVals,
+    DataFlowSolver &solver) {
   LLVM_DEBUG(llvm::dbgs() << "Computing offset vector\n");
 
-  SmallVector<Value> loopAndThreadVars;
-  std::transform(begin(threadVars), end(threadVars),
-                 std::back_inserter(loopAndThreadVars),
-                 [](const auto &pair) { return pair.first; });
+  SmallVector<Value> loopAndThreadVars(threadVars);
   for (Value loopIV : loopIVs)
     loopAndThreadVars.emplace_back(loopIV);
 
