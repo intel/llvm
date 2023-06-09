@@ -48,271 +48,274 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
 namespace __sycl_std = __host_std;
 #endif
 
-#define COMMA ,
+#define __SYCL_COMMA ,
 
-#define DEF_BUILTIN_VEC(TYPE)                                                  \
-  BUILTIN_DEF(TYPE##2)                                                         \
-  BUILTIN_DEF(TYPE##3)                                                         \
-  BUILTIN_DEF(TYPE##4)                                                         \
-  BUILTIN_DEF(TYPE##8)                                                         \
-  BUILTIN_DEF(TYPE##16)
+#define __SYCL_DEF_BUILTIN_VEC(TYPE)                                           \
+  __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
+  __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
+  __SYCL_BUILTIN_DEF(TYPE##4)                                                  \
+  __SYCL_BUILTIN_DEF(TYPE##8)                                                  \
+  __SYCL_BUILTIN_DEF(TYPE##16)
 
-#define DEF_BUILTIN_GEOVEC(TYPE)                                               \
-  BUILTIN_DEF(TYPE##2)                                                         \
-  BUILTIN_DEF(TYPE##3)                                                         \
-  BUILTIN_DEF(TYPE##4)
+#define __SYCL_DEF_BUILTIN_GEOVEC(TYPE)                                        \
+  __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
+  __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
+  __SYCL_BUILTIN_DEF(TYPE##4)
 
-#define DEF_BUILTIN_MARRAY(TYPE)                                               \
-  template <size_t NElems> BUILTIN_DEF(marray<TYPE COMMA NElems>)
+#define __SYCL_DEF_BUILTIN_MARRAY(TYPE)                                        \
+  template <size_t NElems> __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA NElems>)
 
-#define DEF_BUILTIN_CHAR_SCALAR BUILTIN_DEF(char)
-#define DEF_BUILTIN_CHAR_VEC DEF_BUILTIN_VEC(char)
-#define DEF_BUILTIN_CHAR_MARRAY DEF_BUILTIN_MARRAY(char)
-#define DEF_BUILTIN_CHARN                                                      \
-  DEF_BUILTIN_CHAR_VEC                                                         \
-  DEF_BUILTIN_CHAR_MARRAY
-#define DEF_BUILTIN_SCHAR_SCALAR BUILTIN_DEF(signed char)
-#define DEF_BUILTIN_SCHAR_VEC DEF_BUILTIN_VEC(schar)
-#define DEF_BUILTIN_SCHAR_MARRAY DEF_BUILTIN_MARRAY(signed char)
-#define DEF_BUILTIN_SCHARN                                                     \
-  DEF_BUILTIN_SCHAR_VEC                                                        \
-  DEF_BUILTIN_SCHAR_MARRAY
-#define DEF_BUILTIN_IGENCHAR                                                   \
-  DEF_BUILTIN_SCHAR_SCALAR                                                     \
-  DEF_BUILTIN_SCHARN
-#define DEF_BUILTIN_UCHAR_SCALAR BUILTIN_DEF(unsigned char)
-#define DEF_BUILTIN_UCHAR_VEC DEF_BUILTIN_VEC(uchar)
-#define DEF_BUILTIN_UCHAR_MARRAY DEF_BUILTIN_MARRAY(unsigned char)
-#define DEF_BUILTIN_UCHARN                                                     \
-  DEF_BUILTIN_UCHAR_VEC                                                        \
-  DEF_BUILTIN_UCHAR_MARRAY
-#define DEF_BUILTIN_UGENCHAR                                                   \
-  DEF_BUILTIN_UCHAR_SCALAR                                                     \
-  DEF_BUILTIN_UCHARN
+#define __SYCL_DEF_BUILTIN_CHAR_SCALAR __SYCL_BUILTIN_DEF(char)
+#define __SYCL_DEF_BUILTIN_CHAR_VEC __SYCL_DEF_BUILTIN_VEC(char)
+#define __SYCL_DEF_BUILTIN_CHAR_MARRAY __SYCL_DEF_BUILTIN_MARRAY(char)
+#define __SYCL_DEF_BUILTIN_CHARN                                               \
+  __SYCL_DEF_BUILTIN_CHAR_VEC                                                  \
+  __SYCL_DEF_BUILTIN_CHAR_MARRAY
+#define __SYCL_DEF_BUILTIN_SCHAR_SCALAR __SYCL_BUILTIN_DEF(signed char)
+#define __SYCL_DEF_BUILTIN_SCHAR_VEC __SYCL_DEF_BUILTIN_VEC(schar)
+#define __SYCL_DEF_BUILTIN_SCHAR_MARRAY __SYCL_DEF_BUILTIN_MARRAY(signed char)
+#define __SYCL_DEF_BUILTIN_SCHARN                                              \
+  __SYCL_DEF_BUILTIN_SCHAR_VEC                                                 \
+  __SYCL_DEF_BUILTIN_SCHAR_MARRAY
+#define __SYCL_DEF_BUILTIN_IGENCHAR                                            \
+  __SYCL_DEF_BUILTIN_SCHAR_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_SCHARN
+#define __SYCL_DEF_BUILTIN_UCHAR_SCALAR __SYCL_BUILTIN_DEF(unsigned char)
+#define __SYCL_DEF_BUILTIN_UCHAR_VEC __SYCL_DEF_BUILTIN_VEC(uchar)
+#define __SYCL_DEF_BUILTIN_UCHAR_MARRAY __SYCL_DEF_BUILTIN_MARRAY(unsigned char)
+#define __SYCL_DEF_BUILTIN_UCHARN                                              \
+  __SYCL_DEF_BUILTIN_UCHAR_VEC                                                 \
+  __SYCL_DEF_BUILTIN_UCHAR_MARRAY
+#define __SYCL_DEF_BUILTIN_UGENCHAR                                            \
+  __SYCL_DEF_BUILTIN_UCHAR_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_UCHARN
 // schar{n} and char{n} have the same type, so we skip the char{n} variants.
-#define DEF_BUILTIN_GENCHAR                                                    \
-  DEF_BUILTIN_CHAR_SCALAR                                                      \
-  DEF_BUILTIN_CHAR_MARRAY                                                      \
-  DEF_BUILTIN_IGENCHAR                                                         \
-  DEF_BUILTIN_UGENCHAR
+#define __SYCL_DEF_BUILTIN_GENCHAR                                             \
+  __SYCL_DEF_BUILTIN_CHAR_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_CHAR_MARRAY                                               \
+  __SYCL_DEF_BUILTIN_IGENCHAR                                                  \
+  __SYCL_DEF_BUILTIN_UGENCHAR
 
-#define DEF_BUILTIN_SHORT_SCALAR BUILTIN_DEF(short)
-#define DEF_BUILTIN_SHORT_VEC DEF_BUILTIN_VEC(short)
-#define DEF_BUILTIN_SHORT_MARRAY DEF_BUILTIN_MARRAY(short)
-#define DEF_BUILTIN_SHORTN                                                     \
-  DEF_BUILTIN_SHORT_VEC                                                        \
-  DEF_BUILTIN_SHORT_MARRAY
-#define DEF_BUILTIN_GENSHORT                                                   \
-  DEF_BUILTIN_SHORT_SCALAR                                                     \
-  DEF_BUILTIN_SHORTN
-#define DEF_BUILTIN_USHORT_SCALAR BUILTIN_DEF(unsigned short)
-#define DEF_BUILTIN_USHORT_VEC DEF_BUILTIN_VEC(ushort)
-#define DEF_BUILTIN_USHORT_MARRAY DEF_BUILTIN_MARRAY(unsigned short)
-#define DEF_BUILTIN_USHORTN                                                    \
-  DEF_BUILTIN_USHORT_VEC                                                       \
-  DEF_BUILTIN_USHORT_MARRAY
-#define DEF_BUILTIN_UGENSHORT                                                  \
-  DEF_BUILTIN_USHORT_SCALAR                                                    \
-  DEF_BUILTIN_USHORTN
+#define __SYCL_DEF_BUILTIN_SHORT_SCALAR __SYCL_BUILTIN_DEF(short)
+#define __SYCL_DEF_BUILTIN_SHORT_VEC __SYCL_DEF_BUILTIN_VEC(short)
+#define __SYCL_DEF_BUILTIN_SHORT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(short)
+#define __SYCL_DEF_BUILTIN_SHORTN                                              \
+  __SYCL_DEF_BUILTIN_SHORT_VEC                                                 \
+  __SYCL_DEF_BUILTIN_SHORT_MARRAY
+#define __SYCL_DEF_BUILTIN_GENSHORT                                            \
+  __SYCL_DEF_BUILTIN_SHORT_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_SHORTN
+#define __SYCL_DEF_BUILTIN_USHORT_SCALAR __SYCL_BUILTIN_DEF(unsigned short)
+#define __SYCL_DEF_BUILTIN_USHORT_VEC __SYCL_DEF_BUILTIN_VEC(ushort)
+#define __SYCL_DEF_BUILTIN_USHORT_MARRAY                                       \
+  __SYCL_DEF_BUILTIN_MARRAY(unsigned short)
+#define __SYCL_DEF_BUILTIN_USHORTN                                             \
+  __SYCL_DEF_BUILTIN_USHORT_VEC                                                \
+  __SYCL_DEF_BUILTIN_USHORT_MARRAY
+#define __SYCL_DEF_BUILTIN_UGENSHORT                                           \
+  __SYCL_DEF_BUILTIN_USHORT_SCALAR                                             \
+  __SYCL_DEF_BUILTIN_USHORTN
 
-#define DEF_BUILTIN_INT_SCALAR BUILTIN_DEF(int)
-#define DEF_BUILTIN_INT_VEC DEF_BUILTIN_VEC(int)
-#define DEF_BUILTIN_INT_MARRAY DEF_BUILTIN_MARRAY(int)
-#define DEF_BUILTIN_INTN                                                       \
-  DEF_BUILTIN_INT_VEC                                                          \
-  DEF_BUILTIN_INT_MARRAY
-#define DEF_BUILTIN_GENINT                                                     \
-  DEF_BUILTIN_INT_SCALAR                                                       \
-  DEF_BUILTIN_INTN
-#define DEF_BUILTIN_UINT_SCALAR BUILTIN_DEF(unsigned int)
-#define DEF_BUILTIN_UINT_VEC DEF_BUILTIN_VEC(uint)
-#define DEF_BUILTIN_UINT_MARRAY DEF_BUILTIN_MARRAY(unsigned int)
-#define DEF_BUILTIN_UINTN                                                      \
-  DEF_BUILTIN_UINT_VEC                                                         \
-  DEF_BUILTIN_UINT_MARRAY
-#define DEF_BUILTIN_UGENINT                                                    \
-  DEF_BUILTIN_UINT_SCALAR                                                      \
-  DEF_BUILTIN_UINTN
+#define __SYCL_DEF_BUILTIN_INT_SCALAR __SYCL_BUILTIN_DEF(int)
+#define __SYCL_DEF_BUILTIN_INT_VEC __SYCL_DEF_BUILTIN_VEC(int)
+#define __SYCL_DEF_BUILTIN_INT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(int)
+#define __SYCL_DEF_BUILTIN_INTN                                                \
+  __SYCL_DEF_BUILTIN_INT_VEC                                                   \
+  __SYCL_DEF_BUILTIN_INT_MARRAY
+#define __SYCL_DEF_BUILTIN_GENINT                                              \
+  __SYCL_DEF_BUILTIN_INT_SCALAR                                                \
+  __SYCL_DEF_BUILTIN_INTN
+#define __SYCL_DEF_BUILTIN_UINT_SCALAR __SYCL_BUILTIN_DEF(unsigned int)
+#define __SYCL_DEF_BUILTIN_UINT_VEC __SYCL_DEF_BUILTIN_VEC(uint)
+#define __SYCL_DEF_BUILTIN_UINT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(unsigned int)
+#define __SYCL_DEF_BUILTIN_UINTN                                               \
+  __SYCL_DEF_BUILTIN_UINT_VEC                                                  \
+  __SYCL_DEF_BUILTIN_UINT_MARRAY
+#define __SYCL_DEF_BUILTIN_UGENINT                                             \
+  __SYCL_DEF_BUILTIN_UINT_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_UINTN
 
-#define DEF_BUILTIN_LONG_SCALAR BUILTIN_DEF(long)
-#define DEF_BUILTIN_LONG_VEC DEF_BUILTIN_VEC(long)
-#define DEF_BUILTIN_LONG_MARRAY DEF_BUILTIN_MARRAY(long)
-#define DEF_BUILTIN_LONGN                                                      \
-  DEF_BUILTIN_LONG_VEC                                                         \
-  DEF_BUILTIN_LONG_MARRAY
-#define DEF_BUILTIN_GENLONG                                                    \
-  DEF_BUILTIN_LONG_SCALAR                                                      \
-  DEF_BUILTIN_LONGN
-#define DEF_BUILTIN_ULONG_SCALAR BUILTIN_DEF(unsigned long)
-#define DEF_BUILTIN_ULONG_VEC DEF_BUILTIN_VEC(ulong)
-#define DEF_BUILTIN_ULONG_MARRAY DEF_BUILTIN_MARRAY(unsigned long)
-#define DEF_BUILTIN_ULONGN                                                     \
-  DEF_BUILTIN_ULONG_VEC                                                        \
-  DEF_BUILTIN_ULONG_MARRAY
-#define DEF_BUILTIN_UGENLONG                                                   \
-  DEF_BUILTIN_ULONG_SCALAR                                                     \
-  DEF_BUILTIN_ULONGN
+#define __SYCL_DEF_BUILTIN_LONG_SCALAR __SYCL_BUILTIN_DEF(long)
+#define __SYCL_DEF_BUILTIN_LONG_VEC __SYCL_DEF_BUILTIN_VEC(long)
+#define __SYCL_DEF_BUILTIN_LONG_MARRAY __SYCL_DEF_BUILTIN_MARRAY(long)
+#define __SYCL_DEF_BUILTIN_LONGN                                               \
+  __SYCL_DEF_BUILTIN_LONG_VEC                                                  \
+  __SYCL_DEF_BUILTIN_LONG_MARRAY
+#define __SYCL_DEF_BUILTIN_GENLONG                                             \
+  __SYCL_DEF_BUILTIN_LONG_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_LONGN
+#define __SYCL_DEF_BUILTIN_ULONG_SCALAR __SYCL_BUILTIN_DEF(unsigned long)
+#define __SYCL_DEF_BUILTIN_ULONG_VEC __SYCL_DEF_BUILTIN_VEC(ulong)
+#define __SYCL_DEF_BUILTIN_ULONG_MARRAY __SYCL_DEF_BUILTIN_MARRAY(unsigned long)
+#define __SYCL_DEF_BUILTIN_ULONGN                                              \
+  __SYCL_DEF_BUILTIN_ULONG_VEC                                                 \
+  __SYCL_DEF_BUILTIN_ULONG_MARRAY
+#define __SYCL_DEF_BUILTIN_UGENLONG                                            \
+  __SYCL_DEF_BUILTIN_ULONG_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_ULONGN
 
-#define DEF_BUILTIN_LONGLONG_SCALAR BUILTIN_DEF(long long)
-#define DEF_BUILTIN_LONGLONG_VEC DEF_BUILTIN_VEC(longlong)
-#define DEF_BUILTIN_LONGLONG_MARRAY DEF_BUILTIN_MARRAY(long long)
-#define DEF_BUILTIN_LONGLONGN                                                  \
-  DEF_BUILTIN_LONGLONG_VEC                                                     \
-  DEF_BUILTIN_LONGLONG_MARRAY
-#define DEF_BUILTIN_GENLONGLONG                                                \
-  DEF_BUILTIN_LONGLONG_SCALAR                                                  \
-  DEF_BUILTIN_LONGLONGN
-#define DEF_BUILTIN_ULONGLONG_SCALAR BUILTIN_DEF(unsigned long long)
-#define DEF_BUILTIN_ULONGLONG_VEC DEF_BUILTIN_VEC(ulonglong)
-#define DEF_BUILTIN_ULONGLONG_MARRAY DEF_BUILTIN_MARRAY(unsigned long long)
-#define DEF_BUILTIN_ULONGLONGN                                                 \
-  DEF_BUILTIN_ULONGLONG_VEC                                                    \
-  DEF_BUILTIN_ULONGLONG_MARRAY
-#define DEF_BUILTIN_UGENLONGLONG                                               \
-  DEF_BUILTIN_ULONGLONG_SCALAR                                                 \
-  DEF_BUILTIN_ULONGLONGN
+#define __SYCL_DEF_BUILTIN_LONGLONG_SCALAR __SYCL_BUILTIN_DEF(long long)
+#define __SYCL_DEF_BUILTIN_LONGLONG_VEC __SYCL_DEF_BUILTIN_VEC(longlong)
+#define __SYCL_DEF_BUILTIN_LONGLONG_MARRAY __SYCL_DEF_BUILTIN_MARRAY(long long)
+#define __SYCL_DEF_BUILTIN_LONGLONGN                                           \
+  __SYCL_DEF_BUILTIN_LONGLONG_VEC                                              \
+  __SYCL_DEF_BUILTIN_LONGLONG_MARRAY
+#define __SYCL_DEF_BUILTIN_GENLONGLONG                                         \
+  __SYCL_DEF_BUILTIN_LONGLONG_SCALAR                                           \
+  __SYCL_DEF_BUILTIN_LONGLONGN
+#define __SYCL_DEF_BUILTIN_ULONGLONG_SCALAR                                    \
+  __SYCL_BUILTIN_DEF(unsigned long long)
+#define __SYCL_DEF_BUILTIN_ULONGLONG_VEC __SYCL_DEF_BUILTIN_VEC(ulonglong)
+#define __SYCL_DEF_BUILTIN_ULONGLONG_MARRAY                                    \
+  __SYCL_DEF_BUILTIN_MARRAY(unsigned long long)
+#define __SYCL_DEF_BUILTIN_ULONGLONGN                                          \
+  __SYCL_DEF_BUILTIN_ULONGLONG_VEC                                             \
+  __SYCL_DEF_BUILTIN_ULONGLONG_MARRAY
+#define __SYCL_DEF_BUILTIN_UGENLONGLONG                                        \
+  __SYCL_DEF_BUILTIN_ULONGLONG_SCALAR                                          \
+  __SYCL_DEF_BUILTIN_ULONGLONGN
 
 // longlongn and long{n} have the same types, so we only include one here.
-#define DEF_BUILTIN_IGENLONGINTEGER                                            \
-  DEF_BUILTIN_LONG_SCALAR                                                      \
-  DEF_BUILTIN_LONG_MARRAY                                                      \
-  DEF_BUILTIN_LONGLONG_SCALAR                                                  \
-  DEF_BUILTIN_LONGLONG_MARRAY                                                  \
-  DEF_BUILTIN_LONG_VEC
+#define __SYCL_DEF_BUILTIN_IGENLONGINTEGER                                     \
+  __SYCL_DEF_BUILTIN_LONG_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_LONG_MARRAY                                               \
+  __SYCL_DEF_BUILTIN_LONGLONG_SCALAR                                           \
+  __SYCL_DEF_BUILTIN_LONGLONG_MARRAY                                           \
+  __SYCL_DEF_BUILTIN_LONG_VEC
 
 // longlong{n} and long{n} have the same types, so we only include one here.
-#define DEF_BUILTIN_UGENLONGINTEGER                                            \
-  DEF_BUILTIN_ULONG_SCALAR                                                     \
-  DEF_BUILTIN_ULONG_MARRAY                                                     \
-  DEF_BUILTIN_ULONGLONG_SCALAR                                                 \
-  DEF_BUILTIN_ULONGLONG_MARRAY                                                 \
-  DEF_BUILTIN_ULONG_VEC
+#define __SYCL_DEF_BUILTIN_UGENLONGINTEGER                                     \
+  __SYCL_DEF_BUILTIN_ULONG_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_ULONG_MARRAY                                              \
+  __SYCL_DEF_BUILTIN_ULONGLONG_SCALAR                                          \
+  __SYCL_DEF_BUILTIN_ULONGLONG_MARRAY                                          \
+  __SYCL_DEF_BUILTIN_ULONG_VEC
 
-#define DEF_BUILTIN_SIGENINTEGER                                               \
-  DEF_BUILTIN_SCHAR_SCALAR                                                     \
-  DEF_BUILTIN_SHORT_SCALAR                                                     \
-  DEF_BUILTIN_INT_SCALAR                                                       \
-  DEF_BUILTIN_LONG_SCALAR                                                      \
-  DEF_BUILTIN_LONGLONG_SCALAR
-
-// longlongn and longn have the same types, so we only include one here.
-#define DEF_BUILTIN_VIGENINTEGER                                               \
-  DEF_BUILTIN_CHAR_VEC                                                         \
-  DEF_BUILTIN_SHORT_VEC                                                        \
-  DEF_BUILTIN_INT_VEC                                                          \
-  DEF_BUILTIN_LONG_VEC
-
-#define DEF_BUILTIN_IGENINTEGER                                                \
-  DEF_BUILTIN_IGENCHAR                                                         \
-  DEF_BUILTIN_GENSHORT                                                         \
-  DEF_BUILTIN_GENINT                                                           \
-  DEF_BUILTIN_IGENLONGINTEGER
-
-#define DEF_BUILTIN_SUGENINTEGER                                               \
-  DEF_BUILTIN_UCHAR_SCALAR                                                     \
-  DEF_BUILTIN_USHORT_SCALAR                                                    \
-  DEF_BUILTIN_UINT_SCALAR                                                      \
-  DEF_BUILTIN_ULONG_SCALAR                                                     \
-  DEF_BUILTIN_ULONGLONG_SCALAR
+#define __SYCL_DEF_BUILTIN_SIGENINTEGER                                        \
+  __SYCL_DEF_BUILTIN_SCHAR_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_SHORT_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_INT_SCALAR                                                \
+  __SYCL_DEF_BUILTIN_LONG_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_LONGLONG_SCALAR
 
 // longlongn and longn have the same types, so we only include one here.
-#define DEF_BUILTIN_VUGENINTEGER                                               \
-  DEF_BUILTIN_UCHAR_VEC                                                        \
-  DEF_BUILTIN_USHORT_VEC                                                       \
-  DEF_BUILTIN_UINT_VEC                                                         \
-  DEF_BUILTIN_ULONG_VEC
+#define __SYCL_DEF_BUILTIN_VIGENINTEGER                                        \
+  __SYCL_DEF_BUILTIN_CHAR_VEC                                                  \
+  __SYCL_DEF_BUILTIN_SHORT_VEC                                                 \
+  __SYCL_DEF_BUILTIN_INT_VEC                                                   \
+  __SYCL_DEF_BUILTIN_LONG_VEC
 
-#define DEF_BUILTIN_UGENINTEGER                                                \
-  DEF_BUILTIN_UGENCHAR                                                         \
-  DEF_BUILTIN_UGENSHORT                                                        \
-  DEF_BUILTIN_UGENINT                                                          \
-  DEF_BUILTIN_UGENLONGINTEGER
+#define __SYCL_DEF_BUILTIN_IGENINTEGER                                         \
+  __SYCL_DEF_BUILTIN_IGENCHAR                                                  \
+  __SYCL_DEF_BUILTIN_GENSHORT                                                  \
+  __SYCL_DEF_BUILTIN_GENINT                                                    \
+  __SYCL_DEF_BUILTIN_IGENLONGINTEGER
 
-#define DEF_BUILTIN_SGENINTEGER                                                \
-  DEF_BUILTIN_CHAR_SCALAR                                                      \
-  DEF_BUILTIN_SIGENINTEGER                                                     \
-  DEF_BUILTIN_SUGENINTEGER
+#define __SYCL_DEF_BUILTIN_SUGENINTEGER                                        \
+  __SYCL_DEF_BUILTIN_UCHAR_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_USHORT_SCALAR                                             \
+  __SYCL_DEF_BUILTIN_UINT_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_ULONG_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_ULONGLONG_SCALAR
+
+// longlongn and longn have the same types, so we only include one here.
+#define __SYCL_DEF_BUILTIN_VUGENINTEGER                                        \
+  __SYCL_DEF_BUILTIN_UCHAR_VEC                                                 \
+  __SYCL_DEF_BUILTIN_USHORT_VEC                                                \
+  __SYCL_DEF_BUILTIN_UINT_VEC                                                  \
+  __SYCL_DEF_BUILTIN_ULONG_VEC
+
+#define __SYCL_DEF_BUILTIN_UGENINTEGER                                         \
+  __SYCL_DEF_BUILTIN_UGENCHAR                                                  \
+  __SYCL_DEF_BUILTIN_UGENSHORT                                                 \
+  __SYCL_DEF_BUILTIN_UGENINT                                                   \
+  __SYCL_DEF_BUILTIN_UGENLONGINTEGER
+
+#define __SYCL_DEF_BUILTIN_SGENINTEGER                                         \
+  __SYCL_DEF_BUILTIN_CHAR_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_SIGENINTEGER                                              \
+  __SYCL_DEF_BUILTIN_SUGENINTEGER
 
 // longlongn and long{n} have the same types, so we only include one here.
-#define DEF_BUILTIN_VGENINTEGER                                                \
-  DEF_BUILTIN_CHAR_VEC                                                         \
-  DEF_BUILTIN_SHORT_VEC                                                        \
-  DEF_BUILTIN_USHORT_VEC                                                       \
-  DEF_BUILTIN_INT_VEC                                                          \
-  DEF_BUILTIN_UINT_VEC                                                         \
-  DEF_BUILTIN_LONG_VEC                                                         \
-  DEF_BUILTIN_ULONG_VEC
+#define __SYCL_DEF_BUILTIN_VGENINTEGER                                         \
+  __SYCL_DEF_BUILTIN_CHAR_VEC                                                  \
+  __SYCL_DEF_BUILTIN_SHORT_VEC                                                 \
+  __SYCL_DEF_BUILTIN_USHORT_VEC                                                \
+  __SYCL_DEF_BUILTIN_INT_VEC                                                   \
+  __SYCL_DEF_BUILTIN_UINT_VEC                                                  \
+  __SYCL_DEF_BUILTIN_LONG_VEC                                                  \
+  __SYCL_DEF_BUILTIN_ULONG_VEC
 
-#define DEF_BUILTIN_GENINTEGER                                                 \
-  DEF_BUILTIN_GENCHAR                                                          \
-  DEF_BUILTIN_GENSHORT                                                         \
-  DEF_BUILTIN_UGENSHORT                                                        \
-  DEF_BUILTIN_GENINT                                                           \
-  DEF_BUILTIN_UGENINT                                                          \
-  DEF_BUILTIN_UGENLONGINTEGER                                                  \
-  DEF_BUILTIN_IGENLONGINTEGER
+#define __SYCL_DEF_BUILTIN_GENINTEGER                                          \
+  __SYCL_DEF_BUILTIN_GENCHAR                                                   \
+  __SYCL_DEF_BUILTIN_GENSHORT                                                  \
+  __SYCL_DEF_BUILTIN_UGENSHORT                                                 \
+  __SYCL_DEF_BUILTIN_GENINT                                                    \
+  __SYCL_DEF_BUILTIN_UGENINT                                                   \
+  __SYCL_DEF_BUILTIN_UGENLONGINTEGER                                           \
+  __SYCL_DEF_BUILTIN_IGENLONGINTEGER
 
-#define DEF_BUILTIN_FLOAT_SCALAR BUILTIN_DEF(float)
-#define DEF_BUILTIN_FLOAT_VEC DEF_BUILTIN_VEC(float)
-#define DEF_BUILTIN_FLOAT_GEOVEC DEF_BUILTIN_GEOVEC(float)
-#define DEF_BUILTIN_FLOAT_MARRAY DEF_BUILTIN_MARRAY(float)
-#define DEF_BUILTIN_FLOATN                                                     \
-  DEF_BUILTIN_FLOAT_VEC                                                        \
-  DEF_BUILTIN_FLOAT_MARRAY
-#define DEF_BUILTIN_GENFLOATF                                                  \
-  DEF_BUILTIN_FLOAT_SCALAR                                                     \
-  DEF_BUILTIN_FLOATN
-#define DEF_BUILTIN_GENGEOFLOATF                                               \
-  DEF_BUILTIN_FLOAT_SCALAR                                                     \
-  DEF_BUILTIN_FLOAT_GEOVEC
+#define __SYCL_DEF_BUILTIN_FLOAT_SCALAR __SYCL_BUILTIN_DEF(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_VEC __SYCL_DEF_BUILTIN_VEC(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(float)
+#define __SYCL_DEF_BUILTIN_FLOATN                                              \
+  __SYCL_DEF_BUILTIN_FLOAT_VEC                                                 \
+  __SYCL_DEF_BUILTIN_FLOAT_MARRAY
+#define __SYCL_DEF_BUILTIN_GENFLOATF                                           \
+  __SYCL_DEF_BUILTIN_FLOAT_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_FLOATN
+#define __SYCL_DEF_BUILTIN_GENGEOFLOATF                                        \
+  __SYCL_DEF_BUILTIN_FLOAT_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_FLOAT_GEOVEC
 
-#define DEF_BUILTIN_DOUBLE_SCALAR BUILTIN_DEF(double)
-#define DEF_BUILTIN_DOUBLE_VEC DEF_BUILTIN_VEC(double)
-#define DEF_BUILTIN_DOUBLE_GEOVEC DEF_BUILTIN_GEOVEC(double)
-#define DEF_BUILTIN_DOUBLE_MARRAY DEF_BUILTIN_MARRAY(double)
-#define DEF_BUILTIN_DOUBLEN                                                    \
-  DEF_BUILTIN_DOUBLE_VEC                                                       \
-  DEF_BUILTIN_DOUBLE_MARRAY
-#define DEF_BUILTIN_GENFLOATD                                                  \
-  DEF_BUILTIN_DOUBLE_SCALAR                                                    \
-  DEF_BUILTIN_DOUBLEN
-#define DEF_BUILTIN_GENGEOFLOATD                                               \
-  DEF_BUILTIN_DOUBLE_SCALAR                                                    \
-  DEF_BUILTIN_DOUBLE_GEOVEC
+#define __SYCL_DEF_BUILTIN_DOUBLE_SCALAR __SYCL_BUILTIN_DEF(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_VEC __SYCL_DEF_BUILTIN_VEC(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_MARRAY __SYCL_DEF_BUILTIN_MARRAY(double)
+#define __SYCL_DEF_BUILTIN_DOUBLEN                                             \
+  __SYCL_DEF_BUILTIN_DOUBLE_VEC                                                \
+  __SYCL_DEF_BUILTIN_DOUBLE_MARRAY
+#define __SYCL_DEF_BUILTIN_GENFLOATD                                           \
+  __SYCL_DEF_BUILTIN_DOUBLE_SCALAR                                             \
+  __SYCL_DEF_BUILTIN_DOUBLEN
+#define __SYCL_DEF_BUILTIN_GENGEOFLOATD                                        \
+  __SYCL_DEF_BUILTIN_DOUBLE_SCALAR                                             \
+  __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC
 
-#define DEF_BUILTIN_HALF_SCALAR BUILTIN_DEF(half)
-#define DEF_BUILTIN_HALF_VEC DEF_BUILTIN_VEC(half)
-#define DEF_BUILTIN_HALF_GEOVEC DEF_BUILTIN_GEOVEC(half)
-#define DEF_BUILTIN_HALF_MARRAY DEF_BUILTIN_MARRAY(half)
-#define DEF_BUILTIN_HALFN                                                      \
-  DEF_BUILTIN_HALF_VEC                                                         \
-  DEF_BUILTIN_HALF_MARRAY
-#define DEF_BUILTIN_GENFLOATH                                                  \
-  DEF_BUILTIN_HALF_SCALAR                                                      \
-  DEF_BUILTIN_HALFN
-#define DEF_BUILTIN_GENGEOFLOATH                                               \
-  DEF_BUILTIN_HALF_SCALAR                                                      \
-  DEF_BUILTIN_HALF_GEOVEC
+#define __SYCL_DEF_BUILTIN_HALF_SCALAR __SYCL_BUILTIN_DEF(half)
+#define __SYCL_DEF_BUILTIN_HALF_VEC __SYCL_DEF_BUILTIN_VEC(half)
+#define __SYCL_DEF_BUILTIN_HALF_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(half)
+#define __SYCL_DEF_BUILTIN_HALF_MARRAY __SYCL_DEF_BUILTIN_MARRAY(half)
+#define __SYCL_DEF_BUILTIN_HALFN                                               \
+  __SYCL_DEF_BUILTIN_HALF_VEC                                                  \
+  __SYCL_DEF_BUILTIN_HALF_MARRAY
+#define __SYCL_DEF_BUILTIN_GENFLOATH                                           \
+  __SYCL_DEF_BUILTIN_HALF_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_HALFN
+#define __SYCL_DEF_BUILTIN_GENGEOFLOATH                                        \
+  __SYCL_DEF_BUILTIN_HALF_SCALAR                                               \
+  __SYCL_DEF_BUILTIN_HALF_GEOVEC
 
-#define DEF_BUILTIN_SGENFLOAT                                                  \
-  DEF_BUILTIN_FLOAT_SCALAR                                                     \
-  DEF_BUILTIN_DOUBLE_SCALAR                                                    \
-  DEF_BUILTIN_HALF_SCALAR
+#define __SYCL_DEF_BUILTIN_SGENFLOAT                                           \
+  __SYCL_DEF_BUILTIN_FLOAT_SCALAR                                              \
+  __SYCL_DEF_BUILTIN_DOUBLE_SCALAR                                             \
+  __SYCL_DEF_BUILTIN_HALF_SCALAR
 
-#define DEF_BUILTIN_VGENFLOAT                                                  \
-  DEF_BUILTIN_FLOAT_VEC                                                        \
-  DEF_BUILTIN_DOUBLE_VEC                                                       \
-  DEF_BUILTIN_HALF_VEC
+#define __SYCL_DEF_BUILTIN_VGENFLOAT                                           \
+  __SYCL_DEF_BUILTIN_FLOAT_VEC                                                 \
+  __SYCL_DEF_BUILTIN_DOUBLE_VEC                                                \
+  __SYCL_DEF_BUILTIN_HALF_VEC
 
-#define DEF_BUILTIN_GENFLOAT                                                   \
-  DEF_BUILTIN_GENFLOATF                                                        \
-  DEF_BUILTIN_GENFLOATD                                                        \
-  DEF_BUILTIN_GENFLOATH
+#define __SYCL_DEF_BUILTIN_GENFLOAT                                            \
+  __SYCL_DEF_BUILTIN_GENFLOATF                                                 \
+  __SYCL_DEF_BUILTIN_GENFLOATD                                                 \
+  __SYCL_DEF_BUILTIN_GENFLOATH
 
-#define DEF_BUILTIN_GENGEOFLOAT                                                \
-  DEF_BUILTIN_GENGEOFLOATF                                                     \
-  DEF_BUILTIN_GENGEOFLOATD                                                     \
-  DEF_BUILTIN_GENGEOFLOATH
+#define __SYCL_DEF_BUILTIN_GENGEOFLOAT                                         \
+  __SYCL_DEF_BUILTIN_GENGEOFLOATF                                              \
+  __SYCL_DEF_BUILTIN_GENGEOFLOATD                                              \
+  __SYCL_DEF_BUILTIN_GENGEOFLOATH
 
 // TODO: Replace with overloads.
 #ifdef __FAST_MATH__
@@ -323,20 +326,20 @@ namespace __sycl_std = __host_std;
 #endif
 
 #ifdef __FAST_MATH__
-#define DEF_BUILTIN_FAST_MATH_GENFLOAT                                         \
-  DEF_BUILTIN_GENFLOATD                                                        \
-  DEF_BUILTIN_GENFLOATH
+#define __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT                                  \
+  __SYCL_DEF_BUILTIN_GENFLOATD                                                 \
+  __SYCL_DEF_BUILTIN_GENFLOATH
 #else
-#define DEF_BUILTIN_FAST_MATH_GENFLOAT DEF_BUILTIN_GENFLOAT
+#define __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT __SYCL_DEF_BUILTIN_GENFLOAT
 #endif
 
-#define DEF_BUILTIN_SGENTYPE                                                   \
-  DEF_BUILTIN_SGENINTEGER                                                      \
-  DEF_BUILTIN_SGENFLOAT
+#define __SYCL_DEF_BUILTIN_SGENTYPE                                            \
+  __SYCL_DEF_BUILTIN_SGENINTEGER                                               \
+  __SYCL_DEF_BUILTIN_SGENFLOAT
 
-#define DEF_BUILTIN_GENTYPE                                                    \
-  DEF_BUILTIN_GENINTEGER                                                       \
-  DEF_BUILTIN_GENFLOAT
+#define __SYCL_DEF_BUILTIN_GENTYPE                                             \
+  __SYCL_DEF_BUILTIN_GENINTEGER                                                \
+  __SYCL_DEF_BUILTIN_GENFLOAT
 
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 
@@ -600,254 +603,254 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
 // genfloat acos (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE acos(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_acos<TYPE>(x);                                 \
   }
-        DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+        __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat acosh (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE acosh(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_acosh<TYPE>(x);                                \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat acospi (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE acospi(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_acospi<TYPE>(x);                               \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat asin (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE asin(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_asin<TYPE>(x);                                 \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat asinh (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE asinh(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_asinh<TYPE>(x);                                \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat asinpi (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE asinpi(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_asinpi<TYPE>(x);                               \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat atan (genfloat y_over_x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atan(TYPE y_over_x) __NOEXC {                                    \
     return __sycl_std::__invoke_atan<TYPE>(y_over_x);                          \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat atan2 (genfloat y, genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atan2(TYPE y, TYPE x) __NOEXC {                                  \
     return __sycl_std::__invoke_atan2<TYPE>(y, x);                             \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat atanh (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atanh(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_atanh<TYPE>(x);                                \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat atanpi (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atanpi(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_atanpi<TYPE>(x);                               \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat atan2pi (genfloat y, genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atan2pi(TYPE y, TYPE x) __NOEXC {                                \
     return __sycl_std::__invoke_atan2pi<TYPE>(y, x);                           \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat cbrt (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cbrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_cbrt<TYPE>(x);                                 \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat ceil (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE ceil(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_ceil<TYPE>(x);                                 \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat copysign (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE copysign(TYPE y, TYPE x) __NOEXC {                               \
     return __sycl_std::__invoke_copysign<TYPE>(y, x);                          \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat cos (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cos(TYPE x) __NOEXC { return __sycl_std::__invoke_cos<TYPE>(x); }
-    DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat cosh (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cosh(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_cosh<TYPE>(x);                                 \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat cospi (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cospi(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_cospi<TYPE>(x);                                \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat erfc (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE erfc(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_erfc<TYPE>(x);                                 \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat erf (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE erf(TYPE x) __NOEXC { return __sycl_std::__invoke_erf<TYPE>(x); }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat exp (genfloat x )
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp(TYPE x) __NOEXC { return __sycl_std::__invoke_exp<TYPE>(x); }
-    DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat exp2 (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_exp2<TYPE>(x);                                 \
   }
-    DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat exp10 (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_exp10<TYPE>(x);                                \
   }
-    DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat expm1 (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE expm1(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_expm1<TYPE>(x);                                \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fabs (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fabs(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_fabs<TYPE>(x);                                 \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fdim (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fdim(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fdim<TYPE>(x, y);                              \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat floor (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE floor(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_floor<TYPE>(x);                                \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fma (genfloat a, genfloat b, genfloat c)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fma(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
     return __sycl_std::__invoke_fma<TYPE>(a, b, c);                            \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fmax (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fmax(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fmax<TYPE>(x, y);                              \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fmax (genfloat x, sgenfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fmax(TYPE x, TYPE::element_type y) __NOEXC {                     \
     return __sycl_std::__invoke_fmax<TYPE>(x, TYPE(y));                        \
   }
-    DEF_BUILTIN_VGENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_VGENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fmin (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fmin(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fmin<TYPE>(x, y);                              \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fmin (genfloat x, sgenfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fmin(TYPE x, TYPE::element_type y) __NOEXC {                     \
     return __sycl_std::__invoke_fmin<TYPE>(x, TYPE(y));                        \
   }
-    DEF_BUILTIN_VGENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_VGENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat fmod (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fmod(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fmod<TYPE>(x, y);                              \
   }
-    DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+    __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
     // svgenfloat fract (svgenfloat x, genfloatptr iptr)
     template <typename T, typename T2>
@@ -868,39 +871,39 @@ frexp(T x, T2 exp) __NOEXC {
 }
 
 // genfloat hypot (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE hypot(TYPE x, TYPE y) __NOEXC {                                  \
     return __sycl_std::__invoke_hypot<TYPE>(x, y);                             \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genint ilogb (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline detail::change_base_type_t<TYPE, int> ilogb(TYPE x) __NOEXC {         \
     return __sycl_std::__invoke_ilogb<detail::change_base_type_t<TYPE, int>>(  \
         x);                                                                    \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // float ldexp (float x, int k)
 // double ldexp (double x, int k)
 // half ldexp (half x, int k)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE ldexp(TYPE x, int k) __NOEXC {                                   \
     return __sycl_std::__invoke_ldexp<TYPE>(x, k);                             \
   }
-DEF_BUILTIN_SGENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_SGENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // vgenfloat ldexp (vgenfloat x, int k)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE ldexp(TYPE x, int k) __NOEXC {                                   \
     return __sycl_std::__invoke_ldexp<TYPE>(x, vec<int, TYPE::size()>(k));     \
   }
-DEF_BUILTIN_VGENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_VGENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // vgenfloat ldexp (vgenfloat x, genint k)
 template <typename T, typename T2>
@@ -912,12 +915,12 @@ ldexp(T x, T2 k) __NOEXC {
 }
 
 // genfloat lgamma (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE lgamma(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_lgamma<TYPE>(x);                               \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // svgenfloat lgamma_r (svgenfloat x, genintptr signp)
 template <typename T, typename T2>
@@ -929,66 +932,66 @@ lgamma_r(T x, T2 signp) __NOEXC {
 }
 
 // genfloat log (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log(TYPE x) __NOEXC { return __sycl_std::__invoke_log<TYPE>(x); }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat log2 (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_log2<TYPE>(x);                                 \
   }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat log10 (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_log10<TYPE>(x);                                \
   }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat log1p (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log1p(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_log1p<TYPE>(x);                                \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat logb (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE logb(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_logb<TYPE>(x);                                 \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat mad (genfloat a, genfloat b, genfloat c)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE mad(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
     return __sycl_std::__invoke_mad<TYPE>(a, b, c);                            \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat maxmag (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE maxmag(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_maxmag<TYPE>(x, y);                            \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat minmag (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE minmag(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_minmag<TYPE>(x, y);                            \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // svgenfloat modf (svgenfloat x, genfloatptr iptr)
 template <typename T, typename T2>
@@ -1007,20 +1010,20 @@ detail::nan_return_t<T> nan(T nancode) __NOEXC {
 }
 
 // genfloat nextafter (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE nextafter(TYPE x, TYPE y) __NOEXC {                              \
     return __sycl_std::__invoke_nextafter<TYPE>(x, y);                         \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat pow (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE pow(TYPE x, TYPE y) __NOEXC {                                    \
     return __sycl_std::__invoke_pow<TYPE>(x, y);                               \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // svgenfloat pown (svgenfloat x, genint y)
 template <typename T, typename T2>
@@ -1032,20 +1035,20 @@ pown(T x, T2 y) __NOEXC {
 }
 
 // genfloat powr (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_powr<TYPE>(x, y);                              \
   }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat remainder (genfloat x, genfloat y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE remainder(TYPE x, TYPE y) __NOEXC {                              \
     return __sycl_std::__invoke_remainder<TYPE>(x, y);                         \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // svgenfloat remquo (svgenfloat x, svgenfloat y, genintptr quo)
 template <typename T, typename T2>
@@ -1057,12 +1060,12 @@ remquo(T x, T y, T2 quo) __NOEXC {
 }
 
 // genfloat rint (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE rint(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_rint<TYPE>(x);                                 \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // svgenfloat rootn (svgenfloat x, genint y)
 template <typename T, typename T2>
@@ -1074,26 +1077,26 @@ rootn(T x, T2 y) __NOEXC {
 }
 
 // genfloat round (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE round(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_round<TYPE>(x);                                \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat rsqrt (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_rsqrt<TYPE>(x);                                \
   }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat sin (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sin(TYPE x) __NOEXC { return __sycl_std::__invoke_sin<TYPE>(x); }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // svgenfloat sincos (svgenfloat x, genfloatptr cosval)
 template <typename T, typename T2>
@@ -1105,66 +1108,66 @@ sincos(T x, T2 cosval) __NOEXC {
 }
 
 // genfloat sinh (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sinh(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_sinh<TYPE>(x);                                 \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat sinpi (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sinpi(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_sinpi<TYPE>(x);                                \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat sqrt (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sqrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_sqrt<TYPE>(x);                                 \
   }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat tan (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tan(TYPE x) __NOEXC { return __sycl_std::__invoke_tan<TYPE>(x); }
-DEF_BUILTIN_FAST_MATH_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat tanh (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tanh(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_tanh<TYPE>(x);                                 \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat tanpi (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tanpi(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_tanpi<TYPE>(x);                                \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat tgamma (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tgamma(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_tgamma<TYPE>(x);                               \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // genfloat trunc (genfloat x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE trunc(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_trunc<TYPE>(x);                                \
   }
-DEF_BUILTIN_GENFLOAT
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
 
 // other marray math functions
 
@@ -2615,144 +2618,158 @@ __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(powr)
 #undef __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD
 
 // genfloatf cos (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cos(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_cos<TYPE>(x);                           \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf divide (genfloatf x, genfloatf y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE divide(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_native_divide<TYPE>(x, y);                     \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_exp<TYPE>(x);                           \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp2 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_exp2<TYPE>(x);                          \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp10 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_exp10<TYPE>(x);                         \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_log<TYPE>(x);                           \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log2 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_log2<TYPE>(x);                          \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log10 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_log10<TYPE>(x);                         \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf powr (genfloatf x, genfloatf y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_native_powr<TYPE>(x, y);                       \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf recip (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE recip(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_recip<TYPE>(x);                         \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf rsqrt (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_rsqrt<TYPE>(x);                         \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf sin (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sin(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_sin<TYPE>(x);                           \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf sqrt (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sqrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_sqrt<TYPE>(x);                          \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf tan (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tan(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_tan<TYPE>(x);                           \
   }
-// TODO: Replace with DEF_BUILTIN_GENFLOAT when merged with above definition.
-DEF_BUILTIN_FLOAT_SCALAR
-DEF_BUILTIN_FLOAT_VEC
-#undef BUILTIN_DEF
+// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
+// definition.
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
+#undef __SYCL_BUILTIN_DEF
 
 } // namespace native
 namespace half_precision {
@@ -2811,116 +2828,116 @@ __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(powr)
 #undef __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD
 
 // genfloatf cos (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cos(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_cos<TYPE>(x);                             \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf divide (genfloatf x, genfloatf y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE divide(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_half_divide<TYPE>(x, y);                       \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_exp<TYPE>(x);                             \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp2 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_half_exp2<TYPE>(x);                            \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp10 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_exp10<TYPE>(x);                           \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_log<TYPE>(x);                             \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log2 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_half_log2<TYPE>(x);                            \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log10 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_log10<TYPE>(x);                           \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf powr (genfloatf x, genfloatf y)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_half_powr<TYPE>(x, y);                         \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf recip (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE recip(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_recip<TYPE>(x);                           \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf rsqrt (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_half_rsqrt<TYPE>(x);                           \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf sin (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sin(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_sin<TYPE>(x);                             \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf sqrt (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sqrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_half_sqrt<TYPE>(x);                            \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf tan (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tan(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_half_tan<TYPE>(x);                             \
   }
-DEF_BUILTIN_FLOAT_SCALAR
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_FLOAT_SCALAR
+#undef __SYCL_BUILTIN_DEF
 
 } // namespace half_precision
 
@@ -2949,76 +2966,76 @@ __SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
 #undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
 
 // genfloatf cos (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cos(TYPE x) __NOEXC { return native::cos(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp(TYPE x) __NOEXC { return native::exp(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp2 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp2(TYPE x) __NOEXC { return native::exp2(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp10 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp10(TYPE x) __NOEXC { return native::exp10(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log(genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log(TYPE x) __NOEXC { return native::log(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log2 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log2(TYPE x) __NOEXC { return native::log2(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf log10 (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log10(TYPE x) __NOEXC { return native::log10(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf powr (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE powr(TYPE x, TYPE y) __NOEXC { return native::powr(x, y); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf rsqrt (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE rsqrt(TYPE x) __NOEXC { return native::rsqrt(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf sin (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sin(TYPE x) __NOEXC { return native::sin(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf sqrt (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sqrt(TYPE x) __NOEXC { return native::sqrt(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 // genfloatf tan (genfloatf x)
-#define BUILTIN_DEF(TYPE)                                                      \
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tan(TYPE x) __NOEXC { return native::tan(x); }
-DEF_BUILTIN_GENFLOATF
-#undef BUILTIN_DEF
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
 
 #endif // __FAST_MATH__
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
