@@ -179,7 +179,7 @@ void SPIRVEntry::encodeLine(spv_ostream &O) const {
   if (!Module)
     return;
   const std::shared_ptr<const SPIRVLine> &CurrLine = Module->getCurrentLine();
-  if (Line && ((CurrLine && *Line != *CurrLine) || !CurrLine)) {
+  if (Line && (!CurrLine || *Line != *CurrLine)) {
     O << *Line;
     Module->setCurrentLine(Line);
   }
@@ -187,8 +187,43 @@ void SPIRVEntry::encodeLine(spv_ostream &O) const {
     Module->setCurrentLine(nullptr);
 }
 
+namespace {
+bool isDebugLineEqual(const SPIRVExtInst &DL1, const SPIRVExtInst &DL2) {
+  std::vector<SPIRVWord> DL1Args = DL1.getArguments();
+  std::vector<SPIRVWord> DL2Args = DL2.getArguments();
+
+  using namespace SPIRVDebug::Operand::DebugLine;
+  assert(DL1Args.size() == OperandCount && DL2Args.size() == OperandCount &&
+         "Invalid number of operands");
+  return DL1Args[SourceIdx] == DL2Args[SourceIdx] &&
+         DL1Args[StartIdx] == DL2Args[StartIdx] &&
+         DL1Args[EndIdx] == DL2Args[EndIdx] &&
+         DL1Args[ColumnStartIdx] == DL2Args[ColumnStartIdx] &&
+         DL1Args[ColumnEndIdx] == DL2Args[ColumnEndIdx];
+}
+} // namespace
+
+void SPIRVEntry::encodeDebugLine(spv_ostream &O) const {
+  if (!Module)
+    return;
+  const std::shared_ptr<const SPIRVExtInst> &CurrDebugLine =
+      Module->getCurrentDebugLine();
+  if (DebugLine &&
+      (!CurrDebugLine || !isDebugLineEqual(*DebugLine, *CurrDebugLine))) {
+    O << *DebugLine;
+    Module->setCurrentDebugLine(DebugLine);
+  }
+  if (isEndOfBlock() ||
+      isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                SPIRVDebug::DebugNoLine) ||
+      isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                SPIRVDebug::DebugNoLine))
+    Module->setCurrentDebugLine(nullptr);
+}
+
 void SPIRVEntry::encodeAll(spv_ostream &O) const {
   encodeLine(O);
+  encodeDebugLine(O);
   encodeWordCountOpCode(O);
   encode(O);
   encodeChildren(O);
@@ -303,6 +338,11 @@ void SPIRVEntry::takeDecorateIds(SPIRVEntry *E) {
 void SPIRVEntry::setLine(const std::shared_ptr<const SPIRVLine> &L) {
   Line = L;
   SPIRVDBG(if (L) spvdbgs() << "[setLine] " << *L << '\n';)
+}
+
+void SPIRVEntry::setDebugLine(const std::shared_ptr<const SPIRVExtInst> &DL) {
+  DebugLine = DL;
+  SPIRVDBG(if (DL) spvdbgs() << "[setDebugLine] " << *DL << '\n';)
 }
 
 void SPIRVEntry::addMemberDecorate(SPIRVMemberDecorate *Dec) {
@@ -661,8 +701,6 @@ void SPIRVLine::encode(spv_ostream &O) const {
 
 void SPIRVLine::decode(std::istream &I) {
   getDecoder(I) >> FileName >> Line >> Column;
-  std::shared_ptr<const SPIRVLine> L(this);
-  Module->setCurrentLine(L);
 }
 
 void SPIRVLine::validate() const {

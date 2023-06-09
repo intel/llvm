@@ -57,6 +57,8 @@ enum Instruction {
   InstCount                     = 37,
   FunctionDefinition            = 101,
   SourceContinued               = 102,
+  DebugLine                     = 103,
+  DebugNoLine                   = 104,
   BuildIdentifier               = 105,
   StoragePath                   = 106,
   EntryPoint                    = 107,
@@ -624,6 +626,23 @@ namespace SourceContinued {
 enum {
   TextIdx      = 0,
   OperandCount = 1
+};
+}
+
+namespace DebugLine {
+enum {
+  SourceIdx      = 0,
+  StartIdx       = 1,
+  EndIdx         = 2,
+  ColumnStartIdx = 3,
+  ColumnEndIdx   = 4,
+  OperandCount   = 5
+};
+}
+
+namespace DebugNoLine {
+enum {
+  OperandCount = 0
 };
 }
 
