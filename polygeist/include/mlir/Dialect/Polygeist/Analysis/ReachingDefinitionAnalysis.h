@@ -112,6 +112,11 @@ public:
 
   void print(raw_ostream &os) const override { os << *this; }
 
+  /// Returns the unique definition for the operand at index \p opIndex in
+  /// operation \p op, or std::nullopt if it does not have a unique definition.
+  static std::optional<Definition>
+  getUniqueDefinition(unsigned opIndex, Operation *op, DataFlowSolver &solver);
+
 private:
   /// A map between a memory resource (Value) and the definitions that have
   /// modified the memory resource last.
