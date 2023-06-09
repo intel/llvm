@@ -44,10 +44,6 @@
 // ------------------------------------
 
 static constexpr const char *DirSep = "\\";
-using OSModuleHandle = intptr_t;
-/// Module handle for the executable module - it is assumed there is always
-/// single one at most.
-static constexpr OSModuleHandle ExeModuleHandle = -1;
 
 // cribbed from sycl/source/detail/os_util.cpp
 std::string getDirName(const char *Path) {
@@ -64,7 +60,10 @@ std::string getDirName(const char *Path) {
 }
 
 // cribbed from sycl/source/detail/os_util.cpp
-OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
+// TODO: Just inline it.
+using OSModuleHandle = intptr_t;
+static constexpr OSModuleHandle ExeModuleHandle = -1;
+static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
   HMODULE PhModule;
   DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;

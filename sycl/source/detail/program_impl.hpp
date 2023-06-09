@@ -154,8 +154,7 @@ public:
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param Module is an OS handle to user code module.
   void compile_with_kernel_name(std::string KernelName,
-                                std::string CompileOptions,
-                                OSModuleHandle Module);
+                                std::string CompileOptions);
 
   /// Compiles the OpenCL C kernel function defined by source string.
   ///
@@ -188,8 +187,7 @@ public:
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param BuildOptions is a string containing OpenCL compile options.
   /// \param M is an OS handle to user code module.
-  void build_with_kernel_name(std::string KernelName, std::string BuildOptions,
-                              OSModuleHandle M);
+  void build_with_kernel_name(std::string KernelName, std::string BuildOptions);
 
   /// Builds the OpenCL C kernel function defined by source code.
   ///
@@ -322,13 +320,6 @@ public:
   void flush_spec_constants(const RTDeviceBinaryImage &Img,
                             RT::PiProgram NativePrg = nullptr) const;
 
-  /// Returns the OS module handle this program belongs to. A program belongs to
-  /// an OS module if it was built from device image(s) belonging to that
-  /// module.
-  /// TODO Some programs can be linked from images belonging to different
-  ///      modules. May need a special fake handle for the resulting program.
-  OSModuleHandle getOSModuleHandle() const { return MProgramModuleHandle; }
-
   void stableSerializeSpecConstRegistry(SerializedObj &Dst) const {
     detail::stableSerializeSpecConstRegistry(SpecConstRegistry, Dst);
   }
@@ -372,8 +363,7 @@ private:
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   void
-  create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                     const std::string &KernelName,
+  create_pi_program_with_kernel_name(const std::string &KernelName,
                                      bool JITCompilationIsRequired = false);
 
   /// Creates an OpenCL program from OpenCL C source code.
@@ -435,7 +425,6 @@ private:
   std::string MCompileOptions;
   std::string MLinkOptions;
   std::string MBuildOptions;
-  OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
 
   // Keeps specialization constant map for this program. Spec constant name
   // resolution to actual SPIR-V integer ID happens at build time, where the
