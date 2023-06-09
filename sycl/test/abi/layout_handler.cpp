@@ -15,7 +15,7 @@ void foo() {
 // clang-format off
 
 // The order of field declarations and their types are important.
-// CHECK-NEXT:   0 | class sycl::handler
+// CHECK:        0 | class sycl::handler
 // CHECK-NEXT:   0 |   class std::shared_ptr<class sycl::detail::handler_impl> MImpl
 // CHECK-NEXT:   0 |     class std::__shared_ptr<class sycl::detail::handler_impl> (base)
 // CHECK-NEXT:   0 |       class std::__shared_ptr_access<class sycl::detail::handler_impl, __gnu_cxx::_S_atomic> (base) (empty)
@@ -34,8 +34,7 @@ void foo() {
 // CHECK-NEXT:  32 |         struct std::_Vector_base<class std::vector<char>, class std::allocator<class std::vector<char> > >::_Vector_impl _M_impl
 // CHECK-NEXT:  32 |           class std::allocator<class std::vector<char> > (base) (empty)
 // CHECK-NEXT:  32 |             class __gnu_cxx::new_allocator<class std::vector<char> > (base) (empty)
-// CHECK-NEXT:  32 |           struct std::_Vector_base<class std::vector<char>, class std::allocator<class std::vector<char> > >::_Vector_impl_data (base)
-// CHECK-NEXT:  32 |             pointer _M_start
+// CHECK:       32 |             pointer _M_start
 // CHECK-NEXT:  40 |             pointer _M_finish
 // CHECK-NEXT:  48 |             pointer _M_end_of_storage
 // CHECK-NEXT:  56 |     class std::vector<class std::shared_ptr<class sycl::detail::AccessorImplHost> > MAccStorage
@@ -43,8 +42,7 @@ void foo() {
 // CHECK-NEXT:  56 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::AccessorImplHost>, class std::allocator<class std::shared_ptr<class sycl::detail::AccessorImplHost> > >::_Vector_impl _M_impl
 // CHECK-NEXT:  56 |           class std::allocator<class std::shared_ptr<class sycl::detail::AccessorImplHost> > (base) (empty)
 // CHECK-NEXT:  56 |             class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::AccessorImplHost> > (base) (empty)
-// CHECK-NEXT:  56 |           struct std::_Vector_base<class std::shared_ptr<class sycl::detail::AccessorImplHost>, class std::allocator<class std::shared_ptr<class sycl::detail::AccessorImplHost> > >::_Vector_impl_data (base)
-// CHECK-NEXT:  56 |             pointer _M_start
+// CHECK:       56 |             pointer _M_start
 // CHECK-NEXT:  64 |             pointer _M_finish
 // CHECK-NEXT:  72 |             pointer _M_end_of_storage
 // CHECK-NEXT:  80 |     class std::vector<class std::shared_ptr<const void> > MSharedPtrStorage
@@ -52,8 +50,7 @@ void foo() {
 // CHECK-NEXT:  80 |         struct std::_Vector_base<class std::shared_ptr<const void>, class std::allocator<class std::shared_ptr<const void> > >::_Vector_impl _M_impl
 // CHECK-NEXT:  80 |           class std::allocator<class std::shared_ptr<const void> > (base) (empty)
 // CHECK-NEXT:  80 |             class __gnu_cxx::new_allocator<class std::shared_ptr<const void> > (base) (empty)
-// CHECK-NEXT:  80 |           struct std::_Vector_base<class std::shared_ptr<const void>, class std::allocator<class std::shared_ptr<const void> > >::_Vector_impl_data (base)
-// CHECK-NEXT:  80 |             pointer _M_start
+// CHECK:       80 |             pointer _M_start
 // CHECK-NEXT:  88 |             pointer _M_finish
 // CHECK-NEXT:  96 |             pointer _M_end_of_storage
 // CHECK-NEXT: 104 |     class std::vector<class sycl::detail::AccessorImplHost *> MRequirements
@@ -61,8 +58,7 @@ void foo() {
 // CHECK-NEXT: 104 |         struct std::_Vector_base<class sycl::detail::AccessorImplHost *, class std::allocator<class sycl::detail::AccessorImplHost *> >::_Vector_impl _M_impl
 // CHECK-NEXT: 104 |           class std::allocator<class sycl::detail::AccessorImplHost *> (base) (empty)
 // CHECK-NEXT: 104 |             class __gnu_cxx::new_allocator<class sycl::detail::AccessorImplHost *> (base) (empty)
-// CHECK-NEXT: 104 |           struct std::_Vector_base<class sycl::detail::AccessorImplHost *, class std::allocator<class sycl::detail::AccessorImplHost *> >::_Vector_impl_data (base)
-// CHECK-NEXT: 104 |             pointer _M_start
+// CHECK:      104 |             pointer _M_start
 // CHECK-NEXT: 112 |             pointer _M_finish
 // CHECK-NEXT: 120 |             pointer _M_end_of_storage
 // CHECK-NEXT: 128 |     class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEvents
@@ -70,8 +66,7 @@ void foo() {
 // CHECK-NEXT: 128 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl _M_impl
 // CHECK-NEXT: 128 |           class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
 // CHECK-NEXT: 128 |             class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
-// CHECK-NEXT: 128 |           struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl_data (base)
-// CHECK-NEXT: 128 |             pointer _M_start
+// CHECK:      128 |             pointer _M_start
 // CHECK-NEXT: 136 |             pointer _M_finish
 // CHECK-NEXT: 144 |             pointer _M_end_of_storage
 // CHECK-NEXT: 152 |   class std::vector<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > MLocalAccStorage
@@ -79,8 +74,7 @@ void foo() {
 // CHECK-NEXT: 152 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost>, class std::allocator<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > >::_Vector_impl _M_impl
 // CHECK-NEXT: 152 |         class std::allocator<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > (base) (empty)
 // CHECK-NEXT: 152 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > (base) (empty)
-// CHECK-NEXT: 152 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost>, class std::allocator<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > >::_Vector_impl_data (base)
-// CHECK-NEXT: 152 |           pointer _M_start
+// CHECK:      152 |           pointer _M_start
 // CHECK-NEXT: 160 |           pointer _M_finish
 // CHECK-NEXT: 168 |           pointer _M_end_of_storage
 // CHECK-NEXT: 176 |   class std::vector<class std::shared_ptr<class sycl::detail::stream_impl> > MStreamStorage
@@ -88,8 +82,7 @@ void foo() {
 // CHECK-NEXT: 176 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::stream_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::stream_impl> > >::_Vector_impl _M_impl
 // CHECK-NEXT: 176 |         class std::allocator<class std::shared_ptr<class sycl::detail::stream_impl> > (base) (empty)
 // CHECK-NEXT: 176 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::stream_impl> > (base) (empty)
-// CHECK-NEXT: 176 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::stream_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::stream_impl> > >::_Vector_impl_data (base)
-// CHECK-NEXT: 176 |           pointer _M_start
+// CHECK:      176 |           pointer _M_start
 // CHECK-NEXT: 184 |           pointer _M_finish
 // CHECK-NEXT: 192 |           pointer _M_end_of_storage
 // CHECK-NEXT: 200 |   class std::vector<class sycl::detail::ArgDesc> MArgs
@@ -97,8 +90,7 @@ void foo() {
 // CHECK-NEXT: 200 |       struct std::_Vector_base<class sycl::detail::ArgDesc, class std::allocator<class sycl::detail::ArgDesc> >::_Vector_impl _M_impl
 // CHECK-NEXT: 200 |         class std::allocator<class sycl::detail::ArgDesc> (base) (empty)
 // CHECK-NEXT: 200 |           class __gnu_cxx::new_allocator<class sycl::detail::ArgDesc> (base) (empty)
-// CHECK-NEXT: 200 |         struct std::_Vector_base<class sycl::detail::ArgDesc, class std::allocator<class sycl::detail::ArgDesc> >::_Vector_impl_data (base)
-// CHECK-NEXT: 200 |           pointer _M_start
+// CHECK:      200 |           pointer _M_start
 // CHECK-NEXT: 208 |           pointer _M_finish
 // CHECK-NEXT: 216 |           pointer _M_end_of_storage
 // CHECK-NEXT: 224 |   class std::vector<class sycl::detail::ArgDesc> MAssociatedAccesors
@@ -106,8 +98,7 @@ void foo() {
 // CHECK-NEXT: 224 |       struct std::_Vector_base<class sycl::detail::ArgDesc, class std::allocator<class sycl::detail::ArgDesc> >::_Vector_impl _M_impl
 // CHECK-NEXT: 224 |         class std::allocator<class sycl::detail::ArgDesc> (base) (empty)
 // CHECK-NEXT: 224 |           class __gnu_cxx::new_allocator<class sycl::detail::ArgDesc> (base) (empty)
-// CHECK-NEXT: 224 |         struct std::_Vector_base<class sycl::detail::ArgDesc, class std::allocator<class sycl::detail::ArgDesc> >::_Vector_impl_data (base)
-// CHECK-NEXT: 224 |           pointer _M_start
+// CHECK:      224 |           pointer _M_start
 // CHECK-NEXT: 232 |           pointer _M_finish
 // CHECK-NEXT: 240 |           pointer _M_end_of_storage
 // CHECK-NEXT: 248 |   class sycl::detail::NDRDescT MNDRDesc
@@ -130,7 +121,7 @@ void foo() {
 // CHECK-NEXT: 352 |         class __gnu_cxx::new_allocator<char> (base) (empty)
 // CHECK-NEXT: 352 |       pointer _M_p
 // CHECK-NEXT: 360 |     size_type _M_string_length
-// CHECK-NEXT: 368 |     union std::basic_string<char>::(anonymous at /usr/lib/gcc/x86_64-linux-gnu/9/../../../../include/c++/9/bits/basic_string.h:175:7) 
+// CHECK-NEXT: 368 |     union std::basic_string<char>::(anonymous at {{.*}})
 // CHECK-NEXT: 368 |       char[16] _M_local_buf
 // CHECK-NEXT: 368 |       size_type _M_allocated_capacity
 // CHECK-NEXT: 384 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
@@ -148,44 +139,36 @@ void foo() {
 // CHECK-NEXT: 432 |       struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl _M_impl
 // CHECK-NEXT: 432 |         class std::allocator<char> (base) (empty)
 // CHECK-NEXT: 432 |           class __gnu_cxx::new_allocator<char> (base) (empty)
-// CHECK-NEXT: 432 |         struct std::_Vector_base<char, class std::allocator<char> >::_Vector_impl_data (base)
-// CHECK-NEXT: 432 |           pointer _M_start
+// CHECK:      432 |           pointer _M_start
 // CHECK-NEXT: 440 |           pointer _M_finish
 // CHECK-NEXT: 448 |           pointer _M_end_of_storage
 // CHECK-NEXT: 456 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK-NEXT: 456 |     class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
+// CHECK:      456 |     class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT: 456 |       class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
 // CHECK-NEXT: 456 |         struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
 // CHECK-NEXT: 456 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
-// CHECK-NEXT: 456 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)
-// CHECK-NEXT: 456 |               struct std::default_delete<class sycl::detail::HostKernelBase> (base) (empty)
-// CHECK-NEXT: 456 |           struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
+// CHECK:      456 |           struct std::_Head_base<0, class sycl::detail::HostKernelBase *> (base)
 // CHECK-NEXT: 456 |             class sycl::detail::HostKernelBase * _M_head_impl
 // CHECK-NEXT: 464 |   class std::unique_ptr<class sycl::detail::HostTask> MHostTask
-// CHECK-NEXT: 464 |     class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> > _M_t
+// CHECK:      464 |     class std::__uniq_ptr_impl<class sycl::detail::HostTask, struct std::default_delete<class sycl::detail::HostTask> >
 // CHECK-NEXT: 464 |       class std::tuple<class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > _M_t
 // CHECK-NEXT: 464 |         struct std::_Tuple_impl<0, class sycl::detail::HostTask *, struct std::default_delete<class sycl::detail::HostTask> > (base)
 // CHECK-NEXT: 464 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
-// CHECK-NEXT: 464 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
-// CHECK-NEXT: 464 |               struct std::default_delete<class sycl::detail::HostTask> (base) (empty)
-// CHECK-NEXT: 464 |           struct std::_Head_base<0, class sycl::detail::HostTask *> (base)
+// CHECK:      464 |           struct std::_Head_base<0, class sycl::detail::HostTask *> (base)
 // CHECK-NEXT: 464 |             class sycl::detail::HostTask * _M_head_impl
 // CHECK-NEXT: 472 |   class std::unique_ptr<class sycl::detail::InteropTask> MInteropTask
-// CHECK-NEXT: 472 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
+// CHECK:      472 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> >
 // CHECK-NEXT: 472 |       class std::tuple<class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
 // CHECK-NEXT: 472 |         struct std::_Tuple_impl<0, class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > (base)
 // CHECK-NEXT: 472 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
-// CHECK-NEXT: 472 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
-// CHECK-NEXT: 472 |               struct std::default_delete<class sycl::detail::InteropTask> (base) (empty)
-// CHECK-NEXT: 472 |           struct std::_Head_base<0, class sycl::detail::InteropTask *> (base)
+// CHECK:      472 |           struct std::_Head_base<0, class sycl::detail::InteropTask *> (base)
 // CHECK-NEXT: 472 |             class sycl::detail::InteropTask * _M_head_impl
 // CHECK-NEXT: 480 |   class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEventsWaitWithBarrier
 // CHECK-NEXT: 480 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > > (base)
 // CHECK-NEXT: 480 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl _M_impl
 // CHECK-NEXT: 480 |         class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
 // CHECK-NEXT: 480 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
-// CHECK-NEXT: 480 |         struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl_data (base)
-// CHECK-NEXT: 480 |           pointer _M_start
+// CHECK:      480 |           pointer _M_start
 // CHECK-NEXT: 488 |           pointer _M_finish
 // CHECK-NEXT: 496 |           pointer _M_end_of_storage
 // CHECK-NEXT: 504 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::graph_impl> MGraph
