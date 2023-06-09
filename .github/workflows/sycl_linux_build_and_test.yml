@@ -64,38 +64,11 @@ on:
         type: string
         required: false
         default: 'SYCL-2020'
-      mlir_sycl_doc:
+      check_filters:
         type: string
+        description: 'Filter matches for the changed files in the PR'
+        default: '[mlir_sycl, polygeist, cgeist, clang]'
         required: false
-        default: 'true'
-      polygeist_doc:
-        type: string
-        required: false
-        default: 'true'
-      check_mlir_sycl:
-        type: string
-        required: false
-        default: 'true'
-      check_polygeist:
-        type: string
-        required: false
-        default: 'true'
-      check_polygeist_unit:
-        type: string
-        required: false
-        default: 'true'
-      check_cgeist:
-        type: string
-        required: false
-        default: 'true'
-      check_clang_driver:
-        type: string
-        required: false
-        default: 'true'
-      check_libdevice:
-        type: string
-        required: false
-        default: 'true'
 
 jobs:
   build:
@@ -142,32 +115,32 @@ jobs:
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build
     - name: mlir-sycl-doc
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.mlir_sycl_doc == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'mlir_sycl')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target mlir-sycl-doc
     - name: polygeist-doc
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.polygeist_doc == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'polygeist')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target polygeist-doc
     # TODO allow to optionally disable in-tree checks
     - name: check-mlir-sycl
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_mlir_sycl == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'mlir_sycl')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-mlir-sycl
     - name: check-polygeist
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_polygeist == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'polygeist')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-polygeist
     - name: check-polygeist-unit
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_polygeist_unit == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'polygeist')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-polygeist-unit
     - name: check-cgeist
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_cgeist == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'cgeist')
       run: |
         if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
           source /runtimes/oneapi-tbb/env/vars.sh;
@@ -175,7 +148,7 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target check-cgeist
     - name: check-clang-driver
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_clang_driver == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'clang')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-clang-driver
     - name: Install

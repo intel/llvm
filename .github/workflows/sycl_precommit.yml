@@ -28,65 +28,8 @@ permissions:
   contents: read
 
 jobs:
-  need_check:
-    name: Decide which tests could be affected by the changes
-    runs-on: ubuntu-22.04
-    timeout-minutes: 3
-    outputs:
-      llvm: ${{ steps.changes.outputs.llvm == 'true' }}
-      llvm_spirv: ${{ steps.changes.outputs.llvm_spirv == 'true' }}
-      clang: ${{ steps.changes.outputs.clang == 'true' }}
-      xptifw: ${{ steps.changes.outputs.xptifw == 'true' }}
-      libclc: ${{ steps.changes.outputs.libclc == 'true' }}
-      sycl: ${{ steps.changes.outputs.sycl == 'true' }}
-      mlir_sycl: ${{ steps.changes.outputs.mlir_sycl == 'true' }}
-      polygeist: ${{ steps.changes.outputs.polygeist == 'true' }}
-      cgeist: ${{ steps.changes.outputs.cgeist == 'true' }}
-    steps:
-      - name: Check file changes
-        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
-        id: changes
-        with:
-          filters: |
-            llvm: &llvm
-              - 'llvm/**'
-            llvm_spirv: &llvm_spirv
-              - *llvm
-              - 'llvm-spirv/**'
-            clang: &clang
-              - *llvm
-              - 'clang/**'
-            sycl_fusion: &sycl-fusion
-              - *llvm
-              - 'sycl-fusion/**'
-            xptifw: &xptifw
-              - 'xptifw/**'
-            libclc: &libclc
-              - *llvm_spirv
-              - *clang
-              - 'libclc/**'
-            libdevice: &libdevice
-              - *llvm_spirv
-              - *clang
-              - 'libdevice/**'
-            sycl: &sycl
-              - *clang
-              - *sycl-fusion
-              - *llvm_spirv
-              - *xptifw
-              - *libclc
-              - *libdevice
-              - 'sycl/*'
-              - 'sycl/!(test-e2e)/**'
-            mlir_sycl: &mlir_sycl
-              - 'mlir/**'
-              - 'mlir-sycl/**'
-              - 'polygeist/**'
-            polygeist: &polygeist
-              - *mlir_sycl
-            cgeist:
-              - *polygeist
-              - *sycl
+  detect_changes:
+    uses: ./.github/workflows/sycl_detect_changes.yml
 
   lint:
     runs-on: ubuntu-22.04
@@ -115,7 +58,7 @@ jobs:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix, need_check]
+    needs: [lint, test_matrix, detect_changes]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -127,10 +70,4 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      mlir_sycl_doc: ${{ needs.need_check.outputs.mlir_sycl }}
-      polygeist_doc: ${{ needs.need_check.outputs.polygeist }}
-      check_mlir_sycl: ${{ needs.need_check.outputs.mlir_sycl }}
-      check_polygeist: ${{ needs.need_check.outputs.polygeist }}
-      check_polygeist_unit: ${{ needs.need_check.outputs.polygeist }}
-      check_cgeist: ${{ needs.need_check.outputs.cgeist }}
-      check_clang_driver: ${{ needs.need_check.outputs.clang }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}
