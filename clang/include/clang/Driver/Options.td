@@ -731,7 +731,7 @@ def E : Flag<["-"], "E">, Flags<[NoXarchOption,CC1Option, FlangOption, FC1Option
     HelpText<"Only run the preprocessor">;
 def F : JoinedOrSeparate<["-"], "F">, Flags<[RenderJoined,CC1Option]>,
     HelpText<"Add directory to framework include search path">;
-def G : JoinedOrSeparate<["-"], "G">, Flags<[NoXarchOption]>, Group<m_Group>,
+def G : JoinedOrSeparate<["-"], "G">, Flags<[NoXarchOption,TargetSpecific]>, Group<m_Group>,
     MetaVarName<"<size>">, HelpText<"Put objects of at most <size> bytes "
     "into small data section (MIPS / Hexagon)">;
 def G_EQ : Joined<["-"], "G=">, Flags<[NoXarchOption]>, Group<m_Group>, Alias<G>;
@@ -3963,12 +3963,12 @@ def msve_vector_bits_EQ : Joined<["-"], "msve-vector-bits=">, Group<m_aarch64_Fe
 
 def mvscale_min_EQ : Joined<["-"], "mvscale-min=">,
   Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
-  HelpText<"Specify the vscale minimum. Defaults to \"1\". (AArch64 only)">,
+  HelpText<"Specify the vscale minimum. Defaults to \"1\". (AArch64/RISC-V only)">,
   MarshallingInfoInt<LangOpts<"VScaleMin">>;
 def mvscale_max_EQ : Joined<["-"], "mvscale-max=">,
   Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
   HelpText<"Specify the vscale maximum. Defaults to the"
-           " vector length agnostic value of \"0\". (AArch64 only)">,
+           " vector length agnostic value of \"0\". (AArch64/RISC-V only)">,
   MarshallingInfoInt<LangOpts<"VScaleMax">>;
 
 def msign_return_address_EQ : Joined<["-"], "msign-return-address=">,
