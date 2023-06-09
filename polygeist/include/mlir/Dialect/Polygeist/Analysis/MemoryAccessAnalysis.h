@@ -205,6 +205,9 @@ public:
   /// Fill the matrix with the given range \p range.
   void fill(IntegerValueRange range);
 
+  /// Fill element at position \p row, \p col with zero.
+  void setZero(size_t row, size_t col);
+
   /// Construct a new matrix containing the specified \p rows.
   /// Note: because \p rows is an ordered set, asking for rows {1,0} causes
   /// a new access matrix with rows zero and one (in that order) to be returned.
@@ -297,11 +300,6 @@ public:
   bool hasReverseStridedOverlappedAccessPattern() const;
 
 private:
-  /// Return the value at row \p row and column \p column if it is an integer
-  /// constant and std::nullopt otherwise.
-  std::optional<APInt> getConstIntegerValue(size_t row, size_t column) const;
-
-private:
   size_t nRows, nColumns;
   SmallVector<IntegerValueRange> data;
 };
@@ -375,11 +373,6 @@ public:
   /// Return true if the vector contains all zeros and the last element has
   /// value equal to the given constant \p k.
   bool isZeroWithLastElementEqualTo(int k) const;
-
-private:
-  /// Return the element at row \p row if it is a integer constant or
-  /// std::nullopt otherwise.
-  std::optional<APInt> getConstIntegerValue(size_t row) const;
 
 private:
   size_t nRows;
@@ -460,9 +453,15 @@ public:
   /// sycl::nditem or sycl::item argument passed to the to the function).
   unsigned getGridDimension(FunctionOpInterface funcOp) const;
 
-  /// Return a vector containing the thread values used in \p funcOp.
-  SmallVector<Value> getThreadVector(FunctionOpInterface funcOp,
-                                     DataFlowSolver &solver) const;
+  /// Return a vector containing pairs of thread values and grid dimensions for
+  /// each global thread declarations in in \p funcOp.
+  /// For example given:
+  ///   %c1_i32 = arith.constant 1 : i32
+  ///   %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32)
+  /// The corresponding vector entry is [ty, 1].
+  /// Note: the vector size is equal to the dimension of the thread grid.
+  SmallVector<std::pair<Value, unsigned>>
+  getThreadVector(FunctionOpInterface funcOp, DataFlowSolver &solver) const;
 
 private:
   /// Construct the access matrix and offset vector for the memory accesses
@@ -476,15 +475,16 @@ private:
   /// Construct the access matrix if possible.
   std::optional<MemoryAccessMatrix>
   buildAccessMatrix(sycl::SYCLAccessorSubscriptOp accessorSubscriptOp,
-                    size_t numColumns, ArrayRef<Value> threadVars,
+                    ArrayRef<std::pair<Value, unsigned>> threadVars,
                     ArrayRef<Value> loopIVs, ArrayRef<Value> underlyingVals,
                     DataFlowSolver &solver);
 
   /// Construct the offset vector if possible.
   std::optional<OffsetVector>
   buildOffsetVector(const MemoryAccessMatrix &matrix,
-                    ArrayRef<Value> threadVars, ArrayRef<Value> loopIVs,
-                    ArrayRef<Value> underlyingVals, DataFlowSolver &solver);
+                    ArrayRef<std::pair<Value, unsigned>> threadVars,
+                    ArrayRef<Value> loopIVs, ArrayRef<Value> underlyingVals,
+                    DataFlowSolver &solver);
 
   /// Returns true if the memory access \p access has a single subscript that is
   /// zero, and false otherwise.
