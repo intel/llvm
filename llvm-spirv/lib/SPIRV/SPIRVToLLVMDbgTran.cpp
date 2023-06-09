@@ -537,6 +537,11 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
           transTypeMember(SPVMemberInst, DebugInst, cast<DIScope>(CT));
       EltTys.push_back(MemberMD);
       DebugInstCache[SPVMemberInst] = MemberMD;
+    } else if (MemberInst->getExtOp() == SPIRVDebug::TypeInheritance) {
+      auto *SPVMemberInst = BM->get<SPIRVExtInst>(Ops[I]);
+      DINode *MemberMD = transTypeInheritance(SPVMemberInst, cast<DIType>(CT));
+      EltTys.push_back(MemberMD);
+      DebugInstCache[SPVMemberInst] = MemberMD;
     } else {
       EltTys.emplace_back(transDebugInst(BM->get<SPIRVExtInst>(Ops[I])));
     }
@@ -1142,25 +1147,35 @@ DINode *SPIRVToLLVMDbgTran::transTypedef(const SPIRVExtInst *DebugInst) {
   return getDIBuilder(DebugInst).createTypedef(Ty, Alias, File, LineNo, Scope);
 }
 
-DINode *
-SPIRVToLLVMDbgTran::transTypeInheritance(const SPIRVExtInst *DebugInst) {
+DINode *SPIRVToLLVMDbgTran::transTypeInheritance(const SPIRVExtInst *DebugInst,
+                                                 DIType *ChildClass) {
+  if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()) && !ChildClass) {
+    // Will be translated later when processing TypeMember's parent
+    return nullptr;
+  }
   using namespace SPIRVDebug::Operand::TypeInheritance;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() >= OperandCount && "Invalid number of operands");
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+  // No Child operand for NonSemantic debug spec
+  SPIRVWord Offset = isNonSemanticDebugInfo(DebugInst->getExtSetKind()) ? 1 : 0;
   DIType *Parent =
-      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ParentIdx]));
-  DIType *Child = transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ChildIdx]));
+      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ParentIdx - Offset]));
+  DIType *Child =
+      isNonSemanticDebugInfo(DebugInst->getExtSetKind())
+          ? ChildClass
+          : transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ChildIdx]));
   DINode::DIFlags Flags = DINode::FlagZero;
-  SPIRVWord SPIRVFlags =
-      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
+  SPIRVWord SPIRVFlags = getConstantValueOrLiteral(Ops, FlagsIdx - Offset,
+                                                   DebugInst->getExtSetKind());
   if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPublic)
     Flags |= llvm::DINode::FlagPublic;
   if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsProtected)
     Flags |= llvm::DINode::FlagProtected;
   if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPrivate)
     Flags |= llvm::DINode::FlagPrivate;
-  uint64_t Offset = BM->get<SPIRVConstant>(Ops[OffsetIdx])->getZExtIntValue();
-  return getDIBuilder(DebugInst).createInheritance(Child, Parent, Offset, 0,
+  uint64_t OffsetVal =
+      BM->get<SPIRVConstant>(Ops[OffsetIdx - Offset])->getZExtIntValue();
+  return getDIBuilder(DebugInst).createInheritance(Child, Parent, OffsetVal, 0,
                                                    Flags);
 }
 

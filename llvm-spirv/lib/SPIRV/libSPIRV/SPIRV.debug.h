@@ -501,12 +501,14 @@ enum {
 
 namespace TypeInheritance {
 enum {
-  ChildIdx     = 0,
-  ParentIdx    = 1,
-  OffsetIdx    = 2,
-  SizeIdx      = 3,
-  FlagsIdx     = 4,
-  OperandCount = 5
+  ChildIdx        = 0,
+  ParentIdx       = 1,
+  OffsetIdx       = 2,
+  SizeIdx         = 3,
+  FlagsIdx        = 4,
+  // NonSemantic
+  MinOperandCount = 4,
+  OperandCount    = 5
 };
 }
 

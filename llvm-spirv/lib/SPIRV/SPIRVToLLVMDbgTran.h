@@ -166,7 +166,8 @@ private:
 
   DINode *transTypedef(const SPIRVExtInst *DebugInst);
 
-  DINode *transTypeInheritance(const SPIRVExtInst *DebugInst);
+  DINode *transTypeInheritance(const SPIRVExtInst *DebugInst,
+                               DIType *ChildClass = nullptr);
 
   DINode *transImportedEntry(const SPIRVExtInst *DebugInst);
 
