@@ -191,6 +191,9 @@ class ur_result_v(IntEnum):
     ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
     ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
                                                     ## retrieved via the urGetLastResult entry point.
+    ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000       ## Invalid Command-Buffer
+    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001## Sync point is not valid for the command-buffer
+    ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002  ## Sync point wait list is invalid
     ERROR_UNKNOWN = 0x7ffffffe                      ## Unknown or internal error
 
 class ur_result_t(c_int):
@@ -228,6 +231,7 @@ class ur_structure_type_v(IntEnum):
     SAMPLER_NATIVE_PROPERTIES = 24                  ## ::ur_sampler_native_properties_t
     QUEUE_NATIVE_DESC = 25                          ## ::ur_queue_native_desc_t
     DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
+    EXP_COMMAND_BUFFER_DESC = 27                    ## ::ur_exp_command_buffer_desc_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1605,6 +1609,7 @@ class ur_command_v(IntEnum):
     DEVICE_GLOBAL_VARIABLE_READ = 24                ## Event created by ::urEnqueueDeviceGlobalVariableRead
     READ_HOST_PIPE = 25                             ## Event created by ::urEnqueueReadHostPipe
     WRITE_HOST_PIPE = 26                            ## Event created by ::urEnqueueWriteHostPipe
+    COMMAND_BUFFER_ENQUEUE_EXP = 27                 ## Event created by ::urCommandBufferEnqueueExp
 
 class ur_command_t(c_int):
     def __str__(self):
@@ -1810,6 +1815,7 @@ class ur_function_v(IntEnum):
     USM_FREE = 110                                  ## Enumerator for ::urUSMFree
     USM_GET_MEM_ALLOC_INFO = 111                    ## Enumerator for ::urUSMGetMemAllocInfo
     USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
+    COMMAND_BUFFER_CREATE_EXP = 113                 ## Enumerator for ::urCommandBufferCreateExp
     PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
     MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115      ## Enumerator for ::urMemBufferCreateWithNativeHandle
     MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116       ## Enumerator for ::urMemImageCreateWithNativeHandle
@@ -1817,6 +1823,14 @@ class ur_function_v(IntEnum):
     USM_POOL_RETAIN = 118                           ## Enumerator for ::urUSMPoolRetain
     USM_POOL_RELEASE = 119                          ## Enumerator for ::urUSMPoolRelease
     USM_POOL_GET_INFO = 120                         ## Enumerator for ::urUSMPoolGetInfo
+    COMMAND_BUFFER_RETAIN_EXP = 121                 ## Enumerator for ::urCommandBufferRetainExp
+    COMMAND_BUFFER_RELEASE_EXP = 122                ## Enumerator for ::urCommandBufferReleaseExp
+    COMMAND_BUFFER_FINALIZE_EXP = 123               ## Enumerator for ::urCommandBufferFinalizeExp
+    COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125   ## Enumerator for ::urCommandBufferAppendKernelLaunchExp
+    COMMAND_BUFFER_ENQUEUE_EXP = 128                ## Enumerator for ::urCommandBufferEnqueueExp
+    COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129      ## Enumerator for ::urCommandBufferAppendMemcpyUSMExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130  ## Enumerator for ::urCommandBufferAppendMembufferCopyExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131 ## Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -1844,6 +1858,26 @@ class ur_usm_migration_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
+
+###############################################################################
+## @brief Command-Buffer Descriptor Type
+class ur_exp_command_buffer_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
+        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief A value that identifies a command inside of a command-buffer, used for
+##        defining dependencies between commands in the same command-buffer.
+class ur_exp_command_buffer_sync_point_t(c_ulong):
+    pass
+
+###############################################################################
+## @brief Handle of Command-Buffer object
+class ur_exp_command_buffer_handle_t(c_void_p):
+    pass
 
 ###############################################################################
 __use_win_types = "Windows" == platform.uname()[0]
@@ -2696,6 +2730,85 @@ class ur_queue_dditable_t(Structure):
     ]
 
 ###############################################################################
+## @brief Function-pointer for urCommandBufferCreateExp
+if __use_win_types:
+    _urCommandBufferCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_command_buffer_desc_t), POINTER(ur_exp_command_buffer_handle_t) )
+else:
+    _urCommandBufferCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_command_buffer_desc_t), POINTER(ur_exp_command_buffer_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferRetainExp
+if __use_win_types:
+    _urCommandBufferRetainExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+else:
+    _urCommandBufferRetainExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferReleaseExp
+if __use_win_types:
+    _urCommandBufferReleaseExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+else:
+    _urCommandBufferReleaseExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferFinalizeExp
+if __use_win_types:
+    _urCommandBufferFinalizeExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+else:
+    _urCommandBufferFinalizeExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendKernelLaunchExp
+if __use_win_types:
+    _urCommandBufferAppendKernelLaunchExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendKernelLaunchExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendMemcpyUSMExp
+if __use_win_types:
+    _urCommandBufferAppendMemcpyUSMExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendMemcpyUSMExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendMembufferCopyExp
+if __use_win_types:
+    _urCommandBufferAppendMembufferCopyExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendMembufferCopyExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferAppendMembufferCopyRectExp
+if __use_win_types:
+    _urCommandBufferAppendMembufferCopyRectExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+else:
+    _urCommandBufferAppendMembufferCopyRectExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
+
+###############################################################################
+## @brief Function-pointer for urCommandBufferEnqueueExp
+if __use_win_types:
+    _urCommandBufferEnqueueExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_queue_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urCommandBufferEnqueueExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, ur_queue_handle_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+
+###############################################################################
+## @brief Table of CommandBufferExp functions pointers
+class ur_command_buffer_exp_dditable_t(Structure):
+    _fields_ = [
+        ("pfnCreateExp", c_void_p),                                     ## _urCommandBufferCreateExp_t
+        ("pfnRetainExp", c_void_p),                                     ## _urCommandBufferRetainExp_t
+        ("pfnReleaseExp", c_void_p),                                    ## _urCommandBufferReleaseExp_t
+        ("pfnFinalizeExp", c_void_p),                                   ## _urCommandBufferFinalizeExp_t
+        ("pfnAppendKernelLaunchExp", c_void_p),                         ## _urCommandBufferAppendKernelLaunchExp_t
+        ("pfnAppendMemcpyUSMExp", c_void_p),                            ## _urCommandBufferAppendMemcpyUSMExp_t
+        ("pfnAppendMembufferCopyExp", c_void_p),                        ## _urCommandBufferAppendMembufferCopyExp_t
+        ("pfnAppendMembufferCopyRectExp", c_void_p),                    ## _urCommandBufferAppendMembufferCopyRectExp_t
+        ("pfnEnqueueExp", c_void_p)                                     ## _urCommandBufferEnqueueExp_t
+    ]
+
+###############################################################################
 ## @brief Function-pointer for urInit
 if __use_win_types:
     _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
@@ -2896,6 +3009,7 @@ class ur_dditable_t(Structure):
         ("Mem", ur_mem_dditable_t),
         ("Enqueue", ur_enqueue_dditable_t),
         ("Queue", ur_queue_dditable_t),
+        ("CommandBufferExp", ur_command_buffer_exp_dditable_t),
         ("Global", ur_global_dditable_t),
         ("USM", ur_usm_dditable_t),
         ("Device", ur_device_dditable_t)
@@ -3095,6 +3209,24 @@ class UR_DDI:
         self.urQueueCreateWithNativeHandle = _urQueueCreateWithNativeHandle_t(self.__dditable.Queue.pfnCreateWithNativeHandle)
         self.urQueueFinish = _urQueueFinish_t(self.__dditable.Queue.pfnFinish)
         self.urQueueFlush = _urQueueFlush_t(self.__dditable.Queue.pfnFlush)
+
+        # call driver to get function pointers
+        CommandBufferExp = ur_command_buffer_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetCommandBufferExpProcAddrTable(version, byref(CommandBufferExp)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.CommandBufferExp = CommandBufferExp
+
+        # attach function interface to function address
+        self.urCommandBufferCreateExp = _urCommandBufferCreateExp_t(self.__dditable.CommandBufferExp.pfnCreateExp)
+        self.urCommandBufferRetainExp = _urCommandBufferRetainExp_t(self.__dditable.CommandBufferExp.pfnRetainExp)
+        self.urCommandBufferReleaseExp = _urCommandBufferReleaseExp_t(self.__dditable.CommandBufferExp.pfnReleaseExp)
+        self.urCommandBufferFinalizeExp = _urCommandBufferFinalizeExp_t(self.__dditable.CommandBufferExp.pfnFinalizeExp)
+        self.urCommandBufferAppendKernelLaunchExp = _urCommandBufferAppendKernelLaunchExp_t(self.__dditable.CommandBufferExp.pfnAppendKernelLaunchExp)
+        self.urCommandBufferAppendMemcpyUSMExp = _urCommandBufferAppendMemcpyUSMExp_t(self.__dditable.CommandBufferExp.pfnAppendMemcpyUSMExp)
+        self.urCommandBufferAppendMembufferCopyExp = _urCommandBufferAppendMembufferCopyExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyExp)
+        self.urCommandBufferAppendMembufferCopyRectExp = _urCommandBufferAppendMembufferCopyRectExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyRectExp)
+        self.urCommandBufferEnqueueExp = _urCommandBufferEnqueueExp_t(self.__dditable.CommandBufferExp.pfnEnqueueExp)
 
         # call driver to get function pointers
         Global = ur_global_dditable_t()
