@@ -1,6 +1,6 @@
 ---
 type: header
-desc: "Intel$OneApi Unified Rutime function registry"
+desc: "Intel$OneApi Unified Runtime function registry"
 ordinal: "9"
 ---
 name: $x_function_t
