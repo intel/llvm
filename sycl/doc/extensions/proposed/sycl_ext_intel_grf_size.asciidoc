@@ -69,7 +69,8 @@ is not able to issue a diagnostic to warn you if this happens.
 There are devices where the size of the general register file (GRF) used by a kernel is 
 configurable. Developers may want to change the GRF size based on their
 application. This extension adds the kernel property `grf_size` which provides a way
-to specify the GRF size.
+to specify the GRF size for a SYCL kernel, and the kernel property `grf_size_automatic`
+which provides a way to request a valid GRF size be automatically chosen.
 
 == Specification
 
@@ -94,22 +95,42 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== GRF Size Property
+=== Properties
 
-The `grf_size` kernel property provides a way to specify the GRF size used by a kernel. 
-It accepts a single integer value. It is defined as follows:
+|===
+|Property|Description
+
+|`grf_size`
+|The `grf_size` kernel property provides a way to specify the GRF size used by a kernel. 
+It accepts a single unsigned integer value.
+
+|`grf_size_automatic`
+| The `grf_size_automatic` kernel property adds the requirement that the kernel use any of the supported GRF sizes. The manner in which the GRF size is selected is implementation-defined.
+
+|===
+
+At most one of the `grf_size` and `grf_size_automatic` properties may be associated with a kernel.
+
+The properties are defined as follows:
 ```c++
 namespace sycl::ext::intel::experimental {
 
 struct grf_size_key {
-  template <int Size>
+  template <unsigned int Size>
   using value_t = 
       oneapi::experimental::property_value<grf_size_key, 
-                                           std::integral_constant<int, Size>>;
+                                           std::integral_constant<unsigned int, Size>>;
 };
 
-template <int Size>
+struct grf_size_automatic_key {
+  using value_t = 
+      oneapi::experimental::property_value<grf_size_automatic_key>;
+};
+
+template <unsigned int Size>
 inline constexpr grf_size_key::value_t<Size> grf_size;
+
+inline constexpr grf_size_automatic_key::value_t grf_size_automatic;
 
 } // namespace sycl::ext::intel::experimental
 ```
@@ -123,7 +144,7 @@ The supported values are as follows:
 
 Providing a value not consistent with the supported values may result in undefined behavior.
 
-=== Using the property in a kernel
+=== Using the properties in a kernel
 
 A simple example of using this extension is below.
 
@@ -133,6 +154,14 @@ namespace intelex = sycl::ext::intel::experimental;
 {
   ...
   syclex::properties kernel_properties{intelex::grf_size<256>};
+
+  q.single_task(kernel_properties, [=] {
+   ...
+  }).wait();
+}
+{
+  ...
+  syclex::properties kernel_properties{intelex:grf_size_automatic};
 
   q.single_task(kernel_properties, [=] {
    ...
