@@ -219,25 +219,25 @@ Value getNdItemArgument(FunctionOpInterface func) {
 }
 
 /// Get the size of unused shared local memory arena in bytes.
-unsigned getLocalMemoryRemain(gpu::GPUModuleOp &module,
-                              unsigned localMemorySize) {
+unsigned getLocalMemoryRemaining(gpu::GPUModuleOp &module,
+                                 unsigned localMemorySize) {
   assert(module.hasTrait<OpTrait::SymbolTable>() &&
          "Expecting module with SymbolTable trait");
-  unsigned localMemoryRemain = localMemorySize;
-  module.walk([&localMemoryRemain](memref::GlobalOp global) {
+  unsigned localMemoryRemaining = localMemorySize;
+  module.walk([&localMemoryRemaining](memref::GlobalOp global) {
     MemRefType memRefTy = global.getType();
     if (!isLocalAccessAddrSpace(memRefTy))
       return WalkResult::advance();
     unsigned globalSize =
         memRefTy.getElementTypeBitWidth() * memRefTy.getNumElements() / 8;
-    if (globalSize >= localMemoryRemain) {
-      localMemoryRemain = 0;
+    if (globalSize >= localMemoryRemaining) {
+      localMemoryRemaining = 0;
       return WalkResult::interrupt();
     }
-    localMemoryRemain -= globalSize;
+    localMemoryRemaining -= globalSize;
     return WalkResult::advance();
   });
-  return localMemoryRemain;
+  return localMemoryRemaining;
 }
 
 /// Get the required local memory for \p accTy in bytes.
@@ -615,7 +615,7 @@ private:
   /// Transform a candidate kernel body function.
   void transform(FunctionOpInterface func,
                  const FunctionKernelInfo &funcKernelInfo,
-                 const unsigned localMemoryRemain);
+                 const unsigned localMemoryRemaining);
 
   /// Transform a candidate loop.
   template <typename T>
@@ -680,9 +680,9 @@ void LoopInternalization::runOnOperation() {
     }
 
     // Ensure there is local memory to be used.
-    unsigned localMemoryRemain =
-        getLocalMemoryRemain(gpuModule, localMemorySize);
-    if (localMemoryRemain == 0)
+    unsigned localMemoryRemaining =
+        getLocalMemoryRemaining(gpuModule, localMemorySize);
+    if (localMemoryRemaining == 0)
       return;
 
     // Select the ideal memory space for memref accesses in candidate loops
@@ -709,7 +709,7 @@ void LoopInternalization::runOnOperation() {
       // prioritize(memAccessAnalysis, solver);
     });
 
-    transform(func, funcKernelInfo, localMemoryRemain);
+    transform(func, funcKernelInfo, localMemoryRemaining);
   }
 }
 
@@ -756,7 +756,7 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
 
 void LoopInternalization::transform(FunctionOpInterface func,
                                     const FunctionKernelInfo &funcKernelInfo,
-                                    const unsigned localMemoryRemain) {
+                                    const unsigned localMemoryRemaining) {
   // Calculate the required local memory for all accesses in
   // loopToSharedMemref to be promoted.
   SmallVector<gpu::GPUFuncOp> kernels;
@@ -764,7 +764,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
   sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
   Optional<unsigned> reqdLocalMemory =
       getReqdLocalMemory(loopToSharedMemref, reqdWorkGroupSize);
-  if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemain) {
+  if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemaining) {
     LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
     return;
   }
@@ -772,7 +772,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
   auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
   memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
       gpuModule,
-      reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemain);
+      reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemaining);
 
   // Get or create work group size.
   Value ndItem = getNdItemArgument(func);
@@ -782,7 +782,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
   // Create SYCL local ids corresponding to the grid dimensionality (per
   // kernel).
   SmallVector<Value> localIDs;
-  Location loc = builder.getUnknownLoc();
+  Location loc = func.getLoc();
   auto ndItemTy = cast<sycl::NdItemType>(
       cast<MemRefType>(ndItem.getType()).getElementType());
   const unsigned numDims = ndItemTy.getDimension();

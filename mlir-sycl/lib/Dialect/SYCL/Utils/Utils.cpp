@@ -12,20 +12,19 @@
 
 #include "mlir/Dialect/SYCL/Utils/Utils.h"
 
-using namespace mlir;
-using namespace mlir::sycl;
+namespace mlir {
+namespace sycl {
 
-SYCLIDGetOp sycl::createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
-                                    OpBuilder builder, Location loc) {
+SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
+                              OpBuilder builder, Location loc) {
   const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
   const auto resTy = builder.getIndexType();
   return builder.create<SYCLIDGetOp>(
       loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
 }
 
-TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
-                                             ArrayRef<Value> indexes,
-                                             OpBuilder builder, Location loc) {
+TypedValue<MemRefType> constructSYCLID(IDType idTy, ArrayRef<Value> indexes,
+                                       OpBuilder builder, Location loc) {
   const unsigned numDims = idTy.getDimension();
   assert(numDims == indexes.size() &&
          "Expecting the size of indexes to be the id dimension");
@@ -38,10 +37,10 @@ TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
   return id;
 }
 
-SYCLAccessorSubscriptOp
-sycl::createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
-                                    TypedValue<MemRefType> id,
-                                    OpBuilder builder, Location loc) {
+SYCLAccessorSubscriptOp createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
+                                                      TypedValue<MemRefType> id,
+                                                      OpBuilder builder,
+                                                      Location loc) {
   const AccessorType accTy = accessor.getAccessorType();
   assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
   const auto MT = MemRefType::get(
@@ -49,3 +48,6 @@ sycl::createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
       builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
   return builder.create<SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
 }
+
+} // namespace sycl
+} // namespace mlir

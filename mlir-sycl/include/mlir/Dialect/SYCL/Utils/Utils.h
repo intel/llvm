@@ -26,12 +26,15 @@ inline AccessorType getAccessorType(SYCLAccessorSubscriptOp op) {
   return AccessorPtrValue(op.getAcc()).getAccessorType();
 }
 
+/// Create sycl.id.get with id \p id and index \p index.
 SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
                               OpBuilder builder, Location loc);
 
+/// Construct sycl.id with id type \p idTy and indexes \p indexes.
 TypedValue<MemRefType> constructSYCLID(IDType idTy, ArrayRef<Value> indexes,
                                        OpBuilder builder, Location loc);
 
+/// Create sycl.accessor.subscript with accessor \p accessor and id \p id.
 SYCLAccessorSubscriptOp createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
                                                       TypedValue<MemRefType> id,
                                                       OpBuilder builder,

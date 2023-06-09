@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/Utils/Utils.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <optional>
