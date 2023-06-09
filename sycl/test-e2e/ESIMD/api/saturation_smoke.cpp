@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 // TODO: esimd_emulator fails due to unimplemented 'half' type
 // XFAIL: esimd_emulator
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// TODO: remove fno-fast-math option once the issue is investigated and the test
+// is fixed.
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 //
 // The test checks main functionality of esimd::saturate function.

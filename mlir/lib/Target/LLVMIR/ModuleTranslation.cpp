@@ -69,7 +69,7 @@ translateDataLayout(DataLayoutSpecInterface attribute,
   std::string llvmDataLayout;
   llvm::raw_string_ostream layoutStream(llvmDataLayout);
   for (DataLayoutEntryInterface entry : attribute.getEntries()) {
-    auto key = entry.getKey().dyn_cast<StringAttr>();
+    auto key = llvm::dyn_cast_if_present<StringAttr>(entry.getKey());
     if (!key)
       continue;
     if (key.getValue() == DLTIDialect::kDataLayoutEndiannessKey) {
@@ -108,7 +108,7 @@ translateDataLayout(DataLayoutSpecInterface attribute,
   // specified in entries. Where possible, data layout queries are used instead
   // of directly inspecting the entries.
   for (DataLayoutEntryInterface entry : attribute.getEntries()) {
-    auto type = entry.getKey().dyn_cast<Type>();
+    auto type = llvm::dyn_cast_if_present<Type>(entry.getKey());
     if (!type)
       continue;
     // Data layout for the index type is irrelevant at this point.
@@ -1324,11 +1324,15 @@ llvm::OpenMPIRBuilder *ModuleTranslation::getOpenMPBuilder() {
 
     bool isDevice = false;
     llvm::StringRef hostIRFilePath = "";
-    if (auto offloadMod =
-            dyn_cast<mlir::omp::OffloadModuleInterface>(mlirModule)) {
-      isDevice = offloadMod.getIsDevice();
-      hostIRFilePath = offloadMod.getHostIRFilePath();
-    }
+
+    if (Attribute deviceAttr = mlirModule->getAttr("omp.is_device"))
+      if (::llvm::isa<mlir::BoolAttr>(deviceAttr))
+        isDevice = ::llvm::dyn_cast<mlir::BoolAttr>(deviceAttr).getValue();
+
+    if (Attribute filepath = mlirModule->getAttr("omp.host_ir_filepath"))
+      if (::llvm::isa<mlir::StringAttr>(filepath))
+        hostIRFilePath =
+            ::llvm::dyn_cast<mlir::StringAttr>(filepath).getValue();
 
     ompBuilder->initialize(hostIRFilePath);
 

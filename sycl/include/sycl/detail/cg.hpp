@@ -156,7 +156,6 @@ public:
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   std::string MKernelName;
-  detail::OSModuleHandle MOSModuleHandle;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   RT::PiKernelCacheConfig MKernelCacheConfig;
@@ -165,7 +164,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName, detail::OSModuleHandle OSModuleHandle,
+               std::string KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type, RT::PiKernelCacheConfig KernelCacheConfig,
@@ -174,8 +173,7 @@ public:
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)),
+        MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
@@ -445,25 +443,22 @@ class CGCopyToDeviceGlobal : public CG {
   bool MIsDeviceImageScoped;
   size_t MNumBytes;
   size_t MOffset;
-  detail::OSModuleHandle MOSModuleHandle;
 
 public:
   CGCopyToDeviceGlobal(void *Src, void *DeviceGlobalPtr,
                        bool IsDeviceImageScoped, size_t NumBytes, size_t Offset,
                        CG::StorageInitHelper CGData,
-                       detail::OSModuleHandle OSModuleHandle,
                        detail::code_location loc = {})
       : CG(CopyToDeviceGlobal, std::move(CGData), std::move(loc)), MSrc(Src),
         MDeviceGlobalPtr(DeviceGlobalPtr),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
-        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+        MOffset(Offset) {}
 
   void *getSrc() { return MSrc; }
   void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
-  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
 };
 
 /// "Copy to device_global" command group class.
@@ -473,25 +468,22 @@ class CGCopyFromDeviceGlobal : public CG {
   bool MIsDeviceImageScoped;
   size_t MNumBytes;
   size_t MOffset;
-  detail::OSModuleHandle MOSModuleHandle;
 
 public:
   CGCopyFromDeviceGlobal(void *DeviceGlobalPtr, void *Dest,
                          bool IsDeviceImageScoped, size_t NumBytes,
                          size_t Offset, CG::StorageInitHelper CGData,
-                         detail::OSModuleHandle OSModuleHandle,
                          detail::code_location loc = {})
       : CG(CopyFromDeviceGlobal, std::move(CGData), std::move(loc)),
         MDeviceGlobalPtr(DeviceGlobalPtr), MDest(Dest),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
-        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+        MOffset(Offset) {}
 
   void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
   void *getDest() { return MDest; }
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
-  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
 };
 
 } // namespace detail

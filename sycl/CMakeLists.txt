@@ -36,7 +36,7 @@ set(SYCL_MAJOR_VERSION 7)
 set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 
-set(SYCL_DEV_ABI_VERSION 3)
+set(SYCL_DEV_ABI_VERSION 4)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -327,7 +327,7 @@ add_custom_target( sycl-toolchain
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain win_proxy_loader)
+  add_dependencies(sycl-toolchain pi_win_proxy_loader)
 endif()
 
 # Enable new IN_LIST operator.
@@ -363,7 +363,7 @@ add_subdirectory( plugins )
 add_subdirectory(tools)
 
 if (WIN32)
-  add_subdirectory(win_proxy_loader)
+  add_subdirectory(pi_win_proxy_loader)
 endif()
 
 if(SYCL_INCLUDE_TESTS)
@@ -414,7 +414,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
 )
 
 if (WIN32)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS win_proxy_loader)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_win_proxy_loader)
 endif()
 
 if (TARGET sycl-prof)

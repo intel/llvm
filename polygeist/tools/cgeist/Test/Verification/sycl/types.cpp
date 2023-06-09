@@ -25,7 +25,7 @@
 // CHECK-DAG: ![[ITEM_BASE_1_T]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
 // CHECK-DAG: ![[ITEM_BASE_2_F]] = !sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: ![[ITEM_BASE_2_T]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
-// CHECK-DAG: !sycl_kernel_handler_ = !sycl.kernel_handler<(memref<?xi8, 4>)>
+// CHECK-DAG: !sycl_kernel_handler = !sycl.kernel_handler<(memref<?xi8, 4>)>
 // CHECK-DAG: !sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
 // CHECK-DAG: !sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>
@@ -36,7 +36,7 @@
 // CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (![[ITEM_2_T]], ![[ITEM_2_F]], !sycl_group_2_)>
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
-// CHECK-DAG: !sycl_stream_ = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
+// CHECK-DAG: !sycl_stream = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
 // CHECK-DAG: !sycl_swizzled_vec_f32_8_ = !sycl.swizzled_vec<[!sycl_vec_f32_8_, 0, 1, 2], (memref<?x!sycl_vec_f32_8_, 4>, !llvm.struct<(i8)>, !llvm.struct<(i8)>)>
 // CHECK-DAG: !sycl_vec_f32_8_ = !sycl.vec<[f32, 8], (vector<8xf32>)>
 // CHECK-DAG: !sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
@@ -129,7 +129,7 @@ SYCL_EXTERNAL void item_1_true(sycl::item<1, true> item) {}
 SYCL_EXTERNAL void item_2_false(sycl::item<2, false> item) {}
 
 // CHECK-LABEL: func.func @_Z14kernel_handlerN4sycl3_V114kernel_handlerE(
-// CHECK:          %arg0: memref<?x!sycl_kernel_handler_> {llvm.align = 8 : i64, llvm.byval = !sycl_kernel_handler_, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_kernel_handler> {llvm.align = 8 : i64, llvm.byval = !sycl_kernel_handler, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void kernel_handler(sycl::kernel_handler kernel_handler) {}
 
@@ -194,7 +194,7 @@ SYCL_EXTERNAL void range_1(sycl::range<1> range) {}
 SYCL_EXTERNAL void range_2(sycl::range<2> range) {}
 
 // CHECL-LABEL: func.func @_Z6streamN4sycl3_V16streamE(
-// CHECK:          %arg0: memref<?x!sycl_stream_> {llvm.align = 8 : i64, llvm.byval = !sycl_stream_, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_stream> {llvm.align = 8 : i64, llvm.byval = !sycl_stream, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void stream(sycl::stream stream) {}
 

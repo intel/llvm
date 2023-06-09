@@ -717,6 +717,12 @@ static Optional<Type> convertHItemType(sycl::HItemType type,
   return convertBodyType("class.sycl::_V1::h_item", type.getBody(), converter);
 }
 
+/// Converts SYCL half type to LLVM type.
+static Optional<Type> convertHalfType(sycl::HalfType type,
+                                      LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::half", type.getBody(), converter);
+}
+
 /// Converts SYCL id type to LLVM type.
 static Optional<Type> convertIDType(sycl::IDType type,
                                     LLVMTypeConverter &converter) {
@@ -2316,6 +2322,9 @@ void mlir::dpcpp::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::HItemType type) {
     return convertHItemType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::HalfType type) {
+    return convertHalfType(type, typeConverter);
   });
   typeConverter.addConversion(
       [&](sycl::IDType type) { return convertIDType(type, typeConverter); });

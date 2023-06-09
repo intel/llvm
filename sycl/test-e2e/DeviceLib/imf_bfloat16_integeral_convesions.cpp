@@ -6,6 +6,9 @@
 //
 // UNSUPPORTED: cuda || hip
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 #error FIXME: Test times-out
 
 #include "imf_utils.hpp"

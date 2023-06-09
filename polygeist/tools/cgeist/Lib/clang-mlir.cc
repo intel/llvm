@@ -1317,8 +1317,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
             })
             .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
                   sycl::AccessorSubscriptType, sycl::AtomicType,
-                  sycl::GroupType, sycl::ItemBaseType, sycl::ItemType,
-                  sycl::LocalAccessorBaseDeviceType,
+                  sycl::GroupType, sycl::HalfType, sycl::ItemBaseType,
+                  sycl::ItemType, sycl::LocalAccessorBaseDeviceType,
                   sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
                   sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
                   sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(

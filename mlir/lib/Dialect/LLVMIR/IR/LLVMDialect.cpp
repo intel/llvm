@@ -504,7 +504,7 @@ static void destructureIndices(Type currType, ArrayRef<GEPArg> indices,
     // error. All other canonicalization is done in the fold method.
     bool requiresConst = !rawConstantIndices.empty() &&
                          currType.isa_and_nonnull<LLVMStructType>();
-    if (Value val = iter.dyn_cast<Value>()) {
+    if (Value val = llvm::dyn_cast_if_present<Value>(iter)) {
       APInt intC;
       if (requiresConst && matchPattern(val, m_ConstantInt(&intC)) &&
           intC.isSignedIntN(kGEPConstantBitWidth)) {
@@ -609,7 +609,7 @@ static void printGEPIndices(OpAsmPrinter &printer, LLVM::GEPOp gepOp,
   llvm::interleaveComma(
       GEPIndicesAdaptor<OperandRange>(rawConstantIndices, indices), printer,
       [&](PointerUnion<IntegerAttr, Value> cst) {
-        if (Value val = cst.dyn_cast<Value>())
+        if (Value val = llvm::dyn_cast_if_present<Value>(cst))
           printer.printOperand(val);
         else
           printer << cst.get<IntegerAttr>().getInt();
@@ -916,13 +916,15 @@ void CallOp::build(OpBuilder &builder, OperationState &state, TypeRange results,
 
 void CallOp::build(OpBuilder &builder, OperationState &state, TypeRange results,
                    StringAttr callee, ValueRange args) {
-  build(builder, state, results, SymbolRefAttr::get(callee), args, nullptr,
-        nullptr);
+  build(builder, state, results, SymbolRefAttr::get(callee), args);
 }
 
 void CallOp::build(OpBuilder &builder, OperationState &state, TypeRange results,
                    FlatSymbolRefAttr callee, ValueRange args) {
-  build(builder, state, results, callee, args, nullptr, nullptr);
+  build(builder, state, results, callee, args, /*fastmathFlags=*/nullptr,
+        /*branch_weights=*/nullptr,
+        /*access_groups=*/nullptr, /*alias_scopes=*/nullptr,
+        /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
 }
 
 void CallOp::build(OpBuilder &builder, OperationState &state, LLVMFuncOp func,
@@ -931,8 +933,11 @@ void CallOp::build(OpBuilder &builder, OperationState &state, LLVMFuncOp func,
   Type resultType = func.getFunctionType().getReturnType();
   if (!llvm::isa<LLVM::LLVMVoidType>(resultType))
     results.push_back(resultType);
-  build(builder, state, results, SymbolRefAttr::get(func), args, nullptr,
-        nullptr);
+  build(builder, state, results, SymbolRefAttr::get(func), args,
+        /*fastmathFlags=*/nullptr,
+        /*branch_weights=*/nullptr,
+        /*access_groups=*/nullptr, /*alias_scopes=*/nullptr,
+        /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
 }
 
 CallInterfaceCallable CallOp::getCallableForCallee() {
@@ -2534,7 +2539,7 @@ OpFoldResult LLVM::GEPOp::fold(FoldAdaptor adaptor) {
         !integer.getValue().isSignedIntN(kGEPConstantBitWidth)) {
 
       PointerUnion<IntegerAttr, Value> existing = getIndices()[iter.index()];
-      if (Value val = existing.dyn_cast<Value>())
+      if (Value val = llvm::dyn_cast_if_present<Value>(existing))
         gepArgs.emplace_back(val);
       else
         gepArgs.emplace_back(existing.get<IntegerAttr>().getInt());

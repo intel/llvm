@@ -1383,8 +1383,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       if (TypeName == "accessor" || TypeName == "accessor_common" ||
           TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
           TypeName == "array" || TypeName == "atomic" || TypeName == "group" ||
-          TypeName == "h_item" || TypeName == "id" || TypeName == "item" ||
-          TypeName == "ItemBase" || TypeName == "kernel_handler" ||
+          TypeName == "h_item" || TypeName == "half" || TypeName == "id" ||
+          TypeName == "item" || TypeName == "ItemBase" ||
+          TypeName == "kernel_handler" ||
           TypeName == "LocalAccessorBaseDevice" ||
           TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
           TypeName == "maximum" || TypeName == "minimum" ||

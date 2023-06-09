@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 using namespace mlir;
+using namespace mlir::dataflow;
 using namespace mlir::polygeist;
 
 static void loadDialects(MLIRContext &ctx) {
@@ -41,10 +42,7 @@ TEST(MatrixTest, RowAndColumnSize) {
 }
 
 TEST(MatrixTest, Init) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
 
   // clang-format off
   MemoryAccessMatrix matrix({{zero, zero}, 
@@ -55,22 +53,15 @@ TEST(MatrixTest, Init) {
 }
 
 TEST(MatrixTest, ReadWrite) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value ten = builder.create<arith::ConstantIntOp>(loc, 10, 32);
-
+  IntegerValueRange ten(ConstantIntRanges::constant(APInt(32, 10)));
   MemoryAccessMatrix matrix(2, 3);
   matrix(0, 0) = ten;
   EXPECT_EQ(matrix(0, 0), ten);
 }
 
 TEST(MatrixTest, SwapRows) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
 
   MemoryAccessMatrix matrix(5, 5);
   for (size_t row = 0; row < 5; ++row)
@@ -84,11 +75,8 @@ TEST(MatrixTest, SwapRows) {
 }
 
 TEST(MatrixTest, SwapColumns) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
 
   MemoryAccessMatrix matrix(5, 5);
   for (size_t row = 0; row < 5; ++row)
@@ -103,17 +91,14 @@ TEST(MatrixTest, SwapColumns) {
 }
 
 TEST(MatrixTest, SetGetFillRow) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
 
   MemoryAccessMatrix matrix(2, 5);
   matrix.fillRow(0, zero);
   matrix.fillRow(1, one);
 
-  SmallVector<Value> row = matrix.getRow(1);
+  SmallVector<IntegerValueRange> row = matrix.getRow(1);
   EXPECT_EQ(row.size(), (size_t)5);
 
   matrix.setRow(0, row);
@@ -124,14 +109,11 @@ TEST(MatrixTest, SetGetFillRow) {
 }
 
 TEST(MatrixTest, AppendRow) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
 
   MemoryAccessMatrix matrix(1, 5);
   matrix.fillRow(0, one);
-  SmallVector<Value> elems = matrix.getRow(0);
+  SmallVector<IntegerValueRange> elems = matrix.getRow(0);
   matrix.appendRow(elems);
   EXPECT_EQ(matrix.getNumRows(), 2u);
 
@@ -141,17 +123,14 @@ TEST(MatrixTest, AppendRow) {
 }
 
 TEST(MatrixTest, GetSetColumn) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
 
   MemoryAccessMatrix matrix(2, 2);
   matrix.fillRow(0, zero);
   matrix.fillRow(1, one);
 
-  SmallVector<Value> column = matrix.getColumn(1);
+  SmallVector<IntegerValueRange> column = matrix.getColumn(1);
   EXPECT_EQ(column[0], zero);
   EXPECT_EQ(column[1], one);
 
@@ -163,12 +142,9 @@ TEST(MatrixTest, GetSetColumn) {
 }
 
 TEST(MatrixTest, SubMatrix) {
-  MLIRContext ctx;
-  OpBuilder builder = getBuilder(ctx);
-  Location loc = builder.getUnknownLoc();
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
-  Value two = builder.create<arith::ConstantIntOp>(loc, 2, 32);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
+  IntegerValueRange two(ConstantIntRanges::constant(APInt(32, 2)));
 
   MemoryAccessMatrix matrix(3, 3);
   matrix.fillRow(0, zero);
@@ -217,16 +193,11 @@ TEST(MatrixTest, Shapes) {
   auto funcOp = builder.create<func::FuncOp>(loc, "test", funcTy);
   builder.setInsertionPointToStart(funcOp.addEntryBlock());
 
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
-  Value two = builder.create<arith::ConstantIntOp>(loc, 2, 32);
-  builder.create<func::ReturnOp>(loc);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
+  IntegerValueRange two(ConstantIntRanges::constant(APInt(32, 2)));
 
-  DataFlowSolver solver;
-  solver.load<dataflow::DeadCodeAnalysis>();
-  solver.load<dataflow::IntegerRangeAnalysis>();
-  if (failed(solver.initializeAndRun(funcOp)))
-    assert(false);
+  builder.create<func::ReturnOp>(loc);
 
   {
     // Create the zero matrix.
@@ -234,8 +205,8 @@ TEST(MatrixTest, Shapes) {
     matrix.fill(zero);
 
     EXPECT_THAT(matrix.isSquare(), true);
-    EXPECT_THAT(matrix.isZero(solver), true);
-    EXPECT_THAT(matrix.isIdentity(solver), false);
+    EXPECT_THAT(matrix.isZero(), true);
+    EXPECT_THAT(matrix.isIdentity(), false);
   }
 
   {
@@ -245,11 +216,11 @@ TEST(MatrixTest, Shapes) {
     for (size_t row = 0; row < 3; ++row)
       matrix(row, row) = one;
 
-    EXPECT_THAT(matrix.isZero(solver), false);
-    EXPECT_THAT(matrix.isDiagonal(solver), true);
-    EXPECT_THAT(matrix.isIdentity(solver), true);
-    EXPECT_THAT(matrix.isLowerTriangular(solver), false);
-    EXPECT_THAT(matrix.isUpperTriangular(solver), false);
+    EXPECT_THAT(matrix.isZero(), false);
+    EXPECT_THAT(matrix.isDiagonal(), true);
+    EXPECT_THAT(matrix.isIdentity(), true);
+    EXPECT_THAT(matrix.isLowerTriangular(), false);
+    EXPECT_THAT(matrix.isUpperTriangular(), false);
   }
 
   {
@@ -260,8 +231,8 @@ TEST(MatrixTest, Shapes) {
          {zero, zero, two}});
     // clang-format on
 
-    EXPECT_THAT(matrix.isDiagonal(solver), true);
-    EXPECT_THAT(matrix.isIdentity(solver), false);
+    EXPECT_THAT(matrix.isDiagonal(), true);
+    EXPECT_THAT(matrix.isIdentity(), false);
   }
 
   {
@@ -272,11 +243,11 @@ TEST(MatrixTest, Shapes) {
        {two, two,  one}});
     // clang-format on
 
-    EXPECT_THAT(matrix.isZero(solver), false);
-    EXPECT_THAT(matrix.isDiagonal(solver), false);
-    EXPECT_THAT(matrix.isIdentity(solver), false);
-    EXPECT_THAT(matrix.isLowerTriangular(solver), true);
-    EXPECT_THAT(matrix.isUpperTriangular(solver), false);
+    EXPECT_THAT(matrix.isZero(), false);
+    EXPECT_THAT(matrix.isDiagonal(), false);
+    EXPECT_THAT(matrix.isIdentity(), false);
+    EXPECT_THAT(matrix.isLowerTriangular(), true);
+    EXPECT_THAT(matrix.isUpperTriangular(), false);
   }
 
   {
@@ -287,11 +258,11 @@ TEST(MatrixTest, Shapes) {
        {zero, zero, one}});
     // clang-format on
 
-    EXPECT_THAT(matrix.isZero(solver), false);
-    EXPECT_THAT(matrix.isDiagonal(solver), false);
-    EXPECT_THAT(matrix.isIdentity(solver), false);
-    EXPECT_THAT(matrix.isLowerTriangular(solver), false);
-    EXPECT_THAT(matrix.isUpperTriangular(solver), true);
+    EXPECT_THAT(matrix.isZero(), false);
+    EXPECT_THAT(matrix.isDiagonal(), false);
+    EXPECT_THAT(matrix.isIdentity(), false);
+    EXPECT_THAT(matrix.isLowerTriangular(), false);
+    EXPECT_THAT(matrix.isUpperTriangular(), true);
   }
 }
 
@@ -304,21 +275,16 @@ TEST(MatrixTest, PatternClassification) {
   auto funcOp = builder.create<func::FuncOp>(loc, "test", funcTy);
   builder.setInsertionPointToStart(funcOp.addEntryBlock());
 
-  Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 32);
-  Value one = builder.create<arith::ConstantIntOp>(loc, 1, 32);
-  Value negativeOne = builder.create<arith::ConstantIntOp>(loc, -1, 32);
-  Value negativeTwo = builder.create<arith::ConstantIntOp>(loc, -2, 32);
-  Value two = builder.create<arith::ConstantIntOp>(loc, 2, 32);
+  IntegerValueRange zero(ConstantIntRanges::constant(APInt(32, 0)));
+  IntegerValueRange one(ConstantIntRanges::constant(APInt(32, 1)));
+  IntegerValueRange negativeOne(ConstantIntRanges::constant(APInt(32, -1)));
+  IntegerValueRange negativeTwo(ConstantIntRanges::constant(APInt(32, -2)));
+  IntegerValueRange two(ConstantIntRanges::constant(APInt(32, 2)));
+
   auto bufferTy = MemRefType::get({}, builder.getI32Type());
   Value memref = builder.create<memref::AllocaOp>(loc, bufferTy);
   builder.create<affine::AffineLoadOp>(loc, memref);
   builder.create<func::ReturnOp>(loc);
-
-  DataFlowSolver solver;
-  solver.load<dataflow::DeadCodeAnalysis>();
-  solver.load<dataflow::IntegerRangeAnalysis>();
-  if (failed(solver.initializeAndRun(funcOp)))
-    assert(false);
 
   // clang-format off
   MemoryAccessMatrix identityMatrix(
@@ -326,20 +292,20 @@ TEST(MatrixTest, PatternClassification) {
        {zero, one,  zero}, 
        {zero, zero, one }});
   // clang-format on
-  EXPECT_THAT(identityMatrix.isIdentity(solver), true);
+  EXPECT_THAT(identityMatrix.isIdentity(), true);
 
   OffsetVector zeroOffsets(3);
   zeroOffsets.fill(zero);
-  EXPECT_THAT(zeroOffsets.isZero(solver), true);
+  EXPECT_THAT(zeroOffsets.isZero(), true);
 
   // Test linear access pattern.
   {
     MemoryAccessMatrix linearAccess(identityMatrix);
-    EXPECT_THAT(linearAccess.hasLinearAccessPattern(solver), true);
+    EXPECT_THAT(linearAccess.hasLinearAccessPattern(), true);
 
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(linearAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver), MemoryAccessPattern::Linear);
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::Linear);
   }
 
   // Test reverse linear access pattern.
@@ -350,12 +316,11 @@ TEST(MatrixTest, PatternClassification) {
          {zero, one,  zero}, 
          {zero, zero, negativeOne}});
     // clang-format on
-    EXPECT_THAT(reverseAccess.hasReverseLinearAccessPattern(solver), true);
+    EXPECT_THAT(reverseAccess.hasReverseLinearAccessPattern(), true);
 
     OffsetVector offsets({zero, zero, two});
     MemoryAccess memoryAccess(std::move(reverseAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
-                MemoryAccessPattern::ReverseLinear);
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::ReverseLinear);
   }
 
   // Test liner overlapped access pattern.
@@ -366,14 +331,13 @@ TEST(MatrixTest, PatternClassification) {
          {one, one,  zero}, 
          {one, one,  one }});
     // clang-format on
-    EXPECT_THAT(linearOverlappedAccess.hasLinearOverlappedAccessPattern(solver),
+    EXPECT_THAT(linearOverlappedAccess.hasLinearOverlappedAccessPattern(),
                 true);
 
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(linearOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
-                MemoryAccessPattern::LinearOverlapped);
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::LinearOverlapped);
   }
 
   // Test strided access pattern.
@@ -384,11 +348,11 @@ TEST(MatrixTest, PatternClassification) {
          {zero, one,  zero}, 
          {zero, zero, two }});
     // clang-format on
-    EXPECT_THAT(stridedAccess.hasStridedAccessPattern(solver), true);
+    EXPECT_THAT(stridedAccess.hasStridedAccessPattern(), true);
 
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(stridedAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver), MemoryAccessPattern::Strided);
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::Strided);
   }
 
   // Test strided overlapped access pattern.
@@ -399,26 +363,24 @@ TEST(MatrixTest, PatternClassification) {
          {one, one,  zero}, 
          {one, one,  two }});
     // clang-format on
-    EXPECT_THAT(
-        stridedOverlappedAccess.hasStridedOverlappedAccessPattern(solver),
-        true);
+    EXPECT_THAT(stridedOverlappedAccess.hasStridedOverlappedAccessPattern(),
+                true);
 
     OffsetVector offsets(zeroOffsets);
     MemoryAccess memoryAccess(std::move(stridedOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
+    EXPECT_THAT(memoryAccess.classify(),
                 MemoryAccessPattern::StridedOverlapped);
   }
 
   // Test linear shifted access pattern.
   {
     MemoryAccessMatrix linearAccess(identityMatrix);
-    EXPECT_THAT(linearAccess.hasLinearAccessPattern(solver), true);
+    EXPECT_THAT(linearAccess.hasLinearAccessPattern(), true);
 
     OffsetVector offsets({zero, zero, two});
     MemoryAccess memoryAccess(std::move(linearAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
-                MemoryAccessPattern::LinearShifted);
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::LinearShifted);
   }
 
   // Test reverse linear shifted access pattern.
@@ -429,11 +391,11 @@ TEST(MatrixTest, PatternClassification) {
          {zero, one,  zero}, 
          {zero, zero, negativeOne}});
     // clang-format on
-    EXPECT_THAT(reverseAccess.hasReverseLinearAccessPattern(solver), true);
+    EXPECT_THAT(reverseAccess.hasReverseLinearAccessPattern(), true);
 
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseAccess), std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
+    EXPECT_THAT(memoryAccess.classify(),
                 MemoryAccessPattern::ReverseLinearShifted);
   }
 
@@ -446,14 +408,13 @@ TEST(MatrixTest, PatternClassification) {
          {one, one,  negativeOne}});
     // clang-format on
     EXPECT_THAT(
-        reverseLinearOverlappedAccess.hasReverseLinearOverlappedAccessPattern(
-            solver),
+        reverseLinearOverlappedAccess.hasReverseLinearOverlappedAccessPattern(),
         true);
 
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseLinearOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
+    EXPECT_THAT(memoryAccess.classify(),
                 MemoryAccessPattern::ReverseLinearOverlapped);
   }
 
@@ -465,14 +426,12 @@ TEST(MatrixTest, PatternClassification) {
          {zero, one,  zero},
          {zero, zero, negativeTwo}});
     // clang-format on
-    EXPECT_THAT(reverseStridedAccess.hasReverseStridedAccessPattern(solver),
-                true);
+    EXPECT_THAT(reverseStridedAccess.hasReverseStridedAccessPattern(), true);
 
     OffsetVector offsets({zero, zero, two});
     MemoryAccess memoryAccess(std::move(reverseStridedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
-                MemoryAccessPattern::ReverseStrided);
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::ReverseStrided);
   }
 
   // Test strided shifted access pattern.
@@ -483,13 +442,12 @@ TEST(MatrixTest, PatternClassification) {
          {zero, one,  zero},
          {zero, zero, two}});
     // clang-format on
-    EXPECT_THAT(stridedShiftedAccess.hasStridedAccessPattern(solver), true);
+    EXPECT_THAT(stridedShiftedAccess.hasStridedAccessPattern(), true);
 
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(stridedShiftedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
-                MemoryAccessPattern::StridedShifted);
+    EXPECT_THAT(memoryAccess.classify(), MemoryAccessPattern::StridedShifted);
   }
 
   // Test reverse strided shifted access pattern.
@@ -500,14 +458,13 @@ TEST(MatrixTest, PatternClassification) {
          {zero, one,  zero},
          {zero, zero, negativeTwo}});
     // clang-format on
-    EXPECT_THAT(
-        reverseStridedShiftedAccess.hasReverseStridedAccessPattern(solver),
-        true);
+    EXPECT_THAT(reverseStridedShiftedAccess.hasReverseStridedAccessPattern(),
+                true);
 
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseStridedShiftedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
+    EXPECT_THAT(memoryAccess.classify(),
                 MemoryAccessPattern::ReverseStridedShifted);
   }
 
@@ -519,15 +476,14 @@ TEST(MatrixTest, PatternClassification) {
          {one, one,  zero},
          {one, one,  negativeTwo}});
     // clang-format on
-    EXPECT_THAT(
-        reverseStridedOverlappedAccess.hasReverseStridedOverlappedAccessPattern(
-            solver),
-        true);
+    EXPECT_THAT(reverseStridedOverlappedAccess
+                    .hasReverseStridedOverlappedAccessPattern(),
+                true);
 
     OffsetVector offsets({zero, zero, one});
     MemoryAccess memoryAccess(std::move(reverseStridedOverlappedAccess),
                               std::move(offsets));
-    EXPECT_THAT(memoryAccess.classify(solver),
+    EXPECT_THAT(memoryAccess.classify(),
                 MemoryAccessPattern::ReverseStridedOverlapped);
   }
 }

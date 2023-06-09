@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_SYCL_IR_SYCLATTRIBUTES_H
 #define MLIR_DIALECT_SYCL_IR_SYCLATTRIBUTES_H
 
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 
@@ -33,6 +34,21 @@ inline unsigned targetToAddressSpace(Target target) {
     llvm_unreachable("Invalid Target for an accessor");
   }
 }
+
+/// Class to represent the sycl reqd_work_group_size attribute.
+class ReqdWorkGroupSize {
+public:
+  ReqdWorkGroupSize(ArrayRef<gpu::GPUFuncOp> kernels);
+  bool empty() const;
+  unsigned size() const;
+  unsigned operator[](unsigned dim) const;
+
+private:
+  /// Populate \p wgSizes from kernel \p kernel.
+  static void init(gpu::GPUFuncOp kernel, SmallVectorImpl<unsigned> &wgSizes);
+
+  SmallVector<unsigned> wgSizes;
+};
 
 } // namespace sycl
 } // namespace mlir

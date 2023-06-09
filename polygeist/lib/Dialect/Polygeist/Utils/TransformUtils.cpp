@@ -9,7 +9,6 @@
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -102,82 +101,6 @@ bool isTailCall(CallOpInterface call) {
           isRegionReturnLike(nextOp));
 }
 
-/// Populate \p funcMaxDepthMap with the maximum depth from a GPU kernel for \p
-/// func and its callers.
-static void getMaxDepthFromAnyGPUKernel(
-    FunctionOpInterface func,
-    DenseMap<FunctionOpInterface, Optional<unsigned>> &funcMaxDepthMap) {
-  assert(!funcMaxDepthMap.contains(func) &&
-         "Expecting maximum depth of func is not already calculated");
-
-  // A function that does not reside in a GPU module cannot be called from a GPU
-  // kernel.
-  if (!func->getParentOfType<gpu::GPUModuleOp>()) {
-    funcMaxDepthMap[func] = std::nullopt;
-    return;
-  }
-
-  Operation *op = func;
-  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
-    if (gpuFunc.isKernel()) {
-      funcMaxDepthMap[func] = 0;
-      return;
-    }
-
-  ModuleOp module = func->getParentOfType<ModuleOp>();
-  SymbolTableCollection symTable;
-  SymbolUserMap userMap(symTable, module);
-  Optional<unsigned> maxDepth = std::nullopt;
-  for (Operation *call : userMap.getUsers(func)) {
-    auto caller = call->getParentOfType<FunctionOpInterface>();
-    if (!funcMaxDepthMap.contains(caller))
-      getMaxDepthFromAnyGPUKernel(caller, funcMaxDepthMap);
-    Optional<unsigned> callerDepth = funcMaxDepthMap[caller];
-
-    // Caller not called from a GPU kernel.
-    if (!callerDepth.has_value())
-      continue;
-
-    unsigned depth = 1 + callerDepth.value();
-    if (!maxDepth.has_value())
-      maxDepth = depth;
-    else if (depth > maxDepth.value())
-      maxDepth = depth;
-  }
-  funcMaxDepthMap[func] = maxDepth;
-}
-
-Optional<unsigned> getMaxDepthFromAnyGPUKernel(FunctionOpInterface func) {
-  DenseMap<FunctionOpInterface, Optional<unsigned>> funcMaxDepthMap;
-  getMaxDepthFromAnyGPUKernel(func, funcMaxDepthMap);
-  return funcMaxDepthMap[func];
-}
-
-bool isPotentialKernelBodyFunc(FunctionOpInterface func) {
-  // The function must be defined, and private or with linkonce_odr linkage.
-  if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
-    return false;
-
-  ModuleOp module = func->getParentOfType<ModuleOp>();
-  SymbolTableCollection symTable;
-  SymbolUserMap userMap(symTable, module);
-
-  if (!all_of(userMap.getUsers(func), [](Operation *op) {
-        if (auto call = dyn_cast<CallOpInterface>(op))
-          return isTailCall(call);
-        return false;
-      }))
-    return false;
-
-  Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(func);
-  // The function must to called from GPU kernel.
-  if (!maxDepth.has_value())
-    return false;
-  // The function should be called directly by a GPU kernel, or called by a
-  // function that directly called by a GPU kernel.
-  return (maxDepth.value() == 1 || maxDepth.value() == 2);
-}
-
 Optional<Value> getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
@@ -197,8 +120,11 @@ std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
 
   auto *inferredRange =
       solver.lookupState<dataflow::IntegerValueRangeLattice>(val);
-  if (!inferredRange || inferredRange->getValue().isUninitialized())
+  if (!inferredRange || inferredRange->getValue().isUninitialized()) {
+    if (auto constVal = dyn_cast<arith::ConstantIndexOp>(val.getDefiningOp()))
+      return APInt(/*numBits=*/64, constVal.value());
     return std::nullopt;
+  }
 
   const ConstantIntRanges &range = inferredRange->getValue().getValue();
   return range.getConstantValue();
@@ -225,6 +151,112 @@ SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
   SetVector<T> res;
   funcOp->walk([&](T op) { res.insert(op); });
   return res;
+}
+
+//===----------------------------------------------------------------------===//
+// FunctionKernelInfo
+//===----------------------------------------------------------------------===//
+
+FunctionKernelInfo::FunctionKernelInfo(gpu::GPUModuleOp module) {
+  module.walk([&](FunctionOpInterface func) { populateGPUKernelInfo(func); });
+}
+
+bool FunctionKernelInfo::isPotentialKernelBodyFunc(
+    FunctionOpInterface func) const {
+  // The function must be defined, and private or with linkonce_odr linkage.
+  if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
+    return false;
+
+  ModuleOp module = func->getParentOfType<ModuleOp>();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+
+  if (!all_of(userMap.getUsers(func), [](Operation *op) {
+        if (auto call = dyn_cast<CallOpInterface>(op))
+          return isTailCall(call);
+        return false;
+      }))
+    return false;
+
+  Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(func);
+  // The function must to called from GPU kernel.
+  if (!maxDepth.has_value())
+    return false;
+  // The function should be called directly by a GPU kernel, or called by a
+  // function that directly called by a GPU kernel.
+  return (maxDepth.value() == 1 || maxDepth.value() == 2);
+}
+
+Optional<unsigned> FunctionKernelInfo::getMaxDepthFromAnyGPUKernel(
+    FunctionOpInterface func) const {
+  Optional<unsigned> maxDepth = std::nullopt;
+  for (const KernelInfo &kernelInfo : funcKernelInfosMap.at(func)) {
+    if (!maxDepth.has_value())
+      maxDepth = kernelInfo.depth;
+    else if (kernelInfo.depth > maxDepth.value())
+      maxDepth = kernelInfo.depth;
+  }
+  return maxDepth;
+}
+
+Optional<unsigned>
+FunctionKernelInfo::getMaxDepthFromGPUKernel(FunctionOpInterface func,
+                                             gpu::GPUFuncOp kernel) const {
+  assert(kernel.isKernel() && "Expecting kernel");
+  Optional<unsigned> maxDepth = std::nullopt;
+  for (const KernelInfo &kernelInfo : funcKernelInfosMap.at(func)) {
+    if (kernelInfo.kernel != kernel)
+      continue;
+    if (!maxDepth.has_value())
+      maxDepth = kernelInfo.depth;
+    else if (kernelInfo.depth > maxDepth.value())
+      maxDepth = kernelInfo.depth;
+  }
+  return maxDepth;
+}
+
+void FunctionKernelInfo::getKernelCallers(
+    FunctionOpInterface func, SmallVectorImpl<gpu::GPUFuncOp> &kernels) const {
+  for (const KernelInfo &kernelInfo : funcKernelInfosMap.at(func))
+    kernels.push_back(kernelInfo.kernel);
+}
+
+FunctionOpInterface
+FunctionKernelInfo::getKernelBodyFunc(gpu::GPUFuncOp kernel) const {
+  assert(kernel.isKernel() && "Expecting kernel");
+  for (FunctionOpInterface func : kernelFuncsMap.at(kernel))
+    if (isPotentialKernelBodyFunc(func))
+      return func;
+  llvm_unreachable("cannot find kernel body function");
+}
+
+void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
+  assert(func->getParentOfType<gpu::GPUModuleOp>() &&
+         "Expecting func in gpu module");
+
+  // Initialize with empty list.
+  funcKernelInfosMap[func] = {};
+
+  Operation *op = func;
+  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
+    if (gpuFunc.isKernel()) {
+      funcKernelInfosMap[func].push_back({gpuFunc, 0});
+      return;
+    }
+
+  ModuleOp module = func->getParentOfType<ModuleOp>();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+  for (Operation *call : userMap.getUsers(func)) {
+    auto caller = call->getParentOfType<FunctionOpInterface>();
+    if (!funcKernelInfosMap.contains(caller))
+      populateGPUKernelInfo(caller);
+    for (const KernelInfo &kernelInfo : funcKernelInfosMap[caller]) {
+      funcKernelInfosMap[func].push_back(
+          {kernelInfo.kernel, kernelInfo.depth + 1});
+      kernelFuncsMap[kernelInfo.kernel].insert(func);
+    }
+  }
 }
 
 namespace {
