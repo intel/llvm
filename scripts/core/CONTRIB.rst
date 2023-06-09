@@ -95,7 +95,8 @@ To submit a pull request to Unified Runtime, you must first create your own
 personal fork of the project and submit your changes to a branch. By convention
 we name our branches ``<your_name>/<short_description>``, where the description
 indicates the intent of your change. You can then raise a pull request
-targeting ``oneapi-src/unified-runtime:main``.
+targeting ``oneapi-src/unified-runtime:main``. Please add the *experimental*
+label to you pull request.
 
 When making changes to the specification you *must* commit all changes to files
 in the repository as a result of `Generating Source`_.
