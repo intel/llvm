@@ -607,15 +607,14 @@ struct offload_sampled_image_data_t {
   uint32_t dim = 0;
   /// Buffer size for each dimension.
   size_t range[3] = {0, 0, 0};
-  /// A string representing the image format.
-  const char *format = nullptr;
-  /// A string representing the addressing mode of the associated sampler.
-  const char *addressing = nullptr;
-  /// A string representing the coordinate normalization mode of the associated
-  /// sampler.
-  const char *coordinate_normalization = nullptr;
-  /// A string representing the filtering mode of the associated sampler.
-  const char *filtering = nullptr;
+  /// Image format.
+  uint32_t format = 0;
+  /// Addressing mode of the associated sampler.
+  uint32_t addressing = 0;
+  /// Coordinate normalization mode of the associated sampler.
+  uint32_t coordinate_normalization = 0;
+  /// Filtering mode of the associated sampler.
+  uint32_t filtering = 0;
 };
 
 /// Describes offload unsampled image
@@ -628,8 +627,8 @@ struct offload_unsampled_image_data_t {
   uint32_t dim = 0;
   /// Buffer size for each dimension.
   size_t range[3] = {0, 0, 0};
-  /// A string representing the image format.
-  const char *format = nullptr;
+  /// Image format.
+  uint32_t format = 0;
 };
 
 /// Describes offload accessor

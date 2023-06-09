@@ -18,7 +18,7 @@ int main() {
 
   /* Unsampled images */
   {
-    // CHECK:{{[0-9]+}}|Create unsampled image|[[UIMGID:[0-9,a-f,x]+]]|0x{{[0-9,a-f]+}}|1|{3,0,0}|r32b32g32a32_uint|{{.*}}accessors.cpp:[[# @LINE + 1]]:30
+    // CHECK:{{[0-9]+}}|Create unsampled image|[[UIMGID:[0-9,a-f,x]+]]|0x{{[0-9,a-f]+}}|1|{3,0,0}|7|{{.*}}accessors.cpp:[[# @LINE + 1]]:30
     sycl::unsampled_image<1> UImg(sycl::image_format::r32b32g32a32_uint, 3);
 
     try {
@@ -60,7 +60,7 @@ int main() {
                                 sycl::coordinate_normalization_mode::normalized,
                                 sycl::filtering_mode::linear};
 
-    // CHECK:{{[0-9]+}}|Create sampled image|[[SIMGID:[0-9,a-f,x]+]]|0x{{[0-9,a-f]+}}|1|{3,0,0}|r16g16b16a16_sint|repeat|normalized|linear|{{.*}}accessors.cpp:[[# @LINE + 1]]:28
+    // CHECK:{{[0-9]+}}|Create sampled image|[[SIMGID:[0-9,a-f,x]+]]|0x{{[0-9,a-f]+}}|1|{3,0,0}|3|4403|1|4417|{{.*}}accessors.cpp:[[# @LINE + 1]]:28
     sycl::sampled_image<1> SImg(SampledImgData,
                                 sycl::image_format::r16g16b16a16_sint, Sampler,
                                 SampledImgElemCount);

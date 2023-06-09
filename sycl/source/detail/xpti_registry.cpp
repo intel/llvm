@@ -142,10 +142,9 @@ void XPTIRegistry::bufferAccessorNotification(
 
 void XPTIRegistry::sampledImageConstructorNotification(
     const void *UserObj, const detail::code_location &CodeLoc,
-    const void *HostObj, uint32_t Dim, size_t Range[3], const void *ImageFormat,
-    const void *SamplerAddressingMode,
-    const void *SamplerCoordinateNormalizationMode,
-    const void *SamplerFilteringMode) {
+    const void *HostObj, uint32_t Dim, size_t Range[3], uint32_t ImageFormat,
+    uint32_t SamplerAddressingMode, uint32_t SamplerCoordinateNormalizationMode,
+    uint32_t SamplerFilteringMode) {
   (void)UserObj;
   (void)CodeLoc;
   (void)HostObj;
@@ -166,10 +165,10 @@ void XPTIRegistry::sampledImageConstructorNotification(
       (uintptr_t)HostObj,
       Dim,
       {Range[0], Range[1], Range[2]},
-      (const char *)ImageFormat,
-      (const char *)SamplerAddressingMode,
-      (const char *)SamplerCoordinateNormalizationMode,
-      (const char *)SamplerFilteringMode};
+      ImageFormat,
+      SamplerAddressingMode,
+      SamplerCoordinateNormalizationMode,
+      SamplerFilteringMode};
 
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "sampled_image", IId, CodeLoc,
@@ -196,8 +195,7 @@ void XPTIRegistry::sampledImageDestructorNotification(const void *UserObj) {
 
 void XPTIRegistry::unsampledImageConstructorNotification(
     const void *UserObj, const detail::code_location &CodeLoc,
-    const void *HostObj, uint32_t Dim, size_t Range[3],
-    const void *ImageFormat) {
+    const void *HostObj, uint32_t Dim, size_t Range[3], uint32_t ImageFormat) {
   (void)UserObj;
   (void)CodeLoc;
   (void)HostObj;
@@ -214,7 +212,7 @@ void XPTIRegistry::unsampledImageConstructorNotification(
                                                  (uintptr_t)HostObj,
                                                  Dim,
                                                  {Range[0], Range[1], Range[2]},
-                                                 (const char *)ImageFormat};
+                                                 ImageFormat};
 
   xpti::trace_event_data_t *TraceEvent =
       createTraceEvent(UserObj, "unsampled_image", IId, CodeLoc,

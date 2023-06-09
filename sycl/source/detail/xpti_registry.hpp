@@ -119,14 +119,16 @@ public:
                                          uint32_t,
                                          const detail::code_location &);
 
-  static void sampledImageConstructorNotification(
-      const void *, const detail::code_location &, const void *, uint32_t,
-      size_t[3], const void *, const void *, const void *, const void *);
+  static void sampledImageConstructorNotification(const void *,
+                                                  const detail::code_location &,
+                                                  const void *, uint32_t,
+                                                  size_t[3], uint32_t, uint32_t,
+                                                  uint32_t, uint32_t);
   static void sampledImageDestructorNotification(const void *);
 
   static void unsampledImageConstructorNotification(
       const void *, const detail::code_location &, const void *, uint32_t,
-      size_t[3], const void *);
+      size_t[3], uint32_t);
   static void unsampledImageDestructorNotification(const void *);
 
   static void unsampledImageAccessorNotification(const void *, const void *,

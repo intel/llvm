@@ -466,80 +466,14 @@ std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
   return Context->get_info<info::context::devices>();
 }
 
-inline const char *imageFormatToString(image_format Format) {
-  switch (Format) {
-  case image_format::r8g8b8a8_unorm:
-    return "r8g8b8a8_unorm";
-  case image_format::r16g16b16a16_unorm:
-    return "r16g16b16a16_unorm";
-  case image_format::r8g8b8a8_sint:
-    return "r8g8b8a8_sint";
-  case image_format::r16g16b16a16_sint:
-    return "r16g16b16a16_sint";
-  case image_format::r32b32g32a32_sint:
-    return "r32b32g32a32_sint";
-  case image_format::r8g8b8a8_uint:
-    return "r8g8b8a8_uint";
-  case image_format::r16g16b16a16_uint:
-    return "r16g16b16a16_uint";
-  case image_format::r32b32g32a32_uint:
-    return "r32b32g32a32_uint";
-  case image_format::r16b16g16a16_sfloat:
-    return "r16b16g16a16_sfloat";
-  case image_format::r32g32b32a32_sfloat:
-    return "r32g32b32a32_sfloat";
-  case image_format::b8g8r8a8_unorm:
-    return "b8g8r8a8_unorm";
-  }
-  return "Unknown image format";
-}
-
-inline const char *addressingModeToString(addressing_mode Mode) {
-  switch (Mode) {
-  case addressing_mode::mirrored_repeat:
-    return "mirrored_repeat";
-  case addressing_mode::repeat:
-    return "repeat";
-  case addressing_mode::clamp_to_edge:
-    return "clamp_to_edge";
-  case addressing_mode::clamp:
-    return "clamp";
-  case addressing_mode::none:
-    return "none";
-  }
-  return "Unknown addressing mode";
-}
-
-inline const char *
-coordinateNormalizationModeToString(coordinate_normalization_mode Mode) {
-  switch (Mode) {
-  case coordinate_normalization_mode::normalized:
-    return "normalized";
-  case coordinate_normalization_mode::unnormalized:
-    return "unnormalized";
-  }
-  return "Unknown coordinate normalization mode";
-}
-
-inline const char *filteringModeToString(filtering_mode Mode) {
-  switch (Mode) {
-  case filtering_mode::nearest:
-    return "nearest";
-  case filtering_mode::linear:
-    return "linear";
-  }
-  return "Unknown filtering mode";
-}
-
 void image_impl::sampledImageConstructorNotification(
     const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
     uint32_t Dim, size_t Range[3], image_format Format,
     const image_sampler &Sampler) {
   XPTIRegistry::sampledImageConstructorNotification(
-      UserObj, CodeLoc, HostObj, Dim, Range, imageFormatToString(Format),
-      addressingModeToString(Sampler.addressing),
-      coordinateNormalizationModeToString(Sampler.coordinate),
-      filteringModeToString(Sampler.filtering));
+      UserObj, CodeLoc, HostObj, Dim, Range, (uint32_t)Format,
+      (uint32_t)Sampler.addressing, (uint32_t)Sampler.coordinate,
+      (uint32_t)Sampler.filtering);
 }
 
 void image_impl::sampledImageDestructorNotification(void *UserObj) {
@@ -550,7 +484,7 @@ void image_impl::unsampledImageConstructorNotification(
     const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
     uint32_t Dim, size_t Range[3], image_format Format) {
   XPTIRegistry::unsampledImageConstructorNotification(
-      UserObj, CodeLoc, HostObj, Dim, Range, imageFormatToString(Format));
+      UserObj, CodeLoc, HostObj, Dim, Range, (uint32_t)Format);
 }
 
 void image_impl::unsampledImageDestructorNotification(void *UserObj) {

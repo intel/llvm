@@ -601,11 +601,10 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   xpti::offload_buffer_data_t UserBufferData{1, 5, "int", 4, 2, {3, 2, 0}};
-  xpti::offload_sampled_image_data_t UserSampledImageData{
-      1,        5, 4, {3, 2, 0}, "r32b32g32a32_sint", "repeat", "unnormalized",
-      "nearest"};
+  xpti::offload_sampled_image_data_t UserSampledImageData{1, 5, 4, {3, 2, 0},
+                                                          4, 3, 2, 1};
   xpti::offload_unsampled_image_data_t UserUnsampledImageData{
-      1, 5, 4, {3, 2, 0}, "r32b32g32a32_sint"};
+      1, 5, 4, {3, 2, 0}, 4};
   xpti::offload_association_data_t BufferAssociationData{0x01020304,
                                                          0x05060708};
   xpti::offload_association_data_t SampledImageAssociationData{0x01020404,
