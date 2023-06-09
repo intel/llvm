@@ -2,8 +2,6 @@ name: SYCL Pre Commit
 
 on:
   pull_request_target:
-    branches:
-    - sycl
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
@@ -27,9 +25,6 @@ permissions:
   contents: read
 
 jobs:
-  detect_changes:
-    uses: ./.github/workflows/sycl_detect_changes.yml
-
   lint:
     runs-on: cuda
     container:
@@ -68,38 +63,3 @@ jobs:
       with:
         path: src
 
-  # This job generates matrix of tests for SYCL End-to-End tests
-  test_matrix:
-    name: Generate Test Matrix
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "hip_amdgpu;lin_intel;esimd_emu;cuda_aws;win_l0_gen12"
-
-  linux_default:
-    name: Linux
-    # Only build and test patches, that have passed all linter checks, because
-    # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix, detect_changes]
-    if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    secrets: inherit
-    with:
-      build_ref: ${{ github.event.pull_request.head.sha }}
-      build_cache_root: "/__w/"
-      build_cache_size: "8G"
-      build_artifact_suffix: "default"
-      build_cache_suffix: "default"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      check_filters: ${{ needs.detect_changes.outputs.filters }}
-
-  windows_default:
-    name: Windows
-    needs: [lint, test_matrix, detect_changes]
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_windows_build_and_test.yml
-    with:
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
-      build_ref: ${{ github.event.pull_request.head.sha }}
-      check_filters: ${{ needs.detect_changes.outputs.filters }}
