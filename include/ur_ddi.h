@@ -51,6 +51,13 @@ typedef ur_result_t(UR_APICALL *ur_pfnPlatformCreateWithNativeHandle_t)(
     ur_platform_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urPlatformGetLastError
+typedef ur_result_t(UR_APICALL *ur_pfnPlatformGetLastError_t)(
+    ur_platform_handle_t,
+    const char **,
+    int32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGetApiVersion
 typedef ur_result_t(UR_APICALL *ur_pfnPlatformGetApiVersion_t)(
     ur_platform_handle_t,
@@ -70,6 +77,7 @@ typedef struct ur_platform_dditable_t {
     ur_pfnPlatformGetInfo_t pfnGetInfo;
     ur_pfnPlatformGetNativeHandle_t pfnGetNativeHandle;
     ur_pfnPlatformCreateWithNativeHandle_t pfnCreateWithNativeHandle;
+    ur_pfnPlatformGetLastError_t pfnGetLastError;
     ur_pfnPlatformGetApiVersion_t pfnGetApiVersion;
     ur_pfnPlatformGetBackendOption_t pfnGetBackendOption;
 } ur_platform_dditable_t;
@@ -1665,12 +1673,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnInit_t)(
     ur_device_init_flags_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetLastResult
-typedef ur_result_t(UR_APICALL *ur_pfnGetLastResult_t)(
-    ur_platform_handle_t,
-    const char **);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urTearDown
 typedef ur_result_t(UR_APICALL *ur_pfnTearDown_t)(
     void *);
@@ -1679,7 +1681,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnTearDown_t)(
 /// @brief Table of Global functions pointers
 typedef struct ur_global_dditable_t {
     ur_pfnInit_t pfnInit;
-    ur_pfnGetLastResult_t pfnGetLastResult;
     ur_pfnTearDown_t pfnTearDown;
 } ur_global_dditable_t;
 
