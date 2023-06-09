@@ -712,21 +712,17 @@ std::string MemRegion::getDescriptiveName(bool UseQuotes) const {
 }
 
 SourceRange MemRegion::sourceRange() const {
-  const auto *const VR = dyn_cast<VarRegion>(this->getBaseRegion());
-  const auto *const FR = dyn_cast<FieldRegion>(this);
-
   // Check for more specific regions first.
-  // FieldRegion
-  if (FR) {
+  if (auto *FR = dyn_cast<FieldRegion>(this)) {
     return FR->getDecl()->getSourceRange();
   }
-  // VarRegion
-  else if (VR) {
+
+  if (auto *VR = dyn_cast<VarRegion>(this->getBaseRegion())) {
     return VR->getDecl()->getSourceRange();
   }
+
   // Return invalid source range (can be checked by client).
-  else
-    return {};
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -1283,7 +1279,7 @@ const MemSpaceRegion *MemRegion::getMemorySpace() const {
     SR = dyn_cast<SubRegion>(R);
   }
 
-  return dyn_cast<MemSpaceRegion>(R);
+  return cast<MemSpaceRegion>(R);
 }
 
 bool MemRegion::hasStackStorage() const {

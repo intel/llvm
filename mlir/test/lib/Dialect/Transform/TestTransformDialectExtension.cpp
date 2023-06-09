@@ -178,6 +178,10 @@ void mlir::test::TestProduceValueHandleToArgumentOfParentBlock::getEffects(
   transform::onlyReadsPayload(effects);
 }
 
+bool mlir::test::TestConsumeOperand::allowsRepeatedHandleOperands() {
+  return getAllowRepeatedHandles();
+}
+
 DiagnosedSilenceableFailure
 mlir::test::TestConsumeOperand::apply(transform::TransformResults &results,
                                       transform::TransformState &state) {
@@ -624,6 +628,12 @@ DiagnosedSilenceableFailure mlir::test::TestProduceNullPayloadOp::apply(
     transform::TransformResults &results, transform::TransformState &state) {
   SmallVector<Operation *, 1> null({nullptr});
   results.set(llvm::cast<OpResult>(getOut()), null);
+  return DiagnosedSilenceableFailure::success();
+}
+
+DiagnosedSilenceableFailure mlir::test::TestProduceEmptyPayloadOp::apply(
+    transform::TransformResults &results, transform::TransformState &state) {
+  results.set(cast<OpResult>(getOut()), {});
   return DiagnosedSilenceableFailure::success();
 }
 

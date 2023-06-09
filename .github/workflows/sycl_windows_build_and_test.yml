@@ -18,34 +18,11 @@ on:
         type: string
         required: false
         default: ""
-      check_llvm:
+      check_filters:
         type: string
+        description: 'Filter matches for the changed files in the PR'
+        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
-        default: 'true'
-      check_clang:
-        type: string
-        required: false
-        default: 'true'
-      check_sycl:
-        type: string
-        required: false
-        default: 'true'
-      check_llvm_spirv:
-        type: string
-        required: false
-        default: 'true'
-      check_xptifw:
-        type: string
-        required: false
-        default: 'true'
-      check_libclc:
-        type: string
-        required: false
-        default: 'true'
-      check_libdevice:
-        type: string
-        required: false
-        default: 'true'
 
 jobs:
   build:
@@ -94,33 +71,27 @@ jobs:
       run: |
         cmake --build build --target sycl-toolchain
     - name: check-llvm
-      shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_llvm == 'true' }}
+      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm')
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_clang == 'true' }}
-      shell: bash
+      if: always() && !cancelled() && contains(inputs.check_filters, 'clang')
       run: |
         cmake --build build --target check-clang
     - name: check-sycl
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_sycl == 'true' }}
-      shell: bash
+      if: always() && !cancelled() && contains(inputs.check_filters, 'sycl')
       run: |
         cmake --build build --target check-sycl
     - name: check-llvm-spirv
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_llvm_spirv == 'true' }}
-      shell: bash
+      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm_spirv')
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_xptifw == 'true' }}
-      shell: bash
+      if: always() && !cancelled() && contains(inputs.check_filters, 'xptifw')
       run: |
         cmake --build build --target check-xptifw
     - name: check-libdevice
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' && inputs.check_libdevice == 'true' }}
-      shell: bash
+      if: always() && !cancelled() && contains(inputs.check_filters, 'libdevice')
       run: |
         cmake --build build --target check-libdevice
     - name: Install
