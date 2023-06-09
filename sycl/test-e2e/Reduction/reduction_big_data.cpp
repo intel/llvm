@@ -23,7 +23,7 @@ template <typename... Ts> class KernelNameGroup;
 size_t getSafeMaxWGSize(size_t MaxWGSize, size_t MemSize, size_t OneElemSize) {
   size_t MaxNumElems = MemSize / OneElemSize;
   if ((MaxNumElems & (MaxNumElems - 1)) != 0)
-    MaxNumElems--; // Need 1 additional element in mem if not pow of 2
+  MaxNumElems--; // Need 1 additional element in mem if not pow of 2
   return std::min(MaxNumElems / 2, MaxWGSize);
 }
 
