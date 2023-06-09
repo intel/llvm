@@ -44,6 +44,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRSPIRVDialect
   MLIRSYCLAnalysis  
   MLIRSYCLDialect
+  MLIRSYCLUtils
   MLIRSideEffectInterfaces
   MLIRSCFToControlFlow
   MLIRTransformUtils
