@@ -126,6 +126,8 @@ template <access::address_space Space, access::decorated DecorateAddress,
 multi_ptr<ElementType, Space, DecorateAddress>
 dynamic_address_space_cast(ElementType* ptr);
 ----
+_Preconditions_: `ptr` is accessible to the calling work-item.
+
 _Returns_: A `multi_ptr` with the specified address space and decoration that
 points to the same object as `ptr` if `ptr` points to an object allocated in
 the address space designated by `Space`, and `nullptr` otherwise.
@@ -133,6 +135,18 @@ the address space designated by `Space`, and `nullptr` otherwise.
 _Diagnostics_: Implementations using address space deduction must issue a
 diagnostic if `ptr` does not point to an object allocated in the address space
 designated by `Space`.
+
+[NOTE]
+====
+The precondition prevents `dynamic_address_space_cast` from being used to
+reason about the address space of pointers originating from another work-item
+(in the case of `private` pointers) or another work-group (in the case of
+`local` pointers). Such pointers could not be dereferenced by the calling
+work-item, and it is thus unclear that being able to reason about the address
+space would be useful. Limiting the use of `dynamic_address_space_cast` to
+accessible pointers is expected to result in simpler and faster
+implementations.
+====
 
 
 == Implementation notes
