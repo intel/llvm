@@ -62,8 +62,6 @@ private:
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
 
-  std::unordered_map<std::string, OSModuleHandle> CachedModules;
-
   std::unique_ptr<::jit_compiler::JITContext> MJITContext;
 };
 

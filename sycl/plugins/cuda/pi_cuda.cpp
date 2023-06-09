@@ -325,9 +325,16 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
       std::min(maxThreadsPerBlock[0],
                std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
+  static auto isPowerOf2 = [](size_t value) -> bool {
+    return value && !(value & (value - 1));
+  };
+
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
+  // Additionally, for best compute utilisation, the local size has
+  // to be a power of two.
+  while (0u != (global_work_size[0] % threadsPerBlock[0]) ||
+         !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
 }
@@ -444,7 +451,7 @@ bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
                                     kernel->get()));
 
   return blockSize * regsPerThread > size_t(maxRegsPerBlock);
-};
+}
 
 } // anonymous namespace
 
@@ -1005,7 +1012,7 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   }
 }
 
-pi_result cuda_piPlatformGetInfo(pi_platform platform,
+pi_result cuda_piPlatformGetInfo([[maybe_unused]] pi_platform platform,
                                  pi_platform_info param_name,
                                  size_t param_value_size, void *param_value,
                                  size_t *param_value_size_ret) {
@@ -1169,7 +1176,7 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   return PI_ERROR_INVALID_BINARY;
 }
 
-pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
+pi_result cuda_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
                                              pi_program program,
                                              const char *func_name,
                                              pi_uint64 *func_pointer_ret) {
@@ -1824,7 +1831,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int minor;
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&minor,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                              device->get()) == CUDA_SUCCESS);
     s << "." << minor;
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -2263,12 +2270,13 @@ pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[out] retcontext Set to created context on success.
 ///
 /// \return PI_SUCCESS on success, otherwise an error return code.
-pi_result cuda_piContextCreate(const pi_context_properties *properties,
-                               pi_uint32 num_devices, const pi_device *devices,
-                               void (*pfn_notify)(const char *errinfo,
-                                                  const void *private_info,
-                                                  size_t cb, void *user_data),
-                               void *user_data, pi_context *retcontext) {
+pi_result cuda_piContextCreate(
+    [[maybe_unused]] const pi_context_properties *properties,
+    [[maybe_unused]] pi_uint32 num_devices, const pi_device *devices,
+    [[maybe_unused]] void (*pfn_notify)(const char *errinfo,
+                                        const void *private_info, size_t cb,
+                                        void *user_data),
+    [[maybe_unused]] void *user_data, pi_context *retcontext) {
 
   assert(devices != nullptr);
   // TODO: How to implement context callback?
@@ -2343,9 +2351,10 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                 size_t size, void *host_ptr, pi_mem *ret_mem,
-                                 const pi_mem_properties *properties) {
+pi_result
+cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
+                       void *host_ptr, pi_mem *ret_mem,
+                       [[maybe_unused]] const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
   assert((properties == nullptr || *properties == 0) &&
@@ -2483,9 +2492,10 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing CUDA allocation.
 ///
-pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
-                                    pi_buffer_create_type buffer_create_type,
-                                    void *buffer_create_info, pi_mem *memObj) {
+pi_result cuda_piMemBufferPartition(
+    pi_mem parent_buffer, pi_mem_flags flags,
+    [[maybe_unused]] pi_buffer_create_type buffer_create_type,
+    void *buffer_create_info, pi_mem *memObj) {
   assert((parent_buffer != nullptr) && "PI_ERROR_INVALID_MEM_OBJECT");
   assert(parent_buffer->is_buffer() && "PI_ERROR_INVALID_MEM_OBJECTS");
   assert(!parent_buffer->is_sub_buffer() && "PI_ERROR_INVALID_MEM_OBJECT");
@@ -2569,10 +2579,8 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                              pi_context context,
-                                              bool ownNativeHandle,
-                                              pi_mem *mem) {
+pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_context,
+                                              bool, pi_mem *) {
   sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
@@ -3565,11 +3573,11 @@ pi_result cuda_piclProgramCreateWithSource(pi_context, pi_uint32, const char **,
 /// used later on to extract functions (kernels).
 /// See \ref _pi_program for implementation details.
 ///
-pi_result cuda_piProgramBuild(pi_program program, pi_uint32 num_devices,
-                              const pi_device *device_list, const char *options,
-                              void (*pfn_notify)(pi_program program,
-                                                 void *user_data),
-                              void *user_data) {
+pi_result cuda_piProgramBuild(
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
 
   assert(program != nullptr);
   assert(num_devices == 1 || num_devices == 0);
@@ -3602,10 +3610,11 @@ pi_result cuda_piProgramCreate(pi_context, const void *, size_t, pi_program *) {
 /// Note: Only supports one device
 ///
 pi_result cuda_piProgramCreateWithBinary(
-    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
-    const size_t *lengths, const unsigned char **binaries,
-    size_t num_metadata_entries, const pi_device_binary_property *metadata,
-    pi_int32 *binary_status, pi_program *program) {
+    pi_context context, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const size_t *lengths,
+    const unsigned char **binaries, size_t num_metadata_entries,
+    const pi_device_binary_property *metadata, pi_int32 *binary_status,
+    pi_program *program) {
   // Ignore unused parameter
   (void)binary_status;
 
@@ -3679,13 +3688,12 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
 /// programs.
 /// \TODO Implement linker options, requires mapping of OpenCL to CUDA
 ///
-pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
-                             const pi_device *device_list, const char *options,
-                             pi_uint32 num_input_programs,
-                             const pi_program *input_programs,
-                             void (*pfn_notify)(pi_program program,
-                                                void *user_data),
-                             void *user_data, pi_program *ret_program) {
+pi_result cuda_piProgramLink(
+    pi_context context, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    pi_uint32 num_input_programs, const pi_program *input_programs,
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data, pi_program *ret_program) {
 
   assert(ret_program != nullptr);
   assert(num_devices == 1 || num_devices == 0);
@@ -3744,10 +3752,12 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
 /// \TODO Implement asynchronous compilation
 ///
 pi_result cuda_piProgramCompile(
-    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
-    const char *options, pi_uint32 num_input_headers,
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] pi_uint32 num_input_headers,
     const pi_program *input_headers, const char **header_include_names,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
   // Ignore unused parameters
   (void)header_include_names;
   (void)input_headers;
@@ -5171,9 +5181,10 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
 /// USM: Implements USM Host allocations using CUDA Pinned Memory
 ///
-pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
-                                 pi_usm_mem_properties *properties, size_t size,
-                                 pi_uint32 alignment) {
+pi_result
+cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
+                       [[maybe_unused]] pi_usm_mem_properties *properties,
+                       size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(properties == nullptr || *properties == 0);
@@ -5193,10 +5204,11 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM device allocations using a normal CUDA device pointer
 ///
-pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
-                                   pi_device device,
-                                   pi_usm_mem_properties *properties,
-                                   size_t size, pi_uint32 alignment) {
+pi_result
+cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
+                         [[maybe_unused]] pi_device device,
+                         [[maybe_unused]] pi_usm_mem_properties *properties,
+                         size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5217,10 +5229,11 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM Shared allocations using CUDA Managed Memory
 ///
-pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
-                                   pi_device device,
-                                   pi_usm_mem_properties *properties,
-                                   size_t size, pi_uint32 alignment) {
+pi_result
+cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
+                         [[maybe_unused]] pi_device device,
+                         [[maybe_unused]] pi_usm_mem_properties *properties,
+                         size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5561,7 +5574,8 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
 
     // Determine the direction of copy using cuPointerGetAttribute
     // for both the src_ptr and dst_ptr
-    CUDA_MEMCPY2D cpyDesc = {0};
+    CUDA_MEMCPY2D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
 
     getUSMHostOrDevicePtr(src_ptr, &cpyDesc.srcMemoryType, &cpyDesc.srcDevice,
                           &cpyDesc.srcHost);

@@ -128,7 +128,7 @@ def dump_symbols(target_path, output):
     out.write("\n# UNSUPPORTED: libcxx")
     out.write("\n\n")
     readobj_opts = "--coff-exports" if os.name == 'nt' else "--syms"
-    readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
+    readobj_out = subprocess.check_output([os.path.join(get_llvm_bin_path(),"llvm-readobj"),
                                            readobj_opts, target_path])
     symbols = parse_readobj_output(readobj_out)
     symbols.sort()
@@ -153,7 +153,7 @@ def check_symbols(ref_path, target_path):
         ref_symbols.append(line.strip())
 
     readobj_opts = "--coff-exports" if os.name == 'nt' else "--syms"
-    readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
+    readobj_out = subprocess.check_output([os.path.join(get_llvm_bin_path(),"llvm-readobj"),
                                            readobj_opts, target_path])
     symbols = parse_readobj_output(readobj_out)
 

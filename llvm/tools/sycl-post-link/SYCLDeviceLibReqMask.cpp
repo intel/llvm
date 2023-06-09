@@ -202,6 +202,7 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_floorf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_ceilf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_abs", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_llabs", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_fabsf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_truncf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_rintf", DeviceLibExt::cl_intel_devicelib_imf},

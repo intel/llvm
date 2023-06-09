@@ -1505,18 +1505,25 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
   std::optional<DIFile::ChecksumInfo<StringRef>> CS;
   SPIRVWord StrIdx = SourceArgs[TextIdx];
   if (Source->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
-    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumKind]) &&
-        !getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumValue])) {
-      llvm::DIFile::ChecksumKind Kind = SPIRV::DbgChecksumKindMap::rmap(
-          static_cast<SPIRVDebug::FileChecksumKind>(
-              BM->get<SPIRVConstant>(SourceArgs[ChecksumKind])
-                  ->getZExtIntValue()));
-      StringRef Checksum = getString(SourceArgs[ChecksumValue]);
-      size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
-      CS.emplace(Kind, Checksum.substr(0, ChecksumEndPos));
+    if (SourceArgs.size() >= MaxOperandCount - 1) {
+      // 2 optional parameters are ChecksumKind and ChecksumValue - they should
+      // go together
+      if (!getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumKind]) &&
+          !getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[ChecksumValue])) {
+        llvm::DIFile::ChecksumKind Kind = SPIRV::DbgChecksumKindMap::rmap(
+            static_cast<SPIRVDebug::FileChecksumKind>(
+                BM->get<SPIRVConstant>(SourceArgs[ChecksumKind])
+                    ->getZExtIntValue()));
+        StringRef Checksum = getString(SourceArgs[ChecksumValue]);
+        size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
+        CS.emplace(Kind, Checksum.substr(0, ChecksumEndPos));
+      }
     }
 
-    if (SourceArgs.size() == MaxOperandCount)
+    // Among optional parameters - text is always the last one (either 1st or
+    // 3rd)
+    if (SourceArgs.size() == MaxOperandCount ||
+        SourceArgs.size() == MaxOperandCount - 2)
       StrIdx = SourceArgs[TextNonSemIdx];
     else
       StrIdx = SPIRVID_INVALID;

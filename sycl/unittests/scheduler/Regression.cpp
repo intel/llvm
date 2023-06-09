@@ -75,11 +75,9 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
       /*HKernel*/
       std::make_unique<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
       /*SyclKernel*/ nullptr,
-      /*KernelBundle*/ nullptr,
-      std::move(CGData),
+      /*KernelBundle*/ nullptr, std::move(CGData),
       /*Args*/ {},
       /*KernelName*/ "",
-      /*OSModuleHandle*/ detail::OSUtil::ExeModuleHandle,
       /*Streams*/ {},
       /*AuxiliaryResources*/ {},
       /*Type*/ detail::CG::RunOnHostIntel,
