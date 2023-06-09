@@ -35,8 +35,8 @@ constexpr int GMajVer = 0;
 constexpr int GMinVer = 1;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-static void cuptiCallback(void *userdata, CUpti_CallbackDomain,
-                          CUpti_CallbackId CBID, const void *CBData) {
+static void cuptiCallback(void *, CUpti_CallbackDomain, CUpti_CallbackId CBID,
+                          const void *CBData) {
   if (xptiTraceEnabled()) {
     const auto *CBInfo = static_cast<const CUpti_CallbackData *>(CBData);
 

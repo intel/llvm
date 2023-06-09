@@ -766,6 +766,8 @@
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
+?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
+?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GetNativeMem@interop_handler@_V1@sycl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?GetNativeQueue@interop_handler@_V1@sycl@@AEBA_KAEAH@Z
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
@@ -843,7 +845,12 @@
 ?aspect_selector@_V1@sycl@@YA?AV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@AEBV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@4@0@Z
 ?assertion@pi@detail@_V1@sycl@@YAX_NPEBD@Z
 ?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVAccessorBaseHost@123@W4target@access@23@@Z
+?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVSampledImageAccessorBaseHost@123@W4image_target@23@@Z
+?associateWithHandler@detail@_V1@sycl@@YAXAEAVhandler@23@PEAVUnsampledImageAccessorBaseHost@123@W4image_target@23@@Z
 ?associateWithHandler@handler@_V1@sycl@@AEAAXPEAVAccessorBaseHost@detail@23@W4target@access@23@@Z
+?associateWithHandler@handler@_V1@sycl@@AEAAXPEAVSampledImageAccessorBaseHost@detail@23@W4image_target@23@@Z
+?associateWithHandler@handler@_V1@sycl@@AEAAXPEAVUnsampledImageAccessorBaseHost@detail@23@W4image_target@23@@Z
+?associateWithHandlerCommon@handler@_V1@sycl@@AEAAXV?$shared_ptr@VAccessorImplHost@detail@_V1@sycl@@@std@@H@Z
 ?barrier@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?barrier@handler@_V1@sycl@@QEAAXXZ
 ?begin@exception_list@_V1@sycl@@QEBA?AV?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@Vexception_ptr@std@@@std@@@std@@@std@@XZ
