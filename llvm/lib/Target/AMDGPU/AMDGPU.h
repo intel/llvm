@@ -88,13 +88,10 @@ void initializeAMDGPUAttributorPass(PassRegistry &);
 void initializeAMDGPUAnnotateKernelFeaturesPass(PassRegistry &);
 extern char &AMDGPUAnnotateKernelFeaturesID;
 
-FunctionPass *createAMDGPUAtomicOptimizerPass();
+enum class ScanOptions : bool { DPP, Iterative };
+FunctionPass *createAMDGPUAtomicOptimizerPass(ScanOptions ScanStrategy);
 void initializeAMDGPUAtomicOptimizerPass(PassRegistry &);
 extern char &AMDGPUAtomicOptimizerID;
-
-ModulePass *createAMDGPULowerIntrinsicsPass();
-void initializeAMDGPULowerIntrinsicsPass(PassRegistry &);
-extern char &AMDGPULowerIntrinsicsID;
 
 ModulePass *createAMDGPUCtorDtorLoweringLegacyPass();
 void initializeAMDGPUCtorDtorLoweringLegacyPass(PassRegistry &);
@@ -237,11 +234,13 @@ private:
 };
 
 struct AMDGPUAtomicOptimizerPass : PassInfoMixin<AMDGPUAtomicOptimizerPass> {
-  AMDGPUAtomicOptimizerPass(TargetMachine &TM) : TM(TM) {}
+  AMDGPUAtomicOptimizerPass(TargetMachine &TM, ScanOptions ScanImpl)
+      : TM(TM), ScanImpl(ScanImpl) {}
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
 private:
   TargetMachine &TM;
+  ScanOptions ScanImpl;
 };
 
 Pass *createAMDGPUStructurizeCFGPass();
