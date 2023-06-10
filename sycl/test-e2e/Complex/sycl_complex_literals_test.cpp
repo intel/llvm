@@ -20,5 +20,5 @@ int main() {
   if (!test_passes)
     std::cerr << "cmplx literals test failed\n";
 
-  return test_passes;
+  return !test_passes;
 }
