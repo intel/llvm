@@ -983,7 +983,7 @@ tan(const complex<_Tp> &__x) {
 inline namespace literals {
 inline namespace complex_literals {
 constexpr complex<sycl::half> operator""il(long double __im) {
-  return {0.0, __im};
+  return {0.0, static_cast<sycl::half>(__im)};
 }
 
 constexpr complex<sycl::half> operator""il(unsigned long long __im) {
