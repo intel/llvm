@@ -5074,16 +5074,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-<<<<<<< HEAD
-  Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
-=======
   // Unconditionally claim the printf option now to avoid unused diagnostic.
   if (const Arg *PF = Args.getLastArg(options::OPT_mprintf_kind_EQ))
     PF->claim();
 
-  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
-    CmdArgs.push_back("-fsycl-is-device");
->>>>>>> 631c965483e03355cdc1dba578e787b259c4d79d
+  Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
 
   if (IsSYCLOffloadDevice) {
     if (Triple.isNVPTX()) {

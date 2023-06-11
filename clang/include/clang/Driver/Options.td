@@ -1075,13 +1075,11 @@ defm cuda_short_ptr : BoolFOption<"cuda-short-ptr",
   TargetOpts<"NVPTXUseShortPointers">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Use 32-bit pointers for accessing const/local/shared address spaces">,
   NegFlag<SetFalse>>;
-<<<<<<< HEAD
 defm cuda_prec_sqrt : BoolFOption<"cuda-prec-sqrt",
   TargetOpts<"NVVMCudaPrecSqrt">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Specify">,
   NegFlag<SetFalse, [], "Don't specify">,
   BothFlags<[], " that sqrt is correctly rounded (for CUDA devices)">>;
-=======
 def mprintf_kind_EQ : Joined<["-"], "mprintf-kind=">, Group<m_Group>,
   HelpText<"Specify the printf lowering scheme (AMDGPU only), allowed values are "
   "\"hostcall\"(printing happens during kernel execution, this scheme "
@@ -1093,7 +1091,6 @@ def mprintf_kind_EQ : Joined<["-"], "mprintf-kind=">, Group<m_Group>,
   NormalizedValuesScope<"TargetOptions::AMDGPUPrintfKind">,
   NormalizedValues<["Hostcall", "Buffered"]>,
   MarshallingInfoEnum<TargetOpts<"AMDGPUPrintfKindVal">, "Hostcall">;
->>>>>>> 631c965483e03355cdc1dba578e787b259c4d79d
 def fgpu_default_stream_EQ : Joined<["-"], "fgpu-default-stream=">,
   HelpText<"Specify default stream. The default value is 'legacy'. (HIP only)">,
   Flags<[CC1Option]>,
