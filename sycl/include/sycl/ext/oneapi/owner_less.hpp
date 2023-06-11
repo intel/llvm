@@ -102,10 +102,22 @@ template <typename DataT, int Dimensions>
 struct owner_less<local_accessor<DataT, Dimensions>>
     : public detail::owner_less_base<local_accessor<DataT, Dimensions>> {};
 
+template <typename DataT, int Dimensions, access_mode AccessMode,
+          image_target AccessTarget>
+struct owner_less<
+    unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>>
+    : public detail::owner_less_base<unsampled_image_accessor<
+          DataT, Dimensions, AccessMode, AccessTarget>> {};
+
 template <typename DataT, int Dimensions, access_mode AccessMode>
 struct owner_less<host_unsampled_image_accessor<DataT, Dimensions, AccessMode>>
     : public detail::owner_less_base<
           host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {};
+
+template <typename DataT, int Dimensions, image_target AccessTarget>
+struct owner_less<sampled_image_accessor<DataT, Dimensions, AccessTarget>>
+    : public detail::owner_less_base<
+          sampled_image_accessor<DataT, Dimensions, AccessTarget>> {};
 
 template <typename DataT, int Dimensions>
 struct owner_less<host_sampled_image_accessor<DataT, Dimensions>>
