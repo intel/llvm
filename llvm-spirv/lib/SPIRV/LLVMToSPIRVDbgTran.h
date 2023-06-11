@@ -144,6 +144,7 @@ private:
   SPIRVEntry *transDebugLoc(const DebugLoc &Loc, SPIRVBasicBlock *BB,
                             SPIRVInstruction *InsertBefore = nullptr);
   SPIRVEntry *transDbgInlinedAt(const DILocation *D);
+  SPIRVEntry *transDbgInlinedAtNonSemanticShader200(const DILocation *D);
 
   template <class T> SPIRVExtInst *getSource(const T *DIEntry);
   SPIRVEntry *transDbgFileType(const DIFile *F);

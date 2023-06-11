@@ -104,6 +104,7 @@ private:
   llvm::DebugLoc transDebugScope(const SPIRVInstruction *Inst);
 
   MDNode *transDebugInlined(const SPIRVExtInst *Inst);
+  MDNode *transDebugInlinedNonSemanticShader200(const SPIRVExtInst *Inst);
 
   DICompileUnit *transCompilationUnit(const SPIRVExtInst *DebugInst,
                                       const std::string CompilerVersion = "",

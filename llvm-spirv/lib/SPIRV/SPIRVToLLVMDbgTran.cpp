@@ -1552,12 +1552,36 @@ DebugLoc SPIRVToLLVMDbgTran::transDebugScope(const SPIRVInstruction *Inst) {
 }
 
 MDNode *SPIRVToLLVMDbgTran::transDebugInlined(const SPIRVExtInst *DebugInst) {
-  using namespace SPIRVDebug::Operand::InlinedAt;
+  // There is a Column operand in NonSemantic.Shader.200 spec
+  if (DebugInst->getExtSetKind() ==
+      SPIRV::SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    return transDebugInlinedNonSemanticShader200(DebugInst);
+
+  using namespace SPIRVDebug::Operand::InlinedAt::OpenCL;
   SPIRVWordVec Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
   SPIRVWord Line =
       getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   unsigned Col = 0; // DebugInlinedAt instruction has no column operand
+  DILocalScope *Scope =
+      cast<DILocalScope>(getScope(BM->getEntry(Ops[ScopeIdx])));
+  DILocation *InlinedAt = nullptr;
+  if (Ops.size() > InlinedIdx) {
+    InlinedAt =
+        transDebugInst<DILocation>(BM->get<SPIRVExtInst>(Ops[InlinedIdx]));
+  }
+  return DILocation::getDistinct(M->getContext(), Line, Col, Scope, InlinedAt);
+}
+
+MDNode *SPIRVToLLVMDbgTran::transDebugInlinedNonSemanticShader200(
+    const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::InlinedAt::NonSemantic;
+  SPIRVWordVec Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+  SPIRVWord Line =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
+  unsigned Col =
+      getConstantValueOrLiteral(Ops, ColumnIdx, DebugInst->getExtSetKind());
   DILocalScope *Scope =
       cast<DILocalScope>(getScope(BM->getEntry(Ops[ScopeIdx])));
   DILocation *InlinedAt = nullptr;
@@ -1671,7 +1695,8 @@ DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {
       return *BuilderMap.begin()->second;
     const SPIRVWordVec &Ops = DebugInst->getArguments();
     SPIRVWord ParentScopeIdx = 0;
-    if (!hasDbgInstParentScopeIdx(DebugInst->getExtOp(), ParentScopeIdx))
+    if (!hasDbgInstParentScopeIdx(DebugInst->getExtOp(), ParentScopeIdx,
+                                  DebugInst->getExtSetKind()))
       return *BuilderMap.begin()->second;
     if (SPIRVEntry *Scope = BM->getEntry(Ops[ParentScopeIdx])) {
       DebugInst = static_cast<SPIRVExtInst *>(Scope);
