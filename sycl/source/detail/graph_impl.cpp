@@ -53,8 +53,8 @@ void connectToExitNodes(
 /// @return True if a dependency was added in this node or any of its
 /// successors.
 bool checkForArg(const sycl::detail::ArgDesc &Arg,
-                   const std::shared_ptr<node_impl> &CurrentNode,
-                   std::set<std::shared_ptr<node_impl>> &Deps) {
+                 const std::shared_ptr<node_impl> &CurrentNode,
+                 std::set<std::shared_ptr<node_impl>> &Deps) {
   bool SuccessorAddedDep = false;
   for (auto &Successor : CurrentNode->MSuccessors) {
     SuccessorAddedDep |= checkForArg(Arg, Successor, Deps);
@@ -117,7 +117,7 @@ graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
     for (auto N : Dep) {
       N->registerSuccessor(NodeImpl, N); // register successor
       this->removeRoot(NodeImpl);        // remove receiver from root node
-                                          // list
+                                         // list
     }
   } else {
     this->addRoot(NodeImpl);
@@ -190,7 +190,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
     for (auto N : Deps) {
       N->registerSuccessor(NodeImpl, N); // register successor
       this->removeRoot(NodeImpl);        // remove receiver from root node
-                                          // list
+                                         // list
     }
   } else {
     this->addRoot(NodeImpl);
@@ -315,7 +315,7 @@ void command_graph<graph_state::modifiable>::make_edge(node &Src, node &Dest) {
       sycl::detail::getSyclObjImpl(Dest);
 
   SenderImpl->registerSuccessor(ReceiverImpl,
-                                 SenderImpl); // register successor
+                                SenderImpl); // register successor
   impl->removeRoot(ReceiverImpl); // remove receiver from root node list
 }
 

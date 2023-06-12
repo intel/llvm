@@ -52,7 +52,7 @@ public:
   /// \p Prev should be a shared_ptr to an instance of this object, but can't
   /// use a raw \p this pointer, so the extra \Prev parameter is passed.
   void registerSuccessor(const std::shared_ptr<node_impl> &Node,
-                          const std::shared_ptr<node_impl> &Prev) {
+                         const std::shared_ptr<node_impl> &Prev) {
     MSuccessors.push_back(Node);
     Node->registerPredecessor(Prev);
   }
@@ -78,7 +78,7 @@ public:
   /// @param NodeImpl Node to schedule.
   /// @param Schedule Execution ordering to add node to.
   void sortTopological(std::shared_ptr<node_impl> NodeImpl,
-                     std::list<std::shared_ptr<node_impl>> &Schedule) {
+                       std::list<std::shared_ptr<node_impl>> &Schedule) {
     for (auto Next : MSuccessors) {
       // Check if we've already scheduled this node
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
@@ -245,8 +245,8 @@ public:
   /// Remove a queue from the set of queues which are currently recording to
   /// this graph.
   /// @param RecordingQueue Queue to remove from set.
-  void removeQueue(
-      const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
+  void
+  removeQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
     MRecordingQueues.erase(RecordingQueue);
   }
 
@@ -260,7 +260,7 @@ public:
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
-                          std::shared_ptr<node_impl> NodeImpl) {
+                       std::shared_ptr<node_impl> NodeImpl) {
     MEventsMap[EventImpl] = NodeImpl;
   }
 

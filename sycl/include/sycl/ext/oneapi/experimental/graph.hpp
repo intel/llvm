@@ -176,7 +176,7 @@ private:
   /// @param Dep List of predecessor nodes.
   /// @return Node added to the graph.
   node addImpl(std::function<void(handler &)> CGF,
-                const std::vector<node> &Dep);
+               const std::vector<node> &Dep);
 
   /// Template-less implementation of add() for empty nodes.
   /// @param Dep List of predecessor nodes.
