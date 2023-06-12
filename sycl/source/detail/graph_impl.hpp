@@ -277,7 +277,7 @@ public:
     }
 
     throw sycl::exception(
-        sycl::errc::invalid,
+        sycl::make_error_code(errc::invalid),
         "No event has been recorded for the specified graph node");
   }
 
