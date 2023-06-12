@@ -430,7 +430,7 @@ private:
 
   /// Determine whether \p memRefAccess exhibits temporal reuse.
   bool hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
-                        const SmallVectorImpl<Value> &threadVars) const;
+                        ArrayRef<Value> threadVars) const;
 
 private:
   MemoryAccessAnalysis &memAccessAnalysis;
@@ -454,6 +454,7 @@ MemorySelector::getMemorySpace(Value memref) const {
 void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
   // Collect the global thread ids used in the function the loop is in.
   auto funcOp = loop->template getParentOfType<FunctionOpInterface>();
+  unsigned gridDim = memAccessAnalysis.getGridDimension(funcOp);
   SmallVector<Value> threadVars =
       memAccessAnalysis.getThreadVector(funcOp, solver);
 
@@ -492,7 +493,7 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
 
     // Get the inter-thread access pattern and classify the memory access.
     MemoryAccessMatrix interThreadMatrix =
-        memAccess->getInterThreadAccessMatrix(threadVars.size());
+        memAccess->getInterThreadAccessMatrix(gridDim);
     MemoryAccessPattern interThreadAccessPattern =
         MemoryAccess::classify(interThreadMatrix, memAccess->getOffsetVector());
 
@@ -573,9 +574,8 @@ bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
       });
 }
 
-bool MemorySelector::hasTemporalReuse(
-    const affine::MemRefAccess &memRefAccess,
-    const SmallVectorImpl<Value> &threadVars) const {
+bool MemorySelector::hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
+                                      ArrayRef<Value> threadVars) const {
   std::optional<MemoryAccess> access =
       memAccessAnalysis.getMemoryAccess(memRefAccess);
   if (!access)
