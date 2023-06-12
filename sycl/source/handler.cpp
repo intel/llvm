@@ -211,26 +211,24 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs,
-                                      KernelBundleImpPtr, MKernel, MKernelName,
-                                      MOSModuleHandle, RawEvents, OutEvent,
-                                      nullptr, MImpl->MKernelCacheConfig);
+            Result =
+                enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                 MKernel, MKernelName, RawEvents, OutEvent,
+                                 nullptr, MImpl->MKernelCacheConfig);
           }
         }
         return Result;
       };
 
       emitKernelInstrumentationData(MKernel, MCodeLoc, MKernelName, MQueue,
-                                    MNDRDesc, KernelBundleImpPtr,
-                                    MOSModuleHandle, MArgs);
+                                    MNDRDesc, KernelBundleImpPtr, MArgs);
 
       bool DiscardEvent = false;
       if (MQueue->has_discard_events_support()) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
-            detail::ProgramManager::getInstance().kernelUsesAssert(
-                MOSModuleHandle, MKernelName);
+            detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -268,7 +266,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
-        MKernelName, MOSModuleHandle, std::move(MStreamStorage),
+        MKernelName, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MCodeLoc));
     break;
@@ -337,13 +335,13 @@ event handler::finalize() {
   case detail::CG::CopyToDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
-        std::move(CGData), MOSModuleHandle, MCodeLoc));
+        std::move(CGData), MCodeLoc));
     break;
   }
   case detail::CG::CopyFromDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
-        std::move(CGData), MOSModuleHandle, MCodeLoc));
+        std::move(CGData), MCodeLoc));
     break;
   }
   case detail::CG::ReadWriteHostPipe: {
@@ -378,9 +376,8 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
   MImpl->MAuxiliaryResources.push_back(ReduObj);
 }
 
-void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
-                                   access::target AccTarget) {
-  detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
+                                         int AccTarget) {
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
   CGData.MRequirements.push_back(Req);
@@ -389,8 +386,25 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
   // Add an accessor to the handler list of associated accessors.
   // For associated accessors index does not means nothing.
   MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
-                                   Req, static_cast<int>(AccTarget),
-                                   /*index*/ 0);
+                                   Req, AccTarget, /*index*/ 0);
+}
+
+void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
+                                   access::target AccTarget) {
+  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+                             static_cast<int>(AccTarget));
+}
+
+void handler::associateWithHandler(
+    detail::UnsampledImageAccessorBaseHost *AccBase, image_target AccTarget) {
+  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+                             static_cast<int>(AccTarget));
+}
+
+void handler::associateWithHandler(
+    detail::SampledImageAccessorBaseHost *AccBase, image_target AccTarget) {
+  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+                             static_cast<int>(AccTarget));
 }
 
 static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,

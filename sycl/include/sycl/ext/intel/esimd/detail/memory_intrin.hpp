@@ -1178,20 +1178,22 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 // or
 //   image{1,2,3}d_t OpenCL type for an image
 // But when doing code generation, FE replaces e.g. '__read_only image2d_t' FE
-// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type.
-// image2d_t can neither be reinterpret_cast'ed from pointer to intptr_t
-// (because it is not a pointer at FE translation time), nor it can be
-// bit_cast'ed to intptr_t (because it is not trivially copyable). This
-// intrinsic takes advantage of the fact that in LLVM IR 'obj' is always a
-// pointer, where we can do ptr to uint32_t conversion.
-// This intrinsic can be called only from the device code, as
+// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type or a Target
+// Extension Type if using opaque pointers. These types can neither be
+// reinterpret_cast'ed from pointer to intptr_t (because they are not a pointer
+// at FE translation time), nor can they be bit_cast'ed to intptr_t (because
+// they are not trivially copyable). This function takes advantage of the fact
+// that in SPIR-V 'obj' is always a pointer, where we can do ptr to uint32_t
+// conversion. This function can be called only from the device code, as
 // accessor => memory handle translation for host is different.
 // @param acc the SYCL accessor.
 // Returns the binding table index value.
 template <typename MemObjTy>
-__ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
+ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 #ifdef __SYCL_DEVICE_ONLY__
-    ;
+{
+  return __spirv_ConvertPtrToU<MemObjTy, uint32_t>(obj);
+}
 #else  // __SYCL_DEVICE_ONLY__
 {
   return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(

@@ -523,6 +523,7 @@ getPlugin<backend::ext_oneapi_level_zero>();
 template __SYCL_EXPORT const PluginPtr &
 getPlugin<backend::ext_intel_esimd_emulator>();
 template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
+template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,

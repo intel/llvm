@@ -43,7 +43,7 @@ int main() {
       using namespace __ESIMD_ENS;
       simd<bf16, 32> data_bf16 = bf16(0);
       simd<float, 32> data = data_bf16;
-      lsc_block_store<float, 32>(C, data);
+      data.copy_to(C);
     });
   });
   e.wait();
