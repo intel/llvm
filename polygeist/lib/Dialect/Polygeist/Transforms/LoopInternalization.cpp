@@ -405,6 +405,7 @@ bool mayConflictWithWriteInLoop(affine::MemRefAccess memRefAccess,
 /// Collect memory accesses in a loop and determine the memory space each
 /// access should ideally use.
 class MemorySelector {
+
 public:
   MemorySelector(MemoryAccessAnalysis &memAccessAnalysis,
                  AliasAnalysis &aliasAnalysis, DataFlowSolver &solver)
@@ -441,6 +442,32 @@ private:
   /// The preferred memory space for each memref access.
   DenseMap<Value, MemorySpace> memRefAccessToMemSpace;
 };
+
+[[maybe_unused]] raw_ostream &
+operator<<(raw_ostream &os, const MemorySelector::AccessKind &accessKind) {
+  switch (accessKind) {
+  case MemorySelector::AccessKind::ReadOnly:
+    return os << "read-only";
+  case MemorySelector::AccessKind::WriteOnly:
+    return os << "write-only";
+  case MemorySelector::AccessKind::ReadWrite:
+    return os << "read-write";
+  }
+}
+
+[[maybe_unused]] raw_ostream &
+operator<<(raw_ostream &os, const MemorySelector::MemorySpace &memSpace) {
+  switch (memSpace) {
+  case MemorySelector::MemorySpace::Global:
+    return os << "global";
+  case MemorySelector::MemorySpace::Shared:
+    return os << "shared";
+  case MemorySelector::MemorySpace::Constant:
+    return os << "constant";
+  case MemorySelector::MemorySpace::Texture:
+    return os << "texture";
+  }
+}
 
 std::optional<MemorySelector::MemorySpace>
 MemorySelector::getMemorySpace(Value memref) const {
@@ -495,14 +522,8 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
     memRefAccessToMemSpace[memRef] =
         selectMemorySpace(*memAccess, threadVars, accessKind);
 
-    LLVM_DEBUG({
-      if (memRefAccessToMemSpace.at(memRef) == MemorySpace::Shared)
-        llvm::dbgs().indent(2) << "shared memory space\n";
-      else {
-        assert(memRefAccessToMemSpace.at(memRef) == MemorySpace::Global);
-        llvm::dbgs().indent(2) << "global memory space\n";
-      }
-    });
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << memRefAccessToMemSpace.at(memRef) << " memory space\n");
   }
 }
 
@@ -547,7 +568,7 @@ MemorySelector::selectMemorySpace(const MemoryAccess &memAccess,
   case AccessKind::ReadOnly:
     if (hasTemporalReuse)
       memSpace = MemorySpace::Shared;
-    else if (!hasTemporalReuse && isCoalesced(memAccess))
+    else if (isCoalesced(memAccess))
       memSpace = MemorySpace::Global;
     else
       memSpace = MemorySpace::Texture;
@@ -627,8 +648,9 @@ void LoopInternalization::runOnOperation() {
     else
       toRemove.insert(func);
   });
-  // If func is a kernel body function of a non-candidate kernel, then remove
-  // it from the set.
+
+  // If func is a kernel body function of a non-candidate kernel, then remove it
+  // from the set.
   for (FunctionOpInterface func : toRemove)
     kernelBodyFuncs.erase(func);
 
