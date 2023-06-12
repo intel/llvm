@@ -14,6 +14,7 @@
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
@@ -418,13 +419,60 @@ bool mayConflictWithWriteInLoop(affine::MemRefAccess memRefAccess,
   return walkResult.wasInterrupted();
 }
 
+/// Returns true if the memory access \p access has a single subscript that is
+/// zero, and false otherwise.
+bool hasZeroIndex(const affine::MemRefAccess &access) {
+  affine::AffineValueMap accessValueMap;
+  access.getAccessMap(&accessValueMap);
+  if (accessValueMap.getNumDims() != 0)
+    return false;
+
+  auto index = accessValueMap.getResult(0).dyn_cast<AffineConstantExpr>();
+  return (index && index.getValue() == 0);
+}
+
+/// Return the underlying sycl.constructor of the operand at index \p opIndex in
+/// operation \p op.
+sycl::SYCLConstructorOp getUnderlyingSYCLConstructor(unsigned opIndex,
+                                                     Operation *op,
+                                                     DataFlowSolver &solver) {
+  std::optional<Definition> def =
+      ReachingDefinition::getUniqueDefinition(opIndex, op, solver);
+  if (!def.has_value())
+    return nullptr;
+
+  if (auto constructor = dyn_cast<sycl::SYCLConstructorOp>(def->getOperation()))
+    return constructor;
+
+  auto storeOp = dyn_cast<affine::AffineStoreOp>(def->getOperation());
+  if (!storeOp)
+    return nullptr;
+
+  // Memory accesses involving SYCL accessors should have zero index.
+  affine::MemRefAccess storeAccess(storeOp);
+  assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
+
+  Value storedVal = storeOp.getOperand(storeOp.getStoredValOperandIndex());
+  if (!isa<affine::AffineLoadOp>(storedVal.getDefiningOp()))
+    return nullptr;
+
+  // Try to determine the underlying value of the memory pointed to by
+  // the memref operand of a load.
+  affine::AffineLoadOp loadOp =
+      cast<affine::AffineLoadOp>(storedVal.getDefiningOp());
+  affine::MemRefAccess loadAccess(loadOp);
+  assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
+
+  return getUnderlyingSYCLConstructor(loadOp.getMemRefOperandIndex(), loadOp,
+                                      solver);
+}
+
 /// Return the indexes used in \p accSub through sycl.constructor.
 SmallVector<Value> getIndexes(sycl::SYCLAccessorSubscriptOp accSub,
                               DataFlowSolver &solver) {
-  std::optional<Definition> uniqDef = ReachingDefinition::getUniqueDefinition(
+  sycl::SYCLConstructorOp constructorOp = getUnderlyingSYCLConstructor(
       accSub.getOffsetOperandIndex(), accSub, solver);
-  assert(uniqDef.has_value() && "Expecting unique definition");
-  auto constructorOp = cast<sycl::SYCLConstructorOp>(uniqDef->getOperation());
+  assert(constructorOp && "Expecting constructor definition");
   SmallVector<Value> indexes;
   for (int i = constructorOp->getNumOperands() - 1; i >= 0; --i) {
     if ((unsigned)i == constructorOp.getOutputOperandIndex())
