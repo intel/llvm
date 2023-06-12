@@ -137,11 +137,12 @@ struct ur_kernel_handle_t_ {
     urProgramRetain(Program);
     urContextRetain(Context);
     /// Note: this code assumes that there is only one device per context
-    ur_result_t retError = urKernelGetGroupInfo(
+    ur_result_t RetError = urKernelGetGroupInfo(
         this, Context->getDevice(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
-    assert(retError == UR_RESULT_SUCCESS);
+    (void)RetError;
+    assert(RetError == UR_RESULT_SUCCESS);
   }
 
   ~ur_kernel_handle_t_() {

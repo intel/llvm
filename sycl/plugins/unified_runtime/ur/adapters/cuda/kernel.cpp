@@ -338,6 +338,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
                     size_t propSize, const void *pPropValue) {
+  std::ignore = propSize;
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pPropValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   switch (propName) {

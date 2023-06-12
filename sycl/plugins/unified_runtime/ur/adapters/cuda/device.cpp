@@ -1098,6 +1098,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
+  std::ignore = pProperties;
   UR_ASSERT(phDevice, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits

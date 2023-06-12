@@ -22,6 +22,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 const ur_context_properties_t *pProperties,
                 ur_context_handle_t *phContext) {
+  std::ignore = DeviceCount;
+  std::ignore = pProperties;
   UR_ASSERT(phDevices, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(phContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
@@ -132,8 +134,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     const ur_device_handle_t *phDevices,
     const ur_context_native_properties_t *pProperties,
     ur_context_handle_t *phContext) {
-  (void)hNativeContext;
-  (void)phContext;
+  std::ignore = hNativeContext;
+  std::ignore = numDevices;
+  std::ignore = phDevices;
+  std::ignore = pProperties;
+  std::ignore = phContext;
 
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }

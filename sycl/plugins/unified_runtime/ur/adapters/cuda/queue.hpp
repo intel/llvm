@@ -180,7 +180,7 @@ struct ur_queue_handle_t_ {
     };
     {
       unsigned int Size = static_cast<unsigned int>(ComputeStreams.size());
-      std::lock_guard ComputeSyncGuard(ComputeStreamSyncMutex);
+      std::lock_guard<std::mutex> ComputeSyncGuard(ComputeStreamSyncMutex);
       std::lock_guard<std::mutex> ComputeGuard(ComputeStreamMutex);
       unsigned int Start = LastSyncComputeStreams;
       unsigned int End = NumComputeStreams < Size ? NumComputeStreams

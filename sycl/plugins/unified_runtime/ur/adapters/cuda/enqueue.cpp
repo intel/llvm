@@ -561,7 +561,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     Result = commonEnqueueMemBufferCopyRect(
         CuStream, region, &DevPtr, CU_MEMORYTYPE_DEVICE, bufferOrigin,
         bufferRowPitch, bufferSlicePitch, pDst, CU_MEMORYTYPE_HOST, hostOrigin,
-        hostRowPitch, bufferSlicePitch);
+        hostRowPitch, hostSlicePitch);
 
     if (phEvent) {
       Result = RetImplEvent->record();
@@ -905,8 +905,11 @@ static ur_result_t commonEnqueueMemImageNDCopy(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t phEventWaitListslicePitch, void *pDst, uint32_t numEventsInWaitList,
+    size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = rowPitch;
+  std::ignore = slicePitch;
+
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
@@ -972,6 +975,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = blockingWrite;
+  std::ignore = rowPitch;
+  std::ignore = slicePitch;
+
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
@@ -1456,10 +1463,8 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 // TODO: Implement this. Remember to return true for
 //       PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT when it is implemented.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
-    ur_queue_handle_t hQueue, void *pMem, size_t pitch, size_t patternSize,
-    const void *pPattern, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
+    ur_queue_handle_t, void *, size_t, size_t, const void *, size_t, size_t,
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1484,7 +1489,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 
     // Determine the direction of copy using cuPointerGetAttribute
     // for both the SrcPtr and DstPtr
-    CUDA_MEMCPY2D CpyDesc = {0};
+    CUDA_MEMCPY2D CpyDesc = {};
+    memset(&CpyDesc, 0, sizeof(CpyDesc));
 
     getUSMHostOrDevicePtr(pSrc, &CpyDesc.srcMemoryType, &CpyDesc.srcDevice,
                           &CpyDesc.srcHost);
