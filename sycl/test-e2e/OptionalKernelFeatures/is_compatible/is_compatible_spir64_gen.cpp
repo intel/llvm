@@ -1,4 +1,4 @@
-// REQUIRES: ocloc, gpu, level_zero, opencl
+// REQUIRES: ocloc, gpu, level_zero, cpu
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device *" %S/Inputs/is_compatible_with_env.cpp -o %t.out
 
