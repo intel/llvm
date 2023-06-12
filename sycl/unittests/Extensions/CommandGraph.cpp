@@ -38,8 +38,6 @@ protected:
 };
 
 TEST_F(CommandGraphTest, AddNode) {
-  using namespace sycl::ext::oneapi;
-
   auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
 
   ASSERT_TRUE(GraphImpl->MRoots.size() == 0);
@@ -75,8 +73,6 @@ TEST_F(CommandGraphTest, AddNode) {
 }
 
 TEST_F(CommandGraphTest, MakeEdge) {
-  using namespace sycl::ext::oneapi;
-
   auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
 
   auto Node1 = Graph.add([&](sycl::handler &cgh) {});
@@ -91,8 +87,6 @@ TEST_F(CommandGraphTest, MakeEdge) {
 }
 
 TEST_F(CommandGraphTest, BeginEndRecording) {
-  using namespace sycl::ext::oneapi;
-
   sycl::queue Queue2{Dev};
 
   // Test throwing behaviour
