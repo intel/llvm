@@ -194,8 +194,6 @@ void foo() {
 // CHECK-NEXT: 552 |       class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
 // CHECK-NEXT: 552 |         struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
 // CHECK-NEXT: 552 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
-// CHECK-NEXT: 552 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
-// CHECK-NEXT: 552 |               struct std::default_delete<class sycl::detail::CG> (base) (empty)
 // CHECK:      552 |           struct std::_Head_base<0, class sycl::detail::CG *> (base)
 // CHECK-NEXT: 552 |             class sycl::detail::CG * _M_head_impl
 // CHECK-NEXT: 560 |   _Bool MIsHost
