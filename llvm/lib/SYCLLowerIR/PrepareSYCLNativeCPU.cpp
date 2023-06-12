@@ -75,7 +75,7 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
   Args.push_back(T);
   auto *NewT = FunctionType::get(RetT, Args, OldF->isVarArg());
   auto *NewF = Function::Create(NewT, OldF->getLinkage(), OldF->getName(),
-                               OldF->getParent());
+                                OldF->getParent());
   // Copy the old function's attributes
   NewF->setAttributes(OldF->getAttributes());
 
@@ -256,8 +256,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         }
         auto *NewCall = BuiltinCallMap[I->getFunction()];
         auto *ArrayT = ArrayType::get(Type::getInt64Ty(M.getContext()), 3);
-        GetElementPtrInst *NewGEP = GetElementPtrInst::Create(
-            ArrayT, NewCall, Indices, "ncpu_gep", I);
+        GetElementPtrInst *NewGEP =
+            GetElementPtrInst::Create(ArrayT, NewCall, Indices, "ncpu_gep", I);
         GEPReplaceMap.emplace_back(OldOp, Usr, NewGEP);
       }
     }

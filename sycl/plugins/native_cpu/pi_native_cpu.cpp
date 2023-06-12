@@ -476,7 +476,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
-  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH: 
+  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D:
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D:
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
@@ -491,8 +491,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
   case PI_DEVICE_INFO_IL_VERSION:
     return PI_ERROR_INVALID_VALUE;
-
-    
 
     // Intel-specific extensions
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
@@ -651,7 +649,7 @@ pi_result piMemRetain(pi_mem Mem) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piMemRelease(pi_mem Mem) {
   uint32_t OldRefCount = Mem->RefCount.fetch_sub(1, std::memory_order_acq_rel);
-  if (OldRefCount  == 1) {
+  if (OldRefCount == 1) {
     delete Mem;
   }
 
