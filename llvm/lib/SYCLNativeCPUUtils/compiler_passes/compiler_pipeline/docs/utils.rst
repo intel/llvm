@@ -1067,6 +1067,23 @@ the ``NoUnwind`` attribute can still be generated in certain cases. This pass
 adds the ``NoUnwind`` attribute to every function in the module, for target code
 generators that can't handle exceptions.
 
+VerifyReqdSubGroupSizeLegalPass & VerifyReqdSubGroupSizeSatisfiedPass
+---------------------------------------------------------------------
+
+These passes check whether the compiler can handle, and has successfully
+handled, a kernel with a required sub-group size.
+
+The ``VerifyReqdSubGroupSizeLegalPass`` searches for any kernel with a required
+sub-group size and checks whether the device supports such a size. It does this
+using the target's ``compiler::utils::DeviceInfo`` analysis. Any unsupported
+size results in a compiler diagnostic, which the compiler can handle (usually
+via a build error).
+
+The ``VerifyReqdSubGroupSizeSatisfiedPass`` searches for any kernel entry point
+with a required sub-group size and checks whether the vectorizer was able to
+satisfy that requirement. As such, it should be run after vectorization. A
+compiler diagnostic is raised for each kernel for which this does not hold.
+
 Metadata Utilities
 ------------------
 
