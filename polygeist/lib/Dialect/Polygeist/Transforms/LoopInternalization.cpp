@@ -628,18 +628,13 @@ private:
 };
 
 void LoopInternalization::runOnOperation() {
-  Operation *module = getOperation();
-  ModuleAnalysisManager mam(module, /*passInstrumentor=*/nullptr);
+  gpu::GPUModuleOp gpuModule = getOperation();
+  ModuleAnalysisManager mam(gpuModule, /*passInstrumentor=*/nullptr);
   AnalysisManager am = mam;
   auto &memAccessAnalysis =
       am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
-  auto gpuModule = dyn_cast<gpu::GPUModuleOp>(
-      module->getRegion(0).front().getOperations().front());
-  if (!gpuModule)
-    return;
-
   FunctionKernelInfo funcKernelInfo(gpuModule);
 
   // Collect kernel body functions of candidate kernels.
