@@ -23,7 +23,6 @@ add_llvm_component_library(LLVMCore
   EHPersonalities.cpp
   FPAccuracy.cpp
   FPEnv.cpp
-  FPAccuracy.cpp
   Function.cpp
   GCStrategy.cpp
   GVMaterializer.cpp
