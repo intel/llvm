@@ -183,8 +183,10 @@ func.func @half(%arg0: !sycl_half) {
 // VEC
 ////////////////////////////////////////////////////////////////////////////////
 
+!sycl_half = !sycl.half<(f16)>
 !sycl_vec_i32_2_ = !sycl.vec<[i32, 2], (vector<2xi32>)>
 !sycl_vec_f32_4_ = !sycl.vec<[f32, 4], (vector<4xf32>)>
+!sycl_vec_sycl_half_8_ = !sycl.vec<[!sycl_half, 8], (vector<8xf16>)>
 
 // CHECK: func @vec_0(%arg0: !sycl_vec_i32_2_)
 func.func @vec_0(%arg0: !sycl_vec_i32_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
@@ -194,7 +196,10 @@ func.func @vec_0(%arg0: !sycl_vec_i32_2_) attributes {llvm.linkage = #llvm.linka
 func.func @vec_1(%arg0: !sycl_vec_f32_4_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
-
+// CHECK: func @vec_2(%arg0: !sycl_vec_sycl_half_8_)
+func.func @vec_2(%arg0: !sycl_vec_sycl_half_8_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
 ////////////////////////////////////////////////////////////////////////////////
 // SWIZZLED_VEC
 ////////////////////////////////////////////////////////////////////////////////
