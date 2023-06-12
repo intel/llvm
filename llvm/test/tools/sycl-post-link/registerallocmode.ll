@@ -13,10 +13,9 @@
 ; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-LargeGRF-SYM
 
 ; CHECK: [Code|Properties|Symbols]
-; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
 ; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop|{{.*}}_esimd_0.sym
-; CHECK: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
 ; CHECK: {{.*}}_esimd_1.ll|{{.*}}_esimd_1.prop|{{.*}}_esimd_1.sym
+; CHECK: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
 
 ; CHECK-ESIMD-LargeGRF-PROP: isEsimdImage=1|1
 ; CHECK-ESIMD-LargeGRF-PROP: sycl-register-alloc-mode=1|2
