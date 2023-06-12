@@ -88,11 +88,9 @@ Basic/device_implicitly_copyable.cpp
 Basic/diagnostics/non-uniform-wk-gp-test.cpp
 Basic/group_async_copy.cpp
 Basic/group_async_copy_legacy.cpp
-Basic/half_builtins.cpp
 Basic/half_type.cpp
 Basic/image/image.cpp
 Basic/image/image_accessor_readsampler.cpp
-Basic/image/image_accessor_readwrite_half.cpp
 Basic/image/image_array.cpp
 Basic/image/image_max_size.cpp
 Basic/image/image_read.cpp
@@ -129,7 +127,6 @@ DeviceLib/built-ins/ext_native_math_fp16.cpp
 DeviceLib/built-ins/fast-math-flag.cpp
 DeviceLib/built-ins/marray_integer.cpp
 DeviceLib/built-ins/marray_relational.cpp
-DeviceLib/built-ins/nan.cpp
 DeviceLib/built-ins/printf.cpp
 DeviceLib/built-ins/scalar_relational.cpp
 DeviceLib/built-ins/vector_integer.cpp
@@ -141,7 +138,6 @@ DeviceLib/imf_bfloat16_integeral_convesions.cpp
 DeviceLib/imf_double2half.cpp
 DeviceLib/imf_double2bfloat16.cpp
 DeviceLib/imf_float2bfloat16.cpp
-DeviceLib/imf_fp16_trivial_test.cpp
 DeviceLib/imf_fp32_test.cpp
 DeviceLib/imf_fp64_test.cpp
 DeviceLib/imf_half_type_cast.cpp
@@ -490,7 +486,6 @@ SubGroup/generic_reduce.cpp
 SubGroup/generic-shuffle.cpp
 SubGroup/load_store.cpp
 SubGroup/shuffle.cpp
-SubGroup/shuffle_fp16.cpp
 SubGroup/sub_group_as.cpp
 SubGroup/sub_group_as_vec.cpp
 SubGroupMask/Basic.cpp
