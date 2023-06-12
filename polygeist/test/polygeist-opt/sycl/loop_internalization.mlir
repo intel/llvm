@@ -174,20 +174,23 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Get work group sizes:
 // CHECK-NEXT:        %[[VAL_2:.*]] = arith.constant 0 : i32
 // CHECK-NEXT:        %[[VAL_3:.*]] = sycl.nd_item.get_local_range(%[[VAL_1]], %[[VAL_2]]) : (memref<?x!sycl_nd_item_2_>, i32) -> i64
-// CHECK-NEXT:        %[[VAL_4:.*]] = arith.index_cast %[[VAL_3]] : i64 to index
+// CHECK-NEXT:        %[[WGSIZE0:.*]] = arith.index_cast %[[VAL_3]] : i64 to index
 // CHECK-NEXT:        %[[VAL_5:.*]] = arith.constant 1 : i32
 // CHECK-NEXT:        %[[VAL_6:.*]] = sycl.nd_item.get_local_range(%[[VAL_1]], %[[VAL_5]]) : (memref<?x!sycl_nd_item_2_>, i32) -> i64
 // CHECK-NEXT:        %[[VAL_7:.*]] = arith.index_cast %[[VAL_6]] : i64 to index
 
 // COM: Get local memory required:
+// COM:   for each loop, get the max of:
+// COM:     for each accessor subscript, add:
+// COM:       multiply element size (4) with work group size for each dimension
 // CHECK-NEXT:        %[[VAL_8:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_9:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_10:.*]] = arith.constant 4 : index
-// CHECK-NEXT:        %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_4]] : index
+// CHECK-NEXT:        %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[WGSIZE0]] : index
 // CHECK-NEXT:        %[[VAL_12:.*]] = arith.muli %[[VAL_11]], %[[VAL_7]] : index
 // CHECK-NEXT:        %[[VAL_13:.*]] = arith.addi %[[VAL_9]], %[[VAL_12]] : index
 // CHECK-NEXT:        %[[VAL_14:.*]] = arith.constant 4 : index
-// CHECK-NEXT:        %[[VAL_15:.*]] = arith.muli %[[VAL_14]], %[[VAL_4]] : index
+// CHECK-NEXT:        %[[VAL_15:.*]] = arith.muli %[[VAL_14]], %[[WGSIZE0]] : index
 // CHECK-NEXT:        %[[VAL_16:.*]] = arith.muli %[[VAL_15]], %[[VAL_7]] : index
 // CHECK-NEXT:        %[[VAL_17:.*]] = arith.addi %[[VAL_13]], %[[VAL_16]] : index
 // CHECK-NEXT:        %[[VAL_18:.*]] = arith.maxsi %[[VAL_8]], %[[VAL_17]] : index
@@ -204,6 +207,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_26:.*]] = sycl.id.get %[[VAL_20]]{{\[}}%[[VAL_25]]] : (memref<1x!sycl_id_2_1>, i32) -> memref<?xindex>
 // CHECK-NEXT:        %[[VAL_27:.*]] = memref.load %[[VAL_26]]{{\[}}%[[VAL_21]]] : memref<?xindex>
 
+// COM: Orignal code:
 // CHECK-NEXT:        %[[VAL_28:.*]] = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT:        %[[VAL_29:.*]] = memref.cast %[[VAL_28]] : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT:        %[[VAL_30:.*]] = arith.constant 0 : index
@@ -217,18 +221,26 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Get pointer to local memory:
 // CHECK-NEXT:        %[[VAL_37:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 
-// CHECK-NEXT:        %[[VAL_38:.*]] = arith.muli %[[VAL_31]], %[[VAL_4]] : index
-// CHECK-NEXT:        scf.for %[[VAL_39:.*]] = %[[VAL_30]] to %[[VAL_32]] step %[[VAL_38]] {
+// COM: Use work group size of dimension 0 as tile size:
+// CHECK-NEXT:        %[[TILESIZE:.*]] = arith.muli %[[VAL_31]], %[[WGSIZE0]] : index
+// CHECK-NEXT:        scf.for %[[VAL_39:.*]] = %[[VAL_30]] to %[[VAL_32]] step %[[TILESIZE]] {
 
+// COM: Calculate indexes for global memory:
 // CHECK-NEXT:          %[[VAL_40:.*]] = arith.addi %[[VAL_24]], %[[VAL_39]] : index
 // CHECK-NEXT:          %[[VAL_41:.*]] = arith.index_cast %[[VAL_40]] : index to i64
 // CHECK-NEXT:          %[[VAL_42:.*]] = arith.addi %[[VAL_24]], %[[VAL_39]] : index
 // CHECK-NEXT:          %[[VAL_43:.*]] = arith.index_cast %[[VAL_42]] : index to i64
 // CHECK-NEXT:          %[[VAL_44:.*]] = arith.constant 0 : index
-// CHECK-NEXT:          %[[VAL_45:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_44]]]{{\[}}%[[VAL_7]], %[[VAL_4]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
-// CHECK-NEXT:          %[[VAL_46:.*]] = arith.addi %[[VAL_39]], %[[VAL_38]] : index
+
+// COM: Get pointer to the local memory portion for 1st memref:
+// CHECK-NEXT:          %[[VAL_45:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_44]]]{{\[}}%[[VAL_7]], %[[WGSIZE0]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
+
+// COM: Calculate upper bound for the tiled loop:
+// CHECK-NEXT:          %[[VAL_46:.*]] = arith.addi %[[VAL_39]], %[[TILESIZE]] : index
 // CHECK-NEXT:          %[[VAL_47:.*]] = arith.cmpi slt, %[[VAL_32]], %[[VAL_46]] : index
 // CHECK-NEXT:          %[[VAL_48:.*]] = arith.select %[[VAL_47]], %[[VAL_32]], %[[VAL_46]] : index
+
+// COM: Copy to local memory for 1st memref:
 // CHECK-NEXT:          %[[VAL_49:.*]] = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT:          %[[VAL_50:.*]] = arith.constant 0 : index
 // CHECK-NEXT:          %[[VAL_51:.*]] = arith.constant 0 : i32
@@ -241,11 +253,17 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:          %[[VAL_56:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_49]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK-NEXT:          %[[VAL_57:.*]] = memref.load %[[VAL_56]]{{\[}}%[[VAL_55]]] : memref<?xf32, 1>
 // CHECK-NEXT:          memref.store %[[VAL_57]], %[[VAL_45]]{{\[}}%[[VAL_27]], %[[VAL_24]]] : memref<?x?xf32, #sycl.access.address_space<local>>
+
+// COM: Calculate offset:
 // CHECK-NEXT:          %[[VAL_58:.*]] = arith.constant 4 : index
-// CHECK-NEXT:          %[[VAL_59:.*]] = arith.muli %[[VAL_58]], %[[VAL_4]] : index
+// CHECK-NEXT:          %[[VAL_59:.*]] = arith.muli %[[VAL_58]], %[[WGSIZE0]] : index
 // CHECK-NEXT:          %[[VAL_60:.*]] = arith.muli %[[VAL_59]], %[[VAL_7]] : index
 // CHECK-NEXT:          %[[VAL_61:.*]] = arith.addi %[[VAL_44]], %[[VAL_60]] : index
-// CHECK-NEXT:          %[[VAL_62:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_61]]]{{\[}}%[[VAL_7]], %[[VAL_4]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
+
+// COM: Get pointer to the local memory portion for 2nd memref:
+// CHECK-NEXT:          %[[VAL_62:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_61]]]{{\[}}%[[VAL_7]], %[[WGSIZE0]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
+
+// COM: Copy to local memory for 2nd memref:
 // CHECK-NEXT:          %[[VAL_63:.*]] = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT:          %[[VAL_64:.*]] = arith.constant 0 : index
 // CHECK-NEXT:          %[[VAL_65:.*]] = arith.constant 0 : i32
@@ -265,6 +283,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:            %[[VAL_74:.*]] = arith.index_cast %[[VAL_72]] : index to i64
 // CHECK-NEXT:            %[[VAL_75:.*]] = arith.index_cast %[[VAL_73]] : index to i64
 // CHECK-NEXT:            %[[VAL_76:.*]] = arith.index_cast %[[VAL_73]] : index to i64
+// COM: TODO: sycl.constructor can be removed.
 // CHECK-NEXT:            sycl.constructor @id(%[[VAL_29]], %[[VAL_35]], %[[VAL_74]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2_>, i64, i64)
 // CHECK-DAG:             %[[VAL_77:.*]] = memref.load %[[VAL_62]]{{\[}}%[[VAL_27]], %[[VAL_73]]] : memref<?x?xf32, #sycl.access.address_space<local>>
 // CHECK-DAG:             %[[VAL_78:.*]] = memref.load %[[VAL_45]]{{\[}}%[[VAL_27]], %[[VAL_73]]] : memref<?x?xf32, #sycl.access.address_space<local>>
@@ -318,7 +337,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Get work group sizes:
 // CHECK-NEXT:        %[[VAL_2:.*]] = arith.constant 0 : i32
 // CHECK-NEXT:        %[[VAL_3:.*]] = sycl.nd_item.get_local_range(%[[VAL_1]], %[[VAL_2]]) : (memref<?x!sycl_nd_item_3_>, i32) -> i64
-// CHECK-NEXT:        %[[VAL_4:.*]] = arith.index_cast %[[VAL_3]] : i64 to index
+// CHECK-NEXT:        %[[WGSIZE0:.*]] = arith.index_cast %[[VAL_3]] : i64 to index
 // CHECK-NEXT:        %[[VAL_5:.*]] = arith.constant 1 : i32
 // CHECK-NEXT:        %[[VAL_6:.*]] = sycl.nd_item.get_local_range(%[[VAL_1]], %[[VAL_5]]) : (memref<?x!sycl_nd_item_3_>, i32) -> i64
 // CHECK-NEXT:        %[[VAL_7:.*]] = arith.index_cast %[[VAL_6]] : i64 to index
@@ -326,10 +345,11 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_9:.*]] = sycl.nd_item.get_local_range(%[[VAL_1]], %[[VAL_8]]) : (memref<?x!sycl_nd_item_3_>, i32) -> i64
 // CHECK-NEXT:        %[[VAL_10:.*]] = arith.index_cast %[[VAL_9]] : i64 to index
 
+// COM: Get local memory required:
 // CHECK-NEXT:        %[[VAL_11:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_12:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_13:.*]] = arith.constant 4 : index
-// CHECK-NEXT:        %[[VAL_14:.*]] = arith.muli %[[VAL_13]], %[[VAL_4]] : index
+// CHECK-NEXT:        %[[VAL_14:.*]] = arith.muli %[[VAL_13]], %[[WGSIZE0]] : index
 // CHECK-NEXT:        %[[VAL_15:.*]] = arith.muli %[[VAL_14]], %[[VAL_7]] : index
 // CHECK-NEXT:        %[[VAL_16:.*]] = arith.muli %[[VAL_15]], %[[VAL_10]] : index
 // CHECK-NEXT:        %[[VAL_17:.*]] = arith.addi %[[VAL_12]], %[[VAL_16]] : index
@@ -350,6 +370,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_29:.*]] = sycl.id.get %[[VAL_20]]{{\[}}%[[VAL_28]]] : (memref<1x!sycl_id_3_1>, i32) -> memref<?xindex>
 // CHECK-NEXT:        %[[VAL_30:.*]] = memref.load %[[VAL_29]]{{\[}}%[[VAL_21]]] : memref<?xindex>
 
+// COM: Orignal code:
 // CHECK-NEXT:        %[[VAL_31:.*]] = memref.alloca() : memref<1x!sycl_id_3_>
 // CHECK-NEXT:        %[[VAL_32:.*]] = memref.cast %[[VAL_31]] : memref<1x!sycl_id_3_> to memref<?x!sycl_id_3_>
 // CHECK-NEXT:        %[[VAL_33:.*]] = arith.constant 0 : index
@@ -366,16 +387,24 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Get pointer to local memory:
 // CHECK-NEXT:          %[[VAL_43:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 
-// CHECK-NEXT:          %[[VAL_44:.*]] = arith.muli %[[VAL_34]], %[[VAL_4]] : index
+// COM: Use work group size of dimension 0 as tile size:
+// CHECK-NEXT:          %[[VAL_44:.*]] = arith.muli %[[VAL_34]], %[[WGSIZE0]] : index
 // CHECK-NEXT:          scf.for %[[VAL_45:.*]] = %[[VAL_34]] to %[[VAL_36]] step %[[VAL_44]] {
 
+// COM: Calculate indexes for global memory:
 // CHECK-NEXT:            %[[VAL_46:.*]] = arith.addi %[[VAL_24]], %[[VAL_45]] : index
 // CHECK-NEXT:            %[[VAL_47:.*]] = arith.index_cast %[[VAL_46]] : index to i64
 // CHECK-NEXT:            %[[VAL_48:.*]] = arith.constant 0 : index
-// CHECK-NEXT:            %[[VAL_49:.*]] = memref.view %[[VAL_43]]{{\[}}%[[VAL_48]]]{{\[}}%[[VAL_10]], %[[VAL_7]], %[[VAL_4]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?x?xf32, #sycl.access.address_space<local>>
+
+// COM: Get pointer to the local memory portion for 1st memref:
+// CHECK-NEXT:            %[[VAL_49:.*]] = memref.view %[[VAL_43]]{{\[}}%[[VAL_48]]]{{\[}}%[[VAL_10]], %[[VAL_7]], %[[WGSIZE0]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?x?xf32, #sycl.access.address_space<local>>
+
+// COM: Calculate upper bound for the tiled loop:
 // CHECK-NEXT:            %[[VAL_50:.*]] = arith.addi %[[VAL_45]], %[[VAL_44]] : index
 // CHECK-NEXT:            %[[VAL_51:.*]] = arith.cmpi slt, %[[VAL_36]], %[[VAL_50]] : index
 // CHECK-NEXT:            %[[VAL_52:.*]] = arith.select %[[VAL_51]], %[[VAL_36]], %[[VAL_50]] : index
+
+// COM: Copy to local memory for 1st memref:
 // CHECK-NEXT:            %[[VAL_53:.*]] = arith.index_cast %[[VAL_42]] : index to i64
 // CHECK-NEXT:            %[[VAL_54:.*]] = memref.alloca() : memref<1x!sycl_id_3_>
 // CHECK-NEXT:            %[[VAL_55:.*]] = arith.constant 0 : index

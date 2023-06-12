@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
@@ -25,6 +26,7 @@
 #include "mlir/Dialect/SYCL/Utils/Utils.h"
 #include "mlir/IR/IRMapping.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/Debug.h"
 #include <type_traits>
 #include <variant>
 
@@ -42,27 +44,31 @@ using namespace mlir::polygeist;
 
 namespace {
 
-/// Return Value of \p val with index type.
-Value castToIndex(Value val) {
-  OpBuilder builder(val.getContext());
-  builder.setInsertionPointAfterValue(val);
-  if (Operation *op = val.getDefiningOp()) {
-    if (auto cast = dyn_cast<arith::IndexCastOp>(op)) {
-      Value inVal = cast.getIn();
-      if (inVal.getType().isIndex())
-        return inVal;
-    }
+//===----------------------------------------------------------------------===//
+// WorkGroupSize
+//===----------------------------------------------------------------------===//
 
-    if (auto cast = dyn_cast<arith::IndexCastOp>(op->getNextNode())) {
-      Value inVal = cast.getIn();
-      Value outVal = cast.getOut();
-      if (inVal == val && outVal.getType().isIndex())
-        return cast;
-    }
+/// Class to represent work group size of a kernel.
+class WorkGroupSize {
+public:
+  using ElemTy = std::variant<Value, unsigned>;
+  WorkGroupSize(Value ndItem, const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
+                OpBuilder builder);
+
+  /// Return true if the element holds the alternative T.
+  template <typename T, typename = std::enable_if_t<
+                            llvm::is_one_of<T, Value, unsigned>::value>>
+  bool hasElemTy() const {
+    return std::holds_alternative<T>(wgSizes.front());
   }
-  return builder.create<arith::IndexCastOp>(val.getLoc(),
-                                            builder.getIndexType(), val);
-}
+
+  ElemTy operator[](unsigned dim) const;
+
+private:
+  Value getLocalRange(Value ndItem, unsigned dim, OpBuilder builder);
+
+  SmallVector<ElemTy> wgSizes;
+};
 
 //===----------------------------------------------------------------------===//
 // ValueOrUnsigned
@@ -126,96 +132,6 @@ private:
     return builder.create<T>(builder.getUnknownLoc(), std::get<Value>(lhs),
                              std::get<Value>(rhs));
   }
-};
-
-//===----------------------------------------------------------------------===//
-// WorkGroupSize
-//===----------------------------------------------------------------------===//
-
-/// Class to represent work group size of a kernel.
-class WorkGroupSize {
-public:
-  using ElemTy = std::variant<Value, unsigned>;
-  WorkGroupSize(Value ndItem, const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
-                OpBuilder builder) {
-    auto ndItemTy = cast<sycl::NdItemType>(
-        cast<MemRefType>(ndItem.getType()).getElementType());
-    const unsigned numDims = ndItemTy.getDimension();
-    assert((reqdWorkGroupSize.empty() || reqdWorkGroupSize.size() == numDims) &&
-           "Expecting reqdWorkGroupSize to have same number of elements as "
-           "nd_item dimension");
-    for (unsigned dim = 0; dim < numDims; ++dim) {
-      /// Use constants provided by reqd_work_group_size if given (non-empty).
-      if (!reqdWorkGroupSize.empty())
-        wgSizes.push_back(reqdWorkGroupSize[dim]);
-      else
-        wgSizes.push_back(castToIndex(getLocalRange(ndItem, dim, builder)));
-    }
-  }
-
-  /// Return true if the element holds the alternative T.
-  template <typename T, typename = std::enable_if_t<
-                            llvm::is_one_of<T, Value, unsigned>::value>>
-  bool hasElemTy() const {
-    return std::holds_alternative<T>(wgSizes.front());
-  }
-
-  ElemTy operator[](unsigned dim) const {
-    assert(dim < wgSizes.size() && "Expecting valid dim");
-    return wgSizes[dim];
-  }
-
-private:
-  Value getLocalRange(Value ndItem, unsigned dim, OpBuilder builder) {
-    return builder.create<sycl::SYCLNDItemGetLocalRangeOp>(
-        builder.getUnknownLoc(), builder.getI64Type(), ndItem,
-        builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), dim,
-                                             builder.getI32Type()));
-  }
-
-  SmallVector<ElemTy> wgSizes;
-};
-
-//===----------------------------------------------------------------------===//
-// LoopInfo
-//===----------------------------------------------------------------------===//
-
-/// Class to compute and store loop information.
-class LoopInfo {
-public:
-  LoopInfo(LoopLikeOpInterface loop) : loop(loop) {
-    assert(loop.getSingleInductionVar().has_value() &&
-           "Expecting single induction variable");
-    assert(loop.getSingleLowerBound().has_value() &&
-           "Expecting single lower bound");
-  }
-
-  LoopLikeOpInterface getLoop() { return loop; }
-
-  Value getLowerBound() {
-    if (lowerBound)
-      return lowerBound;
-    OpBuilder builder(loop);
-    lowerBound = getValueOrCreateConstantIndexOp(builder, loop.getLoc(),
-                                                 *loop.getSingleLowerBound());
-    return lowerBound;
-  }
-
-  Value getAdjustedIV() {
-    if (adjustedIV)
-      return adjustedIV;
-    Value IV = *loop.getSingleInductionVar();
-    OpBuilder builder(loop.getContext());
-    builder.setInsertionPointAfterValue(IV);
-    adjustedIV =
-        builder.create<arith::SubIOp>(IV.getLoc(), IV, getLowerBound());
-    return adjustedIV;
-  }
-
-private:
-  Value lowerBound;
-  Value adjustedIV;
-  LoopLikeOpInterface loop;
 };
 
 //===----------------------------------------------------------------------===//
@@ -520,6 +436,7 @@ SmallVector<Value> getIndexes(sycl::SYCLAccessorSubscriptOp accSub,
 
 /// Determine whether \p user uses \p use (directly or indirectly).
 bool usesValue(Value user, Value use) {
+  assert(user && use && "Expecting valid user and use");
   if (user == use)
     return true;
 
@@ -530,6 +447,116 @@ bool usesValue(Value user, Value use) {
   return llvm::any_of(op->getOperands(),
                       [&](Value operand) { return usesValue(operand, use); });
 }
+
+/// Return Value of \p val with index type.
+Value castToIndex(Value val) {
+  if (val.getType().isIndex())
+    return val;
+
+  // To avoid generating too many arith.index_cast:
+  if (Operation *op = val.getDefiningOp()) {
+    // When op is `%outVal = arith.index_cast %inVal : index to i64`, return
+    // `%inVal`.
+    if (auto cast = dyn_cast<arith::IndexCastOp>(op)) {
+      Value inVal = cast.getIn();
+      if (inVal.getType().isIndex())
+        return inVal;
+    }
+
+    // When next operation of op is `%outVal = arith.index_cast %inVal : i64 to
+    // index` and `%inVal` is val, return that operation.
+    if (auto cast = dyn_cast<arith::IndexCastOp>(op->getNextNode())) {
+      Value inVal = cast.getIn();
+      Value outVal = cast.getOut();
+      if (inVal == val && outVal.getType().isIndex())
+        return cast;
+    }
+  }
+
+  OpBuilder builder(val.getContext());
+  builder.setInsertionPointAfterValue(val);
+  return builder.create<arith::IndexCastOp>(val.getLoc(),
+                                            builder.getIndexType(), val);
+}
+
+//===----------------------------------------------------------------------===//
+// WorkGroupSize implementation
+//===----------------------------------------------------------------------===//
+
+WorkGroupSize::WorkGroupSize(Value ndItem,
+                             const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
+                             OpBuilder builder) {
+  auto ndItemTy = cast<sycl::NdItemType>(
+      cast<MemRefType>(ndItem.getType()).getElementType());
+  const unsigned numDims = ndItemTy.getDimension();
+  assert((reqdWorkGroupSize.empty() || reqdWorkGroupSize.size() == numDims) &&
+         "Expecting reqdWorkGroupSize to have same number of elements as "
+         "nd_item dimension");
+  for (unsigned dim = 0; dim < numDims; ++dim) {
+    /// Use constants provided by reqd_work_group_size if given (non-empty).
+    if (!reqdWorkGroupSize.empty())
+      wgSizes.push_back(reqdWorkGroupSize[dim]);
+    else
+      wgSizes.push_back(castToIndex(getLocalRange(ndItem, dim, builder)));
+  }
+}
+
+WorkGroupSize::ElemTy WorkGroupSize::operator[](unsigned dim) const {
+  assert(dim < wgSizes.size() && "Expecting valid dim");
+  return wgSizes[dim];
+}
+
+Value WorkGroupSize::getLocalRange(Value ndItem, unsigned dim,
+                                   OpBuilder builder) {
+  return builder.create<sycl::SYCLNDItemGetLocalRangeOp>(
+      builder.getUnknownLoc(), builder.getI64Type(), ndItem,
+      builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), dim,
+                                           builder.getI32Type()));
+}
+
+//===----------------------------------------------------------------------===//
+// LoopInfo
+//===----------------------------------------------------------------------===//
+
+/// Class to compute and store loop information.
+class LoopInfo {
+public:
+  LoopInfo(LoopLikeOpInterface loop) : loop(loop) {
+    assert(loop.getSingleInductionVar().has_value() &&
+           "Expecting single induction variable");
+    assert(loop.getSingleLowerBound().has_value() &&
+           "Expecting single lower bound");
+  }
+
+  LoopLikeOpInterface getLoop() const { return loop; }
+
+  Value getInductionVar() { return *loop.getSingleInductionVar(); }
+
+  Value getLowerBound() {
+    if (lowerBound)
+      return lowerBound;
+    OpBuilder builder(loop);
+    lowerBound = getValueOrCreateConstantIndexOp(builder, loop.getLoc(),
+                                                 *loop.getSingleLowerBound());
+    return lowerBound;
+  }
+
+  Value getAdjustedIV() {
+    if (adjustedIV)
+      return adjustedIV;
+    Value inductionVar = *loop.getSingleInductionVar();
+    OpBuilder builder(loop.getContext());
+    builder.setInsertionPointAfterValue(inductionVar);
+    adjustedIV = builder.create<arith::SubIOp>(inductionVar.getLoc(),
+                                               inductionVar, getLowerBound());
+    return adjustedIV;
+  }
+
+private:
+  LoopLikeOpInterface loop;
+  Value lowerBound = nullptr;
+  Value adjustedIV = nullptr;
+};
 
 //===----------------------------------------------------------------------===//
 // MemorySelector
@@ -779,7 +806,7 @@ void LoopInternalization::runOnOperation() {
   solver.load<dataflow::SparseConstantPropagation>();
   solver.load<dataflow::IntegerRangeAnalysis>();
   solver.load<ReachingDefinitionAnalysis>(aliasAnalysis);
-  if (failed(solver.initializeAndRun(getOperation()))) {
+  if (failed(solver.initializeAndRun(gpuModule))) {
     LLVM_DEBUG(llvm::dbgs()
                << DEBUG_TYPE ": Unable to run required dataflow analysis\n");
     return;
@@ -887,8 +914,8 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop,
   Value inductionVar = *loop.getSingleInductionVar();
   std::optional<unsigned> ivDim = std::nullopt;
   for (Operation *memref : loopToSharedMemref.at(loop)) {
-    auto accessAccSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
-    const SmallVector<Value> indexes = getIndexes(accessAccSub, solver);
+    auto accSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
+    const SmallVector<Value> indexes = getIndexes(accSub, solver);
     for (unsigned dim = 0; dim < indexes.size(); ++dim)
       if (usesValue(indexes[dim], inductionVar)) {
         if (!ivDim.has_value())
@@ -1016,6 +1043,7 @@ void LoopInternalization::transform(T loop,
 
     promote(memref, view, loopInfo, localIDs, builder, solver);
 
+    // Only increment offset when the current memref is not the last one.
     if (memref != *memrefs.rbegin()) {
       std::variant<Value, unsigned> reqdLocalMemory =
           getReqdLocalMemory(accTy, workGroupSize, builder);
@@ -1036,22 +1064,22 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
                                   DataFlowSolver &solver) const {
   Location loc = memref->getLoc();
   LoopLikeOpInterface loop = loopInfo.getLoop();
-  Value IV = *loop.getSingleInductionVar();
-  auto accessAccSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
-  const SmallVector<Value> indexes = getIndexes(accessAccSub, solver);
+  Value inductionVar = loopInfo.getInductionVar();
+  auto accSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
+  const SmallVector<Value> indexes = getIndexes(accSub, solver);
 
   // Populate indexes needed for loading the accesses from global memory.
   SmallVector<Value> globalIndexes(indexes.size());
   for (int dim = indexes.size() - 1; dim >= 0; --dim) {
     Value index = indexes[dim];
-    if (usesValue(index, IV)) {
+    if (usesValue(index, inductionVar)) {
       Value LB = loopInfo.getLowerBound();
       OpBuilder::InsertionGuard insertGuard(builder);
       builder.setInsertionPointAfterValue(LB);
       Value adjustedGlobalIV = builder.create<arith::AddIOp>(
           localIDs[dim].getLoc(), localIDs[dim], LB);
       IRMapping mapping;
-      mapping.map(IV, adjustedGlobalIV);
+      mapping.map(inductionVar, adjustedGlobalIV);
       globalIndexes[dim] = castToIndex(
           builder.clone(*index.getDefiningOp(), mapping)->getResult(0));
       continue;
@@ -1063,15 +1091,15 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
 
   // Load from global memory.
   builder.setInsertionPoint(loop);
-  sycl::AccessorType accTy = getAccessorType(accessAccSub);
+  sycl::AccessorType accTy = getAccessorType(accSub);
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
   TypedValue<MemRefType> id =
       sycl::constructSYCLID(idTy, globalIndexes, builder, loc);
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value accSub = sycl::createSYCLAccessorSubscriptOp(accessAccSub.getAcc(), id,
-                                                     builder, loc);
-  auto load = builder.create<memref::LoadOp>(loc, accSub, zeroIndex);
+  Value globalAccSub =
+      sycl::createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder, loc);
+  auto load = builder.create<memref::LoadOp>(loc, globalAccSub, zeroIndex);
 
   // Store to local memory.
   SmallVector<Value> reversedLocalIDs(localIDs);
@@ -1082,12 +1110,12 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
   SmallVector<Value> adjustedIndexes;
   for (int dim = indexes.size() - 1; dim >= 0; --dim) {
     Value index = indexes[dim];
-    if (usesValue(index, IV)) {
+    if (usesValue(index, inductionVar)) {
       OpBuilder::InsertionGuard insertGuard(builder);
       builder.setInsertionPointAfterValue(index);
       IRMapping mapping;
       Value adjustedIV = loopInfo.getAdjustedIV();
-      mapping.map(IV, adjustedIV);
+      mapping.map(inductionVar, adjustedIV);
       adjustedIndexes.push_back(castToIndex(
           builder.clone(*index.getDefiningOp(), mapping)->getResult(0)));
       continue;
@@ -1107,8 +1135,8 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
     user->erase();
   }
 
-  if (memref->use_empty())
-    memref->erase();
+  assert(memref->use_empty() && "Expecting all uses of memref to be replaced");
+  memref->erase();
 }
 
 } // namespace
