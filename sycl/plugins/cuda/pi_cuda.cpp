@@ -295,20 +295,6 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 }
 /// \endcond
 
-bool isPrime(size_t number) {
-  if (number < 2)
-    return false;
-  if (number == 2)
-    return true;
-  if (number % 2 == 0)
-    return false;
-  for (int i = 3; (i * i) <= number; i += 2) {
-    if (number % i == 0)
-      return false;
-  }
-  return true;
-}
-
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
@@ -320,6 +306,20 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
   int minGrid, maxBlockSize, maxBlockDim[3];
+
+  static auto isPrime = [](size_t number) -> bool {
+    if (number < 2)
+      return false;
+    if (number == 2)
+      return true;
+    if (number % 2 == 0)
+      return false;
+    for (int i = 3; (i * i) <= number; i += 2) {
+      if (number % i == 0)
+        return false;
+    }
+    return true;
+  };
 
   cuDeviceGetAttribute(&maxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
                        device->get());
