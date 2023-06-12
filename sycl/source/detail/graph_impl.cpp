@@ -29,17 +29,17 @@ namespace {
 /// successors if so.
 /// @param[in] CurrentNode Node to check as exit node.
 /// @param[in] NewInputs Noes to add as successors.
-void connect_to_exit_nodes(
+void connectToExitNodes(
     std::shared_ptr<node_impl> CurrentNode,
     const std::vector<std::shared_ptr<node_impl>> &NewInputs) {
   if (CurrentNode->MSuccessors.size() > 0) {
     for (auto Successor : CurrentNode->MSuccessors) {
-      connect_to_exit_nodes(Successor, NewInputs);
+      connectToExitNodes(Successor, NewInputs);
     }
 
   } else {
     for (auto Input : NewInputs) {
-      CurrentNode->register_successor(Input, CurrentNode);
+      CurrentNode->registerSuccessor(Input, CurrentNode);
     }
   }
 }
@@ -52,16 +52,16 @@ void connect_to_exit_nodes(
 /// identified for this arg.
 /// @return True if a dependency was added in this node or any of its
 /// successors.
-bool check_for_arg(const sycl::detail::ArgDesc &Arg,
+bool checkForArg(const sycl::detail::ArgDesc &Arg,
                    const std::shared_ptr<node_impl> &CurrentNode,
                    std::set<std::shared_ptr<node_impl>> &Deps) {
   bool SuccessorAddedDep = false;
   for (auto &Successor : CurrentNode->MSuccessors) {
-    SuccessorAddedDep |= check_for_arg(Arg, Successor, Deps);
+    SuccessorAddedDep |= checkForArg(Arg, Successor, Deps);
   }
 
-  if (!CurrentNode->is_empty() && Deps.find(CurrentNode) == Deps.end() &&
-      CurrentNode->has_arg(Arg) && !SuccessorAddedDep) {
+  if (!CurrentNode->isEmpty() && Deps.find(CurrentNode) == Deps.end() &&
+      CurrentNode->hasArg(Arg) && !SuccessorAddedDep) {
     Deps.insert(CurrentNode);
     return true;
   }
@@ -72,12 +72,12 @@ bool check_for_arg(const sycl::detail::ArgDesc &Arg,
 void exec_graph_impl::schedule() {
   if (MSchedule.empty()) {
     for (auto Node : MGraphImpl->MRoots) {
-      Node->topology_sort(Node, MSchedule);
+      Node->sortTopological(Node, MSchedule);
     }
   }
 }
 
-std::shared_ptr<node_impl> graph_impl::add_subgraph_nodes(
+std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
     const std::list<std::shared_ptr<node_impl>> &NodeList) {
   // Find all input and output nodes from the node list
   std::vector<std::shared_ptr<node_impl>> Inputs;
@@ -94,17 +94,17 @@ std::shared_ptr<node_impl> graph_impl::add_subgraph_nodes(
   // Recursively walk the graph to find exit nodes and connect up the inputs
   // TODO: Consider caching exit nodes so we don't have to do this
   for (auto NodeImpl : MRoots) {
-    connect_to_exit_nodes(NodeImpl, Inputs);
+    connectToExitNodes(NodeImpl, Inputs);
   }
 
   return this->add(Outputs);
 }
 
-void graph_impl::add_root(const std::shared_ptr<node_impl> &Root) {
+void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
   MRoots.insert(Root);
 }
 
-void graph_impl::remove_root(const std::shared_ptr<node_impl> &Root) {
+void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
   MRoots.erase(Root);
 }
 
@@ -115,12 +115,12 @@ graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
   // TODO: Encapsulate in separate function to avoid duplication
   if (!Dep.empty()) {
     for (auto N : Dep) {
-      N->register_successor(NodeImpl, N); // register successor
-      this->remove_root(NodeImpl);        // remove receiver from root node
+      N->registerSuccessor(NodeImpl, N); // register successor
+      this->removeRoot(NodeImpl);        // remove receiver from root node
                                           // list
     }
   } else {
-    this->add_root(NodeImpl);
+    this->addRoot(NodeImpl);
   }
 
   return NodeImpl;
@@ -165,7 +165,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
       }
       // Look through the graph for nodes which share this argument
       for (auto NodePtr : MRoots) {
-        check_for_arg(Arg, NodePtr, UniqueDeps);
+        checkForArg(Arg, NodePtr, UniqueDeps);
       }
     }
 
@@ -188,17 +188,17 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
       std::make_shared<node_impl>(CGType, std::move(CommandGroup));
   if (!Deps.empty()) {
     for (auto N : Deps) {
-      N->register_successor(NodeImpl, N); // register successor
-      this->remove_root(NodeImpl);        // remove receiver from root node
+      N->registerSuccessor(NodeImpl, N); // register successor
+      this->removeRoot(NodeImpl);        // remove receiver from root node
                                           // list
     }
   } else {
-    this->add_root(NodeImpl);
+    this->addRoot(NodeImpl);
   }
   return NodeImpl;
 }
 
-bool graph_impl::clear_queues() {
+bool graph_impl::clearQueues() {
   bool AnyQueuesCleared = false;
   for (auto &Queue : MRecordingQueues) {
     Queue->setCommandGraph(nullptr);
@@ -283,7 +283,7 @@ command_graph<graph_state::modifiable>::command_graph(
     : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice)) {}
 
 template <>
-node command_graph<graph_state::modifiable>::add_impl(
+node command_graph<graph_state::modifiable>::addImpl(
     const std::vector<node> &Deps) {
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
@@ -295,7 +295,7 @@ node command_graph<graph_state::modifiable>::add_impl(
 }
 
 template <>
-node command_graph<graph_state::modifiable>::add_impl(
+node command_graph<graph_state::modifiable>::addImpl(
     std::function<void(handler &)> CGF, const std::vector<node> &Deps) {
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
@@ -314,9 +314,9 @@ void command_graph<graph_state::modifiable>::make_edge(node &Src, node &Dest) {
   std::shared_ptr<detail::node_impl> ReceiverImpl =
       sycl::detail::getSyclObjImpl(Dest);
 
-  SenderImpl->register_successor(ReceiverImpl,
+  SenderImpl->registerSuccessor(ReceiverImpl,
                                  SenderImpl); // register successor
-  impl->remove_root(ReceiverImpl); // remove receiver from root node list
+  impl->removeRoot(ReceiverImpl); // remove receiver from root node list
 }
 
 template <>
@@ -324,7 +324,7 @@ command_graph<graph_state::executable>
 command_graph<graph_state::modifiable>::finalize(
     const sycl::property_list &) const {
   return command_graph<graph_state::executable>{this->impl,
-                                                this->impl->get_context()};
+                                                this->impl->getContext()};
 }
 
 template <>
@@ -333,7 +333,7 @@ bool command_graph<graph_state::modifiable>::begin_recording(
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl->getCommandGraph() == nullptr) {
     QueueImpl->setCommandGraph(impl);
-    impl->add_queue(QueueImpl);
+    impl->addQueue(QueueImpl);
     return true;
   } else if (QueueImpl->getCommandGraph() != impl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -356,7 +356,7 @@ bool command_graph<graph_state::modifiable>::begin_recording(
 }
 
 template <> bool command_graph<graph_state::modifiable>::end_recording() {
-  return impl->clear_queues();
+  return impl->clearQueues();
 }
 
 template <>
@@ -365,7 +365,7 @@ bool command_graph<graph_state::modifiable>::end_recording(
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   if (QueueImpl->getCommandGraph() == impl) {
     QueueImpl->setCommandGraph(nullptr);
-    impl->remove_queue(QueueImpl);
+    impl->removeQueue(QueueImpl);
     return true;
   } else if (QueueImpl->getCommandGraph() != nullptr) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -391,10 +391,10 @@ command_graph<graph_state::executable>::command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : MTag(rand()),
       impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
-  finalize_impl(); // Create backend representation for executable graph
+  finalizeImpl(); // Create backend representation for executable graph
 }
 
-void command_graph<graph_state::executable>::finalize_impl() {
+void command_graph<graph_state::executable>::finalizeImpl() {
   // Create PI command-buffers for each device in the finalized context
   impl->schedule();
 }

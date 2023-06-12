@@ -104,9 +104,9 @@ public:
   node add(const property_list &PropList = {}) {
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      return add_impl(Deps.get_dependencies());
+      return addImpl(Deps.get_dependencies());
     }
-    return add_impl({});
+    return addImpl({});
   }
 
   /// Add a command-group node to the graph.
@@ -116,9 +116,9 @@ public:
   template <typename T> node add(T CGF, const property_list &PropList = {}) {
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      return add_impl(CGF, Deps.get_dependencies());
+      return addImpl(CGF, Deps.get_dependencies());
     }
-    return add_impl(CGF, {});
+    return addImpl(CGF, {});
   }
 
   /// Add a dependency between two nodes.
@@ -175,13 +175,13 @@ private:
   /// @param CGF Command-group function to add.
   /// @param Dep List of predecessor nodes.
   /// @return Node added to the graph.
-  node add_impl(std::function<void(handler &)> CGF,
+  node addImpl(std::function<void(handler &)> CGF,
                 const std::vector<node> &Dep);
 
   /// Template-less implementation of add() for empty nodes.
   /// @param Dep List of predecessor nodes.
   /// @return Node added to the graph.
-  node add_impl(const std::vector<node> &Dep);
+  node addImpl(const std::vector<node> &Dep);
 
   template <class Obj>
   friend decltype(Obj::impl)
@@ -213,7 +213,7 @@ private:
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Creates a backend representation of the graph in \p impl member variable.
-  void finalize_impl();
+  void finalizeImpl();
 
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;

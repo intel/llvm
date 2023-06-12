@@ -51,15 +51,15 @@ public:
   ///
   /// \p Prev should be a shared_ptr to an instance of this object, but can't
   /// use a raw \p this pointer, so the extra \Prev parameter is passed.
-  void register_successor(const std::shared_ptr<node_impl> &Node,
+  void registerSuccessor(const std::shared_ptr<node_impl> &Node,
                           const std::shared_ptr<node_impl> &Prev) {
     MSuccessors.push_back(Node);
-    Node->register_predecessor(Prev);
+    Node->registerPredecessor(Prev);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
-  void register_predecessor(const std::shared_ptr<node_impl> &Node) {
+  void registerPredecessor(const std::shared_ptr<node_impl> &Node) {
     MPredecessors.push_back(Node);
   }
 
@@ -77,23 +77,23 @@ public:
   /// Recursively add nodes to execution stack.
   /// @param NodeImpl Node to schedule.
   /// @param Schedule Execution ordering to add node to.
-  void topology_sort(std::shared_ptr<node_impl> NodeImpl,
+  void sortTopological(std::shared_ptr<node_impl> NodeImpl,
                      std::list<std::shared_ptr<node_impl>> &Schedule) {
     for (auto Next : MSuccessors) {
       // Check if we've already scheduled this node
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
-        Next->topology_sort(Next, Schedule);
+        Next->sortTopological(Next, Schedule);
     }
     // We don't need to schedule empty nodes as they are only used when
     // calculating dependencies
-    if (!NodeImpl->is_empty())
+    if (!NodeImpl->isEmpty())
       Schedule.push_front(NodeImpl);
   }
 
   /// Checks if this node has an argument.
   /// @param Arg Argument to lookup.
   /// @return True if \p Arg is used in node, false otherwise.
-  bool has_arg(const sycl::detail::ArgDesc &Arg) {
+  bool hasArg(const sycl::detail::ArgDesc &Arg) {
     // TODO: Handle types other than exec kernel
     assert(MCGType == sycl::detail::CG::Kernel);
     const auto &Args =
@@ -114,7 +114,7 @@ public:
 
   /// Query if this is an empty node.
   /// @return True if this is an empty node, false otherwise.
-  bool is_empty() const { return MIsEmpty; }
+  bool isEmpty() const { return MIsEmpty; }
 
   /// Get a deep copy of this node's command group
   /// @return A unique ptr to the new command group object.
@@ -200,11 +200,11 @@ public:
 
   /// Insert node into list of root nodes.
   /// @param Root Node to add to list of root nodes.
-  void add_root(const std::shared_ptr<node_impl> &Root);
+  void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Remove node from list of root nodes.
   /// @param Root Node to remove from list of root nodes.
-  void remove_root(const std::shared_ptr<node_impl> &Root);
+  void removeRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Create a kernel node in the graph.
   /// @param CGType Type of the command-group.
@@ -238,14 +238,14 @@ public:
   /// graph.
   /// @param RecordingQueue Queue to add to set.
   void
-  add_queue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
+  addQueue(const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
     MRecordingQueues.insert(RecordingQueue);
   }
 
   /// Remove a queue from the set of queues which are currently recording to
   /// this graph.
   /// @param RecordingQueue Queue to remove from set.
-  void remove_queue(
+  void removeQueue(
       const std::shared_ptr<sycl::detail::queue_impl> &RecordingQueue) {
     MRecordingQueues.erase(RecordingQueue);
   }
@@ -254,12 +254,12 @@ public:
   /// cleared back to the executing state.
   ///
   /// @return True if any queues were removed.
-  bool clear_queues();
+  bool clearQueues();
 
   /// Associate a sycl event with a node in the graph.
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
-  void add_event_for_node(std::shared_ptr<sycl::detail::event_impl> EventImpl,
+  void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
                           std::shared_ptr<node_impl> NodeImpl) {
     MEventsMap[EventImpl] = NodeImpl;
   }
@@ -268,7 +268,7 @@ public:
   /// @param NodeImpl Node to find event for.
   /// @return Event associated with node.
   std::shared_ptr<sycl::detail::event_impl>
-  get_event_for_node(std::shared_ptr<node_impl> NodeImpl) const {
+  getEventForNode(std::shared_ptr<node_impl> NodeImpl) const {
     if (auto EventImpl = std::find_if(
             MEventsMap.begin(), MEventsMap.end(),
             [NodeImpl](auto &it) { return it.second == NodeImpl; });
@@ -284,11 +284,11 @@ public:
   /// Adds sub-graph nodes from an executable graph to this graph.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  add_subgraph_nodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addSubgraphNodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
-  sycl::context get_context() const { return MContext; }
+  sycl::context getContext() const { return MContext; }
 
   /// List of root nodes.
   std::set<std::shared_ptr<node_impl>> MRoots;
@@ -333,11 +333,11 @@ public:
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
-  sycl::context get_context() const { return MContext; }
+  sycl::context getContext() const { return MContext; }
 
   /// Query the scheduling of node execution.
   /// @return List of nodes in execution order.
-  const std::list<std::shared_ptr<node_impl>> &get_schedule() const {
+  const std::list<std::shared_ptr<node_impl>> &getSchedule() const {
     return MSchedule;
   }
 

@@ -117,7 +117,7 @@ event handler::finalize() {
   // subgraph node.
   if (MQueue && MQueue->getCommandGraph() && MSubgraphNode) {
     return detail::createSyclObjFromImpl<event>(
-        MQueue->getCommandGraph()->get_event_for_node(MSubgraphNode));
+        MQueue->getCommandGraph()->getEventForNode(MSubgraphNode));
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
@@ -409,7 +409,7 @@ event handler::finalize() {
         GraphImpl->add(MCGType, std::move(CommandGroup));
 
     // Associate an event with this new node and return the event.
-    GraphImpl->add_event_for_node(EventImpl, NodeImpl);
+    GraphImpl->addEventForNode(EventImpl, NodeImpl);
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -1026,10 +1026,10 @@ void handler::ext_oneapi_graph(
   if (ParentGraph) {
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
-    MSubgraphNode = ParentGraph->add_subgraph_nodes(GraphImpl->get_schedule());
+    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
     // Associate an event with the subgraph node.
     auto SubgraphEvent = std::make_shared<event_impl>();
-    ParentGraph->add_event_for_node(SubgraphEvent, MSubgraphNode);
+    ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
   } else {
     // Set the exec graph for execution during finalize.
     MExecGraph = GraphImpl;
