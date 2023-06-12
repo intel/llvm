@@ -20,7 +20,7 @@ int main() {
   auto SpanRed2 = sycl::reduction(sycl::span<int, 8>{SpanMem, 8},
                                   PlusWithoutIdentity<int>{});
 
-  // Shortcut and range<1> deduction.
+  // Shortcut and range<1> deduction from integer.
   Q.parallel_for(1024, ScalarRed1, [=](sycl::item<1>, auto &) {});
   Q.parallel_for(1024, SpanRed1, [=](sycl::item<1>, auto &) {});
   Q.parallel_for(1024, ScalarRed1, ScalarRed2,
@@ -30,7 +30,17 @@ int main() {
   Q.parallel_for(1024, ScalarRed1, SpanRed1, ScalarRed2, SpanRed2,
                  [=](sycl::item<1>, auto &, auto &, auto &, auto &) {});
 
-  // Shortcut and range<2> deduction.
+  // Shortcut and range<1> deduction from initializer.
+  Q.parallel_for({1024}, ScalarRed1, [=](sycl::item<1>, auto &) {});
+  Q.parallel_for({1024}, SpanRed1, [=](sycl::item<1>, auto &) {});
+  Q.parallel_for({1024}, ScalarRed1, ScalarRed2,
+                 [=](sycl::item<1>, auto &, auto &) {});
+  Q.parallel_for({1024}, SpanRed1, SpanRed2,
+                 [=](sycl::item<1>, auto &, auto &) {});
+  Q.parallel_for({1024}, ScalarRed1, SpanRed1, ScalarRed2, SpanRed2,
+                 [=](sycl::item<1>, auto &, auto &, auto &, auto &) {});
+
+  // Shortcut and range<2> deduction from initializer.
   Q.parallel_for({1024, 1024}, ScalarRed1, [=](sycl::item<2>, auto &) {});
   Q.parallel_for({1024, 1024}, SpanRed1, [=](sycl::item<2>, auto &) {});
   Q.parallel_for({1024, 1024}, ScalarRed1, ScalarRed2,
@@ -40,7 +50,7 @@ int main() {
   Q.parallel_for({1024, 1024}, ScalarRed1, SpanRed1, ScalarRed2, SpanRed2,
                  [=](sycl::item<2>, auto &, auto &, auto &, auto &) {});
 
-  // Shortcut and range<3> deduction.
+  // Shortcut and range<3> deduction from initializer.
   Q.parallel_for({1024, 1024, 1024}, ScalarRed1, [=](sycl::item<3>, auto &) {});
   Q.parallel_for({1024, 1024, 1024}, SpanRed1, [=](sycl::item<3>, auto &) {});
   Q.parallel_for({1024, 1024, 1024}, ScalarRed1, ScalarRed2,
@@ -50,7 +60,7 @@ int main() {
   Q.parallel_for({1024, 1024, 1024}, ScalarRed1, SpanRed1, ScalarRed2, SpanRed2,
                  [=](sycl::item<3>, auto &, auto &, auto &, auto &) {});
 
-  // Submission and range<1> deduction.
+  // Submission and range<1> deduction from integer.
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for(1024, ScalarRed1, [=](sycl::item<1>, auto &) {});
   });
@@ -70,7 +80,27 @@ int main() {
                      [=](sycl::item<1>, auto &, auto &, auto &, auto &) {});
   });
 
-  // Submission and range<2> deduction.
+  // Submission and range<1> deduction from initializer.
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for({1024}, ScalarRed1, [=](sycl::item<1>, auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for({1024}, SpanRed1, [=](sycl::item<1>, auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for({1024}, ScalarRed1, ScalarRed2,
+                     [=](sycl::item<1>, auto &, auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for({1024}, SpanRed1, SpanRed2,
+                     [=](sycl::item<1>, auto &, auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for({1024}, ScalarRed1, SpanRed1, ScalarRed2, SpanRed2,
+                     [=](sycl::item<1>, auto &, auto &, auto &, auto &) {});
+  });
+
+  // Submission and range<2> deduction from initializer.
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for({1024, 1024}, ScalarRed1, [=](sycl::item<2>, auto &) {});
   });
@@ -90,7 +120,7 @@ int main() {
                      [=](sycl::item<2>, auto &, auto &, auto &, auto &) {});
   });
 
-  // Submission and range<3> deduction.
+  // Submission and range<3> deduction from initializer.
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for({1024, 1024, 1024}, ScalarRed1,
                      [=](sycl::item<3>, auto &) {});
