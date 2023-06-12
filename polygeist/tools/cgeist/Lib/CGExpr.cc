@@ -3074,3 +3074,41 @@ ValueCategory MLIRScanner::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
   return ValueCategory{Builder.create<arith::ConstantIntOp>(Loc, Val, Ty),
                        /*isReference*/ false};
 }
+
+ValueCategory MLIRScanner::EmitCompare(clang::BinaryOperator *E,
+                                       arith::CmpIPredicate UICmp,
+                                       arith::CmpIPredicate SICmp,
+                                       arith::CmpFPredicate FCmp) {
+  ValueCategory Result;
+  QualType LHSTy = E->getLHS()->getType();
+  BinOpInfo BOInfo = EmitBinOps(E);
+  ValueCategory LHS = BOInfo.getLHS();
+  ValueCategory RHS = BOInfo.getRHS();
+  const SourceLocation Loc = E->getExprLoc();
+  Location MLIRLoc = getMLIRLocation(Loc);
+
+  if (LHSTy->hasFloatingRepresentation()) {
+    Result = LHS.FCmp(Builder, MLIRLoc, FCmp, RHS.val);
+  } else if (LHSTy->hasSignedIntegerRepresentation()) {
+    Result = LHS.ICmp(Builder, MLIRLoc, SICmp, RHS.val);
+  } else {
+    // Unsigned or pointer comparison.
+    if (!LHSTy->hasUnsignedIntegerRepresentation()) {
+      // Cast to pointer if needed
+      LHS = LHS.MemRef2Ptr(Builder, MLIRLoc);
+      RHS = RHS.MemRef2Ptr(Builder, MLIRLoc);
+    }
+    Result = LHS.ICmp(Builder, MLIRLoc, SICmp, RHS.val);
+  }
+
+  // If this is a vector comparison, sign extend the result to the appropriate
+  // vector integer type and return it.
+  if (LHSTy->isVectorType()) {
+    return Result.IntCast(Builder, MLIRLoc,
+                          Glob.getTypes().getMLIRType(E->getType()),
+                          /*IsSigned=*/true);
+  }
+
+  return EmitScalarConversion(Result, Glob.getTypes().getContext().BoolTy,
+                              E->getType(), Loc);
+}

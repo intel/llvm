@@ -543,6 +543,20 @@ public:
 #include "Expressions.def"
 #undef HANDLEBINOP
 
+#define VISITCOMP(CODE, UI, SI, FP)                                            \
+  ValueCategory VisitBin##CODE(clang::BinaryOperator *E) {                     \
+    return EmitCompare(E, mlir::arith::CmpIPredicate::UI,                      \
+                       mlir::arith::CmpIPredicate::SI,                         \
+                       mlir::arith::CmpFPredicate::FP);                        \
+  }
+#include "CmpExpressions.def"
+#undef HANDLEBINOP
+
+  ValueCategory EmitCompare(clang::BinaryOperator *E,
+                            mlir::arith::CmpIPredicate UICmp,
+                            mlir::arith::CmpIPredicate SICmp,
+                            mlir::arith::CmpFPredicate FCmp);
+
 #define HANDLEUNARYOP(OP)                                                      \
   ValueCategory VisitUnary##OP(clang::UnaryOperator *E,                        \
                                clang::QualType PromotionTy =                   \

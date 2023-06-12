@@ -1,0 +1,6 @@
+VISITCOMP(LT, ult, slt, OLT);
+VISITCOMP(GT, ugt, sgt, OGT);
+VISITCOMP(LE, ule, sle, OLE);
+VISITCOMP(GE, uge, sge, OGE);
+VISITCOMP(EQ, eq, eq, OEQ);
+VISITCOMP(NE, ne, ne, UNE);

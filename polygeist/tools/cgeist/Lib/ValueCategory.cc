@@ -10,7 +10,9 @@
 #include "Lib/TypeUtils.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Support/LLVM.h"
 #include "utils.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -433,16 +435,25 @@ ValueCategory ValueCategory::FPToSI(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Location Loc,
                                      Type PromotionType, bool IsSigned) const {
-  assert((isa<IntegerType, IndexType>(val.getType())) &&
+  Type ScalarValTy = val.getType();
+  Type ScalarPromotionType = PromotionType;
+  assert(isa<VectorType>(ScalarValTy) == isa<VectorType>(PromotionType) &&
+         "Cannot perform casts between vector and scalar values");
+  if (auto VT = dyn_cast<VectorType>(ScalarValTy)) {
+    ScalarValTy = VT.getElementType();
+    ScalarPromotionType = cast<VectorType>(PromotionType).getElementType();
+  }
+
+  assert((isa<IntegerType, IndexType>(ScalarValTy)) &&
          "Expecting integer or index source type");
-  assert((isa<IntegerType, IndexType>(PromotionType)) &&
+  assert((isa<IntegerType, IndexType>(ScalarPromotionType)) &&
          "Expecting integer or index promotion type");
 
-  if (val.getType() == PromotionType)
+  if (ScalarValTy == ScalarPromotionType)
     return *this;
 
   auto Res = [&]() -> Value {
-    if (isa<IndexType>(val.getType()) || isa<IndexType>(PromotionType)) {
+    if (isa<IndexType>(ScalarValTy) || isa<IndexType>(ScalarPromotionType)) {
       // Special indexcast case
       if (IsSigned)
         return Builder.createOrFold<arith::IndexCastOp>(Loc, PromotionType,
@@ -451,8 +462,8 @@ ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Location Loc,
                                                         val);
     }
 
-    auto SrcIntTy = cast<IntegerType>(val.getType());
-    auto DstIntTy = cast<IntegerType>(PromotionType);
+    auto SrcIntTy = cast<IntegerType>(ScalarValTy);
+    auto DstIntTy = cast<IntegerType>(ScalarPromotionType);
 
     const unsigned SrcBits = SrcIntTy.getWidth();
     const unsigned DstBits = DstIntTy.getWidth();
@@ -569,13 +580,48 @@ ValueCategory ValueCategory::FCmpUNE(mlir::OpBuilder &builder, Location Loc,
   return FCmp(builder, Loc, arith::CmpFPredicate::UNE, RHS);
 }
 
+static LLVM::ICmpPredicate arithPredicateToLLVM(arith::CmpIPredicate In) {
+  switch (In) {
+#define CASE(Val)                                                              \
+  case arith::CmpIPredicate::Val:                                              \
+    return LLVM::ICmpPredicate::Val;
+
+    CASE(eq)
+    CASE(ne)
+    CASE(slt)
+    CASE(sle)
+    CASE(sgt)
+    CASE(sge)
+    CASE(ult)
+    CASE(ule)
+    CASE(ugt)
+    CASE(uge)
+#undef CASE
+  default:
+    llvm_unreachable("Unhandled predicate");
+  }
+}
+
 ValueCategory ValueCategory::ICmp(OpBuilder &builder, Location Loc,
                                   arith::CmpIPredicate predicate,
                                   mlir::Value RHS) const {
   assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
-  assert(isa<IntegerType>(val.getType()) && "Expecting integer inputs");
-  return {builder.createOrFold<arith::CmpIOp>(Loc, predicate, val, RHS), false};
+  return {TypeSwitch<Type, Value>(val.getType())
+              .Case<IntegerType, VectorType>([&](auto Ty) -> Value {
+                if constexpr (std::is_same_v<decltype(Ty), VectorType>) {
+                  assert(isa<IntegerType>(Ty.getElementType()) &&
+                         "Expecting vector of integers");
+                }
+                return builder.createOrFold<arith::CmpIOp>(Loc, predicate, val,
+                                                           RHS);
+              })
+              .Case<LLVM::LLVMPointerType>([&](auto) -> Value {
+                return builder.createOrFold<LLVM::ICmpOp>(
+                    Loc, builder.getI1Type(), arithPredicateToLLVM(predicate),
+                    val, RHS);
+              }),
+          false};
 }
 
 ValueCategory ValueCategory::FCmp(OpBuilder &builder, Location Loc,
@@ -583,8 +629,16 @@ ValueCategory ValueCategory::FCmp(OpBuilder &builder, Location Loc,
                                   mlir::Value RHS) const {
   assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
-  assert(isa<FloatType>(val.getType()) && "Expecting floating point inputs");
-  return {builder.createOrFold<arith::CmpFOp>(Loc, predicate, val, RHS), false};
+  return {TypeSwitch<Type, Value>(val.getType())
+              .Case<FloatType, VectorType>([&](auto Ty) -> Value {
+                if constexpr (std::is_same_v<decltype(Ty), VectorType>) {
+                  assert(isa<FloatType>(Ty.getElementType()) &&
+                         "Expecting fp vector");
+                }
+                return builder.createOrFold<arith::CmpFOp>(Loc, predicate, val,
+                                                           RHS);
+              }),
+          false};
 }
 
 template <typename OpTy>
