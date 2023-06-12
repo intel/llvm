@@ -51,8 +51,8 @@ VecType::verify(llvm::function_ref<InFlightDiagnostic()> emitError, Type dataT,
       .Case<FloatType>([&](auto floatTy) -> LogicalResult {
         const unsigned width = dataT.cast<FloatType>().getWidth();
         if (width != 32 && width != 64) {
-          return emitError() << "FP SYCL vector element types can only be f16, "
-                                "f32 or f64. Got "
+          return emitError() << "FP SYCL vector element types can only be "
+                                "half, float or double. Got "
                              << width << ".";
         }
         return success();
