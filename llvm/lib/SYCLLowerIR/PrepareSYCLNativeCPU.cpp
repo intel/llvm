@@ -110,7 +110,7 @@ Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
   return F;
 }
 
-Value *getStateArg(Function *F) {
+Value *getStateArg(const Function *F) {
   auto *FT = F->getFunctionType();
   return F->getArg(FT->getNumParams() - 1);
 }

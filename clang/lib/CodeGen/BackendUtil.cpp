@@ -1074,12 +1074,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
-    }
 
-    if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsNativeCPU) {
-      MPM.addPass(
-          EmitSYCLNativeCPUHeaderPass(getNativeCPUHeaderName(LangOpts)));
-      MPM.addPass(PrepareSYCLNativeCPUPass());
+      if (LangOpts.SYCLIsNativeCPU) {
+        MPM.addPass(
+            EmitSYCLNativeCPUHeaderPass(getNativeCPUHeaderName(LangOpts)));
+        MPM.addPass(PrepareSYCLNativeCPUPass());
+      }
     }
   }
 

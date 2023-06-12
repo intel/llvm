@@ -650,8 +650,8 @@ pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
 pi_result piMemRetain(pi_mem Mem) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piMemRelease(pi_mem Mem) {
-  Mem->RefCount.fetch_sub(1, std::memory_order_acq_rel);
-  if (Mem->RefCount == 0) {
+  uint32_t OldRefCount = Mem->RefCount.fetch_sub(1, std::memory_order_acq_rel);
+  if (OldRefCount  == 1) {
     delete Mem;
   }
 
