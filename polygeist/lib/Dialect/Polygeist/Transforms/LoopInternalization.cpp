@@ -65,7 +65,7 @@ public:
   ElemTy operator[](unsigned dim) const;
 
 private:
-  Value getLocalRange(Value ndItem, unsigned dim, OpBuilder builder);
+  Value getLocalRange(Value ndItem, unsigned dim, OpBuilder builder) const;
 
   SmallVector<ElemTy> wgSizes;
 };
@@ -453,7 +453,7 @@ Value castToIndex(Value val) {
   if (val.getType().isIndex())
     return val;
 
-  // To avoid generating too many arith.index_cast:
+  // To avoid generating unnecessary arith.index_cast:
   if (Operation *op = val.getDefiningOp()) {
     // When op is `%outVal = arith.index_cast %inVal : index to i64`, return
     // `%inVal`.
@@ -469,7 +469,7 @@ Value castToIndex(Value val) {
       Value inVal = cast.getIn();
       Value outVal = cast.getOut();
       if (inVal == val && outVal.getType().isIndex())
-        return cast;
+        return outVal;
     }
   }
 
@@ -507,7 +507,7 @@ WorkGroupSize::ElemTy WorkGroupSize::operator[](unsigned dim) const {
 }
 
 Value WorkGroupSize::getLocalRange(Value ndItem, unsigned dim,
-                                   OpBuilder builder) {
+                                   OpBuilder builder) const {
   return builder.create<sycl::SYCLNDItemGetLocalRangeOp>(
       builder.getUnknownLoc(), builder.getI64Type(), ndItem,
       builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), dim,
@@ -526,11 +526,12 @@ public:
            "Expecting single induction variable");
     assert(loop.getSingleLowerBound().has_value() &&
            "Expecting single lower bound");
+    inductionVar = *loop.getSingleInductionVar();
   }
 
   LoopLikeOpInterface getLoop() const { return loop; }
 
-  Value getInductionVar() { return *loop.getSingleInductionVar(); }
+  Value getInductionVar() { return inductionVar; }
 
   Value getLowerBound() {
     if (lowerBound)
@@ -554,6 +555,7 @@ public:
 
 private:
   LoopLikeOpInterface loop;
+  Value inductionVar = nullptr;
   Value lowerBound = nullptr;
   Value adjustedIV = nullptr;
 };
