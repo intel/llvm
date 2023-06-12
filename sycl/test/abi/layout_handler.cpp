@@ -190,13 +190,13 @@ void foo() {
 // CHECK-NEXT: 544 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 544 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 552 |   class std::unique_ptr<class sycl::detail::CG> MGraphNodeCG
-// CHECK-NEXT: 552 |     class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> >
+// CHECK:      552 |     class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> >
 // CHECK-NEXT: 552 |       class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
 // CHECK-NEXT: 552 |         struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
 // CHECK-NEXT: 552 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
 // CHECK-NEXT: 552 |             struct std::_Head_base<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
 // CHECK-NEXT: 552 |               struct std::default_delete<class sycl::detail::CG> (base) (empty)
-// CHECK-NEXT: 552 |           struct std::_Head_base<0, class sycl::detail::CG *> (base)
+// CHECK:      552 |           struct std::_Head_base<0, class sycl::detail::CG *> (base)
 // CHECK-NEXT: 552 |             class sycl::detail::CG * _M_head_impl
 // CHECK-NEXT: 560 |   _Bool MIsHost
 // CHECK-NEXT: 568 |   struct sycl::detail::code_location MCodeLoc
