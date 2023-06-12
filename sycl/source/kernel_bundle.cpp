@@ -299,7 +299,8 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
     auto BE = Dev.get_backend();
     if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
-              BE == sycl::backend::ext_oneapi_level_zero);
+              BE == sycl::backend::ext_oneapi_level_zero ||
+              BE == sycl::backend::ext_intel_esimd_emulator);
     } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
                0) {
       return Dev.is_cpu();
