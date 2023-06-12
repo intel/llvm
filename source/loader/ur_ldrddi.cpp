@@ -676,15 +676,15 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     }
 
     // convert loader handles to platform handles
-    auto phDevicesLocal = new ur_device_handle_t[DeviceCount];
+    auto phDevicesLocal = std::vector<ur_device_handle_t>(DeviceCount);
     for (size_t i = 0; i < DeviceCount; ++i) {
         phDevicesLocal[i] =
             reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
     }
 
     // forward to device-platform
-    result = pfnCreate(DeviceCount, phDevices, pProperties, phContext);
-    delete[] phDevicesLocal;
+    result =
+        pfnCreate(DeviceCount, phDevicesLocal.data(), pProperties, phContext);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -849,16 +849,16 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         reinterpret_cast<ur_native_object_t *>(hNativeContext)->handle;
 
     // convert loader handles to platform handles
-    auto phDevicesLocal = new ur_device_handle_t[numDevices];
+    auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
     for (size_t i = 0; i < numDevices; ++i) {
         phDevicesLocal[i] =
             reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
     }
 
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeContext, numDevices, phDevices,
-                                       pProperties, phContext);
-    delete[] phDevicesLocal;
+    result = pfnCreateWithNativeHandle(hNativeContext, numDevices,
+                                       phDevicesLocal.data(), pProperties,
+                                       phContext);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -1933,15 +1933,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // convert loader handles to platform handles
-    auto phProgramsLocal = new ur_program_handle_t[count];
+    auto phProgramsLocal = std::vector<ur_program_handle_t>(count);
     for (size_t i = 0; i < count; ++i) {
         phProgramsLocal[i] =
             reinterpret_cast<ur_program_object_t *>(phPrograms[i])->handle;
     }
 
     // forward to device-platform
-    result = pfnLink(hContext, count, phPrograms, pOptions, phProgram);
-    delete[] phProgramsLocal;
+    result =
+        pfnLink(hContext, count, phProgramsLocal.data(), pOptions, phProgram);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3038,15 +3038,14 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     }
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEvents];
+    auto phEventWaitListLocal = std::vector<ur_event_handle_t>(numEvents);
     for (size_t i = 0; i < numEvents; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result = pfnWait(numEvents, phEventWaitList);
-    delete[] phEventWaitListLocal;
+    result = pfnWait(numEvents, phEventWaitListLocal.data());
 
     return result;
 }
@@ -3254,17 +3253,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result = pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                             pGlobalWorkSize, pLocalWorkSize,
-                             numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result =
+        pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                        pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
+                        phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3311,16 +3311,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnEventsWait(hQueue, numEventsInWaitList,
+                           phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3368,7 +3368,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -3376,8 +3377,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 
     // forward to device-platform
     result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
-                                      phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                                      phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3431,7 +3431,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -3439,8 +3440,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
     // forward to device-platform
     result = pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
-                              numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                              numEventsInWaitList, phEventWaitListLocal.data(),
+                              phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3496,17 +3497,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
-                          numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size,
+                               pSrc, numEventsInWaitList,
+                               phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3572,7 +3573,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -3582,8 +3584,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     result = pfnMemBufferReadRect(
         hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
-        numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+        numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3652,7 +3653,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -3662,8 +3664,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     result = pfnMemBufferWriteRect(
         hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
-        numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+        numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3720,17 +3721,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     hBufferDst = reinterpret_cast<ur_mem_object_t *>(hBufferDst)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset,
-                         size, numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
+                              dstOffset, size, numEventsInWaitList,
+                              phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3796,7 +3797,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     hBufferDst = reinterpret_cast<ur_mem_object_t *>(hBufferDst)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -3806,8 +3808,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     result = pfnMemBufferCopyRect(
         hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
-        numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+        numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3861,17 +3862,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size,
-                         numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
+                              size, numEventsInWaitList,
+                              phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -3930,7 +3931,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     hImage = reinterpret_cast<ur_mem_object_t *>(hImage)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -3939,8 +3941,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     // forward to device-platform
     result = pfnMemImageRead(hQueue, hImage, blockingRead, origin, region,
                              rowPitch, slicePitch, pDst, numEventsInWaitList,
-                             phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                             phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4000,7 +4001,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     hImage = reinterpret_cast<ur_mem_object_t *>(hImage)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -4009,8 +4011,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     // forward to device-platform
     result = pfnMemImageWrite(hQueue, hImage, blockingWrite, origin, region,
                               rowPitch, slicePitch, pSrc, numEventsInWaitList,
-                              phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                              phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4073,17 +4074,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     hImageDst = reinterpret_cast<ur_mem_object_t *>(hImageDst)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
-                        region, numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
+                             region, numEventsInWaitList,
+                             phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4139,7 +4140,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -4147,9 +4149,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
     // forward to device-platform
     result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset,
-                             size, numEventsInWaitList, phEventWaitList,
-                             phEvent, ppRetMap);
-    delete[] phEventWaitListLocal;
+                             size, numEventsInWaitList,
+                             phEventWaitListLocal.data(), phEvent, ppRetMap);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4201,7 +4202,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     hMem = reinterpret_cast<ur_mem_object_t *>(hMem)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -4209,8 +4211,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 
     // forward to device-platform
     result = pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
-                         phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                         phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4264,16 +4265,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result = pfnUSMFill(hQueue, ptr, patternSize, pPattern, size,
-                        numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result =
+        pfnUSMFill(hQueue, ptr, patternSize, pPattern, size,
+                   numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4323,16 +4325,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result = pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size,
-                          numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result =
+        pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
+                     phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4381,7 +4384,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -4389,8 +4393,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
     // forward to device-platform
     result = pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
-                            phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                            phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4491,7 +4494,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -4500,8 +4504,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     // forward to device-platform
     result =
         pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
-                     numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                     numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4556,17 +4559,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width,
-                       height, numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch,
+                            width, height, numEventsInWaitList,
+                            phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4625,7 +4628,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -4634,8 +4638,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     // forward to device-platform
     result = pfnDeviceGlobalVariableWrite(
         hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
-        numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+        numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4694,7 +4697,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -4703,8 +4707,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     // forward to device-platform
     result = pfnDeviceGlobalVariableRead(
         hQueue, hProgram, name, blockingRead, count, offset, pDst,
-        numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+        numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4766,17 +4769,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
-                        numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst,
+                             size, numEventsInWaitList,
+                             phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4838,17 +4841,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
     }
 
     // forward to device-platform
-    result =
-        pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
-                         numEventsInWaitList, phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+    result = pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc,
+                              size, numEventsInWaitList,
+                              phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -5224,7 +5227,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // convert loader handles to platform handles
-    auto phEventWaitListLocal = new ur_event_handle_t[numEventsInWaitList];
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
     for (size_t i = 0; i < numEventsInWaitList; ++i) {
         phEventWaitListLocal[i] =
             reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
@@ -5232,8 +5236,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 
     // forward to device-platform
     result = pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
-                           phEventWaitList, phEvent);
-    delete[] phEventWaitListLocal;
+                           phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;

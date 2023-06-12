@@ -770,7 +770,7 @@ Public:
     returns a list of c++ strings for each parameter of a function
     format: "TYPE NAME = INIT, ///< DESCRIPTION"
 """
-def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, format=["type", "name", "delim", "desc"], delim=","):
+def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, format=["type", "name", "delim", "desc"], delim=",", replacements={}):
     lines = []
 
     params = obj['params']
@@ -780,6 +780,8 @@ def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, form
 
     for i, item in enumerate(params):
         name = _get_param_name(namespace, tags, item)
+        if replacements.get(name):
+            name = replacements[name]
         if py:
             tname = get_ctype_name(namespace, tags, item)
             # Handle fptr_typedef
