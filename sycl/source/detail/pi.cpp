@@ -12,7 +12,6 @@
 /// \ingroup sycl_pi
 
 #include "context_impl.hpp"
-#include "sycl/backend_types.hpp"
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>

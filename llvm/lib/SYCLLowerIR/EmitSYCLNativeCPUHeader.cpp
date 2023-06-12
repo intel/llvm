@@ -1,5 +1,4 @@
-//===------ EmitSYCLHCHeader.cpp - Emit SYCL Native CPU Helper Header
-// Pass ------===//
+//===---- EmitSYCLHCHeader.cpp - Emit SYCL Native CPU Helper Header Pass --===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -35,23 +34,23 @@ using namespace llvm;
 
 namespace {
 SmallVector<bool> getArgMask(const Function *F) {
-  SmallVector<bool> res;
-  auto UsedNode = F->getMetadata("sycl_kernel_omit_args");
+  SmallVector<bool> Res;
+  auto *UsedNode = F->getMetadata("sycl_kernel_omit_args");
   if (!UsedNode) {
     // the metadata node is not available if -fenable-sycl-dae
     // was not set; set everything to true in the mask.
     for (unsigned I = 0; I < F->getFunctionType()->getNumParams(); I++) {
-      res.push_back(true);
+      Res.push_back(true);
     }
-    return res;
+    return Res;
   }
   auto NumOperands = UsedNode->getNumOperands();
   for (unsigned I = 0; I < NumOperands; I++) {
     auto &Op = UsedNode->getOperand(I);
-    if (auto CAM = dyn_cast<ConstantAsMetadata>(Op.get())) {
-      if (auto Const = dyn_cast<ConstantInt>(CAM->getValue())) {
+    if (auto *CAM = dyn_cast<ConstantAsMetadata>(Op.get())) {
+      if (auto *Const = dyn_cast<ConstantInt>(CAM->getValue())) {
         auto Val = Const->getValue();
-        res.push_back(!Val.getBoolValue());
+        Res.push_back(!Val.getBoolValue());
       } else {
         report_fatal_error("Unable to retrieve constant int from "
                            "sycl_kernel_omit_args metadata node");
@@ -61,7 +60,7 @@ SmallVector<bool> getArgMask(const Function *F) {
           "Error while processing sycl_kernel_omit_args metadata node");
     }
   }
-  return res;
+  return Res;
 }
 
 SmallVector<StringRef> getArgTypeNames(const Function *F) {
@@ -80,7 +79,7 @@ SmallVector<StringRef> getArgTypeNames(const Function *F) {
   return Res;
 }
 
-void emitKernelDecl(const Function *F, const SmallVector<bool> &argMask,
+void emitKernelDecl(const Function *F, const SmallVector<bool> &ArgMask,
                     const SmallVector<StringRef> &ArgTypeNames,
                     raw_ostream &O) {
   auto EmitArgDecl = [&](const Argument *Arg, unsigned Index) {
@@ -94,8 +93,8 @@ void emitKernelDecl(const Function *F, const SmallVector<bool> &argMask,
   O << "extern \"C\" void " << F->getName() << "(";
 
   unsigned I = 0, UsedI = 0;
-  for (; I + 1 < argMask.size() && UsedI + 1 < NumParams; I++) {
-    if (!argMask[I])
+  for (; I + 1 < ArgMask.size() && UsedI + 1 < NumParams; I++) {
+    if (!ArgMask[I])
       continue;
     O << EmitArgDecl(F->getArg(UsedI), I) << ", ";
     UsedI++;
@@ -103,27 +102,27 @@ void emitKernelDecl(const Function *F, const SmallVector<bool> &argMask,
 
   // parameters may have been removed.
   bool NoUsedArgs = true;
-  for (auto &entry : argMask) {
-    NoUsedArgs &= !entry;
+  for (auto &Entry : ArgMask) {
+    NoUsedArgs &= !Entry;
   }
   if (NoUsedArgs) {
     O << ");\n";
     return;
   }
   // find the index of the last used arg
-  while (!argMask[I] && I + 1 < argMask.size())
+  while (!ArgMask[I] && I + 1 < ArgMask.size())
     I++;
   O << EmitArgDecl(F->getArg(UsedI), I) << ", __nativecpu_state *);\n";
 }
 
-void emitSubKernelHandler(const Function *F, const SmallVector<bool> &argMask,
+void emitSubKernelHandler(const Function *F, const SmallVector<bool> &ArgMask,
                           const SmallVector<StringRef> &ArgTypeNames,
                           raw_ostream &O) {
-  SmallVector<unsigned> usedArgIdx;
+  SmallVector<unsigned> UsedArgIdx;
   auto EmitParamCast = [&](Argument *Arg, unsigned Index) {
     std::string Res;
     llvm::raw_string_ostream OS(Res);
-    usedArgIdx.push_back(Index);
+    UsedArgIdx.push_back(Index);
     if (isa<PointerType>(Arg->getType())) {
       OS << "  void* arg" << Index << " = ";
       OS << "MArgs[" << Index << "].getPtr();\n";
@@ -141,23 +140,23 @@ void emitSubKernelHandler(const Function *F, const SmallVector<bool> &argMask,
        "__nativecpu_state *state) {\n";
   // Retrieve only the args that are used
   for (unsigned I = 0, UsedI = 0;
-       I < argMask.size() && UsedI < F->getFunctionType()->getNumParams();
+       I < ArgMask.size() && UsedI < F->getFunctionType()->getNumParams();
        I++) {
-    if (argMask[I]) {
+    if (ArgMask[I]) {
       O << EmitParamCast(F->getArg(UsedI), I);
       UsedI++;
     }
   }
   // Emit the actual kernel call
   O << "  " << F->getName() << "(";
-  if (usedArgIdx.size() == 0) {
+  if (UsedArgIdx.size() == 0) {
     O << ");\n";
   } else {
-    for (unsigned I = 0; I < usedArgIdx.size() - 1; I++) {
-      O << "arg" << usedArgIdx[I] << ", ";
+    for (unsigned I = 0; I < UsedArgIdx.size() - 1; I++) {
+      O << "arg" << UsedArgIdx[I] << ", ";
     }
-    if (usedArgIdx.size() >= 1)
-      O << "arg" << usedArgIdx.back();
+    if (UsedArgIdx.size() >= 1)
+      O << "arg" << UsedArgIdx.back();
     O << ", state);\n";
   }
   O << "};\n\n";
@@ -254,11 +253,11 @@ PreservedAnalyses EmitSYCLNativeCPUHeaderPass::run(Module &M,
   O << "#include <sycl/detail/pi.h>\n";
   O << "extern \"C\" void __sycl_register_lib(pi_device_binaries desc);\n";
 
-  for (auto F : Kernels) {
-    auto argMask = getArgMask(F);
+  for (auto *F : Kernels) {
+    auto ArgMask = getArgMask(F);
     auto ArgTypeNames = getArgTypeNames(F);
-    emitKernelDecl(F, argMask, ArgTypeNames, O);
-    emitSubKernelHandler(F, argMask, ArgTypeNames, O);
+    emitKernelDecl(F, ArgMask, ArgTypeNames, O);
+    emitSubKernelHandler(F, ArgMask, ArgTypeNames, O);
     emitSYCLRegisterLib(F, O);
   }
 

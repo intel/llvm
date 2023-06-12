@@ -1036,11 +1036,7 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
 // Therefore the mangling of the kernel function is changed for
 // NativeCPU to avoid such potential collision.
 static void changeManglingForNativeCPU(std::string &Name) {
-  const std::string Target("_ZTS");
-  const size_t Pos = Name.find(Target);
-  if (Pos == std::string::npos)
-    return;
-  Name.replace(Pos, Target.size(), "_Z");
+  Name.append("_NativeCPUKernel");
 }
 
 // Gets a name for the OpenCL kernel function, calculated from the first

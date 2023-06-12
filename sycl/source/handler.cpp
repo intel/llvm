@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sycl/detail/native_cpu.hpp"
 #include <algorithm>
 
 #include <detail/config.hpp>

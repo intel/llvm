@@ -64,34 +64,34 @@ void fixCallingConv(Function *F) {
 
 // Clone the function and returns a new function with a new argument on type T
 // added as last argument
-Function *cloneFunctionAndAddParam(Function *oldF, Type *T) {
-  auto oldT = oldF->getFunctionType();
-  auto retT = oldT->getReturnType();
+Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
+  auto *OldT = OldF->getFunctionType();
+  auto *RetT = OldT->getReturnType();
 
-  std::vector<Type *> args;
-  for (auto arg : oldT->params()) {
-    args.push_back(arg);
+  std::vector<Type *> Args;
+  for (auto *Arg : OldT->params()) {
+    Args.push_back(Arg);
   }
-  args.push_back(T);
-  auto newT = FunctionType::get(retT, args, oldF->isVarArg());
-  auto newF = Function::Create(newT, oldF->getLinkage(), oldF->getName(),
-                               oldF->getParent());
+  Args.push_back(T);
+  auto *NewT = FunctionType::get(RetT, Args, OldF->isVarArg());
+  auto *NewF = Function::Create(NewT, OldF->getLinkage(), OldF->getName(),
+                               OldF->getParent());
   // Copy the old function's attributes
-  newF->setAttributes(oldF->getAttributes());
+  NewF->setAttributes(OldF->getAttributes());
 
   // Map old arguments to new arguments
   ValueToValueMapTy VMap;
-  for (auto pair : llvm::zip(oldF->args(), newF->args())) {
-    auto &oldA = std::get<0>(pair);
-    auto &newA = std::get<1>(pair);
-    VMap[&oldA] = &newA;
+  for (auto Pair : llvm::zip(OldF->args(), NewF->args())) {
+    auto &OldA = std::get<0>(Pair);
+    auto &NewA = std::get<1>(Pair);
+    VMap[&OldA] = &NewA;
   }
 
   SmallVector<ReturnInst *, 1> ReturnInst;
-  if (!oldF->isDeclaration())
-    CloneFunctionInto(newF, oldF, VMap,
+  if (!OldF->isDeclaration())
+    CloneFunctionInto(NewF, OldF, VMap,
                       CloneFunctionChangeType::LocalChangesOnly, ReturnInst);
-  return newF;
+  return NewF;
 }
 
 // Todo: add support for more SPIRV builtins here
@@ -111,22 +111,22 @@ Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
 }
 
 Value *getStateArg(Function *F) {
-  auto F_t = F->getFunctionType();
-  return F->getArg(F_t->getNumParams() - 1);
+  auto *FT = F->getFunctionType();
+  return F->getArg(FT->getNumParams() - 1);
 }
 
 SmallVector<Function *> getFunctionsFromUse(Use &U) {
   // This function returns a vector since an operator may be used by
   // instructions in multiple functions
   User *Usr = U.getUser();
-  if (auto I = dyn_cast<Instruction>(Usr)) {
+  if (auto *I = dyn_cast<Instruction>(Usr)) {
     if (I->getParent())
       return {I->getFunction()};
   }
-  if (auto Op = dyn_cast<Operator>(Usr)) {
+  if (auto *Op = dyn_cast<Operator>(Usr)) {
     SmallVector<Function *> Res;
     for (auto &Use : Op->uses()) {
-      if (auto I = dyn_cast<Instruction>(Use.getUser())) {
+      if (auto *I = dyn_cast<Instruction>(Use.getUser())) {
         if (I->getParent())
           Res.push_back(I->getFunction());
       }
@@ -158,17 +158,17 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                        false);
   Type *StatePtrType = PointerType::getUnqual(StateType);
   SmallVector<Function *> NewKernels;
-  for (auto &oldF : OldKernels) {
-    auto newF = cloneFunctionAndAddParam(oldF, StatePtrType);
-    newF->takeName(oldF);
-    oldF->eraseFromParent();
-    NewKernels.push_back(newF);
+  for (auto &OldF : OldKernels) {
+    auto *NewF = cloneFunctionAndAddParam(OldF, StatePtrType);
+    NewF->takeName(OldF);
+    OldF->eraseFromParent();
+    NewKernels.push_back(NewF);
     ModuleChanged |= true;
   }
 
   // Then we iterate over all the supported builtins, find their uses and
   // replace them with calls to our Native CPU functions.
-  for (auto &entry : BuiltinNamesMap) {
+  for (auto &Entry : BuiltinNamesMap) {
     // Kernel -> builtin materialization CallInst, this is used to avoid
     // inserting multiple calls to the same builtin
     std::map<Function *, CallInst *> BuiltinCallMap;
@@ -179,10 +179,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     // constants
     std::set<GEPOperator *> GEPOps;
     // spirv builtins are global constants, find it in the module
-    auto Glob = M.getNamedGlobal(entry.first);
+    auto *Glob = M.getNamedGlobal(Entry.first);
     if (!Glob)
       continue;
-    auto replaceFunc = getReplaceFunc(M, StatePtrType, entry.second);
+    auto *ReplaceFunc = getReplaceFunc(M, StatePtrType, Entry.second);
     for (auto &Use : Glob->uses()) {
       auto Funcs = getFunctionsFromUse(Use);
       // Here we check that the use comes from a kernel function
@@ -199,20 +199,20 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         continue;
       }
       for (auto &F : Funcs) {
-        auto NewCall_it = BuiltinCallMap.find(F);
+        auto NewCallIt = BuiltinCallMap.find(F);
         CallInst *NewCall;
         // check if we already inserted a call to our function
-        if (NewCall_it != BuiltinCallMap.end()) {
-          NewCall = NewCall_it->second;
+        if (NewCallIt != BuiltinCallMap.end()) {
+          NewCall = NewCallIt->second;
         } else {
-          auto StateArg = getStateArg(F);
+          auto *StateArg = getStateArg(F);
           NewCall = llvm::CallInst::Create(
-              replaceFunc->getFunctionType(), replaceFunc, {StateArg},
+              ReplaceFunc->getFunctionType(), ReplaceFunc, {StateArg},
               "ncpu_builtin", F->getEntryBlock().getFirstNonPHI());
           BuiltinCallMap.insert({F, NewCall});
         }
         User *Usr = Use.getUser();
-        if (auto GEPOp = dyn_cast<GEPOperator>(Usr)) {
+        if (auto *GEPOp = dyn_cast<GEPOperator>(Usr)) {
           GEPOps.insert(GEPOp);
         } else {
           // Find the index of the builtin in the user's operand list
@@ -254,19 +254,20 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         if (!I) {
           continue;
         }
-        auto NewCall = BuiltinCallMap[I->getFunction()];
+        auto *NewCall = BuiltinCallMap[I->getFunction()];
+        auto *ArrayT = ArrayType::get(Type::getInt64Ty(M.getContext()), 3);
         GetElementPtrInst *NewGEP = GetElementPtrInst::Create(
-            OldOp->getSourceElementType(), NewCall, Indices, "ncpu_gep", I);
+            ArrayT, NewCall, Indices, "ncpu_gep", I);
         GEPReplaceMap.emplace_back(OldOp, Usr, NewGEP);
       }
     }
     for (auto &Entry : GEPReplaceMap) {
-      auto Op = std::get<0>(Entry);
-      auto Usr = std::get<1>(Entry);
-      auto NewGEP = std::get<2>(Entry);
+      auto *Op = std::get<0>(Entry);
+      auto *Usr = std::get<1>(Entry);
+      auto *NewGEP = std::get<2>(Entry);
       Op->replaceUsesWithIf(NewGEP, [&](Use &U) {
-        bool res = U.getUser() == Usr;
-        return res;
+        bool Res = U.getUser() == Usr;
+        return Res;
       });
     }
 
