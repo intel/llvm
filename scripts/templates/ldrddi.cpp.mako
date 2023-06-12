@@ -49,7 +49,6 @@ namespace ur_loader
     {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;<%
         add_local = False
-        arrays_to_delete = []
     %>
 
         %if re.match(r"Init", obj['name']):
@@ -112,6 +111,7 @@ namespace ur_loader
             *${obj['params'][2]['name']} = total_platform_handle_count;
 
         %else:
+        <%param_replacements={}%>
         %for i, item in enumerate(th.get_loader_prologue(n, tags, obj, meta)):
         %if 0 == i:
         // extract platform's function pointer table
@@ -123,11 +123,10 @@ namespace ur_loader
         %endif
         %if 'range' in item:
         <%
-        add_local = True%>// convert loader handles to platform handles
-        auto ${item['name']}Local = new ${item['type']} [${item['range'][1]}];
-        <%
-        arrays_to_delete.append(item['name']+ 'Local')
-        %>for( size_t i = ${item['range'][0]}; i < ${item['range'][1]}; ++i )
+        add_local = True
+        param_replacements[item['name']] = item['name'] + 'Local.data()'%>// convert loader handles to platform handles
+        auto ${item['name']}Local = std::vector<${item['type']}>(${item['range'][1]});
+        for( size_t i = ${item['range'][0]}; i < ${item['range'][1]}; ++i )
             ${item['name']}Local[ i ] = reinterpret_cast<${item['obj']}*>( ${item['name']}[ i ] )->handle;
         %else:
         // convert loader handle to platform handle
@@ -141,15 +140,12 @@ namespace ur_loader
         %endfor
         // forward to device-platform
         %if add_local:
-        result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name", "local"]))} );
-        %for array_name in arrays_to_delete:
-        delete []${array_name};
-        %endfor
+        result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name", "local"], replacements=param_replacements))} );
         %else:
         result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
         %endif
-<%
-        del arrays_to_delete
+<% 
+        del param_replacements
         del add_local%>
         %for i, item in enumerate(th.get_loader_epilogue(n, tags, obj, meta)):
         %if 0 == i:
