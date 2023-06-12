@@ -37,6 +37,55 @@ class USMAnalyzer {
 private:
   USMAnalyzer(){};
 
+  static void CheckPointerValidness(std::string ParameterDesc,
+                                    const void *PtrToValidate, size_t size,
+                                    std::string FunctionName) {
+    bool NeedsTerminate = false;
+    bool PointerFound = false;
+    auto &GS = USMAnalyzer::getInstance();
+
+    for (const auto &Alloc : GS.ActivePointers) {
+      const void *Begin = Alloc.first;
+      const void *End =
+          static_cast<const char *>(Alloc.first) + Alloc.second.Length;
+      if (PtrToValidate >= Begin && PtrToValidate <= End) {
+        PointerFound = true;
+        const void *CopyRegionEnd =
+            static_cast<const char *>(PtrToValidate) + size;
+        if (CopyRegionEnd > End) {
+          std::cerr << "Requested " << FunctionName
+                    << " range exceeds allocated USM memory size for "
+                    << ParameterDesc << ".\n";
+          NeedsTerminate = true;
+        }
+
+        if (NeedsTerminate) {
+          std::cerr << "  Allocation location: ";
+          std::cerr << " function " << Alloc.second.Location.Function << " at ";
+          std::cerr << Alloc.second.Location.Source << ":"
+                    << Alloc.second.Location.Line << "\n";
+          std::cerr << "  " << FunctionName << " location: ";
+          std::cerr << " function " << GS.LastTracepoint.Function << " at ";
+          std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+                    << "\n";
+          if (GS.TerminateOnError)
+            std::terminate();
+        }
+        break;
+      }
+    }
+    if (!PointerFound) {
+      std::cerr << "Function uses unknown USM pointer (could be already "
+                   "released or not allocated as USM).\n";
+      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
+      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+                << "\n";
+      if (GS.TerminateOnError)
+        std::terminate();
+    }
+  };
+
 public:
   std::mutex IOMutex;
   std::map<void *, AllocationInfo> ActivePointers;
@@ -148,105 +197,34 @@ public:
     }
   }
 
-  static void handleUSMEnqueueMemset(pi_queue, void *ptr, pi_int32,
-                                     size_t numBytes, pi_uint32,
-                                     const pi_event *, pi_event *) {
-    auto &GS = USMAnalyzer::getInstance();
-    bool PointerFound = false;
-    bool NeedsTerminate = false;
-    for (const auto &Alloc : GS.ActivePointers) {
-      const void *Begin = Alloc.first;
-      const void *End =
-          static_cast<const char *>(Alloc.first) + Alloc.second.Length;
-      if (ptr >= Begin && ptr <= End) {
-        PointerFound = true;
-        const void *MemsetRegionEnd = static_cast<char *>(ptr) + numBytes;
-        if (MemsetRegionEnd > End) {
-          std::cerr
-              << "Requested memset range exceeds allocated USM memory size.\n";
-          NeedsTerminate = true;
-        }
-
-        if (NeedsTerminate) {
-          std::cerr << "  Allocation location: ";
-          std::cerr << " function " << Alloc.second.Location.Function << " at ";
-          std::cerr << Alloc.second.Location.Source << ":"
-                    << Alloc.second.Location.Line << "\n";
-          std::cerr << "  Memset location: ";
-          std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-          std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                    << "\n";
-          if (GS.TerminateOnError)
-            std::terminate();
-        }
-        break;
-      }
-    }
-    if (!PointerFound) {
-      std::cerr << "Function uses unknown USM pointer (could be already "
-                   "released or not allocated as USM).\n";
-      std::cerr << "  Memset location: ";
-      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                << "\n";
-      if (GS.TerminateOnError)
-        std::terminate();
-    }
+  static void handleUSMEnqueueMemset(const pi_plugin &,
+                                     std::optional<pi_result>, pi_queue,
+                                     void *ptr, pi_int32, size_t numBytes,
+                                     pi_uint32, const pi_event *, pi_event *) {
+    CheckPointerValidness("input parameter", ptr, numBytes, "memset");
   }
 
-  static void handleUSMEnqueueMemcpy(pi_queue, pi_bool, void *dst_ptr,
+  static void handleUSMEnqueueMemcpy(const pi_plugin &,
+                                     std::optional<pi_result>, pi_queue,
+                                     pi_bool, void *dst_ptr,
                                      const void *src_ptr, size_t size,
                                      pi_uint32, const pi_event *, pi_event *) {
-    auto &GS = USMAnalyzer::getInstance();
-    bool SrcPointerFound = false;
-    bool DstPointerFound = false;
-    auto CheckPointerValidness = [&](std::string ParameterDesc,
-                                     const void *PtrToValidate) {
-      bool NeedsTerminate = false;
-      bool PointerFound = false;
-      for (const auto &Alloc : GS.ActivePointers) {
-        const void *Begin = Alloc.first;
-        const void *End =
-            static_cast<const char *>(Alloc.first) + Alloc.second.Length;
-        if (PtrToValidate >= Begin && PtrToValidate <= End) {
-          PointerFound = true;
-          const void *CopyRegionEnd =
-              static_cast<const char *>(PtrToValidate) + size;
-          if (CopyRegionEnd > End) {
-            std::cerr
-                << "Requested copy range exceeds allocated USM memory size for "
-                << ParameterDesc << ".\n";
-            NeedsTerminate = true;
-          }
+    CheckPointerValidness("source memory block", src_ptr, size, "memcpy");
+    CheckPointerValidness("destination memory block", dst_ptr, size, "memcpy");
+  }
 
-          if (NeedsTerminate) {
-            std::cerr << "  Allocation location: ";
-            std::cerr << " function " << Alloc.second.Location.Function
-                      << " at ";
-            std::cerr << Alloc.second.Location.Source << ":"
-                      << Alloc.second.Location.Line << "\n";
-            std::cerr << "  Memcpy location: ";
-            std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-            std::cerr << GS.LastTracepoint.Source << ":"
-                      << GS.LastTracepoint.Line << "\n";
-            if (GS.TerminateOnError)
-              std::terminate();
-          }
-          break;
-        }
-      }
-      if (!PointerFound) {
-        std::cerr << "Function uses unknown USM pointer (could be already "
-                     "released or not allocated as USM).\n";
-        std::cerr << "  Memcpy location: ";
-        std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-        std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
-                  << "\n";
-        if (GS.TerminateOnError)
-          std::terminate();
-      }
-    };
-    CheckPointerValidness("source memory block", src_ptr);
-    CheckPointerValidness("destination memory block", dst_ptr);
+  static void handleUSMEnqueuePrefetch(const pi_plugin &,
+                                       std::optional<pi_result>, pi_queue,
+                                       const void *ptr, size_t size,
+                                       pi_usm_migration_flags, pi_uint32,
+                                       const pi_event *, pi_event *) {
+    CheckPointerValidness("input parameter", ptr, size, "prefetch");
+  }
+
+  static void handleUSMEnqueueMemAdvise(const pi_plugin &,
+                                        std::optional<pi_result>, pi_queue,
+                                        const void *ptr, size_t length,
+                                        pi_mem_advice, pi_event *) {
+    CheckPointerValidness("input parameter", ptr, length, "mem_advise");
   }
 };

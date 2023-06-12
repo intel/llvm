@@ -50,6 +50,14 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     GS.ArgHandlerPreCall.set_piextUSMFree(USMAnalyzer::handleUSMFree);
     GS.ArgHandlerPreCall.set_piMemBufferCreate(
         USMAnalyzer::handleMemBufferCreate);
+    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemset(
+        USMAnalyzer::handleUSMEnqueueMemset);
+    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemcpy(
+        USMAnalyzer::handleUSMEnqueueMemcpy);
+    GS.ArgHandlerPreCall.set_piextUSMEnqueuePrefetch(
+        USMAnalyzer::handleUSMEnqueuePrefetch);
+    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemAdvise(
+        USMAnalyzer::handleUSMEnqueueMemAdvise);
   }
 }
 
