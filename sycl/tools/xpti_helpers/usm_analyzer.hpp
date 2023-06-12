@@ -84,7 +84,70 @@ private:
       if (GS.TerminateOnError)
         std::terminate();
     }
-  };
+  }
+
+  static void CheckPointerValidness(std::string ParameterDesc,
+                                    const void *PtrToValidate, size_t pitch,
+                                    size_t width, size_t length,
+                                    std::string FunctionName) {
+    bool NeedsTerminate = false;
+    bool PointerFound = false;
+    auto &GS = USMAnalyzer::getInstance();
+
+    if (width > length) // TO DO: check if validated in RT
+    {
+      std::cerr << "Requested " << FunctionName
+                << " width is greater than pitch for  " << ParameterDesc
+                << ".\n";
+      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
+      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+                << "\n";
+      if (GS.TerminateOnError)
+        std::terminate();
+    }
+
+    for (const auto &Alloc : GS.ActivePointers) {
+      const void *Begin = Alloc.first;
+      const void *End =
+          static_cast<const char *>(Alloc.first) + Alloc.second.Length;
+      if (PtrToValidate >= Begin && PtrToValidate <= End) {
+        PointerFound = true;
+        const void *CopyRegionEnd =
+            static_cast<const char *>(PtrToValidate) + pitch * length;
+        if (CopyRegionEnd > End) {
+          std::cerr << "Requested " << FunctionName
+                    << " range exceeds allocated USM memory size for "
+                    << ParameterDesc << ".\n";
+          NeedsTerminate = true;
+        }
+
+        if (NeedsTerminate) {
+          std::cerr << "  Allocation location: ";
+          std::cerr << " function " << Alloc.second.Location.Function << " at ";
+          std::cerr << Alloc.second.Location.Source << ":"
+                    << Alloc.second.Location.Line << "\n";
+          std::cerr << "  " << FunctionName << " location: ";
+          std::cerr << " function " << GS.LastTracepoint.Function << " at ";
+          std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+                    << "\n";
+          if (GS.TerminateOnError)
+            std::terminate();
+        }
+        break;
+      }
+    }
+    if (!PointerFound) {
+      std::cerr << "Function uses unknown USM pointer (could be already "
+                   "released or not allocated as USM).\n";
+      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
+      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+                << "\n";
+      if (GS.TerminateOnError)
+        std::terminate();
+    }
+  }
 
 public:
   std::mutex IOMutex;
@@ -226,5 +289,37 @@ public:
                                         const void *ptr, size_t length,
                                         pi_mem_advice, pi_event *) {
     CheckPointerValidness("input parameter", ptr, length, "mem_advise");
+  }
+
+  static void handleUSMEnqueueFill2D(const pi_plugin &,
+                                     std::optional<pi_result>, pi_queue,
+                                     void *ptr, size_t pitch,
+                                     size_t pattern_size, const void *pattern,
+                                     size_t width, size_t height, pi_uint32,
+                                     const pi_event *, pi_event *) {
+    // TO DO: add checks for pattern validity
+    CheckPointerValidness("input parameter", ptr, pitch, width, height,
+                          "ext_oneapi_fill2d");
+  }
+
+  static void handleUSMEnqueueMemset2D(const pi_plugin &,
+                                       std::optional<pi_result>, pi_queue,
+                                       void *ptr, size_t pitch, int,
+                                       size_t width, size_t height, pi_uint32,
+                                       const pi_event *, pi_event *) {
+    CheckPointerValidness("input parameter", ptr, pitch, width, height,
+                          "ext_oneapi_memset2d");
+  }
+
+  static void handleUSMEnqueueMemcpy2D(const pi_plugin &,
+                                       std::optional<pi_result>, pi_queue,
+                                       pi_bool, void *dst_ptr, size_t dst_pitch,
+                                       const void *src_ptr, size_t src_pitch,
+                                       size_t width, size_t height, pi_uint32,
+                                       const pi_event *, pi_event *) {
+    CheckPointerValidness("source parameter", src_ptr, src_pitch, width, height,
+                          "ext_oneapi_copy2d/ext_oneapi_memcpy2d");
+    CheckPointerValidness("destination parameter", dst_ptr, dst_pitch, width,
+                          height, "ext_oneapi_copy2d/ext_oneapi_memcpy2d");
   }
 };
