@@ -72,6 +72,10 @@ application. This extension adds the kernel property `grf_size` which provides a
 to specify the GRF size for a SYCL kernel, and the kernel property `grf_size_automatic`
 which provides a way to request a valid GRF size be automatically chosen.
 
+The properties described in this extension are advanced features that most applications
+should not need to use. In most cases, applications get the best performance
+without using these properties.
+
 == Specification
 
 === Feature test macro
