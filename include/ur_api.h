@@ -4648,7 +4648,7 @@ urEventSetCallback(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
-// Intel'oneAPI' Unified Rutime function registry
+// Intel 'oneAPI' Unified Runtime function registry
 #if !defined(__GNUC__)
 #pragma region registry
 #endif
