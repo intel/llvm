@@ -205,6 +205,7 @@ public:
     NetBSD,
     OpenBSD,
     Solaris,
+    UEFI,
     Win32,
     ZOS,
     Haiku,
@@ -585,6 +586,11 @@ public:
   /// Tests whether the OS is Haiku.
   bool isOSHaiku() const {
     return getOS() == Triple::Haiku;
+  }
+
+  /// Tests whether the OS is UEFI.
+  bool isUEFI() const {
+    return getOS() == Triple::UEFI;
   }
 
   /// Tests whether the OS is Windows.
