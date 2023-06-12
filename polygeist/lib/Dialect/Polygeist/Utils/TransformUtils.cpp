@@ -19,6 +19,7 @@
 #include <optional>
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
   return ifOp->getRegion(0).front();
@@ -52,14 +53,12 @@ static void createThenBody(Operation *op, affine::AffineIfOp ifOp) {
   op->moveBefore(&getThenBlock(ifOp).front());
 }
 
-namespace mlir {
-namespace polygeist {
-
 //===----------------------------------------------------------------------===//
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
-void getUniqueSymbolName(std::string &newName, Operation *symbolTable) {
+void polygeist::getUniqueSymbolName(std::string &newName,
+                                    Operation *symbolTable) {
   assert(symbolTable && symbolTable->hasTrait<OpTrait::SymbolTable>() &&
          "Expecting symbol table");
   auto alreadyDefined = [&symbolTable](std::string name) {
@@ -80,21 +79,21 @@ void getUniqueSymbolName(std::string &newName, Operation *symbolTable) {
 }
 
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
-bool isLinkonceODR(FunctionOpInterface func) {
+bool polygeist::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-void privatize(FunctionOpInterface func) {
+void polygeist::privatize(FunctionOpInterface func) {
   func->setAttr(
       linkageAttrName,
       LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
   func.setPrivate();
 }
 
-bool isTailCall(CallOpInterface call) {
+bool polygeist::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
   Operation *nextOp = call->getNextNode();
@@ -102,7 +101,7 @@ bool isTailCall(CallOpInterface call) {
           isRegionReturnLike(nextOp));
 }
 
-Optional<Value> getAccessorUsedByOperation(const Operation &op) {
+Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
         .Case<affine::AffineLoadOp, affine::AffineStoreOp>(
@@ -115,7 +114,8 @@ Optional<Value> getAccessorUsedByOperation(const Operation &op) {
   return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
 }
 
-std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
+std::optional<APInt> polygeist::getConstIntegerValue(Value val,
+                                                     DataFlowSolver &solver) {
   if (!val.getType().isIntOrIndex())
     return std::nullopt;
 
@@ -132,7 +132,7 @@ std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
 }
 
 /// Walk up the parents and records the ones with the specified type.
-template <typename T> SetVector<T> getParentsOfType(Block &block) {
+template <typename T> SetVector<T> polygeist::getParentsOfType(Block &block) {
   SetVector<T> res;
   constexpr auto getInitialParent = [](Block &b) -> T {
     Operation *op = b.getParentOp();
@@ -148,11 +148,14 @@ template <typename T> SetVector<T> getParentsOfType(Block &block) {
 }
 
 template <typename T>
-SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
+SetVector<T> polygeist::getOperationsOfType(FunctionOpInterface funcOp) {
   SetVector<T> res;
   funcOp->walk([&](T op) { res.insert(op); });
   return res;
 }
+
+namespace mlir {
+namespace polygeist {
 
 //===----------------------------------------------------------------------===//
 // FunctionKernelInfo
