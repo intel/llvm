@@ -44,7 +44,7 @@ VecType::verify(llvm::function_ref<InFlightDiagnostic()> emitError, Type dataT,
           return emitError()
                  << "Integer SYCL vector element types can only be i1, "
                     "i8, i16, i32 or i64. Got "
-                 << width << ".";
+                 << intTy << ".";
         }
         return success();
       })
@@ -53,7 +53,7 @@ VecType::verify(llvm::function_ref<InFlightDiagnostic()> emitError, Type dataT,
         if (width != 32 && width != 64) {
           return emitError() << "FP SYCL vector element types can only be "
                                 "half, float or double. Got "
-                             << width << ".";
+                             << floatTy << ".";
         }
         return success();
       })
