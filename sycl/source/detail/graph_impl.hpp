@@ -96,7 +96,7 @@ public:
   /// @return True if \p Requirement is present in node, false otherwise.
   bool has_requirement(sycl::detail::AccessorImplHost *IncomingReq) {
     for (sycl::detail::AccessorImplHost *CurrentReq :
-         MCommandGroup->MRequirements) {
+         MCommandGroup->getRequirements()) {
       if (IncomingReq->MSYCLMemObj == CurrentReq->MSYCLMemObj) {
         return true;
       }

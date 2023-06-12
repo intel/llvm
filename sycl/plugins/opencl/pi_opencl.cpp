@@ -605,9 +605,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
-    bool result = false;
-    if (paramValueSize < sizeof(result))
-      return PI_ERROR_INVALID_VALUE;
+    cl_bool result = CL_FALSE;
     bool supported = false;
 
     ret_err = checkDeviceExtensions(
@@ -618,7 +616,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return static_cast<pi_result>(ret_err);
 
     result = supported;
-    std::memcpy(paramValue, &result, sizeof(result));
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {

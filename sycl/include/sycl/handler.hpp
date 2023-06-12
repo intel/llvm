@@ -356,12 +356,12 @@ private:
   /// \param Graph is a SYCL command_graph
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
 
-  /// Stores copy of Arg passed to the MArgsStorage.
+  /// Stores copy of Arg passed to the CGData.MArgsStorage.
   template <typename T, typename F = typename std::remove_const_t<
                             typename std::remove_reference_t<T>>>
   F *storePlainArg(T &&Arg) {
-    MArgsStorage.emplace_back(sizeof(T));
-    auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
+    CGData.MArgsStorage.emplace_back(sizeof(T));
+    auto Storage = reinterpret_cast<F *>(CGData.MArgsStorage.back().data());
     *Storage = Arg;
     return Storage;
   }
@@ -467,13 +467,20 @@ private:
   bool is_host() { return MIsHost; }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // In device compilation accessor isn't inherited from AccessorBaseHost, so
+  // In device compilation accessor isn't inherited from host base classes, so
   // can't detect by it. Since we don't expect it to be ever called in device
   // execution, just use blind void *.
   void associateWithHandler(void *AccBase, access::target AccTarget);
+  void associateWithHandler(void *AccBase, image_target AccTarget);
 #else
+  void associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
+                                  int AccTarget);
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
                             access::target AccTarget);
+  void associateWithHandler(detail::UnsampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
+  void associateWithHandler(detail::SampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
 #endif
 
   // Recursively calls itself until arguments pack is fully processed.
@@ -526,9 +533,9 @@ private:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of requirements.
-    MRequirements.push_back(Req);
+    CGData.MRequirements.push_back(Req);
     // Store copy of the accessor.
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MAccStorage.push_back(std::move(AccImpl));
     // Add accessor to the list of arguments.
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
                        static_cast<int>(AccessTarget), ArgIndex);
@@ -742,7 +749,6 @@ private:
                                    KI::getNumParams(), &KI::getParamDesc(0),
                                    KI::isESIMD());
       MKernelName = KI::getName();
-      MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -2132,21 +2138,58 @@ public:
 
   /// Reductions @{
 
-  template <typename KernelName = detail::auto_name, int Dims,
-            typename PropertiesT, typename... RestT>
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
   std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+  parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
 
-  template <typename KernelName = detail::auto_name, int Dims,
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<Dims> Range, RestT &&...Rest) {
+  parallel_for(range<1> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<2> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
@@ -2220,7 +2263,7 @@ public:
                   "Invalid accessor mode for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
-    MSharedPtrStorage.push_back(Dst);
+    CGData.MSharedPtrStorage.push_back(Dst);
     typename std::shared_ptr<T_Dst>::element_type *RawDstPtr = Dst.get();
     copy(Src, RawDstPtr);
   }
@@ -2246,9 +2289,11 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
+    static_assert(is_device_copyable<T_Src>::value,
+                  "Pattern must be device copyable");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
-    MSharedPtrStorage.push_back(Src);
+    CGData.MSharedPtrStorage.push_back(Src);
     typename std::shared_ptr<T_Src>::element_type *RawSrcPtr = Src.get();
     copy(RawSrcPtr, Dst);
   }
@@ -2286,12 +2331,12 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MRequirements.push_back(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
     MSrcPtr = static_cast<void *>(AccImpl.get());
     MDstPtr = static_cast<void *>(Dst);
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
   /// Copies the content of memory pointed by Src into the memory object
@@ -2315,6 +2360,8 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
+    static_assert(is_device_copyable<T_Src>::value,
+                  "Pattern must be device copyable");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -2328,12 +2375,12 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MRequirements.push_back(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
     MSrcPtr = const_cast<T_Src *>(Src);
     MDstPtr = static_cast<void *>(AccImpl.get());
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
   /// Copies the content of memory object accessed by Src to the memory
@@ -2384,14 +2431,14 @@ public:
     detail::AccessorBaseHost *AccBaseDst = (detail::AccessorBaseHost *)&Dst;
     detail::AccessorImplPtr AccImplDst = detail::getSyclObjImpl(*AccBaseDst);
 
-    MRequirements.push_back(AccImplSrc.get());
-    MRequirements.push_back(AccImplDst.get());
+    CGData.MRequirements.push_back(AccImplSrc.get());
+    CGData.MRequirements.push_back(AccImplDst.get());
     MSrcPtr = AccImplSrc.get();
     MDstPtr = AccImplDst.get();
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
-    MAccStorage.push_back(std::move(AccImplSrc));
-    MAccStorage.push_back(std::move(AccImplDst));
+    CGData.MAccStorage.push_back(std::move(AccImplSrc));
+    CGData.MAccStorage.push_back(std::move(AccImplDst));
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -2415,8 +2462,8 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    MRequirements.push_back(AccImpl.get());
-    MAccStorage.push_back(std::move(AccImpl));
+    CGData.MRequirements.push_back(AccImpl.get());
+    CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
   /// Fills memory pointed by accessor with the pattern given.
@@ -2452,8 +2499,8 @@ public:
       detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
       MDstPtr = static_cast<void *>(AccImpl.get());
-      MRequirements.push_back(AccImpl.get());
-      MAccStorage.push_back(std::move(AccImpl));
+      CGData.MRequirements.push_back(AccImpl.get());
+      CGData.MAccStorage.push_back(std::move(AccImpl));
 
       MPattern.resize(sizeof(T));
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
@@ -2475,12 +2522,12 @@ public:
   ///
   /// \param Ptr is the pointer to the memory to fill
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
       T *CastedPtr = static_cast<T *>(Ptr);
       CastedPtr[Index] = Pattern;
@@ -2727,15 +2774,15 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
   /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T>
   void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
                          size_t Width, size_t Height) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     if (Width > DestPitch)
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Destination pitch must be greater than or equal "
@@ -2873,19 +2920,15 @@ private:
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
   /// we exit the method they are passed in.
-  std::vector<std::vector<char>> MArgsStorage;
-  std::vector<detail::AccessorImplPtr> MAccStorage;
+  mutable detail::CG::StorageInitHelper CGData;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  mutable std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
   std::vector<detail::ArgDesc> MArgs;
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or
   /// have become required for this handler via require method.
   std::vector<detail::ArgDesc> MAssociatedAccesors;
-  /// The list of requirements to the memory objects for the scheduling.
-  std::vector<detail::AccessorImplHost *> MRequirements;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
   std::string MKernelName;
@@ -2907,11 +2950,8 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
-  detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   std::unique_ptr<detail::InteropTask> MInteropTask;
-  /// The list of events that order this operation.
-  std::vector<detail::EventImplPtr> MEvents;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
@@ -2974,6 +3014,10 @@ private:
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
                                            access::target);
+  friend void detail::associateWithHandler(
+      handler &, detail::UnsampledImageAccessorBaseHost *, image_target);
+  friend void detail::associateWithHandler(
+      handler &, detail::SampledImageAccessorBaseHost *, image_target);
 #endif
 
   friend class ::MockHandler;

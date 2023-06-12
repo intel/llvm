@@ -179,7 +179,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
 
   // A unique set of dependencies obtained by checking requirements and events
   std::set<std::shared_ptr<node_impl>> UniqueDeps;
-  const auto &Requirements = CommandGroup->MRequirements;
+  const auto &Requirements = CommandGroup->getRequirements();
   for (auto &Req : Requirements) {
     // Look through the graph for nodes which share this requirement
     for (auto NodePtr : MRoots) {
@@ -188,7 +188,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   }
 
   // Add any nodes specified by event dependencies into the dependency list
-  for (auto Dep : CommandGroup->MEvents) {
+  for (auto Dep : CommandGroup->getEvents()) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
       if (UniqueDeps.find(NodeImpl->second) == UniqueDeps.end()) {
         UniqueDeps.insert(NodeImpl->second);
@@ -317,7 +317,7 @@ void exec_graph_impl::create_pi_command_buffers(sycl::device D) {
     // If the node is a kernel with no special requirements we can enqueue it
     // directly.
     if (type == sycl::detail::CG::Kernel &&
-        Node->MCommandGroup->MRequirements.size() +
+        Node->MCommandGroup->getRequirements().size() +
                 static_cast<sycl::detail::CGExecKernel *>(
                     Node->MCommandGroup.get())
                     ->MStreams.size() ==
@@ -331,8 +331,8 @@ void exec_graph_impl::create_pi_command_buffers(sycl::device D) {
 
     // Append Node requirements to overall graph requirements
     MRequirements.insert(MRequirements.end(),
-                         Node->MCommandGroup->MRequirements.begin(),
-                         Node->MCommandGroup->MRequirements.end());
+                         Node->MCommandGroup->getRequirements().begin(),
+                         Node->MCommandGroup->getRequirements().end());
   }
 
   Res =
@@ -391,8 +391,9 @@ sycl::event exec_graph_impl::enqueue(
       }
     } else {
       std::unique_ptr<sycl::detail::CG> CommandGroup =
-          std::make_unique<sycl::detail::CGExecCommandBuffer>(CommandBuffer,
-                                                              MRequirements);
+          std::make_unique<sycl::detail::CGExecCommandBuffer>(
+              CommandBuffer, sycl::detail::CG::StorageInitHelper{
+                                 {}, {}, {}, MRequirements, {}});
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
           std::move(CommandGroup), Queue);
@@ -405,7 +406,7 @@ sycl::event exec_graph_impl::enqueue(
       // If the node has no requirements for accessors etc. then we skip the
       // scheduler and enqueue directly.
       if (NodeImpl->MCGType == sycl::detail::CG::Kernel &&
-          NodeImpl->MCommandGroup->MRequirements.size() +
+          NodeImpl->MCommandGroup->getRequirements().size() +
                   static_cast<sycl::detail::CGExecKernel *>(
                       NodeImpl->MCommandGroup.get())
                       ->MStreams.size() ==
@@ -418,8 +419,7 @@ sycl::event exec_graph_impl::enqueue(
         pi_int32 Res = sycl::detail::enqueueImpKernel(
             Queue, CG->MNDRDesc, CG->MArgs,
             // TODO: Handler KernelBundles
-            nullptr, CG->MSyclKernel, CG->MKernelName, CG->MOSModuleHandle,
-            RawEvents, OutEvent,
+            nullptr, CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
             // TODO: Pass accessor mem allocations
             nullptr,
             // TODO: Extract from handler

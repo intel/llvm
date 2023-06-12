@@ -542,7 +542,8 @@ struct _pi_queue {
     };
     {
       unsigned int size = static_cast<unsigned int>(compute_streams_.size());
-      std::lock_guard compute_sync_guard(compute_stream_sync_mutex_);
+      std::lock_guard<std::mutex> compute_sync_guard(
+          compute_stream_sync_mutex_);
       std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
       unsigned int start = last_sync_compute_streams_;
       unsigned int end = num_compute_streams_ < size

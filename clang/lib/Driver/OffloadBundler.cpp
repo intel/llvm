@@ -1256,7 +1256,7 @@ private:
         MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
     ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
     if (Error Err = OFH.ReadHeader(*Buf))
-      return Err;
+      return {std::move(Err)};
     Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
     if (!NameOrErr)
       return NameOrErr.takeError();
@@ -1273,20 +1273,6 @@ private:
     return Targets;
   }
 
-  bool CheckIfTargetIsExcluded(StringRef Triple) {
-    // NOTE: "-sycldevice" Triple component has been deprecated.
-    // However, it still can be met in libraries that have been compiled before
-    // deprecation. For example, here Triple might be the following:
-    //  sycl-fpga_aoco-intel-unknown-sycldevice
-    //
-    // The workaround is to strip this Triple component if it is present.
-    Triple.consume_back("-sycldevice");
-    const auto &ExcludedTargetNames = BundlerConfig.ExcludedTargetNames;
-    auto It = std::find(ExcludedTargetNames.begin(), ExcludedTargetNames.end(),
-                        Triple);
-    return It != ExcludedTargetNames.end();
-  }
-
   // Function reads targets from Child and checks whether one of Targets
   // is in Excluded list.
   Expected<bool>
@@ -1299,11 +1285,13 @@ private:
       return TargetNamesOrErr.takeError();
 
     auto TargetNames = TargetNamesOrErr.get();
-    for (const auto &TargetName : TargetNames)
-      if (CheckIfTargetIsExcluded(TargetName))
-        return true;
-
-    return false;
+    const auto &ExcludedTargets = BundlerConfig.ExcludedTargetNames;
+    return std::any_of(TargetNames.begin(), TargetNames.end(),
+                       [&ExcludedTargets](const std::string &Target) {
+                         auto It = std::find(ExcludedTargets.begin(),
+                                             ExcludedTargets.end(), Target);
+                         return It != ExcludedTargets.end();
+                       });
   }
 };
 

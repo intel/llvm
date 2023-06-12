@@ -27,6 +27,9 @@ permissions:
   contents: read
 
 jobs:
+  detect_changes:
+    uses: ./.github/workflows/sycl_detect_changes.yml
+
   lint:
     runs-on: ubuntu-22.04
     container:
@@ -54,7 +57,7 @@ jobs:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, detect_changes]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -66,12 +69,14 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}
 
   windows_default:
     name: Windows
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, detect_changes]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
       build_ref: ${{ github.event.pull_request.head.sha }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}

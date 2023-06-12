@@ -62,11 +62,30 @@ template <typename Acc> struct Wrapper3 {
   Wrapper2<Acc> w2;
 };
 
-void implicit_conversion(
-    const sycl::accessor<const int, 1, sycl::access::mode::read> &acc,
-    const sycl::accessor<int, 1, sycl::access::mode::read_write> &res_acc) {
+using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
+using AccCT = sycl::accessor<const int, 1, sycl::access::mode::read>;
+
+void implicit_conversion(const AccCT &acc, const ResAccT &res_acc) {
   auto v = acc[0];
   res_acc[0] = v;
+}
+
+void implicit_conversion(const AccT &acc, const ResAccT &res_acc) {
+  auto v = acc[0];
+  res_acc[0] = v;
+}
+
+void implicit_conversion(const sycl::local_accessor<const int, 1> &acc,
+                         const ResAccT &res_acc) {
+  auto v = acc[0];
+  res_acc[0] = v;
+}
+
+int implicit_conversion(
+    const sycl::host_accessor<const int, 1, sycl::access_mode::read> &acc) {
+  auto v = acc[0];
+  return v;
 }
 
 template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
@@ -769,7 +788,6 @@ int main() {
   {
     sycl::queue q;
     try {
-      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
       AccT acc;
 
       q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
@@ -816,34 +834,6 @@ int main() {
         assert(host_acc[0] == 798);
       }
 
-    } catch (sycl::exception e) {
-      std::cout << "SYCL exception caught: " << e.what();
-      return 1;
-    }
-  }
-
-  // Accessor with buffer size 0.
-  {
-    try {
-      int data[10] = {0};
-      {
-        sycl::buffer<int, 1> b{&data[0], 10};
-        sycl::buffer<int, 1> b1{0};
-
-        sycl::queue queue;
-        queue.submit([&](sycl::handler &cgh) {
-          sycl::accessor<int, 1, sycl::access::mode::read_write,
-                         sycl::target::device>
-              B(b, cgh);
-          auto B1 = b1.template get_access<sycl::access::mode::read_write>(cgh);
-
-          cgh.single_task<class acc_with_zero_sized_buffer>(
-              [=]() { B[0] = 1; });
-        });
-      }
-      assert(!"invalid device accessor buffer size exception wasn't caught");
-    } catch (const sycl::invalid_object_error &e) {
-      assert(e.get_cl_code() == CL_INVALID_VALUE);
     } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
@@ -1313,9 +1303,6 @@ int main() {
 
   // accessor<T> to accessor<const T> implicit conversion.
   {
-    using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
-    using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
-
     int data = 123;
     int result = 0;
     {
@@ -1333,11 +1320,63 @@ int main() {
     assert(result == 123 && "Expected value not seen.");
   }
 
+  {
+    const int data = 123;
+    int result = 0;
+
+    // accessor<const T, read_only> to accessor<T, read_only> implicit
+    // conversion.
+    {
+      sycl::buffer<const int, 1> data_buf(&data, 1);
+      sycl::buffer<int, 1> res_buf(&result, 1);
+
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            ResAccT res_acc = res_buf.get_access(cgh);
+            AccCT acc(data_buf, cgh);
+            cgh.parallel_for_work_group(sycl::range(1), [=](sycl::group<1>) {
+              implicit_conversion(acc, res_acc);
+            });
+          })
+          .wait_and_throw();
+    }
+    assert(result == 123 && "Expected value not seen.");
+  }
+
+  // local_accessor<T> to local_accessor<const T> implicit conversion.
+  {
+    int data = 123;
+    int result = 0;
+    {
+      sycl::buffer<int, 1> res_buf(&result, 1);
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            ResAccT res_acc = res_buf.get_access(cgh);
+            sycl::local_accessor<int, 1> locAcc(1, cgh);
+            cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+              locAcc[0] = 123;
+              implicit_conversion(locAcc, res_acc);
+            });
+          })
+          .wait_and_throw();
+    }
+    assert(result == 123 && "Expected value not seen.");
+  }
+
+  // host_accessor<T, read_write> to host_accessor<const T, read> implicit
+  // conversion.
+  {
+    int data = -1;
+    sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+    sycl::host_accessor host_acc(d, sycl::read_write);
+    host_acc[0] = 399;
+    assert(implicit_conversion(host_acc) == 399);
+  }
+
   // accessor swap
   {
-    using ResAccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
-    using AccT = sycl::accessor<int, 1, sycl::access::mode::read>;
-
     int data[2] = {2, 100};
     int data2[2] = {23, 4};
     int results[2] = {0, 0};
@@ -1366,6 +1405,29 @@ int main() {
     }
     assert(results[0] == 123 && "Unexpected value!");
     assert(results[1] == 6 && "Unexpected value!");
+  }
+
+  // accessor with buffer size 0.
+  {
+    sycl::buffer<int, 1> Buf{0};
+    sycl::buffer<int, 1> Buf2{200};
+
+    {
+      sycl::queue queue;
+      for (auto IBuf : {Buf, Buf2}) {
+        queue
+            .submit([&](sycl::handler &cgh) {
+              auto B =
+                  IBuf.template get_access<sycl::access::mode::read_write>(cgh);
+
+              cgh.single_task<class fill_with_potentially_zero_size>([=]() {
+                for (size_t I = 0; I < B.size(); ++I)
+                  B[I] = 1;
+              });
+            })
+            .wait();
+      }
+    }
   }
 
   std::cout << "Test passed" << std::endl;
