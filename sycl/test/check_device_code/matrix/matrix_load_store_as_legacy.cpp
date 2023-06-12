@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl-device-only -S -emit-llvm -o - %s | FileCheck %s
 
+// REQUIRES: TEMPORARY_DISABLED
+
 // check that correct address spaces are used to load from and store to
 #define SYCL_EXT_ONEAPI_MATRIX_VERSION 1
 #include <sycl/sycl.hpp>

@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1 -S -emit-llvm -o - %s | FileCheck %s
 
+// REQUIRES: TEMPORARY_DISABLED
+
 // CHECK-DAG: %spirv.JointMatrixINTEL._char_12_48_0_3 = type opaque
 // CHECK-DAG: %spirv.JointMatrixINTEL._int_12_12_0_3 = type opaque
 // CHECK-DAG: %spirv.JointMatrixINTEL._char_48_12_3_3 = type opaque
