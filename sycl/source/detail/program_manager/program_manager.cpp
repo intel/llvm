@@ -475,7 +475,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (auto Pos = CompileOpts.find(TargetCompileFast);
         Pos != std::string::npos) {
       const char *BackendOption = nullptr;
-      PlatformImpl->getBackendOption(TargetCompileFast, &BackendOption);
+      if (IsIntelGPU)
+        PlatformImpl->getBackendOption(TargetCompileFast, &BackendOption);
       auto OptLen = strlen(TargetCompileFast);
       if (IsIntelGPU && BackendOption && BackendOption[0] != '\0')
         CompileOpts.replace(Pos, OptLen, BackendOption);
