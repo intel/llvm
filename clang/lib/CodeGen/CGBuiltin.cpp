@@ -510,6 +510,8 @@ static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
                                            ArrayRef<Value *> Args,
                                            unsigned ID) {
   llvm::CallInst *CI = CGF.Builder.CreateCall(FPBuiltinF, Args);
+  // TODO: Replace AttrList a single attribute. The call can only have a
+  // single FPAccuracy attribute.
   llvm::AttributeList AttrList;
   // sincos() doesn't return a value, but it still has a type associated with
   // it that corresponds to the operand type.
