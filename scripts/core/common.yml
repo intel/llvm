@@ -329,6 +329,8 @@ etors:
       desc: $x_device_partition_properties_t
     - name: EXP_COMMAND_BUFFER_DESC
       desc: $x_exp_command_buffer_desc_t
+    - name: EXP_SAMPLER_MIP_PROPERTIES
+      desc: $x_exp_sampler_mip_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
