@@ -177,7 +177,7 @@ void KernelDisjointSpecializationPass::runOnOperation() {
 bool KernelDisjointSpecializationPass::isCandidateFunction(
     FunctionOpInterface func,
     const polygeist::FunctionKernelInfo &funcKernelInfo) const {
-  if (!funcKernelInfo.isPotentialKernelBodyFunc(func)) {
+  if (!funcKernelInfo.isPotentialKernelBodyFunction(func)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "not a candidate: not a potential kernel body function\n");
     return false;

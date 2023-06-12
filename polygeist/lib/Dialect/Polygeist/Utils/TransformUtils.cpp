@@ -61,6 +61,7 @@ void polygeist::getUniqueSymbolName(std::string &newName,
                                     Operation *symbolTable) {
   assert(symbolTable && symbolTable->hasTrait<OpTrait::SymbolTable>() &&
          "Expecting symbol table");
+
   auto alreadyDefined = [&symbolTable](std::string name) {
     return llvm::any_of(symbolTable->getRegion(0), [&](auto &block) {
       return llvm::any_of(block, [&](auto &op) {
@@ -70,6 +71,7 @@ void polygeist::getUniqueSymbolName(std::string &newName,
       });
     });
   };
+
   std::string fnName = newName;
   unsigned counter = 0;
   while (alreadyDefined(newName)) {
@@ -82,6 +84,7 @@ static constexpr StringLiteral linkageAttrName = "llvm.linkage";
 bool polygeist::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
+
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
@@ -96,6 +99,7 @@ void polygeist::privatize(FunctionOpInterface func) {
 bool polygeist::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
+
   Operation *nextOp = call->getNextNode();
   return (nextOp->hasTrait<OpTrait::IsTerminator>() ||
           isRegionReturnLike(nextOp));
@@ -165,7 +169,7 @@ FunctionKernelInfo::FunctionKernelInfo(gpu::GPUModuleOp module) {
   module.walk([&](FunctionOpInterface func) { populateGPUKernelInfo(func); });
 }
 
-bool FunctionKernelInfo::isPotentialKernelBodyFunc(
+bool FunctionKernelInfo::isPotentialKernelBodyFunction(
     FunctionOpInterface func) const {
   // The function must be defined, and private or with linkonce_odr linkage.
   if (func.isExternal() || (!func.isPrivate() && !isLinkonceODR(func)))
@@ -182,12 +186,13 @@ bool FunctionKernelInfo::isPotentialKernelBodyFunc(
       }))
     return false;
 
+  // The function must to called from a GPU kernel.
   Optional<unsigned> maxDepth = getMaxDepthFromAnyGPUKernel(func);
-  // The function must to called from GPU kernel.
   if (!maxDepth.has_value())
     return false;
+
   // The function should be called directly by a GPU kernel, or called by a
-  // function that directly called by a GPU kernel.
+  // function that is directly called by a GPU kernel.
   return (maxDepth.value() == 1 || maxDepth.value() == 2);
 }
 
@@ -207,15 +212,18 @@ Optional<unsigned>
 FunctionKernelInfo::getMaxDepthFromGPUKernel(FunctionOpInterface func,
                                              gpu::GPUFuncOp kernel) const {
   assert(kernel.isKernel() && "Expecting kernel");
+
   Optional<unsigned> maxDepth = std::nullopt;
   for (const KernelInfo &kernelInfo : funcKernelInfosMap.at(func)) {
     if (kernelInfo.kernel != kernel)
       continue;
+
     if (!maxDepth.has_value())
       maxDepth = kernelInfo.depth;
     else if (kernelInfo.depth > maxDepth.value())
       maxDepth = kernelInfo.depth;
   }
+
   return maxDepth;
 }
 
@@ -225,13 +233,18 @@ void FunctionKernelInfo::getKernelCallers(
     kernels.push_back(kernelInfo.kernel);
 }
 
-FunctionOpInterface
-FunctionKernelInfo::getKernelBodyFunc(gpu::GPUFuncOp kernel) const {
+std::set<FunctionOpInterface>
+FunctionKernelInfo::getPotentialKernelBodyFunctions(
+    gpu::GPUFuncOp kernel) const {
   assert(kernel.isKernel() && "Expecting kernel");
-  for (FunctionOpInterface func : kernelFuncsMap.at(kernel))
-    if (isPotentialKernelBodyFunc(func))
-      return func;
-  llvm_unreachable("cannot find kernel body function");
+
+  std::set<FunctionOpInterface> kernelBodyFunctions;
+  for (FunctionOpInterface func : kernelFuncsMap.at(kernel)) {
+    if (isPotentialKernelBodyFunction(func))
+      kernelBodyFunctions.insert(func);
+  }
+
+  return kernelBodyFunctions;
 }
 
 void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
@@ -242,11 +255,10 @@ void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
   funcKernelInfosMap[func] = {};
 
   Operation *op = func;
-  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op))
-    if (gpuFunc.isKernel()) {
-      funcKernelInfosMap[func].push_back({gpuFunc, 0});
-      return;
-    }
+  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op); gpuFunc.isKernel()) {
+    funcKernelInfosMap[func].push_back({gpuFunc, 0});
+    return;
+  }
 
   ModuleOp module = func->getParentOfType<ModuleOp>();
   SymbolTableCollection symTable;
