@@ -64,6 +64,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
         USMAnalyzer::handleUSMEnqueueMemset2D);
     GS.ArgHandlerPreCall.set_piextUSMEnqueueMemcpy2D(
         USMAnalyzer::handleUSMEnqueueMemcpy2D);
+    GS.ArgHandlerPreCall.set_piextKernelSetArgPointer(
+        USMAnalyzer::handleKernelSetArgPointer);
   }
 }
 

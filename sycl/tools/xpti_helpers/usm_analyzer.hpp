@@ -37,17 +37,27 @@ class USMAnalyzer {
 private:
   USMAnalyzer(){};
 
-  static void CheckPointerValidness(std::string ParameterDesc,
-                                    const void *PtrToValidate, size_t size,
-                                    std::string FunctionName) {
+  static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
+                                    size_t size, std::string FunctionName) {
+    void *PtrToValidate = *(void **)Ptr;
     bool NeedsTerminate = false;
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
+    if (PtrToValidate == nullptr) {
+      std::cerr << "Function uses nullptr as " << ParameterDesc << ".\n";
+      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
+      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+                << "\n";
+      if (GS.TerminateOnError)
+        std::terminate();
+    }
 
     for (const auto &Alloc : GS.ActivePointers) {
       const void *Begin = Alloc.first;
       const void *End =
           static_cast<const char *>(Alloc.first) + Alloc.second.Length;
+
       if (PtrToValidate >= Begin && PtrToValidate <= End) {
         PointerFound = true;
         const void *CopyRegionEnd =
@@ -74,9 +84,11 @@ private:
         break;
       }
     }
+
     if (!PointerFound) {
       std::cerr << "Function uses unknown USM pointer (could be already "
-                   "released or not allocated as USM).\n";
+                   "released or not allocated as USM) as "
+                << ParameterDesc << ".\n";
       std::cerr << "  " << FunctionName << " location: ";
       std::cerr << " function " << GS.LastTracepoint.Function << " at ";
       std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
@@ -86,10 +98,10 @@ private:
     }
   }
 
-  static void CheckPointerValidness(std::string ParameterDesc,
-                                    const void *PtrToValidate, size_t pitch,
-                                    size_t width, size_t length,
+  static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
+                                    size_t pitch, size_t width, size_t length,
                                     std::string FunctionName) {
+    void *PtrToValidate = *(void **)Ptr;
     bool NeedsTerminate = false;
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
@@ -99,6 +111,16 @@ private:
       std::cerr << "Requested " << FunctionName
                 << " width is greater than pitch for  " << ParameterDesc
                 << ".\n";
+      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
+      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+                << "\n";
+      if (GS.TerminateOnError)
+        std::terminate();
+    }
+
+    if (PtrToValidate == nullptr) {
+      std::cerr << "Function uses nullptr as " << ParameterDesc << ".\n";
       std::cerr << "  " << FunctionName << " location: ";
       std::cerr << " function " << GS.LastTracepoint.Function << " at ";
       std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
@@ -321,5 +343,18 @@ public:
                           "ext_oneapi_copy2d/ext_oneapi_memcpy2d");
     CheckPointerValidness("destination parameter", dst_ptr, dst_pitch, width,
                           height, "ext_oneapi_copy2d/ext_oneapi_memcpy2d");
+  }
+
+  static void handleKernelSetArgPointer(const pi_plugin &,
+                                        std::optional<pi_result>,
+                                        pi_kernel kernel, pi_uint32 arg_index,
+                                        size_t arg_size,
+                                        const void *arg_value) {
+    // no clarity how to handle complex types so check only simple pointers here
+    if (arg_size == sizeof(arg_value))
+      CheckPointerValidness(
+          "kernel parameter with index = " + std::to_string(arg_index),
+          arg_value, 0 /*no data how it will be used in kernel*/,
+          "parallel_for/single_task");
   }
 };
