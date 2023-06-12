@@ -36,7 +36,8 @@ struct AllocationInfo {
 class USMAnalyzer {
 private:
   USMAnalyzer(){};
-
+  // TO DO: mem allocations could be effectively validated with
+  // piextUSMGetMemAllocInfo - could be more robust
   static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
                                     size_t size, std::string FunctionName) {
     void *PtrToValidate = *(void **)Ptr;
@@ -172,6 +173,7 @@ private:
   }
 
 public:
+  // TO DO: allocations must be tracked with device
   std::mutex IOMutex;
   std::map<void *, AllocationInfo> ActivePointers;
   TracepointInfo LastTracepoint;
