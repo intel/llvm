@@ -411,7 +411,6 @@ bool mayConflictWithWriteInLoop(affine::MemRefAccess memRefAccess,
 /// Collect memory accesses in a loop and determine the memory space each
 /// access should ideally use.
 class MemorySelector {
-
 public:
   MemorySelector(MemoryAccessAnalysis &memAccessAnalysis,
                  AliasAnalysis &aliasAnalysis, DataFlowSolver &solver)
@@ -431,14 +430,13 @@ public:
   void analyze(LoopLikeOpInterface loop, AccessKind accessKind);
 
 private:
-  /// Return the ideal memory space for \p memAccess.
-  MemorySpace selectMemorySpace(const MemoryAccess &memAccess,
-                                ArrayRef<Value> threadVars,
-                                AccessKind accessKind) const;
-
   /// Return true iff no memref accesses in \p accesses are stores.
   bool areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
                    LoopLikeOpInterface loop);
+
+  /// Determine whether \p memRefAccess exhibits temporal reuse.
+  bool hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
+                        ArrayRef<Value> threadVars) const;
 
 private:
   MemoryAccessAnalysis &memAccessAnalysis;
@@ -448,32 +446,6 @@ private:
   /// The preferred memory space for each memref access.
   DenseMap<Value, MemorySpace> memRefAccessToMemSpace;
 };
-
-[[maybe_unused]] raw_ostream &
-operator<<(raw_ostream &os, const MemorySelector::AccessKind &accessKind) {
-  switch (accessKind) {
-  case MemorySelector::AccessKind::ReadOnly:
-    return os << "read-only";
-  case MemorySelector::AccessKind::WriteOnly:
-    return os << "write-only";
-  case MemorySelector::AccessKind::ReadWrite:
-    return os << "read-write";
-  }
-}
-
-[[maybe_unused]] raw_ostream &
-operator<<(raw_ostream &os, const MemorySelector::MemorySpace &memSpace) {
-  switch (memSpace) {
-  case MemorySelector::MemorySpace::Global:
-    return os << "global";
-  case MemorySelector::MemorySpace::Shared:
-    return os << "shared";
-  case MemorySelector::MemorySpace::Constant:
-    return os << "constant";
-  case MemorySelector::MemorySpace::Texture:
-    return os << "texture";
-  }
-}
 
 std::optional<MemorySelector::MemorySpace>
 MemorySelector::getMemorySpace(Value memref) const {
@@ -488,6 +460,7 @@ MemorySelector::getMemorySpace(Value memref) const {
 void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
   // Collect the global thread ids used in the function the loop is in.
   auto funcOp = loop->template getParentOfType<FunctionOpInterface>();
+  unsigned gridDim = memAccessAnalysis.getGridDimension(funcOp);
   SmallVector<Value> threadVars =
       memAccessAnalysis.getThreadVector(funcOp, solver);
 
@@ -524,67 +497,78 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       continue;
     }
 
-    memRefAccessToMemSpace[memRef] =
-        selectMemorySpace(*memAccess, threadVars, accessKind);
-
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << memRefAccessToMemSpace.at(memRef) << " memory space\n");
-  }
-}
-
-MemorySelector::MemorySpace
-MemorySelector::selectMemorySpace(const MemoryAccess &memAccess,
-                                  ArrayRef<Value> threadVars,
-                                  AccessKind accessKind) const {
-  const unsigned gridDimension = threadVars.size();
-
-  // Whether the memory access is (partially) coalesced or not.
-  auto isCoalesced = [&](const MemoryAccess &memAccess) {
+    // Get the inter-thread access pattern and classify the memory access.
     MemoryAccessMatrix interThreadMatrix =
-        memAccess.getInterThreadAccessMatrix(gridDimension);
+        memAccess->getInterThreadAccessMatrix(gridDim);
     MemoryAccessPattern interThreadAccessPattern =
-        MemoryAccess::classify(interThreadMatrix, memAccess.getOffsetVector());
+        MemoryAccess::classify(interThreadMatrix, memAccess->getOffsetVector());
 
     switch (interThreadAccessPattern) {
     case Linear:
     case Reverse:
     case ReverseLinear:
       // These patterns imply fully coalesced memory accesses.
-      return true;
+      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
+      break;
     case Shifted:
     case LinearShifted:
     case ReverseLinearShifted:
     case LinearOverlapped:
     case ReverseLinearOverlapped:
       // These patterns imply partially coalesced memory accesses.
-      return true;
+      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
+      break;
+    case Strided:
+    case ReverseStrided:
+    case StridedShifted:
+    case ReverseStridedShifted:
+    case Overlapped:
+    case StridedOverlapped:
+    case ReverseStridedOverlapped: {
+      dataflow::IntegerValueRange strideRange =
+          interThreadMatrix(interThreadMatrix.getNumRows() - 1,
+                            interThreadMatrix.getNumColumns() - 1);
+
+      if (strideRange.isUninitialized()) {
+        memRefAccessToMemSpace[memRef] = MemorySpace::Global;
+        break;
+      }
+
+      // Use shared memory iff:
+      //   - the memory access exhibits temporal reuse, and
+      //   - the stride is greater than a sufficiently large value (small
+      //     stride values yield partially coalesed memory accesses).
+      // Note that a zero stride is indicative of non-coalesed accesses.
+      // Example (assume tx,ty are global thread ids):
+      //     for(k)
+      //       ... = A[{tx, k}] // increasing tx's values read across rows.
+      // The inter-thread access matrix for A's load is:
+      //   1 0
+      //   0 C <- where C == 0 (C is the stride).
+      bool useSharedMemory = false;
+      ConstantIntRanges range = strideRange.getValue();
+      if (std::optional<APInt> stride = range.getConstantValue()) {
+        bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
+        useSharedMemory = hasTemporalReuse(memRefAccess, threadVars) &&
+                          (stride->isZero() || strideIsLargeEnough);
+      }
+
+      memRefAccessToMemSpace[memRef] =
+          useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
+    } break;
     default:
-      return false;
+      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
     }
-  };
 
-  // A non-zero intra-thread access matrix implies several threads access
-  // the same array element (in a loop).
-  bool hasTemporalReuse =
-      !memAccess.getIntraThreadAccessMatrix(gridDimension).isZero();
-
-  MemorySpace memSpace = MemorySpace::Global;
-  switch (accessKind) {
-  case AccessKind::ReadOnly:
-    if (hasTemporalReuse)
-      memSpace = MemorySpace::Shared;
-    else if (isCoalesced(memAccess))
-      memSpace = MemorySpace::Global;
-    else
-      memSpace = MemorySpace::Texture;
-    break;
-  case AccessKind::ReadWrite:
-  case AccessKind::WriteOnly:
-    memSpace = hasTemporalReuse ? MemorySpace::Shared : MemorySpace::Global;
-    break;
+    LLVM_DEBUG({
+      if (memRefAccessToMemSpace.at(memRef) == MemorySpace::Shared)
+        llvm::dbgs().indent(2) << "shared memory space\n";
+      else {
+        assert(memRefAccessToMemSpace.at(memRef) == MemorySpace::Global);
+        llvm::dbgs().indent(2) << "global memory space\n";
+      }
+    });
   }
-
-  return memSpace;
 }
 
 bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
@@ -594,6 +578,18 @@ bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
         return memRefAccess.isStore() ||
                mayConflictWithWriteInLoop(memRefAccess, loop, aliasAnalysis);
       });
+}
+
+bool MemorySelector::hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
+                                      ArrayRef<Value> threadVars) const {
+  std::optional<MemoryAccess> access =
+      memAccessAnalysis.getMemoryAccess(memRefAccess);
+  if (!access)
+    return false;
+
+  // A non-zero intra-thread access matrix implies that multiple threads access
+  // the same array element (in a loop).
+  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero();
 }
 
 //===----------------------------------------------------------------------===//
@@ -652,9 +648,8 @@ void LoopInternalization::runOnOperation() {
     if (!kernel.isKernel() || !isCandidateKernel(kernel))
       return;
 
-    std::set<FunctionOpInterface> kernelBodyFunctions =
-        funcKernelInfo.getPotentialKernelBodyFunctions(kernel);
-    kernelBodyFuncs.merge(kernelBodyFunctions);
+    kernelBodyFuncs.merge(
+        funcKernelInfo.getPotentialKernelBodyFunctions(kernel));
   });
 
   // Transform each kernel body function.
@@ -665,15 +660,6 @@ void LoopInternalization::runOnOperation() {
     LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE ": Visiting candidate function "
                             << func.getName() << "\n");
 
-    // Ensure there is a sufficient amount of shared local memory.
-    unsigned localMemoryRemaining =
-        getLocalMemoryRemaining(gpuModule, localMemorySize);
-    if (localMemoryRemaining == 0) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << DEBUG_TYPE ": Not enough shared local memory left\n");
-      return;
-    }
-
     DataFlowSolver solver;
     solver.load<dataflow::DeadCodeAnalysis>();
     solver.load<dataflow::IntegerRangeAnalysis>();
@@ -681,6 +667,15 @@ void LoopInternalization::runOnOperation() {
       LLVM_DEBUG(llvm::dbgs()
                  << DEBUG_TYPE ": Unable to run required dataflow analysis on "
                  << func.getName() << "\n");
+      return;
+    }
+
+    // Ensure there is local memory to be used.
+    unsigned localMemoryRemaining =
+        getLocalMemoryRemaining(gpuModule, localMemorySize);
+    if (localMemoryRemaining == 0) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << DEBUG_TYPE ": Not enough shared local memory available\n");
       return;
     }
 

@@ -243,6 +243,7 @@ FunctionKernelInfo::getPotentialKernelBodyFunctions(
     if (isPotentialKernelBodyFunction(func))
       kernelBodyFunctions.insert(func);
   }
+  assert(!kernelBodyFunctions.empty() && "Failed to find kernel body function");
 
   return kernelBodyFunctions;
 }
@@ -255,8 +256,9 @@ void FunctionKernelInfo::populateGPUKernelInfo(FunctionOpInterface func) {
   funcKernelInfosMap[func] = {};
 
   Operation *op = func;
-  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op); gpuFunc.isKernel()) {
-    funcKernelInfosMap[func].push_back({gpuFunc, 0});
+  if (auto gpuFunc = dyn_cast<gpu::GPUFuncOp>(op)) {
+    if (gpuFunc.isKernel())
+      funcKernelInfosMap[func].push_back({gpuFunc, 0});
     return;
   }
 
