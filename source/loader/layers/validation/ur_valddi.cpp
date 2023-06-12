@@ -369,7 +369,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName) {
+        if (UR_DEVICE_INFO_DEVICE_IP_VERSION < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 

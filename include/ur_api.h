@@ -925,9 +925,9 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,        ///< [::ur_bool_t] Return true if the device supports enqueing commands to
                                                                 ///< read and write pipes from the host.
     UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,          ///< [uint32_t] The maximum number of registers available per block.
-    UR_DEVICE_INFO_DEVICE_IP_VERSION = 113,                     ///< [uint32_t] Device IP version. The meaning of the device IP version is
-                                                                ///< implementation-defined, but newer devices should have a higher version 
-                                                                ///< than older devices.
+    UR_DEVICE_INFO_DEVICE_IP_VERSION = 113,                     ///< [uint32_t] The device IP version. The meaning of the device IP version
+                                                                ///< is implementation-defined, but newer devices should have a higher
+                                                                ///< version than older devices.
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -952,7 +952,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName`
+///         + `::UR_DEVICE_INFO_DEVICE_IP_VERSION < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
