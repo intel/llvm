@@ -30,6 +30,7 @@ struct urEnqueueUSMFillTestWithParam
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
+        size = std::get<1>(GetParam()).size;
         host_mem = std::vector<uint8_t>(size);
         pattern_size = std::get<1>(GetParam()).pattern_size;
         pattern = std::vector<uint8_t>(pattern_size);
