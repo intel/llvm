@@ -188,7 +188,7 @@ public:
   /// @param SyclDevice Device to create nodes with.
   graph_impl(const sycl::context &SyclContext, const sycl::device &SyclDevice)
       : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-        MEventsMap() {}
+        MEventsMap(), MInorderQueueMap() {}
 
   /// Insert node into list of root nodes.
   /// @param Root Node to add to list of root nodes.
@@ -280,6 +280,7 @@ public:
   }
 
   /// Adds sub-graph nodes from an executable graph to this graph.
+  /// @param NodeList List of nodes from sub-graph in schedule order.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
   add_subgraph_nodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
@@ -290,6 +291,28 @@ public:
 
   /// List of root nodes.
   std::set<std::shared_ptr<node_impl>> MRoots;
+
+  /// Find the last node added to this graph from an in-order queue.
+  /// @param Queue In-order queue to find the last node added to the graph from.
+  /// @return Last node in this graph added from \p Queue recording, or empty
+  /// shared pointer if none.
+  std::shared_ptr<node_impl>
+  get_last_inorder_node(std::shared_ptr<sycl::detail::queue_impl> Queue) {
+    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
+    if (0 == MInorderQueueMap.count(QueueWeakPtr)) {
+      return {};
+    }
+    return MInorderQueueMap[QueueWeakPtr];
+  }
+
+  /// Track the last node added to this graph from an in-order queue.
+  /// @param Queue In-order queue to register \p Node for.
+  /// @param Node Last node that was added to this graph from \p Queue.
+  void set_last_inorder_node(std::shared_ptr<sycl::detail::queue_impl> Queue,
+                             std::shared_ptr<node_impl> Node) {
+    std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
+    MInorderQueueMap[QueueWeakPtr] = Node;
+  }
 
 private:
   /// Context associated with this graph.
@@ -303,6 +326,13 @@ private:
   std::unordered_map<std::shared_ptr<sycl::detail::event_impl>,
                      std::shared_ptr<node_impl>>
       MEventsMap;
+  /// Map for every in-order queue thats recorded a node to the graph, what
+  /// the last node added was. We can use this to create new edges on the last
+  /// node if any more nodes are added to the graph from the queue.
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
+
+      MInorderQueueMap;
 };
 
 /// Class representing the implementation of command_graph<executable>.

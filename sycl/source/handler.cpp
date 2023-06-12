@@ -446,11 +446,28 @@ event handler::finalize() {
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
     auto EventImpl = std::make_shared<detail::event_impl>();
-
-    // Extract relevant data from the handler and pass to graph to create a
-    // new node representing this command group.
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
-        GraphImpl->add(MCGType, std::move(CommandGroup));
+        nullptr;
+
+    // Create a new node in the graph representing this command-group
+    if (MQueue->isInOrder()) {
+      // In-order queues create implicit linear dependencies between nodes.
+      // Find the last node added to the graph from this queue, so our new
+      // node can set it as a predecessor.
+      auto DependentNode = GraphImpl->get_last_inorder_node(MQueue);
+
+      NodeImpl = DependentNode
+                     ? GraphImpl->add(MCGType, std::move(CommandGroup),
+                                      {DependentNode})
+                     : GraphImpl->add(MCGType, std::move(CommandGroup));
+
+      // If we are recording an in-order queue remember the new node, so it
+      // can be used as a dependency for any more nodes recorded from this
+      // queue.
+      GraphImpl->set_last_inorder_node(MQueue, NodeImpl);
+    } else {
+      NodeImpl = GraphImpl->add(MCGType, std::move(CommandGroup));
+    }
 
     // Associate an event with this new node and return the event.
     GraphImpl->add_event_for_node(EventImpl, NodeImpl);
@@ -1055,6 +1072,12 @@ void handler::ext_oneapi_graph(
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
     MSubgraphNode = ParentGraph->add_subgraph_nodes(GraphImpl->get_schedule());
+
+    // If we are recording an in-order queue remember the subgraph node, so it
+    // can be used as a dependency for any more nodes recorded from this queue.
+    if (MQueue && MQueue->isInOrder()) {
+      ParentGraph->set_last_inorder_node(MQueue, MSubgraphNode);
+    }
     // Associate an event with the subgraph node.
     auto SubgraphEvent = std::make_shared<event_impl>();
     ParentGraph->add_event_for_node(SubgraphEvent, MSubgraphNode);

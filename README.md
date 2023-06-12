@@ -54,7 +54,7 @@ is something we are interested in expanding on.
 | Extending lifetime of buffers used in a graph                      | Not implemented       |
 | Buffer taking a copy of host data when buffer is used in a graph   | Not implemented       |
 | Executable graph `update()`                                        | Not implemented       |
-| Recording an in-order queue preserves linear dependencies          | Not implemented       |
+| Recording an in-order queue preserves linear dependencies          | Implemented           |
 | Using `handler::parallel_for` in a graph node                      | Implemented           |
 | Using `handler::single_task` in a graph node                       | Implemented           |
 | Using `handler::memcpy` in a graph node                            | Implemented           |

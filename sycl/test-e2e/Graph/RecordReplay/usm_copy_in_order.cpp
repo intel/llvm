@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Tests a dotp operation using device USM and an in-order queue.
+// Tests memcpy operation using device USM and an in-order queue.
 
 #include "../graph_common.hpp"
 
@@ -12,12 +12,20 @@ int main() {
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  float *Dotp = malloc_device<float>(1, Queue);
-
   const size_t N = 10;
   float *X = malloc_device<float>(N, Queue);
   float *Y = malloc_device<float>(N, Queue);
   float *Z = malloc_device<float>(N, Queue);
+
+  // Shouldn't be captured in graph as a dependency
+  Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(N, [=](id<1> it) {
+      const size_t i = it[0];
+      X[i] = 0.0f;
+      Y[i] = 0.0f;
+      Z[i] = 0.0f;
+    });
+  });
 
   Graph.begin_recording(Queue);
 
@@ -29,28 +37,32 @@ int main() {
       Z[i] = 3.0f;
     });
   });
+  Graph.end_recording(Queue);
 
-  auto EventA = Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = Alpha * X[i] + Beta * Y[i];
-    });
-  });
-
-  auto EventB = Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      Z[i] = Gamma * Z[i] + Beta * Y[i];
-    });
-  });
-
+  // Shouldn't be captured in graph as a dependency
   Queue.submit([&](handler &CGH) {
-    CGH.single_task([=]() {
-      for (size_t j = 0; j < N; j++) {
-        Dotp[0] += X[j] * Z[j];
-      }
+    CGH.parallel_for(N, [=](id<1> it) {
+      const size_t i = it[0];
+      X[i] += 0.5f;
+      Y[i] += 0.5f;
+      Z[i] += 0.5f;
     });
   });
+
+  Graph.begin_recording(Queue);
+  // memcpy 1 values from X to Y
+  Queue.submit([&](handler &CGH) { CGH.memcpy(Y, X, N * sizeof(float)); });
+
+  // Double Y to 2.0
+  Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
+      const size_t i = it[0];
+      Y[i] *= 2.0f;
+    });
+  });
+
+  // memcpy from 2.0 Y values to Z
+  Queue.submit([&](handler &CGH) { CGH.memcpy(Z, Y, N * sizeof(float)); });
 
   Graph.end_recording();
 
@@ -58,12 +70,13 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
-  float Output;
-  Queue.memcpy(&Output, Dotp, sizeof(float)).wait();
+  std::vector<float> Output(N);
+  Queue.memcpy(Output.data(), Z, N * sizeof(float)).wait();
 
-  assert(Output == dotp_reference_result(N));
+  for (size_t i = 0; i < N; i++) {
+    assert(Output[i] == 2.0f);
+  }
 
-  sycl::free(Dotp, Queue);
   sycl::free(X, Queue);
   sycl::free(Y, Queue);
   sycl::free(Z, Queue);
