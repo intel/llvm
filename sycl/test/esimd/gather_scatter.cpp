@@ -1,6 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -fsycl-esimd-force-stateless-mem -Xclang -verify %s
+// expected-no-diagnostics
+
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
@@ -50,4 +53,13 @@ void kernel(accessor<uint16_t, 1, access::mode::read_write,
   v0 = convert<uint16_t>(v0 + v1);
 
   scatter<uint16_t, 32>(buf, offsets, v0);
+}
+
+void conv_kernel(accessor<uint16_t, 1, access::mode::read_write,
+                          access::target::device> &buf) SYCL_ESIMD_FUNCTION {
+
+  // Make sure we can pass offsets as a scalar.
+  simd<uint16_t, 32> v0 = gather<uint16_t, 32>(buf, 0);
+
+  scatter<uint16_t, 32>(buf, 0, v0);
 }

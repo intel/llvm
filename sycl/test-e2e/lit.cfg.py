@@ -379,8 +379,8 @@ for sycl_device in config.sycl_devices:
     sp = subprocess.run((cmd), env=llvm_config.config.environment,
                         shell=True, capture_output=True, text=True)
     if sp.returncode != 0:
-        lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
-            be, device, sp.stdout, sp.stderr))
+        lit_config.error('Cannot list device aspects for {}\nstdout:\n{}\nstderr:\n{}'.format(
+            sycl_device, sp.stdout, sp.stderr))
 
     dev_aspects = []
     dev_sg_sizes = []
@@ -389,29 +389,27 @@ for sycl_device in config.sycl_devices:
             _, aspects_str = line.split(':', 1)
             dev_aspects.append(aspects_str.strip().split(' '))
         if re.search(r'^ *info::device::sub_group_sizes:', line):
-            _, sg_sizes_str = line.split(':', 1)
+            # str.removeprefix isn't universally available...
+            sg_sizes_str = line.strip().replace('info::device::sub_group_sizes: ', '')
             dev_sg_sizes.append(sg_sizes_str.strip().split(' '))
 
     if dev_aspects == []:
-        lit_config.error('Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n'.format(
+        lit_config.error('Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n{}'.format(
             sycl_device, sp.stdout, sp.stderr))
         dev_aspects.append(set())
-    else:
-        # We might have several devices matching the same filter in the system.
-        # Compute intersection of aspects.
-        aspects = set(dev_aspects[0]).intersection(*dev_aspects)
-        lit_config.note('Aspects for {}: {}'.format(sycl_device, ', '.join(aspects)))
+    # We might have several devices matching the same filter in the system.
+    # Compute intersection of aspects.
+    aspects = set(dev_aspects[0]).intersection(*dev_aspects)
+    lit_config.note('Aspects for {}: {}'.format(sycl_device, ', '.join(aspects)))
 
     if dev_sg_sizes == []:
-        lit_config.error('Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n'.format(
+        lit_config.error('Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n{}'.format(
             sycl_device, sp.stdout, sp.stderr))
         dev_sg_sizes.append(set())
-    else:
-        # We might have several devices matching the same filter in the system.
-        # Compute intersection of aspects.
-        sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
-        lit_config.note('SG sizes for {}: {}'.format(sycl_device, ', '.join(sg_sizes)))
-
+    # We might have several devices matching the same filter in the system.
+    # Compute intersection of aspects.
+    sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
+    lit_config.note('SG sizes for {}: {}'.format(sycl_device, ', '.join(sg_sizes)))
 
     aspect_features = set('aspect-' + a for a in aspects)
     sg_size_features = set('sg-' + s for s in sg_sizes)

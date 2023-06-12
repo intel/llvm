@@ -454,13 +454,20 @@ private:
   bool is_host() { return MIsHost; }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // In device compilation accessor isn't inherited from AccessorBaseHost, so
+  // In device compilation accessor isn't inherited from host base classes, so
   // can't detect by it. Since we don't expect it to be ever called in device
   // execution, just use blind void *.
   void associateWithHandler(void *AccBase, access::target AccTarget);
+  void associateWithHandler(void *AccBase, image_target AccTarget);
 #else
+  void associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
+                                  int AccTarget);
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
                             access::target AccTarget);
+  void associateWithHandler(detail::UnsampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
+  void associateWithHandler(detail::SampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
 #endif
 
   // Recursively calls itself until arguments pack is fully processed.
@@ -729,7 +736,6 @@ private:
                                    KI::getNumParams(), &KI::getParamDesc(0),
                                    KI::isESIMD());
       MKernelName = KI::getName();
-      MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -2119,21 +2125,58 @@ public:
 
   /// Reductions @{
 
-  template <typename KernelName = detail::auto_name, int Dims,
-            typename PropertiesT, typename... RestT>
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
   std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+  parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
 
-  template <typename KernelName = detail::auto_name, int Dims,
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<Dims> Range, RestT &&...Rest) {
+  parallel_for(range<1> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<2> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
@@ -2883,7 +2926,6 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
-  detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of valid SYCL events that need to complete
@@ -2937,6 +2979,10 @@ private:
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
                                            access::target);
+  friend void detail::associateWithHandler(
+      handler &, detail::UnsampledImageAccessorBaseHost *, image_target);
+  friend void detail::associateWithHandler(
+      handler &, detail::SampledImageAccessorBaseHost *, image_target);
 #endif
 
   friend class ::MockHandler;

@@ -233,7 +233,7 @@ void GlobalHandler::releaseDefaultContexts() {
   // finished. To avoid calls to nowhere, intentionally leak platform to device
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
-  // Update: the win_proxy_loader addresses this for SYCL's own dependencies,
+  // Update: the pi_win_proxy_loader addresses this for SYCL's own dependencies,
   // but the GPU device dlls seem to manually load yet another DLL which may
   // have been released when this function is called. So we still release() and
   // leak until that is addressed. context destructs fine on CPU device.

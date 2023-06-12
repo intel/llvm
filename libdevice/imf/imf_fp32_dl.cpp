@@ -18,4 +18,11 @@ DEVICE_EXTERN_C_INLINE int32_t __devicelib_imf_abs(int32_t x) {
   return (x >= 0) ? x : -x;
 }
 
+DEVICE_EXTERN_C_INLINE float __devicelib_imf_fabsf(float x) {
+  return __fabs(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+int64_t __devicelib_imf_llabs(int64_t x) { return x >= 0 ? x : -x; }
+
 #endif /*__LIBDEVICE_IMF_ENABLED__*/

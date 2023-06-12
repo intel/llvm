@@ -1046,17 +1046,6 @@ static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
   return true;
 }
 
-static void translateGetSurfaceIndex(CallInst &CI) {
-  auto opnd = CI.getArgOperand(0);
-  assert(opnd->getType()->isPointerTy());
-  IRBuilder<> Builder(&CI);
-  auto SV =
-      Builder.CreatePtrToInt(opnd, IntegerType::getInt32Ty(CI.getContext()));
-  auto *SI = cast<CastInst>(SV);
-  SI->setDebugLoc(CI.getDebugLoc());
-  CI.replaceAllUsesWith(SI);
-}
-
 // Newly created GenX intrinsic might have different return type than expected.
 // This helper function creates cast operation from GenX intrinsic return type
 // to currently expected. Returns pointer to created cast instruction if it
@@ -1382,10 +1371,6 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   }
 
   // llvm::Attribute::ReadNone must not be used for call statements anymore.
-  bool FixReadNone =
-      NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
-  if (FixReadNone)
-    NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
   Instruction *NewInst = nullptr;
   AddrSpaceCastInst *CastInstruction = nullptr;
   if (DoesFunctionReturnStructure) {
@@ -1401,8 +1386,6 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);
-  if (FixReadNone)
-    NewCI->setMemoryEffects(MemoryEffects::none());
   NewCI->setDebugLoc(CI.getDebugLoc());
   if (DoesFunctionReturnStructure) {
     IRBuilder<> Builder(&CI);
@@ -1763,6 +1746,35 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
   return NeedInline;
 }
 
+/// Remove the attribute \p Attr from the given function \p F.
+/// Adds the memory effect \p Memef to the calls \p F.
+static void fixFunctionAttribute(Function &F, Attribute::AttrKind Attr,
+                                 MemoryEffects MemEf) {
+  if (!F.getFnAttribute(Attr).isValid())
+    return;
+
+  for (auto &U : F.uses()) {
+    if (auto *Call = dyn_cast<CallInst>(&*U))
+      Call->setMemoryEffects(MemEf);
+  }
+  F.removeFnAttr(Attr);
+}
+
+/// Replaces the function attributes ReadNone/ReadOnly/WriteOnly
+/// with the corresponding memory effects on function calls.
+static void fixFunctionReadWriteAttributes(Module &M) {
+  // llvm::Attribute::ReadNone/ReadOnly/WriteOnly
+  // must not be used for call statements anymore.
+  for (auto &&F : M) {
+    fixFunctionAttribute(F, llvm::Attribute::ReadNone,
+                         llvm::MemoryEffects::none());
+    fixFunctionAttribute(F, llvm::Attribute::ReadOnly,
+                         llvm::MemoryEffects::readOnly());
+    fixFunctionAttribute(F, llvm::Attribute::WriteOnly,
+                         llvm::MemoryEffects::writeOnly());
+  }
+}
+
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
                                           ModuleAnalysisManager &MAM) {
   // AlwaysInlinerPass is required for correctness.
@@ -1783,6 +1795,8 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
+
+  fixFunctionReadWriteAttributes(M);
 
   // TODO FIXME ESIMD figure out less conservative result
   return AmountOfESIMDIntrCalls > 0 || ForceInline ? PreservedAnalyses::none()
@@ -1873,11 +1887,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
           ToErase.push_back(CI);
           continue;
         }
-      }
-      if (Name.startswith("__esimd_get_surface_index")) {
-        translateGetSurfaceIndex(*CI);
-        ToErase.push_back(CI);
-        continue;
       }
 
       if (Name.empty() ||

@@ -9,6 +9,7 @@ add_libc_test(
   DEPENDS
     libc.src.errno.errno
     libc.src.stdlib.atof
+    libc.test.errno_setter_matcher
 )
 
 add_header_library(
@@ -85,6 +86,30 @@ add_header_library(
     libc.src.__support.CPP.limits
     libc.src.__support.CPP.type_traits
     libc.src.errno.errno
+)
+
+add_libc_test(
+  strtoint32_test
+  SUITE
+    libc-stdlib-tests
+  SRCS
+    strtoint32_test.cpp
+  DEPENDS
+    libc.src.__support.str_to_integer
+    libc.src.errno.errno
+    .strtol_test_support
+)
+
+add_libc_test(
+  strtoint64_test
+  SUITE
+    libc-stdlib-tests
+  SRCS
+    strtoint64_test.cpp
+  DEPENDS
+    libc.src.__support.str_to_integer
+    libc.src.errno.errno
+    .strtol_test_support
 )
 
 add_libc_test(
@@ -295,4 +320,19 @@ if(LLVM_LIBC_FULL_BUILD)
       libc.src.signal.raise
   )
 
+  # Only the GPU has an in-tree 'malloc' implementation.
+  if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+    add_libc_test(
+      malloc_test
+      HERMETIC_TEST_ONLY
+      SUITE
+        libc-stdlib-tests
+      SRCS
+        malloc_test.cpp
+      DEPENDS
+        libc.include.stdlib
+        libc.src.stdlib.malloc
+        libc.src.stdlib.free
+    )
+  endif()
 endif()
