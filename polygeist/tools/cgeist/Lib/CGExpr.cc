@@ -3098,7 +3098,7 @@ ValueCategory MLIRScanner::EmitCompare(clang::BinaryOperator *E,
       LHS = LHS.MemRef2Ptr(Builder, MLIRLoc);
       RHS = RHS.MemRef2Ptr(Builder, MLIRLoc);
     }
-    Result = LHS.ICmp(Builder, MLIRLoc, SICmp, RHS.val);
+    Result = LHS.ICmp(Builder, MLIRLoc, UICmp, RHS.val);
   }
 
   // If this is a vector comparison, sign extend the result to the appropriate

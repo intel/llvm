@@ -53,20 +53,20 @@ template Compare<bool> compare(int lhs, int rhs);
 
 // CHECK-LABEL:   func.func @_Z7compareIjbE7CompareIT0_ET_S3_(
 // CHECK-SAME:                                                %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32)
-// CHECK:           %[[VAL_5:.*]] = arith.cmpi slt, %[[VAL_0]], %[[VAL_1]] : i32
-// CHECK:           %[[VAL_8:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_1]] : i32
-// CHECK:           %[[VAL_11:.*]] = arith.cmpi sle, %[[VAL_0]], %[[VAL_1]] : i32
-// CHECK:           %[[VAL_14:.*]] = arith.cmpi sge, %[[VAL_0]], %[[VAL_1]] : i32
+// CHECK:           %[[VAL_5:.*]] = arith.cmpi ult, %[[VAL_0]], %[[VAL_1]] : i32
+// CHECK:           %[[VAL_8:.*]] = arith.cmpi ugt, %[[VAL_0]], %[[VAL_1]] : i32
+// CHECK:           %[[VAL_11:.*]] = arith.cmpi ule, %[[VAL_0]], %[[VAL_1]] : i32
+// CHECK:           %[[VAL_14:.*]] = arith.cmpi uge, %[[VAL_0]], %[[VAL_1]] : i32
 // CHECK:           %[[VAL_17:.*]] = arith.cmpi eq, %[[VAL_0]], %[[VAL_1]] : i32
 // CHECK:           %[[VAL_20:.*]] = arith.cmpi ne, %[[VAL_0]], %[[VAL_1]] : i32
 template Compare<bool> compare(unsigned lhs, unsigned rhs);
 
 // CHECK-LABEL:   func.func @_Z7compareIPvbE7CompareIT0_ET_S4_(
 // CHECK-SAME:                                                 %[[VAL_0:.*]]: !llvm.ptr, %[[VAL_1:.*]]: !llvm.ptr)
-// CHECK:           %[[VAL_5:.*]] = llvm.icmp "slt" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
-// CHECK:           %[[VAL_8:.*]] = llvm.icmp "sgt" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
-// CHECK:           %[[VAL_11:.*]] = llvm.icmp "sle" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
-// CHECK:           %[[VAL_14:.*]] = llvm.icmp "sge" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
+// CHECK:           %[[VAL_5:.*]] = llvm.icmp "ult" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
+// CHECK:           %[[VAL_8:.*]] = llvm.icmp "ugt" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
+// CHECK:           %[[VAL_11:.*]] = llvm.icmp "ule" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
+// CHECK:           %[[VAL_14:.*]] = llvm.icmp "uge" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
 // CHECK:           %[[VAL_17:.*]] = llvm.icmp "eq" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
 // CHECK:           %[[VAL_20:.*]] = llvm.icmp "ne" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
 template Compare<bool> compare(void *lhs, void *rhs);
@@ -75,10 +75,10 @@ template Compare<bool> compare(void *lhs, void *rhs);
 // CHECK-SAME:                                                 %[[VAL_0:.*]]: memref<?xi32>, %[[VAL_1:.*]]: memref<?xi32>)
 // CHECK:           %[[VAL_5:.*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?xi32>) -> !llvm.ptr
 // CHECK:           %[[VAL_6:.*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?xi32>) -> !llvm.ptr
-// CHECK:           %[[VAL_7:.*]] = llvm.icmp "slt" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
-// CHECK:           %[[VAL_10:.*]] = llvm.icmp "sgt" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
-// CHECK:           %[[VAL_13:.*]] = llvm.icmp "sle" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
-// CHECK:           %[[VAL_16:.*]] = llvm.icmp "sge" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
+// CHECK:           %[[VAL_7:.*]] = llvm.icmp "ult" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
+// CHECK:           %[[VAL_10:.*]] = llvm.icmp "ugt" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
+// CHECK:           %[[VAL_13:.*]] = llvm.icmp "ule" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
+// CHECK:           %[[VAL_16:.*]] = llvm.icmp "uge" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
 // CHECK:           %[[VAL_19:.*]] = llvm.icmp "eq" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
 // CHECK:           %[[VAL_22:.*]] = llvm.icmp "ne" %[[VAL_5]], %[[VAL_6]] : !llvm.ptr
 template Compare<bool> compare(int *lhs, int *rhs);
@@ -117,13 +117,13 @@ template Compare<int4> compare(float4 lhs, float4 rhs);
 
 // CHECK-LABEL:   func.func @_Z7compareIDv4_mDv4_lE7CompareIT0_ET_S5_(
 // CHECK-SAME:                                                        %[[VAL_0:.*]]: memref<?xvector<4xi64>>, %[[VAL_1:.*]]: memref<?xvector<4xi64>>)
-// CHECK:           %[[VAL_7:.*]] = arith.cmpi slt, %{{.*}}, %{{.*}} : vector<4xi64>
+// CHECK:           %[[VAL_7:.*]] = arith.cmpi ult, %{{.*}}, %{{.*}} : vector<4xi64>
 // CHECK:           %[[VAL_8:.*]] = arith.extsi %[[VAL_7]] : vector<4xi1> to vector<4xi64>
-// CHECK:           %[[VAL_12:.*]] = arith.cmpi sgt, %{{.*}}, %{{.*}} : vector<4xi64>
+// CHECK:           %[[VAL_12:.*]] = arith.cmpi ugt, %{{.*}}, %{{.*}} : vector<4xi64>
 // CHECK:           %[[VAL_13:.*]] = arith.extsi %[[VAL_12]] : vector<4xi1> to vector<4xi64>
-// CHECK:           %[[VAL_17:.*]] = arith.cmpi sle, %{{.*}}, %{{.*}} : vector<4xi64>
+// CHECK:           %[[VAL_17:.*]] = arith.cmpi ule, %{{.*}}, %{{.*}} : vector<4xi64>
 // CHECK:           %[[VAL_18:.*]] = arith.extsi %[[VAL_17]] : vector<4xi1> to vector<4xi64>
-// CHECK:           %[[VAL_22:.*]] = arith.cmpi sge, %{{.*}}, %{{.*}} : vector<4xi64>
+// CHECK:           %[[VAL_22:.*]] = arith.cmpi uge, %{{.*}}, %{{.*}} : vector<4xi64>
 // CHECK:           %[[VAL_23:.*]] = arith.extsi %[[VAL_22]] : vector<4xi1> to vector<4xi64>
 // CHECK:           %[[VAL_27:.*]] = arith.cmpi eq, %{{.*}}, %{{.*}} : vector<4xi64>
 // CHECK:           %[[VAL_28:.*]] = arith.extsi %[[VAL_27]] : vector<4xi1> to vector<4xi64>
