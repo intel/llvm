@@ -352,7 +352,11 @@ Slab::Slab(Bucket &Bkt)
 }
 
 Slab::~Slab() {
-    unregSlab(*this);
+    try {
+        unregSlab(*this);
+    } catch (std::exception &e) {
+        std::cout << "DisjointPool: unexpected error: " << e.what() << "\n";
+    }
     memoryProviderFree(bucket.getMemHandle(), MemPtr);
 }
 
@@ -838,7 +842,7 @@ void DisjointPool::AllocImpl::printStats(bool &TitlePrinted,
 
 uma_result_t DisjointPool::initialize(uma_memory_provider_handle_t *providers,
                                       size_t numProviders,
-                                      DisjointPoolConfig parameters) noexcept {
+                                      DisjointPoolConfig parameters) {
     if (numProviders != 1 || !providers[0]) {
         return UMA_RESULT_ERROR_INVALID_ARGUMENT;
     }
@@ -847,9 +851,8 @@ uma_result_t DisjointPool::initialize(uma_memory_provider_handle_t *providers,
     return UMA_RESULT_SUCCESS;
 }
 
-void *DisjointPool::malloc(
-    size_t size) noexcept { // For full-slab allocations indicates
-                            // whether slab is from Pool.
+void *DisjointPool::malloc(size_t size) { // For full-slab allocations indicates
+                                          // whether slab is from Pool.
     bool FromPool;
     auto Ptr = impl->allocate(size, FromPool);
 
@@ -862,19 +865,19 @@ void *DisjointPool::malloc(
     return Ptr;
 }
 
-void *DisjointPool::calloc(size_t, size_t) noexcept {
+void *DisjointPool::calloc(size_t, size_t) {
     // Not supported
     assert(false);
     return NULL;
 }
 
-void *DisjointPool::realloc(void *, size_t) noexcept {
+void *DisjointPool::realloc(void *, size_t) {
     // Not supported
     assert(false);
     return NULL;
 }
 
-void *DisjointPool::aligned_malloc(size_t size, size_t alignment) noexcept {
+void *DisjointPool::aligned_malloc(size_t size, size_t alignment) {
     bool FromPool;
     auto Ptr = impl->allocate(size, alignment, FromPool);
 
@@ -888,14 +891,14 @@ void *DisjointPool::aligned_malloc(size_t size, size_t alignment) noexcept {
     return Ptr;
 }
 
-size_t DisjointPool::malloc_usable_size(void *) noexcept {
+size_t DisjointPool::malloc_usable_size(void *) {
     // Not supported
     assert(false);
 
     return 0;
 }
 
-void DisjointPool::free(void *ptr) noexcept {
+void DisjointPool::free(void *ptr) {
     bool ToPool;
     impl->deallocate(ptr, ToPool);
 
@@ -911,8 +914,7 @@ void DisjointPool::free(void *ptr) noexcept {
     return;
 }
 
-enum uma_result_t
-DisjointPool::get_last_result(const char **ppMessage) noexcept {
+enum uma_result_t DisjointPool::get_last_result(const char **ppMessage) {
     // TODO: implement and return last error, we probably need something like
     // https://github.com/oneapi-src/unified-runtime/issues/500 in UMA
     return UMA_RESULT_ERROR_UNKNOWN;
