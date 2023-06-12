@@ -1148,6 +1148,9 @@ def get_loader_prologue(namespace, tags, obj, meta):
             fty_name = re.sub(r"(\w+)_handle_t", r"\1_factory", tname)
 
             if type_traits.is_pointer(item['type']):
+                if not param_traits.is_range(item):
+                    print(item)
+                    raise Exception("Pointer to a handle parameter requires a `[range(start, end)]` check as part of the description.")
                 range_start = param_traits.range_start(item)
                 range_end   = param_traits.range_end(item)
                 prologue.append({
