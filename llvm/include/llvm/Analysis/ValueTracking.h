@@ -38,7 +38,7 @@ struct KnownBits;
 class Loop;
 class LoopInfo;
 class MDNode;
-class OptimizationRemarkEmitter;
+struct SimplifyQuery;
 class StringRef;
 class TargetLibraryInfo;
 class Value;
@@ -57,7 +57,6 @@ void computeKnownBits(const Value *V, KnownBits &Known, const DataLayout &DL,
                       unsigned Depth = 0, AssumptionCache *AC = nullptr,
                       const Instruction *CxtI = nullptr,
                       const DominatorTree *DT = nullptr,
-                      OptimizationRemarkEmitter *ORE = nullptr,
                       bool UseInstrInfo = true);
 
 /// Determine which bits of V are known to be either zero or one and return
@@ -73,7 +72,6 @@ void computeKnownBits(const Value *V, const APInt &DemandedElts,
                       unsigned Depth = 0, AssumptionCache *AC = nullptr,
                       const Instruction *CxtI = nullptr,
                       const DominatorTree *DT = nullptr,
-                      OptimizationRemarkEmitter *ORE = nullptr,
                       bool UseInstrInfo = true);
 
 /// Returns the known bits rather than passing by reference.
@@ -81,7 +79,6 @@ KnownBits computeKnownBits(const Value *V, const DataLayout &DL,
                            unsigned Depth = 0, AssumptionCache *AC = nullptr,
                            const Instruction *CxtI = nullptr,
                            const DominatorTree *DT = nullptr,
-                           OptimizationRemarkEmitter *ORE = nullptr,
                            bool UseInstrInfo = true);
 
 /// Returns the known bits rather than passing by reference.
@@ -90,7 +87,6 @@ KnownBits computeKnownBits(const Value *V, const APInt &DemandedElts,
                            AssumptionCache *AC = nullptr,
                            const Instruction *CxtI = nullptr,
                            const DominatorTree *DT = nullptr,
-                           OptimizationRemarkEmitter *ORE = nullptr,
                            bool UseInstrInfo = true);
 
 /// Compute known bits from the range metadata.
@@ -98,12 +94,16 @@ KnownBits computeKnownBits(const Value *V, const APInt &DemandedElts,
 /// \p KnownOne the set of bits that are known to be one
 void computeKnownBitsFromRangeMetadata(const MDNode &Ranges, KnownBits &Known);
 
+/// Merge bits known from assumes into Known.
+void computeKnownBitsFromAssume(const Value *V, KnownBits &Known,
+                                unsigned Depth, const SimplifyQuery &Q);
+
 /// Using KnownBits LHS/RHS produce the known bits for logic op (and/xor/or).
 KnownBits analyzeKnownBitsFromAndXorOr(
     const Operator *I, const KnownBits &KnownLHS, const KnownBits &KnownRHS,
     unsigned Depth, const DataLayout &DL, AssumptionCache *AC = nullptr,
     const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
-    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+    bool UseInstrInfo = true);
 
 /// Return true if LHS and RHS have no common bits set.
 bool haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
@@ -444,14 +444,14 @@ KnownFPClass computeKnownFPClass(
     FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
     const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
     const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
-    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+    bool UseInstrInfo = true);
 
 KnownFPClass computeKnownFPClass(
     const Value *V, const DataLayout &DL,
     FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
     const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
     const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
-    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+    bool UseInstrInfo = true);
 
 /// Return true if we can prove that the specified FP value is never equal to
 /// -0.0.
@@ -478,10 +478,9 @@ inline bool isKnownNeverInfinity(const Value *V, const DataLayout &DL,
                                  AssumptionCache *AC = nullptr,
                                  const Instruction *CtxI = nullptr,
                                  const DominatorTree *DT = nullptr,
-                                 OptimizationRemarkEmitter *ORE = nullptr,
                                  bool UseInstrInfo = true) {
   KnownFPClass Known = computeKnownFPClass(V, DL, fcInf, Depth, TLI, AC, CtxI,
-                                           DT, ORE, UseInstrInfo);
+                                           DT, UseInstrInfo);
   return Known.isKnownNeverInfinity();
 }
 
@@ -490,9 +489,9 @@ inline bool isKnownNeverInfOrNaN(
     const Value *V, const DataLayout &DL, const TargetLibraryInfo *TLI,
     unsigned Depth = 0, AssumptionCache *AC = nullptr,
     const Instruction *CtxI = nullptr, const DominatorTree *DT = nullptr,
-    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true) {
+    bool UseInstrInfo = true) {
   KnownFPClass Known = computeKnownFPClass(V, DL, fcInf | fcNan, Depth, TLI, AC,
-                                           CtxI, DT, ORE, UseInstrInfo);
+                                           CtxI, DT, UseInstrInfo);
   return Known.isKnownNeverNaN() && Known.isKnownNeverInfinity();
 }
 
@@ -504,10 +503,9 @@ inline bool isKnownNeverNaN(const Value *V, const DataLayout &DL,
                             AssumptionCache *AC = nullptr,
                             const Instruction *CtxI = nullptr,
                             const DominatorTree *DT = nullptr,
-                            OptimizationRemarkEmitter *ORE = nullptr,
                             bool UseInstrInfo = true) {
   KnownFPClass Known = computeKnownFPClass(V, DL, fcNan, Depth, TLI, AC, CtxI,
-                                           DT, ORE, UseInstrInfo);
+                                           DT, UseInstrInfo);
   return Known.isKnownNeverNaN();
 }
 

@@ -1802,7 +1802,7 @@ Value *CodeGenFunction::EmitCheckedArgForBuiltin(const Expr *E,
           && "Unsupported builtin check kind");
 
   Value *ArgValue = EmitScalarExpr(E);
-  if (!SanOpts.has(SanitizerKind::Builtin) || !getTarget().isCLZForZeroUndef())
+  if (!SanOpts.has(SanitizerKind::Builtin))
     return ArgValue;
 
   SanitizerScope SanScope(this);
@@ -18601,8 +18601,11 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
   }
 
   case NVPTX::BI__nvvm_ldg_c:
+  case NVPTX::BI__nvvm_ldg_sc:
   case NVPTX::BI__nvvm_ldg_c2:
+  case NVPTX::BI__nvvm_ldg_sc2:
   case NVPTX::BI__nvvm_ldg_c4:
+  case NVPTX::BI__nvvm_ldg_sc4:
   case NVPTX::BI__nvvm_ldg_s:
   case NVPTX::BI__nvvm_ldg_s2:
   case NVPTX::BI__nvvm_ldg_s4:
@@ -18610,6 +18613,7 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
   case NVPTX::BI__nvvm_ldg_i2:
   case NVPTX::BI__nvvm_ldg_i4:
   case NVPTX::BI__nvvm_ldg_l:
+  case NVPTX::BI__nvvm_ldg_l2:
   case NVPTX::BI__nvvm_ldg_ll:
   case NVPTX::BI__nvvm_ldg_ll2:
   case NVPTX::BI__nvvm_ldg_uc:
@@ -18622,6 +18626,7 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
   case NVPTX::BI__nvvm_ldg_ui2:
   case NVPTX::BI__nvvm_ldg_ui4:
   case NVPTX::BI__nvvm_ldg_ul:
+  case NVPTX::BI__nvvm_ldg_ul2:
   case NVPTX::BI__nvvm_ldg_ull:
   case NVPTX::BI__nvvm_ldg_ull2:
     // PTX Interoperability section 2.2: "For a vector with an even number of
@@ -18636,8 +18641,11 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
     return MakeLdgLdu(Intrinsic::nvvm_ldg_global_f, *this, E);
 
   case NVPTX::BI__nvvm_ldu_c:
+  case NVPTX::BI__nvvm_ldu_sc:
   case NVPTX::BI__nvvm_ldu_c2:
+  case NVPTX::BI__nvvm_ldu_sc2:
   case NVPTX::BI__nvvm_ldu_c4:
+  case NVPTX::BI__nvvm_ldu_sc4:
   case NVPTX::BI__nvvm_ldu_s:
   case NVPTX::BI__nvvm_ldu_s2:
   case NVPTX::BI__nvvm_ldu_s4:
@@ -18645,6 +18653,7 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
   case NVPTX::BI__nvvm_ldu_i2:
   case NVPTX::BI__nvvm_ldu_i4:
   case NVPTX::BI__nvvm_ldu_l:
+  case NVPTX::BI__nvvm_ldu_l2:
   case NVPTX::BI__nvvm_ldu_ll:
   case NVPTX::BI__nvvm_ldu_ll2:
   case NVPTX::BI__nvvm_ldu_uc:
@@ -18657,6 +18666,7 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
   case NVPTX::BI__nvvm_ldu_ui2:
   case NVPTX::BI__nvvm_ldu_ui4:
   case NVPTX::BI__nvvm_ldu_ul:
+  case NVPTX::BI__nvvm_ldu_ul2:
   case NVPTX::BI__nvvm_ldu_ull:
   case NVPTX::BI__nvvm_ldu_ull2:
     return MakeLdgLdu(Intrinsic::nvvm_ldu_global_i, *this, E);

@@ -128,7 +128,13 @@ private:
 
   DIStringType *transTypeString(const SPIRVExtInst *DebugInst);
 
-  DINode *transTypeMember(const SPIRVExtInst *DebugInst);
+  DINode *transTypeMember(const SPIRVExtInst *DebugInst,
+                          const SPIRVExtInst *ParentInst = nullptr,
+                          DIScope *Scope = nullptr);
+  DINode *transTypeMemberOpenCL(const SPIRVExtInst *DebugInst);
+  DINode *transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
+                                     const SPIRVExtInst *ParentInst,
+                                     DIScope *Scope);
 
   DINode *transTypeEnum(const SPIRVExtInst *DebugInst);
 
