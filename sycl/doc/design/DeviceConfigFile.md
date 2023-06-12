@@ -290,7 +290,7 @@ intel_gpu_skl:
     may_support_other_aspects: true/false
     sub-group-sizes: [1, 2, 4, 8]
     aot-toolchain: ocloc
-    ocloc-device: skl
+    aot-toolchain-ocloc-device: skl
 ```
 The frontend module should parse the user-provided `.yaml` file and update the
 map with the new information about targets. LLVM provides
