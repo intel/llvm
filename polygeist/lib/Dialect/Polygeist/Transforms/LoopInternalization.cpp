@@ -531,7 +531,7 @@ public:
 
   LoopLikeOpInterface getLoop() const { return loop; }
 
-  Value getInductionVar() { return inductionVar; }
+  Value getInductionVar() const { return inductionVar; }
 
   Value getLowerBound() {
     if (lowerBound)
@@ -803,6 +803,7 @@ void LoopInternalization::runOnOperation() {
       am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
+
   DataFlowSolver solver;
   solver.load<dataflow::DeadCodeAnalysis>();
   solver.load<dataflow::SparseConstantPropagation>();
@@ -866,8 +867,10 @@ void LoopInternalization::runOnOperation() {
       // prioritize(memAccessAnalysis, solver);
     });
 
-    if (loopToSharedMemref.empty())
+    if (loopToSharedMemref.empty()) {
+      LLVM_DEBUG(llvm::dbgs() << "No candidate memory accesses found\n");
       continue;
+    }
 
     transform(func, funcKernelInfo, localMemoryRemaining, solver);
   }
@@ -1075,20 +1078,20 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
   for (int dim = indexes.size() - 1; dim >= 0; --dim) {
     Value index = indexes[dim];
     if (usesValue(index, inductionVar)) {
-      Value LB = loopInfo.getLowerBound();
+      Value lowerBound = loopInfo.getLowerBound();
       OpBuilder::InsertionGuard insertGuard(builder);
-      builder.setInsertionPointAfterValue(LB);
+      builder.setInsertionPointAfterValue(lowerBound);
       Value adjustedGlobalIV = builder.create<arith::AddIOp>(
-          localIDs[dim].getLoc(), localIDs[dim], LB);
+          localIDs[dim].getLoc(), localIDs[dim], lowerBound);
       IRMapping mapping;
       mapping.map(inductionVar, adjustedGlobalIV);
       globalIndexes[dim] = castToIndex(
           builder.clone(*index.getDefiningOp(), mapping)->getResult(0));
       continue;
     }
-    if (!loop.isDefinedOutsideOfLoop(indexes[dim]))
-      loop.moveOutOfLoop(indexes[dim].getDefiningOp());
-    globalIndexes[dim] = castToIndex(indexes[dim]);
+    if (!loop.isDefinedOutsideOfLoop(index))
+      loop.moveOutOfLoop(index.getDefiningOp());
+    globalIndexes[dim] = castToIndex(index);
   }
 
   // Load from global memory.
@@ -1108,7 +1111,7 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
   std::reverse(reversedLocalIDs.begin(), reversedLocalIDs.end());
   builder.create<memref::StoreOp>(loc, load, localMemory, reversedLocalIDs);
 
-  // Populate indexes use in loop with local memory.
+  // Populate indexes will be used in loop with local memory.
   SmallVector<Value> adjustedIndexes;
   for (int dim = indexes.size() - 1; dim >= 0; --dim) {
     Value index = indexes[dim];
