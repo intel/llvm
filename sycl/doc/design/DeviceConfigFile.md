@@ -236,7 +236,7 @@ struct TargetInfo {
   std::vector<std::string> aspects;
   std::vector<unsigned> subGroupSizes;
   std::string aotToolchain;
-  std::string oclocDevice;
+  std::string aotToolchain-options;
 };
 
 #include "device_config_file.inc"
