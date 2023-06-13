@@ -523,23 +523,11 @@ call to `if_architecture_is` or `else_if_architecture_is` whose condition is
 architectures in the `Archs` parameter pack.
 
 
-== Limitations with the experimental version
+=== New member function of `device` class 
 
-The {dpcpp} implementation of this extension currently has some important
-limitations.  The application must be compiled in ahead-of-time (AOT) mode
-using `-fsycl-targets=<special-target>` where `<special-target>` is one of the
-"special target values" listed in the link:../../UsersManual.md[users manual]
-description of the `-fsycl-targets` option.  These are the target names of the
-form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+This extension adds the following new member function to the `device` class, as 
+described below.
 
-
-== Future direction
-
-This experimental extension is still evolving.  We expect that future versions
-will include the following:
-
-* An extended member function like:
-+
 --
 ```
 namespace sycl {
@@ -551,14 +539,24 @@ class device {
 
 // namespace sycl
 ```
-
-This provides a way to query a device's architecture from host code.
 --
 
-* An extended device information descriptor named
-  `sycl::ext::oneapi::experimental::info::device::architecture`, which returns
-  the architecture of the device.  This allows host code such as:
-+
+=== New device descriptor
+
+[%header,cols="5,1,5"]
+|===
+|Device descriptor
+|Return type
+|Description
+
+|`ext::oneapi::experimental::info::device::architecture`
+|`ext::oneapi::experimental::architecture`
+|Returns the architecture of the device
+
+|===
+
+This device descriptor allows host code such as:
+
 --
 ```
 using namespace sycl::ext::oneapi::experimental;
@@ -575,6 +573,21 @@ case architecture::intel_gpu_bdw:
 }
 ```
 --
+
+== Limitations with the experimental version
+
+The {dpcpp} implementation of this extension currently has some important
+limitations.  The application must be compiled in ahead-of-time (AOT) mode
+using `-fsycl-targets=<special-target>` where `<special-target>` is one of the
+"special target values" listed in the link:../../UsersManual.md[users manual]
+description of the `-fsycl-targets` option.  These are the target names of the
+form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+
+
+== Future direction
+
+This experimental extension is still evolving.  We expect that future versions
+will include the following:
 
 * A compile-time constant property that can be used to decorate kernels and
   non-kernel device functions:

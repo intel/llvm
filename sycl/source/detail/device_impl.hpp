@@ -232,6 +232,10 @@ public:
 
   std::string getDeviceName() const;
 
+  bool extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) {
+    return Arch == getDeviceArch();
+  }
+
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
@@ -249,6 +253,7 @@ public:
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const PluginPtr &Plugin);
+  ext::oneapi::experimental::architecture getDeviceArch() const;
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   RT::PiDevice MRootDevice = nullptr;
@@ -257,6 +262,8 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
+  mutable ext::oneapi::experimental::architecture MDeviceArch;
+  mutable std::once_flag MDeviceArchFlag;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl
 

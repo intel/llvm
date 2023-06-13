@@ -17,6 +17,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
@@ -566,6 +567,27 @@ struct get_device_info_impl<id<Dimensions>,
 
 template <>
 struct get_device_info_impl<
+    ext::oneapi::experimental::architecture,
+    ext::oneapi::experimental::info::device::architecture> {
+  static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
+    if (!Dev->is_gpu() || backend::ext_oneapi_level_zero != Dev->getBackend())
+      throw sycl::exception(
+          make_error_code(errc::runtime),
+          "sycl_ext_oneapi_device_architecture feature is currently supported "
+          "only on GPU device with sycl::backend::ext_oneapi_level_zero or "
+          "sycl::backend::opencl backends");
+    uint32_t result;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::architecture>::value,
+        sizeof(result), &result, nullptr);
+    return static_cast<ext::oneapi::experimental::architecture>(result);
+  }
+};
+
+template <>
+struct get_device_info_impl<
     size_t, ext::oneapi::experimental::info::device::max_global_work_groups> {
   static size_t get(const DeviceImplPtr) {
     return static_cast<size_t>((std::numeric_limits<int>::max)());
@@ -821,6 +843,12 @@ inline typename Param::return_type get_device_info_host() = delete;
 template <>
 inline std::vector<sycl::aspect> get_device_info_host<info::device::aspects>() {
   return std::vector<sycl::aspect>();
+}
+
+template <>
+inline ext::oneapi::experimental::architecture
+get_device_info_host<ext::oneapi::experimental::info::device::architecture>() {
+  return ext::oneapi::experimental::architecture::x86_64;
 }
 
 template <>
