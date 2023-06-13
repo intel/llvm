@@ -5972,16 +5972,27 @@ public:
   ExprResult ActOnStringLiteral(ArrayRef<Token> StringToks,
                                 Scope *UDLScope = nullptr);
 
+  /// ControllingExprOrType is either an opaque pointer coming out of a
+  /// ParsedType or an Expr *. FIXME: it'd be better to split this interface
+  /// into two so we don't take a void *, but that's awkward because one of
+  /// the operands is either a ParsedType or an Expr *, which doesn't lend
+  /// itself to generic code very well.
   ExprResult ActOnGenericSelectionExpr(SourceLocation KeyLoc,
                                        SourceLocation DefaultLoc,
                                        SourceLocation RParenLoc,
-                                       Expr *ControllingExpr,
+                                       bool PredicateIsExpr,
+                                       void *ControllingExprOrType,
                                        ArrayRef<ParsedType> ArgTypes,
                                        ArrayRef<Expr *> ArgExprs);
+  /// ControllingExprOrType is either a TypeSourceInfo * or an Expr *. FIXME:
+  /// it'd be better to split this interface into two so we don't take a
+  /// void *, but see the FIXME on ActOnGenericSelectionExpr as to why that
+  /// isn't a trivial change.
   ExprResult CreateGenericSelectionExpr(SourceLocation KeyLoc,
                                         SourceLocation DefaultLoc,
                                         SourceLocation RParenLoc,
-                                        Expr *ControllingExpr,
+                                        bool PredicateIsExpr,
+                                        void *ControllingExprOrType,
                                         ArrayRef<TypeSourceInfo *> Types,
                                         ArrayRef<Expr *> Exprs);
 
@@ -11740,6 +11751,11 @@ public:
   void
   checkDeclIsAllowedInOpenMPTarget(Expr *E, Decl *D,
                                    SourceLocation IdLoc = SourceLocation());
+
+  /// Adds OMPDeclareTargetDeclAttr to referenced variables in declare target
+  /// directive.
+  void ActOnOpenMPDeclareTargetInitializer(Decl *D);
+
   /// Finishes analysis of the deferred functions calls that may be declared as
   /// host/nohost during device/host compilation.
   void finalizeOpenMPDelayedAnalysis(const FunctionDecl *Caller,

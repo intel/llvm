@@ -3701,23 +3701,30 @@ static bool allowsApproxFunction(IntrinsicInst *II) {
            cast<VectorType>(Ty)->getElementType()->isFloatTy()));
 }
 
-bool allowDecorateWithBufferLocationOrLatencyControlINTEL(IntrinsicInst *II) {
-  SmallVector<Value *, 8> UserList;
+namespace {
+bool checkMemUser(User *User) {
+  if (isa<LoadInst>(User) || isa<StoreInst>(User))
+    return true;
+  if (auto *III = dyn_cast<IntrinsicInst>(User)) {
+    if (III->getIntrinsicID() == Intrinsic::memcpy)
+      return true;
+  }
+  return false;
+}
+} // namespace
 
+bool allowDecorateWithBufferLocationOrLatencyControlINTEL(IntrinsicInst *II) {
   for (auto *Inst : II->users()) {
-    // if castInst, push Successors
+    // if castInst, check Successors
     if (auto *Cast = dyn_cast<CastInst>(Inst)) {
       for (auto *Successor : Cast->users())
-        UserList.push_back(Successor);
+        if (checkMemUser(Successor))
+          return true;
     } else {
-      UserList.push_back(Inst);
+      if (checkMemUser(Inst))
+        return true;
     }
   }
-
-  for (auto &Inst : UserList)
-    if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
-      return true;
-
   return false;
 }
 

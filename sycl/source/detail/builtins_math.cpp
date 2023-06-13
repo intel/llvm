@@ -871,15 +871,21 @@ MAKE_1V_2V(sycl_host_remainder, s::cl_half, s::cl_half, s::cl_half)
 // remquo
 __SYCL_EXPORT s::cl_float sycl_host_remquo(s::cl_float x, s::cl_float y,
                                            s::cl_int *quo) __NOEXC {
-  return std::remquo(x, y, quo);
+  s::cl_float rem = std::remainder(x, y);
+  *quo = static_cast<int>((x - rem) / y);
+  return rem;
 }
 __SYCL_EXPORT s::cl_double sycl_host_remquo(s::cl_double x, s::cl_double y,
                                             s::cl_int *quo) __NOEXC {
-  return std::remquo(x, y, quo);
+  s::cl_double rem = std::remainder(x, y);
+  *quo = static_cast<int>((x - rem) / y);
+  return rem;
 }
 __SYCL_EXPORT s::cl_half sycl_host_remquo(s::cl_half x, s::cl_half y,
                                           s::cl_int *quo) __NOEXC {
-  return std::remquo(x, y, quo);
+  s::cl_half rem = std::remainder(x, y);
+  *quo = static_cast<int>((x - rem) / y);
+  return rem;
 }
 MAKE_1V_2V_3P(sycl_host_remquo, s::cl_float, s::cl_float, s::cl_float,
               s::cl_int)
