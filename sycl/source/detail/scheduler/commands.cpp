@@ -2195,21 +2195,20 @@ static pi_result SetKernelParamsAndLaunch(
              "We should have caught this earlier.");
 
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
-      // if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
-      //   // clSetKernelArg (corresponding to piKernelSetArg) returns an error
-      //   // when MemArg is null, which is the case when zero-sized buffers are
-      //   // handled. Below assignment provides later call to clSetKernelArg
-      //   with
-      //   // acceptable arguments.
-      //   if (!MemArg)
-      //     MemArg = RT::PiMem();
+      if (Queue->getDeviceImplPtr()->getBackend() == backend::opencl) {
+        // clSetKernelArg (corresponding to piKernelSetArg) returns an error
+        // when MemArg is null, which is the case when zero-sized buffers are
+        // handled. Below assignment provides later call to clSetKernelArg with
+        // acceptable arguments.
+        if (!MemArg)
+          MemArg = RT::PiMem();
 
-      //   Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
-      //                                           sizeof(RT::PiMem), &MemArg);
-      // } else {
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                       &MemArg);
-      //}
+        Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
+                                                sizeof(RT::PiMem), &MemArg);
+      } else {
+        Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                         &MemArg);
+      }
       break;
     }
     case kernel_param_kind_t::kind_std_layout: {
@@ -2808,8 +2807,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
-      const std::vector<Requirement *> &HandlerReq =
-          HostTask->getRequirements();
+      const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
       auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
