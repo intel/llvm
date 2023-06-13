@@ -335,17 +335,18 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
       std::min(global_work_size[1], std::min(maxBlockSize / threadsPerBlock[2],
                                              size_t(maxBlockDim[1])));
   maxBlockDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
-  threadsPerBlock[0] = std::min(
-      maxThreadsPerBlock[0],
-      std::min(global_work_size[0], static_cast<size_t>(maxBlockDim[0])));
+  threadsPerBlock[0] =
+      std::min(maxThreadsPerBlock[0],
+               std::min(global_work_size[0], size_t(maxBlockDim[0])));
 
   // When global_work_size[0] is prime threadPerBlock[0] will later computed as
   // 1, which is not efficient configuration. In such case we use
   // global_work_size[0] + 1 to compute threadPerBlock[0].
-  int global_work_size_0_dim = (isPrime(global_work_size[0]) &&
-                                (threadsPerBlock[0] != global_work_size[0]))
-                                   ? global_work_size[0] + 1
-                                   : global_work_size[0];
+  int adjusted_0_dim_global_work_size =
+      (isPrime(global_work_size[0]) &&
+       (threadsPerBlock[0] != global_work_size[0]))
+          ? global_work_size[0] + 1
+          : global_work_size[0];
 
   static auto isPowerOf2 = [](size_t value) -> bool {
     return value && !(value & (value - 1));
@@ -355,7 +356,7 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   // work group size to produce uniform work groups.
   // Additionally, for best compute utilisation, the local size has
   // to be a power of two.
-  while (0u != (global_work_size_0_dim % threadsPerBlock[0]) ||
+  while (0u != (adjusted_0_dim_global_work_size % threadsPerBlock[0]) ||
          !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
