@@ -57,7 +57,7 @@ int main() {
 
       auto data_c = data_a + data_b;
 
-      lsc_store2d<float, BlockWidth, BlockHeight>(C, width, height, pitch, x, y,
+      lsc_store_2d<float, BlockWidth, BlockHeight>(C, width, height, pitch, x, y,
                                                   data_c);
     });
   });
