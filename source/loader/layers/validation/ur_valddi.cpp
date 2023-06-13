@@ -3980,11 +3980,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (srcRowPitch != 0 && srcRowPitch < region.height) {
+        if (srcRowPitch != 0 && srcRowPitch < region.width) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (dstRowPitch != 0 && dstRowPitch < region.height) {
+        if (dstRowPitch != 0 && dstRowPitch < region.width) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -4407,14 +4407,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (size == 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if (size % patternSize != 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
         if (patternSize == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
@@ -4424,6 +4416,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         }
 
         if (patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (size % patternSize != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -4649,11 +4649,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (width == 0) {
+        if (patternSize == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (width % patternSize != 0) {
+        if (patternSize > width * height) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (width == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -4661,15 +4669,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (patternSize == 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if (patternSize > width) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if (patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)) {
+        if (width * height % patternSize != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
