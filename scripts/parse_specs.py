@@ -326,6 +326,10 @@ def _validate_doc(f, d, tags, line_num):
 
             if item['type'].endswith("flag_t"):
                 raise Exception(prefix+"'type' must not be '*_flag_t': %s"%item['type'])
+        
+            if type_traits.is_pointer(item['type']) and "_handle_t" in item['type'] and "[in]" in item['desc']:
+                if not param_traits.is_range(item):
+                    raise Exception(prefix+"handle type must include a range(start, end) as part of 'desc'")
 
             ver = __validate_version(item, prefix=prefix, base_version=d_ver)
             if ver < max_ver:
