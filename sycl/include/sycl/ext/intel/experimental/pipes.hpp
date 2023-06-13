@@ -385,7 +385,7 @@ private:
           first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
   static constexpr protocol_name m_protocol = oneapi::experimental::detail::
       ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(
-          protocol_name::AVALON_STREAMING_USES_READY);
+          protocol_name::avalon_streaming_uses_ready);
 
 public:
   static constexpr struct ConstantPipeStorageExp m_Storage = {

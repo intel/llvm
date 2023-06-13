@@ -96,10 +96,11 @@ public:
         TracingMutex(std::make_shared<std::mutex>()),
         MPluginMutex(std::make_shared<std::mutex>()) {}
 
-  plugin &operator=(const plugin &) = default;
-  plugin(const plugin &) = default;
-  plugin &operator=(plugin &&other) noexcept = default;
-  plugin(plugin &&other) noexcept = default;
+  // Disallow accidental copies of plugins
+  plugin &operator=(const plugin &) = delete;
+  plugin(const plugin &) = delete;
+  plugin &operator=(plugin &&other) noexcept = delete;
+  plugin(plugin &&other) noexcept = delete;
 
   ~plugin() = default;
 
@@ -159,8 +160,8 @@ public:
   ///
   /// Usage:
   /// \code{cpp}
-  /// PiResult Err = plugin.call<PiApiKind::pi>(Args);
-  /// Plugin.checkPiResult(Err); // Checks Result and throws a runtime_error
+  /// PiResult Err = Plugin->call<PiApiKind::pi>(Args);
+  /// Plugin->checkPiResult(Err); // Checks Result and throws a runtime_error
   /// // exception.
   /// \endcode
   ///
@@ -230,18 +231,14 @@ public:
     checkPiResult<errc>(Err);
   }
 
-  backend getBackend(void) const { return MBackend; }
+  /// Tells if this plugin can serve specified backend.
+  /// For example, Unified Runtime plugin will be able to serve
+  /// multiple backends as determined by the platforms reported by the plugin.
+  bool hasBackend(backend Backend) const { return Backend == MBackend; }
+
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
-
-  // Get backend option.
-  void getBackendOption(pi_platform platform, const char *frontend_option,
-                        const char **backend_option) const {
-    RT::PiResult Err = call_nocheck<PiApiKind::piPluginGetBackendOption>(
-        platform, frontend_option, backend_option);
-    checkPiResult(Err);
-  }
 
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
@@ -307,6 +304,9 @@ private:
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
 }; // class plugin
+
+using PluginPtr = std::shared_ptr<plugin>;
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

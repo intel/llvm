@@ -6,10 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Temporarily disabled until the failure is addressed.
 // UNSUPPORTED: gpu-intel-pvc || (level_zero && windows)
@@ -38,18 +36,6 @@ event doMemcpy2D(queue &Q, void *Dest, size_t DestPitch, const void *Src,
       CGH.depends_on(DepEvents);
       CGH.ext_oneapi_memcpy2d(Dest, DestPitch, Src, SrcPitch, Width, Height);
     });
-  }
-  if constexpr (PathKind == OperationPath::ShortcutNoEvent) {
-    sycl::event::wait(DepEvents);
-    return Q.ext_oneapi_memcpy2d(Dest, DestPitch, Src, SrcPitch, Width, Height);
-  }
-  if constexpr (PathKind == OperationPath::ShortcutOneEvent) {
-    assert(DepEvents.size() && "No events in dependencies!");
-    // wait on all other events than the first.
-    for (size_t I = 1; I < DepEvents.size(); ++I)
-      DepEvents[I].wait();
-    return Q.ext_oneapi_memcpy2d(Dest, DestPitch, Src, SrcPitch, Width, Height,
-                                 DepEvents[0]);
   }
   if constexpr (PathKind == OperationPath::ShortcutEventList) {
     return Q.ext_oneapi_memcpy2d(Dest, DestPitch, Src, SrcPitch, Width, Height,
@@ -410,12 +396,6 @@ int testForAllPaths(queue &Q, T ExpectedVal1, T ExpectedVal2) {
       Q, ExpectedVal1, ExpectedVal2);
   Failures +=
       test<T, SrcAllocKind, DstAllocKind, OperationPath::ExpandedDependsOn>(
-          Q, ExpectedVal1, ExpectedVal2);
-  Failures +=
-      test<T, SrcAllocKind, DstAllocKind, OperationPath::ShortcutNoEvent>(
-          Q, ExpectedVal1, ExpectedVal2);
-  Failures +=
-      test<T, SrcAllocKind, DstAllocKind, OperationPath::ShortcutOneEvent>(
           Q, ExpectedVal1, ExpectedVal2);
   Failures +=
       test<T, SrcAllocKind, DstAllocKind, OperationPath::ShortcutEventList>(

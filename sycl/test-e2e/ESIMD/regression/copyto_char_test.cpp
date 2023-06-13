@@ -1,8 +1,7 @@
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -O2 -o %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: opencl && gpu-intel-pvc
 
 //==- copyto_char_test.cpp - Test for using copy_to to copy char buffers -==//
 //
@@ -31,7 +30,7 @@ template <int NumElems, bool IsAcc, int ResultOffset = 0> int test_to_copy() {
   sycl::queue queue;
   constexpr int NumSelectedElems = NumElems / 3;
   constexpr int Stride = 2;
-  constexpr int Offset = 6;
+  constexpr int Offset = 4;
 
   shared_allocator<DataT> allocator(queue);
   shared_vector<DataT> result(NumElems + ResultOffset, allocator);

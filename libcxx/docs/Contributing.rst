@@ -25,6 +25,15 @@ and clicking on ``Libc++ Open Reviews`` in the sidebar to the left. If you see
 that your feature is already being worked on, please consider chiming in instead
 of duplicating work!
 
+RFCs for significant user-affecting changes
+===========================================
+
+Before you start working on a change that can have significant impact on users of the library,
+please consider creating a RFC on `libc++'s Discourse forum <https://discourse.llvm.org/c/runtimes/libcxx>`__.
+This will ensure that you work in a direction that the project endorses and will ease reviewing your
+contribution as directional questions can be raised early. Including a WIP patch is not mandatory, but
+it can be useful to ground the discussion in something concrete.
+
 Pre-commit check list
 =====================
 
@@ -39,8 +48,7 @@ sure you don't forget anything:
 
   - Did you add it to ``include/module.modulemap.in``?
   - Did you add it to ``include/CMakeLists.txt``?
-  - If it's a public header, did you add a test under ``test/libcxx`` that the new header defines ``_LIBCPP_VERSION``? See ``test/libcxx/algorithms/version.pass.cpp`` for an example. NOTE: This should be automated.
-  - If it's a public header, did you update ``utils/generate_header_inclusion_tests.py``?
+  - If it's a public header, did you update ``utils/libcxx/test/header_information.py``?
 
 - Did you add the relevant feature test macro(s) for your feature? Did you update the ``generate_feature_test_macro_components.py`` script with it?
 - Did you run the ``libcxx-generate-files`` target and verify its output?
@@ -60,18 +68,6 @@ of the group to have approved the patch, excluding the patch author. This is not
 rule -- for very simple patches, use your judgement. The `"libc++" review group <https://reviews.llvm.org/project/members/64/>`__
 consists of frequent libc++ contributors with a good understanding of the project's
 guidelines -- if you would like to be added to it, please reach out on Discord.
-
-Post-release check list
-=======================
-
-After branching for an LLVM release:
-
-1. Update ``_LIBCPP_VERSION`` in ``libcxx/include/__config``
-2. Update the version number in ``libcxx/docs/conf.py``
-3. Update ``_LIBCPPABI_VERSION`` in ``libcxxabi/include/cxxabi.h``
-4. Update ``_LIBUNWIND_VERSION`` in ``libunwind/include/__libunwind_config.h``
-5. Update the list of supported clang versions in ``libcxx/docs/index.rst``
-6. Remove the in-progress warning from ``libcxx/docs/ReleaseNotes.rst``
 
 Exporting new symbols from the library
 ======================================
@@ -162,8 +158,7 @@ Below is a short description of the most interesting CI builds [#]_:
 * ``ARM`` tests libc++ on various Linux ARM platforms.
 * ``AIX`` tests libc++ on AIX.
 
-.. [#] Not all all steps are listed: steps are added and removed when the need
-   arises.
+.. [#] Not all steps are listed: steps are added and removed when the need arises.
 .. [#] Clang modules are not the same as C++20's modules.
 
 Infrastructure
@@ -194,7 +189,7 @@ your system.
 run-buildbot
 ~~~~~~~~~~~~
 
-Contains the buld script executed on Buildkite. This script can be executed
+Contains the build script executed on Buildkite. This script can be executed
 locally or inside ``run-buildbot-container``. The script must be called with
 the target to test. For example, ``run-buildbot generic-cxx20`` will build
 libc++ and test it using C++20.

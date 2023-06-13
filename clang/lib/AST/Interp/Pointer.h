@@ -246,7 +246,7 @@ public:
 
   /// Returns the record descriptor of a class.
   Record *getRecord() const { return getFieldDesc()->ElemRecord; }
-  // Returns the element record type, if this is a non-primive array.
+  /// Returns the element record type, if this is a non-primive array.
   Record *getElemRecord() const { return getFieldDesc()->ElemDesc->ElemRecord; }
   /// Returns the field information.
   const FieldDecl *getField() const { return getFieldDesc()->asFieldDecl(); }
@@ -290,7 +290,7 @@ public:
   /// Returns the number of elements.
   unsigned getNumElems() const { return getSize() / elemSize(); }
 
-  Block *block() const { return Pointee; }
+  const Block *block() const { return Pointee; }
 
   /// Returns the index into an array.
   int64_t getIndex() const {

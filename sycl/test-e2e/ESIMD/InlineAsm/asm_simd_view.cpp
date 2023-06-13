@@ -6,10 +6,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
@@ -70,11 +68,11 @@ int main(void) {
             // simd_view is not supported in l-value context in inline asm, so
             // use simd to store the result
             __asm__("add (M1, 8) %0 %1 %2"
-                    : "=rw"(out1.data_ref())
-                    : "rw"(va_half1.data()), "rw"(vb_half1.data()));
+                    : "=r"(out1.data_ref())
+                    : "r"(va_half1.data()), "r"(vb_half1.data()));
             __asm__("add (M1, 8) %0 %1 %2"
-                    : "=rw"(out2.data_ref())
-                    : "rw"(va_half2.data()), "rw"(vb_half2.data()));
+                    : "=r"(out2.data_ref())
+                    : "r"(va_half2.data()), "r"(vb_half2.data()));
             out1.copy_to(PC, offset);
             out2.copy_to(PC, offset + ((VL / 2) * sizeof(float)));
 #else

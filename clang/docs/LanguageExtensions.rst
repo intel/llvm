@@ -774,61 +774,89 @@ The matrix type extension supports explicit casts. Implicit type conversion betw
 Half-Precision Floating Point
 =============================
 
-Clang supports three half-precision (16-bit) floating point types: ``__fp16``,
-``_Float16`` and ``__bf16``.  These types are supported in all language modes.
+Clang supports three half-precision (16-bit) floating point types:
+``__fp16``, ``_Float16`` and ``__bf16``. These types are supported
+in all language modes, but their support differs between targets.
+A target is said to have "native support" for a type if the target
+processor offers instructions for directly performing basic arithmetic
+on that type.  In the absence of native support, a type can still be
+supported if the compiler can emulate arithmetic on the type by promoting
+to ``float``; see below for more information on this emulation.
 
-``__fp16`` is supported on every target, as it is purely a storage format; see below.
-``_Float16`` is currently only supported on the following targets, with further
-targets pending ABI standardization:
+* ``__fp16`` is supported on all targets. The special semantics of this
+  type mean that no arithmetic is ever performed directly on ``__fp16`` values;
+  see below.
 
-* 32-bit ARM
-* 64-bit ARM (AArch64)
-* AMDGPU
-* SPIR
-* X86 (see below)
+* ``_Float16`` is supported on the following targets:
+  * 32-bit ARM (natively on some architecture versions)
+  * 64-bit ARM (AArch64) (natively on ARMv8.2a and above)
+  * AMDGPU (natively)
+  * SPIR (natively)
+  * X86 (if SSE2 is available; natively if AVX512-FP16 is also available)
 
-On X86 targets, ``_Float16`` is supported as long as SSE2 is available, which
-includes all 64-bit and all recent 32-bit processors. When the target supports
-AVX512-FP16, ``_Float16`` arithmetic is performed using that native support.
-Otherwise, ``_Float16`` arithmetic is performed by promoting to ``float``,
-performing the operation, and then truncating to ``_Float16``. When doing this
-emulation, Clang defaults to following the C standard's rules for excess
-precision arithmetic, which avoids intermediate truncations within statements
-and may generate different results from a strict operation-by-operation
-emulation.
+* ``__bf16`` is supported on the following targets (currently never natively):
+  * 32-bit ARM
+  * 64-bit ARM (AArch64)
+  * X86 (when SSE2 is available)
 
-``_Float16`` will be supported on more targets as they define ABIs for it.
+(For X86, SSE2 is available on 64-bit and all recent 32-bit processors.)
 
-``__bf16`` is purely a storage format; it is currently only supported on the following targets:
+``__fp16`` and ``_Float16`` both use the binary16 format from IEEE
+754-2008, which provides a 5-bit exponent and an 11-bit significand
+(counting the implicit leading 1). ``__bf16`` uses the `bfloat16
+<https://en.wikipedia.org/wiki/Bfloat16_floating-point_format>`_ format,
+which provides an 8-bit exponent and an 8-bit significand; this is the same
+exponent range as `float`, just with greatly reduced precision.
 
-* 32-bit ARM
-* 64-bit ARM (AArch64)
-* X86 (see below)
+``_Float16`` and ``__bf16`` follow the usual rules for arithmetic
+floating-point types. Most importantly, this means that arithmetic operations
+on operands of these types are formally performed in the type and produce
+values of the type. ``__fp16`` does not follow those rules: most operations
+immediately promote operands of type ``__fp16`` to ``float``, and so
+arithmetic operations are defined to be performed in ``float`` and so result in
+a value of type ``float`` (unless further promoted because of other operands).
+See below for more information on the exact specifications of these types.
 
-On X86 targets, ``__bf16`` is supported as long as SSE2 is available, which
-includes all 64-bit and all recent 32-bit processors.
+When compiling arithmetic on ``_Float16`` and ``__bf16`` for a target without
+native support, Clang will perform the arithmetic in ``float``, inserting
+extensions and truncations as necessary. This can be done in a way that
+exactly matches the operation-by-operation behavior of native support,
+but that can require many extra truncations and extensions. By default,
+when emulating ``_Float16`` and ``__bf16`` arithmetic using ``float``, Clang
+does not truncate intermediate operands back to their true type unless the
+operand is the result of an explicit cast or assignment. This is generally
+much faster but can generate different results from strict operation-by-operation
+emulation. Usually the results are more precise. This is permitted by the
+C and C++ standards under the rules for excess precision in intermediate operands;
+see the discussion of evaluation formats in the C standard and [expr.pre] in
+the C++ standard.
 
-``__fp16`` is a storage and interchange format only.  This means that values of
-``__fp16`` are immediately promoted to (at least) ``float`` when used in arithmetic
-operations, so that e.g. the result of adding two ``__fp16`` values has type ``float``.
-The behavior of ``__fp16`` is specified by the Arm C Language Extensions (`ACLE <https://github.com/ARM-software/acle/releases>`_).
-Clang uses the ``binary16`` format from IEEE 754-2008 for ``__fp16``, not the ARM
-alternative format.
+The use of excess precision can be independently controlled for these two
+types with the ``-ffloat16-excess-precision=`` and
+``-fbfloat16-excess-precision=`` options. Valid values include:
 
-``_Float16`` is an interchange floating-point type.  This means that, just like arithmetic on
-``float`` or ``double``, arithmetic on ``_Float16`` operands is formally performed in the
-``_Float16`` type, so that e.g. the result of adding two ``_Float16`` values has type
-``_Float16``.  The behavior of ``_Float16`` is specified by ISO/IEC TS 18661-3:2015
-("Floating-point extensions for C").  As with ``__fp16``, Clang uses the ``binary16``
-format from IEEE 754-2008 for ``_Float16``.
+* ``none``: meaning to perform strict operation-by-operation emulation
+* ``standard``: meaning that excess precision is permitted under the rules
+  described in the standard, i.e. never across explicit casts or statements
+* ``fast``: meaning that excess precision is permitted whenever the
+  optimizer sees an opportunity to avoid truncations; currently this has no
+  effect beyond ``standard``
 
-``_Float16`` arithmetic will be performed using native half-precision support
-when available on the target (e.g. on ARMv8.2a); otherwise it will be performed
-at a higher precision (currently always ``float``) and then truncated down to
-``_Float16``.  Note that C and C++ allow intermediate floating-point operands
-of an expression to be computed with greater precision than is expressible in
-their type, so Clang may avoid intermediate truncations in certain cases; this may
-lead to results that are inconsistent with native arithmetic.
+The ``_Float16`` type is an interchange floating type specified in
+ISO/IEC TS 18661-3:2015 ("Floating-point extensions for C"). It will
+be supported on more targets as they define ABIs for it.
+
+The ``__bf16`` type is a non-standard extension, but it generally follows
+the rules for arithmetic interchange floating types from ISO/IEC TS
+18661-3:2015. In previous versions of Clang, it was a storage-only type
+that forbade arithmetic operations. It will be supported on more targets
+as they define ABIs for it.
+
+The ``__fp16`` type was originally an ARM extension and is specified
+by the `ARM C Language Extensions <https://github.com/ARM-software/acle/releases>`_.
+Clang uses the ``binary16`` format from IEEE 754-2008 for ``__fp16``,
+not the ARM alternative format. Operators that expect arithmetic operands
+immediately promote ``__fp16`` operands to ``float``.
 
 It is recommended that portable code use ``_Float16`` instead of ``__fp16``,
 as it has been defined by the C standards committee and has behavior that is
@@ -843,7 +871,7 @@ A literal can be given ``_Float16`` type using the suffix ``f16``. For example,
 
 Because default argument promotion only applies to the standard floating-point
 types, ``_Float16`` values are not promoted to ``double`` when passed as variadic
-or untyped arguments.  As a consequence, some caution must be taken when using
+or untyped arguments. As a consequence, some caution must be taken when using
 certain library facilities with ``_Float16``; for example, there is no ``printf`` format
 specifier for ``_Float16``, and (unlike ``float``) it will not be implicitly promoted to
 ``double`` when passed to ``printf``, so the programmer must explicitly cast it to
@@ -1349,6 +1377,17 @@ In C, type compatibility is decided according to the rules given in the
 appropriate standard, but in C++, which lacks the type compatibility rules used
 in C, types are considered compatible only if they are equivalent.
 
+Clang also supports an extended form of ``_Generic`` with a controlling type
+rather than a controlling expression. Unlike with a controlling expression, a
+controlling type argument does not undergo any conversions and thus is suitable
+for use when trying to match qualified types, incomplete types, or function
+types. Variable-length array types lack the necessary compile-time information
+to resolve which association they match with and thus are not allowed as a
+controlling type argument.
+
+Use ``__has_extension(c_generic_selection_with_controlling_type)`` to determine
+if support for this extension is enabled.
+
 C11 ``_Static_assert()``
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1369,6 +1408,42 @@ Use ``__has_feature(modules)`` to determine if Modules have been enabled.
 For example, compiling code with ``-fmodules`` enables the use of Modules.
 
 More information could be found `here <https://clang.llvm.org/docs/Modules.html>`_.
+
+Language Extensions Back-ported to Previous Standards
+=====================================================
+
+====================================== ================================ ============= ============= ==================================
+Feature                                Feature Test Macro               Introduced In Backported To Required Flags
+====================================== ================================ ============= ============= ==================================
+variadic templates                     __cpp_variadic_templates         C++11         C++03
+Alias templates                        __cpp_alias_templates            C++11         C++03
+Non-static data member initializers    __cpp_nsdmi                      C++11         C++03
+Range-based ``for`` loop               __cpp_range_based_for            C++11         C++03
+RValue references                      __cpp_rvalue_references          C++11         C++03
+Attributes                             __cpp_attributes                 C++11         C++03         -fdouble-square-bracket-attributes
+variable templates                     __cpp_variable_templates         C++14         C++03
+Binary literals                        __cpp_binary_literals            C++14         C++03
+Relaxed constexpr                      __cpp_constexpr                  C++14         C++11
+``if constexpr``                       __cpp_if_constexpr               C++17         C++11
+fold expressions                       __cpp_fold_expressions           C++17         C++03
+Lambda capture of \*this by value      __cpp_capture_star_this          C++17         C++11
+Attributes on enums                    __cpp_enumerator_attributes      C++17         C++11
+Guaranteed copy elision                __cpp_guaranteed_copy_elision    C++17         C++03
+Hexadecimal floating literals          __cpp_hex_float                  C++17         C++03
+``inline`` variables                   __cpp_inline_variables           C++17         C++03
+Attributes on namespaces               __cpp_namespace_attributes       C++17         C++11
+Structured bindings                    __cpp_structured_bindings        C++17         C++03
+template template arguments            __cpp_template_template_args     C++17         C++03
+``static operator[]``                  __cpp_multidimensional_subscript C++20         C++03
+Designated initializers                __cpp_designated_initializers    C++20         C++03
+Conditional ``explicit``               __cpp_conditional_explicit       C++20         C++03
+``using enum``                         __cpp_using_enum                 C++20         C++03
+``if consteval``                       __cpp_if_consteval               C++23         C++20
+``static operator()``                  __cpp_static_call_operator       C++23         C++03
+-------------------------------------- -------------------------------- ------------- ------------- ----------------------------------
+Designated initializers (N494)                                          C99           C89
+Array & element qualification (N2607)                                   C2x           C89
+====================================== ================================ ============= ============= ==================================
 
 Type Trait Primitives
 =====================
@@ -1507,6 +1582,9 @@ The following type trait primitives are supported by Clang. Those traits marked
   functionally equivalent to copying the underlying bytes and then dropping the
   source object on the floor. This is true of trivial types and types which
   were made trivially relocatable via the ``clang::trivial_abi`` attribute.
+* ``__is_trivially_equality_comparable`` (Clang): Returns true if comparing two
+  objects of the provided type is known to be equivalent to comparing their
+  value representations.
 * ``__is_unbounded_array`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
@@ -2575,7 +2653,7 @@ In the format string, a suitable format specifier will be used for builtin
 types that Clang knows how to format. This includes standard builtin types, as
 well as aggregate structures, ``void*`` (printed with ``%p``), and ``const
 char*`` (printed with ``%s``). A ``*%p`` specifier will be used for a field
-that Clang doesn't know how to format, and the corresopnding argument will be a
+that Clang doesn't know how to format, and the corresponding argument will be a
 pointer to the field. This allows a C++ templated formatting function to detect
 this case and implement custom formatting. A ``*`` will otherwise not precede a
 format specifier.
@@ -2925,7 +3003,7 @@ data into the cache before it gets used.
 **Description**:
 
 The ``__builtin_prefetch(addr, rw, locality)`` builtin is expected to be used to
-avoid cache misses when the developper has a good understanding of which data
+avoid cache misses when the developer has a good understanding of which data
 are going to be used next. ``addr`` is the address that needs to be brought into
 the cache. ``rw`` indicates the expected access mode: ``0`` for *read* and ``1``
 for *write*. In case of *read write* access, ``1`` is to be used. ``locality``
@@ -3307,13 +3385,35 @@ Floating point builtins
 
    double __builtin_canonicalize(double);
    float __builtin_canonicalizef(float);
-   long double__builtin_canonicalizel(long double);
+   long double __builtin_canonicalizel(long double);
 
 Returns the platform specific canonical encoding of a floating point
 number. This canonicalization is useful for implementing certain
 numeric primitives such as frexp. See `LLVM canonicalize intrinsic
 <https://llvm.org/docs/LangRef.html#llvm-canonicalize-intrinsic>`_ for
 more information on the semantics.
+
+``__builtin_flt_rounds`` and ``__builtin_set_flt_rounds``
+---------------------------------------------------------
+
+.. code-block:: c
+
+   int __builtin_flt_rounds();
+   void __builtin_set_flt_rounds(int);
+
+Returns and sets current floating point rounding mode. The encoding of returned
+values and input parameters is same as the result of FLT_ROUNDS, specified by C
+standard:
+- ``0``  - toward zero
+- ``1``  - to nearest, ties to even
+- ``2``  - toward positive infinity
+- ``3``  - toward negative infinity
+- ``4``  - to nearest, ties away from zero
+The effect of passing some other value to ``__builtin_flt_rounds`` is
+implementation-defined. ``__builtin_set_flt_rounds`` is currently only supported
+to work on x86, x86_64, Arm and AArch64 targets. These builtins read and modify
+the floating-point environment, which is not always allowed and may have unexpected
+behavior. Please see the section on `Accessing the floating point environment <https://clang.llvm.org/docs/UsersManual.html#accessing-the-floating-point-environment>`_ for more information.
 
 String builtins
 ---------------
@@ -3393,7 +3493,7 @@ longer usable unless re-initialized with a call to ``__builtin_va_start`` or
 
 A builtin function for the target-specific ``va_arg`` function-like macro. This
 function returns the value of the next variadic argument to the call. It is
-undefined behavior to call this builtin when there is no next varadic argument
+undefined behavior to call this builtin when there is no next variadic argument
 to retrieve or if the next variadic argument does not have a type compatible
 with the given ``type-name``. The return type of the function is the
 ``type-name`` given as the second argument. It is undefined behavior to call
@@ -3490,7 +3590,7 @@ The third argument is one of the memory ordering specifiers ``__ATOMIC_RELAXED``
 ``__ATOMIC_CONSUME``, ``__ATOMIC_ACQUIRE``, ``__ATOMIC_RELEASE``,
 ``__ATOMIC_ACQ_REL``, or ``__ATOMIC_SEQ_CST`` following C++11 memory model semantics.
 
-In terms or aquire-release ordering barriers these two operations are always
+In terms of acquire-release ordering barriers these two operations are always
 considered as operations with *load-store* semantics, even when the original value
 is not actually modified after comparison.
 
@@ -3672,7 +3772,7 @@ Source location builtins
 
 Clang provides builtins to support C++ standard library implementation
 of ``std::source_location`` as specified in C++20.  With the exception
-of ``__builtin_COLUMN`` and ``__builtin_FILE_NAME``,
+of ``__builtin_COLUMN``, ``__builtin_FILE_NAME`` and ``__builtin_FUNCSIG``,
 these builtins are also implemented by GCC.
 
 **Syntax**:
@@ -3682,6 +3782,7 @@ these builtins are also implemented by GCC.
   const char *__builtin_FILE();
   const char *__builtin_FILE_NAME(); // Clang only
   const char *__builtin_FUNCTION();
+  const char *__builtin_FUNCSIG(); // Microsoft
   unsigned    __builtin_LINE();
   unsigned    __builtin_COLUMN(); // Clang only
   const std::source_location::__impl *__builtin_source_location();
@@ -3711,11 +3812,12 @@ these builtins are also implemented by GCC.
 
 **Description**:
 
-The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, ``__builtin_FILE`` and
-``__builtin_FILE_NAME`` return the values, at the "invocation point", for
-``__LINE__``, ``__FUNCTION__``, ``__FILE__`` and ``__FILE_NAME__`` respectively.
-``__builtin_COLUMN`` similarly returns the column,
-though there is no corresponding macro. These builtins are constant expressions.
+The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, ``__builtin_FUNCSIG``,
+``__builtin_FILE`` and ``__builtin_FILE_NAME`` return the values, at the
+"invocation point", for ``__LINE__``, ``__FUNCTION__``, ``__FUNCSIG__``,
+``__FILE__`` and ``__FILE_NAME__`` respectively. ``__builtin_COLUMN`` similarly
+returns the column, though there is no corresponding macro. These builtins are
+constant expressions.
 
 When the builtins appear as part of a default function argument the invocation
 point is the location of the caller. When the builtins appear as part of a
@@ -4949,7 +5051,7 @@ Note, all of debugging pragmas are subject to change.
 `dump`
 ------
 Accepts either a single identifier or an expression. When a single identifier is passed,
-the lookup results for the identifier are printed to `stderr`. When an expression is passed, 
+the lookup results for the identifier are printed to `stderr`. When an expression is passed,
 the AST for the expression is printed to `stderr`. The expression is an unevaluated operand,
 so things like overload resolution and template instantiations are performed,
 but the expression has no runtime effects.

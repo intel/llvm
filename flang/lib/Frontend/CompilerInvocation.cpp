@@ -12,6 +12,8 @@
 
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Common/Fortran-features.h"
+#include "flang/Common/OpenMP-features.h"
+#include "flang/Common/Version.h"
 #include "flang/Frontend/CodeGenOptions.h"
 #include "flang/Frontend/PreprocessorOptions.h"
 #include "flang/Frontend/TargetOptions.h"
@@ -36,6 +38,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/Triple.h"
+#include <cstdlib>
 #include <memory>
 #include <optional>
 
@@ -162,6 +165,10 @@ static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
   if (args.hasFlag(clang::driver::options::OPT_fstack_arrays,
                    clang::driver::options::OPT_fno_stack_arrays, false)) {
     opts.StackArrays = 1;
+  }
+  if (args.hasFlag(clang::driver::options::OPT_floop_versioning,
+                   clang::driver::options::OPT_fno_loop_versioning, false)) {
+    opts.LoopVersioning = 1;
   }
 
   for (auto *a : args.filtered(clang::driver::options::OPT_fpass_plugin_EQ))
@@ -300,8 +307,11 @@ static bool parseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     case clang::driver::options::OPT_fsyntax_only:
       opts.programAction = ParseSyntaxOnly;
       break;
-    case clang::driver::options::OPT_emit_mlir:
-      opts.programAction = EmitMLIR;
+    case clang::driver::options::OPT_emit_fir:
+      opts.programAction = EmitFIR;
+      break;
+    case clang::driver::options::OPT_emit_hlfir:
+      opts.programAction = EmitHLFIR;
       break;
     case clang::driver::options::OPT_emit_llvm:
       opts.programAction = EmitLLVM;
@@ -716,11 +726,27 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
         Fortran::common::LanguageFeature::OpenACC);
   }
   if (args.hasArg(clang::driver::options::OPT_fopenmp)) {
+    // By default OpenMP is set to 1.1 version
+    res.getLangOpts().OpenMPVersion = 11;
     res.getFrontendOpts().features.Enable(
         Fortran::common::LanguageFeature::OpenMP);
-
+    if (int Version = getLastArgIntValue(
+            args, clang::driver::options::OPT_fopenmp_version_EQ,
+            res.getLangOpts().OpenMPVersion, diags)) {
+      res.getLangOpts().OpenMPVersion = Version;
+    }
     if (args.hasArg(clang::driver::options::OPT_fopenmp_is_device)) {
       res.getLangOpts().OpenMPIsDevice = 1;
+
+      // Get OpenMP host file path if any and report if a non existent file is
+      // found
+      if (auto *arg = args.getLastArg(
+              clang::driver::options::OPT_fopenmp_host_ir_file_path)) {
+        res.getLangOpts().OMPHostIRFile = arg->getValue();
+        if (!llvm::sys::fs::exists(res.getLangOpts().OMPHostIRFile))
+          diags.Report(clang::diag::err_drv_omp_host_ir_file_not_found)
+              << res.getLangOpts().OMPHostIRFile;
+      }
 
       if (args.hasFlag(
               clang::driver::options::OPT_fopenmp_assume_teams_oversubscription,
@@ -760,8 +786,9 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
   // -pedantic
   if (args.hasArg(clang::driver::options::OPT_pedantic)) {
     res.setEnableConformanceChecks();
+    res.setEnableUsageChecks();
   }
-  // -std=f2018 (currently this implies -pedantic)
+  // -std=f2018
   // TODO: Set proper options when more fortran standards
   // are supported.
   if (args.hasArg(clang::driver::options::OPT_std_EQ)) {
@@ -848,7 +875,7 @@ static bool parseFloatingPointArgs(CompilerInvocation &invoc,
 
 bool CompilerInvocation::createFromArgs(
     CompilerInvocation &res, llvm::ArrayRef<const char *> commandLineArgs,
-    clang::DiagnosticsEngine &diags) {
+    clang::DiagnosticsEngine &diags, const char *argv0) {
 
   bool success = true;
 
@@ -888,7 +915,8 @@ bool CompilerInvocation::createFromArgs(
   }
 
   // -flang-experimental-hlfir
-  if (args.hasArg(clang::driver::options::OPT_flang_experimental_hlfir)) {
+  if (args.hasArg(clang::driver::options::OPT_flang_experimental_hlfir) ||
+      args.hasArg(clang::driver::options::OPT_emit_hlfir)) {
     res.loweringOpts.setLowerToHighLevelFIR(true);
   }
 
@@ -907,6 +935,23 @@ bool CompilerInvocation::createFromArgs(
       args.getAllArgValues(clang::driver::options::OPT_mmlir);
 
   success &= parseFloatingPointArgs(res, args, diags);
+
+  // Set the string to be used as the return value of the COMPILER_OPTIONS
+  // intrinsic of iso_fortran_env. This is either passed in from the parent
+  // compiler driver invocation with an environment variable, or failing that
+  // set to the command line arguments of the frontend driver invocation.
+  res.allCompilerInvocOpts = std::string();
+  llvm::raw_string_ostream os(res.allCompilerInvocOpts);
+  char *compilerOptsEnv = std::getenv("FLANG_COMPILER_OPTIONS_STRING");
+  if (compilerOptsEnv != nullptr) {
+    os << compilerOptsEnv;
+  } else {
+    os << argv0 << ' ';
+    for (auto it = commandLineArgs.begin(), e = commandLineArgs.end(); it != e;
+         ++it) {
+      os << ' ' << *it;
+    }
+  }
 
   return success;
 }
@@ -961,7 +1006,6 @@ void CompilerInvocation::setDefaultFortranOpts() {
 void CompilerInvocation::setDefaultPredefinitions() {
   auto &fortranOptions = getFortranOpts();
   const auto &frontendOptions = getFrontendOpts();
-
   // Populate the macro list with version numbers and other predefinitions.
   fortranOptions.predefinitions.emplace_back("__flang__", "1");
   fortranOptions.predefinitions.emplace_back("__flang_major__",
@@ -978,7 +1022,8 @@ void CompilerInvocation::setDefaultPredefinitions() {
   }
   if (frontendOptions.features.IsEnabled(
           Fortran::common::LanguageFeature::OpenMP)) {
-    fortranOptions.predefinitions.emplace_back("_OPENMP", "201511");
+    Fortran::common::setOpenMPMacro(getLangOpts().OpenMPVersion,
+                                    fortranOptions.predefinitions);
   }
   llvm::Triple targetTriple{llvm::Triple(this->targetOpts.triple)};
   if (targetTriple.getArch() == llvm::Triple::ArchType::x86_64) {
@@ -1031,9 +1076,11 @@ void CompilerInvocation::setFortranOpts() {
   if (frontendOptions.needProvenanceRangeToCharBlockMappings)
     fortranOptions.needProvenanceRangeToCharBlockMappings = true;
 
-  if (getEnableConformanceChecks()) {
+  if (getEnableConformanceChecks())
     fortranOptions.features.WarnOnAllNonstandard();
-  }
+
+  if (getEnableUsageChecks())
+    fortranOptions.features.WarnOnAllUsage();
 }
 
 void CompilerInvocation::setSemanticsOpts(
@@ -1046,7 +1093,6 @@ void CompilerInvocation::setSemanticsOpts(
   semanticsContext->set_moduleDirectory(getModuleDir())
       .set_searchDirectories(fortranOptions.searchDirectories)
       .set_intrinsicModuleDirectories(fortranOptions.intrinsicModuleDirectories)
-      .set_warnOnNonstandardUsage(getEnableConformanceChecks())
       .set_warningsAreErrors(getWarnAsErr())
       .set_moduleFileSuffix(getModuleFileSuffix());
 
@@ -1056,6 +1102,11 @@ void CompilerInvocation::setSemanticsOpts(
     semanticsContext->targetCharacteristics().DisableType(
         Fortran::common::TypeCategory::Real, /*kind=*/10);
   }
+
+  std::string version = Fortran::common::getFlangFullVersion();
+  semanticsContext->targetCharacteristics()
+      .set_compilerOptionsString(allCompilerInvocOpts)
+      .set_compilerVersionString(version);
 }
 
 /// Set \p loweringOptions controlling lowering behavior based

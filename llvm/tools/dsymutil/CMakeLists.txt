@@ -7,12 +7,13 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDescs
   AllTargetsInfos
   AsmPrinter
-  DebugInfoDWARF
+  CodeGen
+  CodeGenTypes
   DWARFLinker
   DWARFLinkerParallel
+  DebugInfoDWARF
   MC
   Object
-  CodeGen
   Option
   Remarks
   Support

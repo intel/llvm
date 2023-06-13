@@ -8,8 +8,7 @@
 
 def smrd_offset_8 : ImmOperand<i32, "SMRDOffset8", 1>;
 
-let OperandType = "OPERAND_IMMEDIATE",
-    EncoderMethod = "getSMEMOffsetEncoding",
+let EncoderMethod = "getSMEMOffsetEncoding",
     DecoderMethod = "decodeSMEMOffset" in {
 def smem_offset : ImmOperand<i32, "SMEMOffset", 1>;
 def smem_offset_mod : NamedIntOperand<i32, "offset", "SMEMOffsetMod">;
@@ -815,8 +814,14 @@ multiclass SMRD_Pattern <string Instr, ValueType vt> {
   // 3. SGPR offset
   def : GCNPat <
     (smrd_load (SMRDSgpr i64:$sbase, i32:$soffset)),
-    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") $sbase, $soffset, 0))
-  >;
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") $sbase, $soffset, 0))> {
+    let OtherPredicates = [isNotGFX9Plus];
+  }
+  def : GCNPat <
+    (smrd_load (SMRDSgpr i64:$sbase, i32:$soffset)),
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR_IMM") $sbase, $soffset, 0, 0))> {
+    let OtherPredicates = [isGFX9Plus];
+  }
 
   // 4. SGPR+IMM offset
   def : GCNPat <
@@ -852,8 +857,14 @@ multiclass SMLoad_Pattern <string Instr, ValueType vt> {
   // 3. Offset loaded in an 32bit SGPR
   def : GCNPat <
     (SIsbuffer_load v4i32:$sbase, i32:$soffset, timm:$cachepolicy),
-    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") SReg_128:$sbase, SReg_32:$soffset, (extract_cpol $cachepolicy)))
-  >;
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR") SReg_128:$sbase, SReg_32:$soffset, (extract_cpol $cachepolicy)))> {
+    let OtherPredicates = [isNotGFX9Plus];
+  }
+  def : GCNPat <
+    (SIsbuffer_load v4i32:$sbase, i32:$soffset, timm:$cachepolicy),
+    (vt (!cast<SM_Pseudo>(Instr#"_SGPR_IMM") SReg_128:$sbase, SReg_32:$soffset, 0, (extract_cpol $cachepolicy)))> {
+    let OtherPredicates = [isGFX9Plus];
+  }
 
   // 4. Offset as an 32-bit SGPR + immediate
   def : GCNPat <

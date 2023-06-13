@@ -15,10 +15,11 @@
 #define MLIR_DIALECT_AFFINE_TRANSFORMS_TRANSFORMS_H
 
 #include "mlir/Interfaces/ValueBoundsOpInterface.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
-class AffineApplyOp;
+class AffineMap;
 class Location;
 class OpBuilder;
 class OpFoldResult;
@@ -29,6 +30,9 @@ class Value;
 namespace presburger {
 enum class BoundType;
 } // namespace presburger
+
+namespace affine {
+class AffineApplyOp;
 
 /// Populate patterns that expand affine index operations into more fundamental
 /// operations (not necessarily restricted to Affine dialect).
@@ -49,20 +53,9 @@ void reorderOperandsByHoistability(RewriterBase &rewriter, AffineApplyOp op);
 /// maximally compose chains of AffineApplyOps.
 FailureOr<AffineApplyOp> decompose(RewriterBase &rewriter, AffineApplyOp op);
 
-/// Reify a bound for the given index-typed value or shape dimension size in
-/// terms of the owning op's operands. `dim` must be `nullopt` if and only if
-/// `value` is index-typed.
-///
-/// By default, lower/equal bounds are closed and upper bounds are open. If
-/// `closedUB` is set to "true", upper bounds are also closed.
-FailureOr<OpFoldResult> reifyValueBound(OpBuilder &b, Location loc,
-                                        presburger::BoundType type, Value value,
-                                        std::optional<int64_t> dim,
-                                        bool closedUB = false);
-
-/// Reify a bound for the given index-typed value or shape dimension size in
-/// terms of SSA values for which `stopCondition` is met. `dim` must be
-/// `nullopt` if and only if `value` is index-typed.
+/// Reify a bound for the given index-typed value in terms of SSA values for
+/// which `stopCondition` is met. If no stop condition is specified, reify in
+/// terms of the operands of the owner op.
 ///
 /// By default, lower/equal bounds are closed and upper bounds are open. If
 /// `closedUB` is set to "true", upper bounds are also closed.
@@ -77,12 +70,36 @@ FailureOr<OpFoldResult> reifyValueBound(OpBuilder &b, Location loc,
 ///   is an EQ bound for %1.
 /// * Otherwise, if the owners of %a, %b or %c do not implement the
 ///   ValueBoundsOpInterface, no bound can be computed.
-FailureOr<OpFoldResult>
-reifyValueBound(OpBuilder &b, Location loc, presburger::BoundType type,
-                Value value, std::optional<int64_t> dim,
-                ValueBoundsConstraintSet::StopConditionFn stopCondition,
-                bool closedUB = false);
+FailureOr<OpFoldResult> reifyIndexValueBound(
+    OpBuilder &b, Location loc, presburger::BoundType type, Value value,
+    ValueBoundsConstraintSet::StopConditionFn stopCondition = nullptr,
+    bool closedUB = false);
 
+/// Reify a bound for the specified dimension of the given shaped value in terms
+/// of SSA values for which `stopCondition` is met. If no stop condition is
+/// specified, reify in terms of the operands of the owner op.
+///
+/// By default, lower/equal bounds are closed and upper bounds are open. If
+/// `closedUB` is set to "true", upper bounds are also closed.
+FailureOr<OpFoldResult> reifyShapedValueDimBound(
+    OpBuilder &b, Location loc, presburger::BoundType type, Value value,
+    int64_t dim,
+    ValueBoundsConstraintSet::StopConditionFn stopCondition = nullptr,
+    bool closedUB = false);
+
+/// Materialize an already computed bound with Affine dialect ops.
+///
+/// * `ValueBoundsOpInterface::computeBound` computes bounds but does not
+///   create IR. It is dialect independent.
+/// * `materializeComputedBound` materializes computed bounds with Affine
+///   dialect ops.
+/// * `reifyIndexValueBound`/`reifyShapedValueDimBound` are a combination of
+///   the two functions mentioned above.
+OpFoldResult materializeComputedBound(
+    OpBuilder &b, Location loc, AffineMap boundMap,
+    ArrayRef<std::pair<Value, std::optional<int64_t>>> mapOperands);
+
+} // namespace affine
 } // namespace mlir
 
 #endif // MLIR_DIALECT_AFFINE_TRANSFORMS_TRANSFORMS_H

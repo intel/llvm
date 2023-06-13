@@ -39,7 +39,8 @@ Operation *IndexDialect::materializeConstant(OpBuilder &b, Attribute value,
 
   // Materialize integer attributes as `index`.
   if (auto indexValue = dyn_cast<IntegerAttr>(value)) {
-    if (!indexValue.getType().isa<IndexType>() || !type.isa<IndexType>())
+    if (!llvm::isa<IndexType>(indexValue.getType()) ||
+        !llvm::isa<IndexType>(type))
       return nullptr;
     assert(indexValue.getValue().getBitWidth() ==
            IndexType::kInternalStorageBitWidth);
@@ -262,7 +263,12 @@ OpFoldResult FloorDivSOp::fold(FoldAdaptor adaptor) {
 OpFoldResult RemSOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpChecked(
       adaptor.getOperands(),
-      [](const APInt &lhs, const APInt &rhs) { return lhs.srem(rhs); });
+      [](const APInt &lhs, const APInt &rhs) -> std::optional<APInt> {
+        // Don't fold division by zero.
+        if (rhs.isZero())
+          return std::nullopt;
+        return lhs.srem(rhs);
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -272,7 +278,12 @@ OpFoldResult RemSOp::fold(FoldAdaptor adaptor) {
 OpFoldResult RemUOp::fold(FoldAdaptor adaptor) {
   return foldBinaryOpChecked(
       adaptor.getOperands(),
-      [](const APInt &lhs, const APInt &rhs) { return lhs.urem(rhs); });
+      [](const APInt &lhs, const APInt &rhs) -> std::optional<APInt> {
+        // Don't fold division by zero.
+        if (rhs.isZero())
+          return std::nullopt;
+        return lhs.urem(rhs);
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -399,7 +410,8 @@ OpFoldResult XOrOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 bool CastSOp::areCastCompatible(TypeRange lhsTypes, TypeRange rhsTypes) {
-  return lhsTypes.front().isa<IndexType>() != rhsTypes.front().isa<IndexType>();
+  return llvm::isa<IndexType>(lhsTypes.front()) !=
+         llvm::isa<IndexType>(rhsTypes.front());
 }
 
 //===----------------------------------------------------------------------===//
@@ -407,7 +419,8 @@ bool CastSOp::areCastCompatible(TypeRange lhsTypes, TypeRange rhsTypes) {
 //===----------------------------------------------------------------------===//
 
 bool CastUOp::areCastCompatible(TypeRange lhsTypes, TypeRange rhsTypes) {
-  return lhsTypes.front().isa<IndexType>() != rhsTypes.front().isa<IndexType>();
+  return llvm::isa<IndexType>(lhsTypes.front()) !=
+         llvm::isa<IndexType>(rhsTypes.front());
 }
 
 //===----------------------------------------------------------------------===//

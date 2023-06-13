@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Transforms/Transforms.h"
+#include "mlir/Dialect/Arith/Transforms/Transforms.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -18,6 +19,7 @@
 #define PASS_NAME "test-affine-reify-value-bounds"
 
 using namespace mlir;
+using namespace mlir::affine;
 using mlir::presburger::BoundType;
 
 namespace {
@@ -35,8 +37,8 @@ struct TestReifyValueBounds
   TestReifyValueBounds(const TestReifyValueBounds &pass) : PassWrapper(pass){};
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<AffineDialect, tensor::TensorDialect, memref::MemRefDialect>();
+    registry.insert<affine::AffineDialect, tensor::TensorDialect,
+                    memref::MemRefDialect>();
   }
 
   void runOnOperation() override;
@@ -45,6 +47,10 @@ private:
   Option<bool> reifyToFuncArgs{
       *this, "reify-to-func-args",
       llvm::cl::desc("Reify in terms of function args"), llvm::cl::init(false)};
+
+  Option<bool> useArithOps{*this, "use-arith-ops",
+                           llvm::cl::desc("Reify with arith dialect ops"),
+                           llvm::cl::init(false)};
 };
 
 } // namespace
@@ -62,7 +68,8 @@ FailureOr<BoundType> parseBoundType(std::string type) {
 /// Look for "test.reify_bound" ops in the input and replace their results with
 /// the reified values.
 static LogicalResult testReifyValueBounds(func::FuncOp funcOp,
-                                          bool reifyToFuncArgs) {
+                                          bool reifyToFuncArgs,
+                                          bool useArithOps) {
   IRRewriter rewriter(funcOp.getContext());
   WalkResult result = funcOp.walk([&](Operation *op) {
     // Look for test.reify_bound ops.
@@ -74,7 +81,7 @@ static LogicalResult testReifyValueBounds(func::FuncOp funcOp,
         return WalkResult::skip();
       }
       Value value = op->getOperand(0);
-      if (value.getType().isa<IndexType>() !=
+      if (isa<IndexType>(value.getType()) !=
           !op->hasAttrOfType<IntegerAttr>("dim")) {
         // Op should have "dim" attribute if and only if the operand is an
         // index-typed value.
@@ -112,7 +119,7 @@ static LogicalResult testReifyValueBounds(func::FuncOp funcOp,
       if (reifyToFuncArgs) {
         // Reify in terms of function block arguments.
         stopCondition = stopCondition = [](Value v, std::optional<int64_t> d) {
-          auto bbArg = v.dyn_cast<BlockArgument>();
+          auto bbArg = dyn_cast<BlockArgument>(v);
           if (!bbArg)
             return false;
           return isa<FunctionOpInterface>(
@@ -130,8 +137,23 @@ static LogicalResult testReifyValueBounds(func::FuncOp funcOp,
           reified =
               FailureOr<OpFoldResult>(rewriter.getIndexAttr(*reifiedConst));
       } else {
-        reified = reifyValueBound(rewriter, op->getLoc(), *boundType, value,
-                                  dim, stopCondition);
+        if (dim) {
+          if (useArithOps) {
+            reified = arith::reifyShapedValueDimBound(
+                rewriter, op->getLoc(), *boundType, value, *dim, stopCondition);
+          } else {
+            reified = reifyShapedValueDimBound(
+                rewriter, op->getLoc(), *boundType, value, *dim, stopCondition);
+          }
+        } else {
+          if (useArithOps) {
+            reified = arith::reifyIndexValueBound(
+                rewriter, op->getLoc(), *boundType, value, stopCondition);
+          } else {
+            reified = reifyIndexValueBound(rewriter, op->getLoc(), *boundType,
+                                           value, stopCondition);
+          }
+        }
       }
       if (failed(reified)) {
         op->emitOpError("could not reify bound");
@@ -139,12 +161,12 @@ static LogicalResult testReifyValueBounds(func::FuncOp funcOp,
       }
 
       // Replace the op with the reified bound.
-      if (auto val = reified->dyn_cast<Value>()) {
+      if (auto val = llvm::dyn_cast_if_present<Value>(*reified)) {
         rewriter.replaceOp(op, val);
         return WalkResult::skip();
       }
       Value constOp = rewriter.create<arith::ConstantIndexOp>(
-          op->getLoc(), reified->get<Attribute>().cast<IntegerAttr>().getInt());
+          op->getLoc(), cast<IntegerAttr>(reified->get<Attribute>()).getInt());
       rewriter.replaceOp(op, constOp);
       return WalkResult::skip();
     }
@@ -153,8 +175,37 @@ static LogicalResult testReifyValueBounds(func::FuncOp funcOp,
   return failure(result.wasInterrupted());
 }
 
+/// Look for "test.are_equal" ops and emit errors/remarks.
+static LogicalResult testEquality(func::FuncOp funcOp) {
+  IRRewriter rewriter(funcOp.getContext());
+  WalkResult result = funcOp.walk([&](Operation *op) {
+    // Look for test.are_equal ops.
+    if (op->getName().getStringRef() == "test.are_equal") {
+      if (op->getNumOperands() != 2 || !op->getOperand(0).getType().isIndex() ||
+          !op->getOperand(1).getType().isIndex()) {
+        op->emitOpError("invalid op");
+        return WalkResult::skip();
+      }
+      FailureOr<bool> equal = ValueBoundsConstraintSet::areEqual(
+          op->getOperand(0), op->getOperand(1));
+      if (failed(equal)) {
+        op->emitError("could not determine equality");
+      } else if (*equal) {
+        op->emitRemark("equal");
+      } else {
+        op->emitRemark("different");
+      }
+    }
+    return WalkResult::advance();
+  });
+  return failure(result.wasInterrupted());
+}
+
 void TestReifyValueBounds::runOnOperation() {
-  if (failed(testReifyValueBounds(getOperation(), reifyToFuncArgs)))
+  if (failed(
+          testReifyValueBounds(getOperation(), reifyToFuncArgs, useArithOps)))
+    signalPassFailure();
+  if (failed(testEquality(getOperation())))
     signalPassFailure();
 }
 

@@ -23,11 +23,6 @@
 namespace llvm {
 template <typename DataT> class AccelTable;
 
-enum class OutputFileType {
-  Object,
-  Assembly,
-};
-
 ///   User of DwarfStreamer should call initialization code
 ///   for AsmPrinter:
 ///
@@ -45,18 +40,19 @@ class DWARFDebugMacro;
 /// information binary representation are handled in this class.
 class DwarfStreamer : public DwarfEmitter {
 public:
-  DwarfStreamer(OutputFileType OutFileType, raw_pwrite_stream &OutFile,
+  DwarfStreamer(DWARFLinker::OutputFileType OutFileType,
+                raw_pwrite_stream &OutFile,
                 std::function<StringRef(StringRef Input)> Translator,
-                messageHandler Error, messageHandler Warning)
+                DWARFLinker::messageHandler Warning)
       : OutFile(OutFile), OutFileType(OutFileType), Translator(Translator),
-        ErrorHandler(Error), WarningHandler(Warning) {}
+        WarningHandler(Warning) {}
 
-  bool init(Triple TheTriple, StringRef Swift5ReflectionSegmentName);
+  Error init(Triple TheTriple, StringRef Swift5ReflectionSegmentName);
 
   /// Dump the file to the disk.
-  void finish();
+  void finish() override;
 
-  AsmPrinter &getAsmPrinter() const { return *Asm; }
+  AsmPrinter &getAsmPrinter() const override { return *Asm; }
 
   /// Set the current output section to debug_info and change
   /// the MC Dwarf version to \p DwarfVersion.
@@ -82,16 +78,19 @@ public:
   /// Emit contents of section SecName From Obj.
   void emitSectionContents(StringRef SecData, StringRef SecName) override;
 
-  /// Emit the string table described by \p Pool.
+  /// Emit the string table described by \p Pool into .debug_str table.
   void emitStrings(const NonRelocatableStringpool &Pool) override;
 
+  /// Emit the string table described by \p Pool into .debug_line_str table.
+  void emitLineStrings(const NonRelocatableStringpool &Pool) override;
+
   /// Emit the swift_ast section stored in \p Buffer.
-  void emitSwiftAST(StringRef Buffer);
+  void emitSwiftAST(StringRef Buffer) override;
 
   /// Emit the swift reflection section stored in \p Buffer.
   void emitSwiftReflectionSection(
       llvm::binaryformat::Swift5ReflectionSectionKind ReflSectionKind,
-      StringRef Buffer, uint32_t Alignment, uint32_t Size);
+      StringRef Buffer, uint32_t Alignment, uint32_t Size) override;
 
   /// Emit debug ranges(.debug_ranges, .debug_rnglists) header.
   MCSymbol *emitDwarfDebugRangeListHeader(const CompileUnit &Unit) override;
@@ -128,15 +127,11 @@ public:
     return RngListsSectionSize;
   }
 
-  /// Emit the line table described in \p Rows into the debug_line section.
-  void emitLineTableForUnit(MCDwarfLineTableParams Params,
-                            StringRef PrologueBytes, unsigned MinInstLength,
-                            std::vector<DWARFDebugLine::Row> &Rows,
-                            unsigned AdddressSize) override;
-
-  /// Copy the debug_line over to the updated binary while unobfuscating the
-  /// file names and directories.
-  void translateLineTable(DataExtractor LineData, uint64_t Offset) override;
+  /// Emit .debug_line table entry for specified \p LineTable
+  void emitLineTableForUnit(const DWARFDebugLine::LineTable &LineTable,
+                            const CompileUnit &Unit,
+                            OffsetsStringPool &DebugStrPool,
+                            OffsetsStringPool &DebugLineStrPool) override;
 
   uint64_t getLineSectionSize() const override { return LineSectionSize; }
 
@@ -195,11 +190,6 @@ public:
                        OffsetsStringPool &StringPool) override;
 
 private:
-  inline void error(const Twine &Error, StringRef Context = "") {
-    if (ErrorHandler)
-      ErrorHandler(Error, Context, nullptr);
-  }
-
   inline void warn(const Twine &Warning, StringRef Context = "") {
     if (WarningHandler)
       WarningHandler(Warning, Context, nullptr);
@@ -231,6 +221,32 @@ private:
       const DWARFLocationExpressionsVector &LinkedLocationExpression,
       PatchLocation Patch);
 
+  /// \defgroup Line table emission
+  /// @{
+  void emitLineTablePrologue(const DWARFDebugLine::Prologue &P,
+                             OffsetsStringPool &DebugStrPool,
+                             OffsetsStringPool &DebugLineStrPool);
+  void emitLineTableString(const DWARFDebugLine::Prologue &P,
+                           const DWARFFormValue &String,
+                           OffsetsStringPool &DebugStrPool,
+                           OffsetsStringPool &DebugLineStrPool);
+  void emitLineTableProloguePayload(const DWARFDebugLine::Prologue &P,
+                                    OffsetsStringPool &DebugStrPool,
+                                    OffsetsStringPool &DebugLineStrPool);
+  void emitLineTablePrologueV2IncludeAndFileTable(
+      const DWARFDebugLine::Prologue &P, OffsetsStringPool &DebugStrPool,
+      OffsetsStringPool &DebugLineStrPool);
+  void emitLineTablePrologueV5IncludeAndFileTable(
+      const DWARFDebugLine::Prologue &P, OffsetsStringPool &DebugStrPool,
+      OffsetsStringPool &DebugLineStrPool);
+  void emitLineTableRows(const DWARFDebugLine::LineTable &LineTable,
+                         MCSymbol *LineEndSym, unsigned AddressByteSize);
+  void emitIntOffset(uint64_t Offset, dwarf::DwarfFormat Format,
+                     uint64_t &SectionSize);
+  void emitLabelDifference(const MCSymbol *Hi, const MCSymbol *Lo,
+                           dwarf::DwarfFormat Format, uint64_t &SectionSize);
+  /// @}
+
   /// \defgroup MCObjects MC layer objects constructed by the streamer
   /// @{
   std::unique_ptr<MCRegisterInfo> MRI;
@@ -249,7 +265,7 @@ private:
 
   /// The output file we stream the linked Dwarf to.
   raw_pwrite_stream &OutFile;
-  OutputFileType OutFileType = OutputFileType::Object;
+  DWARFLinker::OutputFileType OutFileType = DWARFLinker::OutputFileType::Object;
   std::function<StringRef(StringRef Input)> Translator;
 
   uint64_t RangesSectionSize = 0;
@@ -275,8 +291,7 @@ private:
                              const CompileUnit &Unit,
                              const std::vector<CompileUnit::AccelInfo> &Names);
 
-  messageHandler ErrorHandler = nullptr;
-  messageHandler WarningHandler = nullptr;
+  DWARFLinker::messageHandler WarningHandler = nullptr;
 };
 
 } // end namespace llvm

@@ -61,7 +61,7 @@
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/SimplifyLibCalls.h"
-#include "llvm/Transforms/Vectorize.h"
+#include "llvm/Transforms/Vectorize/LoadStoreVectorizer.h"
 #include <optional>
 
 using namespace llvm;
@@ -190,6 +190,11 @@ static cl::opt<bool>
 OptExecMaskPreRA("amdgpu-opt-exec-mask-pre-ra", cl::Hidden,
             cl::desc("Run pre-RA exec mask optimizations"),
             cl::init(true));
+
+static cl::opt<bool>
+    LowerCtorDtor("amdgpu-lower-global-ctor-dtor",
+                  cl::desc("Lower GPU ctor / dtors to globals on the device."),
+                  cl::init(true), cl::Hidden);
 
 // Option to disable vectorizer for tests.
 static cl::opt<bool> EnableLoadStoreVectorizer(
@@ -338,6 +343,11 @@ static cl::opt<bool> EnableMaxIlpSchedStrategy(
     cl::desc("Enable scheduling strategy to maximize ILP for a single wave."),
     cl::Hidden, cl::init(false));
 
+static cl::opt<bool> EnableRewritePartialRegUses(
+    "amdgpu-enable-rewrite-partial-reg-uses",
+    cl::desc("Enable rewrite partial reg uses pass"), cl::init(true),
+    cl::Hidden);
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
@@ -414,6 +424,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
+  initializeGCNRewritePartialRegUsesPass(*PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(*PR);
@@ -514,11 +525,15 @@ static StringRef computeDataLayout(const Triple &TT) {
   }
 
   // 32-bit private, local, and region pointers. 64-bit global, constant and
-  // flat, non-integral buffer fat pointers.
+  // flat. 160-bit non-integral fat buffer pointers that include a 128-bit
+  // buffer descriptor and a 32-bit offset, which are indexed by 32-bit values
+  // (address space 7), and 128-bit non-integral buffer resourcees (address
+  // space 8) which cannot be non-trivilally accessed by LLVM memory operations
+  // like getelementptr.
   return "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
-         "-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
-         "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1"
-         "-ni:7";
+         "-p7:160:256:256:32-p8:128:128-i64:64-v16:16-v24:32-v32:32-v48:64-v96:"
+         "128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-"
+         "G1-ni:7:8";
 }
 
 LLVM_READNONE
@@ -665,6 +680,14 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         }
         if (PassName == "amdgpu-unify-divergent-exit-nodes") {
           PM.addPass(AMDGPUUnifyDivergentExitNodesPass());
+          return true;
+        }
+        if (PassName == "amdgpu-atomic-optimizer") {
+          PM.addPass(AMDGPUAtomicOptimizerPass(*this));
+          return true;
+        }
+        if (PassName == "amdgpu-codegenprepare") {
+          PM.addPass(AMDGPUCodeGenPreparePass(*this));
           return true;
         }
         return false;
@@ -977,7 +1000,8 @@ void AMDGPUPassConfig::addIRPasses() {
   disablePass(&PatchableFunctionID);
 
   addPass(createAMDGPUPrintfRuntimeBinding());
-  addPass(createAMDGPUCtorDtorLoweringLegacyPass());
+  if (LowerCtorDtor)
+    addPass(createAMDGPUCtorDtorLoweringLegacyPass());
 
   // A call to propagate attributes pass in the backend in case opt was not run.
   addPass(createAMDGPUPropagateAttributesEarlyPass(&TM));
@@ -1272,6 +1296,9 @@ void GCNPassConfig::addOptimizedRegAlloc() {
 
   if (OptExecMaskPreRA)
     insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
+
+  if (EnableRewritePartialRegUses)
+    insertPass(&RenameIndependentSubregsID, &GCNRewritePartialRegUsesID);
 
   if (isPassEnabled(EnablePreRAOptimizations))
     insertPass(&RenameIndependentSubregsID, &GCNPreRAOptimizationsID);

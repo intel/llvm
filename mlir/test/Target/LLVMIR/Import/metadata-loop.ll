@@ -41,11 +41,14 @@ define void @supported_ops(ptr %arg1, float %arg2, i32 %arg3, i32 %arg4) {
   call void @llvm.memcpy.p0.p0.i32(ptr %arg1, ptr %arg1, i32 4, i1 false), !llvm.access.group !0
   ; CHECK: "llvm.intr.memset"{{.*}}access_groups =
   call void @llvm.memset.p0.i32(ptr %arg1, i8 42, i32 4, i1 false), !llvm.access.group !0
+  ; CHECK: llvm.call{{.*}}access_groups =
+  call void @foo(ptr %arg1), !llvm.access.group !0
   ret void
 }
 
 declare void @llvm.memcpy.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i32, i1 immarg)
 declare void @llvm.memset.p0.i32(ptr nocapture writeonly, i8, i32, i1 immarg)
+declare void @foo(ptr %arg1)
 
 !0 = !{!1, !2}
 !1 = distinct !{}
@@ -323,3 +326,56 @@ end:
 !1 = distinct !{!1, !2}
 !2 = !{!"llvm.loop.parallel_accesses", !0, !3}
 !3 = distinct !{}
+
+; // -----
+
+; Verify the unused access group is not imported.
+; CHECK:   llvm.metadata @__llvm_global_metadata {
+; CHECK-COUNT1: llvm.access_group
+
+; CHECK-LABEL: @unused_parallel_access
+define void @unused_parallel_access(ptr %arg) {
+entry:
+  %0 = load i32, ptr %arg, !llvm.access.group !0
+  br label %end, !llvm.loop !1
+end:
+  ret void
+}
+
+!0 = distinct !{}
+!1 = distinct !{!1, !2}
+!2 = !{!"llvm.loop.parallel_accesses", !0, !3}
+!3 = distinct !{}
+
+; // -----
+
+; CHECK: #[[start_loc:.*]] = loc("metadata-loop.ll":1:2)
+; CHECK: #[[end_loc:.*]] = loc("metadata-loop.ll":2:2)
+; CHECK: #[[SUBPROGRAM:.*]] = #llvm.di_subprogram<
+; CHECK: #[[start_loc_fused:.*]] = loc(fused<#[[SUBPROGRAM]]>[#[[start_loc]]])
+; CHECK: #[[end_loc_fused:.*]] = loc(fused<#[[SUBPROGRAM]]>[#[[end_loc]]])
+; CHECK: #[[$ANNOT_ATTR:.*]] = #llvm.loop_annotation<
+; CHECK-SAME: mustProgress = true
+; CHECK-SAME: startLoc = #[[start_loc_fused]]
+; CHECK-SAME: endLoc = #[[end_loc_fused]]
+
+; CHECK-LABEL: @loop_locs
+define void @loop_locs(i64 %n, ptr %A) {
+entry:
+; CHECK: llvm.br ^{{.*}} {loop_annotation = #[[$ANNOT_ATTR]]}
+  br label %end, !llvm.loop !6
+end:
+  ret void
+}
+
+!llvm.dbg.cu = !{!1}
+!llvm.module.flags = !{!0}
+!0 = !{i32 2, !"Debug Info Version", i32 3}
+!1 = distinct !DICompileUnit(language: DW_LANG_C, file: !2)
+!2 = !DIFile(filename: "metadata-loop.ll", directory: "/")
+!3 = distinct !DISubprogram(name: "loop_locs", scope: !2, file: !2, spFlags: DISPFlagDefinition, unit: !1)
+!4 = !DILocation(line: 1, column: 2, scope: !3)
+!5 = !DILocation(line: 2, column: 2, scope: !3)
+
+!6 = distinct !{!6, !4, !5, !7}
+!7 = !{!"llvm.loop.mustprogress"}

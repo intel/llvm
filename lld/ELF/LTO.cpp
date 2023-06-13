@@ -67,9 +67,8 @@ static std::unique_ptr<raw_fd_ostream> openLTOOutputFile(StringRef file) {
 }
 
 static std::string getThinLTOOutputFile(StringRef modulePath) {
-  return lto::getThinLTOOutputFile(
-      std::string(modulePath), std::string(config->thinLTOPrefixReplaceOld),
-      std::string(config->thinLTOPrefixReplaceNew));
+  return lto::getThinLTOOutputFile(modulePath, config->thinLTOPrefixReplaceOld,
+                                   config->thinLTOPrefixReplaceNew);
 }
 
 static lto::Config createConfig() {
@@ -220,7 +219,7 @@ BitcodeCompiler::BitcodeCompiler() {
       continue;
     StringRef s = sym->getName();
     for (StringRef prefix : {"__start_", "__stop_"})
-      if (s.startswith(prefix))
+      if (s.starts_with(prefix))
         usedStartStop.insert(s.substr(prefix.size()));
   }
 }

@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __LIBCPP_TYPEINFO
-#define __LIBCPP_TYPEINFO
+#ifndef _LIBCPP_TYPEINFO
+#define _LIBCPP_TYPEINFO
 
 /*
 
@@ -359,7 +359,7 @@ class _LIBCPP_EXCEPTION_ABI bad_cast
 {
  public:
   bad_cast() _NOEXCEPT;
-  bad_cast(const bad_cast&) _NOEXCEPT = default;
+  _LIBCPP_HIDE_FROM_ABI bad_cast(const bad_cast&) _NOEXCEPT = default;
   ~bad_cast() _NOEXCEPT override;
   const char* what() const _NOEXCEPT override;
 };
@@ -419,4 +419,4 @@ _LIBCPP_END_NAMESPACE_STD
 #  include <type_traits>
 #endif
 
-#endif // __LIBCPP_TYPEINFO
+#endif // _LIBCPP_TYPEINFO

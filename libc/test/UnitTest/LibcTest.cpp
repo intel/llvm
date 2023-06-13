@@ -12,61 +12,38 @@
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/UInt128.h"
 #include "test/UnitTest/TestLogger.h"
-#include "utils/testutils/ExecuteFunction.h"
-#include <cassert>
+
+#if __STDC_HOSTED__
+#include <time.h>
+#else
+static long clock() { return 0; }
+#define CLOCKS_PER_SEC 1
+#endif
 
 namespace __llvm_libc {
 namespace testing {
 
-// This need not be a class as all it has is a single read-write state variable.
-// But, we make it class as then its implementation can be hidden from the
-// header file.
-class RunContext {
-public:
-  enum RunResult { Result_Pass = 1, Result_Fail = 2 };
-
-  RunResult status() const { return Status; }
-
-  void markFail() { Status = Result_Fail; }
-
-private:
-  RunResult Status = Result_Pass;
-};
-
 namespace internal {
 
-// When the value is UInt128 or __uint128_t, show its hexadecimal digits.
-// We cannot just use a UInt128 specialization as that resolves to only
-// one type, UInt<128> or __uint128_t. We want both overloads as we want to
-// be able to unittest UInt<128> on platforms where UInt128 resolves to
-// UInt128.
+// When the value is UInt128, __uint128_t or wider, show its hexadecimal digits.
 template <typename T>
-cpp::enable_if_t<cpp::is_integral_v<T> && cpp::is_unsigned_v<T>, cpp::string>
-describeValueUInt(T Value) {
+cpp::enable_if_t<cpp::is_integral_v<T> && cpp::is_unsigned_v<T> &&
+                     (sizeof(T) > sizeof(uint64_t)),
+                 cpp::string>
+describeValue(T Value) {
   static_assert(sizeof(T) % 8 == 0, "Unsupported size of UInt");
-  cpp::string S(sizeof(T) * 2, '0');
-
-  constexpr char HEXADECIMALS[16] = {'0', '1', '2', '3', '4', '5', '6', '7',
-                                     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-  const size_t Size = S.size();
-  for (size_t I = 0; I < Size; I += 2, Value >>= 8) {
-    unsigned char Mod = static_cast<unsigned char>(Value) & 0xFF;
-    S[Size - I] = HEXADECIMALS[Mod & 0x0F];
-    S[Size - (I + 1)] = HEXADECIMALS[Mod & 0x0F];
-  }
-
-  return "0x" + S;
+  char buf[IntegerToString::hex_bufsize<T>()];
+  IntegerToString::hex(Value, buf, false);
+  return "0x" + cpp::string(buf, sizeof(buf));
 }
 
-// When the value is of integral type, just display it as normal.
+// When the value is of a standard integral type, just display it as normal.
 template <typename ValType>
-cpp::enable_if_t<cpp::is_integral_v<ValType>, cpp::string>
+cpp::enable_if_t<cpp::is_integral_v<ValType> &&
+                     sizeof(ValType) <= sizeof(uint64_t),
+                 cpp::string>
 describeValue(ValType Value) {
-  if constexpr (sizeof(ValType) <= sizeof(uint64_t)) {
-    return cpp::to_string(Value);
-  } else {
-    return describeValueUInt(Value);
-  }
+  return cpp::to_string(Value);
 }
 
 cpp::string describeValue(cpp::string Value) { return Value; }
@@ -149,6 +126,12 @@ bool test(RunContext *Ctx, TestCondition Cond, ValType LHS, ValType RHS,
 Test *Test::Start = nullptr;
 Test *Test::End = nullptr;
 
+int argc = 0;
+char **argv = nullptr;
+char **envp = nullptr;
+
+using internal::RunContext;
+
 void Test::addTest(Test *T) {
   if (End == nullptr) {
     Start = T;
@@ -173,11 +156,13 @@ int Test::runTests(const char *TestFilter) {
       continue;
     }
     tlog << GREEN << "[ RUN      ] " << RESET << TestName << '\n';
+    [[maybe_unused]] const auto start_time = clock();
     RunContext Ctx;
     T->SetUp();
     T->setContext(&Ctx);
     T->Run();
     T->TearDown();
+    [[maybe_unused]] const auto end_time = clock();
     auto Result = Ctx.status();
     switch (Result) {
     case RunContext::Result_Fail:
@@ -185,7 +170,19 @@ int Test::runTests(const char *TestFilter) {
       ++FailCount;
       break;
     case RunContext::Result_Pass:
-      tlog << GREEN << "[       OK ] " << RESET << TestName << '\n';
+      tlog << GREEN << "[       OK ] " << RESET << TestName;
+#if __STDC_HOSTED__
+      tlog << " (took ";
+      if (start_time > end_time) {
+        tlog << "unknown - try rerunning)\n";
+      } else {
+        const auto duration = end_time - start_time;
+        const uint64_t duration_ms = duration * 1000 / CLOCKS_PER_SEC;
+        tlog << duration_ms << " ms)\n";
+      }
+#else
+      tlog << '\n';
+#endif
       break;
     }
     ++TestCount;
@@ -296,6 +293,11 @@ template bool test<__llvm_libc::cpp::string_view>(
     __llvm_libc::cpp::string_view RHS, const char *LHSStr, const char *RHSStr,
     const char *File, unsigned long Line);
 
+template bool test<__llvm_libc::cpp::string>(
+    RunContext *Ctx, TestCondition Cond, __llvm_libc::cpp::string LHS,
+    __llvm_libc::cpp::string RHS, const char *LHSStr, const char *RHSStr,
+    const char *File, unsigned long Line);
+
 } // namespace internal
 
 bool Test::testStrEq(const char *LHS, const char *RHS, const char *LHSStr,
@@ -321,96 +323,10 @@ bool Test::testMatch(bool MatchResult, MatcherBase &Matcher, const char *LHSStr,
   if (!Matcher.is_silent()) {
     tlog << File << ":" << Line << ": FAILURE\n"
          << "Failed to match " << LHSStr << " against " << RHSStr << ".\n";
-    testutils::StreamWrapper OutsWrapper = testutils::outs();
-    Matcher.explainError(OutsWrapper);
+    Matcher.explainError();
   }
   return false;
 }
 
-#ifdef ENABLE_SUBPROCESS_TESTS
-
-bool Test::testProcessKilled(testutils::FunctionCaller *Func, int Signal,
-                             const char *LHSStr, const char *RHSStr,
-                             const char *File, unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invoke_in_subprocess(Func, 500);
-
-  if (const char *error = Result.get_error()) {
-    Ctx->markFail();
-    tlog << File << ":" << Line << ": FAILURE\n" << error << '\n';
-    return false;
-  }
-
-  if (Result.timed_out()) {
-    Ctx->markFail();
-    tlog << File << ":" << Line << ": FAILURE\n"
-         << "Process timed out after " << 500 << " milliseconds.\n";
-    return false;
-  }
-
-  if (Result.exited_normally()) {
-    Ctx->markFail();
-    tlog << File << ":" << Line << ": FAILURE\n"
-         << "Expected " << LHSStr
-         << " to be killed by a signal\nBut it exited normally!\n";
-    return false;
-  }
-
-  int KilledBy = Result.get_fatal_signal();
-  assert(KilledBy != 0 && "Not killed by any signal");
-  if (Signal == -1 || KilledBy == Signal)
-    return true;
-
-  using testutils::signal_as_string;
-  Ctx->markFail();
-  tlog << File << ":" << Line << ": FAILURE\n"
-       << "              Expected: " << LHSStr << '\n'
-       << "To be killed by signal: " << Signal << '\n'
-       << "              Which is: " << signal_as_string(Signal) << '\n'
-       << "  But it was killed by: " << KilledBy << '\n'
-       << "              Which is: " << signal_as_string(KilledBy) << '\n';
-  return false;
-}
-
-bool Test::testProcessExits(testutils::FunctionCaller *Func, int ExitCode,
-                            const char *LHSStr, const char *RHSStr,
-                            const char *File, unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invoke_in_subprocess(Func, 500);
-
-  if (const char *error = Result.get_error()) {
-    Ctx->markFail();
-    tlog << File << ":" << Line << ": FAILURE\n" << error << '\n';
-    return false;
-  }
-
-  if (Result.timed_out()) {
-    Ctx->markFail();
-    tlog << File << ":" << Line << ": FAILURE\n"
-         << "Process timed out after " << 500 << " milliseconds.\n";
-    return false;
-  }
-
-  if (!Result.exited_normally()) {
-    Ctx->markFail();
-    tlog << File << ":" << Line << ": FAILURE\n"
-         << "Expected " << LHSStr << '\n'
-         << "to exit with exit code " << ExitCode << '\n'
-         << "But it exited abnormally!\n";
-    return false;
-  }
-
-  int ActualExit = Result.get_exit_code();
-  if (ActualExit == ExitCode)
-    return true;
-
-  Ctx->markFail();
-  tlog << File << ":" << Line << ": FAILURE\n"
-       << "Expected exit code of: " << LHSStr << '\n'
-       << "             Which is: " << ActualExit << '\n'
-       << "       To be equal to: " << RHSStr << '\n'
-       << "             Which is: " << ExitCode << '\n';
-  return false;
-}
-
-#endif // ENABLE_SUBPROCESS_TESTS
 } // namespace testing
 } // namespace __llvm_libc

@@ -54,11 +54,11 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
             SG.shuffle_xor(vwggid, sgid % SG.get_max_local_range()[0]);
       });
     });
-    auto acc = buf.template get_access<access::mode::read_write>();
-    auto acc_up = buf_up.template get_access<access::mode::read_write>();
-    auto acc_down = buf_down.template get_access<access::mode::read_write>();
-    auto acc_xor = buf_xor.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(buf);
+    host_accessor acc_up(buf_up);
+    host_accessor acc_down(buf_down);
+    host_accessor acc_xor(buf_xor);
+    host_accessor sgsizeacc(sgsizebuf);
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
@@ -136,11 +136,11 @@ template <typename T> void check(queue &Queue, size_t G = 256, size_t L = 64) {
             SG.shuffle_xor<T>(wggid, sgid % SG.get_max_local_range()[0]);
       });
     });
-    auto acc = buf.template get_access<access::mode::read_write>();
-    auto acc_up = buf_up.template get_access<access::mode::read_write>();
-    auto acc_down = buf_down.template get_access<access::mode::read_write>();
-    auto acc_xor = buf_xor.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(buf);
+    host_accessor acc_up(buf_up);
+    host_accessor acc_down(buf_down);
+    host_accessor acc_xor(buf_xor);
+    host_accessor sgsizeacc(sgsizebuf);
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;

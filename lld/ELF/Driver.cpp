@@ -152,7 +152,7 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
 static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
   uint8_t osabi = 0;
   StringRef s = emul;
-  if (s.endswith("_fbsd")) {
+  if (s.ends_with("_fbsd")) {
     s = s.drop_back(5);
     osabi = ELFOSABI_FREEBSD;
   }
@@ -529,11 +529,11 @@ constexpr const char *knownZFlags[] = {
 
 static bool isKnownZFlag(StringRef s) {
   return llvm::is_contained(knownZFlags, s) ||
-         s.startswith("common-page-size=") || s.startswith("bti-report=") ||
-         s.startswith("cet-report=") ||
-         s.startswith("dead-reloc-in-nonalloc=") ||
-         s.startswith("max-page-size=") || s.startswith("stack-size=") ||
-         s.startswith("start-stop-visibility=");
+         s.starts_with("common-page-size=") || s.starts_with("bti-report=") ||
+         s.starts_with("cet-report=") ||
+         s.starts_with("dead-reloc-in-nonalloc=") ||
+         s.starts_with("max-page-size=") || s.starts_with("stack-size=") ||
+         s.starts_with("start-stop-visibility=");
 }
 
 // Report a warning for an unknown -z option.
@@ -713,7 +713,7 @@ static bool isOutputFormatBinary(opt::InputArgList &args) {
   StringRef s = args.getLastArgValue(OPT_oformat, "elf");
   if (s == "binary")
     return true;
-  if (!s.startswith("elf"))
+  if (!s.starts_with("elf"))
     error("unknown --oformat value: " + s);
   return false;
 }
@@ -797,7 +797,7 @@ static StripPolicy getStrip(opt::InputArgList &args) {
 static uint64_t parseSectionAddress(StringRef s, opt::InputArgList &args,
                                     const opt::Arg &arg) {
   uint64_t va = 0;
-  if (s.startswith("0x"))
+  if (s.starts_with("0x"))
     s = s.drop_front(2);
   if (!to_integer(s, va, 16))
     error("invalid argument: " + arg.getAsString(args));
@@ -862,7 +862,7 @@ getBuildId(opt::InputArgList &args) {
     return {BuildIdKind::Sha1, {}};
   if (s == "uuid")
     return {BuildIdKind::Uuid, {}};
-  if (s.startswith("0x"))
+  if (s.starts_with("0x"))
     return {BuildIdKind::Hexstring, parseHex(s.substr(2))};
 
   if (s != "none")
@@ -1077,6 +1077,25 @@ static bool isValidReportString(StringRef arg) {
   return arg == "none" || arg == "warning" || arg == "error";
 }
 
+// Process a remap pattern 'from-glob=to-file'.
+static bool remapInputs(StringRef line, const Twine &location) {
+  SmallVector<StringRef, 0> fields;
+  line.split(fields, '=');
+  if (fields.size() != 2 || fields[1].empty()) {
+    error(location + ": parse error, not 'from-glob=to-file'");
+    return true;
+  }
+  if (!hasWildcard(fields[0]))
+    config->remapInputs[fields[0]] = fields[1];
+  else if (Expected<GlobPattern> pat = GlobPattern::create(fields[0]))
+    config->remapInputsWildcards.emplace_back(std::move(*pat), fields[1]);
+  else {
+    error(location + ": " + toString(pat.takeError()));
+    return true;
+  }
+  return false;
+}
+
 // Initializes Config members by the command line options.
 static void readConfigs(opt::InputArgList &args) {
   errorHandler().verbose = args.hasArg(OPT_verbose);
@@ -1218,6 +1237,7 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_print_icf_sections, OPT_no_print_icf_sections, false);
   config->printGcSections =
       args.hasFlag(OPT_print_gc_sections, OPT_no_print_gc_sections, false);
+  config->printMemoryUsage = args.hasArg(OPT_print_memory_usage);
   config->printArchiveStats = args.getLastArgValue(OPT_print_archive_stats);
   config->printSymbolOrder =
       args.getLastArgValue(OPT_print_symbol_order);
@@ -1337,6 +1357,21 @@ static void readConfigs(opt::InputArgList &args) {
       config->optEL = true;
   }
 
+  for (opt::Arg *arg : args.filtered(OPT_remap_inputs)) {
+    StringRef value(arg->getValue());
+    remapInputs(value, arg->getSpelling());
+  }
+  for (opt::Arg *arg : args.filtered(OPT_remap_inputs_file)) {
+    StringRef filename(arg->getValue());
+    std::optional<MemoryBufferRef> buffer = readFile(filename);
+    if (!buffer)
+      continue;
+    // Parse 'from-glob=to-file' lines, ignoring #-led comments.
+    for (auto [lineno, line] : llvm::enumerate(args::getLines(*buffer)))
+      if (remapInputs(line, filename + ":" + Twine(lineno + 1)))
+        break;
+  }
+
   for (opt::Arg *arg : args.filtered(OPT_shuffle_sections)) {
     constexpr StringRef errPrefix = "--shuffle-sections=: ";
     std::pair<StringRef, StringRef> kv = StringRef(arg->getValue()).split('=');
@@ -1409,7 +1444,7 @@ static void readConfigs(opt::InputArgList &args) {
   // unsupported LLVMgold.so option and error.
   for (opt::Arg *arg : args.filtered(OPT_plugin_opt_eq)) {
     StringRef v(arg->getValue());
-    if (!v.endswith("lto-wrapper") && !v.endswith("lto-wrapper.exe"))
+    if (!v.ends_with("lto-wrapper") && !v.ends_with("lto-wrapper.exe"))
       error(arg->getSpelling() + ": unknown plugin option '" + arg->getValue() +
             "'");
   }
@@ -1421,8 +1456,6 @@ static void readConfigs(opt::InputArgList &args) {
     parseClangOption(arg->getValue(), arg->getSpelling());
     config->mllvmOpts.emplace_back(arg->getValue());
   }
-
-  config->threadCount = parallel::strategy.compute_thread_count();
 
   // --threads= takes a positive integer and provides the default value for
   // --thinlto-jobs=. If unspecified, cap the number of threads since
@@ -1436,12 +1469,13 @@ static void readConfigs(opt::InputArgList &args) {
             arg->getValue() + "'");
     parallel::strategy = hardware_concurrency(threads);
     config->thinLTOJobs = v;
-  } else if (config->threadCount > 16) {
+  } else if (parallel::strategy.compute_thread_count() > 16) {
     log("set maximum concurrency to 16, specify --threads= to change");
     parallel::strategy = hardware_concurrency(16);
   }
   if (auto *arg = args.getLastArg(OPT_thinlto_jobs_eq))
     config->thinLTOJobs = arg->getValue();
+  config->threadCount = parallel::strategy.compute_thread_count();
 
   if (config->ltoPartitions == 0)
     error("--lto-partitions: number of threads must be > 0");
@@ -1465,7 +1499,7 @@ static void readConfigs(opt::InputArgList &args) {
     std::tie(config->ekind, config->emachine, config->osabi) =
         parseEmulation(s);
     config->mipsN32Abi =
-        (s.startswith("elf32btsmipn32") || s.startswith("elf32ltsmipn32"));
+        (s.starts_with("elf32btsmipn32") || s.starts_with("elf32ltsmipn32"));
     config->emulation = s;
   }
 

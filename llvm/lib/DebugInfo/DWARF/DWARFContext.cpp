@@ -776,6 +776,8 @@ bool DWARFContext::verify(raw_ostream &OS, DIDumpOptions DumpOpts) {
     Success &= verifier.handleDebugInfo();
   if (DumpOpts.DumpType & DIDT_DebugLine)
     Success &= verifier.handleDebugLine();
+  if (DumpOpts.DumpType & DIDT_DebugStrOffsets)
+    Success &= verifier.handleDebugStrOffsets();
   Success &= verifier.handleAccelTables();
   return Success;
 }
@@ -844,8 +846,6 @@ void fixupIndexV4(const DWARFObject &DObj, DWARFContext &C,
                                         Twine::utohexstr(CUOff.getOffset())),
                             errs());
   }
-
-  return;
 }
 
 void fixupIndexV5(const DWARFObject &DObj, DWARFContext &C,
@@ -871,6 +871,8 @@ void fixupIndexV5(const DWARFObject &DObj, DWARFContext &C,
       Offset = Header.getNextUnitOffset();
     }
   });
+  if (Map.empty())
+    return;
   for (DWARFUnitIndex::Entry &E : Index.getMutableRows()) {
     if (!E.isValid())
       continue;

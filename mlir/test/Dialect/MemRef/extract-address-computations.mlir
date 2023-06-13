@@ -22,11 +22,13 @@ func.func @test_load(%base : memref<2x16x16xf32>, %offset : index) -> f32 {
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
   // Verify that the returned handle is usable.
-  transform.test_print_remark_at_operand %1, "transformed" : !pdl.operation
+  transform.test_print_remark_at_operand %0, "transformed" : !transform.any_op
 }
 
 // -----
@@ -48,9 +50,11 @@ func.func @test_load_nontemporal(%base : memref<2x16x16xf32>, %offset : index) -
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -77,9 +81,11 @@ func.func @test_store(%base : memref<2x16x16xf32>, %offset : index) -> () {
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -103,9 +109,11 @@ func.func @test_store_nontemporal(%base : memref<2x16x16xf32>, %offset : index) 
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -157,9 +165,11 @@ func.func @testWithLoop(%base : memref<?x?x?xf32, strided<[?,?,?], offset: ?>>) 
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -195,9 +205,11 @@ func.func @test_ldmatrix(%base : memref<4x32x32xf16, 3>,
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -229,9 +241,11 @@ func.func @test_ldmatrix(%base : memref<?x?x?xf16, 3>,
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -264,9 +278,11 @@ func.func @test_transfer_read_op(%base : memref<?x?x?xf16>,
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -292,9 +308,11 @@ func.func @test_transfer_read_op_with_tensor(%base : tensor<?x?x?xf16>,
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -326,9 +344,11 @@ func.func @test_transfer_write_op(%base : memref<?x?x?xf16>,
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
 
 // -----
@@ -361,10 +381,13 @@ func.func @test_transfer_write_op_with_strides(%base : memref<?x?x?xf16, strided
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
+
 // -----
 
 // Same as test_transfer_write_op but with tensors.
@@ -387,7 +410,10 @@ func.func @test_transfer_write_op_with_tensor(%base : tensor<?x?x?xf16>,
 }
 
 transform.sequence failures(propagate) {
-^bb1(%arg1: !pdl.operation):
-  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!pdl.operation) -> !pdl.operation
-  %1 = transform.memref.extract_address_computations %0 : (!pdl.operation) -> !pdl.operation
+^bb1(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["func.func"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.apply_patterns to %0 {
+    transform.apply_patterns.memref.extract_address_computations
+  } : !transform.any_op
 }
+

@@ -1,4 +1,4 @@
-// RUN: not %clangxx -fsycl -fsyntax-only -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: not %{build} -fsyntax-only -o %t.out
 
 #include <sycl/sycl.hpp>
 

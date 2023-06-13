@@ -19,6 +19,7 @@
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <cstdint>
@@ -202,27 +203,21 @@ public:
 
 AsyncInfoWrapperTy::AsyncInfoWrapperTy(GenericDeviceTy &Device,
                                        __tgt_async_info *AsyncInfoPtr)
-    : Err(Plugin::success()), Device(Device),
-      AsyncInfoPtr(AsyncInfoPtr ? AsyncInfoPtr : &LocalAsyncInfo) {
-  // Mark the success as checked. Otherwise, it would produce an error when
-  // re-assigned another error value.
-  !Err;
-}
+    : Device(Device),
+      AsyncInfoPtr(AsyncInfoPtr ? AsyncInfoPtr : &LocalAsyncInfo) {}
 
-Error AsyncInfoWrapperTy::finalize() {
+void AsyncInfoWrapperTy::finalize(Error &Err) {
   assert(AsyncInfoPtr && "AsyncInfoWrapperTy already finalized");
 
-  // If we used a local async info object we want synchronous behavior.
-  // In that case, and assuming the current status code is OK, we will
-  // synchronize explicitly when the object is deleted.
+  // If we used a local async info object we want synchronous behavior. In that
+  // case, and assuming the current status code is correct, we will synchronize
+  // explicitly when the object is deleted. Update the error with the result of
+  // the synchronize operation.
   if (AsyncInfoPtr == &LocalAsyncInfo && LocalAsyncInfo.Queue && !Err)
     Err = Device.synchronize(&LocalAsyncInfo);
 
   // Invalidate the wrapper object.
   AsyncInfoPtr = nullptr;
-
-  // Return the error associated to the async operations and the synchronize.
-  return std::move(Err);
 }
 
 Error GenericKernelTy::init(GenericDeviceTy &GenericDevice,
@@ -307,7 +302,7 @@ uint32_t GenericKernelTy::getNumThreads(GenericDeviceTy &GenericDevice,
 uint64_t GenericKernelTy::getNumBlocks(GenericDeviceTy &GenericDevice,
                                        uint32_t NumTeamsClause[3],
                                        uint64_t LoopTripCount,
-                                       uint32_t NumThreads) const {
+                                       uint32_t &NumThreads) const {
   assert(NumTeamsClause[1] == 0 && NumTeamsClause[2] == 0 &&
          "Multi dimensional launch not supported yet.");
 
@@ -318,14 +313,50 @@ uint64_t GenericKernelTy::getNumBlocks(GenericDeviceTy &GenericDevice,
     return std::min(NumTeamsClause[0], GenericDevice.getBlockLimit());
   }
 
+  uint64_t DefaultNumBlocks = getDefaultNumBlocks(GenericDevice);
   uint64_t TripCountNumBlocks = std::numeric_limits<uint64_t>::max();
   if (LoopTripCount > 0) {
     if (isSPMDMode()) {
       // We have a combined construct, i.e. `target teams distribute
       // parallel for [simd]`. We launch so many teams so that each thread
-      // will execute one iteration of the loop. round up to the nearest
-      // integer
-      TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+      // will execute one iteration of the loop; rounded up to the nearest
+      // integer. However, if that results in too few teams, we artificially
+      // reduce the thread count per team to increase the outer parallelism.
+      auto MinThreads = GenericDevice.getMinThreadsForLowTripCountLoop();
+      MinThreads = std::min(MinThreads, NumThreads);
+
+      // Honor the thread_limit clause; only lower the number of threads.
+      auto OldNumThreads = NumThreads;
+      if (LoopTripCount >= DefaultNumBlocks * NumThreads) {
+        // Enough parallelism for teams and threads.
+        TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+        assert(TripCountNumBlocks >= DefaultNumBlocks &&
+               "Expected sufficient outer parallelism.");
+      } else if (LoopTripCount >= DefaultNumBlocks * MinThreads) {
+        // Enough parallelism for teams, limit threads.
+
+        // This case is hard; for now, we force "full warps":
+        // First, compute a thread count assuming DefaultNumBlocks.
+        auto NumThreadsDefaultBlocks =
+            (LoopTripCount + DefaultNumBlocks - 1) / DefaultNumBlocks;
+        // Now get a power of two that is larger or equal.
+        auto NumThreadsDefaultBlocksP2 =
+            llvm::PowerOf2Ceil(NumThreadsDefaultBlocks);
+        // Do not increase a thread limit given be the user.
+        NumThreads = std::min(NumThreads, uint32_t(NumThreadsDefaultBlocksP2));
+        assert(NumThreads >= MinThreads &&
+               "Expected sufficient inner parallelism.");
+        TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+      } else {
+        // Not enough parallelism for teams and threads, limit both.
+        NumThreads = std::min(NumThreads, MinThreads);
+        TripCountNumBlocks = ((LoopTripCount - 1) / NumThreads) + 1;
+      }
+
+      assert(NumThreads * TripCountNumBlocks >= LoopTripCount &&
+             "Expected sufficient parallelism");
+      assert(OldNumThreads >= NumThreads &&
+             "Number of threads cannot be increased!");
     } else {
       assert((isGenericMode() || isGenericSPMDMode()) &&
              "Unexpected execution mode!");
@@ -345,8 +376,7 @@ uint64_t GenericKernelTy::getNumBlocks(GenericDeviceTy &GenericDevice,
     }
   }
   // If the loops are long running we rather reuse blocks than spawn too many.
-  uint32_t PreferredNumBlocks = std::min(uint32_t(TripCountNumBlocks),
-                                         getDefaultNumBlocks(GenericDevice));
+  uint32_t PreferredNumBlocks = std::min(TripCountNumBlocks, DefaultNumBlocks);
   return std::min(PreferredNumBlocks, GenericDevice.getBlockLimit());
 }
 
@@ -931,18 +961,18 @@ Error GenericDeviceTy::dataSubmit(void *TgtPtr, const void *HstPtr,
                                   int64_t Size, __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = dataSubmitImpl(TgtPtr, HstPtr, Size, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = dataSubmitImpl(TgtPtr, HstPtr, Size, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::dataRetrieve(void *HstPtr, const void *TgtPtr,
                                     int64_t Size, __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = dataRetrieveImpl(HstPtr, TgtPtr, Size, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = dataRetrieveImpl(HstPtr, TgtPtr, Size, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::dataExchange(const void *SrcPtr, GenericDeviceTy &DstDev,
@@ -950,9 +980,9 @@ Error GenericDeviceTy::dataExchange(const void *SrcPtr, GenericDeviceTy &DstDev,
                                     __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = dataExchangeImpl(SrcPtr, DstDev, DstPtr, Size, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = dataExchangeImpl(SrcPtr, DstDev, DstPtr, Size, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::launchKernel(void *EntryPtr, void **ArgPtrs,
@@ -970,16 +1000,16 @@ Error GenericDeviceTy::launchKernel(void *EntryPtr, void **ArgPtrs,
         KernelArgs.NumTeams[0], KernelArgs.ThreadLimit[0], KernelArgs.Tripcount,
         AsyncInfoWrapper);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = GenericKernel.launch(*this, ArgPtrs, ArgOffsets, KernelArgs,
-                             AsyncInfoWrapper);
+  auto Err = GenericKernel.launch(*this, ArgPtrs, ArgOffsets, KernelArgs,
+                                  AsyncInfoWrapper);
 
   if (RecordReplay.isRecordingOrReplaying() &&
       RecordReplay.isSaveOutputEnabled())
     RecordReplay.saveKernelOutputInfo(GenericKernel.getName(),
                                       AsyncInfoWrapper);
 
-  return AsyncInfoWrapper.finalize();
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::initAsyncInfo(__tgt_async_info **AsyncInfoPtr) {
@@ -989,9 +1019,9 @@ Error GenericDeviceTy::initAsyncInfo(__tgt_async_info **AsyncInfoPtr) {
 
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, *AsyncInfoPtr);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = initAsyncInfoImpl(AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = initAsyncInfoImpl(AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::initDeviceInfo(__tgt_device_info *DeviceInfo) {
@@ -1001,8 +1031,16 @@ Error GenericDeviceTy::initDeviceInfo(__tgt_device_info *DeviceInfo) {
 }
 
 Error GenericDeviceTy::printInfo() {
-  // TODO: Print generic information here
-  return printInfoImpl();
+  InfoQueueTy InfoQueue;
+
+  // Get the vendor-specific info entries describing the device properties.
+  if (auto Err = obtainInfoImpl(InfoQueue))
+    return Err;
+
+  // Print all info entries.
+  InfoQueue.print();
+
+  return Plugin::success();
 }
 
 Error GenericDeviceTy::createEvent(void **EventPtrStorage) {
@@ -1017,17 +1055,17 @@ Error GenericDeviceTy::recordEvent(void *EventPtr,
                                    __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = recordEventImpl(EventPtr, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = recordEventImpl(EventPtr, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::waitEvent(void *EventPtr, __tgt_async_info *AsyncInfo) {
   AsyncInfoWrapperTy AsyncInfoWrapper(*this, AsyncInfo);
 
-  auto &Err = AsyncInfoWrapper.getError();
-  Err = waitEventImpl(EventPtr, AsyncInfoWrapper);
-  return AsyncInfoWrapper.finalize();
+  auto Err = waitEventImpl(EventPtr, AsyncInfoWrapper);
+  AsyncInfoWrapper.finalize(Err);
+  return Err;
 }
 
 Error GenericDeviceTy::syncEvent(void *EventPtr) {

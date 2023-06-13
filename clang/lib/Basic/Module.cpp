@@ -59,9 +59,8 @@ Module::Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
 }
 
 Module::~Module() {
-  for (submodule_iterator I = submodule_begin(), IEnd = submodule_end();
-       I != IEnd; ++I) {
-    delete *I;
+  for (auto *Submodule : SubModules) {
+    delete Submodule;
   }
 }
 
@@ -108,6 +107,9 @@ static bool hasFeature(StringRef Feature, const LangOptions &LangOpts,
                         .Case("cplusplus11", LangOpts.CPlusPlus11)
                         .Case("cplusplus14", LangOpts.CPlusPlus14)
                         .Case("cplusplus17", LangOpts.CPlusPlus17)
+                        .Case("cplusplus20", LangOpts.CPlusPlus20)
+                        .Case("cplusplus23", LangOpts.CPlusPlus23)
+                        .Case("cplusplus26", LangOpts.CPlusPlus26)
                         .Case("c99", LangOpts.C99)
                         .Case("c11", LangOpts.C11)
                         .Case("c17", LangOpts.C17)
@@ -261,12 +263,12 @@ bool Module::fullModuleNameIs(ArrayRef<StringRef> nameParts) const {
   return nameParts.empty();
 }
 
-Module::DirectoryName Module::getUmbrellaDir() const {
-  if (Header U = getUmbrellaHeader())
-    return {"", "", U.Entry->getDir()};
-
-  return {UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
-          Umbrella.dyn_cast<const DirectoryEntry *>()};
+OptionalDirectoryEntryRef Module::getEffectiveUmbrellaDir() const {
+  if (const auto *ME = Umbrella.dyn_cast<const FileEntryRef::MapEntry *>())
+    return FileEntryRef(*ME).getDir();
+  if (const auto *ME = Umbrella.dyn_cast<const DirectoryEntryRef::MapEntry *>())
+    return DirectoryEntryRef(*ME);
+  return std::nullopt;
 }
 
 void Module::addTopHeader(const FileEntry *File) {
@@ -339,11 +341,9 @@ void Module::markUnavailable(bool Unimportable) {
 
     Current->IsAvailable = false;
     Current->IsUnimportable |= Unimportable;
-    for (submodule_iterator Sub = Current->submodule_begin(),
-                         SubEnd = Current->submodule_end();
-         Sub != SubEnd; ++Sub) {
-      if (needUpdate(*Sub))
-        Stack.push_back(*Sub);
+    for (auto *Submodule : Current->submodules()) {
+      if (needUpdate(Submodule))
+        Stack.push_back(Submodule);
     }
   }
 }
@@ -483,15 +483,15 @@ void Module::print(raw_ostream &OS, unsigned Indent, bool Dump) const {
     OS << "\n";
   }
 
-  if (Header H = getUmbrellaHeader()) {
+  if (std::optional<Header> H = getUmbrellaHeaderAsWritten()) {
     OS.indent(Indent + 2);
     OS << "umbrella header \"";
-    OS.write_escaped(H.NameAsWritten);
+    OS.write_escaped(H->NameAsWritten);
     OS << "\"\n";
-  } else if (DirectoryName D = getUmbrellaDir()) {
+  } else if (std::optional<DirectoryName> D = getUmbrellaDirAsWritten()) {
     OS.indent(Indent + 2);
     OS << "umbrella \"";
-    OS.write_escaped(D.NameAsWritten);
+    OS.write_escaped(D->NameAsWritten);
     OS << "\"\n";
   }
 
@@ -523,8 +523,8 @@ void Module::print(raw_ostream &OS, unsigned Indent, bool Dump) const {
       OS.indent(Indent + 2);
       OS << K.Prefix << "header \"";
       OS.write_escaped(H.NameAsWritten);
-      OS << "\" { size " << H.Entry->getSize()
-         << " mtime " << H.Entry->getModificationTime() << " }\n";
+      OS << "\" { size " << H.Entry.getSize()
+         << " mtime " << H.Entry.getModificationTime() << " }\n";
     }
   }
   for (auto *Unresolved : {&UnresolvedHeaders, &MissingHeaders}) {
@@ -550,14 +550,13 @@ void Module::print(raw_ostream &OS, unsigned Indent, bool Dump) const {
     OS << "export_as" << ExportAsModule << "\n";
   }
 
-  for (submodule_const_iterator MI = submodule_begin(), MIEnd = submodule_end();
-       MI != MIEnd; ++MI)
+  for (auto *Submodule : submodules())
     // Print inferred subframework modules so that we don't need to re-infer
     // them (requires expensive directory iteration + stat calls) when we build
     // the module. Regular inferred submodules are OK, as we need to look at all
     // those header files anyway.
-    if (!(*MI)->IsInferred || (*MI)->IsFramework)
-      (*MI)->print(OS, Indent + 2, Dump);
+    if (!Submodule->IsInferred || Submodule->IsFramework)
+      Submodule->print(OS, Indent + 2, Dump);
 
   for (unsigned I = 0, N = Exports.size(); I != N; ++I) {
     OS.indent(Indent + 2);

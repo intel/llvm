@@ -1,9 +1,10 @@
-// UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-
 // CPU and ACC not yet supported:
 // Unsupported SPIR-V module SPIRV module requires unsupported capability 6400
+// REQUIRES: gpu
+
+// UNSUPPORTED: hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <algorithm>
 #include <iostream>

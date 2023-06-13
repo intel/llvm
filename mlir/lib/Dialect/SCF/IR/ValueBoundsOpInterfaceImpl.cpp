@@ -27,10 +27,10 @@ struct ForOpInterface
                                     ValueBoundsConstraintSet &cstr) {
     // `value` is an iter_arg or an OpResult.
     int64_t iterArgIdx;
-    if (auto iterArg = value.dyn_cast<BlockArgument>()) {
+    if (auto iterArg = llvm::dyn_cast<BlockArgument>(value)) {
       iterArgIdx = iterArg.getArgNumber() - forOp.getNumInductionVars();
     } else {
-      iterArgIdx = value.cast<OpResult>().getResultNumber();
+      iterArgIdx = llvm::cast<OpResult>(value).getResultNumber();
     }
 
     // An EQ constraint can be added if the yielded value (dimension size)
@@ -63,7 +63,7 @@ struct ForOpInterface
         bound, boundOperands, BoundType::EQ, yieldedValue, dim,
         [&](Value v, std::optional<int64_t> d) {
           // Stop when reaching a block argument of the loop body.
-          if (auto bbArg = v.dyn_cast<BlockArgument>())
+          if (auto bbArg = llvm::dyn_cast<BlockArgument>(v))
             return bbArg.getOwner()->getParentOp() == forOp;
           // Stop when reaching a value that is defined outside of the loop. It
           // is impossible to reach an iter_arg from there.
@@ -77,7 +77,7 @@ struct ForOpInterface
 
     // Check if computed bound equals the corresponding iter_arg.
     Value singleValue = nullptr;
-    std::optional<int64_t> singleDim = std::nullopt;
+    std::optional<int64_t> singleDim;
     if (auto dimExpr = bound.getResult(0).dyn_cast<AffineDimExpr>()) {
       int64_t idx = dimExpr.getPosition();
       singleValue = boundOperands[idx].first;

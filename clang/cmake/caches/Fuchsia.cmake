@@ -32,8 +32,10 @@ set(_FUCHSIA_BOOTSTRAP_PASSTHROUGH
   LLVM_ENABLE_LIBXML2
   LibXml2_ROOT
   LLVM_ENABLE_CURL
+  LLVM_ENABLE_HTTPLIB
   CURL_ROOT
   OpenSSL_ROOT
+  httplib_ROOT
   FUCHSIA_ENABLE_LLDB
   LLDB_ENABLE_CURSES
   LLDB_ENABLE_LIBEDIT
@@ -182,7 +184,8 @@ get_cmake_property(variableNames VARIABLES)
 foreach(variableName ${variableNames})
   if(variableName MATCHES "^STAGE2_")
     string(REPLACE "STAGE2_" "" new_name ${variableName})
-    list(APPEND EXTRA_ARGS "-D${new_name}=${${variableName}}")
+    string(REPLACE ";" "|" value "${${variableName}}")
+    list(APPEND EXTRA_ARGS "-D${new_name}=${value}")
   endif()
 endforeach()
 

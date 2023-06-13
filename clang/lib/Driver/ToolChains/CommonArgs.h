@@ -148,6 +148,7 @@ void addHIPRuntimeLibArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
 const char *getAsNeededOption(const ToolChain &TC, bool as_needed);
 
+llvm::opt::Arg *getLastCSProfileGenerateArg(const llvm::opt::ArgList &Args);
 llvm::opt::Arg *getLastProfileUseArg(const llvm::opt::ArgList &Args);
 llvm::opt::Arg *getLastProfileSampleUseArg(const llvm::opt::ArgList &Args);
 
@@ -190,7 +191,8 @@ void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
 /// Note: Since \p Features may contain default values before calling
 /// this function, or may be appended with entries to override arguments,
 /// entries in \p Features are not unique.
-void handleTargetFeaturesGroup(const llvm::opt::ArgList &Args,
+void handleTargetFeaturesGroup(const Driver &D, const llvm::Triple &Triple,
+                               const llvm::opt::ArgList &Args,
                                std::vector<StringRef> &Features,
                                llvm::opt::OptSpecifier Group);
 

@@ -113,16 +113,17 @@ public:
 
   bool GetLoadKexts() const {
     const uint32_t idx = ePropertyLoadKexts;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(
-        nullptr, idx,
+    return GetPropertyAtIndexAs<bool>(
+        idx,
         g_dynamicloaderdarwinkernel_properties[idx].default_uint_value != 0);
   }
 
   KASLRScanType GetScanType() const {
     const uint32_t idx = ePropertyScanType;
-    return (KASLRScanType)m_collection_sp->GetPropertyAtIndexAsEnumeration(
-        nullptr, idx,
-        g_dynamicloaderdarwinkernel_properties[idx].default_uint_value);
+    return GetPropertyAtIndexAs<KASLRScanType>(
+        idx,
+        static_cast<KASLRScanType>(
+            g_dynamicloaderdarwinkernel_properties[idx].default_uint_value));
   }
 };
 
@@ -1079,15 +1080,18 @@ void DynamicLoaderDarwinKernel::LoadKernelModuleIfNeeded() {
       }
       // If the kernel global with the T1Sz setting is available,
       // update the target.process.virtual-addressable-bits to be correct.
+      // NB the xnu kernel always has T0Sz and T1Sz the same value.  If
+      // it wasn't the same, we would need to set
+      // target.process.virtual-addressable-bits = T0Sz
+      // target.process.highmem-virtual-addressable-bits = T1Sz
       symbol = m_kernel.GetModule()->FindFirstSymbolWithNameAndType(
           arm64_T1Sz_value, eSymbolTypeData);
       if (symbol) {
-        const uint32_t orig_bits_value = m_process->GetVirtualAddressableBits();
-        // Mark all bits as addressable so we don't strip any from our
-        // memory read below, with an incorrect default value.
-        // b55 is the sign extension bit with PAC, b56:63 are TBI,
-        // don't mark those as addressable.
-        m_process->SetVirtualAddressableBits(55);
+        const addr_t orig_code_mask = m_process->GetCodeAddressMask();
+        const addr_t orig_data_mask = m_process->GetDataAddressMask();
+
+        m_process->SetCodeAddressMask(0);
+        m_process->SetDataAddressMask(0);
         Status error;
         // gT1Sz is 8 bytes.  We may run on a stripped kernel binary
         // where we can't get the size accurately.  Hardcode it.
@@ -1102,9 +1106,12 @@ void DynamicLoaderDarwinKernel::LoadKernelModuleIfNeeded() {
           // T1Sz is 25, then 64-25 == 39, bits 0..38 are used for
           // addressing, bits 39..63 are used for PAC/TBI or whatever.
           uint32_t virt_addr_bits = 64 - sym_value;
-          m_process->SetVirtualAddressableBits(virt_addr_bits);
+          addr_t mask = ~((1ULL << virt_addr_bits) - 1);
+          m_process->SetCodeAddressMask(mask);
+          m_process->SetDataAddressMask(mask);
         } else {
-          m_process->SetVirtualAddressableBits(orig_bits_value);
+          m_process->SetCodeAddressMask(orig_code_mask);
+          m_process->SetDataAddressMask(orig_data_mask);
         }
       }
     } else {
@@ -1608,7 +1615,7 @@ void DynamicLoaderDarwinKernel::DebuggerInitialize(
     const bool is_global_setting = true;
     PluginManager::CreateSettingForDynamicLoaderPlugin(
         debugger, GetGlobalProperties().GetValueProperties(),
-        ConstString("Properties for the DynamicLoaderDarwinKernel plug-in."),
+        "Properties for the DynamicLoaderDarwinKernel plug-in.",
         is_global_setting);
   }
 }

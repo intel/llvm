@@ -491,7 +491,11 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
   // Keep a stack of positions of lbrace tokens. We will
   // update information about whether an lbrace starts a
   // braced init list or a different block during the loop.
-  SmallVector<FormatToken *, 8> LBraceStack;
+  struct StackEntry {
+    FormatToken *Tok;
+    const FormatToken *PrevTok;
+  };
+  SmallVector<StackEntry, 8> LBraceStack;
   assert(Tok->is(tok::l_brace));
   do {
     // Get next non-comment token.
@@ -521,12 +525,12 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
       } else {
         Tok->setBlockKind(BK_Unknown);
       }
-      LBraceStack.push_back(Tok);
+      LBraceStack.push_back({Tok, PrevTok});
       break;
     case tok::r_brace:
       if (LBraceStack.empty())
         break;
-      if (LBraceStack.back()->is(BK_Unknown)) {
+      if (LBraceStack.back().Tok->is(BK_Unknown)) {
         bool ProbablyBracedList = false;
         if (Style.Language == FormatStyle::LK_Proto) {
           ProbablyBracedList = NextTok->isOneOf(tok::comma, tok::r_square);
@@ -554,7 +558,7 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
 
           // If we already marked the opening brace as braced list, the closing
           // must also be part of it.
-          ProbablyBracedList = LBraceStack.back()->is(TT_BracedListLBrace);
+          ProbablyBracedList = LBraceStack.back().Tok->is(TT_BracedListLBrace);
 
           ProbablyBracedList = ProbablyBracedList ||
                                (Style.isJavaScript() &&
@@ -570,8 +574,14 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
           ProbablyBracedList =
               ProbablyBracedList ||
               NextTok->isOneOf(tok::comma, tok::period, tok::colon,
-                               tok::r_paren, tok::r_square, tok::l_brace,
-                               tok::ellipsis);
+                               tok::r_paren, tok::r_square, tok::ellipsis);
+
+          // Distinguish between braced list in a constructor initializer list
+          // followed by constructor body, or just adjacent blocks.
+          ProbablyBracedList =
+              ProbablyBracedList ||
+              (NextTok->is(tok::l_brace) && LBraceStack.back().PrevTok &&
+               LBraceStack.back().PrevTok->is(tok::identifier));
 
           ProbablyBracedList =
               ProbablyBracedList ||
@@ -595,10 +605,10 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
         }
         if (ProbablyBracedList) {
           Tok->setBlockKind(BK_BracedInit);
-          LBraceStack.back()->setBlockKind(BK_BracedInit);
+          LBraceStack.back().Tok->setBlockKind(BK_BracedInit);
         } else {
           Tok->setBlockKind(BK_Block);
-          LBraceStack.back()->setBlockKind(BK_Block);
+          LBraceStack.back().Tok->setBlockKind(BK_Block);
         }
       }
       LBraceStack.pop_back();
@@ -615,8 +625,8 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
     case tok::kw_switch:
     case tok::kw_try:
     case tok::kw___try:
-      if (!LBraceStack.empty() && LBraceStack.back()->is(BK_Unknown))
-        LBraceStack.back()->setBlockKind(BK_Block);
+      if (!LBraceStack.empty() && LBraceStack.back().Tok->is(BK_Unknown))
+        LBraceStack.back().Tok->setBlockKind(BK_Block);
       break;
     default:
       break;
@@ -626,9 +636,9 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
   } while (Tok->isNot(tok::eof) && !LBraceStack.empty());
 
   // Assume other blocks for all unclosed opening braces.
-  for (FormatToken *LBrace : LBraceStack)
-    if (LBrace->is(BK_Unknown))
-      LBrace->setBlockKind(BK_Block);
+  for (const auto &Entry : LBraceStack)
+    if (Entry.Tok->is(BK_Unknown))
+      Entry.Tok->setBlockKind(BK_Block);
 
   FormatTok = Tokens->setPosition(StoredPosition);
 }
@@ -1393,6 +1403,15 @@ void UnwrappedLineParser::parseStructuralElement(
       parseForOrWhileLoop(/*HasParens=*/false);
       return;
     }
+    if (FormatTok->isOneOf(Keywords.kw_foreach, Keywords.kw_repeat)) {
+      parseForOrWhileLoop();
+      return;
+    }
+    if (FormatTok->isOneOf(tok::kw_restrict, Keywords.kw_assert,
+                           Keywords.kw_assume, Keywords.kw_cover)) {
+      parseIfThenElse(IfKind, /*KeepBraces=*/false, /*IsVerilogAssert=*/true);
+      return;
+    }
 
     // Skip things that can exist before keywords like 'if' and 'case'.
     while (true) {
@@ -1484,6 +1503,7 @@ void UnwrappedLineParser::parseStructuralElement(
     }
     nextToken();
     if (FormatTok->is(tok::colon)) {
+      FormatTok->setFinalizedType(TT_CaseLabelColon);
       parseLabel();
       return;
     }
@@ -1881,7 +1901,7 @@ void UnwrappedLineParser::parseStructuralElement(
         }
       }
 
-      if (FormatTok->is(Keywords.kw_interface)) {
+      if (!Style.isCpp() && FormatTok->is(Keywords.kw_interface)) {
         if (parseStructLike())
           return;
         break;
@@ -1916,6 +1936,7 @@ void UnwrappedLineParser::parseStructuralElement(
         if (!Style.isVerilog() && FormatTok->is(tok::colon) &&
             !Line->MustBeDeclaration) {
           Line->Tokens.begin()->Tok->MustBreakBefore = true;
+          FormatTok->setFinalizedType(TT_GotoLabelColon);
           parseLabel(!Style.IndentGotoLabels);
           if (HasLabel)
             *HasLabel = true;
@@ -2624,9 +2645,28 @@ bool UnwrappedLineParser::isBlockBegin(const FormatToken &Tok) const {
 }
 
 FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
-                                                  bool KeepBraces) {
-  assert(FormatTok->is(tok::kw_if) && "'if' expected");
+                                                  bool KeepBraces,
+                                                  bool IsVerilogAssert) {
+  assert((FormatTok->is(tok::kw_if) ||
+          (Style.isVerilog() &&
+           FormatTok->isOneOf(tok::kw_restrict, Keywords.kw_assert,
+                              Keywords.kw_assume, Keywords.kw_cover))) &&
+         "'if' expected");
   nextToken();
+
+  if (IsVerilogAssert) {
+    // Handle `assert #0` and `assert final`.
+    if (FormatTok->is(Keywords.kw_verilogHash)) {
+      nextToken();
+      if (FormatTok->is(tok::numeric_constant))
+        nextToken();
+    } else if (FormatTok->isOneOf(Keywords.kw_final, Keywords.kw_property,
+                                  Keywords.kw_sequence)) {
+      nextToken();
+    }
+  }
+
+  // Handle `if !consteval`.
   if (FormatTok->is(tok::exclaim))
     nextToken();
 
@@ -2637,10 +2677,18 @@ FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
     KeepIfBraces = !Style.RemoveBracesLLVM || KeepBraces;
     if (FormatTok->isOneOf(tok::kw_constexpr, tok::identifier))
       nextToken();
-    if (FormatTok->is(tok::l_paren))
+    if (FormatTok->is(tok::l_paren)) {
+      FormatTok->setFinalizedType(TT_ConditionLParen);
       parseParens();
+    }
   }
   handleAttributes();
+  // The then action is optional in Verilog assert statements.
+  if (IsVerilogAssert && FormatTok->is(tok::semi)) {
+    nextToken();
+    addUnwrappedLine();
+    return nullptr;
+  }
 
   bool NeedsUnwrappedLine = false;
   keepAncestorBraces();
@@ -2658,6 +2706,8 @@ FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
       addUnwrappedLine();
     else
       NeedsUnwrappedLine = true;
+  } else if (IsVerilogAssert && FormatTok->is(tok::kw_else)) {
+    addUnwrappedLine();
   } else {
     parseUnbracedBody();
   }
@@ -2700,7 +2750,7 @@ FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
         markOptionalBraces(ElseLeftBrace);
       }
       addUnwrappedLine();
-    } else if (FormatTok->is(tok::kw_if)) {
+    } else if (!IsVerilogAssert && FormatTok->is(tok::kw_if)) {
       const FormatToken *Previous = Tokens->getPreviousToken();
       assert(Previous);
       const bool IsPrecededByComment = Previous->is(tok::comment);
@@ -2993,8 +3043,14 @@ void UnwrappedLineParser::parseForOrWhileLoop(bool HasParens) {
     nextToken();
   if (Style.isCpp() && FormatTok->is(tok::kw_co_await))
     nextToken();
-  if (HasParens && FormatTok->is(tok::l_paren))
+  if (HasParens && FormatTok->is(tok::l_paren)) {
+    // The type is only set for Verilog basically because we were afraid to
+    // change the existing behavior for loops. See the discussion on D121756 for
+    // details.
+    if (Style.isVerilog())
+      FormatTok->setFinalizedType(TT_ConditionLParen);
     parseParens();
+  }
   // Event control.
   if (Style.isVerilog())
     parseVerilogSensitivityList();
@@ -3069,7 +3125,11 @@ void UnwrappedLineParser::parseCaseLabel() {
   // FIXME: fix handling of complex expressions here.
   do {
     nextToken();
-  } while (!eof() && !FormatTok->is(tok::colon));
+    if (FormatTok->is(tok::colon)) {
+      FormatTok->setFinalizedType(TT_CaseLabelColon);
+      break;
+    }
+  } while (!eof());
   parseLabel();
 }
 
@@ -4018,7 +4078,9 @@ void UnwrappedLineParser::parseJavaScriptEs6ImportExport() {
   // parsing the structural element, i.e. the declaration or expression for
   // `export default`.
   if (!IsImport && !FormatTok->isOneOf(tok::l_brace, tok::star) &&
-      !FormatTok->isStringLiteral()) {
+      !FormatTok->isStringLiteral() &&
+      !(FormatTok->is(Keywords.kw_type) &&
+        Tokens->peekNextToken()->isOneOf(tok::l_brace, tok::star))) {
     return;
   }
 
@@ -4144,11 +4206,14 @@ unsigned UnwrappedLineParser::parseVerilogHierarchyHeader() {
     if (FormatTok->is(Keywords.kw_verilogHash)) {
       NewLine();
       nextToken();
-      if (FormatTok->is(tok::l_paren))
+      if (FormatTok->is(tok::l_paren)) {
+        FormatTok->setFinalizedType(TT_VerilogMultiLineListLParen);
         parseParens();
+      }
     }
     if (FormatTok->is(tok::l_paren)) {
       NewLine();
+      FormatTok->setFinalizedType(TT_VerilogMultiLineListLParen);
       parseParens();
     }
 

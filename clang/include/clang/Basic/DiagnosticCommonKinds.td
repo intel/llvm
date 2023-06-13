@@ -121,7 +121,7 @@ def note_pragma_entered_here : Note<"#pragma entered here">;
 def note_decl_hiding_tag_type : Note<
   "%1 %0 is hidden by a non-type declaration of %0 here">;
 def err_attribute_not_type_attr : Error<
-  "%0 attribute cannot be applied to types">;
+  "%0%select{ attribute|}1 cannot be applied to types">;
 def err_enum_template : Error<"enumeration cannot be a template">;
 
 def warn_cxx20_compat_consteval : Warning<
@@ -175,6 +175,8 @@ def warn_unknown_attribute_ignored : Warning<
   "unknown attribute %0 ignored">, InGroup<UnknownAttributes>;
 def warn_attribute_ignored : Warning<"%0 attribute ignored">,
   InGroup<IgnoredAttributes>;
+def err_keyword_not_supported_on_target : Error<
+  "%0 is not supported on this target">;
 def err_use_of_tag_name_without_tag : Error<
   "must use '%1' tag to refer to type %0%select{| in this scope}2">;
 
@@ -210,14 +212,14 @@ def ext_cxx11_longlong : Extension<
 def warn_cxx98_compat_longlong : Warning<
   "'long long' is incompatible with C++98">,
   InGroup<CXX98CompatPedantic>, DefaultIgnore;
-def ext_cxx2b_size_t_suffix : ExtWarn<
-  "'size_t' suffix for literals is a C++2b extension">,
-  InGroup<CXX2b>;
+def ext_cxx23_size_t_suffix : ExtWarn<
+  "'size_t' suffix for literals is a C++23 extension">,
+  InGroup<CXX23>;
 def warn_cxx20_compat_size_t_suffix : Warning<
   "'size_t' suffix for literals is incompatible with C++ standards before "
-  "C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
-def err_cxx2b_size_t_suffix: Error<
-  "'size_t' suffix for literals is a C++2b feature">;
+  "C++23">, InGroup<CXXPre23Compat>, DefaultIgnore;
+def err_cxx23_size_t_suffix: Error<
+  "'size_t' suffix for literals is a C++23 feature">;
 def err_size_t_literal_too_large: Error<
   "%select{signed |}0'size_t' literal is out of range of possible "
   "%select{signed |}0'size_t' values">;
@@ -308,7 +310,7 @@ def warn_dup_category_def : Warning<
 // Targets
 
 def err_target_unknown_triple : Error<
-  "unknown target triple '%0', please use -triple or -arch">;
+  "unknown target triple '%0'">;
 def err_target_unknown_cpu : Error<"unknown target CPU '%0'">;
 def note_valid_options : Note<"valid target CPU values are: %0">;
 def err_target_unsupported_cpu_for_micromips : Error<

@@ -1023,20 +1023,11 @@ DNBGetTSDAddressForThread(nub_process_t pid, nub_thread_t tid,
   return INVALID_NUB_ADDRESS;
 }
 
-JSONGenerator::ObjectSP DNBGetLoadedDynamicLibrariesInfos(
-    nub_process_t pid, nub_addr_t image_list_address, nub_addr_t image_count) {
+JSONGenerator::ObjectSP
+DNBGetAllLoadedLibrariesInfos(nub_process_t pid, bool report_load_commands) {
   MachProcessSP procSP;
   if (GetProcessSP(pid, procSP)) {
-    return procSP->GetLoadedDynamicLibrariesInfos(pid, image_list_address,
-                                                  image_count);
-  }
-  return JSONGenerator::ObjectSP();
-}
-
-JSONGenerator::ObjectSP DNBGetAllLoadedLibrariesInfos(nub_process_t pid) {
-  MachProcessSP procSP;
-  if (GetProcessSP(pid, procSP)) {
-    return procSP->GetAllLoadedLibrariesInfos(pid);
+    return procSP->GetAllLoadedLibrariesInfos(pid, report_load_commands);
   }
   return JSONGenerator::ObjectSP();
 }
@@ -1465,9 +1456,13 @@ DNBGetDeploymentInfo(nub_process_t pid, bool is_executable,
     major_version = info.major_version;
     minor_version = info.minor_version;
     patch_version = info.patch_version;
+    // MachProcess::DeploymentInfo has a bool operator to tell whether we have
+    // set the platform.  If that's not true, don't report out the platform:
+    if (!info)
+      return {};
     return procSP->GetPlatformString(info.platform);
   }
-  return nullptr;
+  return {};
 }
 
 // Get the current shared library information for a process. Only return
@@ -1768,10 +1763,8 @@ std::string DNBGetMacCatalystVersionString() {
 void DNBInitialize() {
   DNBLogThreadedIf(LOG_PROCESS, "DNBInitialize ()");
 #if defined(__i386__) || defined(__x86_64__)
-  DNBArchImplI386::Initialize();
   DNBArchImplX86_64::Initialize();
 #elif defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
-  DNBArchMachARM::Initialize();
   DNBArchMachARM64::Initialize();
 #endif
 }

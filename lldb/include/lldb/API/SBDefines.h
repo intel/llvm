@@ -15,6 +15,8 @@
 #include "lldb/lldb-types.h"
 #include "lldb/lldb-versioning.h"
 
+#include <cstdio> // For FILE *
+
 #ifndef LLDB_API
 #if defined(_WIN32)
 #if defined(LLDB_IN_LIBLLDB)
@@ -30,7 +32,7 @@
 // Don't add the deprecated attribute when generating the bindings or when
 // building for anything older than C++14 which is the first version that
 // supports the attribute.
-#if defined(SWIG) or _cplusplus < 201402L
+#if defined(SWIG) || _cplusplus < 201402L
 #undef LLDB_DEPRECATED
 #define LLDB_DEPRECATED(MSG, FIX)
 #endif

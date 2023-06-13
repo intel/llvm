@@ -6,10 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 
@@ -34,18 +32,6 @@ event doFill2D(queue &Q, void *Dest, size_t DestPitch, const T &Pattern,
       CGH.depends_on(DepEvents);
       CGH.ext_oneapi_fill2d(Dest, DestPitch, Pattern, Width, Height);
     });
-  }
-  if constexpr (PathKind == OperationPath::ShortcutNoEvent) {
-    sycl::event::wait(DepEvents);
-    return Q.ext_oneapi_fill2d(Dest, DestPitch, Pattern, Width, Height);
-  }
-  if constexpr (PathKind == OperationPath::ShortcutOneEvent) {
-    assert(DepEvents.size() && "No events in dependencies!");
-    // wait on all other events than the first.
-    for (size_t I = 1; I < DepEvents.size(); ++I)
-      DepEvents[I].wait();
-    return Q.ext_oneapi_fill2d(Dest, DestPitch, Pattern, Width, Height,
-                               DepEvents[0]);
   }
   if constexpr (PathKind == OperationPath::ShortcutEventList) {
     return Q.ext_oneapi_fill2d(Dest, DestPitch, Pattern, Width, Height,
@@ -194,10 +180,6 @@ int testForAllPaths(queue &Q, T ExpectedVal1, T ExpectedVal2) {
   Failures += test<T, AllocKind, OperationPath::Expanded>(Q, ExpectedVal1,
                                                           ExpectedVal2);
   Failures += test<T, AllocKind, OperationPath::ExpandedDependsOn>(
-      Q, ExpectedVal1, ExpectedVal2);
-  Failures += test<T, AllocKind, OperationPath::ShortcutNoEvent>(
-      Q, ExpectedVal1, ExpectedVal2);
-  Failures += test<T, AllocKind, OperationPath::ShortcutOneEvent>(
       Q, ExpectedVal1, ExpectedVal2);
   Failures += test<T, AllocKind, OperationPath::ShortcutEventList>(
       Q, ExpectedVal1, ExpectedVal2);

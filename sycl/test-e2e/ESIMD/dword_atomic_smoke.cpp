@@ -7,12 +7,9 @@
 //===----------------------------------------------------------------------===//
 // This test checks DWORD atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This macro enforces usage of dword atomics in the included test.
 #define USE_DWORD_ATOMICS

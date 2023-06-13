@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl-device-only -Xclang -no-opaque-pointers -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl-device-only -Xclang -opaque-pointers -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 // Tests for warnings when propagated aspects do not match the aspects available
 // in a function, as specified through the 'sycl::device_has' property.

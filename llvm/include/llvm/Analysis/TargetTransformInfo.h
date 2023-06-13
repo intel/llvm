@@ -293,32 +293,26 @@ public:
     /// All the GEPs in a set have same base address.
     unsigned IsSameBaseAddress : 1;
     /// These properties only valid if SameBaseAddress is set.
-    /// True if distance between any two neigbouring pointers is same value.
-    unsigned IsUniformStride : 1;
+    /// True if all pointers are separated by a unit stride.
+    unsigned IsUnitStride : 1;
     /// True if distance between any two neigbouring pointers is a known value.
     unsigned IsKnownStride : 1;
     unsigned Reserved : 29;
 
     bool isSameBase() const { return IsSameBaseAddress; }
-    bool isUniformStride() const {
-      return IsSameBaseAddress && IsUniformStride;
-    }
+    bool isUnitStride() const { return IsSameBaseAddress && IsUnitStride; }
     bool isKnownStride() const { return IsSameBaseAddress && IsKnownStride; }
 
-    static PointersChainInfo getKnownUniformStrided() {
-      return {/*IsSameBaseAddress=*/1, /*IsUniformStride=*/1,
+    static PointersChainInfo getUnitStride() {
+      return {/*IsSameBaseAddress=*/1, /*IsUnitStride=*/1,
               /*IsKnownStride=*/1, 0};
     }
-    static PointersChainInfo getUniformStrided() {
-      return {/*IsSameBaseAddress=*/1, /*IsUniformStride=*/1,
-              /*IsKnownStride=*/0, 0};
-    }
-    static PointersChainInfo getKnownNonUniformStrided() {
-      return {/*IsSameBaseAddress=*/1, /*IsUniformStride=*/0,
+    static PointersChainInfo getKnownStride() {
+      return {/*IsSameBaseAddress=*/1, /*IsUnitStride=*/0,
               /*IsKnownStride=*/1, 0};
     }
-    static PointersChainInfo getNonUniformStrided() {
-      return {/*IsSameBaseAddress=*/1, /*IsUniformStride=*/0,
+    static PointersChainInfo getUnknownStride() {
+      return {/*IsSameBaseAddress=*/1, /*IsUnitStride=*/0,
               /*IsKnownStride=*/0, 0};
     }
   };
@@ -326,9 +320,11 @@ public:
 
   /// Estimate the cost of a chain of pointers (typically pointer operands of a
   /// chain of loads or stores within same block) operations set when lowered.
+  /// \p AccessTy is the type of the loads/stores that will ultimately use the
+  /// \p Ptrs.
   InstructionCost
   getPointersChainCost(ArrayRef<const Value *> Ptrs, const Value *Base,
-                       const PointersChainInfo &Info,
+                       const PointersChainInfo &Info, Type *AccessTy,
                        TargetCostKind CostKind = TTI::TCK_RecipThroughput
 
   ) const;
@@ -404,16 +400,10 @@ public:
   /// branches.
   bool hasBranchDivergence() const;
 
-  /// Return true if the target prefers to use GPU divergence analysis to
-  /// replace the legacy version.
-  bool useGPUDivergenceAnalysis() const;
-
   /// Returns whether V is a source of divergence.
   ///
   /// This function provides the target-dependent information for
-  /// the target-independent LegacyDivergenceAnalysis. LegacyDivergenceAnalysis
-  /// first builds the dependency graph, and then runs the reachability
-  /// algorithm starting with the sources of divergence.
+  /// the target-independent UniformityAnalysis.
   bool isSourceOfDivergence(const Value *V) const;
 
   // Returns true for the target specific
@@ -579,6 +569,8 @@ public:
     /// Don't allow loop unrolling to simulate more than this number of
     /// iterations when checking full unroll profitability
     unsigned MaxIterationsCountToAnalyze;
+    /// Don't disable runtime unroll for the loops which were vectorized.
+    bool UnrollVectorizedLoop = false;
   };
 
   /// Get target-customized preferences for the generic loop unrolling
@@ -1649,6 +1641,9 @@ public:
   /// false, but it shouldn't matter what it returns anyway.
   bool hasArmWideBranch(bool Thumb) const;
 
+  /// \return The maximum number of function arguments the target supports.
+  unsigned getMaxNumArgs() const;
+
   /// @}
 
 private:
@@ -1672,11 +1667,11 @@ public:
                                      TTI::TargetCostKind CostKind) = 0;
   virtual InstructionCost
   getPointersChainCost(ArrayRef<const Value *> Ptrs, const Value *Base,
-                       const TTI::PointersChainInfo &Info,
+                       const TTI::PointersChainInfo &Info, Type *AccessTy,
                        TTI::TargetCostKind CostKind) = 0;
-  virtual unsigned getInliningThresholdMultiplier() = 0;
+  virtual unsigned getInliningThresholdMultiplier() const = 0;
   virtual unsigned adjustInliningThreshold(const CallBase *CB) = 0;
-  virtual int getInlinerVectorBonusPercent() = 0;
+  virtual int getInlinerVectorBonusPercent() const = 0;
   virtual InstructionCost getMemcpyCost(const Instruction *I) = 0;
   virtual unsigned
   getEstimatedNumberOfCaseClusters(const SwitchInst &SI, unsigned &JTSize,
@@ -1687,7 +1682,6 @@ public:
                                              TargetCostKind CostKind) = 0;
   virtual BranchProbability getPredictableBranchThreshold() = 0;
   virtual bool hasBranchDivergence() = 0;
-  virtual bool useGPUDivergenceAnalysis() = 0;
   virtual bool isSourceOfDivergence(const Value *V) = 0;
   virtual bool isAlwaysUniform(const Value *V) = 0;
   virtual bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const = 0;
@@ -2010,6 +2004,7 @@ public:
   virtual VPLegalization
   getVPLegalizationStrategy(const VPIntrinsic &PI) const = 0;
   virtual bool hasArmWideBranch(bool Thumb) const = 0;
+  virtual unsigned getMaxNumArgs() const = 0;
 };
 
 template <typename T>
@@ -2033,16 +2028,17 @@ public:
   InstructionCost getPointersChainCost(ArrayRef<const Value *> Ptrs,
                                        const Value *Base,
                                        const PointersChainInfo &Info,
+                                       Type *AccessTy,
                                        TargetCostKind CostKind) override {
-    return Impl.getPointersChainCost(Ptrs, Base, Info, CostKind);
+    return Impl.getPointersChainCost(Ptrs, Base, Info, AccessTy, CostKind);
   }
-  unsigned getInliningThresholdMultiplier() override {
+  unsigned getInliningThresholdMultiplier() const override {
     return Impl.getInliningThresholdMultiplier();
   }
   unsigned adjustInliningThreshold(const CallBase *CB) override {
     return Impl.adjustInliningThreshold(CB);
   }
-  int getInlinerVectorBonusPercent() override {
+  int getInlinerVectorBonusPercent() const override {
     return Impl.getInlinerVectorBonusPercent();
   }
   InstructionCost getMemcpyCost(const Instruction *I) override {
@@ -2057,9 +2053,6 @@ public:
     return Impl.getPredictableBranchThreshold();
   }
   bool hasBranchDivergence() override { return Impl.hasBranchDivergence(); }
-  bool useGPUDivergenceAnalysis() override {
-    return Impl.useGPUDivergenceAnalysis();
-  }
   bool isSourceOfDivergence(const Value *V) override {
     return Impl.isSourceOfDivergence(V);
   }
@@ -2703,6 +2696,10 @@ public:
 
   bool hasArmWideBranch(bool Thumb) const override {
     return Impl.hasArmWideBranch(Thumb);
+  }
+
+  unsigned getMaxNumArgs() const override {
+    return Impl.getMaxNumArgs();
   }
 };
 

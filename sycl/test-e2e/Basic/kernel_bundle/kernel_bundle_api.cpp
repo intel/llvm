@@ -1,8 +1,9 @@
+// REQUIRES: cpu
 // Use of per-kernel device code split and linking the bundle with all images
 // involved leads to multiple definition of AssertHappened structure due each
 // device image is statically linked against fallback libdevice.
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 //
 // UNSUPPORTED: hip
 
@@ -270,7 +271,7 @@ int main() {
     });
 
     {
-      auto HostAcc = Buf.get_access<sycl::access::mode::write>();
+      sycl::host_accessor HostAcc(Buf, sycl::write_only);
       assert(HostAcc[0] == 42);
     }
   }

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -34,7 +35,7 @@ enum class ParameterKind : uint32_t {
 };
 
 /// Different binary formats supported as input to the JIT compiler.
-enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV };
+enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX };
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.

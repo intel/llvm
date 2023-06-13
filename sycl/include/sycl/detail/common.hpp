@@ -30,12 +30,12 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
+using EnableIfOutputPointerT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ std::is_pointer_v<DataT>>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = detail::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
+using EnableIfOutputIteratorT = std::enable_if_t<
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT>>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()
@@ -104,10 +104,12 @@ private:
 
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
 #define _CODELOCONLYPARAM(a)                                                   \
-  const detail::code_location a = detail::code_location::current()
+  const ::sycl::detail::code_location a =                                      \
+      ::sycl::detail::code_location::current()
 #define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAMDEF(a) , const detail::code_location a
+  , const ::sycl::detail::code_location a =                                    \
+        ::sycl::detail::code_location::current()
+#define _CODELOCPARAMDEF(a) , const ::sycl::detail::code_location a
 
 #define _CODELOCARG(a)
 #define _CODELOCFW(a) , a
@@ -115,7 +117,7 @@ private:
 #define _CODELOCONLYPARAM(a)
 #define _CODELOCPARAM(a)
 
-#define _CODELOCARG(a) const detail::code_location a = {}
+#define _CODELOCARG(a) const ::sycl::detail::code_location a = {}
 #define _CODELOCFW(a)
 #endif
 
@@ -306,7 +308,7 @@ template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
 // must make sure the returned pointer is not captured in a field or otherwise
 // stored - i.e. must live only as on-stack value.
 template <class T>
-typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
+typename std::add_pointer_t<typename decltype(T::impl)::element_type>
 getRawSyclObjImpl(const T &SyclObject) {
   return SyclObject.impl.get();
 }

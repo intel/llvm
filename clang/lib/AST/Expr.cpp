@@ -718,13 +718,14 @@ std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context,
 }
 
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
-                               StringLiteral *SL)
+                               bool IsTransparent, StringLiteral *SL)
     : Expr(PredefinedExprClass, FNTy, VK_LValue, OK_Ordinary) {
   PredefinedExprBits.Kind = IK;
   assert((getIdentKind() == IK) &&
          "IdentKind do not fit in PredefinedExprBitfields!");
   bool HasFunctionName = SL != nullptr;
   PredefinedExprBits.HasFunctionName = HasFunctionName;
+  PredefinedExprBits.IsTransparent = IsTransparent;
   PredefinedExprBits.Loc = L;
   if (HasFunctionName)
     setFunctionName(SL);
@@ -738,11 +739,11 @@ PredefinedExpr::PredefinedExpr(EmptyShell Empty, bool HasFunctionName)
 
 PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
                                        QualType FNTy, IdentKind IK,
-                                       StringLiteral *SL) {
+                                       bool IsTransparent, StringLiteral *SL) {
   bool HasFunctionName = SL != nullptr;
   void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *>(HasFunctionName),
                            alignof(PredefinedExpr));
-  return new (Mem) PredefinedExpr(L, FNTy, IK, SL);
+  return new (Mem) PredefinedExpr(L, FNTy, IK, IsTransparent, SL);
 }
 
 PredefinedExpr *PredefinedExpr::CreateEmpty(const ASTContext &Ctx,
@@ -1584,19 +1585,17 @@ unsigned CallExpr::offsetToTrailingObjects(StmtClass SC) {
 Decl *Expr::getReferencedDeclOfCallee() {
   Expr *CEE = IgnoreParenImpCasts();
 
-  while (SubstNonTypeTemplateParmExpr *NTTP =
-             dyn_cast<SubstNonTypeTemplateParmExpr>(CEE)) {
+  while (auto *NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(CEE))
     CEE = NTTP->getReplacement()->IgnoreParenImpCasts();
-  }
 
   // If we're calling a dereference, look at the pointer instead.
   while (true) {
-    if (BinaryOperator *BO = dyn_cast<BinaryOperator>(CEE)) {
+    if (auto *BO = dyn_cast<BinaryOperator>(CEE)) {
       if (BO->isPtrMemOp()) {
         CEE = BO->getRHS()->IgnoreParenImpCasts();
         continue;
       }
-    } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(CEE)) {
+    } else if (auto *UO = dyn_cast<UnaryOperator>(CEE)) {
       if (UO->getOpcode() == UO_Deref || UO->getOpcode() == UO_AddrOf ||
           UO->getOpcode() == UO_Plus) {
         CEE = UO->getSubExpr()->IgnoreParenImpCasts();
@@ -1606,9 +1605,9 @@ Decl *Expr::getReferencedDeclOfCallee() {
     break;
   }
 
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(CEE))
+  if (auto *DRE = dyn_cast<DeclRefExpr>(CEE))
     return DRE->getDecl();
-  if (MemberExpr *ME = dyn_cast<MemberExpr>(CEE))
+  if (auto *ME = dyn_cast<MemberExpr>(CEE))
     return ME->getMemberDecl();
   if (auto *BE = dyn_cast<BlockExpr>(CEE))
     return BE->getBlockDecl();
@@ -1618,7 +1617,7 @@ Decl *Expr::getReferencedDeclOfCallee() {
 
 /// If this is a call to a builtin, return the builtin ID. If not, return 0.
 unsigned CallExpr::getBuiltinCallee() const {
-  auto *FDecl = getDirectCallee();
+  const auto *FDecl = getDirectCallee();
   return FDecl ? FDecl->getBuiltinID() : 0;
 }
 
@@ -1673,8 +1672,8 @@ const Attr *CallExpr::getUnusedResultAttr(const ASTContext &Ctx) const {
 }
 
 SourceLocation CallExpr::getBeginLoc() const {
-  if (isa<CXXOperatorCallExpr>(this))
-    return cast<CXXOperatorCallExpr>(this)->getBeginLoc();
+  if (const auto *OCE = dyn_cast<CXXOperatorCallExpr>(this))
+    return OCE->getBeginLoc();
 
   SourceLocation begin = getCallee()->getBeginLoc();
   if (begin.isInvalid() && getNumArgs() > 0 && getArg(0))
@@ -1682,8 +1681,8 @@ SourceLocation CallExpr::getBeginLoc() const {
   return begin;
 }
 SourceLocation CallExpr::getEndLoc() const {
-  if (isa<CXXOperatorCallExpr>(this))
-    return cast<CXXOperatorCallExpr>(this)->getEndLoc();
+  if (const auto *OCE = dyn_cast<CXXOperatorCallExpr>(this))
+    return OCE->getEndLoc();
 
   SourceLocation end = getRParenLoc();
   if (end.isInvalid() && getNumArgs() > 0 && getArg(getNumArgs() - 1))
@@ -2008,7 +2007,7 @@ const char *CastExpr::getCastKindName(CastKind CK) {
 namespace {
 // Skip over implicit nodes produced as part of semantic analysis.
 // Designed for use with IgnoreExprNodes.
-Expr *ignoreImplicitSemaNodes(Expr *E) {
+static Expr *ignoreImplicitSemaNodes(Expr *E) {
   if (auto *Materialize = dyn_cast<MaterializeTemporaryExpr>(E))
     return Materialize->getSubExpr();
 
@@ -2253,12 +2252,13 @@ OverloadedOperatorKind BinaryOperator::getOverloadedOperator(Opcode Opc) {
 
 bool BinaryOperator::isNullPointerArithmeticExtension(ASTContext &Ctx,
                                                       Opcode Opc,
-                                                      Expr *LHS, Expr *RHS) {
+                                                      const Expr *LHS,
+                                                      const Expr *RHS) {
   if (Opc != BO_Add)
     return false;
 
   // Check that we have one pointer and one integer operand.
-  Expr *PExp;
+  const Expr *PExp;
   if (LHS->getType()->isPointerType()) {
     if (!RHS->getType()->isIntegerType())
       return false;
@@ -2302,6 +2302,8 @@ StringRef SourceLocExpr::getBuiltinStr() const {
     return "__builtin_FILE_NAME";
   case Function:
     return "__builtin_FUNCTION";
+  case FuncSig:
+    return "__builtin_FUNCSIG";
   case Line:
     return "__builtin_LINE";
   case Column:
@@ -2352,11 +2354,14 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
                                                  Ctx.getTargetInfo());
     return MakeStringLiteral(Path);
   }
-  case SourceLocExpr::Function: {
+  case SourceLocExpr::Function:
+  case SourceLocExpr::FuncSig: {
     const auto *CurDecl = dyn_cast<Decl>(Context);
+    const auto Kind = getIdentKind() == SourceLocExpr::Function
+                          ? PredefinedExpr::Function
+                          : PredefinedExpr::FuncSig;
     return MakeStringLiteral(
-        CurDecl ? PredefinedExpr::ComputeName(PredefinedExpr::Function, CurDecl)
-                : std::string(""));
+        CurDecl ? PredefinedExpr::ComputeName(Kind, CurDecl) : std::string(""));
   }
   case SourceLocExpr::Line:
   case SourceLocExpr::Column: {
@@ -3482,6 +3487,7 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
         CE->getCastKind() == CK_ConstructorConversion ||
         CE->getCastKind() == CK_NonAtomicToAtomic ||
         CE->getCastKind() == CK_AtomicToNonAtomic ||
+        CE->getCastKind() == CK_NullToPointer ||
         CE->getCastKind() == CK_IntToOCLSampler)
       return CE->getSubExpr()->isConstantInitializer(Ctx, false, Culprit);
 
@@ -4380,18 +4386,48 @@ GenericSelectionExpr::GenericSelectionExpr(
            AssocExprs[ResultIndex]->getValueKind(),
            AssocExprs[ResultIndex]->getObjectKind()),
       NumAssocs(AssocExprs.size()), ResultIndex(ResultIndex),
-      DefaultLoc(DefaultLoc), RParenLoc(RParenLoc) {
+      IsExprPredicate(true), DefaultLoc(DefaultLoc), RParenLoc(RParenLoc) {
   assert(AssocTypes.size() == AssocExprs.size() &&
          "Must have the same number of association expressions"
          " and TypeSourceInfo!");
   assert(ResultIndex < NumAssocs && "ResultIndex is out-of-bounds!");
 
   GenericSelectionExprBits.GenericLoc = GenericLoc;
-  getTrailingObjects<Stmt *>()[ControllingIndex] = ControllingExpr;
+  getTrailingObjects<Stmt *>()[getIndexOfControllingExpression()] =
+      ControllingExpr;
   std::copy(AssocExprs.begin(), AssocExprs.end(),
-            getTrailingObjects<Stmt *>() + AssocExprStartIndex);
+            getTrailingObjects<Stmt *>() + getIndexOfStartOfAssociatedExprs());
   std::copy(AssocTypes.begin(), AssocTypes.end(),
-            getTrailingObjects<TypeSourceInfo *>());
+            getTrailingObjects<TypeSourceInfo *>() +
+                getIndexOfStartOfAssociatedTypes());
+
+  setDependence(computeDependence(this, ContainsUnexpandedParameterPack));
+}
+
+GenericSelectionExpr::GenericSelectionExpr(
+    const ASTContext &, SourceLocation GenericLoc,
+    TypeSourceInfo *ControllingType, ArrayRef<TypeSourceInfo *> AssocTypes,
+    ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+    SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack,
+    unsigned ResultIndex)
+    : Expr(GenericSelectionExprClass, AssocExprs[ResultIndex]->getType(),
+           AssocExprs[ResultIndex]->getValueKind(),
+           AssocExprs[ResultIndex]->getObjectKind()),
+      NumAssocs(AssocExprs.size()), ResultIndex(ResultIndex),
+      IsExprPredicate(false), DefaultLoc(DefaultLoc), RParenLoc(RParenLoc) {
+  assert(AssocTypes.size() == AssocExprs.size() &&
+         "Must have the same number of association expressions"
+         " and TypeSourceInfo!");
+  assert(ResultIndex < NumAssocs && "ResultIndex is out-of-bounds!");
+
+  GenericSelectionExprBits.GenericLoc = GenericLoc;
+  getTrailingObjects<TypeSourceInfo *>()[getIndexOfControllingType()] =
+      ControllingType;
+  std::copy(AssocExprs.begin(), AssocExprs.end(),
+            getTrailingObjects<Stmt *>() + getIndexOfStartOfAssociatedExprs());
+  std::copy(AssocTypes.begin(), AssocTypes.end(),
+            getTrailingObjects<TypeSourceInfo *>() +
+                getIndexOfStartOfAssociatedTypes());
 
   setDependence(computeDependence(this, ContainsUnexpandedParameterPack));
 }
@@ -4404,17 +4440,44 @@ GenericSelectionExpr::GenericSelectionExpr(
     : Expr(GenericSelectionExprClass, Context.DependentTy, VK_PRValue,
            OK_Ordinary),
       NumAssocs(AssocExprs.size()), ResultIndex(ResultDependentIndex),
-      DefaultLoc(DefaultLoc), RParenLoc(RParenLoc) {
+      IsExprPredicate(true), DefaultLoc(DefaultLoc), RParenLoc(RParenLoc) {
   assert(AssocTypes.size() == AssocExprs.size() &&
          "Must have the same number of association expressions"
          " and TypeSourceInfo!");
 
   GenericSelectionExprBits.GenericLoc = GenericLoc;
-  getTrailingObjects<Stmt *>()[ControllingIndex] = ControllingExpr;
+  getTrailingObjects<Stmt *>()[getIndexOfControllingExpression()] =
+      ControllingExpr;
   std::copy(AssocExprs.begin(), AssocExprs.end(),
-            getTrailingObjects<Stmt *>() + AssocExprStartIndex);
+            getTrailingObjects<Stmt *>() + getIndexOfStartOfAssociatedExprs());
   std::copy(AssocTypes.begin(), AssocTypes.end(),
-            getTrailingObjects<TypeSourceInfo *>());
+            getTrailingObjects<TypeSourceInfo *>() +
+                getIndexOfStartOfAssociatedTypes());
+
+  setDependence(computeDependence(this, ContainsUnexpandedParameterPack));
+}
+
+GenericSelectionExpr::GenericSelectionExpr(
+    const ASTContext &Context, SourceLocation GenericLoc,
+    TypeSourceInfo *ControllingType, ArrayRef<TypeSourceInfo *> AssocTypes,
+    ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+    SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack)
+    : Expr(GenericSelectionExprClass, Context.DependentTy, VK_PRValue,
+           OK_Ordinary),
+      NumAssocs(AssocExprs.size()), ResultIndex(ResultDependentIndex),
+      IsExprPredicate(false), DefaultLoc(DefaultLoc), RParenLoc(RParenLoc) {
+  assert(AssocTypes.size() == AssocExprs.size() &&
+         "Must have the same number of association expressions"
+         " and TypeSourceInfo!");
+
+  GenericSelectionExprBits.GenericLoc = GenericLoc;
+  getTrailingObjects<TypeSourceInfo *>()[getIndexOfControllingType()] =
+      ControllingType;
+  std::copy(AssocExprs.begin(), AssocExprs.end(),
+            getTrailingObjects<Stmt *>() + getIndexOfStartOfAssociatedExprs());
+  std::copy(AssocTypes.begin(), AssocTypes.end(),
+            getTrailingObjects<TypeSourceInfo *>() +
+                getIndexOfStartOfAssociatedTypes());
 
   setDependence(computeDependence(this, ContainsUnexpandedParameterPack));
 }
@@ -4450,6 +4513,35 @@ GenericSelectionExpr *GenericSelectionExpr::Create(
       RParenLoc, ContainsUnexpandedParameterPack);
 }
 
+GenericSelectionExpr *GenericSelectionExpr::Create(
+    const ASTContext &Context, SourceLocation GenericLoc,
+    TypeSourceInfo *ControllingType, ArrayRef<TypeSourceInfo *> AssocTypes,
+    ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+    SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack,
+    unsigned ResultIndex) {
+  unsigned NumAssocs = AssocExprs.size();
+  void *Mem = Context.Allocate(
+      totalSizeToAlloc<Stmt *, TypeSourceInfo *>(1 + NumAssocs, NumAssocs),
+      alignof(GenericSelectionExpr));
+  return new (Mem) GenericSelectionExpr(
+      Context, GenericLoc, ControllingType, AssocTypes, AssocExprs, DefaultLoc,
+      RParenLoc, ContainsUnexpandedParameterPack, ResultIndex);
+}
+
+GenericSelectionExpr *GenericSelectionExpr::Create(
+    const ASTContext &Context, SourceLocation GenericLoc,
+    TypeSourceInfo *ControllingType, ArrayRef<TypeSourceInfo *> AssocTypes,
+    ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+    SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack) {
+  unsigned NumAssocs = AssocExprs.size();
+  void *Mem = Context.Allocate(
+      totalSizeToAlloc<Stmt *, TypeSourceInfo *>(1 + NumAssocs, NumAssocs),
+      alignof(GenericSelectionExpr));
+  return new (Mem) GenericSelectionExpr(
+      Context, GenericLoc, ControllingType, AssocTypes, AssocExprs, DefaultLoc,
+      RParenLoc, ContainsUnexpandedParameterPack);
+}
+
 GenericSelectionExpr *
 GenericSelectionExpr::CreateEmpty(const ASTContext &Context,
                                   unsigned NumAssocs) {
@@ -4467,7 +4559,7 @@ const IdentifierInfo *DesignatedInitExpr::Designator::getFieldName() const {
   assert(isFieldDesignator() && "Only valid on a field designator");
   if (FieldInfo.NameOrField & 0x01)
     return reinterpret_cast<IdentifierInfo *>(FieldInfo.NameOrField & ~0x01);
-  return getField()->getIdentifier();
+  return getFieldDecl()->getIdentifier();
 }
 
 DesignatedInitExpr::DesignatedInitExpr(const ASTContext &C, QualType Ty,
@@ -4911,6 +5003,7 @@ unsigned AtomicExpr::getNumSubExprs(AtomicOp Op) {
 
   case AO__hip_atomic_exchange:
   case AO__hip_atomic_fetch_add:
+  case AO__hip_atomic_fetch_sub:
   case AO__hip_atomic_fetch_and:
   case AO__hip_atomic_fetch_or:
   case AO__hip_atomic_fetch_xor:

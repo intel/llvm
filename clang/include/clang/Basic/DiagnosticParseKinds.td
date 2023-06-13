@@ -157,6 +157,9 @@ def err_duplicate_default_assoc : Error<
   "duplicate default generic association">;
 def note_previous_default_assoc : Note<
   "previous default generic association is here">;
+def ext_generic_with_type_arg : Extension<
+  "passing a type argument as the first operand to '_Generic' is a Clang "
+  "extension">, InGroup<DiagGroup<"generic-type-extension">>;
 
 def ext_c99_feature : Extension<
   "'%0' is a C99 extension">, InGroup<C99>;
@@ -300,14 +303,14 @@ def ext_c_label_end_of_compound_statement : ExtWarn<
   "label at end of compound statement is a C2x extension">,
    InGroup<C2x>;
 def ext_cxx_label_end_of_compound_statement : ExtWarn<
-  "label at end of compound statement is a C++2b extension">,
-   InGroup<CXX2b>;
+  "label at end of compound statement is a C++23 extension">,
+   InGroup<CXX23>;
 def warn_c2x_compat_label_end_of_compound_statement : Warning<
   "label at end of compound statement is incompatible with C standards before C2x">,
   InGroup<CPre2xCompat>, DefaultIgnore;
 def warn_cxx20_compat_label_end_of_compound_statement : Warning<
-  "label at end of compound statement is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "label at end of compound statement is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def err_address_of_label_outside_fn : Error<
   "use of address-of-label extension outside of a function body">;
 def err_asm_operand_wide_string_literal : Error<
@@ -566,11 +569,11 @@ def err_expected_init_in_condition_lparen : Error<
 def err_extraneous_rparen_in_condition : Error<
   "extraneous ')' after condition, expected a statement">;
 def ext_alias_in_init_statement : ExtWarn<
-  "alias declaration in this context is a C++2b extension">,
-  InGroup<CXX2b>;
+  "alias declaration in this context is a C++23 extension">,
+  InGroup<CXX23>;
 def warn_cxx20_alias_in_init_statement  : Warning<
-  "alias declaration in this context is incompatible with C++ standards before C++2b">,
-  DefaultIgnore, InGroup<CXXPre2bCompat>;
+  "alias declaration in this context is incompatible with C++ standards before C++23">,
+  DefaultIgnore, InGroup<CXXPre23Compat>;
 def warn_dangling_else : Warning<
   "add explicit braces to avoid dangling else">,
   InGroup<DanglingElse>;
@@ -652,11 +655,11 @@ def warn_cxx14_compat_constexpr_if : Warning<
   "constexpr if is incompatible with C++ standards before C++17">,
   DefaultIgnore, InGroup<CXXPre17Compat>;
 def ext_consteval_if : ExtWarn<
-  "consteval if is a C++2b extension">,
-   InGroup<CXX2b>;
+  "consteval if is a C++23 extension">,
+   InGroup<CXX23>;
 def warn_cxx20_compat_consteval_if : Warning<
-  "consteval if is incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "consteval if is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 
 def ext_init_statement : ExtWarn<
   "'%select{if|switch}0' initialization statements are a C++17 extension">,
@@ -733,10 +736,12 @@ def ext_using_attribute_ns : ExtWarn<
 def err_using_attribute_ns_conflict : Error<
   "attribute with scope specifier cannot follow default scope specifier">;
 def err_attributes_not_allowed : Error<"an attribute list cannot appear here">;
+def err_keyword_not_allowed : Error<"%0 cannot appear here">;
 def ext_cxx11_attr_placement : ExtWarn<
-  "ISO C++ does not allow an attribute list to appear here">,
+  "ISO C++ does not allow %select{an attribute list|%0}1 to appear here">,
   InGroup<DiagGroup<"cxx-attribute-extension">>;
 def err_attributes_misplaced : Error<"misplaced attributes; expected attributes here">;
+def err_keyword_misplaced : Error<"misplaced %0; expected %0 here">;
 def err_l_square_l_square_not_attribute : Error<
   "C++11 only allows consecutive left square brackets when "
   "introducing an attribute">;
@@ -1014,14 +1019,15 @@ def err_lambda_capture_multiple_ellipses : Error<
 def err_capture_default_first : Error<
   "capture default must be first">;
 def ext_decl_attrs_on_lambda : ExtWarn<
-  "an attribute specifier sequence in this position is a C++2b extension">,
-  InGroup<CXX2b>;
+  "%select{an attribute specifier sequence|%0}1 in this position "
+  "is a C++23 extension">, InGroup<CXX23>;
 def ext_lambda_missing_parens : ExtWarn<
-  "lambda without a parameter clause is a C++2b extension">,
-  InGroup<CXX2b>;
+  "lambda without a parameter clause is a C++23 extension">,
+  InGroup<CXX23>;
 def warn_cxx20_compat_decl_attrs_on_lambda : Warning<
-  "an attribute specifier sequence in this position is incompatible with C++ "
-  "standards before C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "%select{an attribute specifier sequence|%1}0 in this position "
+  "is incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 
 // C++17 lambda expressions
 def err_expected_star_this_capture : Error<
@@ -1044,12 +1050,12 @@ def warn_cxx17_compat_lambda_template_parameter_list: Warning<
 def err_lambda_template_parameter_list_empty : Error<
   "lambda template parameter list cannot be empty">;
 
-// C++2b static lambdas
+// C++23 static lambdas
 def err_static_lambda: ExtWarn<
-  "static lambdas are a C++2b extension">, InGroup<CXX2b>;
+  "static lambdas are a C++23 extension">, InGroup<CXX23>;
 def warn_cxx20_compat_static_lambda : Warning<
-  "static lambdas are incompatible with C++ standards before C++2b">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
+  "static lambdas are incompatible with C++ standards before C++23">,
+  InGroup<CXXPre23Compat>, DefaultIgnore;
 def err_static_mutable_lambda : Error<
   "lambda cannot be both mutable and static">;
 def err_static_lambda_captures : Error<
@@ -1582,8 +1588,12 @@ def err_module_expected_ident : Error<
   "expected a module name after '%select{module|import}0'">;
 def err_attribute_not_module_attr : Error<
   "%0 attribute cannot be applied to a module">;
+def err_keyword_not_module_attr : Error<
+  "%0 cannot be applied to a module">;
 def err_attribute_not_import_attr : Error<
   "%0 attribute cannot be applied to a module import">;
+def err_keyword_not_import_attr : Error<
+  "%0 cannot be applied to a module import">;
 def err_module_expected_semi : Error<
   "expected ';' after module name">;
 def err_global_module_introducer_not_at_start : Error<

@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -28,7 +29,6 @@
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/MachineValueType.h"
 #include <optional>
 #include <utility>
 
@@ -77,10 +77,6 @@ namespace llvm {
     /// unsigned integers with round toward zero.
     FCTIDUZ,
     FCTIWUZ,
-
-    /// Floating-point-to-integer conversion instructions
-    FP_TO_UINT_IN_VSR,
-    FP_TO_SINT_IN_VSR,
 
     /// VEXTS, ByteWidth - takes an input in VSFRC and produces an output in
     /// VSFRC that is sign-extended from ByteWidth to a 64-byte integer.

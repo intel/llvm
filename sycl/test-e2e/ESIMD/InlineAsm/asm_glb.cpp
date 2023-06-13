@@ -5,10 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
@@ -64,8 +62,8 @@ int main(void) {
             vb.copy_from(PB, offset);
 #ifdef __SYCL_DEVICE_ONLY__
             __asm__("add (M1, 16) %0 %1 %2"
-                    : "=rw"(vc.data_ref())
-                    : "rw"(va.data()), "rw"(vb.data()));
+                    : "=r"(vc.data_ref())
+                    : "r"(va.data()), "r"(vb.data()));
 #else
                     vc = va+vb;
 #endif

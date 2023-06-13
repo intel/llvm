@@ -67,7 +67,7 @@ class DerivedTypeSpec;
 namespace Fortran::evaluate {
 struct GenericExprWrapper; // forward definition, wraps Expr<SomeType>
 struct GenericAssignmentWrapper; // forward definition, represent assignment
-class ProcedureRef; // forward definition, represents a CALL statement
+class ProcedureRef; // forward definition, represents a CALL or function ref
 } // namespace Fortran::evaluate
 
 // Most non-template classes in this file use these default definitions
@@ -253,6 +253,7 @@ struct StmtFunctionStmt; // R1544
 // Directives, extensions, and deprecated statements
 struct CompilerDirective;
 struct BasedPointerStmt;
+struct CUDAAttributesStmt;
 struct StructureDef;
 struct ArithmeticIfStmt;
 struct AssignStmt;
@@ -264,6 +265,7 @@ struct OpenACCDeclarativeConstruct;
 struct OpenMPConstruct;
 struct OpenMPDeclarativeConstruct;
 struct OmpEndLoopDirective;
+struct CUFKernelDoConstruct;
 
 // Cooked character stream locations
 using Location = const char *;
@@ -361,6 +363,7 @@ EMPTY_CLASS(ErrorRecovery);
 //        pointer-stmt | protected-stmt | save-stmt | target-stmt |
 //        volatile-stmt | value-stmt | common-stmt | equivalence-stmt
 // Extension: (Cray) based POINTER statement
+// Extension: CUDA data attribute statement
 struct OtherSpecificationStmt {
   UNION_CLASS_BOILERPLATE(OtherSpecificationStmt);
   std::variant<common::Indirection<AccessStmt>,
@@ -374,7 +377,8 @@ struct OtherSpecificationStmt {
       common::Indirection<SaveStmt>, common::Indirection<TargetStmt>,
       common::Indirection<ValueStmt>, common::Indirection<VolatileStmt>,
       common::Indirection<CommonStmt>, common::Indirection<EquivalenceStmt>,
-      common::Indirection<BasedPointerStmt>>
+      common::Indirection<BasedPointerStmt>,
+      common::Indirection<CUDAAttributesStmt>>
       u;
 };
 
@@ -507,7 +511,8 @@ struct ActionStmt {
 //        action-stmt | associate-construct | block-construct |
 //        case-construct | change-team-construct | critical-construct |
 //        do-construct | if-construct | select-rank-construct |
-//        select-type-construct | where-construct | forall-construct
+//        select-type-construct | where-construct | forall-construct |
+// (CUDA) CUF-kernel-do-construct
 struct ExecutableConstruct {
   UNION_CLASS_BOILERPLATE(ExecutableConstruct);
   std::variant<Statement<ActionStmt>, common::Indirection<AssociateConstruct>,
@@ -524,7 +529,8 @@ struct ExecutableConstruct {
       common::Indirection<OpenACCConstruct>,
       common::Indirection<AccEndCombinedDirective>,
       common::Indirection<OpenMPConstruct>,
-      common::Indirection<OmpEndLoopDirective>>
+      common::Indirection<OmpEndLoopDirective>,
+      common::Indirection<CUFKernelDoConstruct>>
       u;
 };
 
@@ -708,6 +714,21 @@ struct IntrinsicTypeSpec {
       u;
 };
 
+// Extension: Vector type
+WRAPPER_CLASS(UnsignedTypeSpec, std::optional<KindSelector>);
+struct VectorElementType {
+  UNION_CLASS_BOILERPLATE(VectorElementType);
+  std::variant<IntegerTypeSpec, IntrinsicTypeSpec::Real, UnsignedTypeSpec> u;
+};
+WRAPPER_CLASS(IntrinsicVectorTypeSpec, VectorElementType);
+struct VectorTypeSpec {
+  UNION_CLASS_BOILERPLATE(VectorTypeSpec);
+  EMPTY_CLASS(PairVectorTypeSpec);
+  EMPTY_CLASS(QuadVectorTypeSpec);
+  std::variant<IntrinsicVectorTypeSpec, PairVectorTypeSpec, QuadVectorTypeSpec>
+      u;
+};
+
 // R755 type-param-spec -> [keyword =] type-param-value
 struct TypeParamSpec {
   TUPLE_CLASS_BOILERPLATE(TypeParamSpec);
@@ -748,7 +769,9 @@ struct DeclarationTypeSpec {
   EMPTY_CLASS(ClassStar);
   EMPTY_CLASS(TypeStar);
   WRAPPER_CLASS(Record, Name);
-  std::variant<IntrinsicTypeSpec, Type, Class, ClassStar, TypeStar, Record> u;
+  std::variant<IntrinsicTypeSpec, Type, Class, ClassStar, TypeStar, Record,
+      VectorTypeSpec>
+      u;
 };
 
 // R709 kind-param -> digit-string | scalar-int-constant-name
@@ -960,14 +983,15 @@ struct ComponentArraySpec {
 // R738 component-attr-spec ->
 //        access-spec | ALLOCATABLE |
 //        CODIMENSION lbracket coarray-spec rbracket |
-//        CONTIGUOUS | DIMENSION ( component-array-spec ) | POINTER
+//        CONTIGUOUS | DIMENSION ( component-array-spec ) | POINTER |
+// (CUDA) CONSTANT | DEVICE | MANAGED | PINNED | SHARED | TEXTURE
 EMPTY_CLASS(Allocatable);
 EMPTY_CLASS(Pointer);
 EMPTY_CLASS(Contiguous);
 struct ComponentAttrSpec {
   UNION_CLASS_BOILERPLATE(ComponentAttrSpec);
   std::variant<AccessSpec, Allocatable, CoarraySpec, Contiguous,
-      ComponentArraySpec, Pointer, ErrorRecovery>
+      ComponentArraySpec, Pointer, common::CUDADataAttr, ErrorRecovery>
       u;
 };
 
@@ -1320,7 +1344,8 @@ struct IntentSpec {
 //        CODIMENSION lbracket coarray-spec rbracket | CONTIGUOUS |
 //        DIMENSION ( array-spec ) | EXTERNAL | INTENT ( intent-spec ) |
 //        INTRINSIC | language-binding-spec | OPTIONAL | PARAMETER | POINTER |
-//        PROTECTED | SAVE | TARGET | VALUE | VOLATILE
+//        PROTECTED | SAVE | TARGET | VALUE | VOLATILE |
+// (CUDA) CONSTANT | DEVICE | MANAGED | PINNED | SHARED | TEXTURE
 EMPTY_CLASS(Asynchronous);
 EMPTY_CLASS(External);
 EMPTY_CLASS(Intrinsic);
@@ -1335,7 +1360,8 @@ struct AttrSpec {
   UNION_CLASS_BOILERPLATE(AttrSpec);
   std::variant<AccessSpec, Allocatable, Asynchronous, CoarraySpec, Contiguous,
       ArraySpec, External, IntentSpec, Intrinsic, LanguageBindingSpec, Optional,
-      Parameter, Pointer, Protected, Save, Target, Value, Volatile>
+      Parameter, Pointer, Protected, Save, Target, Value, Volatile,
+      common::CUDADataAttr>
       u;
 };
 
@@ -1909,13 +1935,17 @@ struct StatOrErrmsg {
 
 // R928 alloc-opt ->
 //        ERRMSG = errmsg-variable | MOLD = source-expr |
-//        SOURCE = source-expr | STAT = stat-variable
+//        SOURCE = source-expr | STAT = stat-variable |
+// (CUDA) STREAM = scalar-int-expr
+//        PINNED = scalar-logical-variable
 // R931 source-expr -> expr
 struct AllocOpt {
   UNION_CLASS_BOILERPLATE(AllocOpt);
   WRAPPER_CLASS(Mold, common::Indirection<Expr>);
   WRAPPER_CLASS(Source, common::Indirection<Expr>);
-  std::variant<Mold, Source, StatOrErrmsg> u;
+  WRAPPER_CLASS(Stream, common::Indirection<ScalarIntExpr>);
+  WRAPPER_CLASS(Pinned, common::Indirection<ScalarLogicalVariable>);
+  std::variant<Mold, Source, StatOrErrmsg, Stream, Pinned> u;
 };
 
 // R927 allocate-stmt ->
@@ -3016,7 +3046,9 @@ struct ProcedureDeclarationStmt {
 
 // R1527 prefix-spec ->
 //         declaration-type-spec | ELEMENTAL | IMPURE | MODULE |
-//         NON_RECURSIVE | PURE | RECURSIVE
+//         NON_RECURSIVE | PURE | RECURSIVE |
+// (CUDA)  ATTRIBUTES ( (DEVICE | GLOBAL | GRID_GLOBAL | HOST)... )
+//         LAUNCH_BOUNDS(expr-list) | CLUSTER_DIMS(expr-list)
 struct PrefixSpec {
   UNION_CLASS_BOILERPLATE(PrefixSpec);
   EMPTY_CLASS(Elemental);
@@ -3025,8 +3057,11 @@ struct PrefixSpec {
   EMPTY_CLASS(Non_Recursive);
   EMPTY_CLASS(Pure);
   EMPTY_CLASS(Recursive);
+  WRAPPER_CLASS(Attributes, std::list<common::CUDASubprogramAttrs>);
+  WRAPPER_CLASS(Launch_Bounds, std::list<ScalarIntConstantExpr>);
+  WRAPPER_CLASS(Cluster_Dims, std::list<ScalarIntConstantExpr>);
   std::variant<DeclarationTypeSpec, Elemental, Impure, Module, Non_Recursive,
-      Pure, Recursive>
+      Pure, Recursive, Attributes, Launch_Bounds, Cluster_Dims>
       u;
 };
 
@@ -3155,23 +3190,39 @@ struct ActualArgSpec {
   std::tuple<std::optional<Keyword>, ActualArg> t;
 };
 
-// R1520 function-reference -> procedure-designator ( [actual-arg-spec-list] )
+// R1520 function-reference -> procedure-designator
+//         ( [actual-arg-spec-list] )
 struct Call {
   TUPLE_CLASS_BOILERPLATE(Call);
-  CharBlock source;
   std::tuple<ProcedureDesignator, std::list<ActualArgSpec>> t;
 };
 
 struct FunctionReference {
   WRAPPER_CLASS_BOILERPLATE(FunctionReference, Call);
+  CharBlock source;
   Designator ConvertToArrayElementRef();
   StructureConstructor ConvertToStructureConstructor(
       const semantics::DerivedTypeSpec &);
 };
 
-// R1521 call-stmt -> CALL procedure-designator [( [actual-arg-spec-list] )]
+// R1521 call-stmt -> CALL procedure-designator [ chevrons ]
+//         [( [actual-arg-spec-list] )]
+// (CUDA) chevrons -> <<< scalar-expr, scalar-expr [,
+//          scalar-int-expr [, scalar-int-expr ] ] >>>
 struct CallStmt {
-  WRAPPER_CLASS_BOILERPLATE(CallStmt, Call);
+  BOILERPLATE(CallStmt);
+  struct Chevrons {
+    TUPLE_CLASS_BOILERPLATE(Chevrons);
+    std::tuple<ScalarExpr, ScalarExpr, std::optional<ScalarIntExpr>,
+        std::optional<ScalarIntExpr>>
+        t;
+  };
+  explicit CallStmt(ProcedureDesignator &&pd, std::optional<Chevrons> &&ch,
+      std::list<ActualArgSpec> &&args)
+      : call{std::move(pd), std::move(args)}, chevrons{std::move(ch)} {}
+  Call call;
+  std::optional<Chevrons> chevrons;
+  CharBlock source;
   mutable common::ForwardOwningPointer<evaluate::ProcedureRef>
       typedCall; // filled by semantics
 };
@@ -3230,14 +3281,14 @@ struct StmtFunctionStmt {
 };
 
 // Compiler directives
-// !DIR$ IGNORE_TKR [ [(tkr...)] name ]...
+// !DIR$ IGNORE_TKR [ [(tkrdmac...)] name ]...
 // !DIR$ LOOP COUNT (n1[, n2]...)
 // !DIR$ name...
 struct CompilerDirective {
   UNION_CLASS_BOILERPLATE(CompilerDirective);
   struct IgnoreTKR {
     TUPLE_CLASS_BOILERPLATE(IgnoreTKR);
-    std::tuple<std::list<const char *>, Name> t;
+    std::tuple<std::optional<std::list<const char *>>, Name> t;
   };
   struct LoopCount {
     WRAPPER_CLASS_BOILERPLATE(LoopCount, std::list<std::uint64_t>);
@@ -3248,6 +3299,12 @@ struct CompilerDirective {
   };
   CharBlock source;
   std::variant<std::list<IgnoreTKR>, LoopCount, std::list<NameValue>> u;
+};
+
+// (CUDA) ATTRIBUTE(attribute) [::] name-list
+struct CUDAAttributesStmt {
+  TUPLE_CLASS_BOILERPLATE(CUDAAttributesStmt);
+  std::tuple<common::CUDADataAttr, std::list<Name>> t;
 };
 
 // Legacy extensions
@@ -3482,10 +3539,23 @@ struct OmpInReductionClause {
 };
 
 // OMP 5.0 2.11.4 allocate-clause -> ALLOCATE ([allocator:] variable-name-list)
+// OMP 5.2 2.13.4 allocate-clause -> ALLOCATE ([allocate-modifier [,
+//  	                               allocate-modifier] :]
+//                                   variable-name-list)
+//                allocate-modifier -> allocator | align
 struct OmpAllocateClause {
   TUPLE_CLASS_BOILERPLATE(OmpAllocateClause);
-  WRAPPER_CLASS(Allocator, ScalarIntExpr);
-  std::tuple<std::optional<Allocator>, OmpObjectList> t;
+  struct AllocateModifier {
+    UNION_CLASS_BOILERPLATE(AllocateModifier);
+    WRAPPER_CLASS(Allocator, ScalarIntExpr);
+    WRAPPER_CLASS(Align, ScalarIntExpr);
+    struct ComplexModifier {
+      TUPLE_CLASS_BOILERPLATE(ComplexModifier);
+      std::tuple<Allocator, Align> t;
+    };
+    std::variant<Allocator, ComplexModifier, Align> u;
+  };
+  std::tuple<std::optional<AllocateModifier>, OmpObjectList> t;
 };
 
 // 2.13.9 depend-vec-length -> +/- non-negative-constant
@@ -3703,6 +3773,20 @@ struct OpenMPExecutableAllocate {
       t;
 };
 
+EMPTY_CLASS(OmpEndAllocators);
+
+// 6.7 Allocators construct [OpenMP 5.2]
+//     allocators-construct -> ALLOCATORS [allocate-clause [,]]
+//                                allocate-stmt
+//                             [omp-end-allocators-construct]
+struct OpenMPAllocatorsConstruct {
+  TUPLE_CLASS_BOILERPLATE(OpenMPAllocatorsConstruct);
+  CharBlock source;
+  std::tuple<Verbatim, OmpClauseList, Statement<AllocateStmt>,
+      std::optional<OmpEndAllocators>>
+      t;
+};
+
 // 2.17.7 Atomic construct/2.17.8 Flush construct [OpenMP 5.0]
 //        memory-order-clause -> acq_rel
 //                               release
@@ -3889,7 +3973,8 @@ struct OpenMPConstruct {
   std::variant<OpenMPStandaloneConstruct, OpenMPSectionsConstruct,
       OpenMPSectionConstruct, OpenMPLoopConstruct, OpenMPBlockConstruct,
       OpenMPAtomicConstruct, OpenMPDeclarativeAllocate,
-      OpenMPExecutableAllocate, OpenMPCriticalConstruct>
+      OpenMPExecutableAllocate, OpenMPAllocatorsConstruct,
+      OpenMPCriticalConstruct>
       u;
 };
 
@@ -4166,6 +4251,24 @@ struct OpenACCConstruct {
       OpenACCLoopConstruct, OpenACCStandaloneConstruct, OpenACCCacheConstruct,
       OpenACCWaitConstruct, OpenACCAtomicConstruct>
       u;
+};
+
+// CUF-kernel-do-construct ->
+//     !$CUF KERNEL DO [ (scalar-int-constant-expr) ] <<< grid, block [, stream]
+//     >>> do-construct
+// grid -> * | scalar-int-expr | ( scalar-int-expr-list )
+// block -> * | scalar-int-expr | ( scalar-int-expr-list )
+// stream -> 0, scalar-int-expr | STREAM = scalar-int-expr
+struct CUFKernelDoConstruct {
+  TUPLE_CLASS_BOILERPLATE(CUFKernelDoConstruct);
+  struct Directive {
+    TUPLE_CLASS_BOILERPLATE(Directive);
+    CharBlock source;
+    std::tuple<std::optional<ScalarIntConstantExpr>, std::list<ScalarIntExpr>,
+        std::list<ScalarIntExpr>, std::optional<ScalarIntExpr>>
+        t;
+  };
+  std::tuple<Directive, std::optional<DoConstruct>> t;
 };
 
 } // namespace Fortran::parser

@@ -17,6 +17,7 @@ set(INTERCEPTION_TEST_CFLAGS_COMMON
   -I${COMPILER_RT_SOURCE_DIR}/include
   -I${COMPILER_RT_SOURCE_DIR}/lib
   -I${COMPILER_RT_SOURCE_DIR}/lib/interception
+  -DSANITIZER_COMMON_NO_REDEFINE_BUILTINS
   -fno-rtti
   -O2
   -Werror=sign-compare)
@@ -37,6 +38,11 @@ if(MSVC)
   list(APPEND INTERCEPTION_TEST_LINK_FLAGS_COMMON
     -Wl,-largeaddressaware
     -Wl,-nodefaultlib:libcmt,-defaultlib:msvcrt,-defaultlib:oldnames
+    )
+endif()
+if(MINGW)
+  list(APPEND INTERCEPTION_TEST_LINK_FLAGS_COMMON
+    -Wl,--large-address-aware
     )
 endif()
 list(APPEND INTERCEPTION_TEST_LINK_FLAGS_COMMON -g)

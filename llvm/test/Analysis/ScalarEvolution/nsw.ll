@@ -174,9 +174,9 @@ define i32 @PR12375(ptr readnone %arg) {
 ; CHECK-NEXT:    %tmp2 = phi ptr [ %arg, %bb ], [ %tmp5, %bb1 ]
 ; CHECK-NEXT:    --> {%arg,+,4}<nuw><%bb1> U: full-set S: full-set Exits: (4 + %arg)<nuw> LoopDispositions: { %bb1: Computable }
 ; CHECK-NEXT:    %tmp3 = phi i32 [ 0, %bb ], [ %tmp4, %bb1 ]
-; CHECK-NEXT:    --> {0,+,1}<nuw><nsw><%bb1> U: [0,-2147483648) S: [0,-2147483648) Exits: 1 LoopDispositions: { %bb1: Computable }
+; CHECK-NEXT:    --> {0,+,1}<nuw><nsw><%bb1> U: [0,2) S: [0,2) Exits: 1 LoopDispositions: { %bb1: Computable }
 ; CHECK-NEXT:    %tmp4 = add nsw i32 %tmp3, 1
-; CHECK-NEXT:    --> {1,+,1}<nuw><%bb1> U: [1,0) S: [1,0) Exits: 2 LoopDispositions: { %bb1: Computable }
+; CHECK-NEXT:    --> {1,+,1}<nuw><nsw><%bb1> U: [1,3) S: [1,3) Exits: 2 LoopDispositions: { %bb1: Computable }
 ; CHECK-NEXT:    %tmp5 = getelementptr inbounds i32, ptr %tmp2, i64 1
 ; CHECK-NEXT:    --> {(4 + %arg)<nuw>,+,4}<nuw><%bb1> U: [4,0) S: [4,0) Exits: (8 + %arg)<nuw> LoopDispositions: { %bb1: Computable }
 ; CHECK-NEXT:  Determining loop execution counts for: @PR12375
@@ -322,7 +322,7 @@ define void @bad_postinc_nsw_a(i32 %n) {
 ; CHECK-NEXT:    %iv = phi i32 [ 0, %entry ], [ %iv.inc, %loop ]
 ; CHECK-NEXT:    --> {0,+,7}<nuw><nsw><%loop> U: [0,-2147483648) S: [0,-2147483648) Exits: (7 * ((((-1 * (1 umin %n))<nuw><nsw> + %n) /u 7) + (1 umin %n))) LoopDispositions: { %loop: Computable }
 ; CHECK-NEXT:    %iv.inc = add nsw i32 %iv, 7
-; CHECK-NEXT:    --> {7,+,7}<nuw><%loop> U: [7,0) S: [7,0) Exits: (7 + (7 * ((((-1 * (1 umin %n))<nuw><nsw> + %n) /u 7) + (1 umin %n)))) LoopDispositions: { %loop: Computable }
+; CHECK-NEXT:    --> {7,+,7}<nuw><%loop> U: [7,-3) S: [7,0) Exits: (7 + (7 * ((((-1 * (1 umin %n))<nuw><nsw> + %n) /u 7) + (1 umin %n)))) LoopDispositions: { %loop: Computable }
 ; CHECK-NEXT:  Determining loop execution counts for: @bad_postinc_nsw_a
 ; CHECK-NEXT:  Loop %loop: backedge-taken count is ((((-1 * (1 umin %n))<nuw><nsw> + %n) /u 7) + (1 umin %n))
 ; CHECK-NEXT:  Loop %loop: constant max backedge-taken count is 613566756

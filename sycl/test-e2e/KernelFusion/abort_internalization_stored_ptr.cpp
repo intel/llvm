@@ -1,10 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %CPU_CHECK_PLACEHOLDER --implicit-check-not "Computation error" --implicit-check-not "Internalized"
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
-// RUN: %GPU_CHECK_PLACEHOLDER --implicit-check-not "Computation error" --implicit-check-not "Internalized"
-// UNSUPPORTED: cuda || hip
 // REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not "Computation error" --implicit-check-not "Internalized"
 
 // Test pointers being stored are not internalized.
 

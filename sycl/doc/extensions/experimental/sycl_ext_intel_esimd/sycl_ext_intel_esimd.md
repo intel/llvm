@@ -2,14 +2,18 @@
 
 ## Introduction
 
-The main motivation for introducing the Explicit SIMD Programming (ESP) DPC++
-extension is enabling low-level efficient programming for Intel graphics
-architectures. More specifically, Explicit SIMD provides the following
-additional features:
+The main motivation for introducing the "Explicit SIMD" SYCL extension 
+(or simply "ESIMD") is enabling efficient low-level programming for Intel graphics
+architectures. It provides APIs close to the Intel GPU ISA
+and allows writing explicitly vectorized device code.
+
+Explicit SIMD provides the following key features complementary to SYCL:
 - Manual vectorization of device code using the `simd` class mapped to Intel GPU's
   general register file. This allows to write efficient code not relying on
   further widening by the compiler, as with traditional SPMD programming.
-- Low-level APIs efficiently mapped to Intel GPU architecture, such as block reads.
+- Low-level APIs efficiently mapped to the Intel GPU architecture, such as block loads/stores/gathers/scatters, explicit cache hints, GPU inline assembly, etc.
+
+Explicit SIMD though have some [restrictions](./README.md#restrictions) as well.
 
 ## Explicit SIMD execution model
 
@@ -82,7 +86,7 @@ int main(void) {
     auto Acc1 = Buf1.get_access<sycl::access::mode::read>(Cgh);
     auto Acc2 = Buf2.get_access<sycl::access::mode::read_write>(Cgh);
 
-    Cgh.single_task<class KernelID>([=]() [[intel::sycl_explicit_simd]] {
+    Cgh.single_task([=]() [[intel::sycl_explicit_simd]] {
       simd<float, 8> Val = esimd::block_load<float, 8>(Acc1, 0);
       sycl_device_f(Acc2, Val);
     });
@@ -92,21 +96,21 @@ int main(void) {
 
 ## Implementation restrictions
 
-Current ESP implementation does not support using certain standard SYCL features
+Current ESIMD implementation does not support using certain standard SYCL features
 inside explicit SIMD kernels and functions. Most of them will be eventually
 dropped. What's not supported today:
 - Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
-  translation unit and in the same program. However, interoperability between
-  them is not yet supported, e.g. currently it's not allowed to invoke an ESIMD
-  function from a regular SYCL kernel and vice-versa.
-- Local accessors. Local memory is allocated and accessed via explicit
-device-side API
-- 2D and 3D accessors
-- Constant accessors
+  translation unit and in the same program.
+- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
+  Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.
+- Local accessors are not supported yet. Local memory is allocated and accessed
+  via explicit device-side API.
+- 2D and 3D accessors;
+- Constant accessors;
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
 done via explicit APIs; e.g. `sycl::ext::intel::esimd::block_store(acc, offset)`
 - Accessors with offsets and/or access range specified
-- `sycl::sampler` and `sycl::stream` classes
+- `sycl::image`, `sycl::sampler` and `sycl::stream` classes.
 
 
 ## Core Explicit SIMD programming APIs
@@ -118,7 +122,7 @@ efficient mapping to SIMD vector operations on Intel graphics architectures.
 ### SIMD vector class
 
 The `simd` class is a vector templated on some element type.
-The element type must either be a vectorizable type. or the `sycl::half` type.
+The element type must either be a vectorizable type or the `sycl::half` type.
 The set of vectorizable types is the
 set of fundamental SYCL arithmetic types excluding `bool`. The length of the
 vector is the second template parameter.
@@ -318,13 +322,19 @@ See more details on the API documentation [page TODO](https://intel.github.io/ll
 Explicit SIMD memory access interface is quite different from the standard SYCL
 memory access interface. It supports main SYCL's device memory representations:
 - USM pointers
-- 1D global accessors
-- 2D image accessors
+- SYCL accessors
+  - 1D global accessors
+  - 1D local accessors
+  - 2D image accessors
 
-but does not `support sycl::accessor` APIs other than constructors. E.g.
-`accessor::get_pointer()`, `accessor::operator []` are not supported and must
-not be used within ESIMD code. Instead, ESIMD
-provides special APIs to access memory through these memory objects.
+Only small subset of `sycl::accessor` APIs is supported in ESIMD context:
+- accessor::accessor();
+- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
+- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
+
+ESIMD provides special APIs to access memory through accessors. Those APIs
+accept an accessor object as a base reference to the addressed memory and
+additional offset operand(s) to work with accessed buffer or image.
 
 C/C++ dereference of an USM pointer is guaranteed to work for primitive types
 only, but not for `simd` types. The following code below will compile and might
@@ -353,8 +363,8 @@ object, except in special scalar access cases. Note that `simd<T,1>` are valid
 simd objects and can be used in most memory access APIs. They fall into few main
 categories:
 - Block access - `block_load`, `block_store`. This is an efficient way to
-access memory which can be used when data is contiguous in memory and is properly
-aligned.
+access memory which can be used when data is contiguous in memory and is
+properly aligned.
 - Scattered access - `gather`, `scatter`. These APIs allow to specify individual
 memory locations for vector elements and do not impose any extra restrictions on
 alignment (except the standard C++ requirement for element-size alignment). Memory
@@ -364,11 +374,11 @@ enabled or disabled by the additional mask argument.
 - Pixel scattered access - `gather_rgba`, `scatter_rgba`. These are similar to
 usual `gather` and `scatter`, but allow to access the most memory in one call -
 4 elements (as if they were RGBA channels of a pixel) per each offset in the
-offsets vector. Per-offset masking is also support, plus per-channel compile-time
-constant mask can be specified to further refine masking.
+offsets vector. Per-offset masking is also support, plus per-channel
+compile-time constant mask can be specified to further refine masking.
 - Media block access - `media_block_load` , `media_block_store`. These are the
 most efficient memory accesses on Intel GPU architectures up to Gen9 generation.
-The go through extra layer of faster cache.
+They go through extra layer of faster cache.
 - Scalar access - `scalar_load`, `scalar_store`. These can be used to access
 load/store scalar values through accessors. In case of USM pointers, usual
 C++ dereference operator can be used. SLM versions are also available.
@@ -377,12 +387,150 @@ C++ dereference operator can be used. SLM versions are also available.
 #### Shared local memory access
 
 The above APIs are available for the global memory as well as shared local
-memory (SLM). SLM is a faster memory shared between work items in a workgroup -
-basically it is ESIMD variant of the SYCL `local` memory. For SLM variants,
-'slm_' prefix is added to API names. Before SLM memory access functions can be
-used in a ESIMD kernel, SLM chunk must be requested with the
-`simd_init(uint32_t size)` function, where `size` must be a compile-time
-constant.
+memory (SLM). SLM is allocated in cache memory and thus is much faster.
+This memory is shared between work items in a workgroup - basically
+it is ESIMD variant of the SYCL `local` memory.
+
+SLM variants of APIs have 'slm_' prefix in their names,
+e.g. slm_block_load(), or lsc_slm_gather().
+
+SLM memory must be explicitly allocated before it is read or written.
+
+There are 3 different ways of SLM allocation in ESIMD:
+* static allocation using slm_init<SLMByteSize>() and slm_init(SpecializationConstSLMByteSize)
+* semi-dynamic allocation using slm_allocator<SLMByteSize> class
+* SYCL local accessors
+
+##### Static allocation of SLM using slm_init function.
+Static allocation is done with help of one of two `slm_init` functions shown
+below. The SLM byte size passed to `slm_init` must be either a compilation time
+constant or a specialization constant.
+
+```cpp
+// Static allocation of `size` bytes of SLM memory.
+// Can be used together with slm_allocator() class for
+// semi-dynamic SLM allocation of extra SLM.
+template <uint32_t size> void slm_init();
+
+// This function is recommended ONLY when 'size' is a specialization constant.
+// It cannot be used together with slm_allocator() class.
+void slm_init(uint32_t size);
+```
+Restrictions:
+* There must be only 1 call site of `slm_init` per kernel.
+* The call of `slm_init` must be placed in the beginning of the kernel.
+If `slm_init` is called in some function 'F' called from kernel, then inlining
+of 'F' to the kernel must be forced/guaranteed.
+
+##### Semi-dynamic allocation of SLM.
+The class `slm_allocator` is designed to be used in basic blocks or functions
+where extra SLM is needed locally.
+```cpp
+template <int SLMAmount> class slm_allocator {
+  ...
+public:
+  // Allocates SLMAmount of SLM.
+  slm_allocator() { offset = __esimd_slm_alloc(SLMAmount); }
+
+  // Returns the allocated chunk's offset in bytes.
+  int get_offset() const { return offset; }
+
+  // Releases the SLM chunk allocated in the constructor.
+  ~slm_allocator() { __esimd_slm_free(offset); }
+```
+
+`slm_allocator` can be used together with `slm_init`. The blocks/functions using
+`slm_allocator` must be reachable from ESIMD kernel through the call-graph at
+compile-time.
+
+Restrictions:
+* `slm_allocator` cannot be used together with non-compile-time constant
+version of `slm_init` - slm_init(NumBytes);
+* `slm_allocator` cannot be used in ESIMD functions called via `invoke_simd()`
+or functions not reachable from ESIMD kernel at compilation time.
+
+Example:
+```cpp
+    // main kernel
+    q.parallel_for(Size, [=](id<1> i)[[intel::sycl_explicit_simd]]{
+      slm_init<SLMBaseSize>();
+      {
+        // Use the first SLMBaseSize bytes of SLM here
+      }
+      foo();
+      bar();
+      {
+        // Continue using the first SLMBaseSize bytes of SLM here.
+      }
+    }).wait_and_throw();```
+    ...
+
+
+void foo() {
+  slm_allocator<SLM_FOO> foo_slm; // allocate extra SLM_FOO bytes of SLM
+  unsigned slm_offset = foo_slm.get_offset();
+  /* Work with SLM memory: [slm_offset : slm_offset + SLM_FOO - 1] */
+}
+void bar() {
+  slm_allocator<SLM_BAR> bar_slm; // allocate extra SLM_BAR bytes of SLM
+  unsigned slm_offset = bar_slm.get_offset();
+  /* Work with SLM memory: [slm_offset : slm_offset + SLM_BAR - 1] */
+}
+```
+The actual amount of SLM memory allocated for the kernel above would be:
+`SLM_BASE_SIZE + max(SLM_FOO, SLM_BAR)`.
+
+
+##### Local accessors
+Regular SYCL local accessors can be passed from HOST to an ESIMD kernel, be used
+in ESIMD kernel and functions called from kernel. It can also be passed from
+SYCL context to ESIMD using `invoke_simd()` API. Similar to regular SYCL
+kernels, more than 1 local accessor can be passed to an ESIMD kernel.
+
+Please note that currently the local accessor can be passed through
+`invoke_simd()` only as a uniform pointer. Passing the local accessor by-value
+is not yet supported in the GPU driver.
+
+Restrictions:
+* `local_accessor` must NOT be used together with `slm_init` or `slm_allocator`.
+
+Example:
+```cpp
+    Q.submit([&](handler &CGH) {
+       auto LocalAcc = local_accessor<T, 1>(LocalRange * VL, CGH);
+
+       CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
+         uint32_t GID = Item.get_global_id(0);
+         uint32_t LID = Item.get_local_id(0);
+         uint32_t LocalAccOffset = static_cast<uint32_t>(
+             reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer()));
+         if constexpr (TestSubscript) {
+           for (int I = 0; I < VL; I++)
+             LocalAcc[LID * VL + I] = GID * 100 + I;
+         } else {
+           simd<int, VL> IntValues(GID * 100, 1);
+           simd<T, VL> ValuesToSLM = IntValues;
+           slm_block_store(LocalAccOffset + LID * VL * sizeof(T), ValuesToSLM);
+         }
+
+         Item.barrier();
+
+         if (LID == 0) {
+           for (int LID = 0; LID < LocalRange; LID++) {
+             if constexpr (TestSubscript) {
+               for (int I = 0; I < VL; I++)
+                 Out[(GID + LID) * VL + I] = LocalAcc[LID * VL + I];
+             } else {
+               simd<T, VL> ValuesFromSLM =
+                   slm_block_load<T, VL>(LocalAccOffset + LID * VL * sizeof(T));
+               ValuesFromSLM.copy_to(Out + (GID + LID) * VL);
+             }
+           } // end for (int LID = 0; LID < LocalRange; LID++)
+         }   // end if (LID == 0)
+       });
+     }).wait();
+```
+
 
 #### Atomics
 
@@ -607,7 +755,7 @@ They also may require horizontal packing or unpacking for `A`, `C`, `Result` bef
 #### Horizontal packing for `A`, `C`, and `Result`
 
 The operands `A`, `C` and the `result` of `xmx::dpas()` are horizontally packed into 32-bit elements.
-For input elements with bit-size 8-bit or more, the packing is automatic and any explicit actions on it may be omitted. So, if the matrix `A` has `sycl::half` elements and is interpreted as a 4x8 matrix:
+For input elements with bit-size 8-bit or more, the packing is automatic and any explicit actions on it may be omitted. For example, 4x8 matrix `A` with `sycl::half` elements:
 |||||||||
 |--- |--- |--- |--- |--- |--- |--- |--- |
 | a0 | a1	| a2 | a3 | a4 | a5	| a6 | a7 |
@@ -615,8 +763,8 @@ For input elements with bit-size 8-bit or more, the packing is automatic and any
 | c0 | c1	| c2 | c3 | c4 | c5	| c6 | c7 |
 | d0 | d1	| d2 | d3 | d4 | d5	| d6 | d7 |
 
-Then the corresponding input `simd` operand (or output `simd` result) looks as simple as {a0, a1, a2, a3, a4, a5, a6, a7, a8, b0, b1, ..., b7, c0, c1, ..., c7, d0, ..., d7}.  
-Matrices with elements smaller than 8-bit they are packed to 1-,2-,or 4-byte elements. So, the operand `A` representing the 4x64 `unpacked` matrix of 4-bit unsigned integers:
+has the corresponding input `simd` operand (or output `simd` result) represented as simple as {a0, a1, a2, a3, a4, a5, a6, a7, a8, b0, b1, ..., b7, c0, c1, ..., c7, d0, ..., d7}.  
+Matrices with elements smaller than 8-bit are packed to 1-,2-,or 4-byte elements. For example, the operand `A` representing a 4x64 `unpacked` matrix of 4-bit unsigned integers:
 |||||||
 |--- |--- |--- |--- |---  |--- |
 | a0 | a1	| a2 | a3 | ... | a63 |
@@ -624,7 +772,7 @@ Matrices with elements smaller than 8-bit they are packed to 1-,2-,or 4-byte ele
 | c0 | c1	| c2 | c3 | ... | c63 |
 | d0 | d1	| d2 | d3 | ... | d63 |
 
-actually stored as 4x32 matrix of `uint8_t` packed elements (1 uint8_t fits 2 4-bit uinteger ints):
+actually stored as 4x32 matrix of `uint8_t` packed elements (1 uint8_t holds 2 4-bit unsigned integer):
 
 |||||
 |--- |--- |--- |--- |
@@ -827,21 +975,8 @@ simd<float, 16> vb;
 simd<float, 16> vc;
 
 __asm__("add (M1, 16) %0 %1 %2"
-                    : "=rw"(vc.data_ref())
-                    : "rw"(va.data()), "rw"(vb.data()));
-```
-
-Example of inline GEN assembly writing to a private global variable:
-```cpp
-ESIMD_PRIVATE ESIMD_REGISTER(0) simd<float, 16> vc;
-
-void calledFromKernel() {
-  simd<float, 16> va;
-  simd<float, 16> vb;
-  __asm__("add (M1, 16) %0 %1 %2"
-                    : "=rw"(vc.data_ref())
-                    : "rw"(va.data()), "rw"(vb.data()));
-}
+                    : "=r"(vc.data_ref())
+                    : "r"(va.data()), "r"(vb.data()));
 ```
 
 ## Examples

@@ -111,6 +111,7 @@ add_llvm_target(AMDGPUCodeGen
   GCNNSAReassign.cpp
   GCNPreRAOptimizations.cpp
   GCNRegPressure.cpp
+  GCNRewritePartialRegUses.cpp
   GCNSchedStrategy.cpp
   GCNVOPDUtils.cpp
   R600AsmPrinter.cpp
@@ -165,16 +166,20 @@ add_llvm_target(AMDGPUCodeGen
   SIWholeQuadMode.cpp
 
   LINK_COMPONENTS
-  Analysis
-  AsmPrinter
-  CodeGen
-  Core
-  IPO
-  MC
-  Passes
   AMDGPUDesc
   AMDGPUInfo
   AMDGPUUtils
+  Analysis
+  AsmPrinter
+  BinaryFormat
+  CodeGen
+  CodeGenTypes
+  Core
+  GlobalISel
+  IPO
+  MC
+  MIRParser
+  Passes
   Scalar
   SelectionDAG
   Support
@@ -182,9 +187,6 @@ add_llvm_target(AMDGPUCodeGen
   TargetParser
   TransformUtils
   Vectorize
-  GlobalISel
-  BinaryFormat
-  MIRParser
   SYCLLowerIR
 
   ADD_TO_COMPONENT

@@ -6,6 +6,7 @@ include "mlir/Dialect/LLVMIR/LLVMAttrDefs.td"
 include "mlir/Dialect/LLVMIR/LLVMEnums.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/MemorySlotInterfaces.td"
 
 // Operations that correspond to LLVM intrinsics. With MLIR operation set being
 // extendable, there is no reason to introduce a hard boundary between "core"
@@ -129,6 +130,18 @@ def LLVM_PowIOp : LLVM_OneResultIntrOp<"powi", [], [0,1],
   let assemblyFormat = "`(` operands `)` custom<LLVMOpAttrs>(attr-dict) `:` "
       "functional-type(operands, results)";
 }
+def LLVM_RintOp : LLVM_UnaryIntrOpF<"rint">;
+def LLVM_NearbyintOp : LLVM_UnaryIntrOpF<"nearbyint">;
+class LLVM_IntRoundIntrOpBase<string func> :
+        LLVM_OneResultIntrOp<func, [0], [0], [Pure]> {
+  let arguments = (ins LLVM_AnyFloat:$val);
+  let assemblyFormat = "`(` operands `)` custom<LLVMOpAttrs>(attr-dict) `:` "
+      "functional-type(operands, results)";
+}
+def LLVM_LroundOp : LLVM_IntRoundIntrOpBase<"lround">;
+def LLVM_LlroundOp : LLVM_IntRoundIntrOpBase<"llround">;
+def LLVM_LrintOp : LLVM_IntRoundIntrOpBase<"lrint">;
+def LLVM_LlrintOp : LLVM_IntRoundIntrOpBase<"llrint">;
 def LLVM_BitReverseOp : LLVM_UnaryIntrOpI<"bitreverse">;
 def LLVM_ByteSwapOp : LLVM_UnaryIntrOpI<"bswap">;
 def LLVM_CountLeadingZerosOp : LLVM_CountZerosIntrOp<"ctlz">;
@@ -214,7 +227,8 @@ def LLVM_NoAliasScopeDeclOp
 
 /// Base operation for lifetime markers. The LLVM intrinsics require the size
 /// operand to be an immediate. In MLIR it is encoded as an attribute.
-class LLVM_LifetimeBaseOp<string opName> : LLVM_ZeroResultIntrOp<opName> {
+class LLVM_LifetimeBaseOp<string opName> : LLVM_ZeroResultIntrOp<opName, [],
+    [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let arguments = (ins I64Attr:$size, LLVM_AnyPointer:$ptr);
 
   // Custom builder to convert the size attribute to an integer.
@@ -249,7 +263,7 @@ def LLVM_LifetimeEndOp : LLVM_LifetimeBaseOp<"lifetime.end"> {
 // Intrinsics with multiple returns.
 
 class LLVM_ArithWithOverflowOp<string mnem>
-    : LLVM_IntrOp<mnem, [0], [], [SameOperandsElementType], 2>,
+    : LLVM_IntrOp<mnem, [0], [], [Pure, SameOperandsElementType], 2>,
       Arguments<(ins LLVM_ScalarOrVectorOf<AnySignlessInteger>,
                  LLVM_ScalarOrVectorOf<AnySignlessInteger>)>;
 
@@ -260,8 +274,60 @@ def LLVM_USubWithOverflowOp : LLVM_ArithWithOverflowOp<"usub.with.overflow">;
 def LLVM_SMulWithOverflowOp : LLVM_ArithWithOverflowOp<"smul.with.overflow">;
 def LLVM_UMulWithOverflowOp : LLVM_ArithWithOverflowOp<"umul.with.overflow">;
 
+//
+// Saturation Arithmetic Intrinsics.
+//
+
+def LLVM_SAddSat : LLVM_BinarySameArgsIntrOpI<"sadd.sat">;
+def LLVM_UAddSat : LLVM_BinarySameArgsIntrOpI<"uadd.sat">;
+def LLVM_SSubSat : LLVM_BinarySameArgsIntrOpI<"ssub.sat">;
+def LLVM_USubSat : LLVM_BinarySameArgsIntrOpI<"usub.sat">;
+def LLVM_SSHLSat : LLVM_BinarySameArgsIntrOpI<"sshl.sat">;
+def LLVM_USHLSat : LLVM_BinarySameArgsIntrOpI<"ushl.sat">;
+
+//
+// Optimization hint intrinsics.
+//
+
 def LLVM_AssumeOp
   : LLVM_ZeroResultIntrOp<"assume", []>, Arguments<(ins I1:$cond)>;
+
+def LLVM_IsConstantOp : LLVM_IntrOp<"is.constant", [], [0], [Pure], 1> {
+  let arguments = (ins LLVM_Type:$val);
+  let results = (outs I1:$res);
+}
+
+def LLVM_ExpectOp
+  : LLVM_OneResultIntrOp<"expect", [], [0],
+                         [Pure, SameOperandsAndResultType]> {
+  let arguments = (ins AnySignlessInteger:$val,
+                       AnySignlessInteger:$expected);
+  let assemblyFormat = "$val `,` $expected attr-dict `:` type($val)";
+}
+
+def LLVM_ExpectWithProbabilityOp
+  : LLVM_OneResultIntrOp<"expect.with.probability", [], [0],
+                         [Pure, AllTypesMatch<["val", "expected", "res"]>]> {
+  let arguments = (ins AnySignlessInteger:$val,
+                       AnySignlessInteger:$expected,
+                       F64Attr:$prob);
+  string llvmBuilder = [{
+    createIntrinsicCall(
+      builder, llvm::Intrinsic::expect_with_probability,
+      {$val, $expected, llvm::ConstantFP::get(builder.getDoubleTy(), $prob)},
+      {$_resultType});
+  }];
+  string mlirBuilder = [{
+    $res = $_builder.create<LLVM::ExpectWithProbabilityOp>(
+      $_location, $val, $expected, $_float_attr($prob));
+  }];
+  let assemblyFormat = "$val `,` $expected `,` $prob attr-dict `:` type($val)";
+}
+
+def LLVM_ThreadlocalAddressOp : LLVM_OneResultIntrOp<"threadlocal.address", [],
+                                [0], [Pure]> {
+  let arguments = (ins LLVM_AnyPointer:$global);
+}
 
 //
 // Coroutine intrinsics.
@@ -322,7 +388,8 @@ def LLVM_CoroResumeOp : LLVM_IntrOp<"coro.resume", [], [], [], 0> {
 // Debug function intrinsics.
 //
 
-class LLVM_DbgIntrOp<string name, string argName> : LLVM_IntrOp<name, [], [], [], 0> {
+class LLVM_DbgIntrOp<string name, string argName, list<Trait> traits = []>
+    : LLVM_IntrOp<name, [], [], traits, 0> {
   let llvmBuilder = [{
     llvm::Module *module = builder.GetInsertBlock()->getModule();
     llvm::LLVMContext &ctx = module->getContext();
@@ -363,7 +430,8 @@ class LLVM_DbgIntrOp<string name, string argName> : LLVM_IntrOp<name, [], [], []
   }];
 }
 
-def LLVM_DbgDeclareOp : LLVM_DbgIntrOp<"dbg.declare", "addr"> {
+def LLVM_DbgDeclareOp : LLVM_DbgIntrOp< "dbg.declare", "addr",
+    [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let summary = "Declare the address of a local debug info variable.";
   let arguments = (ins LLVM_AnyPointer:$addr, LLVM_DILocalVariableAttr:$varInfo);
 }
@@ -712,6 +780,26 @@ def LLVM_masked_compressstore
   let arguments = (ins LLVM_AnyVector, LLVM_AnyPointer, LLVM_VectorOf<I1>);
 }
 
+//
+// Trap intrinsics.
+//
+
+def LLVM_Trap : LLVM_ZeroResultIntrOp<"trap">;
+
+def LLVM_DebugTrap : LLVM_ZeroResultIntrOp<"debugtrap">;
+
+def LLVM_UBSanTrap : LLVM_ZeroResultIntrOp<"ubsantrap"> {
+  let arguments = (ins I8Attr:$failureKind);
+  string llvmBuilder = [{
+    createIntrinsicCall(
+      builder, llvm::Intrinsic::ubsantrap, {builder.getInt8($failureKind)});
+  }];
+  string mlirBuilder = [{
+    $_op =
+      $_builder.create<LLVM::UBSanTrap>($_location, $_int_attr($failureKind));
+  }];
+}
+
 /// Create a call to vscale intrinsic.
 def LLVM_vscale : LLVM_IntrOp<"vscale", [0], [], [], 1>;
 
@@ -796,19 +884,24 @@ def LLVM_vector_extract
 // CallIntrinsicOp
 //===--------------------------------------------------------------------===//
 
-def LLVM_CallIntrinsicOp : LLVM_Op<"call_intrinsic"> {
+def LLVM_CallIntrinsicOp
+    : LLVM_Op<"call_intrinsic",
+              [DeclareOpInterfaceMethods<FastmathFlagsInterface>]> {
   let summary = "Call to an LLVM intrinsic function.";
   let description = [{
     Call the specified llvm intrinsic. If the intrinsic is overloaded, use
     the MLIR function type of this op to determine which intrinsic to call.
     }];
-  let arguments = (ins StrAttr:$intrin, Variadic<LLVM_Type>:$args);
+  let arguments = (ins StrAttr:$intrin, Variadic<LLVM_Type>:$args,
+                       DefaultValuedAttr<LLVM_FastmathFlagsAttr,
+                                         "{}">:$fastmathFlags);
   let results = (outs Variadic<LLVM_Type>:$results);
   let llvmBuilder = [{
     return convertCallLLVMIntrinsicOp(op, builder, moduleTranslation);
   }];
   let assemblyFormat = [{
-    $intrin `(` $args `)` `:` functional-type($args, $results) attr-dict
+    $intrin `(` $args `)` `:` functional-type($args, $results)
+      custom<LLVMOpAttrs>(attr-dict)
   }];
 }
 

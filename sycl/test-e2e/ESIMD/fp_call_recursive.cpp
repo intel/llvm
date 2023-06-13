@@ -5,12 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
 // Recursion is not supported in ESIMD (intel/llvm PR#3390)
 // REQUIRES: TEMPORARY_DISBLED
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
+// RUN: %{run} %t.out
 //
 // The test checks that ESIMD kernels support use of function pointers
 // recursively.

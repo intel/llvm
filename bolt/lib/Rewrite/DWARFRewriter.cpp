@@ -199,7 +199,7 @@ void DWARFRewriter::updateDebugInfo() {
           std::make_unique<DebugLoclistWriter>(*CU.get(), DwarfVersion, false);
 
       if (std::optional<uint64_t> DWOId = CU->getDWOId()) {
-        assert(LocListWritersByCU.count(*DWOId) == 0 &&
+        assert(RangeListsWritersByCU.count(*DWOId) == 0 &&
                "RangeLists writer for DWO unit already exists.");
         auto RangeListsSectionWriter =
             std::make_unique<DebugRangeListsSectionWriter>();
@@ -407,6 +407,13 @@ void DWARFRewriter::updateUnitDebugInfo(
       DWARFAddressRangesVector &ModuleRanges = *ModuleRangesOrError;
       DebugAddressRangesVector OutputRanges =
           BC.translateModuleAddressRanges(ModuleRanges);
+      std::optional<AttrInfo> LowPCAttrInfo =
+          findAttributeInfo(DIE, dwarf::DW_AT_low_pc);
+      // For a case where LLD GCs only function used in the CU.
+      // If CU doesn't have DW_AT_low_pc we are not going to convert,
+      // so don't need to do anything.
+      if (OutputRanges.empty() && !Unit.isDWOUnit() && LowPCAttrInfo)
+        OutputRanges.push_back({0, 0});
       const uint64_t RangesSectionOffset =
           RangesSectionWriter.addRanges(OutputRanges);
       if (!Unit.isDWOUnit())
@@ -1347,6 +1354,8 @@ static void extractTypesFromDWPDWARF5(
     MCStreamer &Streamer, StringRef Contents, uint64_t DWOId) {
   std::vector<const DWARFUnitIndex::Entry::SectionContribution *>
       TUContributions;
+  if (!TypeSignaturesPerCU.count(DWOId))
+    return;
   for (const uint64_t Val : TypeSignaturesPerCU.at(DWOId)) {
     const DWARFUnitIndex::Entry *TUE = TUIndex.getFromHash(Val);
     const DWARFUnitIndex::Entry::SectionContribution *C =

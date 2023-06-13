@@ -485,8 +485,8 @@ code.  This function is not available in host code.
 ```
 namespace sycl::ext::oneapi::experimental {
 
-template<architecture ...Archs, typename ...Args, typename T>
-/* unspecified */ if_architecture_is(T fn, Args ...args);
+template<architecture ...Archs, typename T>
+/* unspecified */ if_architecture_is(T fn);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -504,11 +504,11 @@ type, which provides the following member functions:
 ```
 class /* unspecified */ {
  public:
-  template<architecture ...Archs, typename ...Args, typename T>
-  /* unspecified */ else_if_architecture_is(T fn, Args ...args);
+  template<architecture ...Archs, typename T>
+  /* unspecified */ else_if_architecture_is(T fn);
 
-  template<typename T, typename ...Args>
-  void otherwise(T fn, Args ...args);
+  template<typename T>
+  void otherwise(T fn);
 };
 ```
 

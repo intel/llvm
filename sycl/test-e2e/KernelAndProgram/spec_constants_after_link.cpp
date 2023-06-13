@@ -1,10 +1,14 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
+
 // FIXME: ACC devices use emulation path, which is not yet supported
+// UNSUPPORTED: accelerator
 
 // HIP backend does not currently implement linking.
 // UNSUPPORTED: hip
+
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
 
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.

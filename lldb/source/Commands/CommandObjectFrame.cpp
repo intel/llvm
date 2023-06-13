@@ -135,7 +135,7 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Thread *thread = m_exe_ctx.GetThreadPtr();
-    StackFrameSP frame_sp = thread->GetSelectedFrame();
+    StackFrameSP frame_sp = thread->GetSelectedFrame(SelectMostRelevantFrame);
 
     ValueObjectSP valobj_sp;
 
@@ -292,9 +292,8 @@ public:
     if (request.GetCursorIndex() != 0)
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eFrameIndexCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eFrameIndexCompletion, request, nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -308,7 +307,7 @@ protected:
     uint32_t frame_idx = UINT32_MAX;
     if (m_options.relative_frame_offset) {
       // The one and only argument is a signed relative frame index
-      frame_idx = thread->GetSelectedFrameIndex();
+      frame_idx = thread->GetSelectedFrameIndex(SelectMostRelevantFrame);
       if (frame_idx == UINT32_MAX)
         frame_idx = 0;
 
@@ -362,7 +361,7 @@ protected:
           return false;
         }
       } else if (command.GetArgumentCount() == 0) {
-        frame_idx = thread->GetSelectedFrameIndex();
+        frame_idx = thread->GetSelectedFrameIndex(SelectMostRelevantFrame);
         if (frame_idx == UINT32_MAX) {
           frame_idx = 0;
         }
@@ -372,7 +371,7 @@ protected:
     bool success = thread->SetSelectedFrameByIndexNoisily(
         frame_idx, result.GetOutputStream());
     if (success) {
-      m_exe_ctx.SetFrameSP(thread->GetSelectedFrame());
+      m_exe_ctx.SetFrameSP(thread->GetSelectedFrame(SelectMostRelevantFrame));
       result.SetStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("Frame index (%u) out of range.\n",
@@ -445,9 +444,9 @@ may even involve JITing and running code in the target program.)");
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
     // Arguments are the standard source file completer.
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eVariablePathCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eVariablePathCompletion, request,
+        nullptr);
   }
 
 protected:

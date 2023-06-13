@@ -26,8 +26,9 @@ include "mlir/Dialect/OpenMP/OpenMPTypeInterfaces.td"
 def OpenMP_Dialect : Dialect {
   let name = "omp";
   let cppNamespace = "::mlir::omp";
-  let dependentDialects = ["::mlir::LLVM::LLVMDialect"];
+  let dependentDialects = ["::mlir::LLVM::LLVMDialect, ::mlir::func::FuncDialect"];
   let useDefaultAttributePrinterParser = 1;
+  let usePropertiesForAttributes = 1;
 }
 
 // OmpCommon requires definition of OpenACC_Dialect.
@@ -44,9 +45,9 @@ class OpenMP_Attr<string name, string attrMnemonic,
   let mnemonic = attrMnemonic;
 }
 
-def IsDeviceAttr : OpenMP_Attr<"IsDevice", "isdevice"> {
+def VersionAttr : OpenMP_Attr<"Version", "version"> {
   let parameters = (ins
-    "bool":$is_device
+    "uint32_t":$version
   );
 
   let assemblyFormat = "`<` struct(params) `>`";
@@ -62,7 +63,8 @@ def FlagsAttr : OpenMP_Attr<"Flags", "flags"> {
     DefaultValuedParameter<"bool", "false">:$assume_teams_oversubscription,
     DefaultValuedParameter<"bool", "false">:$assume_threads_oversubscription,
     DefaultValuedParameter<"bool", "false">:$assume_no_thread_state,
-    DefaultValuedParameter<"bool", "false">:$assume_no_nested_parallelism
+    DefaultValuedParameter<"bool", "false">:$assume_no_nested_parallelism,
+    DefaultValuedParameter<"uint32_t", "50">:$openmp_device_version
   );
 
   let assemblyFormat = "`<` struct(params) `>`";
@@ -86,6 +88,52 @@ def IntLikeType : AnyTypeOf<[AnyInteger, Index]>;
 
 def OpenMP_PointerLikeType : TypeAlias<OpenMP_PointerLikeTypeInterface,
 	"OpenMP-compatible variable type">;
+
+//===----------------------------------------------------------------------===//
+//  2.12.7 Declare Target Directive
+//===----------------------------------------------------------------------===//
+
+def DeviceTypeAny : I32EnumAttrCase<"any", 0>;
+def DeviceTypeHost   : I32EnumAttrCase<"host", 1>;
+def DeviceTypeNoHost   : I32EnumAttrCase<"nohost", 2>;
+
+def DeclareTargetDeviceType : I32EnumAttr<
+    "DeclareTargetDeviceType",
+    "device_type clause",
+    [DeviceTypeAny, DeviceTypeHost, DeviceTypeNoHost]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::mlir::omp";
+}
+
+def DeclareTargetDeviceTypeAttr : EnumAttr<OpenMP_Dialect, DeclareTargetDeviceType,
+                                    "device_type"> {
+  let assemblyFormat = "`(` $value `)`";
+}
+
+def CaptureClauseLink : I32EnumAttrCase<"to", 0>;
+def CaptureClauseTo   : I32EnumAttrCase<"link", 1>;
+
+def DeclareTargetCaptureClause : I32EnumAttr<
+    "DeclareTargetCaptureClause",
+    "capture clause",
+    [CaptureClauseLink, CaptureClauseTo]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::mlir::omp";
+}
+
+def DeclareTargetCaptureClauseAttr : EnumAttr<OpenMP_Dialect, DeclareTargetCaptureClause,
+                                    "capture_clause"> {
+  let assemblyFormat = "`(` $value `)`";
+}
+
+def DeclareTargetAttr : OpenMP_Attr<"DeclareTarget", "declaretarget"> {
+  let parameters = (ins
+    OptionalParameter<"DeclareTargetDeviceTypeAttr">:$device_type,
+    OptionalParameter<"DeclareTargetCaptureClauseAttr">:$capture_clause
+  );
+
+  let assemblyFormat = "`<` struct(params) `>`";
+}
 
 //===----------------------------------------------------------------------===//
 // 2.6 parallel Construct
@@ -1618,7 +1666,7 @@ def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol,
       if (getAtomicReductionRegion().empty())
         return {};
 
-      return getAtomicReductionRegion().front().getArgument(0).getType();
+      return cast<PointerLikeType>(getAtomicReductionRegion().front().getArgument(0).getType());
     }
   }];
   let hasRegionVerifier = 1;

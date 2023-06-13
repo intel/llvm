@@ -10,16 +10,6 @@
 //  Subregister declarations
 //===----------------------------------------------------------------------===//
 
-class Indexes<int N> {
-  list<int> all = [0,   1,  2,  3,  4,  5,  6 , 7,
-                   8,   9, 10, 11, 12, 13, 14, 15,
-                   16, 17, 18, 19, 20, 21, 22, 23,
-                   24, 25, 26, 27, 28, 29, 30, 31];
-
-  // Returns list of indexes [0..N)
-  list<int> slice = !filter(i, all, !lt(i, N));
-}
-
 let Namespace = "AMDGPU" in {
 
 def lo16 : SubRegIndex<16, 0>;
@@ -35,13 +25,11 @@ foreach Index = 1...31 in {
 }
 
 foreach Size = {2...6,8,16} in {
-  foreach Index = Indexes<!sub(33, Size)>.slice in {
-    def !interleave(!foreach(cur, Indexes<Size>.slice, "sub"#!add(cur, Index)),
-                    "_") :
+  foreach Index = !range(!sub(33, Size)) in {
+    def !interleave(!foreach(cur, !range(Size), "sub"#!add(cur, Index)), "_") :
       SubRegIndex<!mul(Size, 32), !shl(Index, 5)> {
       let CoveringSubRegIndices =
-        !foreach(cur, Indexes<Size>.slice,
-                 !cast<SubRegIndex>(sub#!add(cur, Index)));
+        !foreach(cur, !range(Size), !cast<SubRegIndex>(sub#!add(cur, Index)));
     }
   }
 }
@@ -150,10 +138,14 @@ class SIRegisterClass <string n, list<ValueType> rTypes, int Align, dag rList>
   // For scalar register classes.
   field bit HasSGPR = 0;
 
+  // Alignment of the first register in tuple (in 32-bit units).
+  field int RegTupleAlignUnits = 1;
+
   // These need to be kept in sync with the enum SIRCFlags.
-  let TSFlags{0} = HasVGPR;
-  let TSFlags{1} = HasAGPR;
-  let TSFlags{2} = HasSGPR;
+  let TSFlags{1-0} = RegTupleAlignUnits;
+  let TSFlags{2} = HasVGPR;
+  let TSFlags{3} = HasAGPR;
+  let TSFlags{4} = HasSGPR;
 }
 
 multiclass SIRegLoHi16 <string n, bits<16> regIdx, bit ArtificialHigh = 1,
@@ -421,7 +413,7 @@ def SGPR_32 : SIRegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
 def SGPR_64Regs : SIRegisterTuples<getSubRegs<2>.ret, SGPR_32, 105, 2, 2, "s">;
 
 // SGPR 96-bit registers. No operations use these, but for symmetry with 96-bit VGPRs.
-def SGPR_96Regs : SIRegisterTuples<getSubRegs<3>.ret, SGPR_32, 105, 3, 3, "s">;
+def SGPR_96Regs : SIRegisterTuples<getSubRegs<3>.ret, SGPR_32, 105, 4, 3, "s">;
 
 // SGPR 128-bit registers
 def SGPR_128Regs : SIRegisterTuples<getSubRegs<4>.ret, SGPR_32, 105, 4, 4, "s">;
@@ -817,12 +809,19 @@ def SGPR_64 : SIRegisterClass<"AMDGPU", [v2i32, i64, v2f32, f64, v4i16, v4f16], 
   let HasSGPR = 1;
 }
 
-// CCR (call clobbered registers) SGPR 64-bit registers, currently used for tail call
-// return address only.
-def CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32, (add (trunc SGPR_64, 16))> {
+// CCR (call clobbered registers) SGPR 64-bit registers
+def CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32, (add (trunc SGPR_64, 15))> {
   let CopyCost = SGPR_64.CopyCost;
   let AllocationPriority = SGPR_64.AllocationPriority;
-  let HasSGPR = SGPR_64.HasSGPR;
+  let HasSGPR = 1;
+}
+
+// Call clobbered 64-bit SGPRs for AMDGPU_Gfx CC
+def Gfx_CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32,
+                                (add (trunc (shl SGPR_64, 18), 14))> { // s[36:37]-s[s62:63]
+  let CopyCost = SGPR_64.CopyCost;
+  let AllocationPriority = SGPR_64.AllocationPriority;
+  let HasSGPR = 1;
 }
 
 def TTMP_64 : SIRegisterClass<"AMDGPU", [v2i32, i64, f64, v4i16, v4f16], 32,
@@ -939,6 +938,7 @@ multiclass VRegClass<int numRegs, list<ValueType> regTypes, dag regList> {
     def _Align2 : VRegClassBase<numRegs, regTypes, (decimate regList, 2)> {
       // Give aligned class higher priority in base class resolution
       let BaseClassOrder = !sub(!mul(numRegs, 32), 1);
+      let RegTupleAlignUnits = 2;
     }
   }
 }
@@ -973,6 +973,7 @@ multiclass ARegClass<int numRegs, list<ValueType> regTypes, dag regList> {
     def _Align2 : VRegClassBase<numRegs, regTypes, (decimate regList, 2)> {
       // Give aligned class higher priority in base class resolution
       let BaseClassOrder = !sub(!mul(numRegs, 32), 1);
+      let RegTupleAlignUnits = 2;
     }
   }
 }
@@ -1041,10 +1042,12 @@ multiclass AVRegClass<int numRegs, list<ValueType> regTypes,
     // Define the regular class.
     def "" : VRegClassBase<numRegs, regTypes, (add vregList, aregList)>;
 
-    // Define 2-aligned variant
+    // Define 2-aligned variant 
     def _Align2 : VRegClassBase<numRegs, regTypes,
                                 (add (decimate vregList, 2),
-                                     (decimate aregList, 2))>;
+                                     (decimate aregList, 2))> {
+      let RegTupleAlignUnits = 2;
+    }
   }
 }
 

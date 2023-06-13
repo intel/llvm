@@ -60,14 +60,16 @@ struct PrintingPolicy {
       : Indentation(2), SuppressSpecifiers(false),
         SuppressTagKeyword(LO.CPlusPlus), IncludeTagDefinition(false),
         SuppressScope(false), SuppressUnwrittenScope(false),
-        SuppressInlineNamespace(true), SuppressInitializers(false),
-        ConstantArraySizeAsWritten(false), AnonymousTagLocations(true),
-        SuppressStrongLifetime(false), SuppressLifetimeQualifiers(false),
-        SuppressTypedefs(false), SuppressTemplateArgsInCXXConstructors(false),
+        SuppressInlineNamespace(true), SuppressElaboration(false),
+        SuppressInitializers(false), ConstantArraySizeAsWritten(false),
+        AnonymousTagLocations(true), SuppressStrongLifetime(false),
+        SuppressLifetimeQualifiers(false),
+        SuppressTypedefs(false), SuppressFinalSpecifier(false),
+        SuppressTemplateArgsInCXXConstructors(false),
         SuppressDefaultTemplateArgs(true), Bool(LO.Bool),
         Nullptr(LO.CPlusPlus11 || LO.C2x), NullptrTypeInNamespace(LO.CPlusPlus),
-        Restrict(LO.C99), Alignof(LO.CPlusPlus11),
-        UnderscoreAlignof(LO.C11), UseVoidForZeroParams(!LO.CPlusPlus),
+        Restrict(LO.C99), Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
+        UseVoidForZeroParams(!LO.CPlusPlus),
         SplitTemplateClosers(!LO.CPlusPlus11), TerseOutput(false),
         PolishForDeclaration(false), Half(LO.Half),
         MSWChar(LO.MicrosoftExt && !LO.WChar), IncludeNewlines(true),
@@ -150,6 +152,10 @@ struct PrintingPolicy {
   /// removed.
   unsigned SuppressInlineNamespace : 1;
 
+  /// Ignore qualifiers and tag keywords as specified by elaborated type sugar,
+  /// instead letting the underlying type print as normal.
+  unsigned SuppressElaboration : 1;
+
   /// Suppress printing of variable initializers.
   ///
   /// This flag is used when printing the loop variable in a for-range
@@ -213,6 +219,9 @@ struct PrintingPolicy {
   /// When true, attempt to suppress template arguments that match the default
   /// argument for the parameter.
   unsigned SuppressDefaultTemplateArgs : 1;
+
+  /// When true, suppress printing final specifier.
+  unsigned SuppressFinalSpecifier : 1;
 
   /// Whether we can use 'bool' rather than '_Bool' (even if the language
   /// doesn't actually have 'bool', because, e.g., it is defined as a macro).

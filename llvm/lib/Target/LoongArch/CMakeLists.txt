@@ -26,15 +26,17 @@ add_llvm_target(LoongArchCodeGen
   LoongArchRegisterInfo.cpp
   LoongArchSubtarget.cpp
   LoongArchTargetMachine.cpp
+  LoongArchTargetTransformInfo.cpp
 
   LINK_COMPONENTS
   Analysis
   AsmPrinter
   CodeGen
+  CodeGenTypes
   Core
-  MC
   LoongArchDesc
   LoongArchInfo
+  MC
   Scalar
   SelectionDAG
   Support

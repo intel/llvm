@@ -65,7 +65,8 @@ public:
 private:
 
   /// Keeps track of relocations.
-  class AddressManager : public AddressesMap {
+  template <typename AddressesMapBase>
+  class AddressManager : public AddressesMapBase {
     struct ValidReloc {
       uint64_t Offset;
       uint32_t Size;
@@ -108,8 +109,8 @@ private:
     /// \returns resolved value.
     uint64_t relocate(const ValidReloc &Reloc) const;
 
-    /// Fill \p Info with address information for the specified \p Reloc.
-    void fillDieInfo(const ValidReloc &Reloc, CompileUnit::DIEInfo &Info);
+    /// \returns value for the specified \p Reloc.
+    int64_t getRelocValue(const ValidReloc &Reloc);
 
     /// Print contents of debug map entry for the specified \p Reloc.
     void printReloc(const ValidReloc &Reloc);
@@ -172,15 +173,17 @@ private:
     /// Checks that there is a relocation in the \p Relocs array against a
     /// debug map entry between \p StartOffset and \p NextOffset.
     ///
-    /// \returns true and sets Info.InDebugMap if it is the case.
-    bool hasValidRelocationAt(const std::vector<ValidReloc> &Relocs,
-                              uint64_t StartOffset, uint64_t EndOffset,
-                              CompileUnit::DIEInfo &Info);
+    /// \returns relocation value if relocation exist, otherwise std::nullopt.
+    std::optional<int64_t>
+    hasValidRelocationAt(const std::vector<ValidReloc> &Relocs,
+                         uint64_t StartOffset, uint64_t EndOffset);
 
-    bool isLiveVariable(const DWARFDie &DIE,
-                        CompileUnit::DIEInfo &Info) override;
-    bool isLiveSubprogram(const DWARFDie &DIE,
-                          CompileUnit::DIEInfo &Info) override;
+    std::optional<int64_t> getExprOpAddressRelocAdjustment(
+        DWARFUnit &U, const DWARFExpression::Operation &Op,
+        uint64_t StartOffset, uint64_t EndOffset) override;
+
+    std::optional<int64_t>
+    getSubprogramRelocAdjustment(const DWARFDie &DIE) override;
 
     bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                           bool IsLittleEndian) override;
@@ -198,14 +201,20 @@ private:
   /// \defgroup Helpers Various helper methods.
   ///
   /// @{
-  bool createStreamer(const Triple &TheTriple, raw_fd_ostream &OutFile);
+  template <typename OutStreamer>
+  bool createStreamer(const Triple &TheTriple,
+                      typename OutStreamer::OutputFileType FileType,
+                      std::unique_ptr<OutStreamer> &Streamer,
+                      raw_fd_ostream &OutFile);
 
   /// Attempt to load a debug object from disk.
   ErrorOr<const object::ObjectFile &> loadObject(const DebugMapObject &Obj,
                                                  const Triple &triple);
-  ErrorOr<DWARFFile &> loadObject(const DebugMapObject &Obj,
-                                  const DebugMap &DebugMap,
-                                  remarks::RemarkLinker &RL);
+
+  template <typename OutDWARFFile, typename AddressesMap>
+  ErrorOr<std::unique_ptr<OutDWARFFile>> loadObject(const DebugMapObject &Obj,
+                                                    const DebugMap &DebugMap,
+                                                    remarks::RemarkLinker &RL);
 
   void collectRelocationsToApplyToSwiftReflectionSections(
       const object::SectionRef &Section, StringRef &Contents,
@@ -217,21 +226,22 @@ private:
 
   Error copySwiftInterfaces(StringRef Architecture) const;
 
+  template <typename OutStreamer>
   void copySwiftReflectionMetadata(
-      const llvm::dsymutil::DebugMapObject *Obj, DwarfStreamer *Streamer,
+      const llvm::dsymutil::DebugMapObject *Obj, OutStreamer *Streamer,
       std::vector<uint64_t> &SectionToOffsetInDwarf,
       std::vector<MachOUtils::DwarfRelocationApplicationInfo>
           &RelocationsToApply);
+
+  template <typename Linker, typename OutDwarfFile, typename AddressMapBase>
+  bool linkImpl(const DebugMap &Map,
+                typename Linker::OutputFileType ObjectType);
 
   raw_fd_ostream &OutFile;
   BinaryHolder &BinHolder;
   LinkOptions Options;
   std::mutex &ErrorHandlerMutex;
 
-  std::unique_ptr<DwarfStreamer> Streamer;
-  std::vector<std::unique_ptr<DWARFFile>> ObjectsForLinking;
-  std::vector<std::unique_ptr<DWARFContext>> ContextForLinking;
-  std::vector<std::unique_ptr<AddressManager>> AddressMapForLinking;
   std::vector<std::string> EmptyWarnings;
 
   /// A list of all .swiftinterface files referenced by the debug

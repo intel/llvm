@@ -50,8 +50,8 @@ void buffer_impl::addInteropObject(
     if (std::find(Handles.begin(), Handles.end(),
                   pi::cast<pi_native_handle>(MInteropMemObject)) ==
         Handles.end()) {
-      const plugin &Plugin = getPlugin();
-      Plugin.call<PiApiKind::piMemRetain>(
+      const PluginPtr &Plugin = getPlugin();
+      Plugin->call<PiApiKind::piMemRetain>(
           pi::cast<RT::PiMem>(MInteropMemObject));
       Handles.push_back(pi::cast<pi_native_handle>(MInteropMemObject));
     }
@@ -76,14 +76,14 @@ buffer_impl::getNativeVector(backend BackendName) const {
       continue;
     auto Plugin = Platform->getPlugin();
 
-    if (Plugin.getBackend() != BackendName)
+    if (Platform->getBackend() != BackendName)
       continue;
-    if (Plugin.getBackend() == backend::opencl) {
-      Plugin.call<PiApiKind::piMemRetain>(NativeMem);
+    if (Platform->getBackend() == backend::opencl) {
+      Plugin->call<PiApiKind::piMemRetain>(NativeMem);
     }
 
     pi_native_handle Handle;
-    Plugin.call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
     Handles.push_back(Handle);
   }
 

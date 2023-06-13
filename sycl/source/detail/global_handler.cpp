@@ -198,7 +198,7 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
 std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
-std::vector<plugin> &GlobalHandler::getPlugins() {
+std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
 }
@@ -233,7 +233,7 @@ void GlobalHandler::releaseDefaultContexts() {
   // finished. To avoid calls to nowhere, intentionally leak platform to device
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
-  // Update: the win_proxy_loader addresses this for SYCL's own dependencies,
+  // Update: the pi_win_proxy_loader addresses this for SYCL's own dependencies,
   // but the GPU device dlls seem to manually load yet another DLL which may
   // have been released when this function is called. So we still release() and
   // leak until that is addressed. context destructs fine on CPU device.
@@ -258,13 +258,13 @@ void GlobalHandler::unloadPlugins() {
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
-    for (plugin &Plugin : getPlugins()) {
+    for (const PluginPtr &Plugin : getPlugins()) {
       // PluginParameter is reserved for future use that can control
       // some parameters in the plugin tear-down process.
       // Currently, it is not used.
       void *PluginParameter = nullptr;
-      Plugin.call<PiApiKind::piTearDown>(PluginParameter);
-      Plugin.unload();
+      Plugin->call<PiApiKind::piTearDown>(PluginParameter);
+      Plugin->unload();
     }
   }
   // Clear after unload to avoid uses after unload.

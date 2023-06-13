@@ -6,10 +6,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
@@ -63,15 +61,15 @@ int main(void) {
             simd<float, VL> vc;
 #ifdef __SYCL_DEVICE_ONLY__
             simd_mask<VL> m;
-            __asm__("mov (M1, 8) %0 0x1010101:v" : "=rw"(m.data_ref()));
+            __asm__("mov (M1, 8) %0 0x1010101:v" : "=r"(m.data_ref()));
             __asm__("{\n"
                     ".decl P1 v_type=P num_elts=8\n"
                     "mov (M1, 8) %0 0x1:ud\n"
                     "setp (M1, 8) P1 %3\n"
                     "(P1) add (M1, 8) %0 %1 %2\n"
                     "}"
-                    : "=rw"(vc.data_ref())
-                    : "rw"(va.data()), "rw"(vb.data()), "rw"(m.data()));
+                    : "=r"(vc.data_ref())
+                    : "r"(va.data()), "r"(vb.data()), "r"(m.data()));
 #else
             simd_mask<VL> m({1,0,1,0,1,0,1,0});
             vc = va+vb;

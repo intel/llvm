@@ -58,6 +58,7 @@ private:
   }
   void CheckValue(const Symbol &, const DerivedTypeSpec *);
   void CheckVolatile(const Symbol &, const DerivedTypeSpec *);
+  void CheckContiguous(const Symbol &);
   void CheckPointer(const Symbol &);
   void CheckPassArg(
       const Symbol &proc, const Symbol *interface, const WithPassArg &);
@@ -113,6 +114,19 @@ private:
       evaluate::AttachDeclaration(*msg, symbol);
     }
     return msg;
+  }
+  template <typename... A> parser::Message *WarnIfNotInModuleFile(A &&...x) {
+    if (FindModuleFileContaining(context_.FindScope(messages_.at()))) {
+      return nullptr;
+    }
+    return messages_.Say(std::forward<A>(x)...);
+  }
+  template <typename... A>
+  parser::Message *WarnIfNotInModuleFile(parser::CharBlock source, A &&...x) {
+    if (FindModuleFileContaining(context_.FindScope(source))) {
+      return nullptr;
+    }
+    return messages_.Say(source, std::forward<A>(x)...);
   }
   bool IsResultOkToDiffer(const FunctionResult &);
   void CheckGlobalName(const Symbol &);
@@ -216,9 +230,8 @@ void CheckHelper::Check(
 
 void CheckHelper::Check(const Symbol &symbol) {
   if (symbol.name().size() > common::maxNameLen &&
-      &symbol == &symbol.GetUltimate() &&
-      !FindModuleFileContaining(symbol.owner())) {
-    messages_.Say(symbol.name(),
+      &symbol == &symbol.GetUltimate()) {
+    WarnIfNotInModuleFile(symbol.name(),
         "%s has length %d, which is greater than the maximum name length "
         "%d"_port_en_US,
         symbol.name(), symbol.name().size(), common::maxNameLen);
@@ -260,19 +273,8 @@ void CheckHelper::Check(const Symbol &symbol) {
       !symbol.implicitAttrs().test(Attr::SAVE)) {
     CheckExplicitSave(symbol);
   }
-  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
   if (symbol.attrs().test(Attr::CONTIGUOUS)) {
-    if ((!object && !symbol.has<UseDetails>()) ||
-        !((IsPointer(symbol) && symbol.Rank() > 0) || IsAssumedShape(symbol) ||
-            evaluate::IsAssumedRank(symbol))) {
-      if (symbol.owner().IsDerivedType()) { // C752
-        messages_.Say(
-            "A CONTIGUOUS component must be an array with the POINTER attribute"_err_en_US);
-      } else { // C830
-        messages_.Say(
-            "CONTIGUOUS entity must be an array pointer, assumed-shape, or assumed-rank"_err_en_US);
-      }
-    }
+    CheckContiguous(symbol);
   }
   CheckGlobalName(symbol);
   if (isDone) {
@@ -323,6 +325,7 @@ void CheckHelper::Check(const Symbol &symbol) {
           "A dummy procedure of a pure subprogram must be pure"_err_en_US);
     }
   }
+  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
   if (type) { // Section 7.2, paragraph 7; C795
     bool isChar{type->category() == DeclTypeSpec::Character};
     bool canHaveAssumedParameter{(isChar && IsNamedConstant(symbol)) ||
@@ -615,6 +618,7 @@ void CheckHelper::CheckObjectEntity(
   WarnMissingFinal(symbol);
   const DeclTypeSpec *type{details.type()};
   const DerivedTypeSpec *derived{type ? type->AsDerived() : nullptr};
+  bool isComponent{symbol.owner().IsDerivedType()};
   if (!details.coshape().empty()) {
     bool isDeferredCoshape{details.coshape().CanBeDeferredShape()};
     if (IsAllocatable(symbol)) {
@@ -623,7 +627,7 @@ void CheckHelper::CheckObjectEntity(
                       " coshape"_err_en_US,
             symbol.name());
       }
-    } else if (symbol.owner().IsDerivedType()) { // C746
+    } else if (isComponent) { // C746
       std::string deferredMsg{
           isDeferredCoshape ? "" : " and have a deferred coshape"};
       messages_.Say("Component '%s' is a coarray and must have the ALLOCATABLE"
@@ -702,14 +706,62 @@ void CheckHelper::CheckObjectEntity(
             "non-POINTER dummy argument of pure subroutine must have INTENT() or VALUE attribute"_err_en_US);
       }
     }
+    if (auto ignoreTKR{GetIgnoreTKR(symbol)}; !ignoreTKR.empty()) {
+      const Symbol *ownerSymbol{symbol.owner().symbol()};
+      const auto *ownerSubp{ownerSymbol->detailsIf<SubprogramDetails>()};
+      bool inInterface{ownerSubp && ownerSubp->isInterface()};
+      bool inExplicitInterface{
+          inInterface && !IsSeparateModuleProcedureInterface(ownerSymbol)};
+      bool inModuleProc{
+          !inInterface && ownerSymbol && IsModuleProcedure(*ownerSymbol)};
+      if (!inExplicitInterface && !inModuleProc) {
+        messages_.Say(
+            "!DIR$ IGNORE_TKR may apply only in an interface or a module procedure"_err_en_US);
+      }
+      if (ignoreTKR.test(common::IgnoreTKR::Contiguous) &&
+          !IsAssumedShape(symbol)) {
+        messages_.Say(
+            "!DIR$ IGNORE_TKR(C) may apply only to an assumed-shape array"_err_en_US);
+      }
+      if (ownerSymbol && ownerSymbol->attrs().test(Attr::ELEMENTAL) &&
+          details.ignoreTKR().test(common::IgnoreTKR::Rank)) {
+        messages_.Say(
+            "!DIR$ IGNORE_TKR(R) may not apply in an ELEMENTAL procedure"_err_en_US);
+      }
+      if (IsPassedViaDescriptor(symbol)) {
+        if (IsAllocatableOrPointer(symbol)) {
+          if (inExplicitInterface) {
+            WarnIfNotInModuleFile(
+                "!DIR$ IGNORE_TKR should not apply to an allocatable or pointer"_warn_en_US);
+          } else {
+            messages_.Say(
+                "!DIR$ IGNORE_TKR may not apply to an allocatable or pointer"_err_en_US);
+          }
+        } else if (ignoreTKR.test(common::IgnoreTKR::Rank)) {
+          if (ignoreTKR.count() == 1 && evaluate::IsAssumedRank(symbol)) {
+            WarnIfNotInModuleFile(
+                "!DIR$ IGNORE_TKR(R) is not meaningful for an assumed-rank array"_warn_en_US);
+          } else if (inExplicitInterface) {
+            WarnIfNotInModuleFile(
+                "!DIR$ IGNORE_TKR(R) should not apply to a dummy argument passed via descriptor"_warn_en_US);
+          } else {
+            messages_.Say(
+                "!DIR$ IGNORE_TKR(R) may not apply to a dummy argument passed via descriptor"_err_en_US);
+          }
+        }
+      }
+    }
   } else if (symbol.attrs().test(Attr::INTENT_IN) ||
       symbol.attrs().test(Attr::INTENT_OUT) ||
       symbol.attrs().test(Attr::INTENT_INOUT)) {
-    messages_.Say("INTENT attributes may apply only to a dummy "
-                  "argument"_err_en_US); // C843
+    messages_.Say(
+        "INTENT attributes may apply only to a dummy argument"_err_en_US); // C843
   } else if (IsOptional(symbol)) {
-    messages_.Say("OPTIONAL attribute may apply only to a dummy "
-                  "argument"_err_en_US); // C849
+    messages_.Say(
+        "OPTIONAL attribute may apply only to a dummy argument"_err_en_US); // C849
+  } else if (!details.ignoreTKR().empty()) {
+    messages_.Say(
+        "!DIR$ IGNORE_TKR directive may apply only to a dummy data argument"_err_en_US);
   }
   if (InElemental()) {
     if (details.isDummy()) { // C15100
@@ -758,9 +810,8 @@ void CheckHelper::CheckObjectEntity(
       messages_.Say("A dummy argument must not be initialized"_err_en_US);
     } else if (IsFunctionResult(symbol)) {
       messages_.Say("A function result must not be initialized"_err_en_US);
-    } else if (IsInBlankCommon(symbol) &&
-        !FindModuleFileContaining(symbol.owner())) {
-      messages_.Say(
+    } else if (IsInBlankCommon(symbol)) {
+      WarnIfNotInModuleFile(
           "A variable in blank COMMON should not be initialized"_port_en_US);
     }
   }
@@ -795,6 +846,161 @@ void CheckHelper::CheckObjectEntity(
       }
     }
   }
+  if (symbol.attrs().test(Attr::EXTERNAL)) {
+    SayWithDeclaration(symbol,
+        "'%s' is a data object and may not be EXTERNAL"_err_en_US,
+        symbol.name());
+  }
+
+  // Check CUDA attributes and special circumstances of being in device
+  // subprograms
+  const Scope &progUnit{GetProgramUnitContaining(symbol)};
+  const auto *subpDetails{!isComponent && progUnit.symbol()
+          ? progUnit.symbol()->detailsIf<SubprogramDetails>()
+          : nullptr};
+  bool inDeviceSubprogram{IsCUDADeviceContext(&symbol.owner())};
+  if (inDeviceSubprogram) {
+    if (IsSaved(symbol)) {
+      WarnIfNotInModuleFile(
+          "'%s' should not have the SAVE attribute or initialization in a device subprogram"_warn_en_US,
+          symbol.name());
+    }
+    if (IsPointer(symbol)) {
+      WarnIfNotInModuleFile(
+          "Pointer '%s' may not be associated in a device subprogram"_warn_en_US,
+          symbol.name());
+    }
+    if (details.isDummy() &&
+        details.cudaDataAttr().value_or(common::CUDADataAttr::Device) !=
+            common::CUDADataAttr::Device &&
+        details.cudaDataAttr().value_or(common::CUDADataAttr::Device) !=
+            common::CUDADataAttr::Managed) {
+      WarnIfNotInModuleFile(
+          "Dummy argument '%s' may not have ATTRIBUTES(%s) in a device subprogram"_warn_en_US,
+          symbol.name(),
+          parser::ToUpperCaseLetters(
+              common::EnumToString(*details.cudaDataAttr())));
+    }
+  }
+  if (details.cudaDataAttr()) {
+    if (auto dyType{evaluate::DynamicType::From(symbol)}) {
+      if (dyType->category() != TypeCategory::Derived) {
+        if (!IsCUDAIntrinsicType(*dyType)) {
+          messages_.Say(
+              "'%s' has intrinsic type '%s' that is not available on the device"_err_en_US,
+              symbol.name(), dyType->AsFortran());
+        }
+      }
+    }
+    auto attr{*details.cudaDataAttr()};
+    switch (attr) {
+    case common::CUDADataAttr::Constant:
+      if (IsAllocatableOrPointer(symbol) || symbol.attrs().test(Attr::TARGET)) {
+        messages_.Say(
+            "Object '%s' with ATTRIBUTES(CONSTANT) may not be allocatable, pointer, or target"_err_en_US,
+            symbol.name());
+      } else if (auto shape{evaluate::GetShape(foldingContext_, symbol)};
+                 !shape ||
+                 !evaluate::AsConstantExtents(foldingContext_, *shape)) {
+        messages_.Say(
+            "Object '%s' with ATTRIBUTES(CONSTANT) must have constant array bounds"_err_en_US,
+            symbol.name());
+      }
+      break;
+    case common::CUDADataAttr::Device:
+      if (isComponent && !IsAllocatable(symbol)) {
+        messages_.Say(
+            "Component '%s' with ATTRIBUTES(DEVICE) must also be allocatable"_err_en_US,
+            symbol.name());
+      }
+      break;
+    case common::CUDADataAttr::Managed:
+      if (!IsAutomatic(symbol) && !IsAllocatable(symbol) &&
+          !details.isDummy()) {
+        messages_.Say(
+            "Object '%s' with ATTRIBUTES(MANAGED) must also be allocatable, automatic, or a dummy argument"_err_en_US,
+            symbol.name());
+      }
+      break;
+    case common::CUDADataAttr::Pinned:
+      if (inDeviceSubprogram) {
+        WarnIfNotInModuleFile(
+            "Object '%s' with ATTRIBUTES(PINNED) may not be declared in a device subprogram"_warn_en_US,
+            symbol.name());
+      } else if (IsPointer(symbol)) {
+        WarnIfNotInModuleFile(
+            "Object '%s' with ATTRIBUTES(PINNED) may not be a pointer"_warn_en_US,
+            symbol.name());
+      } else if (!IsAllocatable(symbol)) {
+        WarnIfNotInModuleFile(
+            "Object '%s' with ATTRIBUTES(PINNED) should also be allocatable"_warn_en_US,
+            symbol.name());
+      }
+      break;
+    case common::CUDADataAttr::Shared:
+      if (IsAllocatableOrPointer(symbol) || symbol.attrs().test(Attr::TARGET)) {
+        messages_.Say(
+            "Object '%s' with ATTRIBUTES(SHARED) may not be allocatable, pointer, or target"_err_en_US,
+            symbol.name());
+      } else if (!inDeviceSubprogram) {
+        messages_.Say(
+            "Object '%s' with ATTRIBUTES(SHARED) must be declared in a device subprogram"_err_en_US,
+            symbol.name());
+      }
+      break;
+    case common::CUDADataAttr::Texture:
+      messages_.Say(
+          "ATTRIBUTES(TEXTURE) is obsolete and no longer supported"_err_en_US);
+      break;
+    }
+    if (attr != common::CUDADataAttr::Pinned) {
+      if (details.commonBlock()) {
+        messages_.Say(
+            "Object '%s' with ATTRIBUTES(%s) may not be in COMMON"_err_en_US,
+            symbol.name(),
+            parser::ToUpperCaseLetters(common::EnumToString(attr)));
+      } else if (FindEquivalenceSet(symbol)) {
+        messages_.Say(
+            "Object '%s' with ATTRIBUTES(%s) may not be in an equivalence group"_err_en_US,
+            symbol.name(),
+            parser::ToUpperCaseLetters(common::EnumToString(attr)));
+      }
+    }
+    if (subpDetails /* not a module variable */ && IsSaved(symbol) &&
+        !inDeviceSubprogram && !IsAllocatable(symbol) &&
+        attr == common::CUDADataAttr::Device) {
+      messages_.Say(
+          "Saved object '%s' in host code may not have ATTRIBUTES(DEVICE) unless allocatable"_err_en_US,
+          symbol.name(),
+          parser::ToUpperCaseLetters(common::EnumToString(attr)));
+    }
+    if (isComponent) {
+      if (attr == common::CUDADataAttr::Device) {
+        const DeclTypeSpec *type{symbol.GetType()};
+        if (const DerivedTypeSpec *
+            derived{type ? type->AsDerived() : nullptr}) {
+          DirectComponentIterator directs{*derived};
+          if (auto iter{std::find_if(directs.begin(), directs.end(),
+                  [](const Symbol &) { return false; })}) {
+            messages_.Say(
+                "Derived type component '%s' may not have ATTRIBUTES(DEVICE) as it has a direct device component '%s'"_err_en_US,
+                symbol.name(), iter.BuildResultDesignatorName());
+          }
+        }
+      } else if (attr == common::CUDADataAttr::Constant ||
+          attr == common::CUDADataAttr::Shared) {
+        messages_.Say(
+            "Derived type component '%s' may not have ATTRIBUTES(%s)"_err_en_US,
+            symbol.name(),
+            parser::ToUpperCaseLetters(common::EnumToString(attr)));
+      }
+    } else if (!subpDetails && symbol.owner().kind() != Scope::Kind::Module &&
+        symbol.owner().kind() != Scope::Kind::MainProgram) {
+      messages_.Say(
+          "ATTRIBUTES(%s) may apply only to module, host subprogram, or device subprogram data"_err_en_US,
+          parser::ToUpperCaseLetters(common::EnumToString(attr)));
+    }
+  }
 }
 
 void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
@@ -806,7 +1012,7 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
           auto restorer{messages_.SetLocation(symbol.name())};
           context_.set_location(symbol.name());
           CheckInitialTarget(
-              foldingContext_, *designator, *object->init(), DEREF(scope_));
+              context_, *designator, *object->init(), DEREF(scope_));
         }
       }
     } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
@@ -866,6 +1072,9 @@ void CheckHelper::CheckArraySpec(
   bool canBeAssumedShape{arraySpec.CanBeAssumedShape()};
   bool canBeAssumedSize{arraySpec.CanBeAssumedSize()};
   bool isAssumedRank{arraySpec.IsAssumedRank()};
+  bool isCUDAShared{
+      GetCUDADataAttr(&symbol).value_or(common::CUDADataAttr::Device) ==
+      common::CUDADataAttr::Shared};
   std::optional<parser::MessageFixedText> msg;
   if (symbol.test(Symbol::Flag::CrayPointee) && !isExplicit &&
       !canBeAssumedSize) {
@@ -895,12 +1104,12 @@ void CheckHelper::CheckArraySpec(
     }
   } else if (canBeAssumedShape && !canBeDeferred) {
     msg = "Assumed-shape array '%s' must be a dummy argument"_err_en_US;
-  } else if (canBeAssumedSize && !canBeImplied) { // C833
+  } else if (canBeAssumedSize && !canBeImplied && !isCUDAShared) { // C833
     msg = "Assumed-size array '%s' must be a dummy argument"_err_en_US;
   } else if (isAssumedRank) { // C837
     msg = "Assumed-rank array '%s' must be a dummy argument"_err_en_US;
   } else if (canBeImplied) {
-    if (!IsNamedConstant(symbol)) { // C835, C836
+    if (!IsNamedConstant(symbol) && !isCUDAShared) { // C835, C836
       msg = "Implied-shape array '%s' must be a named constant or a "
             "dummy argument"_err_en_US;
     }
@@ -1134,6 +1343,50 @@ void CheckHelper::CheckSubprogram(
   }
   CheckExternal(symbol);
   CheckModuleProcedureDef(symbol);
+  auto cudaAttrs{details.cudaSubprogramAttrs()};
+  if (cudaAttrs &&
+      (*cudaAttrs == common::CUDASubprogramAttrs::Global ||
+          *cudaAttrs == common::CUDASubprogramAttrs::Grid_Global) &&
+      details.isFunction()) {
+    messages_.Say(symbol.name(),
+        "A function may not have ATTRIBUTES(GLOBAL) or ATTRIBUTES(GRID_GLOBAL)"_err_en_US);
+  }
+  if (cudaAttrs && *cudaAttrs != common::CUDASubprogramAttrs::Host) {
+    // CUDA device subprogram checks
+    if (symbol.attrs().HasAny({Attr::RECURSIVE, Attr::PURE, Attr::ELEMENTAL})) {
+      messages_.Say(symbol.name(),
+          "A device subprogram may not be RECURSIVE, PURE, or ELEMENTAL"_err_en_US);
+    }
+    if (ClassifyProcedure(symbol) == ProcedureDefinitionClass::Internal) {
+      messages_.Say(symbol.name(),
+          "A device subprogram may not be an internal subprogram"_err_en_US);
+    } else if ((*cudaAttrs == common::CUDASubprogramAttrs::Device ||
+                   *cudaAttrs == common::CUDASubprogramAttrs::HostDevice) &&
+        (symbol.owner().kind() != Scope::Kind::Module ||
+            details.isInterface())) {
+      messages_.Say(symbol.name(),
+          "An ATTRIBUTES(DEVICE) subprogram must be a top-level module procedure"_err_en_US);
+    }
+  }
+  if ((!details.cudaLaunchBounds().empty() ||
+          !details.cudaClusterDims().empty()) &&
+      !(cudaAttrs &&
+          (*cudaAttrs == common::CUDASubprogramAttrs::Global ||
+              *cudaAttrs == common::CUDASubprogramAttrs::Grid_Global))) {
+    messages_.Say(symbol.name(),
+        "A subroutine may not have LAUNCH_BOUNDS() or CLUSTER_DIMS() unless it has ATTRIBUTES(GLOBAL) or ATTRIBUTES(GRID_GLOBAL)"_err_en_US);
+  }
+  if (!IsStmtFunction(symbol)) {
+    if (const Scope * outerDevice{FindCUDADeviceContext(&symbol.owner())};
+        outerDevice && outerDevice->symbol()) {
+      if (auto *msg{messages_.Say(symbol.name(),
+              "'%s' may not be an internal procedure of CUDA device subprogram '%s'"_err_en_US,
+              symbol.name(), outerDevice->symbol()->name())}) {
+        msg->Attach(outerDevice->symbol()->name(),
+            "Containing CUDA device subprogram"_en_US);
+      }
+    }
+  }
 }
 
 void CheckHelper::CheckExternal(const Symbol &symbol) {
@@ -1162,7 +1415,7 @@ void CheckHelper::CheckExternal(const Symbol &symbol) {
             if (chars->HasExplicitInterface()) {
               std::string whyNot;
               if (!chars->IsCompatibleWith(*globalChars, &whyNot)) {
-                msg = messages_.Say(
+                msg = WarnIfNotInModuleFile(
                     "The global subprogram '%s' is not compatible with its local procedure declaration (%s)"_warn_en_US,
                     global->name(), whyNot);
               }
@@ -1188,7 +1441,7 @@ void CheckHelper::CheckExternal(const Symbol &symbol) {
         if (auto previousChars{Characterize(previous)}) {
           std::string whyNot;
           if (!chars->IsCompatibleWith(*previousChars, &whyNot)) {
-            if (auto *msg{messages_.Say(
+            if (auto *msg{WarnIfNotInModuleFile(
                     "The external interface '%s' is not compatible with an earlier definition (%s)"_warn_en_US,
                     symbol.name(), whyNot)}) {
               evaluate::AttachDeclaration(msg, previous);
@@ -1575,12 +1828,14 @@ bool CheckHelper::CheckDefinedOperator(SourceName opName, GenericKind kind,
     return true; // OK
   }
   bool isFatal{msg->IsFatal()};
-  SayWithDeclaration(
-      specific, std::move(*msg), MakeOpName(opName), specific.name());
+  if (isFatal || !FindModuleFileContaining(specific.owner())) {
+    SayWithDeclaration(
+        specific, std::move(*msg), MakeOpName(opName), specific.name());
+  }
   if (isFatal) {
     context_.SetError(specific);
   }
-  return false;
+  return !isFatal;
 }
 
 // If the number of arguments is wrong for this intrinsic operator, return
@@ -1641,15 +1896,24 @@ bool CheckHelper::CheckDefinedOperatorArg(const SourceName &opName,
              dataObject == nullptr) {
     msg = "In %s function '%s', dummy argument '%s' must be a"
           " data object"_err_en_US;
+  } else if (dataObject->intent == common::Intent::Out) {
+    msg =
+        "In %s function '%s', dummy argument '%s' may not be INTENT(OUT)"_err_en_US;
   } else if (dataObject->intent != common::Intent::In &&
       !dataObject->attrs.test(DummyDataObject::Attr::Value)) {
-    msg = "In %s function '%s', dummy argument '%s' must have INTENT(IN)"
-          " or VALUE attribute"_err_en_US;
+    msg =
+        "In %s function '%s', dummy argument '%s' should have INTENT(IN) or VALUE attribute"_warn_en_US;
   }
   if (msg) {
-    SayWithDeclaration(symbol, std::move(*msg),
-        parser::ToUpperCaseLetters(opName.ToString()), symbol.name(), arg.name);
-    return false;
+    bool isFatal{msg->IsFatal()};
+    if (isFatal || !FindModuleFileContaining(symbol.owner())) {
+      SayWithDeclaration(symbol, std::move(*msg),
+          parser::ToUpperCaseLetters(opName.ToString()), symbol.name(),
+          arg.name);
+    }
+    if (isFatal) {
+      return false;
+    }
   }
   return true;
 }
@@ -1695,17 +1959,23 @@ bool CheckHelper::CheckDefinedAssignmentArg(
           " may not be OPTIONAL"_err_en_US;
   } else if (const auto *dataObject{std::get_if<DummyDataObject>(&arg.u)}) {
     if (pos == 0) {
-      if (dataObject->intent != common::Intent::Out &&
+      if (dataObject->intent == common::Intent::In) {
+        msg = "In defined assignment subroutine '%s', first dummy argument '%s'"
+              " may not have INTENT(IN)"_err_en_US;
+      } else if (dataObject->intent != common::Intent::Out &&
           dataObject->intent != common::Intent::InOut) {
         msg = "In defined assignment subroutine '%s', first dummy argument '%s'"
-              " must have INTENT(OUT) or INTENT(INOUT)"_err_en_US;
+              " should have INTENT(OUT) or INTENT(INOUT)"_warn_en_US;
       }
     } else if (pos == 1) {
-      if (dataObject->intent != common::Intent::In &&
+      if (dataObject->intent == common::Intent::Out) {
+        msg = "In defined assignment subroutine '%s', second dummy"
+              " argument '%s' may not have INTENT(OUT)"_err_en_US;
+      } else if (dataObject->intent != common::Intent::In &&
           !dataObject->attrs.test(DummyDataObject::Attr::Value)) {
         msg =
             "In defined assignment subroutine '%s', second dummy"
-            " argument '%s' must have INTENT(IN) or VALUE attribute"_err_en_US;
+            " argument '%s' should have INTENT(IN) or VALUE attribute"_warn_en_US;
       } else if (dataObject->attrs.test(DummyDataObject::Attr::Pointer)) {
         msg =
             "In defined assignment subroutine '%s', second dummy argument '%s' must not be a pointer"_err_en_US;
@@ -1721,9 +1991,14 @@ bool CheckHelper::CheckDefinedAssignmentArg(
           " must be a data object"_err_en_US;
   }
   if (msg) {
-    SayWithDeclaration(symbol, std::move(*msg), symbol.name(), arg.name);
-    context_.SetError(symbol);
-    return false;
+    bool isFatal{msg->IsFatal()};
+    if (isFatal || !FindModuleFileContaining(symbol.owner())) {
+      SayWithDeclaration(symbol, std::move(*msg), symbol.name(), arg.name);
+    }
+    if (isFatal) {
+      context_.SetError(symbol);
+      return false;
+    }
   }
   return true;
 }
@@ -1756,10 +2031,10 @@ void CheckHelper::WarnMissingFinal(const Symbol &symbol) {
     if (!derivedDetails->finals().empty() &&
         !derivedDetails->GetFinalForRank(rank)) {
       if (auto *msg{derivedSym == initialDerivedSym
-                  ? messages_.Say(symbol.name(),
+                  ? WarnIfNotInModuleFile(symbol.name(),
                         "'%s' of derived type '%s' does not have a FINAL subroutine for its rank (%d)"_warn_en_US,
                         symbol.name(), derivedSym->name(), rank)
-                  : messages_.Say(symbol.name(),
+                  : WarnIfNotInModuleFile(symbol.name(),
                         "'%s' of derived type '%s' extended from '%s' does not have a FINAL subroutine for its rank (%d)"_warn_en_US,
                         symbol.name(), initialDerivedSym->name(),
                         derivedSym->name(), rank)}) {
@@ -1804,6 +2079,21 @@ void CheckHelper::CheckVolatile(const Symbol &symbol,
             "VOLATILE attribute may not apply to a type with a coarray ultimate component accessed by USE or host association"_err_en_US);
       }
     }
+  }
+}
+
+void CheckHelper::CheckContiguous(const Symbol &symbol) {
+  if (evaluate::IsVariable(symbol) &&
+      ((IsPointer(symbol) && symbol.Rank() > 0) || IsAssumedShape(symbol) ||
+          evaluate::IsAssumedRank(symbol))) {
+  } else if (symbol.owner().IsDerivedType()) { // C752
+    messages_.Say(
+        "CONTIGUOUS component '%s' must be an array with the POINTER attribute"_err_en_US,
+        symbol.name());
+  } else {
+    messages_.Say(
+        "CONTIGUOUS entity '%s' must be an array pointer, assumed-shape, or assumed-rank"_err_en_US,
+        symbol.name());
   }
 }
 
@@ -2378,15 +2668,17 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
           type->category() == DeclTypeSpec::Character &&
           type->characterTypeSpec().length().isDeferred()) {
         // ok; F'2018 18.3.6 p2(6)
-      } else if (derived || IsInteroperableIntrinsicType(*type)) {
+      } else if (derived ||
+          IsInteroperableIntrinsicType(*type, context_.languageFeatures())) {
         // F'2018 18.3.6 p2(4,5)
-      } else if (type->category() == DeclTypeSpec::Logical && IsDummy(symbol) &&
-          evaluate::GetRank(*shape) == 0) {
-        // Special exception: LOGICAL scalar dummy arguments can be converted
-        // before a call -- & after if not INTENT(IN) -- without loss of
-        // information, and are accepted by some older compilers.
-        messages_.Say(symbol.name(),
-            "A BIND(C) LOGICAL dummy argument should have the interoperable KIND=C_BOOL"_port_en_US);
+      } else if (type->category() == DeclTypeSpec::Logical) {
+        if (IsDummy(symbol)) {
+          WarnIfNotInModuleFile(symbol.name(),
+              "A BIND(C) LOGICAL dummy argument should have the interoperable KIND=C_BOOL"_port_en_US);
+        } else {
+          WarnIfNotInModuleFile(symbol.name(),
+              "A BIND(C) LOGICAL object should have the interoperable KIND=C_BOOL"_port_en_US);
+        }
       } else if (symbol.attrs().test(Attr::VALUE)) {
         messages_.Say(symbol.name(),
             "A BIND(C) VALUE dummy argument must have an interoperable type"_err_en_US);
@@ -2398,12 +2690,13 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
       }
     }
     if (IsOptional(symbol) && !symbol.attrs().test(Attr::VALUE)) {
-      messages_.Say(symbol.name(),
+      WarnIfNotInModuleFile(symbol.name(),
           "An interoperable procedure with an OPTIONAL dummy argument might not be portable"_port_en_US);
     }
   } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
-    if (!proc->procInterface() ||
-        !proc->procInterface()->attrs().test(Attr::BIND_C)) {
+    if (!proc->isDummy() &&
+        (!proc->procInterface() ||
+            !proc->procInterface()->attrs().test(Attr::BIND_C))) {
       messages_.Say(symbol.name(),
           "An interface name with BIND attribute must be specified if the BIND attribute is specified in a procedure declaration statement"_err_en_US);
       context_.SetError(symbol);
@@ -2455,10 +2748,21 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
               }
               context_.SetError(symbol);
             }
-          } else if (!IsInteroperableIntrinsicType(*type)) {
-            messages_.Say(component->name(),
-                "Each component of an interoperable derived type must have an interoperable type"_err_en_US);
-            context_.SetError(symbol);
+          } else if (!IsInteroperableIntrinsicType(
+                         *type, context_.languageFeatures())) {
+            auto maybeDyType{evaluate::DynamicType::From(*type)};
+            if (type->category() == DeclTypeSpec::Logical) {
+              WarnIfNotInModuleFile(component->name(),
+                  "A LOGICAL component of a BIND(C) type should have the interoperable KIND=C_BOOL"_port_en_US);
+            } else if (type->category() == DeclTypeSpec::Character &&
+                maybeDyType && maybeDyType->kind() == 1) {
+              WarnIfNotInModuleFile(component->name(),
+                  "A CHARACTER component of a BIND(C) type should have length 1"_port_en_US);
+            } else {
+              messages_.Say(component->name(),
+                  "Each component of an interoperable derived type must have an interoperable type"_err_en_US);
+              context_.SetError(symbol);
+            }
           }
         }
         if (auto extents{
@@ -2470,9 +2774,8 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
         }
       }
     }
-    if (derived->componentNames().empty() &&
-        !FindModuleFileContaining(symbol.owner())) { // C1805
-      messages_.Say(symbol.name(),
+    if (derived->componentNames().empty()) { // C1805
+      WarnIfNotInModuleFile(symbol.name(),
           "A derived type with the BIND attribute is empty"_port_en_US);
     }
   }

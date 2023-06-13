@@ -3334,7 +3334,7 @@ disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
 function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
-``ivdep``, or ``max_reinvocation_delay``.
+``ivdep``, ``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -3489,6 +3489,43 @@ conjunction with disable_loop_pipelining.
   void bar() {
     [[intel::max_reinvocation_delay(N)]] for(;;) { }
   }
+  }];
+}
+
+def SYCLIntelEnableLoopPipeliningAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::enable_loop_pipelining";
+  let Content = [{
+The ``enable_loop_pipelining`` attribute applies to a loop in SYCL device code.
+Takes no arguments and enables pipelining of the loop. This attribute is useful
+in the low-area flow, in which all loops are unpipelined by default. Cannot be
+used on the same loop in conjunction with ``disable_loop_pipelining`` attribute.
+
+.. code-block:: c++
+
+  void bar() {
+    int a[10];
+    [[[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  void Array(int *array, size_t n) {
+    [[intel::enable_loop_pipelining]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
+  void count () {
+    int a1[10], i = 0;
+    [[intel::enable_loop_pipelining]] while (i < 10) {
+      a1[i++] = 3;
+    }
+  }
+
+  void check() {
+    int a = 10;
+    [[intel::enable_loop_pipelining]] do {
+      a = a + 1;
+    } while (a < 20);
+  }
+
   }];
 }
 
@@ -3829,6 +3866,37 @@ https://riscv.org/specifications/privileged-isa/
 The RISC-V Instruction Set Manual Volume II: Privileged Architecture
 Version 1.10.
   }];
+}
+
+def RISCVRVVVectorBitsDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+On RISC-V targets, the ``riscv_rvv_vector_bits(N)`` attribute is used to define
+fixed-length variants of sizeless types.
+
+For example:
+
+.. code-block:: c
+
+  #include <riscv_vector.h>
+
+  #if defined(__riscv_v_fixed_vlen)
+  typedef vint8m1_t fixed_vint8m1_t __attribute__((riscv_rvv_vector_bits(__riscv_v_fixed_vlen)));
+  #endif
+
+Creates a type ``fixed_vint8m1_t_t`` that is a fixed-length variant of
+``vint8m1_t`` that contains exactly 512 bits. Unlike ``vint8m1_t``, this type
+can be used in globals, structs, unions, and arrays, all of which are
+unsupported for sizeless types.
+
+The attribute can be attached to a single RVV vector (such as ``vint8m1_t``).
+The attribute will be rejected unless
+``N==__riscv_v_fixed_vlen``, the implementation defined feature macro that
+is enabled under the ``-mrvv-vector-bits`` flag. ``__riscv_v_fixed_vlen`` can
+only be a power of 2 between 64 and 65536.
+
+Only ``*m1_t`` (LMUL=1) types are supported at this time.
+}];
 }
 
 def AVRInterruptDocs : Documentation {
@@ -6792,6 +6860,9 @@ apply for values returned in callee-saved registers.
   R11. R11 can be used as a scratch register. Floating-point registers
   (XMMs/YMMs) are not preserved and need to be saved by the caller.
 
+- On AArch64 the callee preserve all general purpose registers, except X0-X8 and
+  X16-X18.
+
 The idea behind this convention is to support calls to runtime functions
 that have a hot path and a cold path. The hot path is usually a small piece
 of code that doesn't use many registers. The cold path might need to call out to
@@ -6831,6 +6902,10 @@ returned in callee-saved registers.
 - On X86-64 the callee preserves all general purpose registers, except for
   R11. R11 can be used as a scratch register. Furthermore it also preserves
   all floating-point registers (XMMs/YMMs).
+
+- On AArch64 the callee preserve all general purpose registers, except X0-X8 and
+  X16-X18. Furthermore it also preserves lower 128 bits of V8-V31 SIMD - floating
+  point registers.
 
 The idea behind this convention is to support calls to runtime functions
 that don't need to call out to any other functions.
@@ -8123,6 +8198,41 @@ Requirements on Development Tools - Engineering Specification Documentation
   }];
 }
 
+def ArmStreamingDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+.. Note:: This attribute has not been implemented yet, but once it is
+   implemented, it will behave as described below.
+
+The ``__arm_streaming`` keyword is only available on AArch64 targets.
+It applies to function types and specifies that the function has a
+"streaming interface".  This means that:
+
+* the function requires the Scalable Matrix Extension (SME)
+
+* the function must be entered in streaming mode (that is, with PSTATE.SM
+  set to 1)
+
+* the function must return in streaming mode
+
+See `Procedure Call Standard for the Arm® 64-bit Architecture (AArch64)
+<https://github.com/ARM-software/abi-aa>`_ for more details about
+streaming-interface functions.
+
+Clang manages PSTATE.SM automatically; it is not the source code's
+responsibility to do this.  For example, if a normal non-streaming
+function calls an ``__arm_streaming`` function, Clang generates code
+that switches into streaming mode before calling the function and
+switches back to non-streaming mode on return.
+
+``__arm_streaming`` can appear anywhere that a standard ``[[...]]`` type
+attribute can appear.
+
+See `Arm C Language Extensions <https://github.com/ARM-software/acle>`_
+for more details about this extension, and for other related SME features.
+  }];
+}
+
 def AlwaysInlineDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -8559,4 +8669,31 @@ Clang supports the ``__funcref`` attribute for the WebAssembly target.
 This attribute may be attached to a function pointer type, where it modifies 
 its underlying representation to be a WebAssembly ``funcref``.
   }];
+}
+
+def CleanupDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+This attribute allows a function to be run when a local variable goes out of
+scope. The attribute takes the identifier of a function with a parameter type
+that is a pointer to the type with the attribute.
+
+.. code-block:: c
+
+  static void foo (int *) { ... }
+  static void bar (int *) { ... }
+  void baz (void) {
+    int x __attribute__((cleanup(foo)));
+    {
+      int y __attribute__((cleanup(bar)));
+    }
+  }
+
+The above example will result in a call to ``bar`` being passed the address of
+`y`` when ``y`` goes out of scope, then a call to ``foo`` being passed the
+address of ``x`` when ``x`` goes out of scope. If two or more variables share
+the same scope, their ``cleanup`` callbacks are invoked in the reverse order
+the variables were declared in. It is not possible to check the return value
+(if any) of these ``cleanup`` callback functions.
+}];
 }

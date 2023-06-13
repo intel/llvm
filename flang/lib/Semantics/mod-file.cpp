@@ -457,6 +457,31 @@ void ModFileWriter::PutSubprogram(const Symbol &symbol) {
     os << (isAbstract ? "abstract " : "") << "interface\n";
   }
   PutAttrs(os, prefixAttrs, nullptr, false, ""s, " "s);
+  if (auto attrs{details.cudaSubprogramAttrs()}) {
+    if (*attrs == common::CUDASubprogramAttrs::HostDevice) {
+      os << "attributes(host,device) ";
+    } else {
+      PutLower(os << "attributes(", common::EnumToString(*attrs)) << ") ";
+    }
+    if (!details.cudaLaunchBounds().empty()) {
+      os << "launch_bounds";
+      char sep{'('};
+      for (auto x : details.cudaLaunchBounds()) {
+        os << sep << x;
+        sep = ',';
+      }
+      os << ") ";
+    }
+    if (!details.cudaClusterDims().empty()) {
+      os << "cluster_dims";
+      char sep{'('};
+      for (auto x : details.cudaClusterDims()) {
+        os << sep << x;
+        sep = ',';
+      }
+      os << ") ";
+    }
+  }
   os << (details.isFunction() ? "function " : "subroutine ");
   os << symbol.name() << '(';
   int n = 0;
@@ -480,7 +505,6 @@ void ModFileWriter::PutSubprogram(const Symbol &symbol) {
     }
   }
   os << '\n';
-
   // walk symbols, collect ones needed for interface
   const Scope &scope{
       details.entryScope() ? *details.entryScope() : DEREF(symbol.scope())};
@@ -684,6 +708,37 @@ void ModFileWriter::PutObjectEntity(
   PutShape(os, details.coshape(), '[', ']');
   PutInit(os, symbol, details.init(), details.unanalyzedPDTComponentInit());
   os << '\n';
+  if (auto tkr{GetIgnoreTKR(symbol)}; !tkr.empty()) {
+    os << "!dir$ ignore_tkr(";
+    tkr.IterateOverMembers([&](common::IgnoreTKR tkr) {
+      switch (tkr) {
+        SWITCH_COVERS_ALL_CASES
+      case common::IgnoreTKR::Type:
+        os << 't';
+        break;
+      case common::IgnoreTKR::Kind:
+        os << 'k';
+        break;
+      case common::IgnoreTKR::Rank:
+        os << 'r';
+        break;
+      case common::IgnoreTKR::Device:
+        os << 'd';
+        break;
+      case common::IgnoreTKR::Managed:
+        os << 'm';
+        break;
+      case common::IgnoreTKR::Contiguous:
+        os << 'c';
+        break;
+      }
+    });
+    os << ") " << symbol.name() << '\n';
+  }
+  if (auto attr{details.cudaDataAttr()}) {
+    PutLower(os << "attributes(", common::EnumToString(*attr))
+        << ") " << symbol.name() << '\n';
+  }
 }
 
 void ModFileWriter::PutProcEntity(llvm::raw_ostream &os, const Symbol &symbol) {
@@ -964,6 +1019,7 @@ Scope *ModFileReader::Read(const SourceName &name,
   options.isModuleFile = true;
   options.features.Enable(common::LanguageFeature::BackslashEscapes);
   options.features.Enable(common::LanguageFeature::OpenMP);
+  options.features.Enable(common::LanguageFeature::CUDA);
   if (!isIntrinsic.value_or(false) && !notAModule) {
     // The search for this module file will scan non-intrinsic module
     // directories.  If a directory is in both the intrinsic and non-intrinsic

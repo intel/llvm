@@ -10,8 +10,6 @@
 #define MLIR_DIALECT_LINALG_TRANSFORMOPS_LINALGTRANSFORMOPS_H
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/PDL/IR/PDLTypes.h"
-#include "mlir/Dialect/Transform/IR/MatchInterfaces.h"
 #include "mlir/Dialect/Transform/IR/TransformAttrs.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
@@ -24,6 +22,7 @@ class TilingInterface;
 class RewriterBase;
 
 namespace linalg {
+struct ForallTilingResult;
 class GenericOp;
 class LinalgOp;
 } // namespace linalg
@@ -49,37 +48,15 @@ class DialectRegistry;
 namespace transform {
 
 /// Implementation of tiling operations using `scf.forall`.
-DiagnosedSilenceableFailure tileToForallOpImpl(
-    RewriterBase &rewriter, transform::TransformState &state,
-    TransformOpInterface transformOp, ArrayRef<Operation *> targets,
-    ArrayRef<OpFoldResult> mixedNumThreads,
-    ArrayRef<OpFoldResult> mixedTileSizes, std::optional<ArrayAttr> mapping,
-    SmallVector<Operation *> &tileOps, SmallVector<Operation *> &tiledOps);
-
-namespace detail {
-LogicalResult verifyStructuredOpPredicateOpTrait(Operation *op,
-                                                 Value structuredOpHandle);
-} // namespace detail
-
-template <typename OpTy>
-class StructuredOpPredicateOpTrait
-    : public OpTrait::TraitBase<OpTy, StructuredOpPredicateOpTrait> {
-public:
-  static LogicalResult verifyTrait(Operation *op) {
-    static_assert(
-        OpTy::template hasTrait<SingleOpMatcherOpTrait>(),
-        "StructuredOpPredicateOpTrait requires SingleOpMatcherOpTrait");
-
-    return detail::verifyStructuredOpPredicateOpTrait(
-        op, cast<OpTy>(op).getOperandHandle());
-  }
-};
+DiagnosedSilenceableFailure
+tileToForallOpImpl(RewriterBase &rewriter, transform::TransformState &state,
+                   TransformOpInterface transformOp, Operation *target,
+                   ArrayRef<OpFoldResult> mixedNumThreads,
+                   ArrayRef<OpFoldResult> mixedTileSizes,
+                   std::optional<ArrayAttr> mapping,
+                   linalg::ForallTilingResult &tilingResult);
 
 } // namespace transform
-
-namespace linalg {
-void registerTransformDialectExtension(DialectRegistry &registry);
-} // namespace linalg
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
@@ -90,8 +67,5 @@ void registerTransformDialectExtension(DialectRegistry &registry);
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.h.inc"
-
-#define GET_OP_CLASSES
-#include "mlir/Dialect/Linalg/TransformOps/LinalgMatchOps.h.inc"
 
 #endif // MLIR_DIALECT_LINALG_TRANSFORMOPS_LINALGTRANSFORMOPS_H

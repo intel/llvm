@@ -1,7 +1,5 @@
-set(LLVM_TARGET_DEFINITIONS ${PROJECT_SOURCE_DIR}/include/llvm/CodeGen/ValueTypes.td)
-tablegen(LLVM GenVT.inc -gen-vt)
-
 set(LLVM_LINK_COMPONENTS
+  ProfileData
   Support
   TargetParser
   )
@@ -17,6 +15,7 @@ add_llvm_unittest(SupportTests
   BinaryStreamTest.cpp
   BLAKE3Test.cpp
   BlockFrequencyTest.cpp
+  BalancedPartitioningTest.cpp
   BranchProbabilityTest.cpp
   CachePruningTest.cpp
   CrashRecoveryTest.cpp
@@ -25,6 +24,7 @@ add_llvm_unittest(SupportTests
   Chrono.cpp
   CommandLineTest.cpp
   CompressionTest.cpp
+  ConvertEBCDICTest.cpp
   ConvertUTFTest.cpp
   CRCTest.cpp
   CSKYAttributeParserTest.cpp
@@ -56,7 +56,6 @@ add_llvm_unittest(SupportTests
   LockFileManagerTest.cpp
   MatchersTest.cpp
   MD5Test.cpp
-  MVTTest.cpp
   ManagedStatic.cpp
   MathExtrasTest.cpp
   MemoryBufferRefTest.cpp
@@ -66,6 +65,7 @@ add_llvm_unittest(SupportTests
   OptimizedStructLayoutTest.cpp
   ParallelTest.cpp
   Path.cpp
+  PerThreadBumpPtrAllocatorTest.cpp
   ProcessTest.cpp
   ProgramTest.cpp
   PropertySetIOTest.cpp
@@ -107,7 +107,6 @@ add_llvm_unittest(SupportTests
   raw_pwrite_stream_test.cpp
   raw_sha1_ostream_test.cpp
   xxhashTest.cpp
-  GenVT.inc
   )
 
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport)

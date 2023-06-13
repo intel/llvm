@@ -1,10 +1,8 @@
 // requires: cpu, gpu, accelerator
 // UNSUPPORTED: hip
 // FIXME: enable the test back, see intel/llvm#8146
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -O0 %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -O0 -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 

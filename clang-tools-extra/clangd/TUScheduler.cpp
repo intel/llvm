@@ -635,10 +635,6 @@ public:
                       std::shared_ptr<const PreambleData> Preamble,
                       std::vector<Diag> CIDiags, WantDiagnostics WantDiags);
 
-  /// Obtain a preamble reflecting all updates so far. Threadsafe.
-  /// It may be delivered immediately, or later on the worker thread.
-  void getCurrentPreamble(
-      llvm::unique_function<void(std::shared_ptr<const PreambleData>)>);
   /// Returns compile command from the current file inputs.
   tooling::CompileCommand getCurrentCompileCommand() const;
 
@@ -740,8 +736,8 @@ private:
   mutable std::condition_variable RequestsCV;
   std::shared_ptr<const ASTSignals> LatestASTSignals; /* GUARDED_BY(Mutex) */
   /// Latest build preamble for current TU.
-  /// None means no builds yet, null means there was an error while building.
-  /// Only written by ASTWorker's thread.
+  /// std::nullopt means no builds yet, null means there was an error while
+  /// building. Only written by ASTWorker's thread.
   std::optional<std::shared_ptr<const PreambleData>> LatestPreamble;
   std::deque<Request> PreambleRequests; /* GUARDED_BY(Mutex) */
   /// Signaled whenever LatestPreamble changes state or there's a new

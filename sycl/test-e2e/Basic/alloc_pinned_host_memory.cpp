@@ -1,10 +1,8 @@
 // REQUIRES: level_zero || cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t2.out
-// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t2.out 2>&1 %GPU_L0_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t2.out
-// RUN: %GPU_RUN_PLACEHOLDER %t2.out
-// RUN: %ACC_RUN_PLACEHOLDER %t2.out
+// RUN: %{build} -o %t2.out
+// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 %{run} %t2.out %if ext_oneapi_level_zero %{ 2>&1 | FileCheck %s %}
+// RUN: %{run} %t2.out
 
 #include <sycl/sycl.hpp>
 

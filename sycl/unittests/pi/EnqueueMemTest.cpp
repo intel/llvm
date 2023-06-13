@@ -14,7 +14,7 @@
 using namespace sycl;
 
 namespace {
-class EnqueueMemTest : public testing::TestWithParam<detail::plugin> {
+class EnqueueMemTest : public testing::TestWithParam<detail::PluginPtr> {
 protected:
   constexpr static size_t _numElementsX = 8;
   constexpr static size_t _numElementsY = 4;
@@ -30,27 +30,27 @@ protected:
 
   void SetUp() override {
 
-    detail::plugin plugin = GetParam();
+    const detail::PluginPtr &plugin = GetParam();
 
     pi_platform platform = nullptr;
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   1, &platform, nullptr)),
               PI_SUCCESS);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piDevicesGet>(
                   platform, PI_DEVICE_TYPE_DEFAULT, 1, &_device, nullptr)),
               PI_SUCCESS);
 
     pi_result result = PI_ERROR_INVALID_VALUE;
-    result = plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
+    result = plugin->call_nocheck<detail::PiApiKind::piContextCreate>(
         nullptr, 1u, &_device, nullptr, nullptr, &_context);
     ASSERT_EQ(result, PI_SUCCESS);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piQueueCreate>(
                   _context, _device, 0, &_queue)),
               PI_SUCCESS);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
                   _context, PI_MEM_FLAGS_ACCESS_RW,
                   _numElementsX * _numElementsY * sizeof(pi_int32), nullptr,
                   &_mem, nullptr)),
@@ -59,20 +59,20 @@ protected:
 
   void TearDown() override {
 
-    detail::plugin plugin = GetParam();
+    const detail::PluginPtr &plugin = GetParam();
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(_mem)),
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemRelease>(_mem)),
               PI_SUCCESS);
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piQueueRelease>(_queue)),
               PI_SUCCESS);
     ASSERT_EQ(
-        (plugin.call_nocheck<detail::PiApiKind::piContextRelease>(_context)),
+        (plugin->call_nocheck<detail::PiApiKind::piContextRelease>(_context)),
         PI_SUCCESS);
   }
 
   template <typename T> void TestBufferFill(const T &pattern) {
 
-    detail::plugin plugin = GetParam();
+    const detail::PluginPtr &plugin = GetParam();
 
     T inValues[_numElementsX] = {};
 
@@ -81,20 +81,21 @@ protected:
     }
 
     pi_event event;
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
                   _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T), inValues,
                   0, nullptr, &event)),
               PI_SUCCESS);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferFill>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueMemBufferFill>(
                   _queue, _mem, &pattern, sizeof(T), 0, sizeof(inValues), 0,
                   nullptr, &event)),
               PI_SUCCESS);
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventsWait>(1, &event)),
-              PI_SUCCESS);
+    ASSERT_EQ(
+        (plugin->call_nocheck<detail::PiApiKind::piEventsWait>(1, &event)),
+        PI_SUCCESS);
 
     T outValues[_numElementsX] = {};
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
                   _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T),
                   outValues, 0, nullptr, &event)),
               PI_SUCCESS);
@@ -109,7 +110,7 @@ INSTANTIATE_TEST_SUITE_P(
     EnqueueMemTestImpl, EnqueueMemTest,
     testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<EnqueueMemTest::ParamType> &info) {
-      return pi::GetBackendString(info.param.getBackend());
+      return pi::GetBackendString(info.param);
     });
 
 template <typename T> struct vec4 {

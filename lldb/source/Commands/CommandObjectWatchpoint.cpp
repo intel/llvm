@@ -289,9 +289,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
 protected:
@@ -365,9 +365,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
 protected:
@@ -446,9 +446,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -569,9 +569,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -694,9 +694,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -835,8 +835,7 @@ corresponding to the byte size of the data type.");
     m_arguments.push_back(arg);
 
     // Absorb the '-w' and '-s' options into our option group.
-    m_option_group.Append(&m_option_watchpoint, LLDB_OPT_SET_ALL,
-                          LLDB_OPT_SET_1);
+    m_option_group.Append(&m_option_watchpoint, LLDB_OPT_SET_1, LLDB_OPT_SET_1);
     m_option_group.Finalize();
   }
 
@@ -847,9 +846,9 @@ corresponding to the byte size of the data type.");
                            OptionElementVector &opt_element_vector) override {
     if (request.GetCursorIndex() != 0)
       return;
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eVariablePathCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eVariablePathCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_option_group; }
@@ -990,6 +989,7 @@ public:
       : CommandObjectRaw(
             interpreter, "watchpoint set expression",
             "Set a watchpoint on an address by supplying an expression. "
+            "Use the '-l' option to specify the language of the expression. "
             "Use the '-w' option to specify the type of watchpoint and "
             "the '-s' option to specify the byte size to watch for. "
             "If no '-w' option is specified, it defaults to write. "
@@ -1083,6 +1083,8 @@ protected:
     options.SetKeepInMemory(false);
     options.SetTryAllThreads(true);
     options.SetTimeout(std::nullopt);
+    if (m_option_watchpoint.language_type != eLanguageTypeUnknown)
+      options.SetLanguage(m_option_watchpoint.language_type);
 
     ExpressionResults expr_result =
         target->EvaluateExpression(expr, frame, valobj_sp, options);

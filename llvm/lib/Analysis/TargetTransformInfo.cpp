@@ -230,10 +230,11 @@ TargetTransformInfo::getGEPCost(Type *PointeeType, const Value *Ptr,
 
 InstructionCost TargetTransformInfo::getPointersChainCost(
     ArrayRef<const Value *> Ptrs, const Value *Base,
-    const TTI::PointersChainInfo &Info, TTI::TargetCostKind CostKind) const {
+    const TTI::PointersChainInfo &Info, Type *AccessTy,
+    TTI::TargetCostKind CostKind) const {
   assert((Base || !Info.isSameBase()) &&
          "If pointers have same base address it has to be provided.");
-  return TTIImpl->getPointersChainCost(Ptrs, Base, Info, CostKind);
+  return TTIImpl->getPointersChainCost(Ptrs, Base, Info, AccessTy, CostKind);
 }
 
 unsigned TargetTransformInfo::getEstimatedNumberOfCaseClusters(
@@ -260,10 +261,6 @@ BranchProbability TargetTransformInfo::getPredictableBranchThreshold() const {
 
 bool TargetTransformInfo::hasBranchDivergence() const {
   return TTIImpl->hasBranchDivergence();
-}
-
-bool TargetTransformInfo::useGPUDivergenceAnalysis() const {
-  return TTIImpl->useGPUDivergenceAnalysis();
 }
 
 bool TargetTransformInfo::isSourceOfDivergence(const Value *V) const {
@@ -1196,6 +1193,10 @@ TargetTransformInfo::getVPLegalizationStrategy(const VPIntrinsic &VPI) const {
 
 bool TargetTransformInfo::hasArmWideBranch(bool Thumb) const {
   return TTIImpl->hasArmWideBranch(Thumb);
+}
+
+unsigned TargetTransformInfo::getMaxNumArgs() const {
+  return TTIImpl->getMaxNumArgs();
 }
 
 bool TargetTransformInfo::shouldExpandReduction(const IntrinsicInst *II) const {

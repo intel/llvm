@@ -79,10 +79,29 @@ public:
   const LatPoint &lat(LatPointId l) const { return latticeMerger.lat(l); }
   ArrayRef<LatPointId> set(LatSetId s) const { return latticeMerger.set(s); }
   DimLevelType dlt(TensorId t, LoopId i) const {
-    return latticeMerger.getDimLevelType(t, i);
+    return latticeMerger.getLvlType(t, i);
   }
-  DimLevelType dlt(TensorLoopId b) const {
-    return latticeMerger.getDimLevelType(b);
+  DimLevelType dlt(TensorLoopId b) const { return latticeMerger.getLvlType(b); }
+
+  //
+  // LoopEmitter delegates.
+  //
+
+  TensorLevel makeTensorLevel(TensorId t, Level l) const {
+    // Make sure LoopEmitter, GenericOp, and Merger agree on the number of
+    // tensors.
+    assert(loopEmitter.getNumManifestTensors() == linalgOp->getNumOperands() &&
+           loopEmitter.getNumTensors() == latticeMerger.getNumTensors() &&
+           loopEmitter.getOutTensorId() == latticeMerger.getOutTensorID() &&
+           loopEmitter.getSynTensorId() == latticeMerger.getSynTensorID());
+    return loopEmitter.makeTensorLevel(t, l);
+  }
+  std::pair<TensorId, Level> unpackTensorLevel(TensorLevel tl) const {
+    return loopEmitter.unpackTensorLevel(tl);
+  }
+  template <class ContainerTy>
+  auto unpackTensorLevelRange(ContainerTy &&c) const {
+    return loopEmitter.unpackTensorLevelRange(std::forward<ContainerTy>(c));
   }
 
   //

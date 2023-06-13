@@ -25,6 +25,11 @@ namespace llvm {
 
 class RISCVSubtarget;
 
+static const MachineMemOperand::Flags MONontemporalBit0 =
+    MachineMemOperand::MOTargetFlag1;
+static const MachineMemOperand::Flags MONontemporalBit1 =
+    MachineMemOperand::MOTargetFlag2;
+
 namespace RISCVCC {
 
 enum CondCode {
@@ -227,6 +232,9 @@ public:
 
   std::optional<unsigned> getInverseOpcode(unsigned Opcode) const override;
 
+  ArrayRef<std::pair<MachineMemOperand::Flags, const char *>>
+  getSerializableMachineMemOperandTargetFlags() const override;
+
 protected:
   const RISCVSubtarget &STI;
 };
@@ -257,6 +265,17 @@ bool hasEqualFRM(const MachineInstr &MI1, const MachineInstr &MI2);
 // Special immediate for AVL operand of V pseudo instructions to indicate VLMax.
 static constexpr int64_t VLMaxSentinel = -1LL;
 
+// Mask assignments for floating-point
+static constexpr unsigned FPMASK_Negative_Infinity = 0x001;
+static constexpr unsigned FPMASK_Negative_Normal = 0x002;
+static constexpr unsigned FPMASK_Negative_Subnormal = 0x004;
+static constexpr unsigned FPMASK_Negative_Zero = 0x008;
+static constexpr unsigned FPMASK_Positive_Zero = 0x010;
+static constexpr unsigned FPMASK_Positive_Subnormal = 0x020;
+static constexpr unsigned FPMASK_Positive_Normal = 0x040;
+static constexpr unsigned FPMASK_Positive_Infinity = 0x080;
+static constexpr unsigned FPMASK_Signaling_NaN = 0x100;
+static constexpr unsigned FPMASK_Quiet_NaN = 0x200;
 } // namespace RISCV
 
 namespace RISCVVPseudosTable {

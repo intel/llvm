@@ -22,6 +22,7 @@ include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/MemorySlotInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class LLVM_Builder<string builder> {
@@ -171,7 +172,10 @@ def LLVM_FNegOp : LLVM_UnaryFloatArithmeticOp<
   LLVM_ScalarOrVectorOf<LLVM_AnyFloat>, "fneg", "FNeg">;
 
 // Memory-related operations.
-def LLVM_AllocaOp : LLVM_Op<"alloca">, LLVM_MemOpPatterns {
+def LLVM_AllocaOp : LLVM_Op<"alloca",
+    [DeclareOpInterfaceMethods<PromotableAllocationOpInterface>,
+     DeclareOpInterfaceMethods<DestructurableAllocationOpInterface>]>,
+  LLVM_MemOpPatterns {
   let arguments = (ins AnyInteger:$arraySize,
                    OptionalAttr<I64Attr>:$alignment,
                    OptionalAttr<TypeAttr>:$elem_type,
@@ -183,7 +187,7 @@ def LLVM_AllocaOp : LLVM_Op<"alloca">, LLVM_MemOpPatterns {
     auto addrSpace = $_resultType->getPointerAddressSpace();
     llvm::Type *elementType = moduleTranslation.convertType(
         $elem_type ? *$elem_type
-                   : op.getType().cast<LLVMPointerType>().getElementType());
+                   : ::llvm::cast<LLVMPointerType>(op.getType()).getElementType());
     auto *inst = builder.CreateAlloca(elementType, addrSpace, $arraySize);
     }] # setAlignmentCode # [{
     inst->setUsedWithInAlloca($inalloca);
@@ -203,7 +207,7 @@ def LLVM_AllocaOp : LLVM_Op<"alloca">, LLVM_MemOpPatterns {
     OpBuilder<(ins "Type":$resultType, "Value":$arraySize,
                "unsigned":$alignment),
     [{
-      assert(!resultType.cast<LLVMPointerType>().isOpaque() &&
+      assert(!::llvm::cast<LLVMPointerType>(resultType).isOpaque() &&
              "pass the allocated type explicitly if opaque pointers are used");
       if (alignment == 0)
         return build($_builder, $_state, resultType, arraySize, IntegerAttr(),
@@ -215,7 +219,7 @@ def LLVM_AllocaOp : LLVM_Op<"alloca">, LLVM_MemOpPatterns {
                CArg<"unsigned", "0">:$alignment),
     [{
       TypeAttr elemTypeAttr =
-          resultType.cast<LLVMPointerType>().isOpaque() ?
+          ::llvm::cast<LLVMPointerType>(resultType).isOpaque() ?
           TypeAttr::get(elementType) : TypeAttr();
       build($_builder, $_state, resultType, arraySize,
             alignment == 0 ? IntegerAttr()
@@ -228,7 +232,10 @@ def LLVM_AllocaOp : LLVM_Op<"alloca">, LLVM_MemOpPatterns {
   let hasVerifier = 1;
 }
 
-def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
+def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
+    DeclareOpInterfaceMethods<PromotableOpInterface>,
+    DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>,
+    DeclareOpInterfaceMethods<DestructurableAccessorOpInterface>]> {
   let arguments = (ins LLVM_ScalarOrVectorOf<LLVM_AnyPointer>:$base,
                    Variadic<LLVM_ScalarOrVectorOf<AnyInteger>>:$dynamicIndices,
                    DenseI32ArrayAttr:$rawConstantIndices,
@@ -283,7 +290,7 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
     GEPIndicesAdaptor<decltype($dynamicIndices)>
         gepIndices(op.getRawConstantIndicesAttr(), $dynamicIndices);
     for (PointerUnion<IntegerAttr, llvm::Value*> valueOrAttr : gepIndices) {
-      if (llvm::Value* value = valueOrAttr.dyn_cast<llvm::Value*>())
+      if (llvm::Value* value = ::llvm::dyn_cast<llvm::Value*>(valueOrAttr))
         indices.push_back(value);
       else
         indices.push_back(
@@ -311,7 +318,9 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
   let hasVerifier = 1;
 }
 
-def LLVM_LoadOp : LLVM_MemAccessOpBase<"load"> {
+def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+     DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
   dag args = (ins Arg<LLVM_PointerTo<LLVM_LoadableType>, "", [MemRead]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$volatile_,
@@ -319,7 +328,7 @@ def LLVM_LoadOp : LLVM_MemAccessOpBase<"load"> {
               DefaultValuedAttr<
                 AtomicOrdering, "AtomicOrdering::not_atomic">:$ordering,
               OptionalAttr<StrAttr>:$syncscope);
-  // Append the aliasing related attributes define in LLVM_MemAccessOpBase.
+  // Append the aliasing related attributes defined in LLVM_MemAccessOpBase.
   let arguments = !con(args, aliasAttrs);
   let results = (outs LLVM_LoadableType:$res);
   string llvmInstName = "Load";
@@ -382,7 +391,9 @@ def LLVM_LoadOp : LLVM_MemAccessOpBase<"load"> {
   let hasVerifier = 1;
 }
 
-def LLVM_StoreOp : LLVM_MemAccessOpBase<"store"> {
+def LLVM_StoreOp : LLVM_MemAccessOpBase<"store",
+    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+     DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
   dag args = (ins LLVM_LoadableType:$value,
               Arg<LLVM_PointerTo<LLVM_LoadableType>,"",[MemWrite]>:$addr,
               OptionalAttr<I64Attr>:$alignment,
@@ -391,7 +402,7 @@ def LLVM_StoreOp : LLVM_MemAccessOpBase<"store"> {
               DefaultValuedAttr<
                 AtomicOrdering, "AtomicOrdering::not_atomic">:$ordering,
               OptionalAttr<StrAttr>:$syncscope);
-  // Append the aliasing related attributes define in LLVM_MemAccessOpBase.
+  // Append the aliasing related attributes defined in LLVM_MemAccessOpBase.
   let arguments = !con(args, aliasAttrs);
   string llvmInstName = "Store";
   let description = [{
@@ -465,14 +476,15 @@ class LLVM_CastOp<string mnemonic, string instName, Type type,
       $_location, $_resultType, $arg);
   }];
 }
-def LLVM_BitcastOp : LLVM_CastOp<"bitcast", "BitCast",
-                                 LLVM_AnyNonAggregate, LLVM_AnyNonAggregate> {
+def LLVM_BitcastOp : LLVM_CastOp<"bitcast", "BitCast", LLVM_AnyNonAggregate,
+    LLVM_AnyNonAggregate, [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let hasFolder = 1;
   let hasVerifier = 1;
 }
 def LLVM_AddrSpaceCastOp : LLVM_CastOp<"addrspacecast", "AddrSpaceCast",
-                                       LLVM_ScalarOrVectorOf<LLVM_AnyPointer>,
-                                       LLVM_ScalarOrVectorOf<LLVM_AnyPointer>> {
+    LLVM_ScalarOrVectorOf<LLVM_AnyPointer>,
+    LLVM_ScalarOrVectorOf<LLVM_AnyPointer>,
+    [DeclareOpInterfaceMethods<PromotableOpInterface>]> {
   let hasFolder = 1;
 }
 def LLVM_IntToPtrOp : LLVM_CastOp<"inttoptr", "IntToPtr",
@@ -556,10 +568,10 @@ def LLVM_LandingpadOp : LLVM_Op<"landingpad"> {
 // FIXME: Add a type attribute that carries the LLVM function type to support
 // indirect calls to variadic functions. The type attribute is necessary to
 // distinguish normal and variadic arguments.
-def LLVM_CallOp : LLVM_Op<"call",
-                          [DeclareOpInterfaceMethods<FastmathFlagsInterface>,
-                           DeclareOpInterfaceMethods<CallOpInterface>,
-                           DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+def LLVM_CallOp : LLVM_MemAccessOpBase<"call",
+                    [DeclareOpInterfaceMethods<FastmathFlagsInterface>,
+                     DeclareOpInterfaceMethods<CallOpInterface>,
+                     DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "Call to an LLVM function.";
   let description = [{
     In LLVM IR, functions may return either 0 or 1 value. LLVM IR dialect
@@ -589,13 +601,14 @@ def LLVM_CallOp : LLVM_Op<"call",
     ```
   }];
 
-  let arguments = (ins OptionalAttr<FlatSymbolRefAttr>:$callee,
-                       Variadic<LLVM_Type>,
-                       DefaultValuedAttr<LLVM_FastmathFlagsAttr,
-                                         "{}">:$fastmathFlags,
-                       OptionalAttr<ElementsAttr>:$branch_weights);
+  dag args = (ins OptionalAttr<FlatSymbolRefAttr>:$callee,
+                  Variadic<LLVM_Type>,
+                  DefaultValuedAttr<LLVM_FastmathFlagsAttr,
+                                   "{}">:$fastmathFlags,
+                  OptionalAttr<ElementsAttr>:$branch_weights);
+  // Append the aliasing related attributes defined in LLVM_MemAccessOpBase.
+  let arguments = !con(args, aliasAttrs);
   let results = (outs Optional<LLVM_Type>:$result);
-
   let builders = [
     OpBuilder<(ins "LLVMFuncOp":$func, "ValueRange":$args)>,
     OpBuilder<(ins "TypeRange":$results, "StringAttr":$callee,
@@ -605,7 +618,6 @@ def LLVM_CallOp : LLVM_Op<"call",
     OpBuilder<(ins "TypeRange":$results, "StringRef":$callee,
                    CArg<"ValueRange", "{}">:$args)>
   ];
-
   let hasCustomAssemblyFormat = 1;
 }
 
@@ -790,7 +802,7 @@ def LLVM_SelectOp
     $res = op;
   }];
 }
-def LLVM_FreezeOp : LLVM_Op<"freeze", [SameOperandsAndResultType]> {
+def LLVM_FreezeOp : LLVM_Op<"freeze", [Pure, SameOperandsAndResultType]> {
   let arguments = (ins LLVM_Type:$val);
   let results = (outs LLVM_Type:$res);
   let builders = [LLVM_OneResultOpBuilder];
@@ -1555,7 +1567,9 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     OptionalAttr<DictArrayAttr>:$res_attrs,
     OptionalAttr<I64Attr>:$function_entry_count,
     OptionalAttr<LLVM_MemoryEffectsAttr>:$memory,
-    DefaultValuedAttr<Visibility, "mlir::LLVM::Visibility::Default">:$visibility_
+    DefaultValuedAttr<Visibility, "mlir::LLVM::Visibility::Default">:$visibility_,
+    OptionalAttr<UnitAttr>:$arm_streaming,
+    OptionalAttr<UnitAttr>:$arm_locally_streaming
   );
 
   let regions = (region AnyRegion:$body);
@@ -1597,7 +1611,7 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     /// type if it is not void, or an empty array if the function's return type
     /// is void, as void is not assignable to a value.
     ArrayRef<Type> getCallableResults() {
-      if (getFunctionType().getReturnType().isa<LLVM::LLVMVoidType>())
+      if (::llvm::isa<LLVM::LLVMVoidType>(getFunctionType().getReturnType()))
         return {};
       return getFunctionType().getReturnTypes();
     }
@@ -1764,7 +1778,7 @@ def LLVM_AtomicRMWOp : LLVM_MemAccessOpBase<"atomicrmw", [
               OptionalAttr<StrAttr>:$syncscope,
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$volatile_);
-  // Append the aliasing related attributes define in LLVM_MemAccessOpBase.
+  // Append the aliasing related attributes defined in LLVM_MemAccessOpBase.
   let arguments = !con(args, aliasAttrs);
   let results = (outs LLVM_AtomicRMWType:$res);
   let assemblyFormat = [{
@@ -1818,7 +1832,7 @@ def LLVM_AtomicCmpXchgOp : LLVM_MemAccessOpBase<"cmpxchg", [
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$weak,
               UnitAttr:$volatile_);
-  // Append the aliasing related attributes define in LLVM_MemAccessOpBase.
+  // Append the aliasing related attributes defined in LLVM_MemAccessOpBase.
   let arguments = !con(args, aliasAttrs);
   let results = (outs LLVM_AnyStruct:$res);
   let assemblyFormat = [{

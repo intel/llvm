@@ -47,6 +47,11 @@ Non-comprehensive list of changes in this release
 Update on required toolchains to build LLVM
 -------------------------------------------
 
+With LLVM 17.x we raised the version requirement of CMake used to build LLVM.
+The new requirements are as follows:
+
+* CMake >= 3.20.0
+
 Changes to the LLVM IR
 ----------------------
 
@@ -70,6 +75,9 @@ Changes to LLVM infrastructure
   legacy inliner pass. Backend stack coloring should handle cases alloca
   merging initially set out to handle.
 
+* InstructionSimplify APIs now require instructions be inserted into a
+  parent function.
+
 Changes to building LLVM
 ------------------------
 
@@ -84,6 +92,15 @@ Changes to the AArch64 Backend
 
 * Added Assembly Support for the 2022 A-profile extensions FEAT_GCS (Guarded
   Control Stacks), FEAT_CHK (Check Feature Status), and FEAT_ATS1A.
+* Support for preserve_all calling convention is added.
+* Added support for missing arch extensions in the assembly directives
+  ``.arch <level>+<ext>`` and ``.arch_extension``.
+* Fixed handling of ``.arch <level>`` in assembly, without using any ``+<ext>``
+  suffix. Previously this had no effect at all if no extensions were supplied.
+  Now ``.arch <level>`` can be used to enable all the extensions that are
+  included in a higher level than what is specified on the command line,
+  or for disabling unwanted extensions if setting it to a lower level.
+  This fixes `PR32873 <https://github.com/llvm/llvm-project/issues/32220>`.
 
 Changes to the AMDGPU Backend
 -----------------------------
@@ -94,12 +111,35 @@ Changes to the AMDGPU Backend
   synchronization strategies around barriers. Refer to `AMDGPU memory model
   <AMDGPUUsage.html#memory-model>`__.
 
+* Address space 7, used for *buffer fat pointers* has been added.
+  It is non-integral and has 160-bit pointers (a 128-bit raw buffer resource and a
+  32-bit offset) and 32-bit indices. This is part of ongoing work to improve
+  the usability of buffer operations. Refer to `AMDGPU address spaces
+  <AMDGPUUsage.html#address-spaces>`__.
+
+* Address space 8, used for *buffer resources* has been added.
+  It is non-integral and has 128-bit pointers, which correspond to buffer
+  resources in the underlying hardware. These pointers should not be used with
+  `getelementptr` or other LLVM memory instructions, and can be created with
+  the `llvm.amdgcn.make.buffer.rsrc` intrinsic. Refer to `AMDGPU address spaces
+  <AMDGPUUsage.html#address_spaces>`__.
+
+* New versions of the intrinsics for working with buffer resources have been added.
+  These `llvm.amdgcn.*.ptr.[t]buffer.*` intrinsics have the same semantics as
+  the old `llvm.amdgcn.*.[t]buffer.*` intrinsics, except that their `rsrc`
+  arguments are represented by a `ptr addrspace(8)` instead of a `<4 x i32>`. This
+  improves the interaction between AMDGPU buffer operations and the LLVM memory
+  model, and so the non `.ptr` intrinsics are deprecated.
+
 Changes to the ARM Backend
 --------------------------
 
 - The hard-float ABI is now available in Armv8.1-M configurations that
   have integer MVE instructions (and therefore have FP registers) but
   no scalar or vector floating point computation.
+
+- The ``.arm`` directive now aligns code to the next 4-byte boundary, and
+  the ``.thumb`` directive aligns code to the next 2-byte boundary.
 
 Changes to the AVR Backend
 --------------------------
@@ -116,6 +156,8 @@ Changes to the Hexagon Backend
 
 Changes to the LoongArch Backend
 --------------------------------
+
+* The `lp64s` ABI is supported now and has been tested on Rust bare-matal target.
 
 Changes to the MIPS Backend
 ---------------------------
@@ -164,8 +206,22 @@ Changes to the RISC-V Backend
 * Changed the ShadowCallStack register from ``x18`` (``s2``) to ``x3``
   (``gp``). Note this breaks the existing non-standard ABI for ShadowCallStack
   on RISC-V, but conforms with the new "platform register" defined in the
-  RISC-V psABI (for more details see the 
+  RISC-V psABI (for more details see the
   `psABI discussion <https://github.com/riscv-non-isa/riscv-elf-psabi-doc/issues/370>`_).
+* Added support for Zfa extension version 0.2.
+* Updated support experimental vector crypto extensions to version 0.5.1 of
+  the specification.
+* Removed N extension (User-Level Interrupts) CSR names in the assembler.
+* ``RISCV::parseCPUKind`` and ``RISCV::checkCPUKind`` were merged into a single
+  ``RISCV::parseCPU``. The ``CPUKind`` enum is no longer part of the
+  RISCVTargetParser.h interface. Similar for ``parseTuneCPUkind`` and
+  ``checkTuneCPUKind``.
+* Add sifive-x280 processor.
+* Zve32f is no longer allowed with Zfinx. Zve64d is no longer allowed with
+  Zdinx.
+* Assembly support was added for the experimental Zfbfmin (scalar BF16
+  conversions), Zvfbfmin (vector BF16 conversions), and Zvfbfwma (vector BF16
+  widening mul-add) extensions.
 
 Changes to the WebAssembly Backend
 ----------------------------------
@@ -181,6 +237,11 @@ Changes to the X86 Backend
 Changes to the OCaml bindings
 -----------------------------
 
+Changes to the Python bindings
+------------------------------
+
+* The python bindings have been removed.
+
 
 Changes to the C API
 --------------------
@@ -191,6 +252,11 @@ Changes to the C API
   have been removed.
 * Removed ``LLVMPassManagerBuilderRef`` and functions interacting with it.
   These belonged to the no longer supported legacy pass manager.
+* Functions for initializing legacy passes like ``LLVMInitializeInstCombine``
+  have been removed. Calls to such functions can simply be dropped, as they are
+  no longer necessary.
+* ``LLVMPassRegistryRef`` and ``LLVMGetGlobalPassRegistry``, which were only
+  useful in conjunction with initialization functions, have been removed.
 * As part of the opaque pointer transition, ``LLVMGetElementType`` no longer
   gives the pointee type of a pointer type.
 * The following functions for creating constant expressions have been removed,
@@ -277,6 +343,11 @@ Changes to Sanitizers
 
 Other Changes
 -------------
+
+* ``llvm::demangle`` now takes a ``std::string_view`` rather than a
+  ``const std::string&``. Be careful passing temporaries into
+  ``llvm::demangle`` that don't outlive the expression using
+  ``llvm::demangle``.
 
 External Open Source Projects Using LLVM 15
 ===========================================

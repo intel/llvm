@@ -45,6 +45,7 @@ expand_template(
         "@MLIR_ENABLE_BINDINGS_PYTHON@": "0",
         "@MLIR_RUN_AMX_TESTS@": "0",
         "@MLIR_RUN_ARM_SVE_TESTS@": "0",
+        "@MLIR_RUN_ARM_SME_TESTS@": "0",
         "@MLIR_RUN_X86VECTOR_TESTS@": "0",
         "@MLIR_RUN_CUDA_TENSOR_CORE_TESTS@": "0",
         "@MLIR_RUN_CUDA_SM80_TESTS@": "0",
@@ -316,6 +317,7 @@ gentbl_cc_library(
         ":TransformDialectTdFiles",
         "//mlir:PDLDialectTdFiles",
         "//mlir:TransformDialectTdFiles",
+        "//mlir:TransformPDLExtension",
     ],
 )
 
@@ -332,6 +334,7 @@ cc_library(
         "//mlir:Pass",
         "//mlir:TransformDialect",
         "//mlir:TransformDialectTransforms",
+        "//mlir:TransformPDLExtension",
     ],
 )
 
@@ -385,9 +388,12 @@ cc_library(
         "//llvm:Support",
         "//mlir:Analysis",
         "//mlir:ArithDialect",
+        "//mlir:BytecodeReader",
+        "//mlir:BytecodeWriter",
         "//mlir:FuncDialect",
         "//mlir:IR",
         "//mlir:LinalgDialect",
+        "//mlir:Parser",
         "//mlir:Pass",
         "//mlir:Support",
     ],
@@ -552,6 +558,7 @@ cc_library(
         "//mlir:AffineTransforms",
         "//mlir:AffineUtils",
         "//mlir:Analysis",
+        "//mlir:ArithTransforms",
         "//mlir:DialectUtils",
         "//mlir:FuncDialect",
         "//mlir:IR",
@@ -595,6 +602,7 @@ cc_library(
         "//mlir:GPUDialect",
         "//mlir:GPUTransforms",
         "//mlir:IR",
+        "//mlir:IndexDialect",
         "//mlir:MemRefDialect",
         "//mlir:NVVMToLLVMIRTranslation",
         "//mlir:Pass",
@@ -849,6 +857,7 @@ cc_library(
         "//mlir:SCFDialect",
         "//mlir:TensorDialect",
         "//mlir:TensorTransforms",
+        "//mlir:TransformDialect",
         "//mlir:Transforms",
     ],
 )
@@ -868,6 +877,7 @@ cc_library(
         "//mlir:LinalgDialect",
         "//mlir:LinalgTransforms",
         "//mlir:MemRefDialect",
+        "//mlir:NVGPUDialect",
         "//mlir:Pass",
         "//mlir:SCFDialect",
         "//mlir:Support",
@@ -951,6 +961,7 @@ cc_library(
     deps = [
         ":TestDialect",
         ":TestPDLLPatternsIncGen",
+        "//mlir:CastInterfaces",
         "//mlir:IR",
         "//mlir:PDLDialect",
         "//mlir:PDLInterpDialect",

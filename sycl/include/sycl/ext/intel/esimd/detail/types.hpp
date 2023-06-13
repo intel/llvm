@@ -51,8 +51,7 @@ using simd_mask_elem_type = unsigned short;
 template <int N> using simd_mask_type = simd_mask_impl<simd_mask_elem_type, N>;
 
 template <typename T>
-static inline constexpr bool is_esimd_scalar_v =
-    sycl::detail::is_arithmetic<T>::value;
+static inline constexpr bool is_esimd_scalar_v = std::is_arithmetic_v<T>;
 
 template <typename T>
 using is_esimd_scalar = typename std::bool_constant<is_esimd_scalar_v<T>>;
@@ -285,12 +284,12 @@ struct bitcast_helper {
 template <typename ToEltTy, typename FromEltTy, int FromN,
           typename = std::enable_if_t<is_vectorizable<ToEltTy>::value>>
 ESIMD_INLINE typename std::conditional_t<
-    std::is_same<FromEltTy, ToEltTy>::value, vector_type_t<FromEltTy, FromN>,
+    std::is_same_v<FromEltTy, ToEltTy>, vector_type_t<FromEltTy, FromN>,
     vector_type_t<ToEltTy,
                   bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>
 bitcast(vector_type_t<FromEltTy, FromN> Val) {
   // Noop.
-  if constexpr (std::is_same<FromEltTy, ToEltTy>::value)
+  if constexpr (std::is_same_v<FromEltTy, ToEltTy>)
     return Val;
 
   // Bitcast

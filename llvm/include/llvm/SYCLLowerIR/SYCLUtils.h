@@ -22,6 +22,7 @@ namespace llvm {
 namespace sycl {
 namespace utils {
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+constexpr char ATTR_SYCL_OPTLEVEL[] = "sycl-optlevel";
 
 using CallGraphNodeAction = ::std::function<void(Function *)>;
 using CallGraphFunctionFilter =

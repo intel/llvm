@@ -1757,6 +1757,16 @@ public:
     return ParentFragments.contains(&Other);
   }
 
+  /// Returns if this function is a parent of \p Other function.
+  bool isParentOf(const BinaryFunction &Other) const {
+    return llvm::is_contained(Fragments, &Other);
+  }
+
+  /// Returns if this function is a parent or child of \p Other function.
+  bool isParentOrChildOf(const BinaryFunction &Other) const {
+    return isChildOf(Other) || isParentOf(Other);
+  }
+
   /// Set the profile data for the number of times the function was called.
   BinaryFunction &setExecutionCount(uint64_t Count) {
     ExecutionCount = Count;
@@ -2204,6 +2214,9 @@ public:
       OperandHashFuncTy OperandHashFunc = [](const MCOperand &) {
         return std::string();
       }) const;
+
+  /// Compute hash values for each block of the function.
+  void computeBlockHashes() const;
 
   void setDWARFUnit(DWARFUnit *Unit) { DwarfUnit = Unit; }
 

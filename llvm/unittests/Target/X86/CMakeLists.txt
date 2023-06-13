@@ -7,11 +7,12 @@ set(LLVM_LINK_COMPONENTS
   Analysis
   AsmParser
   CodeGen
+  CodeGenTypes
   Core
-  Passes
   InstCombine
   MC
   MIRParser
+  Passes
   Support
   Target
   TargetParser

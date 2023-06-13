@@ -227,7 +227,7 @@ ExprDependence clang::computeDependence(VAArgExpr *E) {
   auto D = toExprDependenceAsWritten(
                E->getWrittenTypeInfo()->getType()->getDependence()) |
            (E->getSubExpr()->getDependence() & ~ExprDependence::Type);
-  return D & ~ExprDependence::Value;
+  return D;
 }
 
 ExprDependence clang::computeDependence(NoInitExpr *E) {
@@ -657,7 +657,12 @@ ExprDependence clang::computeDependence(GenericSelectionExpr *E,
                                   : ExprDependence::None;
   for (auto *AE : E->getAssocExprs())
     D |= AE->getDependence() & ExprDependence::Error;
-  D |= E->getControllingExpr()->getDependence() & ExprDependence::Error;
+
+  if (E->isExprPredicate())
+    D |= E->getControllingExpr()->getDependence() & ExprDependence::Error;
+  else
+    D |= toExprDependenceAsWritten(
+        E->getControllingType()->getType()->getDependence());
 
   if (E->isResultDependent())
     return D | ExprDependence::TypeValueInstantiation;
@@ -667,7 +672,7 @@ ExprDependence clang::computeDependence(GenericSelectionExpr *E,
 
 ExprDependence clang::computeDependence(DesignatedInitExpr *E) {
   auto Deps = E->getInit()->getDependence();
-  for (auto D : E->designators()) {
+  for (const auto &D : E->designators()) {
     auto DesignatorDeps = ExprDependence::None;
     if (D.isArrayDesignator())
       DesignatorDeps |= E->getArrayIndex(D)->getDependence();
@@ -764,7 +769,7 @@ ExprDependence clang::computeDependence(DependentScopeDeclRefExpr *E) {
   D |= getDependenceInExpr(E->getNameInfo());
   if (auto *Q = E->getQualifier())
     D |= toExprDependence(Q->getDependence());
-  for (auto A : E->template_arguments())
+  for (const auto &A : E->template_arguments())
     D |= toExprDependence(A.getArgument().getDependence());
   return D;
 }
@@ -817,7 +822,7 @@ ExprDependence clang::computeDependence(CXXDependentScopeMemberExpr *E) {
   if (auto *Q = E->getQualifier())
     D |= toExprDependence(Q->getDependence());
   D |= getDependenceInExpr(E->getMemberNameInfo());
-  for (auto A : E->template_arguments())
+  for (const auto &A : E->template_arguments())
     D |= toExprDependence(A.getArgument().getDependence());
   return D;
 }

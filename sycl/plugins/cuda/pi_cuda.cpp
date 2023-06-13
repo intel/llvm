@@ -325,9 +325,16 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
       std::min(maxThreadsPerBlock[0],
                std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
+  static auto isPowerOf2 = [](size_t value) -> bool {
+    return value && !(value & (value - 1));
+  };
+
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
-  while (0u != (global_work_size[0] % threadsPerBlock[0])) {
+  // Additionally, for best compute utilisation, the local size has
+  // to be a power of two.
+  while (0u != (global_work_size[0] % threadsPerBlock[0]) ||
+         !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
 }
@@ -388,6 +395,62 @@ void getUSMHostOrDevicePtr(PtrT usm_ptr, CUmemorytype *out_mem_type,
   } else {
     PI_CHECK_ERROR(ret);
   }
+}
+
+bool getMaxRegistersJitOptionValue(const std::string &build_options,
+                                   unsigned int &value) {
+  using namespace std::string_view_literals;
+  const std::size_t optionPos = build_options.find_first_of("maxrregcount"sv);
+  if (optionPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t delimPos = build_options.find('=', optionPos + 1u);
+  if (delimPos == std::string::npos) {
+    return false;
+  }
+
+  const std::size_t length = build_options.length();
+  const std::size_t startPos = delimPos + 1u;
+  if (delimPos == std::string::npos || startPos >= length) {
+    return false;
+  }
+
+  std::size_t pos = startPos;
+  while (pos < length &&
+         std::isdigit(static_cast<unsigned char>(build_options[pos]))) {
+    pos++;
+  }
+
+  const std::string valueString =
+      build_options.substr(startPos, pos - startPos);
+  if (valueString.empty()) {
+    return false;
+  }
+
+  value = static_cast<unsigned int>(std::stoi(valueString));
+  return true;
+}
+
+// Helper to verify out-of-registers case (exceeded block max registers).
+// If the kernel requires a number of registers for the entire thread
+// block exceeds the hardware limitations, then the cuLaunchKernel call
+// will fail to launch with CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES error.
+bool hasExceededMaxRegistersPerBlock(pi_device device, pi_kernel kernel,
+                                     size_t blockSize) {
+  assert(device);
+  assert(kernel);
+
+  int maxRegsPerBlock{0};
+  PI_CHECK_ERROR(cuDeviceGetAttribute(
+      &maxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+      device->get()));
+
+  int regsPerThread{0};
+  PI_CHECK_ERROR(cuFuncGetAttribute(&regsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                                    kernel->get()));
+
+  return blockSize * regsPerThread > size_t(maxRegsPerBlock);
 }
 
 } // anonymous namespace
@@ -567,8 +630,8 @@ _pi_event::_pi_event(pi_context context, CUevent eventNative)
     : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
-      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
-                                                                  context} {
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr},
+      context_{context} {
   cuda_piContextRetain(context_);
 }
 
@@ -777,8 +840,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 
   constexpr const unsigned int numberOfOptions = 4u;
 
-  CUjit_option options[numberOfOptions];
-  void *optionVals[numberOfOptions];
+  std::vector<CUjit_option> options(numberOfOptions);
+  std::vector<void *> optionVals(numberOfOptions);
 
   // Pass a buffer for info messages
   options[0] = CU_JIT_INFO_LOG_BUFFER;
@@ -793,9 +856,18 @@ pi_result _pi_program::build_program(const char *build_options) {
   options[3] = CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES;
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
+  if (!buildOptions_.empty()) {
+    unsigned int maxRegs;
+    bool valid = getMaxRegistersJitOptionValue(buildOptions_, maxRegs);
+    if (valid) {
+      options.push_back(CU_JIT_MAX_REGISTERS);
+      optionVals.push_back(reinterpret_cast<void *>(maxRegs));
+    }
+  }
+
   auto result = PI_CHECK_ERROR(
       cuModuleLoadDataEx(&module_, static_cast<const void *>(binary_),
-                         numberOfOptions, options, optionVals));
+                         options.size(), options.data(), optionVals.data()));
 
   const auto success = (result == PI_SUCCESS);
 
@@ -940,7 +1012,7 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   }
 }
 
-pi_result cuda_piPlatformGetInfo(pi_platform platform,
+pi_result cuda_piPlatformGetInfo([[maybe_unused]] pi_platform platform,
                                  pi_platform_info param_name,
                                  size_t param_value_size, void *param_value,
                                  size_t *param_value_size_ret) {
@@ -963,6 +1035,11 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   }
   case PI_PLATFORM_INFO_EXTENSIONS: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
+  }
+  case PI_EXT_PLATFORM_INFO_BACKEND: {
+    return getInfo<pi_platform_backend>(param_value_size, param_value,
+                                        param_value_size_ret,
+                                        PI_EXT_PLATFORM_BACKEND_CUDA);
   }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
@@ -1099,7 +1176,7 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   return PI_ERROR_INVALID_BINARY;
 }
 
-pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
+pi_result cuda_piextGetDeviceFunctionPointer([[maybe_unused]] pi_device device,
                                              pi_program program,
                                              const char *func_name,
                                              pi_uint64 *func_pointer_ret) {
@@ -1754,7 +1831,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int minor;
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&minor,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                              device->get()) == CUDA_SUCCESS);
     s << "." << minor;
     return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -2051,9 +2128,45 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    memory_bandwidth);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT: {
+    // The mem-channel buffer property is not supported on CUDA devices.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    // The sRGB images are not supported on CUDA.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
+  }
 
-    // TODO: Investigate if this information is available on CUDA.
-  case PI_DEVICE_INFO_PCI_ADDRESS:
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    // Maximum number of 32-bit registers available to a thread block.
+    // Note: This number is shared by all thread blocks simultaneously resident
+    // on a multiprocessor.
+    int max_registers{-1};
+    PI_CHECK_ERROR(cuDeviceGetAttribute(
+        &max_registers, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
+        device->get()));
+
+    sycl::detail::pi::assertion(max_registers >= 0);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<uint32_t>(max_registers));
+  }
+
+  case PI_DEVICE_INFO_PCI_ADDRESS: {
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    sycl::detail::pi::assertion(
+        cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
+        CUDA_SUCCESS);
+    // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
+    return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
+                        param_value_size, param_value, param_value_size_ret,
+                        AddressBuffer);
+  }
+  // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
@@ -2157,12 +2270,13 @@ pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[out] retcontext Set to created context on success.
 ///
 /// \return PI_SUCCESS on success, otherwise an error return code.
-pi_result cuda_piContextCreate(const pi_context_properties *properties,
-                               pi_uint32 num_devices, const pi_device *devices,
-                               void (*pfn_notify)(const char *errinfo,
-                                                  const void *private_info,
-                                                  size_t cb, void *user_data),
-                               void *user_data, pi_context *retcontext) {
+pi_result cuda_piContextCreate(
+    [[maybe_unused]] const pi_context_properties *properties,
+    [[maybe_unused]] pi_uint32 num_devices, const pi_device *devices,
+    [[maybe_unused]] void (*pfn_notify)(const char *errinfo,
+                                        const void *private_info, size_t cb,
+                                        void *user_data),
+    [[maybe_unused]] void *user_data, pi_context *retcontext) {
 
   assert(devices != nullptr);
   // TODO: How to implement context callback?
@@ -2237,9 +2351,10 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                 size_t size, void *host_ptr, pi_mem *ret_mem,
-                                 const pi_mem_properties *properties) {
+pi_result
+cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
+                       void *host_ptr, pi_mem *ret_mem,
+                       [[maybe_unused]] const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
   assert((properties == nullptr || *properties == 0) &&
@@ -2377,9 +2492,10 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing CUDA allocation.
 ///
-pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
-                                    pi_buffer_create_type buffer_create_type,
-                                    void *buffer_create_info, pi_mem *memObj) {
+pi_result cuda_piMemBufferPartition(
+    pi_mem parent_buffer, pi_mem_flags flags,
+    [[maybe_unused]] pi_buffer_create_type buffer_create_type,
+    void *buffer_create_info, pi_mem *memObj) {
   assert((parent_buffer != nullptr) && "PI_ERROR_INVALID_MEM_OBJECT");
   assert(parent_buffer->is_buffer() && "PI_ERROR_INVALID_MEM_OBJECTS");
   assert(!parent_buffer->is_sub_buffer() && "PI_ERROR_INVALID_MEM_OBJECT");
@@ -2463,10 +2579,8 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                              pi_context context,
-                                              bool ownNativeHandle,
-                                              pi_mem *mem) {
+pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_context,
+                                              bool, pi_mem *) {
   sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
@@ -2678,41 +2792,39 @@ pi_result cuda_piQueueFlush(pi_queue command_queue) {
 /// Gets the native CUDA handle of a PI queue object
 ///
 /// \param[in] queue The PI queue to get the native CUDA object of.
+/// \param[in] NativeHandleDesc Pointer to additional native handle info.
 /// \param[out] nativeHandle Set to the native handle of the PI queue object.
 ///
 /// \return PI_SUCCESS
 pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
-                                         pi_native_handle *nativeHandle) {
+                                         pi_native_handle *nativeHandle,
+                                         int32_t *NativeHandleDesc) {
+  *NativeHandleDesc = 0;
   ScopedContext active(queue->get_context());
   *nativeHandle =
       reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
 }
 
-pi_result cuda_piextQueueGetNativeHandle2(pi_queue queue,
-                                          pi_native_handle *nativeHandle,
-                                          int32_t *NativeHandleDesc) {
-  (void)NativeHandleDesc;
-  return cuda_piextQueueGetNativeHandle(queue, nativeHandle);
-}
-
 /// Created a PI queue object from a CUDA queue handle.
 /// NOTE: The created PI object does not take ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
+/// \param[in] nativeHandleDesc Info about the native handle.
 /// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
 /// \param ownNativeHandle tells if SYCL RT should assume the ownership of
 ///        the native handle, if it can.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_context context,
-                                                pi_device device,
-                                                bool ownNativeHandle,
-                                                pi_queue *queue) {
+pi_result cuda_piextQueueCreateWithNativeHandle(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *queue) {
+  (void)NativeHandleDesc;
   (void)device;
   (void)ownNativeHandle;
+  (void)Properties;
   assert(ownNativeHandle == false);
 
   unsigned int flags;
@@ -2743,16 +2855,6 @@ pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   (*queue)->num_compute_streams_ = 1;
 
   return retErr;
-}
-
-pi_result cuda_piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
-    pi_queue *queue) {
-  (void)NativeHandleDesc;
-  (void)Properties;
-  return cuda_piextQueueCreateWithNativeHandle(nativeHandle, context, device,
-                                               ownNativeHandle, queue);
 }
 
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -2945,6 +3047,13 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);
+
+  // Below sets kernel arg when zero-sized buffers are handled.
+  // In such case the corresponding memory is null.
+  if (*arg_value == nullptr) {
+    kernel->set_kernel_arg(arg_index, 0, nullptr);
+    return PI_SUCCESS;
+  }
 
   pi_result retErr = PI_SUCCESS;
   try {
@@ -3159,10 +3268,18 @@ pi_result cuda_piEnqueueKernelLaunch(
           return PI_SUCCESS;
         };
 
+        size_t kernelLocalWorkGroupSize = 0;
         for (size_t dim = 0; dim < work_dim; dim++) {
           auto err = isValid(dim);
           if (err != PI_SUCCESS)
             return err;
+          // If no error then sum the total local work size per dim.
+          kernelLocalWorkGroupSize += local_work_size[dim];
+        }
+
+        if (hasExceededMaxRegistersPerBlock(command_queue->device_, kernel,
+                                            kernelLocalWorkGroupSize)) {
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         }
       } else {
         guessLocalWorkSize(command_queue->device_, threadsPerBlock,
@@ -3456,11 +3573,11 @@ pi_result cuda_piclProgramCreateWithSource(pi_context, pi_uint32, const char **,
 /// used later on to extract functions (kernels).
 /// See \ref _pi_program for implementation details.
 ///
-pi_result cuda_piProgramBuild(pi_program program, pi_uint32 num_devices,
-                              const pi_device *device_list, const char *options,
-                              void (*pfn_notify)(pi_program program,
-                                                 void *user_data),
-                              void *user_data) {
+pi_result cuda_piProgramBuild(
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
 
   assert(program != nullptr);
   assert(num_devices == 1 || num_devices == 0);
@@ -3493,10 +3610,11 @@ pi_result cuda_piProgramCreate(pi_context, const void *, size_t, pi_program *) {
 /// Note: Only supports one device
 ///
 pi_result cuda_piProgramCreateWithBinary(
-    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
-    const size_t *lengths, const unsigned char **binaries,
-    size_t num_metadata_entries, const pi_device_binary_property *metadata,
-    pi_int32 *binary_status, pi_program *program) {
+    pi_context context, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const size_t *lengths,
+    const unsigned char **binaries, size_t num_metadata_entries,
+    const pi_device_binary_property *metadata, pi_int32 *binary_status,
+    pi_program *program) {
   // Ignore unused parameter
   (void)binary_status;
 
@@ -3570,13 +3688,12 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
 /// programs.
 /// \TODO Implement linker options, requires mapping of OpenCL to CUDA
 ///
-pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
-                             const pi_device *device_list, const char *options,
-                             pi_uint32 num_input_programs,
-                             const pi_program *input_programs,
-                             void (*pfn_notify)(pi_program program,
-                                                void *user_data),
-                             void *user_data, pi_program *ret_program) {
+pi_result cuda_piProgramLink(
+    pi_context context, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    pi_uint32 num_input_programs, const pi_program *input_programs,
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data, pi_program *ret_program) {
 
   assert(ret_program != nullptr);
   assert(num_devices == 1 || num_devices == 0);
@@ -3635,10 +3752,12 @@ pi_result cuda_piProgramLink(pi_context context, pi_uint32 num_devices,
 /// \TODO Implement asynchronous compilation
 ///
 pi_result cuda_piProgramCompile(
-    pi_program program, pi_uint32 num_devices, const pi_device *device_list,
-    const char *options, pi_uint32 num_input_headers,
+    pi_program program, [[maybe_unused]] pi_uint32 num_devices,
+    [[maybe_unused]] const pi_device *device_list, const char *options,
+    [[maybe_unused]] pi_uint32 num_input_headers,
     const pi_program *input_headers, const char **header_include_names,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+    [[maybe_unused]] void (*pfn_notify)(pi_program program, void *user_data),
+    [[maybe_unused]] void *user_data) {
   // Ignore unused parameters
   (void)header_include_names;
   (void)input_headers;
@@ -5062,9 +5181,10 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
 /// USM: Implements USM Host allocations using CUDA Pinned Memory
 ///
-pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
-                                 pi_usm_mem_properties *properties, size_t size,
-                                 pi_uint32 alignment) {
+pi_result
+cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
+                       [[maybe_unused]] pi_usm_mem_properties *properties,
+                       size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(properties == nullptr || *properties == 0);
@@ -5084,10 +5204,11 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM device allocations using a normal CUDA device pointer
 ///
-pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
-                                   pi_device device,
-                                   pi_usm_mem_properties *properties,
-                                   size_t size, pi_uint32 alignment) {
+pi_result
+cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
+                         [[maybe_unused]] pi_device device,
+                         [[maybe_unused]] pi_usm_mem_properties *properties,
+                         size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5108,10 +5229,11 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM Shared allocations using CUDA Managed Memory
 ///
-pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
-                                   pi_device device,
-                                   pi_usm_mem_properties *properties,
-                                   size_t size, pi_uint32 alignment) {
+pi_result
+cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
+                         [[maybe_unused]] pi_device device,
+                         [[maybe_unused]] pi_usm_mem_properties *properties,
+                         size_t size, [[maybe_unused]] pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -5452,7 +5574,8 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
 
     // Determine the direction of copy using cuPointerGetAttribute
     // for both the src_ptr and dst_ptr
-    CUDA_MEMCPY2D cpyDesc = {0};
+    CUDA_MEMCPY2D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
 
     getUSMHostOrDevicePtr(src_ptr, &cpyDesc.srcMemoryType, &cpyDesc.srcDevice,
                           &cpyDesc.srcHost);
@@ -5791,18 +5914,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piextQueueCreate, cuda_piextQueueCreate)
-  _PI_CL(piextQueueCreate2, cuda_piextQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueFlush, cuda_piQueueFlush)
   _PI_CL(piQueueRetain, cuda_piQueueRetain)
   _PI_CL(piQueueRelease, cuda_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, cuda_piextQueueGetNativeHandle)
-  _PI_CL(piextQueueGetNativeHandle2, cuda_piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle,
          cuda_piextQueueCreateWithNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle2,
-         cuda_piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, cuda_piMemBufferCreate)
   _PI_CL(piMemImageCreate, cuda_piMemImageCreate)

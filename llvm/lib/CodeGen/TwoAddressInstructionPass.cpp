@@ -87,18 +87,18 @@ static cl::opt<unsigned> MaxDataFlowEdge(
 namespace {
 
 class TwoAddressInstructionPass : public MachineFunctionPass {
-  MachineFunction *MF;
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
-  const InstrItineraryData *InstrItins;
-  MachineRegisterInfo *MRI;
-  LiveVariables *LV;
-  LiveIntervals *LIS;
-  AliasAnalysis *AA;
-  CodeGenOpt::Level OptLevel;
+  MachineFunction *MF = nullptr;
+  const TargetInstrInfo *TII = nullptr;
+  const TargetRegisterInfo *TRI = nullptr;
+  const InstrItineraryData *InstrItins = nullptr;
+  MachineRegisterInfo *MRI = nullptr;
+  LiveVariables *LV = nullptr;
+  LiveIntervals *LIS = nullptr;
+  AliasAnalysis *AA = nullptr;
+  CodeGenOpt::Level OptLevel = CodeGenOpt::None;
 
   // The current basic block being processed.
-  MachineBasicBlock *MBB;
+  MachineBasicBlock *MBB = nullptr;
 
   // Keep track the distance of a MI from the start of the current basic block.
   DenseMap<MachineInstr*, unsigned> DistanceMap;
@@ -1565,8 +1565,8 @@ TwoAddressInstructionPass::processTiedPairs(MachineInstr *MI,
   if (AllUsesCopied) {
     LaneBitmask RemainingUses = LaneBitmask::getNone();
     // Replace other (un-tied) uses of regB with LastCopiedReg.
-    for (MachineOperand &MO : MI->operands()) {
-      if (MO.isReg() && MO.getReg() == RegB && MO.isUse()) {
+    for (MachineOperand &MO : MI->all_uses()) {
+      if (MO.getReg() == RegB) {
         if (MO.getSubReg() == SubRegB && !IsEarlyClobber) {
           if (MO.isKill()) {
             MO.setIsKill(false);
@@ -1618,8 +1618,8 @@ TwoAddressInstructionPass::processTiedPairs(MachineInstr *MI,
     // regB is still used in this instruction, but a kill flag was
     // removed from a different tied use of regB, so now we need to add
     // a kill flag to one of the remaining uses of regB.
-    for (MachineOperand &MO : MI->operands()) {
-      if (MO.isReg() && MO.getReg() == RegB && MO.isUse()) {
+    for (MachineOperand &MO : MI->all_uses()) {
+      if (MO.getReg() == RegB) {
         MO.setIsKill(true);
         break;
       }

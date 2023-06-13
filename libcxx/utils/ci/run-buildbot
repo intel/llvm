@@ -229,6 +229,7 @@ check-generated-output)
     ! grep -rn '[^ -~]' libcxx/include libcxx/src libcxx/test libcxx/benchmarks \
            --exclude '*.dat' \
            --exclude 'escaped_output.*.pass.cpp' \
+           --exclude 'fill.unicode.pass.cpp' \
            --exclude 'format_tests.h' \
            --exclude 'format.functions.tests.h' \
            --exclude 'formatter.*.pass.cpp' \
@@ -275,9 +276,15 @@ generic-cxx20)
     check-runtimes
     check-abi-list
 ;;
-generic-cxx2b)
+generic-cxx23)
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx2b.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx23.cmake"
+    check-runtimes
+    check-abi-list
+;;
+generic-cxx26)
+    clean
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx26.cmake"
     check-runtimes
     check-abi-list
 ;;
@@ -333,11 +340,12 @@ bootstrapping-build)
           -S "${MONOREPO_ROOT}/llvm" \
           -B "${BUILD_DIR}" \
           -GNinja -DCMAKE_MAKE_PROGRAM="${NINJA}" \
+          -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
           -DLLVM_ENABLE_PROJECTS="clang" \
           -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind" \
-          -DLLVM_RUNTIME_TARGETS="$(c++ --print-target-triple)" \
+          -DLLVM_RUNTIME_TARGETS="$(${CXX} --print-target-triple)" \
           -DLLVM_TARGETS_TO_BUILD="host" \
           -DRUNTIMES_BUILD_ALLOW_DARWIN=ON \
           -DLLVM_ENABLE_ASSERTIONS=ON
@@ -347,6 +355,8 @@ bootstrapping-build)
 
     echo "--- Installing libc++ and libc++abi to a fake location"
     ${NINJA} -C "${BUILD_DIR}" install-runtimes
+
+    ccache -s
 ;;
 generic-static)
     clean
@@ -434,9 +444,9 @@ generic-no-experimental)
     check-runtimes
     check-abi-list
 ;;
-generic-noexceptions)
+generic-no-exceptions)
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-noexceptions.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-no-exceptions.cmake"
     check-runtimes
     check-abi-list
 ;;
@@ -556,7 +566,7 @@ aarch64)
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/AArch64.cmake"
     check-runtimes
 ;;
-aarch64-noexceptions)
+aarch64-no-exceptions)
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/AArch64.cmake" \
                    -DLIBCXX_ENABLE_EXCEPTIONS=OFF \
@@ -569,9 +579,9 @@ armv8)
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv8Arm.cmake"
     check-runtimes
 ;;
-armv8-noexceptions)
+armv8-no-exceptions)
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv8Thumb-noexceptions.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv8Thumb-no-exceptions.cmake"
     check-runtimes
 ;;
 # Armv7 32 bit. One building Arm only one Thumb only code.
@@ -580,9 +590,9 @@ armv7)
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv7Arm.cmake"
     check-runtimes
 ;;
-armv7-noexceptions)
+armv7-no-exceptions)
     clean
-    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv7Thumb-noexceptions.cmake"
+    generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv7Thumb-no-exceptions.cmake"
     check-runtimes
 ;;
 clang-cl-dll)
@@ -625,8 +635,7 @@ mingw-dll)
           -DCMAKE_C_COMPILER=x86_64-w64-mingw32-clang \
           -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-clang++ \
           -C "${MONOREPO_ROOT}/libcxx/cmake/caches/MinGW.cmake"
-    echo "+++ Running the libc++ tests"
-    ${NINJA} -vC "${BUILD_DIR}" check-cxx
+    check-runtimes
 ;;
 mingw-static)
     clean
@@ -636,8 +645,7 @@ mingw-static)
           -C "${MONOREPO_ROOT}/libcxx/cmake/caches/MinGW.cmake" \
           -DLIBCXX_ENABLE_SHARED=OFF \
           -DLIBUNWIND_ENABLE_SHARED=OFF
-    echo "+++ Running the libc++ tests"
-    ${NINJA} -vC "${BUILD_DIR}" check-cxx
+    check-runtimes
 ;;
 mingw-dll-i686)
     clean
@@ -645,8 +653,7 @@ mingw-dll-i686)
           -DCMAKE_C_COMPILER=i686-w64-mingw32-clang \
           -DCMAKE_CXX_COMPILER=i686-w64-mingw32-clang++ \
           -C "${MONOREPO_ROOT}/libcxx/cmake/caches/MinGW.cmake"
-    echo "+++ Running the libc++ tests"
-    ${NINJA} -vC "${BUILD_DIR}" check-cxx
+    check-runtimes
 ;;
 aix)
     clean

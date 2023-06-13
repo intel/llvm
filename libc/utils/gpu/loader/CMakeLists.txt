@@ -1,5 +1,8 @@
 add_library(gpu_loader OBJECT Main.cpp)
-target_include_directories(gpu_loader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(gpu_loader PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${LIBC_SOURCE_DIR}
+)
 
 find_package(hsa-runtime64 QUIET 1.2.0 HINTS ${CMAKE_INSTALL_PREFIX} PATHS /opt/rocm)
 if(hsa-runtime64_FOUND)
@@ -9,10 +12,19 @@ else()
 endif()
 
 find_package(CUDAToolkit QUIET)
-if(CUDAToolkit_FOUND)
+# The CUDA loader requires LLVM to traverse the ELF image for symbols.
+find_package(LLVM QUIET)
+if(CUDAToolkit_FOUND AND LLVM_FOUND AND
+   "${CUDAToolkit_VERSION}" VERSION_GREATER_EQUAL "11.2")
   add_subdirectory(nvptx)
 else()
-  message(STATUS "Skipping CUDA loader for gpu target, no CUDA was detected")
+  if("${CUDAToolkit_VERSION}" VERSION_LESS "11.2")
+    message(WARNING 
+      "Skipping CUDA loader for gpu target, CUDA must be version 11.2 or later.
+       Found CUDA Version ${CUDAToolkit_VERSION}")
+  else()
+    message(STATUS "Skipping CUDA loader for gpu target, no CUDA was detected")
+  endif()
 endif()
 
 # Add a custom target to be used for testing.

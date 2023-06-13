@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -41,7 +42,6 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -998,6 +998,10 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
                                     Node->getValueType(0));
     if (Action != TargetLowering::Promote)
       Action = TLI.getOperationAction(Node->getOpcode(), MVT::Other);
+    break;
+  case ISD::SET_FPENV:
+    Action = TLI.getOperationAction(Node->getOpcode(),
+                                    Node->getOperand(1).getValueType());
     break;
   case ISD::FP_TO_FP16:
   case ISD::FP_TO_BF16:
@@ -2696,6 +2700,11 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     if ((Tmp1 = TLI.expandABS(Node, DAG)))
       Results.push_back(Tmp1);
     break;
+  case ISD::ABDS:
+  case ISD::ABDU:
+    if ((Tmp1 = TLI.expandABD(Node, DAG)))
+      Results.push_back(Tmp1);
+    break;
   case ISD::CTPOP:
     if ((Tmp1 = TLI.expandCTPOP(Node, DAG)))
       Results.push_back(Tmp1);
@@ -3477,13 +3486,13 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     // if we were allowed to generate libcalls to division functions of illegal
     // type. But we cannot do that.
     llvm_unreachable("Cannot expand DIVFIX!");
-  case ISD::ADDCARRY:
-  case ISD::SUBCARRY: {
+  case ISD::UADDO_CARRY:
+  case ISD::USUBO_CARRY: {
     SDValue LHS = Node->getOperand(0);
     SDValue RHS = Node->getOperand(1);
     SDValue Carry = Node->getOperand(2);
 
-    bool IsAdd = Node->getOpcode() == ISD::ADDCARRY;
+    bool IsAdd = Node->getOpcode() == ISD::UADDO_CARRY;
 
     // Initial add of the 2 operands.
     unsigned Op = IsAdd ? ISD::ADD : ISD::SUB;
@@ -4455,6 +4464,29 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
       break;
     }
     break;
+  case ISD::RESET_FPENV: {
+    // It is legalized to call 'fesetenv(FE_DFL_ENV)'. On most targets
+    // FE_DFL_ENV is defined as '((const fenv_t *) -1)' in glibc.
+    SDValue Ptr = DAG.getIntPtrConstant(-1LL, dl);
+    SDValue Chain = Node->getOperand(0);
+    Results.push_back(
+        DAG.makeStateFunctionCall(RTLIB::FESETENV, Ptr, Chain, dl));
+    break;
+  }
+  case ISD::GET_FPENV_MEM: {
+    SDValue Chain = Node->getOperand(0);
+    SDValue EnvPtr = Node->getOperand(1);
+    Results.push_back(
+        DAG.makeStateFunctionCall(RTLIB::FEGETENV, EnvPtr, Chain, dl));
+    break;
+  }
+  case ISD::SET_FPENV_MEM: {
+    SDValue Chain = Node->getOperand(0);
+    SDValue EnvPtr = Node->getOperand(1);
+    Results.push_back(
+        DAG.makeStateFunctionCall(RTLIB::FESETENV, EnvPtr, Chain, dl));
+    break;
+  }
   }
 
   // Replace the original node with the legalized result.

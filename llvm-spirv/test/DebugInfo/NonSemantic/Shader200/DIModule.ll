@@ -37,7 +37,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: ExtInst [[#]] [[#Parent:]] [[#]] DebugCompilationUnit [[#Version]] [[#DWARF]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#SourceEmpty:]] [[#]] DebugSource [[#EmptyStr]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#Module:]] [[#]] DebugModule [[#Name]] [[#SourceEmpty]] [[#Constant0]] [[#Parent]] [[#Defines]] [[#IncludePath]] [[#ApiNotes]] [[#Constant0]]
-; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugImportedEntity [[#]] [[#]] [[#]] [[#Source]] [[#Module]]
+; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugImportedEntity [[#]] [[#]] [[#Source]] [[#Module]]
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!6, !7}

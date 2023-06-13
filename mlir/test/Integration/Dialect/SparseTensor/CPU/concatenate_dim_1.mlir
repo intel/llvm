@@ -12,33 +12,31 @@
 // REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true"
 // RUN: %{compile} | %{run}
 //
-// Do the same run, but now with direct IR generation and vectorization. Enable
-// Arm SVE if supported.
-// REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true vl=4 enable-arm-sve=%ENABLE_VLA reassociate-fp-reductions=true enable-index-optimizations=true"
-// REDEFINE: %{run_option} = %VLA_ARCH_ATTR_OPTIONS
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false enable-buffer-initialization=true vl=4 reassociate-fp-reductions=true enable-index-optimizations=true"
 // RUN: %{compile} | %{run}
 
-#MAT_C_C = #sparse_tensor.encoding<{dimLevelType = ["compressed", "compressed"]}>
-#MAT_D_C = #sparse_tensor.encoding<{dimLevelType = ["dense", "compressed"]}>
-#MAT_C_D = #sparse_tensor.encoding<{dimLevelType = ["compressed", "dense"]}>
+#MAT_C_C = #sparse_tensor.encoding<{lvlTypes = ["compressed", "compressed"]}>
+#MAT_D_C = #sparse_tensor.encoding<{lvlTypes = ["dense", "compressed"]}>
+#MAT_C_D = #sparse_tensor.encoding<{lvlTypes = ["compressed", "dense"]}>
 #MAT_D_D = #sparse_tensor.encoding<{
-  dimLevelType = ["dense", "dense"],
-  dimOrdering = affine_map<(i,j) -> (j,i)>
+  lvlTypes = ["dense", "dense"],
+  dimToLvl = affine_map<(i,j) -> (j,i)>
 }>
 
 #MAT_C_C_P = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ],
-  dimOrdering = affine_map<(i,j) -> (j,i)>
+  lvlTypes = [ "compressed", "compressed" ],
+  dimToLvl = affine_map<(i,j) -> (j,i)>
 }>
 
 #MAT_C_D_P = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "dense" ],
-  dimOrdering = affine_map<(i,j) -> (j,i)>
+  lvlTypes = [ "compressed", "dense" ],
+  dimToLvl = affine_map<(i,j) -> (j,i)>
 }>
 
 #MAT_D_C_P = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ],
-  dimOrdering = affine_map<(i,j) -> (j,i)>
+  lvlTypes = [ "dense", "compressed" ],
+  dimToLvl = affine_map<(i,j) -> (j,i)>
 }>
 
 module {

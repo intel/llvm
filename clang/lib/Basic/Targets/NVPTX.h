@@ -109,7 +109,7 @@ public:
     }
   }
 
-  const char *getClobbers() const override {
+  std::string_view getClobbers() const override {
     // FIXME: Is this really right?
     return "";
   }
@@ -195,7 +195,6 @@ public:
 
   bool hasBitIntType() const override { return true; }
   bool hasBFloat16Type() const override { return true; }
-  const char *getBFloat16Mangling() const override { return "u6__bf16"; };
 };
 } // namespace targets
 } // namespace clang

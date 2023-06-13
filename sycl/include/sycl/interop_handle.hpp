@@ -50,8 +50,8 @@ public:
   template <backend Backend = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh,
             typename PropertyListT = ext::oneapi::accessor_property_list<>>
-  detail::enable_if_t<Target != access::target::image,
-                      backend_return_t<Backend, buffer<DataT, Dims>>>
+  std::enable_if_t<Target != access::target::image,
+                   backend_return_t<Backend, buffer<DataT, Dims>>>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh, PropertyListT>
                      &Acc) const {
     static_assert(Target == access::target::device ||
@@ -117,7 +117,9 @@ public:
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
                                  PI_ERROR_INVALID_MEM_OBJECT);
-    return reinterpret_cast<backend_return_t<Backend, queue>>(getNativeQueue());
+    int32_t NativeHandleDesc;
+    return reinterpret_cast<backend_return_t<Backend, queue>>(
+        getNativeQueue(NativeHandleDesc));
 #else
     // we believe this won't be ever called on device side
     return 0;
@@ -197,7 +199,8 @@ private:
 
   __SYCL_EXPORT pi_native_handle
   getNativeMem(detail::AccessorImplHost *Req) const;
-  __SYCL_EXPORT pi_native_handle getNativeQueue() const;
+  __SYCL_EXPORT pi_native_handle
+  getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;
 

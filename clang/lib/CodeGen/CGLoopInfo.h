@@ -15,7 +15,6 @@
 #define LLVM_CLANG_LIB_CODEGEN_CGLOOPINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Value.h"
@@ -104,7 +103,7 @@ struct LoopAttributes {
 
   // Value for llvm.loop.parallel_access_indices metadata, for the arrays that
   // weren't put into a specific ivdep item.
-  llvm::Optional<SYCLIVDepInfo> GlobalSYCLIVDepInfo;
+  std::optional<SYCLIVDepInfo> GlobalSYCLIVDepInfo;
   // Value for llvm.loop.parallel_access_indices metadata, for array
   // specifications.
   llvm::SmallVector<SYCLIVDepInfo, 4> ArraySYCLIVDepInfo;
@@ -113,7 +112,7 @@ struct LoopAttributes {
   unsigned SYCLIInterval;
 
   /// Value for llvm.loop.max_concurrency.count metadata.
-  llvm::Optional<unsigned> SYCLMaxConcurrencyNThreads;
+  std::optional<unsigned> SYCLMaxConcurrencyNThreads;
 
   /// Value for count variant (min/max/avg) and count metadata.
   llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
@@ -129,13 +128,16 @@ struct LoopAttributes {
   bool SYCLLoopPipeliningDisable;
 
   /// Value for llvm.loop.max_interleaving.count metadata.
-  llvm::Optional<unsigned> SYCLMaxInterleavingNInvocations;
+  std::optional<unsigned> SYCLMaxInterleavingNInvocations;
 
   /// Value for llvm.loop.intel.speculated.iterations.count metadata.
-  llvm::Optional<unsigned> SYCLSpeculatedIterationsNIterations;
+  std::optional<unsigned> SYCLSpeculatedIterationsNIterations;
 
   // Value for llvm.loop.intel.max_reinvocation_delay metadata.
-  llvm::Optional<unsigned> SYCLMaxReinvocationDelayNCycles;
+  std::optional<unsigned> SYCLMaxReinvocationDelayNCycles;
+
+  /// Flag for llvm.loop.intel.pipelining.enable, i32 1 metadata.
+  bool SYCLLoopPipeliningEnable;
 
   /// llvm.unroll.
   unsigned UnrollCount;
@@ -416,6 +418,11 @@ public:
   /// Set value of max reinvocation delay for the next loop pushed.
   void setSYCLMaxReinvocationDelayNCycles(unsigned C) {
     StagedAttrs.SYCLMaxReinvocationDelayNCycles = C;
+  }
+
+  /// Set flag of enable_loop_pipelining for the next loop pushed.
+  void setSYCLLoopPipeliningEnable() {
+    StagedAttrs.SYCLLoopPipeliningEnable = true;
   }
 
 private:

@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_BE=PI_LEVEL_ZERO %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{run} %t.out
 
 // Test for Level Zero interop_task for buffer.
 // Level-Zero
@@ -30,6 +30,8 @@ int main() {
             void *device_ptr =
                 ih.get_mem<backend::ext_oneapi_level_zero>(buffer_acc);
             ze_memory_allocation_properties_t memAllocProperties{};
+            memAllocProperties.stype =
+                ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
             ze_result_t res = zeMemGetAllocProperties(
                 ze_context, device_ptr, &memAllocProperties, nullptr);
             assert(res == ZE_RESULT_SUCCESS);

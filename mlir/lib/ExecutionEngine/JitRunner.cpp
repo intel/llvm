@@ -288,30 +288,27 @@ template <typename Type>
 Error checkCompatibleReturnType(LLVM::LLVMFuncOp mainFunction);
 template <>
 Error checkCompatibleReturnType<int32_t>(LLVM::LLVMFuncOp mainFunction) {
-  auto resultType = mainFunction.getFunctionType()
-                        .cast<LLVM::LLVMFunctionType>()
-                        .getReturnType()
-                        .dyn_cast<IntegerType>();
+  auto resultType = dyn_cast<IntegerType>(
+      cast<LLVM::LLVMFunctionType>(mainFunction.getFunctionType())
+          .getReturnType());
   if (!resultType || resultType.getWidth() != 32)
     return makeStringError("only single i32 function result supported");
   return Error::success();
 }
 template <>
 Error checkCompatibleReturnType<int64_t>(LLVM::LLVMFuncOp mainFunction) {
-  auto resultType = mainFunction.getFunctionType()
-                        .cast<LLVM::LLVMFunctionType>()
-                        .getReturnType()
-                        .dyn_cast<IntegerType>();
+  auto resultType = dyn_cast<IntegerType>(
+      cast<LLVM::LLVMFunctionType>(mainFunction.getFunctionType())
+          .getReturnType());
   if (!resultType || resultType.getWidth() != 64)
     return makeStringError("only single i64 function result supported");
   return Error::success();
 }
 template <>
 Error checkCompatibleReturnType<float>(LLVM::LLVMFuncOp mainFunction) {
-  if (!mainFunction.getFunctionType()
-           .cast<LLVM::LLVMFunctionType>()
-           .getReturnType()
-           .isa<Float32Type>())
+  if (!isa<Float32Type>(
+          cast<LLVM::LLVMFunctionType>(mainFunction.getFunctionType())
+              .getReturnType()))
     return makeStringError("only single f32 function result supported");
   return Error::success();
 }
@@ -324,8 +321,7 @@ Error compileAndExecuteSingleReturnFunction(
   if (!mainFunction || mainFunction.isExternal())
     return makeStringError("entry point not found");
 
-  if (mainFunction.getFunctionType()
-          .cast<LLVM::LLVMFunctionType>()
+  if (cast<LLVM::LLVMFunctionType>(mainFunction.getFunctionType())
           .getNumParams() != 0)
     return makeStringError("function inputs not supported");
 
@@ -397,8 +393,8 @@ int mlir::JitRunnerMain(int argc, char **argv, const DialectRegistry &registry,
   // Configure TargetMachine builder based on the command line options
   llvm::SubtargetFeatures features;
   if (!options.mAttrs.empty()) {
-    for (unsigned i = 0; i != options.mAttrs.size(); ++i)
-      features.AddFeature(options.mAttrs[i]);
+    for (StringRef attr : options.mAttrs)
+      features.AddFeature(attr);
     tmBuilderOrError->addFeatures(features.getFeatures());
   }
 

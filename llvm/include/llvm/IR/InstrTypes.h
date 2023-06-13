@@ -837,6 +837,17 @@ public:
     return getOrderedPredicate(getPredicate());
   }
 
+  /// Returns the unordered variant of a floating point compare.
+  ///
+  /// For example, OEQ -> UEQ, OLT -> ULT, OEQ -> UEQ
+  static Predicate getUnorderedPredicate(Predicate Pred) {
+    return static_cast<Predicate>(Pred | FCMP_UNO);
+  }
+
+  Predicate getUnorderedPredicate() const {
+    return getUnorderedPredicate(getPredicate());
+  }
+
   /// For example, EQ -> NE, UGT -> ULE, SLT -> SGE,
   ///              OEQ -> UNE, UGT -> OLE, OLT -> UGE, etc.
   /// @returns the inverse predicate for predicate provided in \p pred.
@@ -1559,6 +1570,11 @@ public:
     Attrs = Attrs.removeFnAttribute(getContext(), Kind);
   }
 
+  /// Removes the attribute from the function
+  void removeFnAttr(StringRef Kind) {
+    Attrs = Attrs.removeFnAttribute(getContext(), Kind);
+  }
+
   /// Removes the attribute from the return value
   void removeRetAttr(Attribute::AttrKind Kind) {
     Attrs = Attrs.removeRetAttribute(getContext(), Kind);
@@ -1939,7 +1955,7 @@ public:
     return Attrs.hasAttrSomewhere(Attribute::ByVal);
   }
 
-  ///@{
+  ///@}
   // End of attribute API.
 
   /// \name Operand Bundle API

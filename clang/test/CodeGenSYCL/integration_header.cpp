@@ -3,6 +3,7 @@
 //
 // CHECK: #include <sycl/detail/kernel_desc.hpp>
 //
+// CHECK: // Forward declarations of templated kernel function types:
 // CHECK: class first_kernel;
 // CHECK-NEXT: namespace second_namespace {
 // CHECK-NEXT: template <typename T> class second_kernel;
@@ -11,6 +12,7 @@
 // CHECK-NEXT: template <int DimX> struct namespaced_arg;
 // CHECK-NEXT: }
 // CHECK-NEXT: template <typename ...Ts> class fourth_kernel;
+// CHECK: class FinalClass;
 //
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
@@ -19,6 +21,7 @@
 // CHECK-NEXT:   "_ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE"
 // CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
 // CHECK-NEXT:   "_ZTSZ4mainE15annotated_types"
+// CHECK-NEXT:   "_ZTS10FinalClass"
 // CHECK-NEXT: };
 //
 // CHECK: static constexpr
@@ -53,6 +56,8 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 8 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 16 },
+// CHECK-EMPTY:
+// CHECK-NEXT:  //--- _ZTS10FinalClass
 // CHECK-EMPTY:
 // CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
@@ -110,6 +115,8 @@ struct captured : base, base2 {
 
 struct MockProperty {};
 
+class FinalClass final {};
+
 int main() {
 
   sycl::accessor<char, 1, sycl::access::mode::read> acc1;
@@ -159,6 +166,8 @@ int main() {
     (void)AP2;
     (void)AP3;
   });
+
+  kernel_single_task<class FinalClass>([=]() { });
 
   return 0;
 }

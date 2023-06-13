@@ -119,6 +119,8 @@ private:
   SPIRVEntry *transDbgEnumType(const DICompositeType *ET);
   SPIRVEntry *transDbgCompositeType(const DICompositeType *CT);
   SPIRVEntry *transDbgMemberType(const DIDerivedType *MT);
+  SPIRVEntry *transDbgMemberTypeOpenCL(const DIDerivedType *MT);
+  SPIRVEntry *transDbgMemberTypeNonSemantic(const DIDerivedType *MT);
   SPIRVEntry *transDbgInheritance(const DIDerivedType *DT);
   SPIRVEntry *transDbgPtrToMember(const DIDerivedType *DT);
 
@@ -134,6 +136,9 @@ private:
   SPIRVEntry *transDbgGlobalVariable(const DIGlobalVariable *GV);
   SPIRVEntry *transDbgFunction(const DISubprogram *Func);
 
+  SPIRVEntry *transDbgFuncDefinition(SPIRVValue *SPVFunc, SPIRVEntry *DbgFunc);
+  SPIRVEntry *transDbgEntryPoint(const DISubprogram *Func, SPIRVEntry *DbgFunc);
+
   // Location information
   SPIRVEntry *transDbgScope(const DIScope *S);
   SPIRVEntry *transDebugLoc(const DebugLoc &Loc, SPIRVBasicBlock *BB,
@@ -142,6 +147,10 @@ private:
 
   template <class T> SPIRVExtInst *getSource(const T *DIEntry);
   SPIRVEntry *transDbgFileType(const DIFile *F);
+
+  // Generate instructions recording identifier and file where debug information
+  // was split to
+  void generateBuildIdentifierAndStoragePath(const DICompileUnit *DIEntry);
 
   // Local Variables
   SPIRVEntry *transDbgLocalVariable(const DILocalVariable *Var);
@@ -164,9 +173,12 @@ private:
   SPIRVType *VoidT = nullptr;
   SPIRVType *Int32T = nullptr;
   SPIRVEntry *DebugInfoNone;
-  SPIRVExtInst *SPIRVCU = nullptr;
+  std::unordered_map<const DICompileUnit *, SPIRVExtInst *> SPIRVCUMap;
   std::vector<const DbgVariableIntrinsic *> DbgDeclareIntrinsics;
   std::vector<const DbgVariableIntrinsic *> DbgValueIntrinsics;
+
+  inline static SPIRVExtInst *BuildIdentifierInsn{nullptr};
+  inline static SPIRVExtInst *StoragePathInsn{nullptr};
 }; // class LLVMToSPIRVDbgTran
 
 } // namespace SPIRV

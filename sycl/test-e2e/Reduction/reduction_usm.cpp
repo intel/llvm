@@ -1,10 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // `Group algorithms are not supported on host device.` on Nvidia.
 // XFAIL: hip_nvidia
+
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM pointer.
@@ -74,7 +75,7 @@ int test(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
        CGH.single_task<USMKName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();
-    ComputedOut = (Buf.template get_access<access::mode::read>())[0];
+    ComputedOut = host_accessor(Buf, read_only)[0];
   } else {
     ComputedOut = *ReduVarPtr;
   }

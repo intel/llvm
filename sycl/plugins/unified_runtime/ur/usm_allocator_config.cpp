@@ -61,7 +61,7 @@ USMAllocatorConfig::USMAllocatorConfig() {
   Configs[MemType::SharedReadOnly].SlabMinSize = 2_MB;
 
   // Parse optional parameters of this form:
-  // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=[EnableBuffers][;[MaxPoolSize][;memtypelimits]...]
+  // UR_L0_USM_ALLOCATOR=[EnableBuffers][;[MaxPoolSize][;memtypelimits]...]
   //  memtypelimits: [<memtype>:]<limits>
   //  memtype: host|device|shared
   //  limits:  [MaxPoolableSize][,[Capacity][,SlabMinSize]]
@@ -83,7 +83,7 @@ USMAllocatorConfig::USMAllocatorConfig() {
   //                  Default 64KB host and device, 2MB shared.
   //
   // Example of usage:
-  // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M
+  // UR_L0_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M
 
   auto GetValue = [=](std::string &Param, size_t Length, size_t &Setting) {
     size_t Multiplier = 1;
@@ -181,7 +181,9 @@ USMAllocatorConfig::USMAllocatorConfig() {
   auto limits = std::make_shared<USMLimits>();
 
   // Update pool settings if specified in environment.
-  char *PoolParams = getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  const char *UrRet = std::getenv("UR_L0_USM_ALLOCATOR");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  const char *PoolParams = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (PoolParams != nullptr) {
     std::string Params(PoolParams);
     size_t Pos = Params.find(';');
@@ -220,7 +222,12 @@ USMAllocatorConfig::USMAllocatorConfig() {
     }
   }
 
-  char *PoolTraceVal = getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
+  const char *UrRetUsmAllocator = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
+  const char *PiRetUsmAllocator =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
+  const char *PoolTraceVal =
+      UrRetUsmAllocator ? UrRetUsmAllocator
+                        : (PiRetUsmAllocator ? PiRetUsmAllocator : nullptr);
   int PoolTrace = 0;
   if (PoolTraceVal != nullptr) {
     PoolTrace = std::atoi(PoolTraceVal);

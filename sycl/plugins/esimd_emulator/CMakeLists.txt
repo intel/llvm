@@ -41,7 +41,7 @@ if ((DEFINED USE_DEFAULT_CM_EMU_SOURCE) OR (DEFINED USE_LOCAL_CM_EMU_SOURCE))
     message(STATUS "CM_EMU library package will be built online with source codes downloaded from ${DEFAULT_CM_EMU_SOURCE_URL}")
     ExternalProject_Add(cm-emu
       GIT_REPOSITORY    ${DEFAULT_CM_EMU_SOURCE_URL}
-      GIT_TAG           f9d167edbcb995e713d5a8
+      GIT_TAG           38f070a7e1de00d0398224
       BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
       INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
       CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr

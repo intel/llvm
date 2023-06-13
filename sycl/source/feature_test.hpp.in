@@ -81,6 +81,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #define SYCL_EXT_CODEPLAY_KERNEL_FUSION 1
 #endif
 #define SYCL_EXT_INTEL_CACHE_CONFIG 1
+#define SYCL_EXT_CODEPLAY_MAX_REGISTERS_PER_WORK_GROUP_QUERY 1
 
 #ifndef __has_include
 #define __has_include(x) 0

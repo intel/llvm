@@ -69,6 +69,8 @@ void urPrint(const char *Format, ...) {
   }
 }
 
+usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
+
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value) {
@@ -78,13 +80,14 @@ bool setEnvVar(const char *name, const char *value) {
   int Res = setenv(name, value, 1);
 #endif
   if (Res != 0) {
-    urPrint(
-        "Level Zero plugin was unable to set the environment variable: %s\n",
-        name);
+    urPrint("UR L0 Adapter was unable to set the environment variable: %s\n",
+            name);
     return false;
   }
   return true;
 }
+
+ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
 std::map<const char *, int> *ZeCallCount = nullptr;
@@ -260,4 +263,21 @@ template <> zes_structure_type_t getZesStructureType<zes_mem_state_t>() {
 
 template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
   return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
+}
+
+// Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
+thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] void setErrorMessage(const char *message,
+                                      ur_result_t error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+ur_result_t zerPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
 }

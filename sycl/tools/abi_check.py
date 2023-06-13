@@ -68,10 +68,10 @@ def parse_readobj_output(output):
   #
   # Case 1:
   # pi.hpp:
-  #   template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
+  #   template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
   #
   # pi.cpp:
-  #   template <backend BE> const plugin &getPlugin() {
+  #   template <backend BE> const PluginPtr &getPlugin() {
   #     static const plugin *Plugin = nullptr;
   #     ...
   #   }
@@ -88,7 +88,8 @@ def parse_readobj_output(output):
   ignore_symbols += ["?Plugin@?1???$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
                      "?Plugin@?1???$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
                      "?Plugin@?1???$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
-                     "?Plugin@?1???$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB"]
+                     "?Plugin@?1???$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
+                     "?Plugin@?1???$getPlugin@$05@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB"]
   # Case 2:
   # half_type.hpp:
   #   class __SYCL_EXPORT half {
@@ -128,7 +129,7 @@ def dump_symbols(target_path, output):
     out.write("\n# UNSUPPORTED: libcxx")
     out.write("\n\n")
     readobj_opts = "--coff-exports" if os.name == 'nt' else "--syms"
-    readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
+    readobj_out = subprocess.check_output([os.path.join(get_llvm_bin_path(),"llvm-readobj"),
                                            readobj_opts, target_path])
     symbols = parse_readobj_output(readobj_out)
     symbols.sort()
@@ -153,7 +154,7 @@ def check_symbols(ref_path, target_path):
         ref_symbols.append(line.strip())
 
     readobj_opts = "--coff-exports" if os.name == 'nt' else "--syms"
-    readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
+    readobj_out = subprocess.check_output([os.path.join(get_llvm_bin_path(),"llvm-readobj"),
                                            readobj_opts, target_path])
     symbols = parse_readobj_output(readobj_out)
 

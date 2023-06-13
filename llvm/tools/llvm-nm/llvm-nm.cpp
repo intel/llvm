@@ -639,7 +639,7 @@ static void darwinPrintStab(MachOObjectFile *MachO, const NMSymbol &S) {
 
 static std::optional<std::string> demangle(StringRef Name) {
   std::string Demangled;
-  if (nonMicrosoftDemangle(Name.str().c_str(), Demangled))
+  if (nonMicrosoftDemangle(Name, Demangled))
     return Demangled;
   return std::nullopt;
 }
@@ -1954,26 +1954,39 @@ static bool checkMachOAndArchFlags(SymbolicFile *O, StringRef Filename) {
   return true;
 }
 
-static void dumpArchiveMap(Archive *A, StringRef Filename) {
-  Archive::symbol_iterator I = A->symbol_begin();
-  Archive::symbol_iterator E = A->symbol_end();
-  if (I != E) {
-    outs() << "Archive map\n";
-    for (; I != E; ++I) {
-      Expected<Archive::Child> C = I->getMember();
-      if (!C) {
-        error(C.takeError(), Filename);
-        break;
-      }
-      Expected<StringRef> FileNameOrErr = C->getName();
-      if (!FileNameOrErr) {
-        error(FileNameOrErr.takeError(), Filename);
-        break;
-      }
-      StringRef SymName = I->getName();
-      outs() << SymName << " in " << FileNameOrErr.get() << "\n";
+static void printArchiveMap(iterator_range<Archive::symbol_iterator> &map,
+                            StringRef Filename) {
+  for (auto I : map) {
+    Expected<Archive::Child> C = I.getMember();
+    if (!C) {
+      error(C.takeError(), Filename);
+      break;
     }
-    outs() << "\n";
+    Expected<StringRef> FileNameOrErr = C->getName();
+    if (!FileNameOrErr) {
+      error(FileNameOrErr.takeError(), Filename);
+      break;
+    }
+    StringRef SymName = I.getName();
+    outs() << SymName << " in " << FileNameOrErr.get() << "\n";
+  }
+
+  outs() << "\n";
+}
+
+static void dumpArchiveMap(Archive *A, StringRef Filename) {
+  auto Map = A->symbols();
+  if (!Map.empty()) {
+    outs() << "Archive map\n";
+    printArchiveMap(Map, Filename);
+  }
+
+  auto ECMap = A->ec_symbols();
+  if (!ECMap) {
+    warn(ECMap.takeError(), Filename);
+  } else if (!ECMap->empty()) {
+    outs() << "Archive EC map\n";
+    printArchiveMap(*ECMap, Filename);
   }
 }
 

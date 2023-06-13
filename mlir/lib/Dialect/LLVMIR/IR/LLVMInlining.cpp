@@ -14,6 +14,7 @@
 #include "LLVMInlining.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/Support/Debug.h"
 
@@ -124,14 +125,44 @@ handleInlinedAllocas(Operation *call,
   }
 }
 
+/// If `requestedAlignment` is higher than the alignment specified on `alloca`,
+/// realigns `alloca` if this does not exceed the natural stack alignment.
+/// Returns the post-alignment of `alloca`, whether it was realigned or not.
+static unsigned tryToEnforceAllocaAlignment(LLVM::AllocaOp alloca,
+                                            unsigned requestedAlignment,
+                                            DataLayout const &dataLayout) {
+  unsigned allocaAlignment = alloca.getAlignment().value_or(1);
+  if (requestedAlignment <= allocaAlignment)
+    // No realignment necessary.
+    return allocaAlignment;
+  unsigned naturalStackAlignmentBits = dataLayout.getStackAlignment();
+  // If the natural stack alignment is not specified, the data layout returns
+  // zero. Optimistically allow realignment in this case.
+  if (naturalStackAlignmentBits == 0 ||
+      // If the requested alignment exceeds the natural stack alignment, this
+      // will trigger a dynamic stack realignment, so we prefer to copy...
+      8 * requestedAlignment <= naturalStackAlignmentBits ||
+      // ...unless the alloca already triggers dynamic stack realignment. Then
+      // we might as well further increase the alignment to avoid a copy.
+      8 * allocaAlignment > naturalStackAlignmentBits) {
+    alloca.setAlignment(requestedAlignment);
+    allocaAlignment = requestedAlignment;
+  }
+  return allocaAlignment;
+}
+
 /// Tries to find and return the alignment of the pointer `value` by looking for
 /// an alignment attribute on the defining allocation op or function argument.
-/// If no such attribute is found, returns 1 (i.e., assume that no alignment is
-/// guaranteed).
-static unsigned getAlignmentOf(Value value) {
+/// If the found alignment is lower than `requestedAlignment`, tries to realign
+/// the pointer, then returns the resulting post-alignment, regardless of
+/// whether it was realigned or not. If no existing alignment attribute is
+/// found, returns 1 (i.e., assume that no alignment is guaranteed).
+static unsigned tryToEnforceAlignment(Value value, unsigned requestedAlignment,
+                                      DataLayout const &dataLayout) {
   if (Operation *definingOp = value.getDefiningOp()) {
     if (auto alloca = dyn_cast<LLVM::AllocaOp>(definingOp))
-      return alloca.getAlignment().value_or(1);
+      return tryToEnforceAllocaAlignment(alloca, requestedAlignment,
+                                         dataLayout);
     if (auto addressOf = dyn_cast<LLVM::AddressOfOp>(definingOp))
       if (auto global = SymbolTable::lookupNearestSymbolFrom<LLVM::GlobalOp>(
               definingOp, addressOf.getGlobalNameAttr()))
@@ -143,9 +174,9 @@ static unsigned getAlignmentOf(Value value) {
   // comes directly from a function argument, so check that this is the case.
   Operation *parentOp = value.getParentBlock()->getParentOp();
   if (auto func = dyn_cast<LLVM::LLVMFuncOp>(parentOp)) {
-    // Use the alignment attribute set for this argument in the parent
-    // function if it has been set.
-    auto blockArg = value.cast<BlockArgument>();
+    // Use the alignment attribute set for this argument in the parent function
+    // if it has been set.
+    auto blockArg = llvm::cast<BlockArgument>(value);
     if (Attribute alignAttr = func.getArgAttr(
             blockArg.getArgNumber(), LLVM::LLVMDialect::getAlignAttrName()))
       return cast<IntegerAttr>(alignAttr).getValue().getLimitedValue();
@@ -154,19 +185,19 @@ static unsigned getAlignmentOf(Value value) {
   return 1;
 }
 
-/// Copies the data from a byval pointer argument into newly alloca'ed memory
-/// and returns the value of the alloca.
+/// Introduces a new alloca and copies the memory pointed to by `argument` to
+/// the address of the new alloca, then returns the value of the new alloca.
 static Value handleByValArgumentInit(OpBuilder &builder, Location loc,
                                      Value argument, Type elementType,
                                      unsigned elementTypeSize,
                                      unsigned targetAlignment) {
-  Block *entryBlock = &(*argument.getParentRegion()->begin());
   // Allocate the new value on the stack.
   Value allocaOp;
   {
     // Since this is a static alloca, we can put it directly in the entry block,
     // so they can be absorbed into the prologue/epilogue at code generation.
     OpBuilder::InsertionGuard insertionGuard(builder);
+    Block *entryBlock = &(*argument.getParentRegion()->begin());
     builder.setInsertionPointToStart(entryBlock);
     Value one = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
                                                  builder.getI64IntegerAttr(1));
@@ -183,10 +214,10 @@ static Value handleByValArgumentInit(OpBuilder &builder, Location loc,
 }
 
 /// Handles a function argument marked with the byval attribute by introducing a
-/// memcpy if necessary, either due to the pointee being writeable in the
-/// callee, and/or due to an alignment mismatch. `requestedAlignment` specifies
-/// the alignment set in the "align" argument attribute (or 1 if no align
-/// attribute was set).
+/// memcpy or realigning the defining operation, if required either due to the
+/// pointee being writeable in the callee, and/or due to an alignment mismatch.
+/// `requestedAlignment` specifies the alignment set in the "align" argument
+/// attribute (or 1 if no align attribute was set).
 static Value handleByValArgument(OpBuilder &builder, Operation *callable,
                                  Value argument, Type elementType,
                                  unsigned requestedAlignment) {
@@ -198,25 +229,20 @@ static Value handleByValArgument(OpBuilder &builder, Operation *callable,
                     memoryEffects.getArgMem() != LLVM::ModRefInfo::ModRef &&
                     memoryEffects.getArgMem() != LLVM::ModRefInfo::Mod;
   // Check if there's an alignment mismatch requiring us to copy.
-  DataLayout dataLayout(callable->getParentOfType<DataLayoutOpInterface>());
+  DataLayout dataLayout = DataLayout::closest(callable);
   unsigned minimumAlignment = dataLayout.getTypeABIAlignment(elementType);
-  if (isReadOnly && (requestedAlignment <= minimumAlignment ||
-                     getAlignmentOf(argument) >= requestedAlignment))
-    return argument;
+  if (isReadOnly) {
+    if (requestedAlignment <= minimumAlignment)
+      return argument;
+    unsigned currentAlignment =
+        tryToEnforceAlignment(argument, requestedAlignment, dataLayout);
+    if (currentAlignment >= requestedAlignment)
+      return argument;
+  }
   unsigned targetAlignment = std::max(requestedAlignment, minimumAlignment);
   return handleByValArgumentInit(builder, func.getLoc(), argument, elementType,
                                  dataLayout.getTypeSize(elementType),
                                  targetAlignment);
-}
-
-/// Returns true if the given argument or result attribute is supported by the
-/// inliner, false otherwise.
-static bool isArgOrResAttrSupported(NamedAttribute attr) {
-  if (attr.getName() == LLVM::LLVMDialect::getInAllocaAttrName())
-    return false;
-  if (attr.getName() == LLVM::LLVMDialect::getNoAliasAttrName())
-    return false;
-  return true;
 }
 
 namespace {
@@ -251,27 +277,13 @@ struct LLVMInlinerInterface : public DialectInlinerInterface {
                  << "Cannot inline: callable is not an LLVM::LLVMFuncOp\n");
       return false;
     }
+    // TODO: Generate aliasing metadata from noalias argument/result attributes.
     if (auto attrs = funcOp.getArgAttrs()) {
       for (DictionaryAttr attrDict : attrs->getAsRange<DictionaryAttr>()) {
-        for (NamedAttribute attr : attrDict) {
-          if (!isArgOrResAttrSupported(attr)) {
-            LLVM_DEBUG(llvm::dbgs() << "Cannot inline " << funcOp.getSymName()
-                                    << ": unhandled argument attribute "
-                                    << attr.getName() << "\n");
-            return false;
-          }
-        }
-      }
-    }
-    if (auto attrs = funcOp.getResAttrs()) {
-      for (DictionaryAttr attrDict : attrs->getAsRange<DictionaryAttr>()) {
-        for (NamedAttribute attr : attrDict) {
-          if (!isArgOrResAttrSupported(attr)) {
-            LLVM_DEBUG(llvm::dbgs() << "Cannot inline " << funcOp.getSymName()
-                                    << ": unhandled return attribute "
-                                    << attr.getName() << "\n");
-            return false;
-          }
+        if (attrDict.contains(LLVM::LLVMDialect::getInAllocaAttrName())) {
+          LLVM_DEBUG(llvm::dbgs() << "Cannot inline " << funcOp.getSymName()
+                                  << ": inalloca arguments not supported\n");
+          return false;
         }
       }
     }
@@ -328,9 +340,14 @@ struct LLVMInlinerInterface : public DialectInlinerInterface {
     }
     // clang-format off
     if (isa<LLVM::AllocaOp,
+            LLVM::AssumeOp,
+            LLVM::AtomicRMWOp,
+            LLVM::AtomicCmpXchgOp,
             LLVM::CallOp,
             LLVM::DbgDeclareOp,
             LLVM::DbgValueOp,
+            LLVM::FenceOp,
+            LLVM::InlineAsmOp,
             LLVM::LifetimeEndOp,
             LLVM::LifetimeStartOp,
             LLVM::LoadOp,

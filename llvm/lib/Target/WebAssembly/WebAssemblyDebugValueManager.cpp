@@ -16,6 +16,7 @@
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 using namespace llvm;
 
@@ -334,7 +335,6 @@ void WebAssemblyDebugValueManager::sink(MachineInstr *Insert) {
     DV->setDebugValueUndef();
 
   DbgValues.swap(NewDbgValues);
-  return;
 }
 
 // Clone 'Def', and also clone its eligible DBG_VALUEs to the place before

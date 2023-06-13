@@ -54,7 +54,7 @@ std::vector<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 
-backend platform::get_backend() const noexcept { return getImplBackend(impl); }
+backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 template <typename Param>
 typename detail::is_platform_info_desc<Param>::return_type

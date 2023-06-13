@@ -7,7 +7,7 @@
 .. raw:: html
 
       <style type="text/css">
-        .versionbadge { background-color: #1c913d; height: 20px; display: inline-block; width: 120px; text-align: center; border-radius: 5px; color: #FFFFFF; font-family: "Verdana,Geneva,DejaVu Sans,sans-serif"; }
+        .versionbadge { background-color: #1c913d; height: 20px; display: inline-block; min-width: 120px; text-align: center; border-radius: 5px; color: #FFFFFF; font-family: "Verdana,Geneva,DejaVu Sans,sans-serif"; }
       </style>
 
 .. role:: versionbadge
@@ -1829,6 +1829,41 @@ the configuration (without a prefix: ``Auto``).
                            }
 
 
+.. _BracedInitializerIndentWidth:
+
+**BracedInitializerIndentWidth** (``Unsigned``) :versionbadge:`clang-format 17` :ref:`¶ <BracedInitializerIndentWidth>`
+  The number of columns to use to indent the contents of braced init lists.
+  If unset, ``ContinuationIndentWidth`` is used.
+
+  .. code-block:: c++
+
+    AlignAfterOpenBracket: AlwaysBreak
+    BracedInitializerIndentWidth: 2
+
+    void f() {
+      SomeClass c{
+        "foo",
+        "bar",
+        "baz",
+      };
+      auto s = SomeStruct{
+        .foo = "foo",
+        .bar = "bar",
+        .baz = "baz",
+      };
+      SomeArrayT a[3] = {
+        {
+          foo,
+          bar,
+        },
+        {
+          foo,
+          bar,
+        },
+        SomeArrayT{},
+      };
+    }
+
 .. _BreakAfterAttributes:
 
 **BreakAfterAttributes** (``AttributeBreakingStyle``) :versionbadge:`clang-format 16` :ref:`¶ <BreakAfterAttributes>`
@@ -2418,7 +2453,7 @@ the configuration (without a prefix: ``Auto``).
   * ``BBCDS_Allowed`` (in configuration: ``Allowed``)
     Breaking between template declaration and ``concept`` is allowed. The
     actual behavior depends on the content and line breaking rules and
-    penalities.
+    penalties.
 
   * ``BBCDS_Always`` (in configuration: ``Always``)
     Always break before ``concept``, putting it in the line after the
@@ -4526,11 +4561,6 @@ the configuration (without a prefix: ``Auto``).
 
 **SortIncludes** (``SortIncludesOptions``) :versionbadge:`clang-format 3.8` :ref:`¶ <SortIncludes>`
   Controls if and how clang-format will sort ``#includes``.
-  If ``Never``, includes are never sorted.
-  If ``CaseInsensitive``, includes are sorted in an ASCIIbetical or case
-  insensitive fashion.
-  If ``CaseSensitive``, includes are sorted in an alphabetical or case
-  sensitive fashion.
 
   Possible values:
 
@@ -5034,9 +5064,12 @@ the configuration (without a prefix: ``Auto``).
   The number of spaces before trailing line comments
   (``//`` - comments).
 
-  This does not affect trailing block comments (``/*`` - comments) as
-  those commonly have different usage patterns and a number of special
-  cases.
+  This does not affect trailing block comments (``/*`` - comments) as those
+  commonly have different usage patterns and a number of special cases.  In
+  the case of Verilog, it doesn't affect a comment right after the opening
+  parenthesis in the port or parameter list in a module header, because it
+  is probably for the port on the following line instead of the parenthesis
+  it follows.
 
   .. code-block:: c++
 

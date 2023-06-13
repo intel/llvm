@@ -37,6 +37,8 @@ static const CudaVersionMapEntry CudaNameVersionMap[] = {
     CUDA_ENTRY(11, 6),
     CUDA_ENTRY(11, 7),
     CUDA_ENTRY(11, 8),
+    CUDA_ENTRY(12, 0),
+    CUDA_ENTRY(12, 1),
     {"", CudaVersion::NEW, llvm::VersionTuple(std::numeric_limits<int>::max())},
     {"unknown", CudaVersion::UNKNOWN, {}} // End of list tombstone.
 };
@@ -114,6 +116,8 @@ static const CudaArchToStringMap arch_names[] = {
     GFX(90a),  // gfx90a
     GFX(90c),  // gfx90c
     GFX(940),  // gfx940
+    GFX(941),  // gfx941
+    GFX(942),  // gfx942
     GFX(1010), // gfx1010
     GFX(1011), // gfx1011
     GFX(1012), // gfx1012
@@ -218,7 +222,11 @@ CudaVersion MaxVersionForCudaArch(CudaArch A) {
   case CudaArch::SM_21:
     return CudaVersion::CUDA_80;
   case CudaArch::SM_30:
-    return CudaVersion::CUDA_110;
+  case CudaArch::SM_32:
+    return CudaVersion::CUDA_102;
+  case CudaArch::SM_35:
+  case CudaArch::SM_37:
+    return CudaVersion::CUDA_118;
   default:
     return CudaVersion::NEW;
   }

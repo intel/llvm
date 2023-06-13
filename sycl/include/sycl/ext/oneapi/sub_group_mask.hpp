@@ -18,6 +18,13 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class Builder;
+
+namespace spirv {
+
+template <typename Group> struct group_scope;
+
+} // namespace spirv
+
 } // namespace detail
 
 namespace ext::oneapi {
@@ -33,12 +40,11 @@ namespace ext::oneapi {
 // need to forward declare sub_group_mask first
 struct sub_group_mask;
 template <typename Group>
-detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
-                    sub_group_mask>
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, sub_group_mask>
 group_ballot(Group g, bool predicate = true);
 
 struct sub_group_mask {
-  friend class detail::Builder;
+  friend class sycl::detail::Builder;
   using BitsType = BITS_TYPE;
 
   static constexpr size_t max_bits =
@@ -87,6 +93,18 @@ struct sub_group_mask {
   bool any() const { return count() != 0; }
   bool none() const { return count() == 0; }
   uint32_t count() const {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    sycl::marray<unsigned, 4> TmpMArray;
+    this->extract_bits(TmpMArray);
+    sycl::vec<unsigned, 4> MemberMask;
+    for (int i = 0; i < 4; ++i) {
+      MemberMask[i] = TmpMArray[i];
+    }
+    auto OCLMask =
+        sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
+    return __spirv_GroupNonUniformBallotBitCount(
+        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce, OCLMask);
+#else
     unsigned int count = 0;
     auto word = (Bits & valuable_bits(bits_num));
     while (word) {
@@ -94,6 +112,7 @@ struct sub_group_mask {
       count++;
     }
     return count;
+#endif
   }
   uint32_t size() const { return bits_num; }
   id<1> find_low() const {
@@ -110,7 +129,7 @@ struct sub_group_mask {
   }
 
   template <typename Type,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral_v<Type>>>
   void insert_bits(Type bits, id<1> pos = 0) {
     size_t insert_size = sizeof(Type) * CHAR_BIT;
     BitsType insert_data = (BitsType)bits;
@@ -129,7 +148,7 @@ struct sub_group_mask {
   bit id    |7   ..    0|15   ..   8|23   ..  16|31  ..   24|...
   */
   template <typename Type, size_t Size,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral_v<Type>>>
   void insert_bits(const marray<Type, Size> &bits, id<1> pos = 0) {
     size_t cur_pos = pos.get(0);
     for (auto elem : bits) {
@@ -141,7 +160,7 @@ struct sub_group_mask {
   }
 
   template <typename Type,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral_v<Type>>>
   void extract_bits(Type &bits, id<1> pos = 0) const {
     auto Res = Bits;
     Res &= valuable_bits(bits_num);
@@ -160,7 +179,7 @@ struct sub_group_mask {
   }
 
   template <typename Type, size_t Size,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral_v<Type>>>
   void extract_bits(marray<Type, Size> &bits, id<1> pos = 0) const {
     size_t cur_pos = pos.get(0);
     for (auto &elem : bits) {
@@ -231,8 +250,8 @@ struct sub_group_mask {
       : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
 
   template <typename Group>
-  friend detail::enable_if_t<
-      std::is_same<std::decay_t<Group>, sub_group>::value, sub_group_mask>
+  friend std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>,
+                          sub_group_mask>
   group_ballot(Group g, bool predicate);
 
   friend sub_group_mask operator&(const sub_group_mask &lhs,
@@ -274,17 +293,16 @@ private:
 };
 
 template <typename Group>
-detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
-                    sub_group_mask>
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>, sub_group_mask>
 group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
-      detail::spirv::group_scope<Group>::value, predicate);
+      sycl::detail::spirv::group_scope<Group>::value, predicate);
   BITS_TYPE val = res[0];
   if constexpr (sizeof(BITS_TYPE) == 8)
     val |= ((BITS_TYPE)res[1]) << 32;
-  return detail::Builder::createSubGroupMask<sub_group_mask>(
+  return sycl::detail::Builder::createSubGroupMask<sub_group_mask>(
       val, g.get_max_local_range()[0]);
 #else
   (void)predicate;

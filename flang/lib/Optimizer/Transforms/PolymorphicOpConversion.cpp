@@ -62,8 +62,6 @@ private:
                                  mlir::Type ty, mlir::ModuleOp mod,
                                  mlir::PatternRewriter &rewriter) const;
 
-  static int getTypeCode(mlir::Type ty, fir::KindMapping &kindMap);
-
   mlir::LogicalResult genTypeLadderStep(mlir::Location loc,
                                         mlir::Value selector,
                                         mlir::Attribute attr, mlir::Block *dest,
@@ -240,8 +238,9 @@ public:
     patterns.insert<SelectTypeConv>(context, moduleMutex);
     patterns.insert<DispatchOpConv>(context, bindingTables);
     mlir::ConversionTarget target(*context);
-    target.addLegalDialect<mlir::AffineDialect, mlir::cf::ControlFlowDialect,
-                           FIROpsDialect, mlir::func::FuncDialect>();
+    target.addLegalDialect<mlir::affine::AffineDialect,
+                           mlir::cf::ControlFlowDialect, FIROpsDialect,
+                           mlir::func::FuncDialect>();
 
     // apply the patterns
     target.addIllegalOp<SelectTypeOp>();
@@ -341,7 +340,8 @@ mlir::LogicalResult SelectTypeConv::matchAndRewrite(
     std::optional<mlir::ValueRange> destOps =
         selectType.getSuccessorOperands(operands, idx);
     if (typeGuards[idx].dyn_cast<mlir::UnitAttr>())
-      rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(selectType, dest);
+      rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(
+          selectType, dest, destOps.value_or(mlir::ValueRange{}));
     else if (mlir::failed(genTypeLadderStep(loc, selector, typeGuards[idx],
                                             dest, destOps, mod, rewriter,
                                             kindMap)))
@@ -362,7 +362,7 @@ mlir::LogicalResult SelectTypeConv::genTypeLadderStep(
         a.getType().isa<fir::CharacterType>()) {
       // For type guard statement with Intrinsic type spec the type code of
       // the descriptor is compared.
-      int code = getTypeCode(a.getType(), kindMap);
+      int code = fir::getTypeCode(a.getType(), kindMap);
       if (code == 0)
         return mlir::emitError(loc)
                << "type code unavailable for " << a.getType();
@@ -459,28 +459,6 @@ SelectTypeConv::genTypeDescCompare(mlir::Location loc, mlir::Value selector,
       rewriter.create<fir::ConvertOp>(loc, intPtrTy, selectorTdescAddr);
   return rewriter.create<mlir::arith::CmpIOp>(
       loc, mlir::arith::CmpIPredicate::eq, typeDescInt, selectorTdescInt);
-}
-
-int SelectTypeConv::getTypeCode(mlir::Type ty, fir::KindMapping &kindMap) {
-  if (auto intTy = ty.dyn_cast<mlir::IntegerType>())
-    return fir::integerBitsToTypeCode(intTy.getWidth());
-  if (auto floatTy = ty.dyn_cast<mlir::FloatType>())
-    return fir::realBitsToTypeCode(floatTy.getWidth());
-  if (auto logicalTy = ty.dyn_cast<fir::LogicalType>())
-    return fir::logicalBitsToTypeCode(
-        kindMap.getLogicalBitsize(logicalTy.getFKind()));
-  if (fir::isa_complex(ty)) {
-    if (auto cmplxTy = ty.dyn_cast<mlir::ComplexType>())
-      return fir::complexBitsToTypeCode(
-          cmplxTy.getElementType().cast<mlir::FloatType>().getWidth());
-    auto cmplxTy = ty.cast<fir::ComplexType>();
-    return fir::complexBitsToTypeCode(
-        kindMap.getRealBitsize(cmplxTy.getFKind()));
-  }
-  if (auto charTy = ty.dyn_cast<fir::CharacterType>())
-    return fir::characterBitsToTypeCode(
-        kindMap.getCharacterBitsize(charTy.getFKind()));
-  return 0;
 }
 
 llvm::SmallSet<llvm::StringRef, 4>

@@ -5,11 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/device_info.hpp>
 #include <detail/platform_info.hpp>
+#include <sycl/backend.hpp>
 
 #include <algorithm>
 #include <regex>
@@ -334,16 +335,18 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
 }
 
 void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
-                    RT::PiPlatform PiPlatform, const plugin &Plugin) {
+                    RT::PiPlatform PiPlatform, const PluginPtr &Plugin) {
+
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
   if (AllowListParsed.empty())
     return;
 
+  // Get platform's backend and put it to DeviceDesc
   DeviceDescT DeviceDesc;
+  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(PiPlatform, Plugin);
+  backend Backend = PlatformImpl->getBackend();
 
-  // get BackendName value and put it to DeviceDesc
-  sycl::backend Backend = Plugin.getBackend();
   for (const auto &SyclBe : getSyclBeMap()) {
     if (SyclBe.second == Backend) {
       DeviceDesc.emplace(BackendNameKeyName, SyclBe.first);
@@ -361,11 +364,12 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
 
   int InsertIDx = 0;
   for (RT::PiDevice Device : PiDevices) {
+    auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
     RT::PiDeviceType PiDevType;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
-                                            sizeof(RT::PiDeviceType),
-                                            &PiDevType, nullptr);
+    Plugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
+                                             sizeof(RT::PiDeviceType),
+                                             &PiDevType, nullptr);
     sycl::info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
     for (const auto &SyclDeviceType : getSyclDeviceTypeMap()) {
       if (SyclDeviceType.second == DeviceType) {
@@ -376,19 +380,18 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<info::device::vendor_id>(Device, Plugin);
+        sycl::detail::get_device_info<info::device::vendor_id>(DeviceImpl);
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const std::string &DriverVersionValue =
-        sycl::detail::get_device_info<info::device::driver_version>(Device,
-                                                                    Plugin);
+        sycl::detail::get_device_info<info::device::driver_version>(DeviceImpl);
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
     const std::string &DeviceNameValue =
-        sycl::detail::get_device_info<info::device::name>(Device, Plugin);
+        sycl::detail::get_device_info<info::device::name>(DeviceImpl);
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc

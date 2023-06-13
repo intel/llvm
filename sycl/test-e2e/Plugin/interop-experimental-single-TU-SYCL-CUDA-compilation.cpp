@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %cuda_options -lcudart -lcuda -x cuda %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: cuda && cuda_dev_kit
+// RUN: %{build} %cuda_options -lcudart -lcuda -x cuda -o %t.out
+// RUN: %{run} %t.out
 
 #include <cuda.h>
 #include <sycl/sycl.hpp>

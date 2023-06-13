@@ -218,6 +218,8 @@ add_object_library(
     rand_util.cpp
   HDRS
     rand_util.h
+  DEPENDS
+    libc.src.__support.common
 )
 
 add_entrypoint_object(
@@ -285,10 +287,7 @@ if(LLVM_LIBC_INCLUDE_SCUDO)
     DEPENDS
       ${SCUDO_DEPS}
   )
-else()
-  add_entrypoint_external(
-    malloc
-  )
+elseif(LIBC_TARGET_ARCHITECTURE_IS_GPU)
   add_entrypoint_external(
     calloc
   )
@@ -298,8 +297,21 @@ else()
   add_entrypoint_external(
     aligned_alloc
   )
+else()
+  add_entrypoint_external(
+    malloc
+  )
   add_entrypoint_external(
     free
+  )
+  add_entrypoint_external(
+    calloc
+  )
+  add_entrypoint_external(
+    realloc
+  )
+  add_entrypoint_external(
+    aligned_alloc
   )
 endif()
 
@@ -313,9 +325,13 @@ endif()
 
 add_entrypoint_object(
   _Exit
-  ALIAS
+  SRCS
+    _Exit.cpp
+  HDRS
+    _Exit.h
   DEPENDS
-    .${LIBC_TARGET_OS}._Exit
+    libc.include.stdlib
+    libc.src.__support.OSUtil.osutil
 )
 
 add_entrypoint_object(
@@ -341,6 +357,7 @@ add_entrypoint_object(
   DEPENDS
     ._Exit
     .atexit
+    libc.src.__support.OSUtil.osutil
 )
 
 add_entrypoint_object(
@@ -349,3 +366,19 @@ add_entrypoint_object(
   DEPENDS
     .${LIBC_TARGET_OS}.abort
 )
+
+if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+  add_entrypoint_object(
+    malloc
+    ALIAS
+    DEPENDS
+      .${LIBC_TARGET_OS}.malloc
+  )
+
+  add_entrypoint_object(
+    free
+    ALIAS
+    DEPENDS
+      .${LIBC_TARGET_OS}.free
+  )
+endif()

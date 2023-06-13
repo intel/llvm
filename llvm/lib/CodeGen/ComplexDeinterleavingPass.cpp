@@ -18,6 +18,11 @@
 // pairs. Validity of each node is expected to be done upon creation, and any
 // validation errors should halt traversal and prevent further graph
 // construction.
+// Instead of relying on Shuffle operations, vector interleaving and
+// deinterleaving can be represented by vector.interleave2 and
+// vector.deinterleave2 intrinsics. Scalable vectors can be represented only by
+// these intrinsics, whereas, fixed-width vectors are recognized for both
+// shufflevector instruction and intrinsics.
 //
 // Replacement:
 // This step traverses the graph built up by identification, delegating to the
@@ -62,6 +67,7 @@
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -137,18 +143,17 @@ public:
   Instruction *Real;
   Instruction *Imag;
 
-  // Instructions that should only exist within this node, there should be no
-  // users of these instructions outside the node. An example of these would be
-  // the multiply instructions of a partial multiply operation.
-  SmallVector<Instruction *> InternalInstructions;
-  ComplexDeinterleavingRotation Rotation;
+  // This two members are required exclusively for generating
+  // ComplexDeinterleavingOperation::Symmetric operations.
+  unsigned Opcode;
+  FastMathFlags Flags;
+
+  ComplexDeinterleavingRotation Rotation =
+      ComplexDeinterleavingRotation::Rotation_0;
   SmallVector<RawNodePtr> Operands;
   Value *ReplacementNode = nullptr;
 
-  void addInstruction(Instruction *I) { InternalInstructions.push_back(I); }
   void addOperand(NodePtr Node) { Operands.push_back(Node.get()); }
-
-  bool hasAllInternalUses(SmallPtrSet<Instruction *, 16> &AllInstructions);
 
   void dump() { dump(dbgs()); }
   void dump(raw_ostream &OS) {
@@ -181,27 +186,47 @@ public:
       OS << "    - ";
       PrintNodeRef(Op);
     }
-    OS << "  InternalInstructions:\n";
-    for (const auto &I : InternalInstructions) {
-      OS << "    - \"";
-      I->print(OS, true);
-      OS << "\"\n";
-    }
   }
 };
 
 class ComplexDeinterleavingGraph {
 public:
+  struct Product {
+    Instruction *Multiplier;
+    Instruction *Multiplicand;
+    bool IsPositive;
+  };
+
+  using Addend = std::pair<Instruction *, bool>;
   using NodePtr = ComplexDeinterleavingCompositeNode::NodePtr;
   using RawNodePtr = ComplexDeinterleavingCompositeNode::RawNodePtr;
-  explicit ComplexDeinterleavingGraph(const TargetLowering *tl) : TL(tl) {}
+
+  // Helper struct for holding info about potential partial multiplication
+  // candidates
+  struct PartialMulCandidate {
+    Instruction *Common;
+    NodePtr Node;
+    unsigned RealIdx;
+    unsigned ImagIdx;
+    bool IsNodeInverted;
+  };
+
+  explicit ComplexDeinterleavingGraph(const TargetLowering *TL,
+                                      const TargetLibraryInfo *TLI)
+      : TL(TL), TLI(TLI) {}
 
 private:
-  const TargetLowering *TL;
-  Instruction *RootValue;
-  NodePtr RootNode;
+  const TargetLowering *TL = nullptr;
+  const TargetLibraryInfo *TLI = nullptr;
   SmallVector<NodePtr> CompositeNodes;
-  SmallPtrSet<Instruction *, 16> AllInstructions;
+
+  SmallPtrSet<Instruction *, 16> FinalInstructions;
+
+  /// Root instructions are instructions from which complex computation starts
+  std::map<Instruction *, NodePtr> RootToNode;
+
+  /// Topologically sorted root instructions
+  SmallVector<Instruction *, 1> OrderedRoots;
 
   NodePtr prepareCompositeNode(ComplexDeinterleavingOperation Operation,
                                Instruction *R, Instruction *I) {
@@ -211,10 +236,6 @@ private:
 
   NodePtr submitCompositeNode(NodePtr Node) {
     CompositeNodes.push_back(Node);
-    AllInstructions.insert(Node->Real);
-    AllInstructions.insert(Node->Imag);
-    for (auto *I : Node->InternalInstructions)
-      AllInstructions.insert(I);
     return Node;
   }
 
@@ -258,7 +279,52 @@ private:
 
   NodePtr identifyNode(Instruction *I, Instruction *J);
 
-  Value *replaceNode(RawNodePtr Node);
+  /// Determine if a sum of complex numbers can be formed from \p RealAddends
+  /// and \p ImagAddens. If \p Accumulator is not null, add the result to it.
+  /// Return nullptr if it is not possible to construct a complex number.
+  /// \p Flags are needed to generate symmetric Add and Sub operations.
+  NodePtr identifyAdditions(std::list<Addend> &RealAddends,
+                            std::list<Addend> &ImagAddends, FastMathFlags Flags,
+                            NodePtr Accumulator);
+
+  /// Extract one addend that have both real and imaginary parts positive.
+  NodePtr extractPositiveAddend(std::list<Addend> &RealAddends,
+                                std::list<Addend> &ImagAddends);
+
+  /// Determine if sum of multiplications of complex numbers can be formed from
+  /// \p RealMuls and \p ImagMuls. If \p Accumulator is not null, add the result
+  /// to it. Return nullptr if it is not possible to construct a complex number.
+  NodePtr identifyMultiplications(std::vector<Product> &RealMuls,
+                                  std::vector<Product> &ImagMuls,
+                                  NodePtr Accumulator);
+
+  /// Go through pairs of multiplication (one Real and one Imag) and find all
+  /// possible candidates for partial multiplication and put them into \p
+  /// Candidates. Returns true if all Product has pair with common operand
+  bool collectPartialMuls(const std::vector<Product> &RealMuls,
+                          const std::vector<Product> &ImagMuls,
+                          std::vector<PartialMulCandidate> &Candidates);
+
+  /// If the code is compiled with -Ofast or expressions have `reassoc` flag,
+  /// the order of complex computation operations may be significantly altered,
+  /// and the real and imaginary parts may not be executed in parallel. This
+  /// function takes this into consideration and employs a more general approach
+  /// to identify complex computations. Initially, it gathers all the addends
+  /// and multiplicands and then constructs a complex expression from them.
+  NodePtr identifyReassocNodes(Instruction *I, Instruction *J);
+
+  NodePtr identifyRoot(Instruction *I);
+
+  /// Identifies the Deinterleave operation applied to a vector containing
+  /// complex numbers. There are two ways to represent the Deinterleave
+  /// operation:
+  /// * Using two shufflevectors with even indices for /pReal instruction and
+  /// odd indices for /pImag instructions (only for fixed-width vectors)
+  /// * Using two extractvalue instructions applied to `vector.deinterleave2`
+  /// intrinsic (for both fixed and scalable vectors)
+  NodePtr identifyDeinterleave(Instruction *Real, Instruction *Imag);
+
+  Value *replaceNode(IRBuilderBase &Builder, RawNodePtr Node);
 
 public:
   void dump() { dump(dbgs()); }
@@ -270,6 +336,10 @@ public:
   /// Returns false if the deinterleaving operation should be cancelled for the
   /// current graph.
   bool identifyNodes(Instruction *RootI);
+
+  /// Check that every instruction, from the roots to the leaves, has internal
+  /// uses.
+  bool checkNodes();
 
   /// Perform the actual replacement of the underlying instruction graph.
   void replaceNodes();
@@ -368,36 +438,16 @@ static bool isDeinterleavingMask(ArrayRef<int> Mask) {
 }
 
 bool ComplexDeinterleaving::evaluateBasicBlock(BasicBlock *B) {
-  bool Changed = false;
+  ComplexDeinterleavingGraph Graph(TL, TLI);
+  for (auto &I : *B)
+    Graph.identifyNodes(&I);
 
-  SmallVector<Instruction *> DeadInstrRoots;
-
-  for (auto &I : *B) {
-    auto *SVI = dyn_cast<ShuffleVectorInst>(&I);
-    if (!SVI)
-      continue;
-
-    // Look for a shufflevector that takes separate vectors of the real and
-    // imaginary components and recombines them into a single vector.
-    if (!isInterleavingMask(SVI->getShuffleMask()))
-      continue;
-
-    ComplexDeinterleavingGraph Graph(TL);
-    if (!Graph.identifyNodes(SVI))
-      continue;
-
+  if (Graph.checkNodes()) {
     Graph.replaceNodes();
-    DeadInstrRoots.push_back(SVI);
-    Changed = true;
+    return true;
   }
 
-  for (const auto &I : DeadInstrRoots) {
-    if (!I || I->getParent() == nullptr)
-      continue;
-    llvm::RecursivelyDeleteTriviallyDeadInstructions(I, TLI);
-  }
-
-  return Changed;
+  return false;
 }
 
 ComplexDeinterleavingGraph::NodePtr
@@ -511,7 +561,6 @@ ComplexDeinterleavingGraph::identifyNodeWithImplicitAdd(
   Node->Rotation = Rotation;
   Node->addOperand(CommonNode);
   Node->addOperand(UncommonNode);
-  Node->InternalInstructions.append(FNegs);
   return submitCompositeNode(Node);
 }
 
@@ -627,8 +676,6 @@ ComplexDeinterleavingGraph::identifyPartialMul(Instruction *Real,
 
   NodePtr Node = prepareCompositeNode(
       ComplexDeinterleavingOperation::CMulPartial, Real, Imag);
-  Node->addInstruction(RealMulI);
-  Node->addInstruction(ImagMulI);
   Node->Rotation = Rotation;
   Node->addOperand(CommonRes);
   Node->addOperand(UncommonRes);
@@ -747,8 +794,16 @@ ComplexDeinterleavingGraph::identifySymmetricOperation(Instruction *Real,
       return nullptr;
   }
 
+  if (isa<FPMathOperator>(Real) &&
+      Real->getFastMathFlags() != Imag->getFastMathFlags())
+    return nullptr;
+
   auto Node = prepareCompositeNode(ComplexDeinterleavingOperation::Symmetric,
                                    Real, Imag);
+  Node->Opcode = Real->getOpcode();
+  if (isa<FPMathOperator>(Real))
+    Node->Flags = Real->getFastMathFlags();
+
   Node->addOperand(Op0);
   if (Real->isBinaryOp())
     Node->addOperand(Op1);
@@ -764,126 +819,483 @@ ComplexDeinterleavingGraph::identifyNode(Instruction *Real, Instruction *Imag) {
     return CN;
   }
 
-  auto *RealShuffle = dyn_cast<ShuffleVectorInst>(Real);
-  auto *ImagShuffle = dyn_cast<ShuffleVectorInst>(Imag);
-  if (RealShuffle && ImagShuffle) {
-    Value *RealOp1 = RealShuffle->getOperand(1);
-    if (!isa<UndefValue>(RealOp1) && !isa<ConstantAggregateZero>(RealOp1)) {
-      LLVM_DEBUG(dbgs() << " - RealOp1 is not undef or zero.\n");
-      return nullptr;
-    }
-    Value *ImagOp1 = ImagShuffle->getOperand(1);
-    if (!isa<UndefValue>(ImagOp1) && !isa<ConstantAggregateZero>(ImagOp1)) {
-      LLVM_DEBUG(dbgs() << " - ImagOp1 is not undef or zero.\n");
-      return nullptr;
-    }
+  if (NodePtr CN = identifyDeinterleave(Real, Imag))
+    return CN;
 
-    Value *RealOp0 = RealShuffle->getOperand(0);
-    Value *ImagOp0 = ImagShuffle->getOperand(0);
+  auto *VTy = cast<VectorType>(Real->getType());
+  auto *NewVTy = VectorType::getDoubleElementsVectorType(VTy);
 
-    if (RealOp0 != ImagOp0) {
-      LLVM_DEBUG(dbgs() << " - Shuffle operands are not equal.\n");
-      return nullptr;
-    }
+  bool HasCMulSupport = TL->isComplexDeinterleavingOperationSupported(
+      ComplexDeinterleavingOperation::CMulPartial, NewVTy);
+  bool HasCAddSupport = TL->isComplexDeinterleavingOperationSupported(
+      ComplexDeinterleavingOperation::CAdd, NewVTy);
 
-    ArrayRef<int> RealMask = RealShuffle->getShuffleMask();
-    ArrayRef<int> ImagMask = ImagShuffle->getShuffleMask();
-    if (!isDeinterleavingMask(RealMask) || !isDeinterleavingMask(ImagMask)) {
-      LLVM_DEBUG(dbgs() << " - Masks are not deinterleaving.\n");
-      return nullptr;
-    }
-
-    if (RealMask[0] != 0 || ImagMask[0] != 1) {
-      LLVM_DEBUG(dbgs() << " - Masks do not have the correct initial value.\n");
-      return nullptr;
-    }
-
-    // Type checking, the shuffle type should be a vector type of the same
-    // scalar type, but half the size
-    auto CheckType = [&](ShuffleVectorInst *Shuffle) {
-      Value *Op = Shuffle->getOperand(0);
-      auto *ShuffleTy = cast<FixedVectorType>(Shuffle->getType());
-      auto *OpTy = cast<FixedVectorType>(Op->getType());
-
-      if (OpTy->getScalarType() != ShuffleTy->getScalarType())
-        return false;
-      if ((ShuffleTy->getNumElements() * 2) != OpTy->getNumElements())
-        return false;
-
-      return true;
-    };
-
-    auto CheckDeinterleavingShuffle = [&](ShuffleVectorInst *Shuffle) -> bool {
-      if (!CheckType(Shuffle))
-        return false;
-
-      ArrayRef<int> Mask = Shuffle->getShuffleMask();
-      int Last = *Mask.rbegin();
-
-      Value *Op = Shuffle->getOperand(0);
-      auto *OpTy = cast<FixedVectorType>(Op->getType());
-      int NumElements = OpTy->getNumElements();
-
-      // Ensure that the deinterleaving shuffle only pulls from the first
-      // shuffle operand.
-      return Last < NumElements;
-    };
-
-    if (RealShuffle->getType() != ImagShuffle->getType()) {
-      LLVM_DEBUG(dbgs() << " - Shuffle types aren't equal.\n");
-      return nullptr;
-    }
-    if (!CheckDeinterleavingShuffle(RealShuffle)) {
-      LLVM_DEBUG(dbgs() << " - RealShuffle is invalid type.\n");
-      return nullptr;
-    }
-    if (!CheckDeinterleavingShuffle(ImagShuffle)) {
-      LLVM_DEBUG(dbgs() << " - ImagShuffle is invalid type.\n");
-      return nullptr;
-    }
-
-    NodePtr PlaceholderNode =
-        prepareCompositeNode(llvm::ComplexDeinterleavingOperation::Shuffle,
-                             RealShuffle, ImagShuffle);
-    PlaceholderNode->ReplacementNode = RealShuffle->getOperand(0);
-    return submitCompositeNode(PlaceholderNode);
+  if (HasCMulSupport && isInstructionPairMul(Real, Imag)) {
+    if (NodePtr CN = identifyPartialMul(Real, Imag))
+      return CN;
   }
-  if (RealShuffle || ImagShuffle) {
-    LLVM_DEBUG(dbgs() << " - There's a shuffle where there shouldn't be.\n");
+
+  if (HasCAddSupport && isInstructionPairAdd(Real, Imag)) {
+    if (NodePtr CN = identifyAdd(Real, Imag))
+      return CN;
+  }
+
+  if (HasCMulSupport && HasCAddSupport) {
+    if (NodePtr CN = identifyReassocNodes(Real, Imag))
+      return CN;
+  }
+
+  if (NodePtr CN = identifySymmetricOperation(Real, Imag))
+    return CN;
+
+  LLVM_DEBUG(dbgs() << "  - Not recognised as a valid pattern.\n");
+  return nullptr;
+}
+
+ComplexDeinterleavingGraph::NodePtr
+ComplexDeinterleavingGraph::identifyReassocNodes(Instruction *Real,
+                                                 Instruction *Imag) {
+  if ((Real->getOpcode() != Instruction::FAdd &&
+       Real->getOpcode() != Instruction::FSub &&
+       Real->getOpcode() != Instruction::FNeg) ||
+      (Imag->getOpcode() != Instruction::FAdd &&
+       Imag->getOpcode() != Instruction::FSub &&
+       Imag->getOpcode() != Instruction::FNeg))
+    return nullptr;
+
+  if (Real->getFastMathFlags() != Imag->getFastMathFlags()) {
+    LLVM_DEBUG(
+        dbgs()
+        << "The flags in Real and Imaginary instructions are not identical\n");
     return nullptr;
   }
 
-  auto *VTy = cast<FixedVectorType>(Real->getType());
-  auto *NewVTy =
-      FixedVectorType::get(VTy->getScalarType(), VTy->getNumElements() * 2);
-
-  if (TL->isComplexDeinterleavingOperationSupported(
-          ComplexDeinterleavingOperation::CMulPartial, NewVTy) &&
-      isInstructionPairMul(Real, Imag)) {
-    return identifyPartialMul(Real, Imag);
+  FastMathFlags Flags = Real->getFastMathFlags();
+  if (!Flags.allowReassoc()) {
+    LLVM_DEBUG(
+        dbgs() << "the 'Reassoc' attribute is missing in the FastMath flags\n");
+    return nullptr;
   }
 
-  if (TL->isComplexDeinterleavingOperationSupported(
-          ComplexDeinterleavingOperation::CAdd, NewVTy) &&
-      isInstructionPairAdd(Real, Imag)) {
-    return identifyAdd(Real, Imag);
+  // Collect multiplications and addend instructions from the given instruction
+  // while traversing it operands. Additionally, verify that all instructions
+  // have the same fast math flags.
+  auto Collect = [&Flags](Instruction *Insn, std::vector<Product> &Muls,
+                          std::list<Addend> &Addends) -> bool {
+    SmallVector<PointerIntPair<Value *, 1, bool>> Worklist = {{Insn, true}};
+    SmallPtrSet<Value *, 8> Visited;
+    while (!Worklist.empty()) {
+      auto [V, IsPositive] = Worklist.back();
+      Worklist.pop_back();
+      if (!Visited.insert(V).second)
+        continue;
+
+      Instruction *I = dyn_cast<Instruction>(V);
+      if (!I)
+        return false;
+
+      // If an instruction has more than one user, it indicates that it either
+      // has an external user, which will be later checked by the checkNodes
+      // function, or it is a subexpression utilized by multiple expressions. In
+      // the latter case, we will attempt to separately identify the complex
+      // operation from here in order to create a shared
+      // ComplexDeinterleavingCompositeNode.
+      if (I != Insn && I->getNumUses() > 1) {
+        LLVM_DEBUG(dbgs() << "Found potential sub-expression: " << *I << "\n");
+        Addends.emplace_back(I, IsPositive);
+        continue;
+      }
+
+      if (I->getOpcode() == Instruction::FAdd) {
+        Worklist.emplace_back(I->getOperand(1), IsPositive);
+        Worklist.emplace_back(I->getOperand(0), IsPositive);
+      } else if (I->getOpcode() == Instruction::FSub) {
+        Worklist.emplace_back(I->getOperand(1), !IsPositive);
+        Worklist.emplace_back(I->getOperand(0), IsPositive);
+      } else if (I->getOpcode() == Instruction::FMul) {
+        auto *A = dyn_cast<Instruction>(I->getOperand(0));
+        if (A && A->getOpcode() == Instruction::FNeg) {
+          A = dyn_cast<Instruction>(A->getOperand(0));
+          IsPositive = !IsPositive;
+        }
+        if (!A)
+          return false;
+        auto *B = dyn_cast<Instruction>(I->getOperand(1));
+        if (B && B->getOpcode() == Instruction::FNeg) {
+          B = dyn_cast<Instruction>(B->getOperand(0));
+          IsPositive = !IsPositive;
+        }
+        if (!B)
+          return false;
+        Muls.push_back(Product{A, B, IsPositive});
+      } else if (I->getOpcode() == Instruction::FNeg) {
+        Worklist.emplace_back(I->getOperand(0), !IsPositive);
+      } else {
+        Addends.emplace_back(I, IsPositive);
+        continue;
+      }
+
+      if (I->getFastMathFlags() != Flags) {
+        LLVM_DEBUG(dbgs() << "The instruction's fast math flags are "
+                             "inconsistent with the root instructions' flags: "
+                          << *I << "\n");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  std::vector<Product> RealMuls, ImagMuls;
+  std::list<Addend> RealAddends, ImagAddends;
+  if (!Collect(Real, RealMuls, RealAddends) ||
+      !Collect(Imag, ImagMuls, ImagAddends))
+    return nullptr;
+
+  if (RealAddends.size() != ImagAddends.size())
+    return nullptr;
+
+  NodePtr FinalNode;
+  if (!RealMuls.empty() || !ImagMuls.empty()) {
+    // If there are multiplicands, extract positive addend and use it as an
+    // accumulator
+    FinalNode = extractPositiveAddend(RealAddends, ImagAddends);
+    FinalNode = identifyMultiplications(RealMuls, ImagMuls, FinalNode);
+    if (!FinalNode)
+      return nullptr;
   }
 
-  auto Symmetric = identifySymmetricOperation(Real, Imag);
-  LLVM_DEBUG(if (Symmetric == nullptr) dbgs()
-             << "  - Not recognised as a valid pattern.\n");
-  return Symmetric;
+  // Identify and process remaining additions
+  if (!RealAddends.empty() || !ImagAddends.empty()) {
+    FinalNode = identifyAdditions(RealAddends, ImagAddends, Flags, FinalNode);
+    if (!FinalNode)
+      return nullptr;
+  }
+
+  // Set the Real and Imag fields of the final node and submit it
+  FinalNode->Real = Real;
+  FinalNode->Imag = Imag;
+  submitCompositeNode(FinalNode);
+  return FinalNode;
+}
+
+bool ComplexDeinterleavingGraph::collectPartialMuls(
+    const std::vector<Product> &RealMuls, const std::vector<Product> &ImagMuls,
+    std::vector<PartialMulCandidate> &PartialMulCandidates) {
+  // Helper function to extract a common operand from two products
+  auto FindCommonInstruction = [](const Product &Real,
+                                  const Product &Imag) -> Instruction * {
+    if (Real.Multiplicand == Imag.Multiplicand ||
+        Real.Multiplicand == Imag.Multiplier)
+      return Real.Multiplicand;
+
+    if (Real.Multiplier == Imag.Multiplicand ||
+        Real.Multiplier == Imag.Multiplier)
+      return Real.Multiplier;
+
+    return nullptr;
+  };
+
+  // Iterating over real and imaginary multiplications to find common operands
+  // If a common operand is found, a partial multiplication candidate is created
+  // and added to the candidates vector The function returns false if no common
+  // operands are found for any product
+  for (unsigned i = 0; i < RealMuls.size(); ++i) {
+    bool FoundCommon = false;
+    for (unsigned j = 0; j < ImagMuls.size(); ++j) {
+      auto *Common = FindCommonInstruction(RealMuls[i], ImagMuls[j]);
+      if (!Common)
+        continue;
+
+      auto *A = RealMuls[i].Multiplicand == Common ? RealMuls[i].Multiplier
+                                                   : RealMuls[i].Multiplicand;
+      auto *B = ImagMuls[j].Multiplicand == Common ? ImagMuls[j].Multiplier
+                                                   : ImagMuls[j].Multiplicand;
+
+      bool Inverted = false;
+      auto Node = identifyNode(A, B);
+      if (!Node) {
+        std::swap(A, B);
+        Inverted = true;
+        Node = identifyNode(A, B);
+      }
+      if (!Node)
+        continue;
+
+      FoundCommon = true;
+      PartialMulCandidates.push_back({Common, Node, i, j, Inverted});
+    }
+    if (!FoundCommon)
+      return false;
+  }
+  return true;
+}
+
+ComplexDeinterleavingGraph::NodePtr
+ComplexDeinterleavingGraph::identifyMultiplications(
+    std::vector<Product> &RealMuls, std::vector<Product> &ImagMuls,
+    NodePtr Accumulator = nullptr) {
+  if (RealMuls.size() != ImagMuls.size())
+    return nullptr;
+
+  std::vector<PartialMulCandidate> Info;
+  if (!collectPartialMuls(RealMuls, ImagMuls, Info))
+    return nullptr;
+
+  // Map to store common instruction to node pointers
+  std::map<Instruction *, NodePtr> CommonToNode;
+  std::vector<bool> Processed(Info.size(), false);
+  for (unsigned I = 0; I < Info.size(); ++I) {
+    if (Processed[I])
+      continue;
+
+    PartialMulCandidate &InfoA = Info[I];
+    for (unsigned J = I + 1; J < Info.size(); ++J) {
+      if (Processed[J])
+        continue;
+
+      PartialMulCandidate &InfoB = Info[J];
+      auto *InfoReal = &InfoA;
+      auto *InfoImag = &InfoB;
+
+      auto NodeFromCommon = identifyNode(InfoReal->Common, InfoImag->Common);
+      if (!NodeFromCommon) {
+        std::swap(InfoReal, InfoImag);
+        NodeFromCommon = identifyNode(InfoReal->Common, InfoImag->Common);
+      }
+      if (!NodeFromCommon)
+        continue;
+
+      CommonToNode[InfoReal->Common] = NodeFromCommon;
+      CommonToNode[InfoImag->Common] = NodeFromCommon;
+      Processed[I] = true;
+      Processed[J] = true;
+    }
+  }
+
+  std::vector<bool> ProcessedReal(RealMuls.size(), false);
+  std::vector<bool> ProcessedImag(ImagMuls.size(), false);
+  NodePtr Result = Accumulator;
+  for (auto &PMI : Info) {
+    if (ProcessedReal[PMI.RealIdx] || ProcessedImag[PMI.ImagIdx])
+      continue;
+
+    auto It = CommonToNode.find(PMI.Common);
+    // TODO: Process independent complex multiplications. Cases like this:
+    //  A.real() * B where both A and B are complex numbers.
+    if (It == CommonToNode.end()) {
+      LLVM_DEBUG({
+        dbgs() << "Unprocessed independent partial multiplication:\n";
+        for (auto *Mul : {&RealMuls[PMI.RealIdx], &RealMuls[PMI.RealIdx]})
+          dbgs().indent(4) << (Mul->IsPositive ? "+" : "-") << *Mul->Multiplier
+                           << " multiplied by " << *Mul->Multiplicand << "\n";
+      });
+      return nullptr;
+    }
+
+    auto &RealMul = RealMuls[PMI.RealIdx];
+    auto &ImagMul = ImagMuls[PMI.ImagIdx];
+
+    auto NodeA = It->second;
+    auto NodeB = PMI.Node;
+    auto IsMultiplicandReal = PMI.Common == NodeA->Real;
+    // The following table illustrates the relationship between multiplications
+    // and rotations. If we consider the multiplication (X + iY) * (U + iV), we
+    // can see:
+    //
+    // Rotation |   Real |   Imag |
+    // ---------+--------+--------+
+    //        0 |  x * u |  x * v |
+    //       90 | -y * v |  y * u |
+    //      180 | -x * u | -x * v |
+    //      270 |  y * v | -y * u |
+    //
+    // Check if the candidate can indeed be represented by partial
+    // multiplication
+    // TODO: Add support for multiplication by complex one
+    if ((IsMultiplicandReal && PMI.IsNodeInverted) ||
+        (!IsMultiplicandReal && !PMI.IsNodeInverted))
+      continue;
+
+    // Determine the rotation based on the multiplications
+    ComplexDeinterleavingRotation Rotation;
+    if (IsMultiplicandReal) {
+      // Detect 0 and 180 degrees rotation
+      if (RealMul.IsPositive && ImagMul.IsPositive)
+        Rotation = llvm::ComplexDeinterleavingRotation::Rotation_0;
+      else if (!RealMul.IsPositive && !ImagMul.IsPositive)
+        Rotation = llvm::ComplexDeinterleavingRotation::Rotation_180;
+      else
+        continue;
+
+    } else {
+      // Detect 90 and 270 degrees rotation
+      if (!RealMul.IsPositive && ImagMul.IsPositive)
+        Rotation = llvm::ComplexDeinterleavingRotation::Rotation_90;
+      else if (RealMul.IsPositive && !ImagMul.IsPositive)
+        Rotation = llvm::ComplexDeinterleavingRotation::Rotation_270;
+      else
+        continue;
+    }
+
+    LLVM_DEBUG({
+      dbgs() << "Identified partial multiplication (X, Y) * (U, V):\n";
+      dbgs().indent(4) << "X: " << *NodeA->Real << "\n";
+      dbgs().indent(4) << "Y: " << *NodeA->Imag << "\n";
+      dbgs().indent(4) << "U: " << *NodeB->Real << "\n";
+      dbgs().indent(4) << "V: " << *NodeB->Imag << "\n";
+      dbgs().indent(4) << "Rotation - " << (int)Rotation * 90 << "\n";
+    });
+
+    NodePtr NodeMul = prepareCompositeNode(
+        ComplexDeinterleavingOperation::CMulPartial, nullptr, nullptr);
+    NodeMul->Rotation = Rotation;
+    NodeMul->addOperand(NodeA);
+    NodeMul->addOperand(NodeB);
+    if (Result)
+      NodeMul->addOperand(Result);
+    submitCompositeNode(NodeMul);
+    Result = NodeMul;
+    ProcessedReal[PMI.RealIdx] = true;
+    ProcessedImag[PMI.ImagIdx] = true;
+  }
+
+  // Ensure all products have been processed, if not return nullptr.
+  if (!all_of(ProcessedReal, [](bool V) { return V; }) ||
+      !all_of(ProcessedImag, [](bool V) { return V; })) {
+
+    // Dump debug information about which partial multiplications are not
+    // processed.
+    LLVM_DEBUG({
+      dbgs() << "Unprocessed products (Real):\n";
+      for (size_t i = 0; i < ProcessedReal.size(); ++i) {
+        if (!ProcessedReal[i])
+          dbgs().indent(4) << (RealMuls[i].IsPositive ? "+" : "-")
+                           << *RealMuls[i].Multiplier << " multiplied by "
+                           << *RealMuls[i].Multiplicand << "\n";
+      }
+      dbgs() << "Unprocessed products (Imag):\n";
+      for (size_t i = 0; i < ProcessedImag.size(); ++i) {
+        if (!ProcessedImag[i])
+          dbgs().indent(4) << (ImagMuls[i].IsPositive ? "+" : "-")
+                           << *ImagMuls[i].Multiplier << " multiplied by "
+                           << *ImagMuls[i].Multiplicand << "\n";
+      }
+    });
+    return nullptr;
+  }
+
+  return Result;
+}
+
+ComplexDeinterleavingGraph::NodePtr
+ComplexDeinterleavingGraph::identifyAdditions(std::list<Addend> &RealAddends,
+                                              std::list<Addend> &ImagAddends,
+                                              FastMathFlags Flags,
+                                              NodePtr Accumulator = nullptr) {
+  if (RealAddends.size() != ImagAddends.size())
+    return nullptr;
+
+  NodePtr Result;
+  // If we have accumulator use it as first addend
+  if (Accumulator)
+    Result = Accumulator;
+  // Otherwise find an element with both positive real and imaginary parts.
+  else
+    Result = extractPositiveAddend(RealAddends, ImagAddends);
+
+  if (!Result)
+    return nullptr;
+
+  while (!RealAddends.empty()) {
+    auto ItR = RealAddends.begin();
+    auto [R, IsPositiveR] = *ItR;
+
+    bool FoundImag = false;
+    for (auto ItI = ImagAddends.begin(); ItI != ImagAddends.end(); ++ItI) {
+      auto [I, IsPositiveI] = *ItI;
+      ComplexDeinterleavingRotation Rotation;
+      if (IsPositiveR && IsPositiveI)
+        Rotation = ComplexDeinterleavingRotation::Rotation_0;
+      else if (!IsPositiveR && IsPositiveI)
+        Rotation = ComplexDeinterleavingRotation::Rotation_90;
+      else if (!IsPositiveR && !IsPositiveI)
+        Rotation = ComplexDeinterleavingRotation::Rotation_180;
+      else
+        Rotation = ComplexDeinterleavingRotation::Rotation_270;
+
+      NodePtr AddNode;
+      if (Rotation == ComplexDeinterleavingRotation::Rotation_0 ||
+          Rotation == ComplexDeinterleavingRotation::Rotation_180) {
+        AddNode = identifyNode(R, I);
+      } else {
+        AddNode = identifyNode(I, R);
+      }
+      if (AddNode) {
+        LLVM_DEBUG({
+          dbgs() << "Identified addition:\n";
+          dbgs().indent(4) << "X: " << *R << "\n";
+          dbgs().indent(4) << "Y: " << *I << "\n";
+          dbgs().indent(4) << "Rotation - " << (int)Rotation * 90 << "\n";
+        });
+
+        NodePtr TmpNode;
+        if (Rotation == llvm::ComplexDeinterleavingRotation::Rotation_0) {
+          TmpNode = prepareCompositeNode(
+              ComplexDeinterleavingOperation::Symmetric, nullptr, nullptr);
+          TmpNode->Opcode = Instruction::FAdd;
+          TmpNode->Flags = Flags;
+        } else if (Rotation ==
+                   llvm::ComplexDeinterleavingRotation::Rotation_180) {
+          TmpNode = prepareCompositeNode(
+              ComplexDeinterleavingOperation::Symmetric, nullptr, nullptr);
+          TmpNode->Opcode = Instruction::FSub;
+          TmpNode->Flags = Flags;
+        } else {
+          TmpNode = prepareCompositeNode(ComplexDeinterleavingOperation::CAdd,
+                                         nullptr, nullptr);
+          TmpNode->Rotation = Rotation;
+        }
+
+        TmpNode->addOperand(Result);
+        TmpNode->addOperand(AddNode);
+        submitCompositeNode(TmpNode);
+        Result = TmpNode;
+        RealAddends.erase(ItR);
+        ImagAddends.erase(ItI);
+        FoundImag = true;
+        break;
+      }
+    }
+    if (!FoundImag)
+      return nullptr;
+  }
+  return Result;
+}
+
+ComplexDeinterleavingGraph::NodePtr
+ComplexDeinterleavingGraph::extractPositiveAddend(
+    std::list<Addend> &RealAddends, std::list<Addend> &ImagAddends) {
+  for (auto ItR = RealAddends.begin(); ItR != RealAddends.end(); ++ItR) {
+    for (auto ItI = ImagAddends.begin(); ItI != ImagAddends.end(); ++ItI) {
+      auto [R, IsPositiveR] = *ItR;
+      auto [I, IsPositiveI] = *ItI;
+      if (IsPositiveR && IsPositiveI) {
+        auto Result = identifyNode(R, I);
+        if (Result) {
+          RealAddends.erase(ItR);
+          ImagAddends.erase(ItI);
+          return Result;
+        }
+      }
+    }
+  }
+  return nullptr;
 }
 
 bool ComplexDeinterleavingGraph::identifyNodes(Instruction *RootI) {
-  Instruction *Real;
-  Instruction *Imag;
-  if (!match(RootI, m_Shuffle(m_Instruction(Real), m_Instruction(Imag))))
+  auto RootNode = identifyRoot(RootI);
+  if (!RootNode)
     return false;
-
-  RootValue = RootI;
-  AllInstructions.insert(RootI);
-  RootNode = identifyNode(Real, Imag);
 
   LLVM_DEBUG({
     Function *F = RootI->getFunction();
@@ -893,64 +1305,271 @@ bool ComplexDeinterleavingGraph::identifyNodes(Instruction *RootI) {
     dump(dbgs());
     dbgs() << "\n";
   });
+  RootToNode[RootI] = RootNode;
+  OrderedRoots.push_back(RootI);
+  return true;
+}
 
-  // Check all instructions have internal uses
-  for (const auto &Node : CompositeNodes) {
-    if (!Node->hasAllInternalUses(AllInstructions)) {
-      LLVM_DEBUG(dbgs() << "  - Invalid internal uses\n");
-      return false;
+bool ComplexDeinterleavingGraph::checkNodes() {
+  // Collect all instructions from roots to leaves
+  SmallPtrSet<Instruction *, 16> AllInstructions;
+  SmallVector<Instruction *, 8> Worklist;
+  for (auto *I : OrderedRoots)
+    Worklist.push_back(I);
+
+  // Extract all instructions that are used by all XCMLA/XCADD/ADD/SUB/NEG
+  // chains
+  while (!Worklist.empty()) {
+    auto *I = Worklist.back();
+    Worklist.pop_back();
+
+    if (!AllInstructions.insert(I).second)
+      continue;
+
+    for (Value *Op : I->operands()) {
+      if (auto *OpI = dyn_cast<Instruction>(Op)) {
+        if (!FinalInstructions.count(I))
+          Worklist.emplace_back(OpI);
+      }
     }
   }
-  return RootNode != nullptr;
-}
 
-static Value *replaceSymmetricNode(ComplexDeinterleavingGraph::RawNodePtr Node,
-                                   Value *InputA, Value *InputB) {
-  Instruction *I = Node->Real;
-  if (I->isUnaryOp())
-    assert(!InputB &&
-           "Unary symmetric operations need one input, but two were provided.");
-  else if (I->isBinaryOp())
-    assert(InputB && "Binary symmetric operations need two inputs, only one "
-                     "was provided.");
+  // Find instructions that have users outside of chain
+  SmallVector<Instruction *, 2> OuterInstructions;
+  for (auto *I : AllInstructions) {
+    // Skip root nodes
+    if (RootToNode.count(I))
+      continue;
 
-  IRBuilder<> B(I);
+    for (User *U : I->users()) {
+      if (AllInstructions.count(cast<Instruction>(U)))
+        continue;
 
-  switch (I->getOpcode()) {
-  case Instruction::FNeg:
-    return B.CreateFNegFMF(InputA, I);
-  case Instruction::FAdd:
-    return B.CreateFAddFMF(InputA, InputB, I);
-  case Instruction::FSub:
-    return B.CreateFSubFMF(InputA, InputB, I);
-  case Instruction::FMul:
-    return B.CreateFMulFMF(InputA, InputB, I);
+      // Found an instruction that is not used by XCMLA/XCADD chain
+      Worklist.emplace_back(I);
+      break;
+    }
   }
 
-  return nullptr;
+  // If any instructions are found to be used outside, find and remove roots
+  // that somehow connect to those instructions.
+  SmallPtrSet<Instruction *, 16> Visited;
+  while (!Worklist.empty()) {
+    auto *I = Worklist.back();
+    Worklist.pop_back();
+    if (!Visited.insert(I).second)
+      continue;
+
+    // Found an impacted root node. Removing it from the nodes to be
+    // deinterleaved
+    if (RootToNode.count(I)) {
+      LLVM_DEBUG(dbgs() << "Instruction " << *I
+                        << " could be deinterleaved but its chain of complex "
+                           "operations have an outside user\n");
+      RootToNode.erase(I);
+    }
+
+    if (!AllInstructions.count(I) || FinalInstructions.count(I))
+      continue;
+
+    for (User *U : I->users())
+      Worklist.emplace_back(cast<Instruction>(U));
+
+    for (Value *Op : I->operands()) {
+      if (auto *OpI = dyn_cast<Instruction>(Op))
+        Worklist.emplace_back(OpI);
+    }
+  }
+  return !RootToNode.empty();
 }
 
-Value *ComplexDeinterleavingGraph::replaceNode(
-    ComplexDeinterleavingGraph::RawNodePtr Node) {
+ComplexDeinterleavingGraph::NodePtr
+ComplexDeinterleavingGraph::identifyRoot(Instruction *RootI) {
+  if (auto *Intrinsic = dyn_cast<IntrinsicInst>(RootI)) {
+    if (Intrinsic->getIntrinsicID() !=
+        Intrinsic::experimental_vector_interleave2)
+      return nullptr;
+
+    auto *Real = dyn_cast<Instruction>(Intrinsic->getOperand(0));
+    auto *Imag = dyn_cast<Instruction>(Intrinsic->getOperand(1));
+    if (!Real || !Imag)
+      return nullptr;
+
+    return identifyNode(Real, Imag);
+  }
+
+  auto *SVI = dyn_cast<ShuffleVectorInst>(RootI);
+  if (!SVI)
+    return nullptr;
+
+  // Look for a shufflevector that takes separate vectors of the real and
+  // imaginary components and recombines them into a single vector.
+  if (!isInterleavingMask(SVI->getShuffleMask()))
+    return nullptr;
+
+  Instruction *Real;
+  Instruction *Imag;
+  if (!match(RootI, m_Shuffle(m_Instruction(Real), m_Instruction(Imag))))
+    return nullptr;
+
+  return identifyNode(Real, Imag);
+}
+
+ComplexDeinterleavingGraph::NodePtr
+ComplexDeinterleavingGraph::identifyDeinterleave(Instruction *Real,
+                                                 Instruction *Imag) {
+  Instruction *I = nullptr;
+  Value *FinalValue = nullptr;
+  if (match(Real, m_ExtractValue<0>(m_Instruction(I))) &&
+      match(Imag, m_ExtractValue<1>(m_Specific(I))) &&
+      match(I, m_Intrinsic<Intrinsic::experimental_vector_deinterleave2>(
+                   m_Value(FinalValue)))) {
+    NodePtr PlaceholderNode = prepareCompositeNode(
+        llvm::ComplexDeinterleavingOperation::Deinterleave, Real, Imag);
+    PlaceholderNode->ReplacementNode = FinalValue;
+    FinalInstructions.insert(Real);
+    FinalInstructions.insert(Imag);
+    return submitCompositeNode(PlaceholderNode);
+  }
+
+  auto *RealShuffle = dyn_cast<ShuffleVectorInst>(Real);
+  auto *ImagShuffle = dyn_cast<ShuffleVectorInst>(Imag);
+  if (!RealShuffle || !ImagShuffle) {
+    if (RealShuffle || ImagShuffle)
+      LLVM_DEBUG(dbgs() << " - There's a shuffle where there shouldn't be.\n");
+    return nullptr;
+  }
+
+  Value *RealOp1 = RealShuffle->getOperand(1);
+  if (!isa<UndefValue>(RealOp1) && !isa<ConstantAggregateZero>(RealOp1)) {
+    LLVM_DEBUG(dbgs() << " - RealOp1 is not undef or zero.\n");
+    return nullptr;
+  }
+  Value *ImagOp1 = ImagShuffle->getOperand(1);
+  if (!isa<UndefValue>(ImagOp1) && !isa<ConstantAggregateZero>(ImagOp1)) {
+    LLVM_DEBUG(dbgs() << " - ImagOp1 is not undef or zero.\n");
+    return nullptr;
+  }
+
+  Value *RealOp0 = RealShuffle->getOperand(0);
+  Value *ImagOp0 = ImagShuffle->getOperand(0);
+
+  if (RealOp0 != ImagOp0) {
+    LLVM_DEBUG(dbgs() << " - Shuffle operands are not equal.\n");
+    return nullptr;
+  }
+
+  ArrayRef<int> RealMask = RealShuffle->getShuffleMask();
+  ArrayRef<int> ImagMask = ImagShuffle->getShuffleMask();
+  if (!isDeinterleavingMask(RealMask) || !isDeinterleavingMask(ImagMask)) {
+    LLVM_DEBUG(dbgs() << " - Masks are not deinterleaving.\n");
+    return nullptr;
+  }
+
+  if (RealMask[0] != 0 || ImagMask[0] != 1) {
+    LLVM_DEBUG(dbgs() << " - Masks do not have the correct initial value.\n");
+    return nullptr;
+  }
+
+  // Type checking, the shuffle type should be a vector type of the same
+  // scalar type, but half the size
+  auto CheckType = [&](ShuffleVectorInst *Shuffle) {
+    Value *Op = Shuffle->getOperand(0);
+    auto *ShuffleTy = cast<FixedVectorType>(Shuffle->getType());
+    auto *OpTy = cast<FixedVectorType>(Op->getType());
+
+    if (OpTy->getScalarType() != ShuffleTy->getScalarType())
+      return false;
+    if ((ShuffleTy->getNumElements() * 2) != OpTy->getNumElements())
+      return false;
+
+    return true;
+  };
+
+  auto CheckDeinterleavingShuffle = [&](ShuffleVectorInst *Shuffle) -> bool {
+    if (!CheckType(Shuffle))
+      return false;
+
+    ArrayRef<int> Mask = Shuffle->getShuffleMask();
+    int Last = *Mask.rbegin();
+
+    Value *Op = Shuffle->getOperand(0);
+    auto *OpTy = cast<FixedVectorType>(Op->getType());
+    int NumElements = OpTy->getNumElements();
+
+    // Ensure that the deinterleaving shuffle only pulls from the first
+    // shuffle operand.
+    return Last < NumElements;
+  };
+
+  if (RealShuffle->getType() != ImagShuffle->getType()) {
+    LLVM_DEBUG(dbgs() << " - Shuffle types aren't equal.\n");
+    return nullptr;
+  }
+  if (!CheckDeinterleavingShuffle(RealShuffle)) {
+    LLVM_DEBUG(dbgs() << " - RealShuffle is invalid type.\n");
+    return nullptr;
+  }
+  if (!CheckDeinterleavingShuffle(ImagShuffle)) {
+    LLVM_DEBUG(dbgs() << " - ImagShuffle is invalid type.\n");
+    return nullptr;
+  }
+
+  NodePtr PlaceholderNode =
+      prepareCompositeNode(llvm::ComplexDeinterleavingOperation::Deinterleave,
+                           RealShuffle, ImagShuffle);
+  PlaceholderNode->ReplacementNode = RealShuffle->getOperand(0);
+  FinalInstructions.insert(RealShuffle);
+  FinalInstructions.insert(ImagShuffle);
+  return submitCompositeNode(PlaceholderNode);
+}
+
+static Value *replaceSymmetricNode(IRBuilderBase &B, unsigned Opcode,
+                                   FastMathFlags Flags, Value *InputA,
+                                   Value *InputB) {
+  Value *I;
+  switch (Opcode) {
+  case Instruction::FNeg:
+    I = B.CreateFNeg(InputA);
+    break;
+  case Instruction::FAdd:
+    I = B.CreateFAdd(InputA, InputB);
+    break;
+  case Instruction::FSub:
+    I = B.CreateFSub(InputA, InputB);
+    break;
+  case Instruction::FMul:
+    I = B.CreateFMul(InputA, InputB);
+    break;
+  default:
+    llvm_unreachable("Incorrect symmetric opcode");
+  }
+  cast<Instruction>(I)->setFastMathFlags(Flags);
+  return I;
+}
+
+Value *ComplexDeinterleavingGraph::replaceNode(IRBuilderBase &Builder,
+                                               RawNodePtr Node) {
   if (Node->ReplacementNode)
     return Node->ReplacementNode;
 
-  Value *Input0 = replaceNode(Node->Operands[0]);
-  Value *Input1 =
-      Node->Operands.size() > 1 ? replaceNode(Node->Operands[1]) : nullptr;
-  Value *Accumulator =
-      Node->Operands.size() > 2 ? replaceNode(Node->Operands[2]) : nullptr;
-
+  Value *Input0 = replaceNode(Builder, Node->Operands[0]);
+  Value *Input1 = Node->Operands.size() > 1
+                      ? replaceNode(Builder, Node->Operands[1])
+                      : nullptr;
+  Value *Accumulator = Node->Operands.size() > 2
+                           ? replaceNode(Builder, Node->Operands[2])
+                           : nullptr;
   if (Input1)
     assert(Input0->getType() == Input1->getType() &&
            "Node inputs need to be of the same type");
 
   if (Node->Operation == ComplexDeinterleavingOperation::Symmetric)
-    Node->ReplacementNode = replaceSymmetricNode(Node, Input0, Input1);
+    Node->ReplacementNode = replaceSymmetricNode(Builder, Node->Opcode,
+                                                 Node->Flags, Input0, Input1);
   else
     Node->ReplacementNode = TL->createComplexDeinterleavingIR(
-        Node->Real, Node->Operation, Node->Rotation, Input0, Input1,
-        Accumulator);
+        Builder, Node->Operation, Node->Rotation, Input0, Input1, Accumulator);
 
   assert(Node->ReplacementNode && "Target failed to create Intrinsic call.");
   NumComplexTransformations += 1;
@@ -958,29 +1577,21 @@ Value *ComplexDeinterleavingGraph::replaceNode(
 }
 
 void ComplexDeinterleavingGraph::replaceNodes() {
-  Value *R = replaceNode(RootNode.get());
-  assert(R && "Unable to find replacement for RootValue");
-  RootValue->replaceAllUsesWith(R);
-}
+  SmallVector<Instruction *, 16> DeadInstrRoots;
+  for (auto *RootInstruction : OrderedRoots) {
+    // Check if this potential root went through check process and we can
+    // deinterleave it
+    if (!RootToNode.count(RootInstruction))
+      continue;
 
-bool ComplexDeinterleavingCompositeNode::hasAllInternalUses(
-    SmallPtrSet<Instruction *, 16> &AllInstructions) {
-  if (Operation == ComplexDeinterleavingOperation::Shuffle)
-    return true;
+    IRBuilder<> Builder(RootInstruction);
+    auto RootNode = RootToNode[RootInstruction];
+    Value *R = replaceNode(Builder, RootNode.get());
+    assert(R && "Unable to find replacement for RootInstruction");
+    DeadInstrRoots.push_back(RootInstruction);
+    RootInstruction->replaceAllUsesWith(R);
+  }
 
-  for (auto *User : Real->users()) {
-    if (!AllInstructions.contains(cast<Instruction>(User)))
-      return false;
-  }
-  for (auto *User : Imag->users()) {
-    if (!AllInstructions.contains(cast<Instruction>(User)))
-      return false;
-  }
-  for (auto *I : InternalInstructions) {
-    for (auto *User : I->users()) {
-      if (!AllInstructions.contains(cast<Instruction>(User)))
-        return false;
-    }
-  }
-  return true;
+  for (auto *I : DeadInstrRoots)
+    RecursivelyDeleteTriviallyDeadInstructions(I, TLI);
 }

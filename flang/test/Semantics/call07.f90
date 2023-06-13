@@ -1,4 +1,4 @@
-! RUN: %python %S/test_errors.py %s %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1 -pedantic
 ! Test 15.5.2.7 constraints and restrictions for POINTER dummy arguments.
 
 module m
@@ -19,12 +19,12 @@ module m
   end subroutine
 
   subroutine test
-    !ERROR: CONTIGUOUS entity must be an array pointer, assumed-shape, or assumed-rank
+    !ERROR: CONTIGUOUS entity 'a01' must be an array pointer, assumed-shape, or assumed-rank
     real, pointer, contiguous :: a01 ! C830
     real, pointer :: a02(:)
     real, target :: a03(10)
     real :: a04(10) ! not TARGET
-    !ERROR: CONTIGUOUS entity must be an array pointer, assumed-shape, or assumed-rank
+    !ERROR: CONTIGUOUS entity 'scalar' must be an array pointer, assumed-shape, or assumed-rank
     real, contiguous :: scalar
     call s01(a03) ! ok
     !WARNING: Target of CONTIGUOUS pointer association is not known to be contiguous

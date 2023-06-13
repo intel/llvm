@@ -98,6 +98,14 @@ set(ppc_htm_files
   htmxlintrin.h
   )
 
+set(riscv_files
+  riscv_ntlh.h
+  )
+
+set(sifive_files
+  sifive_vector.h
+  )
+
 set(systemz_files
   s390intrin.h
   vecintrin.h
@@ -244,6 +252,8 @@ set(files
   ${opencl_files}
   ${ppc_files}
   ${ppc_htm_files}
+  ${riscv_files}
+  ${sifive_files}
   ${systemz_files}
   ${ve_files}
   ${x86_files}
@@ -257,6 +267,10 @@ set(cuda_wrapper_files
   cuda_wrappers/cmath
   cuda_wrappers/complex
   cuda_wrappers/new
+)
+
+set(cuda_wrapper_bits_files
+  cuda_wrappers/bits/shared_ptr_base.h
 )
 
 set(ppc_wrapper_files
@@ -284,7 +298,8 @@ set(openmp_wrapper_files
   openmp_wrappers/new
 )
 
-set(output_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION_MAJOR}/include)
+include(GetClangResourceDir)
+get_clang_resource_dir(output_dir PREFIX ${LLVM_LIBRARY_OUTPUT_INTDIR}/.. SUBDIR include)
 set(out_files)
 set(generated_files)
 
@@ -317,7 +332,8 @@ endfunction(clang_generate_header)
 
 
 # Copy header files from the source directory to the build directory
-foreach( f ${files} ${cuda_wrapper_files} ${ppc_wrapper_files} ${openmp_wrapper_files} ${hlsl_files})
+foreach( f ${files} ${cuda_wrapper_files} ${cuda_wrapper_bits_files}
+           ${ppc_wrapper_files} ${openmp_wrapper_files} ${hlsl_files})
   copy_header_to_output_dir(${CMAKE_CURRENT_SOURCE_DIR} ${f})
 endforeach( f )
 
@@ -329,6 +345,8 @@ if(ARM IN_LIST LLVM_TARGETS_TO_BUILD OR AArch64 IN_LIST LLVM_TARGETS_TO_BUILD)
   clang_generate_header(-gen-arm-fp16 arm_fp16.td arm_fp16.h)
   # Generate arm_sve.h
   clang_generate_header(-gen-arm-sve-header arm_sve.td arm_sve.h)
+  # Generate arm_sme_draft_spec_subject_to_change.h
+  clang_generate_header(-gen-arm-sme-header arm_sme.td arm_sme_draft_spec_subject_to_change.h)
   # Generate arm_bf16.h
   clang_generate_header(-gen-arm-bf16 arm_bf16.td arm_bf16.h)
   # Generate arm_mve.h
@@ -349,6 +367,7 @@ if(ARM IN_LIST LLVM_TARGETS_TO_BUILD OR AArch64 IN_LIST LLVM_TARGETS_TO_BUILD)
 
   list(APPEND aarch64_only_generated_files
     "${CMAKE_CURRENT_BINARY_DIR}/arm_sve.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/arm_sme_draft_spec_subject_to_change.h"
     "${CMAKE_CURRENT_BINARY_DIR}/arm_bf16.h"
     )
 endif()
@@ -418,14 +437,14 @@ add_header_target("arm-common-resource-headers" "${arm_common_files};${arm_commo
 # Architecture/platform specific targets
 add_header_target("arm-resource-headers" "${arm_only_files};${arm_only_generated_files}")
 add_header_target("aarch64-resource-headers" "${aarch64_only_files};${aarch64_only_generated_files}")
-add_header_target("cuda-resource-headers" "${cuda_files};${cuda_wrapper_files}")
+add_header_target("cuda-resource-headers" "${cuda_files};${cuda_wrapper_files};${cuda_wrapper_bits_files}")
 add_header_target("hexagon-resource-headers" "${hexagon_files}")
 add_header_target("hip-resource-headers" "${hip_files}")
 add_header_target("loongarch-resource-headers" "${loongarch_files}")
 add_header_target("mips-resource-headers" "${mips_msa_files}")
 add_header_target("ppc-resource-headers" "${ppc_files};${ppc_wrapper_files}")
 add_header_target("ppc-htm-resource-headers" "${ppc_htm_files}")
-add_header_target("riscv-resource-headers" "${riscv_generated_files}")
+add_header_target("riscv-resource-headers" "${riscv_files};${riscv_generated_files}")
 add_header_target("systemz-resource-headers" "${systemz_files}")
 add_header_target("ve-resource-headers" "${ve_files}")
 add_header_target("webassembly-resource-headers" "${webassembly_files}")
@@ -438,7 +457,7 @@ add_header_target("openmp-resource-headers" ${openmp_wrapper_files})
 add_header_target("windows-resource-headers" ${windows_only_files})
 add_header_target("utility-resource-headers" ${utility_files})
 
-set(header_install_dir lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION_MAJOR}/include)
+get_clang_resource_dir(header_install_dir SUBDIR include)
 
 #############################################################
 # Install rules for the catch-all clang-resource-headers target
@@ -450,6 +469,11 @@ install(
 install(
   FILES ${cuda_wrapper_files}
   DESTINATION ${header_install_dir}/cuda_wrappers
+  COMPONENT clang-resource-headers)
+
+install(
+  FILES ${cuda_wrapper_bits_files}
+  DESTINATION ${header_install_dir}/cuda_wrappers/bits
   COMPONENT clang-resource-headers)
 
 install(
@@ -491,6 +515,12 @@ install(
 install(
   FILES ${cuda_wrapper_files}
   DESTINATION ${header_install_dir}/cuda_wrappers
+  EXCLUDE_FROM_ALL
+  COMPONENT cuda-resource-headers)
+
+install(
+  FILES ${cuda_wrapper_bits_files}
+  DESTINATION ${header_install_dir}/cuda_wrappers/bits
   EXCLUDE_FROM_ALL
   COMPONENT cuda-resource-headers)
 
@@ -548,6 +578,12 @@ install(
   EXCLUDE_FROM_ALL
   COMPONENT riscv-resource-headers)
 
+install(
+  FILES ${riscv_files}
+  DESTINATION ${header_install_dir}
+  EXCLUDE_FROM_ALL
+  COMPONENT riscv-resource-headers)
+  
 install(
   FILES ${systemz_files}
   DESTINATION ${header_install_dir}

@@ -329,8 +329,8 @@ public:
   /// filename has no extension, ConstString(nullptr) is returned. The dot
   /// ('.') character is the first character in the returned string.
   ///
-  /// \return Returns the extension of the file as a ConstString object.
-  ConstString GetFileNameExtension() const;
+  /// \return Returns the extension of the file as a StringRef.
+  llvm::StringRef GetFileNameExtension() const;
 
   /// Return the filename without the extension part
   ///
@@ -408,7 +408,17 @@ public:
   ///     A boolean value indicating whether the path was updated.
   bool RemoveLastPathComponent();
 
-  ConstString GetLastPathComponent() const;
+  /// Gets the components of the FileSpec's path.
+  /// For example, given the path:
+  ///   /System/Library/PrivateFrameworks/UIFoundation.framework/UIFoundation
+  ///
+  /// This function returns:
+  ///   {"System", "Library", "PrivateFrameworks", "UIFoundation.framework",
+  ///   "UIFoundation"}
+  /// \return
+  ///   A std::vector of llvm::StringRefs for each path component.
+  ///   The lifetime of the StringRefs is tied to the lifetime of the FileSpec.
+  std::vector<llvm::StringRef> GetComponents() const;
 
 protected:
   // Convenience method for setting the file without changing the style.

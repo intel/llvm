@@ -110,7 +110,7 @@ void elf::reportRangeError(uint8_t *loc, const Relocation &rel, const Twine &v,
   if (rel.sym && !rel.sym->isSection())
     hint += getDefinedLocation(*rel.sym);
 
-  if (errPlace.isec && errPlace.isec->name.startswith(".debug"))
+  if (errPlace.isec && errPlace.isec->name.starts_with(".debug"))
     hint += "; consider recompiling with -fdebug-types-section to reduce size "
             "of debug sections";
 
@@ -656,7 +656,7 @@ static const Symbol *getAlternativeSpelling(const Undefined &sym,
 
   // The reference may be a mangled name while the definition is not. Suggest a
   // missing extern "C".
-  if (name.startswith("_Z")) {
+  if (name.starts_with("_Z")) {
     std::string buf = name.str();
     llvm::ItaniumPartialDemangler d;
     if (!d.partialDemangle(buf.c_str()))
@@ -758,12 +758,12 @@ static void reportUndefinedSymbol(const UndefinedDiag &undef,
     }
   }
 
-  if (sym.getName().startswith("_ZTV"))
+  if (sym.getName().starts_with("_ZTV"))
     msg +=
         "\n>>> the vtable symbol may be undefined because the class is missing "
         "its key function (see https://lld.llvm.org/missingkeyfunction)";
   if (config->gcSections && config->zStartStopGC &&
-      sym.getName().startswith("__start_")) {
+      sym.getName().starts_with("__start_")) {
     msg += "\n>>> the encapsulation symbol needs to be retained under "
            "--gc-sections properly; consider -z nostart-stop-gc "
            "(see https://lld.llvm.org/ELF/start-stop-gc)";
@@ -1534,16 +1534,10 @@ template <class ELFT> void elf::scanRelocations() {
           scanner.template scanSection<ELFT>(*s);
       }
     };
-    if (serial)
-      fn();
-    else
-      tg.execute(fn);
+    tg.spawn(fn, serial);
   }
 
-  // Both the main thread and thread pool index 0 use getThreadIndex()==0. Be
-  // careful that they don't concurrently run scanSections. When serial is
-  // true, fn() has finished at this point, so running execute is safe.
-  tg.execute([] {
+  tg.spawn([] {
     RelocationScanner scanner;
     for (Partition &part : partitions) {
       for (EhInputSection *sec : part.ehFrame->sections)

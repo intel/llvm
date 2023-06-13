@@ -1,7 +1,7 @@
-// UNSUPPORTED: cuda || hip_nvidia
+// UNSUPPORTED: cuda, hip
 // REQUIRES: gpu,linux
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
 #include <cmath>
@@ -9,7 +9,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using dataType = sycl::opencl::cl_double;
+using dataType = sycl::opencl::cl_float;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
@@ -46,8 +46,8 @@ int main() {
   std::vector<dataType> inputA(DEFAULT_PROBLEM_SIZE),
       inputB(DEFAULT_PROBLEM_SIZE);
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++) {
-    inputA[i] = (double)1 / std::pow(2, i);
-    inputB[i] = (double)2 / std::pow(2, i);
+    inputA[i] = (float)1 / std::pow(2, i);
+    inputB[i] = (float)2 / std::pow(2, i);
   }
 
   KernelFunctor<> f(inputA, inputB);
