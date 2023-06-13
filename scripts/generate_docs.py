@@ -213,7 +213,7 @@ def generate_ref(dstpath, ref):
     util.removePath(refpath)
     util.makePath(refpath)
 
-    util.jsonWrite(os.path.join(refpath, "level_zero.json"), ref)
+    util.jsonWrite(os.path.join(refpath, "unified-runtime.json"), ref)
 
 """
 Entry-point:
