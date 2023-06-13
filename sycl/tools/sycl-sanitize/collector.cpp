@@ -24,6 +24,8 @@
 #include <string_view>
 #include <thread>
 
+std::mutex IOMutex;
+
 XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
                                   xpti::trace_event_data_t *parent,
                                   xpti::trace_event_data_t *event,
@@ -41,31 +43,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          tpCallback);
     auto &GS = USMAnalyzer::getInstance();
     GS.changeTerminationOnErrorState(true);
-    GS.ArgHandlerPostCall.set_piextUSMHostAlloc(
-        USMAnalyzer::handleUSMHostAlloc);
-    GS.ArgHandlerPostCall.set_piextUSMDeviceAlloc(
-        USMAnalyzer::handleUSMDeviceAlloc);
-    GS.ArgHandlerPostCall.set_piextUSMSharedAlloc(
-        USMAnalyzer::handleUSMSharedAlloc);
-    GS.ArgHandlerPreCall.set_piextUSMFree(USMAnalyzer::handleUSMFree);
-    GS.ArgHandlerPreCall.set_piMemBufferCreate(
-        USMAnalyzer::handleMemBufferCreate);
-    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemset(
-        USMAnalyzer::handleUSMEnqueueMemset);
-    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemcpy(
-        USMAnalyzer::handleUSMEnqueueMemcpy);
-    GS.ArgHandlerPreCall.set_piextUSMEnqueuePrefetch(
-        USMAnalyzer::handleUSMEnqueuePrefetch);
-    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemAdvise(
-        USMAnalyzer::handleUSMEnqueueMemAdvise);
-    GS.ArgHandlerPreCall.set_piextUSMEnqueueFill2D(
-        USMAnalyzer::handleUSMEnqueueFill2D);
-    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemset2D(
-        USMAnalyzer::handleUSMEnqueueMemset2D);
-    GS.ArgHandlerPreCall.set_piextUSMEnqueueMemcpy2D(
-        USMAnalyzer::handleUSMEnqueueMemcpy2D);
-    GS.ArgHandlerPreCall.set_piextKernelSetArgPointer(
-        USMAnalyzer::handleKernelSetArgPointer);
+    GS.setupUSMHandlers();
   }
 }
 
@@ -95,27 +73,10 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *ObjectEvent,
                                   uint64_t /*Instance*/, const void *UserData) {
   auto &GS = USMAnalyzer::getInstance();
-
-  const xpti::payload_t *Payload =
-      ObjectEvent && ObjectEvent->reserved.payload
-          ? ObjectEvent->reserved.payload
-          : xptiQueryPayloadByUID(xptiGetUniversalId());
-
-  if (Payload) {
-    if (Payload->source_file)
-      GS.LastTracepoint.Source = Payload->source_file;
-    else
-      GS.LastTracepoint.Source = "<unknown>";
-    GS.LastTracepoint.Function = Payload->name;
-    GS.LastTracepoint.Line = Payload->line_no;
-  } else {
-    GS.LastTracepoint.Function = "<unknown>";
-    GS.LastTracepoint.Source = "<unknown>";
-    GS.LastTracepoint.Line = 0;
-  }
+  GS.fillLastTracepointData(ObjectEvent);
 
   // Lock while we capture information
-  std::lock_guard<std::mutex> Lock(GS.IOMutex);
+  std::lock_guard<std::mutex> Lock(IOMutex);
 
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);

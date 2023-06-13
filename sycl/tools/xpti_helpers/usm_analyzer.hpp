@@ -174,7 +174,6 @@ private:
 
 public:
   // TO DO: allocations must be tracked with device
-  std::mutex IOMutex;
   std::map<void *, AllocationInfo> ActivePointers;
   TracepointInfo LastTracepoint;
   sycl::xpti_helpers::PiArgumentsHandler ArgHandlerPostCall;
@@ -190,6 +189,52 @@ public:
 
   void changeTerminationOnErrorState(bool EnableTermination) {
     TerminateOnError = EnableTermination;
+  }
+
+  void setupUSMHandlers() {
+    ArgHandlerPostCall.set_piextUSMHostAlloc(USMAnalyzer::handleUSMHostAlloc);
+    ArgHandlerPostCall.set_piextUSMDeviceAlloc(
+        USMAnalyzer::handleUSMDeviceAlloc);
+    ArgHandlerPostCall.set_piextUSMSharedAlloc(
+        USMAnalyzer::handleUSMSharedAlloc);
+    ArgHandlerPreCall.set_piextUSMFree(USMAnalyzer::handleUSMFree);
+    ArgHandlerPreCall.set_piMemBufferCreate(USMAnalyzer::handleMemBufferCreate);
+    ArgHandlerPreCall.set_piextUSMEnqueueMemset(
+        USMAnalyzer::handleUSMEnqueueMemset);
+    ArgHandlerPreCall.set_piextUSMEnqueueMemcpy(
+        USMAnalyzer::handleUSMEnqueueMemcpy);
+    ArgHandlerPreCall.set_piextUSMEnqueuePrefetch(
+        USMAnalyzer::handleUSMEnqueuePrefetch);
+    ArgHandlerPreCall.set_piextUSMEnqueueMemAdvise(
+        USMAnalyzer::handleUSMEnqueueMemAdvise);
+    ArgHandlerPreCall.set_piextUSMEnqueueFill2D(
+        USMAnalyzer::handleUSMEnqueueFill2D);
+    ArgHandlerPreCall.set_piextUSMEnqueueMemset2D(
+        USMAnalyzer::handleUSMEnqueueMemset2D);
+    ArgHandlerPreCall.set_piextUSMEnqueueMemcpy2D(
+        USMAnalyzer::handleUSMEnqueueMemcpy2D);
+    ArgHandlerPreCall.set_piextKernelSetArgPointer(
+        USMAnalyzer::handleKernelSetArgPointer);
+  }
+
+  void fillLastTracepointData(const xpti::trace_event_data_t *ObjectEvent) {
+    const xpti::payload_t *Payload =
+        ObjectEvent && ObjectEvent->reserved.payload
+            ? ObjectEvent->reserved.payload
+            : xptiQueryPayloadByUID(xptiGetUniversalId());
+
+    if (Payload) {
+      if (Payload->source_file)
+        LastTracepoint.Source = Payload->source_file;
+      else
+        LastTracepoint.Source = "<unknown>";
+      LastTracepoint.Function = Payload->name;
+      LastTracepoint.Line = Payload->line_no;
+    } else {
+      LastTracepoint.Function = "<unknown>";
+      LastTracepoint.Source = "<unknown>";
+      LastTracepoint.Line = 0;
+    }
   }
 
   static void handleUSMHostAlloc(const pi_plugin &, std::optional<pi_result>,
