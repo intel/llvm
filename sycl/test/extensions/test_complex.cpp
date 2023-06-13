@@ -188,11 +188,12 @@ void check_sycl_constructor_from_std() {
 
 // Check types for sycl complex constructed from literals
 void check_sycl_complex_literals() {
-  auto complex_f = std::complex<float>{42.f, 42.f};
-  auto complex_d = std::complex<double>{42.0, 42.0};
-
-  static_assert(std::is_same_v<decltype(0.3if), decltype(complex_f)>);
-  static_assert(std::is_same_v<decltype(0.3i), decltype(complex_d)>);
+  static_assert(
+      std::is_same_v<decltype(0.3if),
+                     sycl::ext::oneapi::experimental::complex<float>>);
+  static_assert(
+      std::is_same_v<decltype(0.3i),
+                     sycl::ext::oneapi::experimental::complex<double>>);
 }
 
 int main() {
