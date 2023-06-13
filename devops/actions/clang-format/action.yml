@@ -1,14 +1,19 @@
 name: 'clang-format'
 description: 'Run clang-format on pull request'
+inputs:
+  path:
+    description: Path to the checkout
+    required: true
+
 runs:
   using: "composite"
   steps:
   - name: Run clang-format for the patch
     shell: bash {0}
     run: |
-      git config --global --add safe.directory /__w/llvm/llvm
-      git clang-format ${{ github.event.pull_request.base.sha }}
-      git diff > ./clang-format.patch
+      git config --global --add safe.directory ${{ inputs.path }}
+      git -C ${{ inputs.path }} clang-format ${{ github.event.pull_request.base.sha }}
+      git -C ${{ inputs.path }} diff > ./clang-format.patch
   # Add patch with formatting fixes to CI job artifacts
   - uses: actions/upload-artifact@v1
     with:
