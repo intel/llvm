@@ -92,10 +92,15 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
 
 XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *,
-                                  xpti::trace_event_data_t *,
+                                  xpti::trace_event_data_t *ObjectEvent,
                                   uint64_t /*Instance*/, const void *UserData) {
-  auto *Payload = xptiQueryPayloadByUID(xptiGetUniversalId());
   auto &GS = USMAnalyzer::getInstance();
+
+  const xpti::payload_t *Payload =
+      ObjectEvent && ObjectEvent->reserved.payload
+          ? ObjectEvent->reserved.payload
+          : xptiQueryPayloadByUID(xptiGetUniversalId());
+
   if (Payload) {
     if (Payload->source_file)
       GS.LastTracepoint.Source = Payload->source_file;
