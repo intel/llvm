@@ -575,16 +575,10 @@ void command_graph<graph_state::executable>::finalize_impl() {
 
   auto Context = impl->get_context();
   for (auto Device : impl->get_context().get_devices()) {
-    pi_bool CmdBufSupport;
-
-    const sycl::detail::PluginPtr &Plugin =
-        sycl::detail::getSyclObjImpl(Context)->getPlugin();
-
-    auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
-    Plugin->call<sycl::detail::PiApiKind::piDeviceGetInfo>(
-        DeviceImpl->getHandleRef(),
-        PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT, sizeof(pi_bool),
-        &CmdBufSupport, nullptr);
+    bool CmdBufSupport =
+        Device.get_info<
+            ext::oneapi::experimental::info::device::graph_support>() ==
+        info::device::graph_support_level::native;
 
 #if FORCE_EMULATION_MODE
     // Above query should still succeed in emulation mode, but ignore the

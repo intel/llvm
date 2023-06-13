@@ -3,8 +3,8 @@
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 4a9e53b0d7b15d9b0239864d13999f32e6c73bac)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG f055b00e70eeaabb5532c1c48dc3c769df6bef57)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -97,6 +97,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_queue.hpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
     "ur/adapters/level_zero/ur_level_zero_usm.hpp"
+    "ur/adapters/level_zero/ur_level_zero_command_buffer.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_level_zero_common.cpp"
     "ur/adapters/level_zero/ur_level_zero_context.cpp"
@@ -109,6 +110,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
     "ur/adapters/level_zero/ur_level_zero_usm.cpp"
+    "ur/adapters/level_zero/ur_level_zero_command_buffer.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES

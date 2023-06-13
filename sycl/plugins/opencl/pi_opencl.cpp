@@ -737,14 +737,6 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     return PI_SUCCESS;
   }
 
-  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT: {
-    // Using cl_khr_command_buffer extensions as a backend for PI
-    // command-buffers no yet supported
-    cl_bool result = false;
-    std::memcpy(paramValue, &result, sizeof(cl_bool));
-    return PI_SUCCESS;
-  }
-
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),

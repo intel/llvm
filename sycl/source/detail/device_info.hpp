@@ -811,21 +811,26 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::graph_support> {
   static ext::oneapi::experimental::info::device::graph_support_level
   get(const DeviceImplPtr &Dev) {
-    // Level zero is currently only supported backend
-    if (Dev->getBackend() != backend::ext_oneapi_level_zero) {
+    size_t ResultSize = 0;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
+        &ResultSize);
+    if (ResultSize == 0)
       return ext::oneapi::experimental::info::device::graph_support_level::
           unsupported;
-    }
 
-    pi_bool CmdBufSupport = false;
+    std::unique_ptr<char[]> Result(new char[ResultSize]);
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT,
-        sizeof(pi_bool), &CmdBufSupport, nullptr);
+        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
+        Result.get(), nullptr);
 
-    return CmdBufSupport ? ext::oneapi::experimental::info::device::
-                               graph_support_level::native
-                         : ext::oneapi::experimental::info::device::
-                               graph_support_level::emulated;
+    std::string_view ExtensionsString(Result.get());
+    bool CmdBufferSupport =
+        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
+    return CmdBufferSupport ? ext::oneapi::experimental::info::device::
+                                  graph_support_level::native
+                            : ext::oneapi::experimental::info::device::
+                                  graph_support_level::unsupported;
   }
 };
 

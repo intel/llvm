@@ -381,8 +381,14 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
+    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> GraphImpl;
+    if (MGraph) {
+      GraphImpl = MGraph;
+    } else if (auto QueueGraph = MQueue->getCommandGraph(); QueueGraph) {
+      GraphImpl = QueueGraph;
+    }
 
-    if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
+    if (GraphImpl) {
       auto EventImpl = std::make_shared<detail::event_impl>();
 
       // Extract relevant data from the handler and pass to graph to create a

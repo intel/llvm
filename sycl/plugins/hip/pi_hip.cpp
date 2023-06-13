@@ -2015,12 +2015,6 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                     PI_ERROR_INVALID_ARG_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 
-  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT: {
-    // Using HIP-Graphs as a backend for PI command-buffers no yet supported
-    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
-                            false);
-  }
-
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
