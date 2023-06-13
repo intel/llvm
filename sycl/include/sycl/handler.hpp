@@ -2125,21 +2125,58 @@ public:
 
   /// Reductions @{
 
-  template <typename KernelName = detail::auto_name, int Dims,
-            typename PropertiesT, typename... RestT>
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
   std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+  parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
 
-  template <typename KernelName = detail::auto_name, int Dims,
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<Dims> Range, RestT &&...Rest) {
+  parallel_for(range<1> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<2> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
@@ -2239,6 +2276,8 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
+    static_assert(is_device_copyable<T_Src>::value,
+                  "Pattern must be device copyable");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     CGData.MSharedPtrStorage.push_back(Src);
@@ -2308,6 +2347,8 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
+    static_assert(is_device_copyable<T_Src>::value,
+                  "Pattern must be device copyable");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -2468,12 +2509,12 @@ public:
   ///
   /// \param Ptr is the pointer to the memory to fill
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
       T *CastedPtr = static_cast<T *>(Ptr);
       CastedPtr[Index] = Pattern;
@@ -2720,15 +2761,15 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
   /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T>
   void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
                          size_t Width, size_t Height) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     if (Width > DestPitch)
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Destination pitch must be greater than or equal "

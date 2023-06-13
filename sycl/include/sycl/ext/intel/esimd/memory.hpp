@@ -899,10 +899,9 @@ gather_rgba(AccessorT acc,
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;
   const auto SI = get_surface_index(acc);
-  auto loc_offsets = convert<uint32_t>(offsets);
   return __esimd_gather4_masked_scaled2<detail::__raw_t<T>, N, RGBAMask,
                                         decltype(SI), Scale>(
-      SI, global_offset, loc_offsets.data(), mask.data());
+      SI, global_offset, offsets.data(), mask.data());
 #endif
 }
 
@@ -962,9 +961,8 @@ scatter_rgba(AccessorT acc,
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;
   const auto SI = get_surface_index(acc);
-  auto loc_offsets = convert<uint32_t>(offsets);
   __esimd_scatter4_scaled<T, N, decltype(SI), RGBAMask, Scale>(
-      mask.data(), SI, global_offset, loc_offsets.data(), vals.data());
+      mask.data(), SI, global_offset, offsets.data(), vals.data());
 #endif
 }
 
