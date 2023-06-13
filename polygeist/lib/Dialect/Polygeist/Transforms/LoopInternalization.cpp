@@ -458,8 +458,10 @@ sycl::SYCLConstructorOp getUnderlyingSYCLConstructor(unsigned opIndex,
 
   // Try to determine the underlying value of the memory pointed to by
   // the memref operand of a load.
-  affine::AffineLoadOp loadOp =
-      cast<affine::AffineLoadOp>(storedVal.getDefiningOp());
+  auto loadOp = dyn_cast<affine::AffineLoadOp>(storedVal.getDefiningOp());
+  if (!loadOp)
+    return nullptr;
+
   affine::MemRefAccess loadAccess(loadOp);
   assert(hasZeroIndex(storeAccess) && "Unexpected candidate operation");
 
@@ -473,12 +475,15 @@ SmallVector<Value> getIndexes(sycl::SYCLAccessorSubscriptOp accSub,
   sycl::SYCLConstructorOp constructorOp = getUnderlyingSYCLConstructor(
       accSub.getOffsetOperandIndex(), accSub, solver);
   assert(constructorOp && "Expecting constructor definition");
+
   SmallVector<Value> indexes;
-  for (int i = constructorOp->getNumOperands() - 1; i >= 0; --i) {
-    if ((unsigned)i == constructorOp.getOutputOperandIndex())
+  for (unsigned i = constructorOp->getNumOperands() - 1;
+       i != std::numeric_limits<unsigned>::max(); --i) {
+    if (i == constructorOp.getOutputOperandIndex())
       continue;
     indexes.push_back(constructorOp->getOperand(i));
   }
+
   return indexes;
 }
 
