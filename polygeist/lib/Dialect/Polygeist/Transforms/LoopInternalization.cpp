@@ -577,8 +577,6 @@ public:
   LoopInfo(LoopLikeOpInterface loop) : loop(loop) {
     assert(loop.getSingleInductionVar().has_value() &&
            "Expecting single induction variable");
-    assert(loop.getSingleLowerBound().has_value() &&
-           "Expecting single lower bound");
     inductionVar = *loop.getSingleInductionVar();
   }
 
@@ -590,8 +588,15 @@ public:
     if (lowerBound)
       return lowerBound;
     OpBuilder builder(loop);
-    lowerBound = getValueOrCreateConstantIndexOp(builder, loop.getLoc(),
-                                                 *loop.getSingleLowerBound());
+    if (loop.getSingleLowerBound().has_value()) {
+      lowerBound = getValueOrCreateConstantIndexOp(builder, loop.getLoc(),
+                                                   *loop.getSingleLowerBound());
+    } else {
+      auto affineLoop = cast<affine::AffineForOp>(loop);
+      SmallVector<Value, 4> lbOperands(affineLoop.getLowerBoundOperands());
+      lowerBound = builder.create<affine::AffineApplyOp>(
+          affineLoop.getLoc(), affineLoop.getLowerBoundMap(), lbOperands);
+    }
     return lowerBound;
   }
 
@@ -1077,12 +1082,6 @@ void LoopInternalization::transform(T loop,
   assert(res.succeeded() && "Expecting innermost loop to be tiled");
   ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
-
-  if (isa<affine::AffineForOp>(loop)) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "TODO: Need to add support for affine::AffineForOp.\n");
-    return;
-  }
 
   loop = tiledNest.front();
   LoopInfo loopInfo(loop);
