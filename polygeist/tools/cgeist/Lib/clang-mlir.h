@@ -550,7 +550,7 @@ public:
                        mlir::arith::CmpFPredicate::FP);                        \
   }
 #include "CmpExpressions.def"
-#undef HANDLEBINOP
+#undef VISITCOMP
 
   ValueCategory EmitCompare(clang::BinaryOperator *E,
                             mlir::arith::CmpIPredicate UICmp,
