@@ -112,20 +112,36 @@ public:
   }
 
 private:
-  template <typename T,
-            typename = std::enable_if_t<llvm::is_one_of<
-                T, arith::AddIOp, arith::MulIOp, arith::MaxSIOp>::value>>
+  template <typename T> struct is_supported_binop {
+    static constexpr bool value =
+        llvm::is_one_of<T, arith::AddIOp, arith::MulIOp, arith::MaxSIOp>::value;
+  };
+  template <typename T>
+  constexpr static bool is_supported_binop_v = is_supported_binop<T>::value;
+
+  template <typename T, typename = std::enable_if_t<is_supported_binop_v<T>>>
+  static unsigned binaryOperator(unsigned lhs, unsigned rhs);
+  template <>
+  unsigned binaryOperator<arith::AddIOp>(unsigned lhs, unsigned rhs) {
+    return lhs + rhs;
+  }
+  template <>
+  unsigned binaryOperator<arith::MulIOp>(unsigned lhs, unsigned rhs) {
+    return lhs * rhs;
+  }
+  template <>
+  unsigned binaryOperator<arith::MaxSIOp>(unsigned lhs, unsigned rhs) {
+    return std::max(lhs, rhs);
+  }
+
+  template <typename T, typename = std::enable_if_t<is_supported_binop_v<T>>>
   static std::variant<Value, unsigned>
   binaryOperator(const std::variant<Value, unsigned> &lhs,
                  const std::variant<Value, unsigned> &rhs, OpBuilder builder) {
     if (std::holds_alternative<unsigned>(lhs)) {
       assert(std::holds_alternative<unsigned>(rhs));
-      if constexpr (std::is_same_v<T, arith::AddIOp>)
-        return std::get<unsigned>(lhs) + std::get<unsigned>(rhs);
-      if constexpr (std::is_same_v<T, arith::MulIOp>)
-        return std::get<unsigned>(lhs) * std::get<unsigned>(rhs);
-      if constexpr (std::is_same_v<T, arith::MaxSIOp>)
-        return std::max(std::get<unsigned>(lhs), std::get<unsigned>(rhs));
+      return binaryOperator<T>(std::get<unsigned>(lhs),
+                               std::get<unsigned>(rhs));
     }
 
     assert(std::holds_alternative<Value>(lhs) &&
@@ -332,7 +348,8 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
                             OpBuilder builder, Location loc) {
   SmallVector<int64_t> shape;
   SmallVector<Value> sizes;
-  for (int dim = accTy.getDimension() - 1; dim >= 0; --dim) {
+  for (unsigned dim = accTy.getDimension() - 1;
+       dim != std::numeric_limits<unsigned>::max(); --dim) {
     std::variant<Value, unsigned> size = workGroupSize[dim];
     if (workGroupSize.hasElemTy<unsigned>())
       shape.push_back(std::get<unsigned>(workGroupSize[dim]));
@@ -1128,7 +1145,8 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
 
   // Populate indexes needed for loading the accesses from global memory.
   SmallVector<Value> globalIndexes(indexes.size());
-  for (int dim = indexes.size() - 1; dim >= 0; --dim) {
+  for (unsigned dim = indexes.size() - 1;
+       dim != std::numeric_limits<unsigned>::max(); --dim) {
     Value index = indexes[dim];
     if (usesValue(index, inductionVar)) {
       Value lowerBound = loopInfo.getLowerBound();
@@ -1166,7 +1184,8 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
 
   // Populate indexes will be used in loop with local memory.
   SmallVector<Value> adjustedIndexes;
-  for (int dim = indexes.size() - 1; dim >= 0; --dim) {
+  for (unsigned dim = indexes.size() - 1;
+       dim != std::numeric_limits<unsigned>::max(); --dim) {
     Value index = indexes[dim];
     if (usesValue(index, inductionVar)) {
       OpBuilder::InsertionGuard insertGuard(builder);
