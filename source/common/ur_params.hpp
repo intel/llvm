@@ -1733,8 +1733,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         os << "UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP";
         break;
 
-    case UR_DEVICE_INFO_DEVICE_IP_VERSION:
-        os << "UR_DEVICE_INFO_DEVICE_IP_VERSION";
+    case UR_DEVICE_INFO_IP_VERSION:
+        os << "UR_DEVICE_INFO_IP_VERSION";
         break;
     default:
         os << "unknown enumerator";
@@ -3283,7 +3283,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
         os << ")";
     } break;
 
-    case UR_DEVICE_INFO_DEVICE_IP_VERSION: {
+    case UR_DEVICE_INFO_IP_VERSION: {
         const uint32_t *tptr = (const uint32_t *)ptr;
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size
