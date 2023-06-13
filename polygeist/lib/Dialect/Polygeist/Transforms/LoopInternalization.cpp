@@ -649,8 +649,7 @@ void LoopInternalization::runOnOperation() {
 
     llvm::SmallSet<FunctionOpInterface, 4> bodyFuncs =
         funcKernelInfo.getPotentialKernelBodyFunctions(kernel);
-    for (FunctionOpInterface func : bodyFuncs)
-      kernelBodyFuncs.insert(func);
+    kernelBodyFuncs.insert(bodyFuncs.begin(), bodyFuncs.end());
   });
 
   // Transform each kernel body function.
