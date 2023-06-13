@@ -105,7 +105,7 @@ public:
   /// for the body of the SYCL kernel, e.g., code in parallel_for.
   /// TODO: add an attribute to the call operator of the SYCL kernel functor in
   /// SemaSYCL in clang, to identify SYCL kernel body function accurately.
-  bool isPotentialKernelBodyFunc(FunctionOpInterface func) const;
+  bool isPotentialKernelBodyFunction(FunctionOpInterface func) const;
 
   /// Returns the maximum depth from any GPU kernel.
   /// Returns std::nullopt if the call is not called from a GPU kernel.
@@ -136,10 +136,13 @@ public:
   void getKernelCallers(FunctionOpInterface func,
                         SmallVectorImpl<gpu::GPUFuncOp> &kernels) const;
 
-  /// Returns the kernel body function of \p kernel. The kernel body function is
-  /// the lambda/functor associated with the SYCL kernel construct (e.g.,
-  /// parallel_for).
-  FunctionOpInterface getKernelBodyFunc(gpu::GPUFuncOp kernel) const;
+  /// Returns the potential 'kernel body functions' of \p kernel. A 'kernel body
+  /// function' is the lambda/functor associated with the SYCL kernel construct
+  /// (e.g., parallel_for). Note that transformation passes might have cloned
+  /// the kernel body to specialize it. This function returns all possible
+  /// kernel body functions, including specializations.
+  std::set<FunctionOpInterface>
+  getPotentialKernelBodyFunctions(gpu::GPUFuncOp kernel) const;
 
 private:
   /// Populate funcKernelInfosMap with the list of GPU kernels that can reach
