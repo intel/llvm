@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cuda.h>
 #include <cuda_device_runtime_api.h>
 #include <limits>
@@ -308,13 +309,14 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   int minGrid, maxBlockSize, maxBlockDim[3];
 
   static auto isPrime = [](size_t number) -> bool {
+    auto lastNumToCheck = ceil(sqrt(number));
     if (number < 2)
       return false;
     if (number == 2)
       return true;
     if (number % 2 == 0)
       return false;
-    for (int i = 3; (i * i) <= number; i += 2) {
+    for (int i = 3; i <= lastNumToCheck; i += 2) {
       if (number % i == 0)
         return false;
     }
