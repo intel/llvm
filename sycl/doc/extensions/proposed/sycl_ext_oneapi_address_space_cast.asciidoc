@@ -165,6 +165,22 @@ simply attach new decoration(s) to the raw pointer (or do nothing), while
 a `dynamic_address_space_cast` will have to inspect the address of the
 raw pointer to determine which region of memory it points to.
 
+An implementation for a CPU target could be implemented by keeping track of
+three pieces of information in thread-local storage:
+
+- The base (highest address) of the calling thread's stack.
+- The low bound of the calling work-item's local memory area.
+- The high bound of the calling work-item's local memory area.
+
+A cast to `private_space` succeeds as long as the pointer is within the calling
+thread's stack. A cast to `local_space` succeeds as long as the pointer is
+within the calling work-item's local memory area. A cast to `global_space`
+succeeds as long as the pointer is not within either of the above two address
+ranges.
+
+Implementations for GPU targets may be able to leverage dedicated instructions
+for checking the address space.
+
 
 == Issues
 
