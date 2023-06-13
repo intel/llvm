@@ -40,7 +40,7 @@ private:
   // piextUSMGetMemAllocInfo - could be more robust
   static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
                                     size_t size, std::string FunctionName) {
-    void *PtrToValidate = *(void **)Ptr;
+    void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
     bool NeedsTerminate = false;
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
@@ -102,7 +102,7 @@ private:
   static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
                                     size_t pitch, size_t width, size_t length,
                                     std::string FunctionName) {
-    void *PtrToValidate = *(void **)Ptr;
+    void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
     bool NeedsTerminate = false;
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
