@@ -48,8 +48,6 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
 namespace __sycl_std = __host_std;
 #endif
 
-#define __SYCL_COMMA ,
-
 #define __SYCL_DEF_BUILTIN_VEC(TYPE)                                           \
   __SYCL_BUILTIN_DEF(TYPE##2)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
@@ -62,8 +60,7 @@ namespace __sycl_std = __host_std;
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##4)
 
-#define __SYCL_DEF_BUILTIN_MARRAY(TYPE)                                        \
-  template <size_t NElems> __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA NElems>)
+#define __SYCL_DEF_BUILTIN_MARRAY(TYPE)
 
 #define __SYCL_DEF_BUILTIN_CHAR_SCALAR __SYCL_BUILTIN_DEF(char)
 #define __SYCL_DEF_BUILTIN_CHAR_VEC __SYCL_DEF_BUILTIN_VEC(char)
