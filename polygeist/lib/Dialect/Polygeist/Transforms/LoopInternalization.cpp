@@ -643,38 +643,28 @@ void LoopInternalization::runOnOperation() {
 
   // Collect kernel body functions of candidate kernels.
   std::set<FunctionOpInterface> kernelBodyFuncs;
-  std::set<FunctionOpInterface> toRemove;
   gpuModule->walk([&](gpu::GPUFuncOp kernel) {
-    if (!kernel.isKernel())
+    if (!kernel.isKernel() || !isCandidateKernel(kernel))
       return;
-    FunctionOpInterface func = funcKernelInfo.getKernelBodyFunc(kernel);
-    if (isCandidateKernel(kernel))
-      kernelBodyFuncs.insert(func);
-    else
-      toRemove.insert(func);
+
+    kernelBodyFuncs.merge(
+        funcKernelInfo.getPotentialKernelBodyFunctions(kernel));
   });
 
-  // If func is a kernel body function of a non-candidate kernel, then remove it
-  // from the set.
-  for (FunctionOpInterface func : toRemove)
-    kernelBodyFuncs.erase(func);
-
-  // Walk each kernel body functions.
+  // Transform each kernel body function.
   for (FunctionOpInterface func : kernelBodyFuncs) {
     if (!isCandidateFunction(func))
-      return;
+      continue;
 
-    LLVM_DEBUG(llvm::dbgs()
-               << "LoopInternalization: Visiting candidate function "
-               << func.getName() << "\n");
+    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE ": Visiting candidate function "
+                            << func.getName() << "\n");
 
     DataFlowSolver solver;
     solver.load<dataflow::DeadCodeAnalysis>();
     solver.load<dataflow::IntegerRangeAnalysis>();
     if (failed(solver.initializeAndRun(func))) {
       LLVM_DEBUG(llvm::dbgs()
-                 << "LoopInternalization: Unable to run required dataflow "
-                    "analysis on "
+                 << DEBUG_TYPE ": Unable to run required dataflow analysis on "
                  << func.getName() << "\n");
       return;
     }
@@ -682,8 +672,11 @@ void LoopInternalization::runOnOperation() {
     // Ensure there is local memory to be used.
     unsigned localMemoryRemaining =
         getLocalMemoryRemaining(gpuModule, localMemorySize);
-    if (localMemoryRemaining == 0)
+    if (localMemoryRemaining == 0) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << DEBUG_TYPE ": Not enough shared local memory available\n");
       return;
+    }
 
     // Select the ideal memory space for memref accesses in candidate loops
     // contained by this function.
@@ -691,10 +684,9 @@ void LoopInternalization::runOnOperation() {
       if (!isCandidateLoopNest(loop))
         return;
 
-      LLVM_DEBUG(
-          llvm::dbgs()
-          << "LoopInternalization: Visiting candidate loop nest rooted by:\n"
-          << loop << "\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << DEBUG_TYPE ": Visiting candidate loop nest rooted by:\n"
+                 << loop << "\n");
 
       std::optional<LoopLikeOpInterface> innermostLoop =
           LoopTools::getInnermostLoop(loop);
