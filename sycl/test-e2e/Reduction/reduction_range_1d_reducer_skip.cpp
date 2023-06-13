@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
 // RUN: %{run} %t.out
 
-
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 

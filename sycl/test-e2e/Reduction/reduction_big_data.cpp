@@ -3,7 +3,7 @@
 //
 // Group algorithms are not supported on Nvidia.
 // XFAIL: hip_nvidia
-// 
+//
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
