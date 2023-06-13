@@ -589,7 +589,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   // query type using PI function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  RT::PiResult Err =
+  sycl::detail::pi::PiResult Err =
       Plugin->call_nocheck<detail::PiApiKind::piextUSMGetMemAllocInfo>(
           PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy,
           nullptr);
