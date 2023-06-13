@@ -4314,8 +4314,8 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `region.width == 0 || region.height == 0 || region.depth == 0`
-///         + `srcRowPitch != 0 && srcRowPitch < region.height`
-///         + `dstRowPitch != 0 && dstRowPitch < region.height`
+///         + `srcRowPitch != 0 && srcRowPitch < region.width`
+///         + `dstRowPitch != 0 && dstRowPitch < region.width`
 ///         + `srcSlicePitch != 0 && srcSlicePitch < region.height * (srcRowPitch != 0 ? srcRowPitch : region.width)`
 ///         + `srcSlicePitch != 0 && srcSlicePitch % (srcRowPitch != 0 ? srcRowPitch : region.width) != 0`
 ///         + `dstSlicePitch != 0 && dstSlicePitch < region.height * (dstRowPitch != 0 ? dstRowPitch : region.width)`
@@ -4746,11 +4746,11 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `size == 0`
-///         + `size % patternSize != 0`
 ///         + `patternSize == 0`
 ///         + `patternSize > size`
 ///         + `patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`
+///         + `size == 0`
+///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
@@ -4947,12 +4947,12 @@ ur_result_t UR_APICALL urEnqueueUSMAdvise(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `pitch == 0`
 ///         + `pitch < width`
-///         + `width == 0`
-///         + `width % patternSize != 0`
-///         + `height == 0`
 ///         + `patternSize == 0`
-///         + `patternSize > width`
+///         + `patternSize > width * height`
 ///         + `patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`
+///         + `width == 0`
+///         + `height == 0`
+///         + `width * height % patternSize != 0`
 ///         + If `pitch * height` is higher than the allocation size of `pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
