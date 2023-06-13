@@ -112,36 +112,20 @@ public:
   }
 
 private:
-  template <typename T> struct is_supported_binop {
-    static constexpr bool value =
-        llvm::is_one_of<T, arith::AddIOp, arith::MulIOp, arith::MaxSIOp>::value;
-  };
-  template <typename T>
-  constexpr static bool is_supported_binop_v = is_supported_binop<T>::value;
-
-  template <typename T, typename = std::enable_if_t<is_supported_binop_v<T>>>
-  static unsigned binaryOperator(unsigned lhs, unsigned rhs);
-  template <>
-  unsigned binaryOperator<arith::AddIOp>(unsigned lhs, unsigned rhs) {
-    return lhs + rhs;
-  }
-  template <>
-  unsigned binaryOperator<arith::MulIOp>(unsigned lhs, unsigned rhs) {
-    return lhs * rhs;
-  }
-  template <>
-  unsigned binaryOperator<arith::MaxSIOp>(unsigned lhs, unsigned rhs) {
-    return std::max(lhs, rhs);
-  }
-
-  template <typename T, typename = std::enable_if_t<is_supported_binop_v<T>>>
+  template <typename T,
+            typename = std::enable_if_t<llvm::is_one_of<
+                T, arith::AddIOp, arith::MulIOp, arith::MaxSIOp>::value>>
   static std::variant<Value, unsigned>
   binaryOperator(const std::variant<Value, unsigned> &lhs,
                  const std::variant<Value, unsigned> &rhs, OpBuilder builder) {
     if (std::holds_alternative<unsigned>(lhs)) {
       assert(std::holds_alternative<unsigned>(rhs));
-      return binaryOperator<T>(std::get<unsigned>(lhs),
-                               std::get<unsigned>(rhs));
+      if constexpr (std::is_same_v<T, arith::AddIOp>)
+        return std::get<unsigned>(lhs) + std::get<unsigned>(rhs);
+      if constexpr (std::is_same_v<T, arith::MulIOp>)
+        return std::get<unsigned>(lhs) * std::get<unsigned>(rhs);
+      if constexpr (std::is_same_v<T, arith::MaxSIOp>)
+        return std::max(std::get<unsigned>(lhs), std::get<unsigned>(rhs));
     }
 
     assert(std::holds_alternative<Value>(lhs) &&
