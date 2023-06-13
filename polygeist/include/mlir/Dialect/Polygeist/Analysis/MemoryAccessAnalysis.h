@@ -489,11 +489,6 @@ private:
   /// zero, and false otherwise.
   bool hasZeroIndex(const affine::MemRefAccess &access) const;
 
-  /// Returns the unique definition for the operand at index \p opIndex in
-  /// operation \p op, or std::nullopt if it does not have a unique definition.
-  std::optional<Definition> getUniqueDefinition(unsigned opIndex, Operation *op,
-                                                DataFlowSolver &solver) const;
-
   /// Collect the underlying value(s) of the operand at index \p opIndex in
   /// operation \p op.
   /// For example given:
