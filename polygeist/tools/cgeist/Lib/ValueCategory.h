@@ -40,13 +40,6 @@ private:
             ElemTy};
   }
 
-  ValueCategory ICmp(mlir::OpBuilder &builder, mlir::Location Loc,
-                     mlir::arith::CmpIPredicate predicate,
-                     mlir::Value RHS) const;
-  ValueCategory FCmp(mlir::OpBuilder &builder, mlir::Location Loc,
-                     mlir::arith::CmpFPredicate predicate,
-                     mlir::Value RHS) const;
-
   mlir::Type getPointerType(mlir::Type ElementType,
                             unsigned AddressSpace) const;
 
@@ -133,6 +126,13 @@ public:
 
   ValueCategory Splat(mlir::OpBuilder &Builder, mlir::Location Loc,
                       mlir::Type VecTy) const;
+
+  ValueCategory ICmp(mlir::OpBuilder &builder, mlir::Location Loc,
+                     mlir::arith::CmpIPredicate predicate,
+                     mlir::Value RHS) const;
+  ValueCategory FCmp(mlir::OpBuilder &builder, mlir::Location Loc,
+                     mlir::arith::CmpFPredicate predicate,
+                     mlir::Value RHS) const;
 
   ValueCategory ICmpNE(mlir::OpBuilder &builder, mlir::Location Loc,
                        mlir::Value RHS) const;

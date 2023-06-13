@@ -131,6 +131,8 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:    [[LOCALID2:%.*]] = memref.load [[LOCALID2_]][%c0{{.*}}] : memref<?xindex>
 
 // CHECK:         [[TX:%.*]] = sycl.nd_item.get_global_id(%arg1, %c0{{.*}}) : (memref<?x!sycl_nd_item_3_>, i32) -> i64  
+// CHECK-NEXT:    [[TY:%.*]] = sycl.nd_item.get_global_id(%arg1, %c1{{.*}}) : (memref<?x!sycl_nd_item_3_>, i32) -> i64
+// CHECK-NEXT:    [[TZ:%.*]] = sycl.nd_item.get_global_id(%arg1, %c2{{.*}}) : (memref<?x!sycl_nd_item_3_>, i32) -> i64
 // CHECK-NEXT:    affine.for [[IV1:%.*]] = 0 to 256 {
 
 // COM: Get pointer to local memory:
@@ -158,8 +160,11 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-DAG:           [[IV1_CAST:%.*]] = arith.index_cast [[IV1]] : index to i64   
 // CHECK-DAG:           [[IV3_CAST:%.*]] = arith.index_cast [[IV3]] : index to i64 
 // CHECK-NEXT:          sycl.constructor @id([[ID:%.*]], [[TX]], [[IV1_CAST]], [[IV3_CAST]]) {{.*}} : (memref<?x!sycl_id_3_>, i64, i64, i64)
-// CHECK-NEXT:          [[SUBSCR:%.*]] = sycl.accessor.subscript %arg0[[[ID]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
-// CHECK-NEXT:          {{.*}} = affine.load [[SUBSCR]][0] : memref<?xf32>
+// CHECK-NEXT:          [[SUBSCR1:%.*]] = sycl.accessor.subscript %arg0[[[ID]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:          {{.*}} = affine.load [[SUBSCR1]][0] : memref<?xf32>
+// CHECK-NEXT:          sycl.constructor @id([[ID:%.*]], [[TX]], [[TY]], [[TZ]]) {{.*}} : (memref<?x!sycl_id_3_>, i64, i64, i64)
+// CHECK-NEXT:          [[SUBSCR2:%.*]] = sycl.accessor.subscript %arg0[[[ID]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:          {{.*}} = affine.load [[SUBSCR2]][0] : memref<?xf32>
 // CHECK-NEXT:        }
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
 // CHECK-NEXT:      }
@@ -174,14 +179,23 @@ func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: 
   %c1_i32 = arith.constant 1 : i32
   %c2_i32 = arith.constant 2 : i32
   %tx = sycl.nd_item.get_global_id(%arg1, %c0_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
+  %ty = sycl.nd_item.get_global_id(%arg1, %c1_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
+  %tz = sycl.nd_item.get_global_id(%arg1, %c2_i32) : (memref<?x!sycl_nd_item_3>, i32) -> i64
 
   affine.for %ii = 0 to 256 {
     affine.for %jj = 1 to 512 {
       %i = arith.index_cast %ii : index to i64
       %j = arith.index_cast %jj : index to i64
+
+      // Should use shared memory (access exhibits temporal locality).
       sycl.constructor @id(%id, %tx, %i, %j) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3>, i64, i64, i64)
       %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3>) -> memref<?xf32>
       %load1 = affine.load %subscr1[0] : memref<?xf32>
+
+      // Should use global memory (access is coalesced).
+      sycl.constructor @id(%id, %tx, %ty, %tz) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3>, i64, i64, i64)
+      %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3>) -> memref<?xf32>      
+      %load2 = affine.load %subscr2[0] : memref<?xf32>      
     }
   }
   return
