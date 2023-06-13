@@ -10,13 +10,6 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <sycl/sycl.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
-
 #define SG_SZ 16
 
 #include "joint_matrix_out_bounds_impl.hpp"
