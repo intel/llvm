@@ -55,12 +55,6 @@ runs:
       else
         echo "no TBB vars in /opt/runtimes or /runtimes";
       fi
-      # TODO remove workaround of FPGA emu bug
-      mkdir -p icd
-      echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd
-      echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
-      echo /opt/runtimes/oclcpu/x64/libintelocl.so > icd/cpu2.icd
-      export OCL_ICD_VENDORS=$PWD/icd
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
