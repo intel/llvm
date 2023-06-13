@@ -126,7 +126,7 @@ template <access::address_space Space, access::decorated DecorateAddress,
 multi_ptr<ElementType, Space, DecorateAddress>
 dynamic_address_space_cast(ElementType* ptr);
 ----
-_Preconditions_: `ptr` is accessible to the calling work-item.
+_Preconditions_: The memory at `ptr` is accessible to the calling work-item.
 
 _Returns_: A `multi_ptr` with the specified address space and decoration that
 points to the same object as `ptr` if `ptr` points to an object allocated in
