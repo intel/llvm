@@ -17,6 +17,3 @@ import datetime
 type: header
 desc: "Intel $OneApi Unified Runtime Experimental APIs for ${" ".join(name.split("-")).title()}"
 ordinal: "99"
---- #--------------------------------------------------------------------------
-## TODO - Add you experimental feature additions here
-##      - refer to YaML.md for the syntax defintion
