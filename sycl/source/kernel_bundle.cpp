@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/device_binary_image.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -302,10 +303,9 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
     // ESIMD emulator is only compatible with esimd kernels.
     if (BE == sycl::backend::ext_intel_esimd_emulator) {
       pi_device_binary_property Prop = Img.getProperty("isEsimdImage");
-      return(Prop && (DeviceBinaryProperty(Prop).asUint32() != 0));
+      return (Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0));
     }
     if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
-      if (sycl::detail::KernelInfo<KernelName>)
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);
     } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==

@@ -6,7 +6,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Just an example from https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_esimd
+// Just an example from
+// https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_esimd
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
@@ -23,16 +24,17 @@ int main() {
     }
 
     q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Test>(
-        Size / VL, [=](id<1> i)[[intel::sycl_explicit_simd]] {
-        auto offset = i * VL;
-        // pointer arithmetic, so offset is in elements:
-        simd<float, VL> va(A + offset);
-        simd<float, VL> vb(B + offset);
-        simd<float, VL> vc = va + vb;
-        vc.copy_to(C + offset);
-      });
-    }).wait_and_throw();
+       cgh.parallel_for<class Test>(Size / VL,
+                                    [=](id<1> i) [[intel::sycl_explicit_simd]] {
+                                      auto offset = i * VL;
+                                      // pointer arithmetic, so offset is in
+                                      // elements:
+                                      simd<float, VL> va(A + offset);
+                                      simd<float, VL> vb(B + offset);
+                                      simd<float, VL> vc = va + vb;
+                                      vc.copy_to(C + offset);
+                                    });
+     }).wait_and_throw();
     return 0;
   }
   return 1;
