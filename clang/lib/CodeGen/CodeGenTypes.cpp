@@ -419,8 +419,10 @@ llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
            "Wrong JointMatrixINTEL template parameter");
     Params.push_back(TemplateArgs[I].getAsIntegral().getExtValue());
   }
-  // Don't add type interpretation for legacy matrices
-  if (NeedTypeInterpret && Params.size() != 4)
+  // Don't add type interpretation for legacy matrices.
+  // Legacy matrices has 5 template parameters, while new representation
+  // has 6.
+  if (NeedTypeInterpret && TemplateArgs.size() != 5)
     Params.push_back(Val);
 
   return llvm::TargetExtType::get(CompTy->getContext(),
@@ -767,12 +769,12 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
       const Type *ClangETy = ETy.getTypePtrOrNull();
       if (ClangETy && ClangETy->isStructureOrClassType()) {
-      RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
-      if (RD &&
-          RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
-          ResultType = ConvertSYCLJointMatrixINTELType(RD);
-          break;
-      }
+        RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
+        if (RD &&
+            RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
+            ResultType = ConvertSYCLJointMatrixINTELType(RD);
+            break;
+        }
       }
     }
 
