@@ -66,7 +66,7 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<RT::PiQueue>(clQueue),
+      reinterpret_cast<sycl::detail::pi::PiQueue>(clQueue),
       detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
