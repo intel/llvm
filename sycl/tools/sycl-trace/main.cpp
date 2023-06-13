@@ -27,7 +27,8 @@ int main(int argc, char **argv, char *env[]) {
           clEnumValN(CU, "cuda", "Trace CUDA Driver API calls"),
           clEnumValN(SYCL, "sycl", "Trace SYCL API calls"),
           clEnumValN(VERIFY, "verify",
-                     "Experimental. Verify API call parameters")));
+                     "Experimental. Verify PI API call parameters. To be used "
+                     "in pair with --plugin")));
   cl::opt<PrintFormatKind> PrintFormat(
       "print-format", cl::desc("Print format"),
       cl::values(
