@@ -22,6 +22,8 @@ RUN apt install -yqq libnuma-dev wget gnupg2 && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
+
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
 # discover user home directory and fail a few LIT tests. Fixes UID and GID to
