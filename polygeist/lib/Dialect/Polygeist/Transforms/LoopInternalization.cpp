@@ -647,8 +647,10 @@ void LoopInternalization::runOnOperation() {
     if (!kernel.isKernel() || !isCandidateKernel(kernel))
       return;
 
-    kernelBodyFuncs.merge(
-        funcKernelInfo.getPotentialKernelBodyFunctions(kernel));
+    llvm::SmallSet<FunctionOpInterface, 4> bodyFuncs =
+        funcKernelInfo.getPotentialKernelBodyFunctions(kernel);
+    for (FunctionOpInterface func : bodyFuncs)
+      kernelBodyFuncs.insert(func);
   });
 
   // Transform each kernel body function.
