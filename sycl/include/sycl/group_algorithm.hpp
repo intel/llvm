@@ -15,6 +15,7 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
@@ -207,6 +208,17 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
            std::is_same_v<decltype(binary_op(x, x)), float>),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    sycl::vec<unsigned, 4> MemberMask =
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g));
+#if (__SYCL_CUDA_ARCH__ >= 800)
+    return detail::masked_reduction_cuda_sm80(g, x, binary_op, MemberMask[0]);
+#else
+    return detail::masked_reduction_cuda_shfls(g, x, binary_op, MemberMask[0]);
+#endif
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::Reduce>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
@@ -375,6 +387,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 any_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAny(g, pred);
 #else
   (void)g;
@@ -415,6 +433,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 all_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, pred);
 #else
   (void)g;
@@ -455,6 +479,12 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 none_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                !pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, !pred);
 #else
   (void)g;
@@ -573,6 +603,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                  T>
 group_broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    auto LocalId = detail::IdToMaskPosition(g, local_id);
+    return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0],
+                                    x, LocalId, 31);
+  }
+#endif
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
   (void)g;
@@ -636,6 +673,13 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
                      std::is_same_v<decltype(binary_op(x, x)), float>),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::ExclusiveScan>(
+        g, x, binary_op,
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g))[0]);
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
@@ -865,6 +909,13 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
                      std::is_same_v<decltype(binary_op(x, x)), float>),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::InclusiveScan>(
+        g, x, binary_op,
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g))[0]);
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
