@@ -191,8 +191,9 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
   if (!isa<affine::AffineForOp, scf::ForOp>(*innermostLoop))
     return false;
 
-  assert(innermostLoop->getSingleInductionVar() &&
-         "Expecting single induction variable for affine and scf loops");
+  assert(
+      innermostLoop->getSingleInductionVar() &&
+      "Expecting single induction variable for affine for and scf for loops");
 
   return true;
 }
