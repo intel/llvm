@@ -319,14 +319,15 @@ template <> struct hash<llvm::rdf::RegisterAggr> {
 };
 
 template <> struct equal_to<llvm::rdf::RegisterRef> {
-  constexpr equal_to(const llvm::rdf::PhysicalRegisterInfo &pri) : PRI(pri) {}
+  constexpr equal_to(const llvm::rdf::PhysicalRegisterInfo &pri) : PRI(&pri) {}
 
   bool operator()(llvm::rdf::RegisterRef A, llvm::rdf::RegisterRef B) const {
-    return PRI.equal_to(A, B);
+    return PRI->equal_to(A, B);
   }
 
 private:
-  const llvm::rdf::PhysicalRegisterInfo &PRI;
+  // Make it a pointer just in case. See comment in `less` below.
+  const llvm::rdf::PhysicalRegisterInfo *PRI;
 };
 
 template <> struct equal_to<llvm::rdf::RegisterAggr> {
@@ -337,14 +338,16 @@ template <> struct equal_to<llvm::rdf::RegisterAggr> {
 };
 
 template <> struct less<llvm::rdf::RegisterRef> {
-  constexpr less(const llvm::rdf::PhysicalRegisterInfo &pri) : PRI(pri) {}
+  constexpr less(const llvm::rdf::PhysicalRegisterInfo &pri) : PRI(&pri) {}
 
   bool operator()(llvm::rdf::RegisterRef A, llvm::rdf::RegisterRef B) const {
-    return PRI.less(A, B);
+    return PRI->less(A, B);
   }
 
 private:
-  const llvm::rdf::PhysicalRegisterInfo &PRI;
+  // Make it a pointer because apparently some versions of MSVC use std::swap
+  // on the std::less specialization.
+  const llvm::rdf::PhysicalRegisterInfo *PRI;
 };
 
 } // namespace std

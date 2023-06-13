@@ -38,13 +38,9 @@
 #include <utility>
 #include <vector>
 
-using namespace llvm;
-using namespace rdf;
-
 // Printing functions. Have them here first, so that the rest of the code
 // can use them.
-namespace llvm {
-namespace rdf {
+namespace llvm::rdf {
 
 raw_ostream &operator<<(raw_ostream &OS, const Print<RegisterRef> &P) {
   P.G.getPRI().print(OS, P.Obj);
@@ -328,9 +324,6 @@ raw_ostream &operator<<(raw_ostream &OS,
   }
   return OS;
 }
-
-} // end namespace rdf
-} // end namespace llvm
 
 // Node allocation functions.
 //
@@ -805,8 +798,7 @@ Node DataFlowGraph::cloneNode(const Node B) {
 
 // Allocation routines for specific node types/kinds.
 
-rdf::Use DataFlowGraph::newUse(Instr Owner, MachineOperand &Op,
-                               uint16_t Flags) {
+Use DataFlowGraph::newUse(Instr Owner, MachineOperand &Op, uint16_t Flags) {
   Use UA = newNode(NodeAttrs::Ref | NodeAttrs::Use | Flags);
   UA.Addr->setRegRef(&Op, *this);
   return UA;
@@ -1744,3 +1736,5 @@ void DataFlowGraph::unlinkDefDF(Def DA) {
     RDA.Addr->setReachedUse(ReachedUses.front().Id);
   }
 }
+
+} // end namespace llvm::rdf

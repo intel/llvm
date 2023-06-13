@@ -374,11 +374,13 @@ struct StmtNode;
 struct BlockNode;
 struct FuncNode;
 
+// Use these short names with rdf:: qualification to avoid conflicts with
+// preexisting names. Do not use 'using namespace rdf'.
 using Node = NodeAddr<NodeBase *>;
 
 using Ref = NodeAddr<RefNode *>;
 using Def = NodeAddr<DefNode *>;
-using Use = NodeAddr<UseNode *>;
+using Use = NodeAddr<UseNode *>; // This may conflict with llvm::Use.
 using PhiUse = NodeAddr<PhiUseNode *>;
 
 using Code = NodeAddr<CodeNode *>;
@@ -965,7 +967,6 @@ raw_ostream &operator<<(raw_ostream &OS,
                         const Print<DataFlowGraph::DefStack> &P);
 
 } // end namespace rdf
-
 } // end namespace llvm
 
 #endif // LLVM_CODEGEN_RDFGRAPH_H
