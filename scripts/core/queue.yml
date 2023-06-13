@@ -64,10 +64,10 @@ etors:
       desc: "High priority queue"
     - name: SUBMISSION_BATCHED
       value: "$X_BIT(7)"
-      desc: "Enqueue and submit in a batch later, as determined by adaptor or driver"
+      desc: "Hint: enqueue and submit in a batch later. No change in queue semantics. Implementation chooses submission mode."
     - name: SUBMISSION_IMMEDIATE
       value: "$X_BIT(8)"
-      desc: "Enqueue and submit immediately"
+      desc: "Hint: enqueue and submit immediately. No change in queue semantics. Implementation chooses submission mode."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a command queue"
