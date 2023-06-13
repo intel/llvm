@@ -41,17 +41,19 @@ private:
   static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
                                     size_t size, std::string FunctionName) {
     void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
-    bool NeedsTerminate = false;
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
     if (PtrToValidate == nullptr) {
-      std::cerr << "Function uses nullptr as " << ParameterDesc << ".\n";
-      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << std::endl;
+      std::cerr << PrintPrefix << "Function uses nullptr as " << ParameterDesc
+                << ".\n";
+      std::cerr << PrintIndentation << FunctionName << " location: ";
       std::cerr << " function " << GS.LastTracepoint.Function << " at ";
       std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
+      return;
     }
 
     for (const auto &Alloc : GS.ActivePointers) {
@@ -64,18 +66,15 @@ private:
         const void *CopyRegionEnd =
             static_cast<const char *>(PtrToValidate) + size;
         if (CopyRegionEnd > End) {
-          std::cerr << "Requested " << FunctionName
+          std::cerr << std::endl;
+          std::cerr << PrintPrefix << "Requested " << FunctionName
                     << " range exceeds allocated USM memory size for "
                     << ParameterDesc << ".\n";
-          NeedsTerminate = true;
-        }
-
-        if (NeedsTerminate) {
-          std::cerr << "  Allocation location: ";
+          std::cerr << PrintIndentation << "Allocation location: ";
           std::cerr << " function " << Alloc.second.Location.Function << " at ";
           std::cerr << Alloc.second.Location.Source << ":"
                     << Alloc.second.Location.Line << "\n";
-          std::cerr << "  " << FunctionName << " location: ";
+          std::cerr << PrintIndentation << FunctionName << " location: ";
           std::cerr << " function " << GS.LastTracepoint.Function << " at ";
           std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                     << "\n";
@@ -87,10 +86,12 @@ private:
     }
 
     if (!PointerFound) {
-      std::cerr << "Function uses unknown USM pointer (could be already "
+      std::cerr << std::endl;
+      std::cerr << PrintPrefix
+                << "Function uses unknown USM pointer (could be already "
                    "released or not allocated as USM) as "
                 << ParameterDesc << ".\n";
-      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << PrintIndentation << FunctionName << " location: ";
       std::cerr << " function " << GS.LastTracepoint.Function << " at ";
       std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
@@ -103,31 +104,34 @@ private:
                                     size_t pitch, size_t width, size_t length,
                                     std::string FunctionName) {
     void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
-    bool NeedsTerminate = false;
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
 
-    if (width > length) // TO DO: check if validated in RT
-    {
-      std::cerr << "Requested " << FunctionName
+    if (width > length) {
+      std::cerr << std::endl;
+      std::cerr << PrintPrefix << "Requested " << FunctionName
                 << " width is greater than pitch for  " << ParameterDesc
                 << ".\n";
-      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << PrintIndentation << FunctionName << " location: ";
       std::cerr << " function " << GS.LastTracepoint.Function << " at ";
       std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
+      return;
     }
 
     if (PtrToValidate == nullptr) {
-      std::cerr << "Function uses nullptr as " << ParameterDesc << ".\n";
-      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << std::endl;
+      std::cerr << PrintPrefix << "Function uses nullptr as " << ParameterDesc
+                << ".\n";
+      std::cerr << PrintIndentation << FunctionName << " location: ";
       std::cerr << " function " << GS.LastTracepoint.Function << " at ";
       std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
+      return;
     }
 
     for (const auto &Alloc : GS.ActivePointers) {
@@ -139,31 +143,31 @@ private:
         const void *CopyRegionEnd =
             static_cast<const char *>(PtrToValidate) + pitch * length;
         if (CopyRegionEnd > End) {
-          std::cerr << "Requested " << FunctionName
+          std::cerr << std::endl;
+          std::cerr << PrintPrefix << "Requested " << FunctionName
                     << " range exceeds allocated USM memory size for "
                     << ParameterDesc << ".\n";
-          NeedsTerminate = true;
-        }
-
-        if (NeedsTerminate) {
-          std::cerr << "  Allocation location: ";
+          std::cerr << PrintIndentation << "Allocation location: ";
           std::cerr << " function " << Alloc.second.Location.Function << " at ";
           std::cerr << Alloc.second.Location.Source << ":"
                     << Alloc.second.Location.Line << "\n";
-          std::cerr << "  " << FunctionName << " location: ";
+          std::cerr << PrintIndentation << FunctionName << " location: ";
           std::cerr << " function " << GS.LastTracepoint.Function << " at ";
           std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                     << "\n";
           if (GS.TerminateOnError)
             std::terminate();
         }
+
         break;
       }
     }
     if (!PointerFound) {
-      std::cerr << "Function uses unknown USM pointer (could be already "
+      std::cerr << std::endl;
+      std::cerr << PrintPrefix
+                << "Function uses unknown USM pointer (could be already "
                    "released or not allocated as USM).\n";
-      std::cerr << "  " << FunctionName << " location: ";
+      std::cerr << PrintIndentation << FunctionName << " location: ";
       std::cerr << " function " << GS.LastTracepoint.Function << " at ";
       std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
@@ -171,6 +175,9 @@ private:
         std::terminate();
     }
   }
+
+  static const std::string PrintPrefix;
+  static const std::string PrintIndentation;
 
 public:
   // TO DO: allocations must be tracked with device
@@ -278,9 +285,11 @@ public:
                             pi_context, void *Ptr) {
     auto &GS = USMAnalyzer::getInstance();
     if (GS.ActivePointers.count(Ptr) == 0) {
-      std::cerr << "Attempt to free pointer " << std::hex << Ptr;
+      std::cerr << std::endl;
+      std::cerr << PrintPrefix << "Attempt to free pointer " << std::hex << Ptr;
       std::cerr << " that was not allocated with SYCL USM APIs.\n";
-      std::cerr << "  Location: function " << GS.LastTracepoint.Function;
+      std::cerr << PrintIndentation << "Location: function "
+                << GS.LastTracepoint.Function;
       std::cerr << " at " << GS.LastTracepoint.Source << ":";
       std::cerr << std::dec << GS.LastTracepoint.Line << "\n";
       if (GS.TerminateOnError)
@@ -302,22 +311,24 @@ public:
       if (HostPtr >= Begin && HostPtr <= End) {
         bool NeedsTerminate = false;
         if (Alloc.second.Kind != AllocKind::host) {
-          std::cerr << "Attempt to construct a buffer with non-host pointer.\n";
+          std::cerr << PrintPrefix
+                    << "Attempt to construct a buffer with non-host pointer.\n";
           NeedsTerminate = true;
         }
 
         const void *HostEnd = static_cast<char *>(HostPtr) + Size;
         if (HostEnd > End) {
-          std::cerr << "Buffer size exceeds allocated host memory size.\n";
+          std::cerr << PrintPrefix
+                    << "Buffer size exceeds allocated host memory size.\n";
           NeedsTerminate = true;
         }
 
         if (NeedsTerminate) {
-          std::cerr << "  Allocation location: ";
+          std::cerr << PrintIndentation << "Allocation location: ";
           std::cerr << " function " << Alloc.second.Location.Function << " at ";
           std::cerr << Alloc.second.Location.Source << ":"
                     << Alloc.second.Location.Line << "\n";
-          std::cerr << "  Buffer location: ";
+          std::cerr << PrintIndentation << "Buffer location: ";
           std::cerr << " function " << GS.LastTracepoint.Function << " at ";
           std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                     << "\n";
@@ -405,3 +416,6 @@ public:
           "parallel_for/single_task");
   }
 };
+
+const std::string USMAnalyzer::PrintPrefix = "[USM] ";
+const std::string USMAnalyzer::PrintIndentation = "      | ";
