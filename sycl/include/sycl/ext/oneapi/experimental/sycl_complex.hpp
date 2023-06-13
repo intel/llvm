@@ -982,14 +982,6 @@ tan(const complex<_Tp> &__x) {
 // Literal suffix for complex number literals [complex.literals]
 inline namespace literals {
 inline namespace complex_literals {
-constexpr complex<sycl::half> operator""il(long double __im) {
-  return {0.0, static_cast<sycl::half>(__im)};
-}
-
-constexpr complex<sycl::half> operator""il(unsigned long long __im) {
-  return {0.0, static_cast<sycl::half>(__im)};
-}
-
 constexpr complex<double> operator""i(long double __im) {
   return {0.0, static_cast<double>(__im)};
 }

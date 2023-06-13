@@ -186,6 +186,15 @@ void check_sycl_constructor_from_std() {
   }
 }
 
+// Check types for sycl complex constructed from literals
+void check_sycl_complex_literals() {
+  auto complex_f = std::complex<float>{42.f, 42.f};
+  auto complex_d = std::complex<double>{42.0, 42.0};
+
+  static_assert(std::is_same_v<decltype(0.3if), decltype(complex_f)>);
+  static_assert(std::is_same_v<decltype(0.3i), decltype(complex_d)>);
+}
+
 int main() {
   check_math_function_types();
   check_math_operator_types();
@@ -194,6 +203,8 @@ int main() {
 
   check_std_to_sycl_conversion();
   check_sycl_constructor_from_std();
+
+  check_sycl_complex_literals();
 
   return 0;
 }
