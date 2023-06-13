@@ -283,3 +283,26 @@ func.func @test_get_group_bad_ret_type(%nd: memref<?x!sycl_nd_item_1_>, %i: i32)
   %0 = sycl.nd_item.get_group(%nd, %i) : (memref<?x!sycl_nd_item_1_>, i32) -> !sycl_group_1_
   return %0 : !sycl_group_1_
 }
+
+// -----
+
+// expected-error @below {{Integer SYCL vector element types can only be i1, i8, i16, i32 or i64. Got 'i2'.}}
+func.func @test_vec_i2(%v: !sycl.vec<[i2, 2], (vector<2xi2>)>) {
+  return
+}
+
+// -----
+
+// expected-error @below {{FP SYCL vector element types can only be half, float or double. Got 'f80'.}}
+func.func @test_vec_f80(%v: !sycl.vec<[f80, 2], (vector<2xi2>)>) {
+  return
+}
+
+// -----
+
+!sycl_vec_i8_1_ = !sycl.vec<[i8, 1], (vector<1xi8>)>
+
+// expected-error @below {{SYCL vector types can only hold basic scalar types. Got '!sycl.vec<[i8, 1], (vector<1xi8>)>'.}}
+func.func @test_vec_nonscalar(%v: !sycl.vec<[!sycl_vec_i8_1_, 2], (vector<2x1xi8>)>) {
+  return
+}

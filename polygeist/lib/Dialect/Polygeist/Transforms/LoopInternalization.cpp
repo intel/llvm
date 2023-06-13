@@ -46,6 +46,10 @@ using namespace mlir::polygeist;
 
 namespace {
 
+//===----------------------------------------------------------------------===//
+// ValueOrUnsigned
+//===----------------------------------------------------------------------===//
+
 /// This class contains utilities to create or manipulate 'std::variant<Value,
 /// unsigned>'.
 class ValueOrUnsigned {
@@ -109,11 +113,11 @@ public:
                 OpBuilder builder) {
     auto ndItemTy = cast<sycl::NdItemType>(
         cast<MemRefType>(ndItem.getType()).getElementType());
-    assert((reqdWorkGroupSize.empty() ||
-            reqdWorkGroupSize.size() == ndItemTy.getDimension()) &&
+    const unsigned numDims = ndItemTy.getDimension();
+    assert((reqdWorkGroupSize.empty() || reqdWorkGroupSize.size() == numDims) &&
            "Expecting reqdWorkGroupSize to have same number of elements as "
            "nd_item dimension");
-    for (unsigned dim = 0; dim < ndItemTy.getDimension(); ++dim) {
+    for (unsigned dim = 0; dim < numDims; ++dim) {
       /// Use constants provided by reqd_work_group_size if given (non-empty).
       if (!reqdWorkGroupSize.empty())
         wgSizes.push_back(reqdWorkGroupSize[dim]);
@@ -215,25 +219,25 @@ Value getNdItemArgument(FunctionOpInterface func) {
 }
 
 /// Get the size of unused shared local memory arena in bytes.
-unsigned getLocalMemoryRemain(gpu::GPUModuleOp &module,
-                              unsigned localMemorySize) {
+unsigned getLocalMemoryRemaining(gpu::GPUModuleOp &module,
+                                 unsigned localMemorySize) {
   assert(module.hasTrait<OpTrait::SymbolTable>() &&
          "Expecting module with SymbolTable trait");
-  unsigned localMemoryRemain = localMemorySize;
-  module.walk([&localMemoryRemain](memref::GlobalOp global) {
+  unsigned localMemoryRemaining = localMemorySize;
+  module.walk([&localMemoryRemaining](memref::GlobalOp global) {
     MemRefType memRefTy = global.getType();
     if (!isLocalAccessAddrSpace(memRefTy))
       return WalkResult::advance();
     unsigned globalSize =
         memRefTy.getElementTypeBitWidth() * memRefTy.getNumElements() / 8;
-    if (globalSize >= localMemoryRemain) {
-      localMemoryRemain = 0;
+    if (globalSize >= localMemoryRemaining) {
+      localMemoryRemaining = 0;
       return WalkResult::interrupt();
     }
-    localMemoryRemain -= globalSize;
+    localMemoryRemaining -= globalSize;
     return WalkResult::advance();
   });
-  return localMemoryRemain;
+  return localMemoryRemaining;
 }
 
 /// Get the required local memory for \p accTy in bytes.
@@ -243,7 +247,8 @@ getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   std::variant<Value, unsigned> reqdLocalMemory =
       ValueOrUnsigned::get(elemSize, builder, workGroupSize.hasElemTy<Value>());
-  for (unsigned dim = 0; dim < accTy.getDimension(); ++dim)
+  const unsigned numDims = accTy.getDimension();
+  for (unsigned dim = 0; dim < numDims; ++dim)
     reqdLocalMemory =
         ValueOrUnsigned::mul(reqdLocalMemory, workGroupSize[dim], builder);
   return reqdLocalMemory;
@@ -255,7 +260,8 @@ unsigned getReqdLocalMemory(sycl::AccessorType accTy,
   assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   unsigned memrefReqdLocalMemory = elemSize;
-  for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
+  const unsigned numDims = accTy.getDimension();
+  for (unsigned dim = 0; dim < numDims; ++dim) {
     memrefReqdLocalMemory *= reqdWorkGroupSize[dim];
   }
   return memrefReqdLocalMemory;
@@ -405,6 +411,7 @@ bool mayConflictWithWriteInLoop(affine::MemRefAccess memRefAccess,
 /// Collect memory accesses in a loop and determine the memory space each
 /// access should ideally use.
 class MemorySelector {
+
 public:
   MemorySelector(MemoryAccessAnalysis &memAccessAnalysis,
                  AliasAnalysis &aliasAnalysis, DataFlowSolver &solver)
@@ -424,13 +431,14 @@ public:
   void analyze(LoopLikeOpInterface loop, AccessKind accessKind);
 
 private:
+  /// Return the ideal memory space for \p memAccess.
+  MemorySpace selectMemorySpace(const MemoryAccess &memAccess,
+                                ArrayRef<Value> threadVars,
+                                AccessKind accessKind) const;
+
   /// Return true iff no memref accesses in \p accesses are stores.
   bool areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
                    LoopLikeOpInterface loop);
-
-  /// Determine whether \p memRefAccess exhibits temporal reuse.
-  bool hasTemporalReuse(const affine::MemRefAccess &memRefAccess,
-                        const SmallVectorImpl<Value> &threadVars) const;
 
 private:
   MemoryAccessAnalysis &memAccessAnalysis;
@@ -440,6 +448,32 @@ private:
   /// The preferred memory space for each memref access.
   DenseMap<Value, MemorySpace> memRefAccessToMemSpace;
 };
+
+[[maybe_unused]] raw_ostream &
+operator<<(raw_ostream &os, const MemorySelector::AccessKind &accessKind) {
+  switch (accessKind) {
+  case MemorySelector::AccessKind::ReadOnly:
+    return os << "read-only";
+  case MemorySelector::AccessKind::WriteOnly:
+    return os << "write-only";
+  case MemorySelector::AccessKind::ReadWrite:
+    return os << "read-write";
+  }
+}
+
+[[maybe_unused]] raw_ostream &
+operator<<(raw_ostream &os, const MemorySelector::MemorySpace &memSpace) {
+  switch (memSpace) {
+  case MemorySelector::MemorySpace::Global:
+    return os << "global";
+  case MemorySelector::MemorySpace::Shared:
+    return os << "shared";
+  case MemorySelector::MemorySpace::Constant:
+    return os << "constant";
+  case MemorySelector::MemorySpace::Texture:
+    return os << "texture";
+  }
+}
 
 std::optional<MemorySelector::MemorySpace>
 MemorySelector::getMemorySpace(Value memref) const {
@@ -490,78 +524,67 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
       continue;
     }
 
-    // Get the inter-thread access pattern and classify the memory access.
+    memRefAccessToMemSpace[memRef] =
+        selectMemorySpace(*memAccess, threadVars, accessKind);
+
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << memRefAccessToMemSpace.at(memRef) << " memory space\n");
+  }
+}
+
+MemorySelector::MemorySpace
+MemorySelector::selectMemorySpace(const MemoryAccess &memAccess,
+                                  ArrayRef<Value> threadVars,
+                                  AccessKind accessKind) const {
+  const unsigned gridDimension = threadVars.size();
+
+  // Whether the memory access is (partially) coalesced or not.
+  auto isCoalesced = [&](const MemoryAccess &memAccess) {
     MemoryAccessMatrix interThreadMatrix =
-        memAccess->getInterThreadAccessMatrix(threadVars.size());
+        memAccess.getInterThreadAccessMatrix(gridDimension);
     MemoryAccessPattern interThreadAccessPattern =
-        MemoryAccess::classify(interThreadMatrix, memAccess->getOffsetVector());
+        MemoryAccess::classify(interThreadMatrix, memAccess.getOffsetVector());
 
     switch (interThreadAccessPattern) {
     case Linear:
     case Reverse:
     case ReverseLinear:
       // These patterns imply fully coalesced memory accesses.
-      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
-      break;
+      return true;
     case Shifted:
     case LinearShifted:
     case ReverseLinearShifted:
     case LinearOverlapped:
     case ReverseLinearOverlapped:
       // These patterns imply partially coalesced memory accesses.
-      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
-      break;
-    case Strided:
-    case ReverseStrided:
-    case StridedShifted:
-    case ReverseStridedShifted:
-    case Overlapped:
-    case StridedOverlapped:
-    case ReverseStridedOverlapped: {
-      dataflow::IntegerValueRange strideRange =
-          interThreadMatrix(interThreadMatrix.getNumRows() - 1,
-                            interThreadMatrix.getNumColumns() - 1);
-
-      if (strideRange.isUninitialized()) {
-        memRefAccessToMemSpace[memRef] = MemorySpace::Global;
-        break;
-      }
-
-      // Use shared memory iff:
-      //   - the memory access exhibits temporal reuse, and
-      //   - the stride is greater than a sufficiently large value (small
-      //     stride values yield partially coalesed memory accesses).
-      // Note that a zero stride is indicative of non-coalesed accesses.
-      // Example (assume tx,ty are global thread ids):
-      //     for(k)
-      //       ... = A[{tx, k}] // increasing tx's values read across rows.
-      // The inter-thread access matrix for A's load is:
-      //   1 0
-      //   0 C <- where C == 0 (C is the stride).
-      bool useSharedMemory = false;
-      ConstantIntRanges range = strideRange.getValue();
-      if (std::optional<APInt> stride = range.getConstantValue()) {
-        bool strideIsLargeEnough = stride->sgt(8) || stride->slt(-8);
-        useSharedMemory = hasTemporalReuse(memRefAccess, threadVars) &&
-                          (stride->isZero() || strideIsLargeEnough);
-      }
-
-      memRefAccessToMemSpace[memRef] =
-          useSharedMemory ? MemorySpace::Shared : MemorySpace::Global;
-    } break;
+      return true;
     default:
-      memRefAccessToMemSpace[memRef] = MemorySpace::Global;
+      return false;
     }
+  };
 
-    LLVM_DEBUG({
-      if (memRefAccessToMemSpace.at(memRef) == MemorySpace::Shared)
-        llvm::dbgs().indent(2) << "shared memory space\n";
-      else {
-        assert(memRefAccessToMemSpace.at(memRef) == MemorySpace::Global);
-        llvm::dbgs().indent(2) << "global memory space\n";
-      }
-    });
+  // A non-zero intra-thread access matrix implies several threads access
+  // the same array element (in a loop).
+  bool hasTemporalReuse =
+      !memAccess.getIntraThreadAccessMatrix(gridDimension).isZero();
+
+  MemorySpace memSpace = MemorySpace::Global;
+  switch (accessKind) {
+  case AccessKind::ReadOnly:
+    if (hasTemporalReuse)
+      memSpace = MemorySpace::Shared;
+    else if (isCoalesced(memAccess))
+      memSpace = MemorySpace::Global;
+    else
+      memSpace = MemorySpace::Texture;
+    break;
+  case AccessKind::ReadWrite:
+  case AccessKind::WriteOnly:
+    memSpace = hasTemporalReuse ? MemorySpace::Shared : MemorySpace::Global;
+    break;
   }
+
+  return memSpace;
 }
 
 bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
@@ -571,19 +594,6 @@ bool MemorySelector::areReadOnly(ArrayRef<affine::MemRefAccess> memRefAccesses,
         return memRefAccess.isStore() ||
                mayConflictWithWriteInLoop(memRefAccess, loop, aliasAnalysis);
       });
-}
-
-bool MemorySelector::hasTemporalReuse(
-    const affine::MemRefAccess &memRefAccess,
-    const SmallVectorImpl<Value> &threadVars) const {
-  std::optional<MemoryAccess> access =
-      memAccessAnalysis.getMemoryAccess(memRefAccess);
-  if (!access)
-    return false;
-
-  // A non-zero intra-thread access matrix implies that multiple threads access
-  // the same array element (in a loop).
-  return !access->getIntraThreadAccessMatrix(threadVars.size()).isZero();
 }
 
 //===----------------------------------------------------------------------===//
@@ -606,10 +616,15 @@ private:
   /// Determine the tile size for \p loop.
   Value getTileSize(LoopLikeOpInterface loop) const;
 
+  /// Transform a candidate kernel body function.
+  void transform(FunctionOpInterface func,
+                 const FunctionKernelInfo &funcKernelInfo,
+                 const unsigned localMemoryRemaining);
+
   /// Transform a candidate loop.
   template <typename T>
   void transform(T loop, memref::GlobalOp workGroupLocalMemory,
-                 const WorkGroupSize &workGroupSize);
+                 ArrayRef<Value> localIDs, const WorkGroupSize &workGroupSize);
 
 private:
   /// A map from a candidate loop to shared memref values used in the loop.
@@ -617,18 +632,13 @@ private:
 };
 
 void LoopInternalization::runOnOperation() {
-  Operation *module = getOperation();
-  ModuleAnalysisManager mam(module, /*passInstrumentor=*/nullptr);
+  gpu::GPUModuleOp gpuModule = getOperation();
+  ModuleAnalysisManager mam(gpuModule, /*passInstrumentor=*/nullptr);
   AnalysisManager am = mam;
   auto &memAccessAnalysis =
       am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
-  auto gpuModule = dyn_cast<gpu::GPUModuleOp>(
-      module->getRegion(0).front().getOperations().front());
-  if (!gpuModule)
-    return;
-
   FunctionKernelInfo funcKernelInfo(gpuModule);
 
   // Collect kernel body functions of candidate kernels.
@@ -643,6 +653,7 @@ void LoopInternalization::runOnOperation() {
     else
       toRemove.insert(func);
   });
+
   // If func is a kernel body function of a non-candidate kernel, then remove it
   // from the set.
   for (FunctionOpInterface func : toRemove)
@@ -669,9 +680,9 @@ void LoopInternalization::runOnOperation() {
     }
 
     // Ensure there is local memory to be used.
-    unsigned localMemoryRemain =
-        getLocalMemoryRemain(gpuModule, localMemorySize);
-    if (localMemoryRemain == 0)
+    unsigned localMemoryRemaining =
+        getLocalMemoryRemaining(gpuModule, localMemorySize);
+    if (localMemoryRemaining == 0)
       return;
 
     // Select the ideal memory space for memref accesses in candidate loops
@@ -698,36 +709,7 @@ void LoopInternalization::runOnOperation() {
       // prioritize(memAccessAnalysis, solver);
     });
 
-    // Calculate the required local memory for all accesses in
-    // loopToSharedMemref to be promoted.
-    SmallVector<gpu::GPUFuncOp> kernels;
-    funcKernelInfo.getKernelCallers(func, kernels);
-    sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
-    Optional<unsigned> reqdLocalMemory =
-        getReqdLocalMemory(loopToSharedMemref, reqdWorkGroupSize);
-    if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemain) {
-      LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
-      return;
-    }
-
-    memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
-        gpuModule,
-        reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemain);
-
-    // Get or create work group size.
-    Value ndItem = getNdItemArgument(func);
-    OpBuilder builder(func->getRegion(0));
-    WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
-
-    // Now that we have a list of memref to promote to shared memory in each
-    // loop nest's innermost loop, perform the transformation.
-    for (auto &entry : loopToSharedMemref) {
-      TypeSwitch<Operation *>(entry.first)
-          .Case<affine::AffineForOp, scf::ForOp>([&](auto loop) {
-            transform(loop, workGroupLocalMemory, workGroupSize);
-          });
-    }
-    loopToSharedMemref.clear();
+    transform(func, funcKernelInfo, localMemoryRemaining);
   }
 }
 
@@ -772,12 +754,71 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop) const {
                                                 tileSize);
 }
 
+void LoopInternalization::transform(FunctionOpInterface func,
+                                    const FunctionKernelInfo &funcKernelInfo,
+                                    const unsigned localMemoryRemaining) {
+  // Calculate the required local memory for all accesses in
+  // loopToSharedMemref to be promoted.
+  SmallVector<gpu::GPUFuncOp> kernels;
+  funcKernelInfo.getKernelCallers(func, kernels);
+  sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
+  Optional<unsigned> reqdLocalMemory =
+      getReqdLocalMemory(loopToSharedMemref, reqdWorkGroupSize);
+  if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemaining) {
+    LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
+    return;
+  }
+
+  auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
+  memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
+      gpuModule,
+      reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemaining);
+
+  // Get or create work group size.
+  Value ndItem = getNdItemArgument(func);
+  OpBuilder builder(func->getRegion(0));
+  WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
+
+  // Create SYCL local ids corresponding to the grid dimensionality (per
+  // kernel).
+  SmallVector<Value> localIDs;
+  Location loc = func.getLoc();
+  auto ndItemTy = cast<sycl::NdItemType>(
+      cast<MemRefType>(ndItem.getType()).getElementType());
+  const unsigned numDims = ndItemTy.getDimension();
+  const auto arrayType = builder.getType<sycl::ArrayType>(
+      numDims, MemRefType::get(numDims, builder.getIndexType()));
+  const auto idTy = builder.getType<sycl::IDType>(numDims, arrayType);
+  auto localID = builder.create<sycl::SYCLLocalIDOp>(loc, idTy);
+  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  builder.create<memref::StoreOp>(loc, localID, id, zeroIndex);
+  for (unsigned dim = 0; dim < numDims; ++dim) {
+    Value idGetOp = sycl::createSYCLIDGetOp(id, dim, builder, loc);
+    localIDs.push_back(builder.create<memref::LoadOp>(loc, idGetOp, zeroIndex));
+  }
+
+  // Now that we have a list of memref to promote to shared memory in each
+  // loop nest's innermost loop, perform the transformation.
+  for (auto &entry : loopToSharedMemref) {
+    TypeSwitch<Operation *>(entry.first)
+        .Case<affine::AffineForOp, scf::ForOp>([&](auto loop) {
+          transform(loop, workGroupLocalMemory, localIDs, workGroupSize);
+        });
+  }
+  loopToSharedMemref.clear();
+  localIDs.clear();
+}
+
 template <typename T>
 void LoopInternalization::transform(T loop,
                                     memref::GlobalOp workGroupLocalMemory,
+                                    ArrayRef<Value> localIDs,
                                     const WorkGroupSize &workGroupSize) {
   static_assert(llvm::is_one_of<T, affine::AffineForOp, scf::ForOp>::value);
   assert(LoopTools::isInnermostLoop(loop) && "Expecting an innermost loop");
+  assert(localIDs.size() >= 1 && localIDs.size() <= 3 &&
+         "Expecting valid localIDs");
   assert(loopToSharedMemref.find(loop) != loopToSharedMemref.end() &&
          "Loop should be in the map");
 
@@ -799,8 +840,16 @@ void LoopInternalization::transform(T loop,
   std::variant<Value, unsigned> offset =
       ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
   for (Operation *memref : memrefs) {
-    sycl::AccessorType accTy =
-        getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
+    auto accSub = cast<sycl::SYCLAccessorSubscriptOp>(memref);
+    sycl::AccessorType accTy = getAccessorType(accSub);
+    const auto idTy = cast<sycl::IDType>(
+        cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
+    // TODO: The current indexes used are incorrect.
+    TypedValue<MemRefType> id =
+        sycl::constructSYCLID(idTy, localIDs, builder, builder.getUnknownLoc());
+    sycl::createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder,
+                                        builder.getUnknownLoc());
+
     createViewOp(accTy, ValueOrUnsigned::getValue(offset, builder), getGlobalOp,
                  workGroupSize, builder, memref->getLoc());
 

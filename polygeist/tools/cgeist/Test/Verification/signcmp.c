@@ -19,11 +19,11 @@ unsigned int cmp2() {
 // CHECK-NEXT:     scf.if %0 {
 // CHECK-NEXT:       call @run() : () -> ()
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %1 = arith.extsi %0 : i1 to i32
+// CHECK-NEXT:     %1 = arith.extui %0 : i1 to i32
 // CHECK-NEXT:     return %1 : i32
 // CHECK-NEXT:   }
 // CHECK:   func @cmp2() -> i32 
-// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     call @run() : () -> ()
-// CHECK-NEXT:     return %c-1_i32 : i32
+// CHECK-NEXT:     return %c1_i32 : i32
 // CHECK-NEXT:   }

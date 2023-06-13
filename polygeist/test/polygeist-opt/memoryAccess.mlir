@@ -272,3 +272,31 @@ func.func @test3b(%acc : memref<?x!sycl_accessor_3_f32_rw_gb, 4>, %item : memref
   }
   return
 }
+
+// COM: Test accessor memory access indexed by one loop and 1 global SYCL threads (item) with grid dimension 
+//      larger than the number of 'sycl.item.get_id' operations.
+// CHECK-LABEL: test_tag: test4_load1
+// CHECK: matrix:
+// CHECK-NEXT: 0 1 0
+// CHECK-NEXT: 0 0 1
+// CHECK-NEXT: offsets:
+// CHECK-NEXT: 0 0 
+func.func @test4(%acc : memref<?x!sycl_accessor_2_f32_rw_gb, 4>, %item : memref<?x!sycl_item_2>) {
+  %alloca = memref.alloca() : memref<1x!sycl_id_2>
+  %cast = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
+  %id = memref.memory_space_cast %cast : memref<?x!sycl_id_2> to  memref<?x!sycl_id_2, 4>
+
+  %c1_i32 = arith.constant 1 : i32
+  %ty = sycl.item.get_id(%item, %c1_i32) : (memref<?x!sycl_item_2>, i32) -> i64
+
+  affine.for %ii = 0 to 64 {
+    %i = arith.index_cast %ii : index to i64
+
+    // [ty, i]
+    sycl.constructor @id(%id, %ty, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2, 4>, i64, i64)
+    %subscr1 = sycl.accessor.subscript %acc[%cast] : (memref<?x!sycl_accessor_2_f32_rw_gb, 4>, memref<?x!sycl_id_2>) -> memref<?xf32, 4>
+    %load1 = affine.load %subscr1[0] {tag = "test4_load1"} : memref<?xf32, 4>
+  }
+  return
+}
+

@@ -13,11 +13,13 @@
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/Utils/Utils.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <optional>
 
 using namespace mlir;
+using namespace mlir::polygeist;
 
 static Block &getThenBlock(RegionBranchOpInterface ifOp) {
   return ifOp->getRegion(0).front();
@@ -51,14 +53,12 @@ static void createThenBody(Operation *op, affine::AffineIfOp ifOp) {
   op->moveBefore(&getThenBlock(ifOp).front());
 }
 
-namespace mlir {
-namespace polygeist {
-
 //===----------------------------------------------------------------------===//
 // Utilities functions
 //===----------------------------------------------------------------------===//
 
-void getUniqueSymbolName(std::string &newName, Operation *symbolTable) {
+void polygeist::getUniqueSymbolName(std::string &newName,
+                                    Operation *symbolTable) {
   assert(symbolTable && symbolTable->hasTrait<OpTrait::SymbolTable>() &&
          "Expecting symbol table");
   auto alreadyDefined = [&symbolTable](std::string name) {
@@ -79,21 +79,21 @@ void getUniqueSymbolName(std::string &newName, Operation *symbolTable) {
 }
 
 static constexpr StringLiteral linkageAttrName = "llvm.linkage";
-bool isLinkonceODR(FunctionOpInterface func) {
+bool polygeist::isLinkonceODR(FunctionOpInterface func) {
   if (!func->hasAttr(linkageAttrName))
     return false;
   auto attr = cast<LLVM::LinkageAttr>(func->getAttr(linkageAttrName));
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-void privatize(FunctionOpInterface func) {
+void polygeist::privatize(FunctionOpInterface func) {
   func->setAttr(
       linkageAttrName,
       LLVM::LinkageAttr::get(func->getContext(), LLVM::Linkage::Private));
   func.setPrivate();
 }
 
-bool isTailCall(CallOpInterface call) {
+bool polygeist::isTailCall(CallOpInterface call) {
   if (!call->getBlock()->hasNoSuccessors())
     return false;
   Operation *nextOp = call->getNextNode();
@@ -101,7 +101,7 @@ bool isTailCall(CallOpInterface call) {
           isRegionReturnLike(nextOp));
 }
 
-Optional<Value> getAccessorUsedByOperation(const Operation &op) {
+Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)
         .Case<affine::AffineLoadOp, affine::AffineStoreOp>(
@@ -114,7 +114,8 @@ Optional<Value> getAccessorUsedByOperation(const Operation &op) {
   return accSub ? Optional<Value>(accSub.getAcc()) : std::nullopt;
 }
 
-std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
+std::optional<APInt> polygeist::getConstIntegerValue(Value val,
+                                                     DataFlowSolver &solver) {
   if (!val.getType().isIntOrIndex())
     return std::nullopt;
 
@@ -131,7 +132,7 @@ std::optional<APInt> getConstIntegerValue(Value val, DataFlowSolver &solver) {
 }
 
 /// Walk up the parents and records the ones with the specified type.
-template <typename T> SetVector<T> getParentsOfType(Block &block) {
+template <typename T> SetVector<T> polygeist::getParentsOfType(Block &block) {
   SetVector<T> res;
   constexpr auto getInitialParent = [](Block &b) -> T {
     Operation *op = b.getParentOp();
@@ -147,11 +148,14 @@ template <typename T> SetVector<T> getParentsOfType(Block &block) {
 }
 
 template <typename T>
-SetVector<T> getOperationsOfType(FunctionOpInterface funcOp) {
+SetVector<T> polygeist::getOperationsOfType(FunctionOpInterface funcOp) {
   SetVector<T> res;
   funcOp->walk([&](T op) { res.insert(op); });
   return res;
 }
+
+namespace mlir {
+namespace polygeist {
 
 //===----------------------------------------------------------------------===//
 // FunctionKernelInfo
@@ -683,15 +687,6 @@ bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
 // VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
-                                           unsigned index, OpBuilder builder,
-                                           Location loc) {
-  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-  const auto resTy = builder.getIndexType();
-  return builder.create<sycl::SYCLIDGetOp>(
-      loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
-}
-
 static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
                                                  unsigned index,
                                                  OpBuilder builder,
@@ -708,18 +703,6 @@ createSYCLAccessorGetRangeOp(sycl::AccessorPtrValue accessor, OpBuilder builder,
   const auto rangeTy = cast<sycl::RangeType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
   return builder.create<sycl::SYCLAccessorGetRangeOp>(loc, rangeTy, accessor);
-}
-
-static sycl::SYCLAccessorSubscriptOp
-createSYCLAccessorSubscriptOp(sycl::AccessorPtrValue accessor,
-                              TypedValue<MemRefType> id, OpBuilder builder,
-                              Location loc) {
-  const sycl::AccessorType accTy = accessor.getAccessorType();
-  assert(accTy.getDimension() != 0 && "Dimensions cannot be zero");
-  const auto MT = MemRefType::get(
-      ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
-      builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
-  return builder.create<sycl::SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
 }
 
 static sycl::SYCLAccessorGetPointerOp
@@ -743,7 +726,7 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
   auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
   for (unsigned i = 0; i < accTy.getDimension(); ++i) {
-    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    Value idGetOp = sycl::createSYCLIDGetOp(id, i, builder, loc);
     builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
   }
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
@@ -770,7 +753,7 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
   const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
   unsigned dim = accTy.getDimension();
   for (unsigned i = 0; i < dim; ++i) {
-    Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+    Value idGetOp = sycl::createSYCLIDGetOp(id, i, builder, loc);
     Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
     auto index = (i == dim - 1)
                      ? rangeGetOp
