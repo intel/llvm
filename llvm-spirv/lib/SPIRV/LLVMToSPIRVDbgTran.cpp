@@ -456,7 +456,7 @@ void LLVMToSPIRVDbgTran::transformToConstant(std::vector<SPIRVWord> &Ops,
   }
 }
 
-SPIRVWord mapDebugFlags(DINode::DIFlags DFlags) {
+SPIRVWord LLVMToSPIRVDbgTran::mapDebugFlags(DINode::DIFlags DFlags) {
   SPIRVWord Flags = 0;
   if ((DFlags & DINode::FlagAccessibility) == DINode::FlagPublic)
     Flags |= SPIRVDebug::FlagIsPublic;
@@ -486,10 +486,13 @@ SPIRVWord mapDebugFlags(DINode::DIFlags DFlags) {
     Flags |= SPIRVDebug::FlagTypePassByValue;
   if (DFlags & DINode::FlagTypePassByReference)
     Flags |= SPIRVDebug::FlagTypePassByReference;
+  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    if (DFlags & DINode::FlagBitField)
+      Flags |= SPIRVDebug::FlagBitField;
   return Flags;
 }
 
-SPIRVWord transDebugFlags(const DINode *DN) {
+SPIRVWord LLVMToSPIRVDbgTran::transDebugFlags(const DINode *DN) {
   SPIRVWord Flags = 0;
   if (const DIGlobalVariable *GV = dyn_cast<DIGlobalVariable>(DN)) {
     if (GV->isLocalToUnit())

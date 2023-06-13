@@ -165,6 +165,10 @@ private:
   // A module in programming language. Example - Fortran module, clang module.
   SPIRVEntry *transDbgModule(const DIModule *IE);
 
+  // Flags
+  SPIRVWord mapDebugFlags(DINode::DIFlags DFlags);
+  SPIRVWord transDebugFlags(const DINode *DN);
+
   SPIRVModule *BM;
   Module *M;
   LLVMToSPIRVBase *SPIRVWriter;
