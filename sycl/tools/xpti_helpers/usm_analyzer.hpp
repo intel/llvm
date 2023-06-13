@@ -412,8 +412,7 @@ public:
     if (arg_size == sizeof(arg_value))
       CheckPointerValidness(
           "kernel parameter with index = " + std::to_string(arg_index),
-          arg_value, 0 /*no data how it will be used in kernel*/,
-          "parallel_for/single_task");
+          arg_value, 0 /*no data how it will be used in kernel*/, "kernel");
   }
 };
 
