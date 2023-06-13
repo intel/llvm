@@ -292,15 +292,22 @@ std::vector<kernel_id> get_kernel_ids() {
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   if (KernelIDs.empty())
     return false;
-  // TODO: also need to check architectures matching
+  // TODO: also need to check that the architecture specified by the
+  // "-fsycl-targets" flag matches the device when we are able to get the
+  // device's arch.
   auto doesImageTargetMatchDevice = [](const device &Dev,
                                        const detail::RTDeviceBinaryImage &Img) {
     const char *Target = Img.getRawData().DeviceTargetSpec;
     auto BE = Dev.get_backend();
+    // ESIMD emulator is only compatible with esimd kernels.
+    if (BE == sycl::backend::ext_intel_esimd_emulator) {
+      pi_device_binary_property Prop = Img.getProperty("isEsimdImage");
+      return(Prop && (DeviceBinaryProperty(Prop).asUint32() != 0));
+    }
     if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+      if (sycl::detail::KernelInfo<KernelName>)
       return (BE == sycl::backend::opencl ||
-              BE == sycl::backend::ext_oneapi_level_zero ||
-              BE == sycl::backend::ext_intel_esimd_emulator);
+              BE == sycl::backend::ext_oneapi_level_zero);
     } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
                0) {
       return Dev.is_cpu();
