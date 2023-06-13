@@ -86,14 +86,12 @@ void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {});
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
                     const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {DepEvent});
 }
@@ -101,21 +99,18 @@ event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const std::vector<event> &DepEvents,
                     const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, DepEvents);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {});
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {DepEvent});
 }
@@ -123,21 +118,18 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const std::vector<event> &DepEvents,
                     const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, DepEvents);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
                         const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return mem_advise(Ptr, Length, int(Advice));
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {});
 }
@@ -145,7 +137,6 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent,
                         const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent});
 }
@@ -153,7 +144,6 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const ::sycl::detail::code_location &CodeLoc) {
-
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
 }

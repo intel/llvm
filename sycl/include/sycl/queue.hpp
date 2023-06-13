@@ -308,7 +308,6 @@ public:
   template <typename T>
   event submit(T CGF, const ::sycl::detail::code_location &CodeLoc =
                           ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
@@ -346,7 +345,6 @@ public:
   event submit(T CGF, queue &SecondaryQueue,
                const ::sycl::detail::code_location &CodeLoc =
                    ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
@@ -395,7 +393,6 @@ public:
   __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
   event submit_barrier(const ::sycl::detail::code_location &CodeLoc =
                            ::sycl::detail::code_location::current()) {
-
     return ext_oneapi_submit_barrier(CodeLoc);
   }
 
@@ -429,7 +426,6 @@ public:
   event submit_barrier(const std::vector<event> &WaitList,
                        const ::sycl::detail::code_location &CodeLoc =
                            ::sycl::detail::code_location::current()) {
-
     return ext_oneapi_submit_barrier(WaitList, CodeLoc);
   }
 
@@ -440,7 +436,6 @@ public:
   /// @param CodeLoc is the code location of the submit call (default argument)
   void wait(const ::sycl::detail::code_location &CodeLoc =
                 ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     wait_proxy(CodeLoc);
   }
@@ -455,7 +450,6 @@ public:
   /// @param CodeLoc is the code location of the submit call (default argument)
   void wait_and_throw(const ::sycl::detail::code_location &CodeLoc =
                           ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     wait_and_throw_proxy(CodeLoc);
   }
@@ -494,9 +488,7 @@ public:
   event fill(void *Ptr, const T &Pattern, size_t Count,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-
     return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); },
                   CodeLoc);
   }
@@ -513,7 +505,6 @@ public:
   event fill(void *Ptr, const T &Pattern, size_t Count, event DepEvent,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -537,7 +528,6 @@ public:
              const std::vector<event> &DepEvents,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -655,7 +645,6 @@ public:
   event copy(const T *Src, T *Dest, size_t Count,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
@@ -677,7 +666,6 @@ public:
   event copy(const T *Src, T *Dest, size_t Count, event DepEvent,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
@@ -700,7 +688,6 @@ public:
              const std::vector<event> &DepEvents,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
@@ -764,7 +751,6 @@ public:
   event prefetch(const void *Ptr, size_t Count,
                  const ::sycl::detail::code_location &CodeLoc =
                      ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); }, CodeLoc);
   }
@@ -780,7 +766,6 @@ public:
   event prefetch(const void *Ptr, size_t Count, event DepEvent,
                  const ::sycl::detail::code_location &CodeLoc =
                      ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [=](handler &CGH) {
@@ -803,7 +788,6 @@ public:
                  const std::vector<event> &DepEvents,
                  const ::sycl::detail::code_location &CodeLoc =
                      ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [=](handler &CGH) {
@@ -1199,7 +1183,6 @@ public:
                const std::vector<event> &DepEvents,
                const ::sycl::detail::code_location &CodeLoc =
                    ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
@@ -1239,7 +1222,6 @@ public:
                const void *Src, size_t NumBytes, size_t Offset, event DepEvent,
                const ::sycl::detail::code_location &CodeLoc =
                    ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset,
                         std::vector<event>{DepEvent});
@@ -1260,7 +1242,6 @@ public:
                const void *Src, size_t NumBytes = sizeof(T), size_t Offset = 0,
                const ::sycl::detail::code_location &CodeLoc =
                    ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
   }
@@ -1284,7 +1265,6 @@ public:
          size_t NumBytes, size_t Offset, const std::vector<event> &DepEvents,
          const ::sycl::detail::code_location &CodeLoc =
              ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     if (sizeof(T) < Offset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
@@ -1324,7 +1304,6 @@ public:
          size_t NumBytes, size_t Offset, event DepEvent,
          const ::sycl::detail::code_location &CodeLoc =
              ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset,
                         std::vector<event>{DepEvent});
@@ -1347,7 +1326,6 @@ public:
          size_t NumBytes = sizeof(T), size_t Offset = 0,
          const ::sycl::detail::code_location &CodeLoc =
              ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, NumBytes, Offset, std::vector<event>{});
   }
@@ -1372,7 +1350,6 @@ public:
              const std::vector<event> &DepEvents,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1398,7 +1375,6 @@ public:
              size_t Count, size_t StartIndex, event DepEvent,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1423,7 +1399,6 @@ public:
              size_t StartIndex = 0,
              const ::sycl::detail::code_location &CodeLoc =
                  ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
@@ -1449,7 +1424,6 @@ public:
        const std::vector<event> &DepEvents,
        const ::sycl::detail::code_location &CodeLoc =
            ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1476,7 +1450,6 @@ public:
        event DepEvent,
        const ::sycl::detail::code_location &CodeLoc =
            ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>),
@@ -1502,7 +1475,6 @@ public:
        size_t StartIndex = 0,
        const ::sycl::detail::code_location &CodeLoc =
            ::sycl::detail::code_location::current()) {
-
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
