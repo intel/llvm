@@ -29,7 +29,7 @@
 ; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Constant9Id]] [[#Constant9Id]] [[#Constant1Id]] [[#Constant2Id]]
 
 ; CHECK-LLVM: define spir_func void @_Z11foo_wrapperv() {{.*}} !dbg ![[#DbgSubProg:]] {
-; CHECK-LLVM: ![[#Scope_foo_wrapper:]] = distinct !DISubprogram(name: "foo_wrapper", linkageName: "_Z11foo_wrapperv", scope: null, file: ![[#]], line: 3, type: ![[#]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: ![[#]], templateParams: ![[#]], retainedNodes: ![[#]], targetFuncName: "_Z3foov")
+; CHECK-LLVM: ![[#Scope_foo_wrapper:]] = distinct !DISubprogram(name: "foo_wrapper", linkageName: "_Z11foo_wrapperv", scope: null, file: ![[#]], line: 3, type: ![[#]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: ![[#]], templateParams: ![[#]], targetFuncName: "_Z3foov")
 ; CHECK-LLVM: !DILocation(line: 4, column: 5, scope: ![[#Scope_foo_wrapper]]
 ; CHECK-LLVM: !DILocation(line: 5, column: 1, scope: ![[#Scope_foo_wrapper]]
 ; CHECK-LLVM: ![[#Scope_boo:]] = distinct !DISubprogram(name: "boo", linkageName: "_Z3boov"
