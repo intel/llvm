@@ -2891,16 +2891,14 @@ typedef enum ur_usm_pool_info_t {
 ///         + `NULL == hPool`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_USM_POOL_INFO_CONTEXT < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pPropValue`
-///         + `NULL == pPropSizeRet`
-///         + `propSize != 0 && pPropValue == NULL`
-///         + `pPropValue == NULL && pPropSizeRet == NULL`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `propSize == 0 && pPropValue != NULL`
 ///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -2908,8 +2906,9 @@ urUSMPoolGetInfo(
     ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
     ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
     size_t propSize,             ///< [in] size in bytes of the pool property value provided
-    void *pPropValue,            ///< [out][typename(propName, propSize)] value of the pool property
-    size_t *pPropSizeRet         ///< [out] size in bytes returned in pool property value
+    void *pPropValue,            ///< [out][optional][typename(propName, propSize)] value of the pool
+                                 ///< property
+    size_t *pPropSizeRet         ///< [out][optional] size in bytes returned in pool property value
 );
 
 #if !defined(__GNUC__)
@@ -5592,10 +5591,9 @@ urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `patternSize == 0`
+///         + `patternSize == 0 || size == 0`
 ///         + `patternSize > size`
-///         + `patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)`
-///         + `size == 0`
+///         + `(patternSize & (patternSize - 1)) != 0`
 ///         + `size % patternSize != 0`
 ///         + If `size` is higher than the allocation size of `ptr`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
