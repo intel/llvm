@@ -477,8 +477,7 @@ SmallVector<Value> getIndexes(sycl::SYCLAccessorSubscriptOp accSub,
   assert(constructorOp && "Expecting constructor definition");
 
   SmallVector<Value> indexes;
-  for (unsigned i = constructorOp->getNumOperands() - 1;
-       i != std::numeric_limits<unsigned>::max(); --i) {
+  for (unsigned i = 0; i < constructorOp->getNumOperands(); ++i) {
     if (i == constructorOp.getOutputOperandIndex())
       continue;
     indexes.push_back(constructorOp->getOperand(i));
@@ -1128,7 +1127,7 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
 
   // Populate indexes needed for loading the accesses from global memory.
   SmallVector<Value> globalIndexes(indexes.size());
-  for (int dim = indexes.size() - 1; dim >= 0; --dim) {
+  for (unsigned dim = 0; dim < indexes.size(); ++dim) {
     Value index = indexes[dim];
     if (usesValue(index, inductionVar)) {
       Value lowerBound = loopInfo.getLowerBound();
@@ -1160,13 +1159,11 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
   auto load = builder.create<memref::LoadOp>(loc, globalAccSub, zeroIndex);
 
   // Store to local memory.
-  SmallVector<Value> reversedLocalIDs(localIDs);
-  std::reverse(reversedLocalIDs.begin(), reversedLocalIDs.end());
-  builder.create<memref::StoreOp>(loc, load, localMemory, reversedLocalIDs);
+  builder.create<memref::StoreOp>(loc, load, localMemory, localIDs);
 
   // Populate indexes will be used in loop with local memory.
   SmallVector<Value> adjustedIndexes;
-  for (int dim = indexes.size() - 1; dim >= 0; --dim) {
+  for (unsigned dim = 0; dim < indexes.size(); ++dim) {
     Value index = indexes[dim];
     if (usesValue(index, inductionVar)) {
       OpBuilder::InsertionGuard insertGuard(builder);
