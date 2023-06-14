@@ -260,7 +260,7 @@ getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
 /// each kernel. If there are multiple loops in the kernel that require local
 /// memory, it returns the maximum amount required by any of them.
 std::variant<Value, unsigned>
-getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, std::set<Operation *>>
+getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
                        &loopToSharedMemref,
                    const WorkGroupSize &workGroupSize, OpBuilder builder) {
   std::variant<Value, unsigned> reqdLocalMemory =
@@ -299,7 +299,7 @@ unsigned getReqdLocalMemory(sycl::AccessorType accTy,
 /// each kernel. If there are multiple loops in the kernel that require local
 /// memory, it returns the maximum amount required by any of them.
 Optional<unsigned>
-getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, std::set<Operation *>>
+getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
                        &loopToSharedMemref,
                    const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
   if (reqdWorkGroupSize.empty())
@@ -881,7 +881,7 @@ private:
 
 private:
   /// A map from a candidate loop to shared memref values used in the loop.
-  DenseMap<LoopLikeOpInterface, std::set<Operation *>> loopToSharedMemref;
+  DenseMap<LoopLikeOpInterface, SetVector<Operation *>> loopToSharedMemref;
 };
 
 void LoopInternalization::runOnOperation() {
@@ -1060,9 +1060,11 @@ bool LoopInternalization::canBeTransformed(LoopLikeOpInterface loop,
                                            DataFlowSolver &solver) const {
   if (workGroupSize.hasElemTy<unsigned>()) {
     std::set<unsigned> dimsThatUseLoopIV = getDimsThatUseLoopIV(loop, solver);
+    const unsigned firstDim = *dimsThatUseLoopIV.begin();
+
     if (llvm::any_of(dimsThatUseLoopIV, [&](unsigned dim) {
           return (workGroupSize.get<unsigned>(dim) !=
-                  workGroupSize.get<unsigned>(0));
+                  workGroupSize.get<unsigned>(firstDim));
         })) {
       LLVM_DEBUG(llvm::dbgs() << "Loop cannot be transformed\n");
       return false;
@@ -1174,7 +1176,7 @@ void LoopInternalization::transform(T loop,
   auto getGlobalOp = builder.create<memref::GetGlobalOp>(
       loop.getLoc(), workGroupLocalMemory.getType(),
       workGroupLocalMemory.getName());
-  const std::set<Operation *> &memrefs = loopToSharedMemref.at(loop);
+  const SetVector<Operation *> &memrefs = loopToSharedMemref.at(loop);
 
   // Tile the loop.
   SmallVector<T> tiledNest;
