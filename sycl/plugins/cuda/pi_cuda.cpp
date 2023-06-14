@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cuda.h>
 #include <cuda_device_runtime_api.h>
 #include <limits>
@@ -305,25 +306,49 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
-  int minGrid, maxBlockSize, gridDim[3];
+  int minGrid, maxBlockSize, maxBlockDim[3];
 
-  cuDeviceGetAttribute(&gridDim[1], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
-                       device->get());
-  cuDeviceGetAttribute(&gridDim[2], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
-                       device->get());
+  static auto isPrime = [](size_t number) -> bool {
+    auto lastNumToCheck = ceil(sqrt(number));
+    if (number < 2)
+      return false;
+    if (number == 2)
+      return true;
+    if (number % 2 == 0)
+      return false;
+    for (int i = 3; i <= lastNumToCheck; i += 2) {
+      if (number % i == 0)
+        return false;
+    }
+    return true;
+  };
 
-  threadsPerBlock[1] = ((global_work_size[1] - 1) / gridDim[1]) + 1;
-  threadsPerBlock[2] = ((global_work_size[2] - 1) / gridDim[2]) + 1;
+  cuDeviceGetAttribute(&maxBlockDim[1], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
+                       device->get());
+  cuDeviceGetAttribute(&maxBlockDim[2], CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
+                       device->get());
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &minGrid, &maxBlockSize, kernel->get(), NULL, local_size,
       maxThreadsPerBlock[0]));
 
-  gridDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
-
+  threadsPerBlock[2] = std::min(global_work_size[2], size_t(maxBlockDim[2]));
+  threadsPerBlock[1] =
+      std::min(global_work_size[1], std::min(maxBlockSize / threadsPerBlock[2],
+                                             size_t(maxBlockDim[1])));
+  maxBlockDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
   threadsPerBlock[0] =
       std::min(maxThreadsPerBlock[0],
-               std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
+               std::min(global_work_size[0], size_t(maxBlockDim[0])));
+
+  // When global_work_size[0] is prime threadPerBlock[0] will later computed as
+  // 1, which is not efficient configuration. In such case we use
+  // global_work_size[0] + 1 to compute threadPerBlock[0].
+  int adjusted_0_dim_global_work_size =
+      (isPrime(global_work_size[0]) &&
+       (threadsPerBlock[0] != global_work_size[0]))
+          ? global_work_size[0] + 1
+          : global_work_size[0];
 
   static auto isPowerOf2 = [](size_t value) -> bool {
     return value && !(value & (value - 1));
@@ -333,7 +358,7 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   // work group size to produce uniform work groups.
   // Additionally, for best compute utilisation, the local size has
   // to be a power of two.
-  while (0u != (global_work_size[0] % threadsPerBlock[0]) ||
+  while (0u != (adjusted_0_dim_global_work_size % threadsPerBlock[0]) ||
          !isPowerOf2(threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
@@ -2161,7 +2186,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
         cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, device->get()) ==
         CUDA_SUCCESS);
     // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
-    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
+    sycl::detail::pi::assertion(strnlen(AddressBuffer, AddressBufferSize) ==
+                                12);
     return getInfoArray(strnlen(AddressBuffer, AddressBufferSize - 1) + 1,
                         param_value_size, param_value, param_value_size_ret,
                         AddressBuffer);
