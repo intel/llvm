@@ -87,6 +87,23 @@ func.func private @get_global_addrspace() -> memref<3xi64, 4> {
 
 // -----
 
+// CHECK-LABEL:   llvm.mlir.global external @global_sycl_addrspace() {addr_space = 1 : i32} : !llvm.array<3 x i64>
+
+memref.global @global_sycl_addrspace : memref<3xi64, #sycl.access.address_space<global>>
+
+// CHECK-LABEL:   llvm.func @get_global_sycl_addrspace() -> !llvm.ptr<1>
+// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.addressof @global_sycl_addrspace : !llvm.ptr<1>
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<1>) -> !llvm.ptr<1>, i64
+// CHECK-NEXT:      llvm.return %[[VAL_1]] : !llvm.ptr<1>
+// CHECK-NEXT:    }
+
+func.func private @get_global_sycl_addrspace() -> memref<3xi64, #sycl.access.address_space<global>> {
+  %0 = memref.get_global @global_sycl_addrspace : memref<3xi64, #sycl.access.address_space<global>>
+  return %0 : memref<3xi64, #sycl.access.address_space<global>>
+}
+
+// -----
+
 memref.global "private" constant @shape : memref<2xi64> = dense<[2, 2]>
 
 // CHECK-LABEL:   llvm.func @reshape(
