@@ -1,4 +1,4 @@
-//===- device_config_file.h - Device Config File for SYCL  ------*- C++ -*-===//
+//==- device_config_file.hpp - Device Config File for SYCL  ------*- C++ -*-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,8 +15,8 @@
 namespace DeviceConfigFile {
 
 struct TargetInfo {
-  int maySupportOtherAspects;
-  std::vector<std::string> aspects;
+  bool maySupportOtherAspects;
+  std::vector<llvm::StringRef> aspects;
   std::vector<unsigned> subGroupSizes;
   std::string aotToolchain;
   std::string aotToolchainOptions;
@@ -24,4 +24,5 @@ struct TargetInfo {
 
 #define GET_TargetTable_IMPL
 #include "sycl/device_config_file.inc"
+using TargetTable_t = std::map<std::string, TargetInfo>;
 }; // namespace DeviceConfigFile

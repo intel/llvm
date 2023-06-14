@@ -79,8 +79,8 @@ private:
     if (StringInit *SI = dyn_cast<StringInit>(I)) {
       if (Field.IsCode || SI->hasCodeFormat())
         return std::string(SI->getValue());
-      else
-        return SI->getAsString();
+
+      return SI->getAsString();
     } else if (BitsInit *BI = dyn_cast<BitsInit>(I))
       return "0x" + utohexstr(getAsInt(BI));
     else if (BitInit *BI = dyn_cast<BitInit>(I))
@@ -89,15 +89,12 @@ private:
       if (auto LI = dyn_cast<ListInit>(I)) {
         std::stringstream res;
         auto values = LI->getValues();
-        bool first = true;
-        for (const auto &val : values) {
-          if (first)
-            first = false;
-          else
+        bool NeedQuotes = (Field.Name == "aspects");
+        for (const auto &[idx, val] : enumerate(values)) {
+          if (idx > 0)
             res << ", ";
 
-          // For "aspects" field we need to emit std:vector<string>
-          if (Field.Name == "aspects")
+          if (NeedQuotes)
             res << "\"" << val->getAsString() << "\"";
           else
             res << val->getAsString();
@@ -174,10 +171,8 @@ bool DynamicTableEmitter::parseFieldType(GenericField &Field, Init *TypeOf) {
       return true;
     } else if (Type->getValue().starts_with("list")) {
       // Nested lists are not allowed, make sure there are none
-      // Try and find "list" after the first "list" which is starting from 5th
-      // char
-      size_t from = 4; // "list".size()+1
-      if (Type->getValue().find("list", from) != StringRef::npos) {
+      auto occurrences = Type->getValue().count("list");
+      if (occurrences > 1) {
         PrintFatalError(Twine("Nested lists are not allowed: ") +
                         Type->getValue().str());
       }

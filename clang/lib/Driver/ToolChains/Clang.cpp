@@ -25,7 +25,6 @@
 #include "MSP430.h"
 #include "PS4CPU.h"
 #include "SYCL.h"
-#include "sycl/device_config_file.h"
 #include "clang/Basic/CLWarnings.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
@@ -48,6 +47,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
@@ -5309,23 +5309,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       auto info = entry.second;
       std::cout << "Target info for target named " << entry.first << std::endl;
       std::cout << "Supported aspects: {";
-      bool first = true;
-      for (const auto &aspect : info.aspects) {
-        if (first)
-          first = false;
-        else
+      for (const auto &[idx, aspect] : llvm::enumerate(info.aspects)) {
+        if (idx > 0)
           std::cout << ", ";
-        std::cout << aspect;
+        std::cout << aspect.str();
       }
       std::cout << "}\n";
       std::cout << "May support other aspects: " << info.maySupportOtherAspects
                 << std::endl;
       std::cout << "Sub group sizes: {";
-      first = true;
-      for (const auto &sz : info.subGroupSizes) {
-        if (first)
-          first = false;
-        else
+      for (const auto &[idx, sz] : llvm::enumerate(info.subGroupSizes)) {
+        if (idx > 0)
           std::cout << ", ";
         std::cout << sz;
       }
@@ -5334,12 +5328,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       std::cout << "AOT Toolchain options: " << info.aotToolchainOptions
                 << std::endl;
     }
-    // auto res = lookupDeviceTableByValues(1);
-    // if (res->maySupportOtherAspects) {
-    //   D.addSYCLTargetMacroArg(Args, "-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS");
-    //   CmdArgs.push_back(
-    //       Args.MakeArgString("-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS"));
-    // }
+    //  auto res = lookupDeviceTableByValues(1);
+    //  if (res->maySupportOtherAspects) {
+    //    D.addSYCLTargetMacroArg(Args, "-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS");
+    //    CmdArgs.push_back(
+    //        Args.MakeArgString("-D__SYCL_MAY_SUPPORT_OTHER_ASPECTS"));
+    //  }
     if (IsSYCLOffloadDevice)
       addTargetMacros(RawTriple);
     else {
