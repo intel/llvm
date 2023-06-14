@@ -15,6 +15,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 
+// Test
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
