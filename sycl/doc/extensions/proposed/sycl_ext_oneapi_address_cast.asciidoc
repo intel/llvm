@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_address_space_cast
+= sycl_ext_oneapi_address_cast
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -60,8 +60,8 @@ checks from 1) are not required and may have undesirable performance impact.
 
 This extension separates `sycl::address_space_cast` into two functions:
 
-- `static_address_space_cast`, which casts with no checks.
-- `dynamic_address_space_cast`, which casts with checks.
+- `static_address_cast`, which casts with no checks.
+- `dynamic_address_cast`, which casts with checks.
 
 
 == Specification
@@ -70,7 +70,7 @@ This extension separates `sycl::address_space_cast` into two functions:
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_ADDRESS_SPACE_CAST` to one of the values defined in the
+macro `SYCL_EXT_ONEAPI_ADDRESS_CAST` to one of the values defined in the
 table below.  Applications can test for the existence of this macro to
 determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
@@ -96,12 +96,12 @@ namespace sycl::ext::oneapi::experimental {
 template <access::address_space Space, access::decorated DecorateAddress,
           typename ElementType>
 multi_ptr<ElementType, Space, DecorateAddress>
-static_address_space_cast(ElementType* ptr);
+static_address_cast(ElementType* ptr);
 
 template <access::address_space Space, access::decorated DecorateAddress,
           typename ElementType>
 multi_ptr<ElementType, Space, DecorateAddress>
-dynamic_address_space_cast(ElementType* ptr);
+dynamic_address_cast(ElementType* ptr);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -111,7 +111,7 @@ dynamic_address_space_cast(ElementType* ptr);
 template <access::address_space Space, access::decorated DecorateAddress,
           typename ElementType>
 multi_ptr<ElementType, Space, DecorateAddress>
-static_address_space_cast(ElementType* ptr);
+static_address_cast(ElementType* ptr);
 ----
 _Preconditions_: `ptr` points to an object allocated in the address space
 designated by `Space`.
@@ -124,7 +124,7 @@ points to the same object as `ptr`.
 template <access::address_space Space, access::decorated DecorateAddress,
           typename ElementType>
 multi_ptr<ElementType, Space, DecorateAddress>
-dynamic_address_space_cast(ElementType* ptr);
+dynamic_address_cast(ElementType* ptr);
 ----
 _Preconditions_: The memory at `ptr` is accessible to the calling work-item.
 
@@ -138,12 +138,12 @@ designated by `Space`.
 
 [NOTE]
 ====
-The precondition prevents `dynamic_address_space_cast` from being used to
+The precondition prevents `dynamic_address_cast` from being used to
 reason about the address space of pointers originating from another work-item
 (in the case of `private` pointers) or another work-group (in the case of
 `local` pointers). Such pointers could not be dereferenced by the calling
 work-item, and it is thus unclear that being able to reason about the address
-space would be useful. Limiting the use of `dynamic_address_space_cast` to
+space would be useful. Limiting the use of `dynamic_address_cast` to
 accessible pointers is expected to result in simpler and faster
 implementations.
 ====
@@ -151,18 +151,18 @@ implementations.
 
 == Implementation notes
 
-For SPIR-V backends, `static_address_space_cast` corresponds to
-`OpGenericCastToPtr`. `dynamic_address_space_cast` _may_ correspond to
+For SPIR-V backends, `static_address_cast` corresponds to
+`OpGenericCastToPtr`. `dynamic_address_cast` _may_ correspond to
 `OpGenericCastToPtrExplicit` -- there is currently some ambiguity regarding
 exactly how `OpGenericCastToPtrExplicit` is expected to behave, because the
 SPIR-V specification does not explain what it means for a cast to "fail".
 Since this extension is only experimental, we can likely implement
-`dynamic_address_space_cast` using `OpGenericCastToPtrExplicit` while we
+`dynamic_address_cast` using `OpGenericCastToPtrExplicit` while we
 seek to clarify the SPIR-V specification.
 
-Generally speaking, it is expected that a `static_address_space_cast` can
+Generally speaking, it is expected that a `static_address_cast` can
 simply attach new decoration(s) to the raw pointer (or do nothing), while
-a `dynamic_address_space_cast` will have to inspect the address of the
+a `dynamic_address_cast` will have to inspect the address of the
 raw pointer to determine which region of memory it points to.
 
 An implementation for a CPU target could be implemented by keeping track of
@@ -184,22 +184,14 @@ for checking the address space.
 
 == Issues
 
-. `static_address_space_cast` and `dynamic_address_space_cast` are long names.
-+
---
-*UNRESOLVED*:
-Dropping one of the words would be less verbose; either `static_address_cast`
-or `static_space_cast` could be considered.
---
-
-. Some developers may expect a `dynamic_address_space_cast` to succeed if the
+. Some developers may expect a `dynamic_address_cast` to succeed if the
 pointer continues to work, irrespective of where the object the pointer points
 to was allocated. For example, some CPU implementations may treat global and
 local pointers equivalently in many situations.
 +
 --
 *UNRESOLVED*:
-The current description of `dynamic_address_space_cast` requires
+The current description of `dynamic_address_cast` requires
 implementations to track precisely which address space a pointer is associated
 with, in order to ensure that using the result of a dynamic cast is always
 safe. If we can identify use-cases for the more relaxed behavior, it would
