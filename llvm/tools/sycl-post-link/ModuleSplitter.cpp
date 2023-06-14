@@ -24,6 +24,7 @@
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/IPO/StripSymbols.h"
@@ -128,6 +129,15 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
 
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+}
+
+// Predicate for Internalize pass.
+bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV))
+    return F->isDeclaration() || F->hasFnAttribute("sycl-module-id");
+
+  GV.removeDeadConstantUsers();
+  return !GV.use_empty();
 }
 
 // Represents "dependency" or "use" graph of global objects (functions and
@@ -561,9 +571,10 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
-  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
-  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
-  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
+  MPM.addPass(InternalizePass(mustPreserveGV)); // Internalize linkage of globals so that GlobalDCE can delete them
+  MPM.addPass(GlobalDCEPass());                 // Delete unreachable globals.
+  MPM.addPass(StripDeadDebugInfoPass());        // Remove dead debug info.
+  MPM.addPass(StripDeadPrototypesPass());       // Remove dead func decls.
   MPM.run(*M, MAM);
 }
 
