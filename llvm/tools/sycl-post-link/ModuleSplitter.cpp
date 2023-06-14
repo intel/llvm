@@ -191,8 +191,8 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
 //    bitcast, phi node, call, etc.): "A" -> "B" edge will be added to the
 //    graph;
 // 2. function A performs an indirect call of a function with signature S and
-//    there is a function B with signature S. "A" -> "B" edge will be added to
-//    the graph;
+//    there is a function B with signature S marked with "referenced-indirectly"
+//    attribute. "A" -> "B" edge will be added to the graph;
 class DependencyGraph {
 public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
@@ -203,8 +203,15 @@ public:
         FuncTypeToFuncsMap;
     for (const auto &F : M.functions()) {
       // Kernels can't be called (either directly or indirectly) in SYCL
-      if (!isKernel(F))
-        FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
+      if (isKernel(F))
+        continue;
+
+      // Only functions which are marked with "referenced-indireclty" attribute
+      // are considered to be indirect calees candidates.
+      if (!F.hasFnAttribute("referenced-indirectly"))
+        continue;
+
+      FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
     // We add every function into the graph
