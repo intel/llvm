@@ -326,6 +326,10 @@ struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
   LogicalResult
   matchAndRewrite(memref::ViewOp viewOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(viewOp.getSource().getType()) || 
+        !canBeLoweredToBarePtr(viewOp.getType()))
+      return failure();
+
     const auto convElemType = typeConverter->convertType(
         viewOp.getSource().getType().getElementType());
     rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
@@ -657,6 +661,10 @@ struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
   LogicalResult
   matchAndRewrite(memref::ViewOp viewOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(viewOp.getSource().getType()) || 
+        !canBeLoweredToBarePtr(viewOp.getType()))
+      return failure();
+
     const auto loc = viewOp.getLoc();
     auto gepPtr = rewriter.create<LLVM::GEPOp>(
         loc, getTypeConverter()->convertType(viewOp.getSource().getType()),
