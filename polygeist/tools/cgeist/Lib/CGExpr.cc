@@ -1146,18 +1146,33 @@ MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
 mlir::Operation *MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
                                                mlir::ValueRange Operands,
                                                mlir::Type ReturnType) {
-  constexpr std::size_t NumMathFuncs{1};
+  constexpr std::size_t NumMathFuncs{18};
   // Sorted array
   constexpr std::array<std::pair<llvm::StringLiteral, llvm::StringLiteral>,
                        NumMathFuncs>
       MathFuncToOpNameMap{{
 #define ADD_MATH_OP(name, opname) {#name, opname::getOperationName()}
-          ADD_MATH_OP(sqrt, sycl::SYCLSqrtOp)
+          ADD_MATH_OP(ceil, sycl::SYCLCeilOp),
+          ADD_MATH_OP(copysign, sycl::SYCLCopySignOp),
+          ADD_MATH_OP(cos, sycl::SYCLCosOp), ADD_MATH_OP(exp, sycl::SYCLExpOp),
+          ADD_MATH_OP(exp2, sycl::SYCLExp2Op),
+          ADD_MATH_OP(expm1, sycl::SYCLExpM1Op),
+          ADD_MATH_OP(fabs, sycl::SYCLFabsOp),
+          ADD_MATH_OP(floor, sycl::SYCLFloorOp),
+          ADD_MATH_OP(fma, sycl::SYCLFmaOp), ADD_MATH_OP(log, sycl::SYCLLogOp),
+          ADD_MATH_OP(log10, sycl::SYCLLog10Op),
+          ADD_MATH_OP(log2, sycl::SYCLLog2Op),
+          ADD_MATH_OP(pow, sycl::SYCLPowOp),
+          ADD_MATH_OP(round, sycl::SYCLRoundOp),
+          ADD_MATH_OP(rsqrt, sycl::SYCLRsqrtOp),
+          ADD_MATH_OP(sin, sycl::SYCLSinOp),
+          ADD_MATH_OP(sqrt, sycl::SYCLSqrtOp),
+          ADD_MATH_OP(trunc, sycl::SYCLTruncOp)
 #undef ADD_MATH_OP
       }};
 
-  LLVM_DEBUG(llvm::dbgs() << "Trying to replace call to " << FunctionName
-                          << "with a sycl math operation.\n";);
+  LLVM_DEBUG(llvm::dbgs() << "Trying to replace call to `" << FunctionName
+                          << "` with a sycl math operation.\n";);
 
   const auto *Iter = llvm::lower_bound(
       MathFuncToOpNameMap, FunctionName,

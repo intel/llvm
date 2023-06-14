@@ -12,16 +12,9 @@
 // Verify that LLVMIR generated is translatable to SPIRV.
 // RUN: llvm-spirv %t.bc
 
-// Test that all referenced sycl header functions are generated.
+// Test that the SYCL math functions are lowered to llvm intrinsics.
 // RUN: llvm-dis %t.bc
-// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
-
-// Whitelist declarations of the low-level SPIRV functions used my the math ops.
-// LLVM: declare spir_func {{.*}}__spirv_ocl_sqrtf
-
-// Test that the kernel named `kernel_math_funcs` is generated with the correct signature.
-// LLVM: define weak_odr spir_kernel void {{.*}}kernel_math_funcs(
-// LLVM-SAME:  ptr addrspace(1) {{.*}}, ptr noundef byval([[RANGE_TY:%"class.sycl::_V1::range.1"]]) {{.*}}, ptr noundef byval([[RANGE_TY]]) {{.*}}, ptr noundef byval([[ID_TY:%"class.sycl::_V1::id.1"]]) {{.*}})
+// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM
 
 #include <climits>
 #include <cmath>
@@ -37,9 +30,49 @@ void host_math_funcs(std::array<float, 1> &A) {
   {
     auto buf = buffer<float, 1>{A.data(), 1};
     q.submit([&](handler &cgh) {
-      auto A = buf.get_access<access::mode::write>(cgh);
+      auto A = buf.get_access<access::mode::read_write>(cgh);
       cgh.single_task<class kernel_math_funcs>([=]() {
-        A[0] = sycl::sqrt(2.0f);
+        // LLVM: define internal spir_func void @_ZZZ15host_math_funcsRSt5arrayIfLm1EEENKUlRN4sycl3_V17handlerEE_clES5_ENKUlvE_clEv
+        float a = A[0], b, c;
+        // LLVM: call float @llvm.ceil.f32
+        a += b = sycl::ceil(a);
+        // LLVM: call float @llvm.copysign.f32
+        a += c = sycl::copysign(a, b);
+        // LLVM: call float @llvm.cos.f32
+        a += sycl::cos(a);
+        // LLVM: call float @llvm.exp.f32
+        a += sycl::exp(a);
+        // LLVM: call float @llvm.exp2.f32
+        a += sycl::exp2(a);
+        // LLVM: %[[exp:.*]] = call float @llvm.exp.f32
+        // LLVM-NEXT: fsub float %[[exp]], 1.000000e+00
+        a += sycl::expm1(a);
+        // LLVM: call float @llvm.fabs.f32
+        a += sycl::fabs(a);
+        // LLVM: call float @llvm.floor.f32
+        a += sycl::floor(a);
+        // LLVM: call float @llvm.fma.f32
+        a += sycl::fma(a, b, c);
+        // LLVM: call float @llvm.log.f32
+        a += sycl::log(a);
+        // LLVM: call float @llvm.log10.f32
+        a += sycl::log10(a);
+        // LLVM: call float @llvm.log2.f32
+        a += sycl::log2(a);
+        // LLVM: call float @llvm.pow.f32
+        a += sycl::pow(a, a);
+        // LLVM: call float @llvm.round.f32
+        a += sycl::round(a);
+        // LLVM: %[[sqrt:.*]] = call float @llvm.sqrt.f32
+        // LLVM-NEXT: fdiv float 1.000000e+00, %[[sqrt]]
+        a += sycl::rsqrt(a);
+        // LLVM: call float @llvm.sin.f32
+        a += sycl::sin(a);
+        // LLVM: call float @llvm.sqrt.f32
+        a += sycl::sqrt(a);
+        // LLVM: call float @llvm.trunc.f32
+        a += sycl::trunc(a);
+        A[0] = a;
       });
     });
   }

@@ -29,13 +29,36 @@ using namespace mlir::sycl;
 
 namespace {
 
-template <typename SYCLOpT, typename TargetOpT>
+template <typename SYCLOpT, typename MathOpT>
 struct FloatUnaryOpPattern : public OpConversionPattern<SYCLOpT> {
   using OpConversionPattern<SYCLOpT>::OpConversionPattern;
   LogicalResult
   matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<TargetOpT>(op, adaptor.getOperand());
+    rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getX());
+    return success();
+  }
+};
+
+template <typename SYCLOpT, typename MathOpT>
+struct FloatBinaryOpPattern : public OpConversionPattern<SYCLOpT> {
+  using OpConversionPattern<SYCLOpT>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getX(), adaptor.getY());
+    return success();
+  }
+};
+
+template <typename SYCLOpT, typename MathOpT>
+struct FloatTernaryOpPattern : public OpConversionPattern<SYCLOpT> {
+  using OpConversionPattern<SYCLOpT>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(SYCLOpT op, typename SYCLOpT::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getA(), adaptor.getB(),
+                                         adaptor.getC());
     return success();
   }
 };
@@ -44,7 +67,24 @@ struct FloatUnaryOpPattern : public OpConversionPattern<SYCLOpT> {
 
 void mlir::populateSYCLToMathConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  patterns.insert<FloatUnaryOpPattern<SYCLSqrtOp, math::SqrtOp>>(context);
+  patterns.insert<FloatUnaryOpPattern<SYCLCeilOp, math::CeilOp>,
+                  FloatBinaryOpPattern<SYCLCopySignOp, math::CopySignOp>,
+                  FloatUnaryOpPattern<SYCLCosOp, math::CosOp>,
+                  FloatUnaryOpPattern<SYCLExpOp, math::ExpOp>,
+                  FloatUnaryOpPattern<SYCLExp2Op, math::Exp2Op>,
+                  FloatUnaryOpPattern<SYCLExpM1Op, math::ExpM1Op>,
+                  FloatUnaryOpPattern<SYCLFabsOp, math::AbsFOp>,
+                  FloatUnaryOpPattern<SYCLFloorOp, math::FloorOp>,
+                  FloatTernaryOpPattern<SYCLFmaOp, math::FmaOp>,
+                  FloatUnaryOpPattern<SYCLLogOp, math::LogOp>,
+                  FloatUnaryOpPattern<SYCLLog10Op, math::Log10Op>,
+                  FloatUnaryOpPattern<SYCLLog2Op, math::Log2Op>,
+                  FloatBinaryOpPattern<SYCLPowOp, math::PowFOp>,
+                  FloatUnaryOpPattern<SYCLRoundOp, math::RoundOp>,
+                  FloatUnaryOpPattern<SYCLRsqrtOp, math::RsqrtOp>,
+                  FloatUnaryOpPattern<SYCLSinOp, math::SinOp>,
+                  FloatUnaryOpPattern<SYCLSqrtOp, math::SqrtOp>,
+                  FloatUnaryOpPattern<SYCLTruncOp, math::TruncOp>>(context);
 }
 
 namespace {
