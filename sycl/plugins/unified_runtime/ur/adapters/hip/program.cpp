@@ -103,6 +103,8 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
+  std::ignore = hContext;
+
   UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -138,6 +140,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
     const ur_program_native_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
+  std::ignore = hNativeProgram;
+  std::ignore = hContext;
+  std::ignore = pProperties;
+  std::ignore = phProgram;
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

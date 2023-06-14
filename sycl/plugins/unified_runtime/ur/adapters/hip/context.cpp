@@ -17,6 +17,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 const ur_context_properties_t *pProperties,
                 ur_context_handle_t *phContext) {
+  std::ignore = DeviceCount;
   std::ignore = pProperties;
 
   UR_ASSERT(phDevices, UR_RESULT_ERROR_INVALID_NULL_POINTER);
