@@ -24,8 +24,8 @@
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -571,10 +571,12 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
-  MPM.addPass(InternalizePass(mustPreserveGV)); // Internalize linkage of globals so that GlobalDCE can delete them
-  MPM.addPass(GlobalDCEPass());                 // Delete unreachable globals.
-  MPM.addPass(StripDeadDebugInfoPass());        // Remove dead debug info.
-  MPM.addPass(StripDeadPrototypesPass());       // Remove dead func decls.
+  MPM.addPass(
+      InternalizePass(mustPreserveGV));   // Internalize linkage of globals so
+                                          // that GlobalDCE can delete them
+  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
+  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
+  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
   MPM.run(*M, MAM);
 }
 
