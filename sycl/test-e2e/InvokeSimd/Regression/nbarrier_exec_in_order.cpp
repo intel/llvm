@@ -1,9 +1,6 @@
 // NOTE: named barrier supported only since PVC
 // REQUIRES: gpu-intel-pvc
 //
-// TODO: enable when Jira issue resolved, currently fail with VISALTO enable
-// XFAIL: gpu-intel-pvc
-//
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //

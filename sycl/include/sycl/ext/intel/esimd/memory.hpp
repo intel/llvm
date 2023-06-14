@@ -549,6 +549,20 @@ gather(AccessorTy acc,
 #endif
 }
 
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+        !std::is_same_v<Toffset, uint64_t>,
+    simd<T, N>>
+gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
+       simd_mask<N> mask = 1) {
+  return gather<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), glob_offset,
+                                  mask);
+}
+#endif
+
 /// @anchor accessor_scatter
 /// Accessor-based scatter.
 ///
@@ -592,6 +606,19 @@ scatter(AccessorTy acc,
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 #endif
 }
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+    !std::is_same_v<Toffset, uint64_t>>
+scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
+        uint64_t glob_offset = 0, simd_mask<N> mask = 1) {
+  scatter<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), vals, glob_offset,
+                            mask);
+}
+#endif
 
 /// Load a scalar value from an accessor.
 /// @tparam T Type of the value.
@@ -858,8 +885,13 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
 __ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
                               sizeof(T) == 4 && !std::is_pointer_v<AccessorT>),
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
-            uint32_t global_offset = 0, simd_mask<N> mask = 1) {
+gather_rgba(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+            simd<uint64_t, N> offsets, uint64_t global_offset = 0,
+#else
+            simd<uint32_t, N> offsets, uint32_t global_offset = 0,
+#endif
+            simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather_rgba<RGBAMask>(
       __ESIMD_DNS::accessorToPointer<T>(acc, global_offset), offsets, mask);
@@ -872,6 +904,22 @@ gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
       SI, global_offset, offsets.data(), mask.data());
 #endif
 }
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT, int N,
+          typename T = typename AccessorT::value_type, typename Toffset>
+__ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
+                              sizeof(T) == 4 && !std::is_pointer_v<AccessorT> &&
+                              std::is_integral_v<Toffset> &&
+                              !std::is_same_v<Toffset, uint64_t>),
+                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
+gather_rgba(AccessorT acc, simd<Toffset, N> offsets, uint64_t global_offset = 0,
+            simd_mask<N> mask = 1) {
+  return gather_rgba<RGBAMask, AccessorT, N, T>(acc, convert<uint64_t>(offsets),
+                                                global_offset, mask);
+}
+#endif
 
 /// Gather data from the memory addressed by accessor \c acc, offset common
 /// for all loaded elements \c global_offset and per-element offsets \c offsets,
@@ -892,9 +940,19 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename T = typename AccessorT::value_type>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
                              !std::is_pointer_v<AccessorT>>
-scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
+scatter_rgba(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+             simd<uint64_t, N> offsets,
+#else
+             simd<uint32_t, N> offsets,
+#endif
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
-             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+             uint64_t global_offset = 0,
+#else
+             uint32_t global_offset = 0,
+#endif
+             simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter_rgba<RGBAMask>(__ESIMD_DNS::accessorToPointer<T>(acc, global_offset),
@@ -908,6 +966,21 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 #endif
 }
 
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT, int N,
+          typename T = typename AccessorT::value_type, typename Toffset>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+                             !std::is_pointer_v<AccessorT> &&
+                             std::is_integral_v<Toffset> &&
+                             !std::is_same_v<Toffset, uint64_t>>
+scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
+             simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+             uint64_t global_offset = 0, simd_mask<N> mask = 1) {
+  scatter_rgba<RGBAMask, AccessorT, N, T>(acc, convert<uint64_t>(offsets), vals,
+                                          global_offset, mask);
+}
+#endif
 /// @} sycl_esimd_memory
 
 namespace detail {
@@ -2009,7 +2082,12 @@ template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                               sycl::access::target::device, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
+simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                           uint64_t offset,
+#else
+                                           uint32_t offset,
+#endif
                                            Flags) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   static_assert(sizeof(UT) == sizeof(T));
@@ -2019,6 +2097,8 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
   constexpr unsigned BlockSize = OperandSize::OWORD * 8;
   constexpr unsigned NumBlocks = Size / BlockSize;
   constexpr unsigned RemSize = Size % BlockSize;
+
+  using OffsetTy = decltype(offset);
 
   if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
@@ -2043,7 +2123,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
   } else {
     constexpr unsigned NumChunks = N / ChunkSize;
     if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      simd<OffsetTy, ChunkSize> Offsets(0u, sizeof(T));
       ForHelper<NumChunks>::unroll(
           [acc, offset, &Offsets, this](unsigned Block) {
             select<ChunkSize, 1>(Block * ChunkSize) =
@@ -2054,14 +2134,14 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        simd<OffsetTy, RemN> Offsets(0u, sizeof(T));
         select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN, AccessorT>(
             acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)));
       } else {
         constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
         simd_mask_type<N1> Pred(0);
         Pred.template select<RemN, 1>() = 1;
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        simd<OffsetTy, N1> Offsets(0u, sizeof(T));
         simd<UT, N1> Vals = gather<UT, N1>(
             acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)), Pred);
         select<RemN, 1>(NumChunks * ChunkSize) =
@@ -2164,7 +2244,12 @@ template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                               sycl::access::target::device, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
+simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                         uint64_t offset,
+#else
+                                         uint32_t offset,
+#endif
                                          Flags) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
@@ -2174,8 +2259,9 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
   constexpr unsigned NumBlocks = Size / BlockSize;
   constexpr unsigned RemSize = Size % BlockSize;
 
-  simd<UT, N> Tmp{data()};
+  using OffsetTy = decltype(offset);
 
+  simd<UT, N> Tmp{data()};
   if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
     if constexpr (NumBlocks > 0) {
@@ -2199,7 +2285,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
   } else {
     constexpr unsigned NumChunks = N / ChunkSize;
     if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      simd<OffsetTy, ChunkSize> Offsets(0u, sizeof(T));
       ForHelper<NumChunks>::unroll([acc, offset, &Offsets,
                                     &Tmp](unsigned Block) {
         scatter<UT, ChunkSize, AccessorT>(
@@ -2210,7 +2296,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        simd<OffsetTy, RemN> Offsets(0u, sizeof(T));
         scatter<UT, RemN, AccessorT>(
             acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
             offset + (NumChunks * ChunkSize * sizeof(T)));
@@ -2221,7 +2307,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
         simd<UT, N1> Vals;
         Vals.template select<RemN, 1>() =
             Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        simd<OffsetTy, N1> Offsets(0u, sizeof(T));
         scatter<UT, N1, AccessorT>(acc, Offsets, Vals,
                                    offset + (NumChunks * ChunkSize * sizeof(T)),
                                    Pred);
