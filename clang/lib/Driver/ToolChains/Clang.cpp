@@ -1341,10 +1341,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(Args.MakeArgString("-fpch-instantiate-templates"));
     }
 
-    bool SYCLDeviceOnly =
-        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-        Args.hasArg(options::OPT_fsycl_device_only);
-
     if (YcArg || YuArg) {
       StringRef ThroughHeader = YcArg ? YcArg->getValue() : YuArg->getValue();
       if (!isa<PrecompileJobAction>(JA)) {
@@ -1372,8 +1368,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     if ((A->getOption().matches(options::OPT_include) &&
          D.getProbePrecompiled()) ||
         A->getOption().matches(options::OPT_include_pch)) {
-      if (SYCLDeviceOnly) {
-        D.Diag(clang::diag::err_drv_fsycl_with_pch);
+      if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
+          Args.hasArg(options::OPT_fsycl_device_only)) {
+        D.Diag(clang::diag::err_drv_pch_include_fsycl);
       }
 
       // Handling of gcc-style gch precompiled headers.
