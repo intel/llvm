@@ -738,8 +738,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             CurrentOffset += Padding;
             OffsetMap[SymID] = NextOffset;
 
-            assert(CurrentOffset % Align == 0 &&
-                   "Alignment calculation error");
+            assert(CurrentOffset % Align == 0 && "Alignment calculation error");
 
             // The spec constant map can't be empty as the first offset is 0
             // and so it can't be misaligned.
@@ -800,8 +799,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         Type *Int8Ty = Type::getInt8Ty(CI->getContext());
         Type *Int32Ty = Type::getInt32Ty(CI->getContext());
         GetElementPtrInst *GEP = GetElementPtrInst::Create(
-            Int8Ty, RTBuffer,
-            {ConstantInt::get(Int32Ty, CurrentOffset, false)}, "gep", CI);
+            Int8Ty, RTBuffer, {ConstantInt::get(Int32Ty, CurrentOffset, false)},
+            "gep", CI);
 
         Instruction *BitCast = nullptr;
         if (SCTy->isIntegerTy(1)) // No bitcast to i1 before load
