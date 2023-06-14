@@ -797,10 +797,9 @@ lsc_gather(AccessorTy acc,
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  auto loc_offsets = convert<uint32_t>(offsets);
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp =
       __esimd_lsc_load_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), loc_offsets.data(), si);
+                           _Transposed, N>(pred.data(), offsets.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
 #endif
 }
@@ -871,13 +870,12 @@ lsc_gather(AccessorTy acc,
   constexpr auto _Transposed = detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto SI = __ESIMD_NS::get_surface_index(acc);
-  auto loc_offsets = convert<uint32_t>(offsets);
   __ESIMD_NS::simd<MsgT, N * NElts> OldValuesExpanded =
       detail::lsc_format_input<MsgT>(old_values);
   __ESIMD_NS::simd<MsgT, N * NElts> Result =
       __esimd_lsc_load_merge_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
                                  _VS, _Transposed, N>(
-          pred.data(), loc_offsets.data(), SI, OldValuesExpanded.data());
+          pred.data(), offsets.data(), SI, OldValuesExpanded.data());
   return detail::lsc_format_ret<T>(Result);
 #endif
 }
@@ -1572,9 +1570,8 @@ lsc_prefetch(AccessorTy acc,
       detail::lsc_data_order::nontranspose;
   using MsgT = typename detail::lsc_expand_type<T>::type;
   auto si = __ESIMD_NS::get_surface_index(acc);
-  auto loc_offsets = convert<uint32_t>(offsets);
   __esimd_lsc_prefetch_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), loc_offsets.data(), si);
+                           _Transposed, N>(pred.data(), offsets.data(), si);
 #endif
 }
 
@@ -1830,10 +1827,9 @@ lsc_scatter(AccessorTy acc,
   using _CstT = typename detail::lsc_bitcast_type<T>::type;
   __ESIMD_NS::simd<MsgT, N * NElts> Tmp = vals.template bit_cast_view<_CstT>();
   auto si = __ESIMD_NS::get_surface_index(acc);
-  auto loc_offsets = convert<uint32_t>(offsets);
   __esimd_lsc_store_bti<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                        _Transposed, N>(pred.data(), loc_offsets.data(),
-                                        Tmp.data(), si);
+                        _Transposed, N>(pred.data(), offsets.data(), Tmp.data(),
+                                        si);
 #endif
 }
 

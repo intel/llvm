@@ -1498,35 +1498,11 @@ bool MemoryAccessAnalysis::hasZeroIndex(const MemRefAccess &access) const {
   return (index && index.getValue() == 0);
 }
 
-std::optional<Definition>
-MemoryAccessAnalysis::getUniqueDefinition(unsigned opIndex, Operation *op,
-                                          DataFlowSolver &solver) const {
-  using ModifiersTy = ReachingDefinition::ModifiersTy;
-
-  const ReachingDefinition *reachingDef =
-      solver.lookupState<ReachingDefinition>(op);
-  if (!reachingDef)
-    return std::nullopt;
-
-  Value operand = op->getOperand(opIndex);
-  std::optional<ModifiersTy> mods = reachingDef->getModifiers(operand);
-  std::optional<ModifiersTy> pMods =
-      reachingDef->getPotentialModifiers(operand);
-
-  // If there are potential modifiers then there is no unique modifier.
-  if (pMods.has_value() && !pMods->empty())
-    return std::nullopt;
-
-  if (!mods.has_value() || mods->size() != 1)
-    return std::nullopt;
-
-  return *mods->begin();
-}
-
 SmallVector<Value>
 MemoryAccessAnalysis::getUnderlyingValues(unsigned opIndex, Operation *op,
                                           DataFlowSolver &solver) const {
-  std::optional<Definition> def = getUniqueDefinition(opIndex, op, solver);
+  std::optional<Definition> def =
+      ReachingDefinition::getUniqueDefinition(opIndex, op, solver);
   if (!def.has_value())
     return {op->getOperand(opIndex)};
 

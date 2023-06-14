@@ -176,6 +176,29 @@ ReachingDefinition::getPotentialModifiers(Value val) const {
   return std::nullopt;
 }
 
+std::optional<Definition>
+ReachingDefinition::getUniqueDefinition(unsigned opIndex, Operation *op,
+                                        DataFlowSolver &solver) {
+  const ReachingDefinition *reachingDef =
+      solver.lookupState<ReachingDefinition>(op);
+  if (!reachingDef)
+    return std::nullopt;
+
+  Value operand = op->getOperand(opIndex);
+  std::optional<ModifiersTy> mods = reachingDef->getModifiers(operand);
+  std::optional<ModifiersTy> pMods =
+      reachingDef->getPotentialModifiers(operand);
+
+  // If there are potential modifiers then there is no unique modifier.
+  if (pMods.has_value() && !pMods->empty())
+    return std::nullopt;
+
+  if (!mods.has_value() || mods->size() != 1)
+    return std::nullopt;
+
+  return *mods->begin();
+}
+
 //===----------------------------------------------------------------------===//
 // ReachingDefinitionAnalysis
 //===----------------------------------------------------------------------===//

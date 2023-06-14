@@ -685,7 +685,8 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
          "Expecting SYCL array body to have size 1");
   assert(isa<MemRefType>(type.getBody()[0]) &&
          "Expecting SYCL array body entry to be MemRefType");
-  assert(cast<MemRefType>(type.getBody()[0]).getElementType() ==
+  assert(converter.convertType(
+             cast<MemRefType>(type.getBody()[0]).getElementType()) ==
              converter.getIndexType() &&
          "Expecting SYCL array body entry element type to be the index type");
   auto arrayTy =
