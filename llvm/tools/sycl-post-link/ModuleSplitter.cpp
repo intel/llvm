@@ -335,8 +335,9 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
   return ModuleDesc{std::move(SubM), std::move(ModuleEntryPoints), MD.Props};
 }
 
-// The function produces a copy of input LLVM IR module M with only those entry
-// points that are specified in ModuleEntryPoints vector.
+// The function produces a copy of input LLVM IR module M with only those
+// functions and globals that can be called from entry points that are specified
+// in ModuleEntryPoints vector, in addition to the entry point functions.
 ModuleDesc extractCallGraph(const ModuleDesc &MD,
                             EntryPointGroup &&ModuleEntryPoints,
                             const DependencyGraph &CG,
