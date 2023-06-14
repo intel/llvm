@@ -5985,6 +5985,13 @@ urEnqueueWriteHostPipe(
 #pragma region command buffer(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
+/// @brief The extension string which defines support for command-buffers which
+///        is returned when querying device extensions.
+#define UR_COMMAND_BUFFER_EXTENSION_STRING_EXP "ur_exp_command_buffer"
+#endif // UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-Buffer Descriptor Type
 typedef struct ur_exp_command_buffer_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
