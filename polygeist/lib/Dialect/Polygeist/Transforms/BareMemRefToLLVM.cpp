@@ -387,7 +387,7 @@ struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
       return viewOp.emitWarning("Target descriptor type not converted to LLVM"),
              failure();
 
-    int64_t offset;
+    int64_t offset = -1;
     SmallVector<int64_t, 4> strides;
     auto successStrides =
         getStridesAndOffset(viewOp.getType(), strides, offset);
@@ -429,8 +429,7 @@ struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
       nextSize = size;
     }
 
-    rewriter.replaceOp(viewOp, {targetMemRef});
-    return success();
+    return rewriter.replaceOp(viewOp, {targetMemRef}), success();
   }
 };
 } // namespace
@@ -820,7 +819,7 @@ struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
                  "Target descriptor element type not converted to LLVM"),
              failure();
 
-    int64_t offset;
+    int64_t offset = -1;
     SmallVector<int64_t, 4> strides;
     auto successStrides =
         getStridesAndOffset(viewOp.getType(), strides, offset);
@@ -868,8 +867,7 @@ struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
       nextSize = size;
     }
 
-    rewriter.replaceOp(viewOp, {targetMemRef});
-    return success();
+    return rewriter.replaceOp(viewOp, {targetMemRef}), success();
   }
 };
 } // namespace
