@@ -750,12 +750,7 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
       PGOGenerateArg->getOption().matches(options::OPT_fno_profile_generate))
     PGOGenerateArg = nullptr;
 
-  auto *CSPGOGenerateArg = Args.getLastArg(options::OPT_fcs_profile_generate,
-                                           options::OPT_fcs_profile_generate_EQ,
-                                           options::OPT_fno_profile_generate);
-  if (CSPGOGenerateArg &&
-      CSPGOGenerateArg->getOption().matches(options::OPT_fno_profile_generate))
-    CSPGOGenerateArg = nullptr;
+  auto *CSPGOGenerateArg = getLastCSProfileGenerateArg(Args);
 
   auto *ProfileGenerateArg = Args.getLastArg(
       options::OPT_fprofile_instr_generate,
@@ -4282,9 +4277,9 @@ static void renderDwarfFormat(const Driver &D, const llvm::Triple &T,
     else if (!T.isArch64Bit())
       D.Diag(diag::err_drv_argument_only_allowed_with)
           << DwarfFormatArg->getAsString(Args) << "64 bit architecture";
-    else if (!(T.isOSBinFormatELF() || T.isOSBinFormatXCOFF()))
+    else if (!T.isOSBinFormatELF())
       D.Diag(diag::err_drv_argument_only_allowed_with)
-          << DwarfFormatArg->getAsString(Args) << "ELF/XCOFF platforms";
+          << DwarfFormatArg->getAsString(Args) << "ELF platforms";
   }
 
   DwarfFormatArg->render(Args, CmdArgs);
@@ -9756,45 +9751,6 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         JA, *this, ResponseFileSupport::None(), Foreach, ForeachArgs, std::nullopt));
   } else
     C.addCommand(std::move(Cmd));
-}
-
-void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
-                             const InputInfo &Output,
-                             const InputInfoList &Inputs,
-                             const llvm::opt::ArgList &TCArgs,
-                             const char *LinkingOutput) const {
-  // Construct llvm-no-spir-kernel command.
-  assert(isa<SPIRCheckJobAction>(JA) && "Expecting SPIR Check job!");
-
-  // The spir check command looks like this:
-  // llvm-no-spir-kernel <file>.bc
-  // Upon success, we just move ahead.  Error means the check failed and
-  // we need to exit.  The expected output is the input as this is just an
-  // intermediate check with no functional change.
-  ArgStringList CheckArgs;
-  assert(Inputs.size() == 1 && "Unexpected number of inputs to the tool");
-  const InputInfo &InputFile = Inputs.front();
-  CheckArgs.push_back(InputFile.getFilename());
-
-  // Add output file, which is just a copy of the input to better fit in the
-  // toolchain flow.
-  CheckArgs.push_back("-o");
-  CheckArgs.push_back(Output.getFilename());
-  auto Cmd = std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(),
-      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CheckArgs, std::nullopt);
-
-  if (getToolChain().getTriple().getSubArch() ==
-      llvm::Triple::SPIRSubArch_fpga) {
-    const char *Msg = TCArgs.MakeArgString(
-        Twine("The FPGA image does not include all device kernels from ") +
-        Twine(InputFile.getBaseInput()) +
-        Twine(". Please re-generate the image"));
-    Cmd->addDiagForErrorCode(/*ErrorCode*/ 1, Msg);
-  }
-
-  C.addCommand(std::move(Cmd));
 }
 
 static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,

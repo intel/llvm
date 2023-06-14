@@ -533,9 +533,11 @@ void RVVEmitter::createRVVIntrinsics(
         BasicPrototype, /*IsMasked=*/false,
         /*HasMaskedOffOperand=*/false, HasVL, NF, UnMaskedPolicyScheme,
         DefaultPolicy, IsTuple);
-    auto MaskedPrototype = RVVIntrinsic::computeBuiltinTypes(
-        BasicPrototype, /*IsMasked=*/true, HasMaskedOffOperand, HasVL, NF,
-        MaskedPolicyScheme, DefaultPolicy, IsTuple);
+    llvm::SmallVector<PrototypeDescriptor> MaskedPrototype;
+    if (HasMasked)
+      MaskedPrototype = RVVIntrinsic::computeBuiltinTypes(
+          BasicPrototype, /*IsMasked=*/true, HasMaskedOffOperand, HasVL, NF,
+          MaskedPolicyScheme, DefaultPolicy, IsTuple);
 
     // Create Intrinsics for each type and LMUL.
     for (char I : TypeRange) {
@@ -633,7 +635,6 @@ void RVVEmitter::createRVVIntrinsics(
       RVVRequire RequireExt = StringSwitch<RVVRequire>(RequiredFeature)
                                   .Case("RV64", RVV_REQ_RV64)
                                   .Case("FullMultiply", RVV_REQ_FullMultiply)
-                                  .Case("ZvfhminOrZvfh", RVV_REQ_ZvfhminOrZvfh)
                                   .Case("Xsfvcp", RVV_REQ_Xsfvcp)
                                   .Default(RVV_REQ_None);
       assert(RequireExt != RVV_REQ_None && "Unrecognized required feature?");

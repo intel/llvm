@@ -143,6 +143,17 @@ C Language Changes
   from a null pointer constant.
 - Fixed a bug that prevented casting to an ``_Atomic``-qualified type.
   (`#39596 <https://github.com/llvm/llvm-project/issues/39596>`_)
+- Added an extension to ``_Generic`` which allows the first operand to be a
+  type rather than an expression. The type does not undergo any conversions,
+  which makes this feature suitable for matching qualified types, incomplete
+  types, and function or array types.
+
+  .. code-block:: c
+
+    const int i = 12;
+    _Generic(i, int : 0, const int : 1); // Warns about unreachable code, the
+                                         // result is 0, not 1.
+    _Generic(typeof(i), int : 0, const int : 1); // Result is 1, not 0.
 
 C2x Feature Support
 ^^^^^^^^^^^^^^^^^^^
@@ -319,6 +330,8 @@ Improvements to Clang's diagnostics
   ``-fno-diagnostics-show-line-numbers``. At the same time, the maximum
   number of code lines it prints has been increased from 1 to 16. This
   can be controlled using ``-fcaret-diagnostics-max-lines=``.
+- Clang no longer emits ``-Wunused-variable`` warnings for variables declared
+  with ``__attribute__((cleanup(...)))`` to match GCC's behavior.
 
 Bug Fixes in This Version
 -------------------------
@@ -460,6 +473,11 @@ Bug Fixes in This Version
 - Fix crash when diagnosing default comparison method.
   (`#62791 <https://github.com/llvm/llvm-project/issues/62791>`_) and
   (`#62102 <https://github.com/llvm/llvm-project/issues/62102>`_).
+- Fix crash when passing a braced initializer list to a parentehsized aggregate
+  initialization expression.
+  (`#63008 <https://github.com/llvm/llvm-project/issues/63008>`_).
+- Reject increment of bool value in unevaluated contexts after C++17.
+  (`#47517 <https://github.com/llvm/llvm-project/issues/47517>`_).
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -470,6 +488,10 @@ Bug Fixes to Attribute Support
   structs, unions, and scoped enums) were not properly ignored, resulting in
   misleading warning messages. Now, such attribute annotations are correctly
   ignored. (`#61660 <https://github.com/llvm/llvm-project/issues/61660>`_)
+- GNU attributes preceding C++ style attributes on templates were not properly
+  handled, resulting in compilation error. This has been corrected to match the
+  behavior exhibited by GCC, which permits mixed ordering of GNU and C++
+  attributes.
 
 Bug Fixes to C++ Support
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -514,6 +536,12 @@ Bug Fixes to C++ Support
   (`#62494 <https://github.com/llvm/llvm-project/issues/62494>`_)
 - Fix handling of generic lambda used as template arguments.
   (`#62611 <https://github.com/llvm/llvm-project/issues/62611>`_)
+- Allow omitting ``typename`` in the parameter declaration of a friend
+  constructor declaration.
+  (`#63119 <https://github.com/llvm/llvm-project/issues/63119>`_)
+- Fix access of a friend class declared in a local class. Clang previously
+  emitted an error when a friend of a local class tried to access it's
+  private data members.
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^

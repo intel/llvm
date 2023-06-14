@@ -16,6 +16,7 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
+include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/Transform/IR/MatchInterfaces.td"
 include "mlir/Dialect/Transform/IR/TransformAttrs.td"
@@ -124,6 +125,64 @@ def AnnotateOp : TransformDialectOp<"annotate",
   let assemblyFormat =
     "$target $name attr-dict (`=` $param^)?"
     "`:` type($target) (`,` type($param)^)?";
+}
+
+def ApplyPatternsOp : TransformDialectOp<"apply_patterns",
+    [TransformOpInterface, TransformEachOpTrait,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]
+        # GraphRegionNoTerminator.traits> {
+  let summary = "Greedily applies patterns to the body of the targeted op";
+  let description = [{
+    This transform greedily applies the specified patterns to the body of the
+    targeted op until a fixpoint was reached. Patterns are not applied to the
+    targeted op itself.
+
+    The patterns that should be applied are specified in the graph region of
+    this op. They must implement the `PatternDescriptorOpInterface`. The order
+    in which patterns are applied is unspecified; i.e., the ordering of ops in
+    the region of this op is irrelevant.
+
+    This transform only reads the target handle and modifies the payload. If a
+    pattern erases or replaces a tracked op, the mapping is updated accordingly.
+
+    Only replacements via `RewriterBase::replaceOp` or `replaceOpWithNewOp` are
+    considered "payload op replacements". Furthermore, only if the replacement
+    values are defined by the same op and that op has the same type as the
+    original op, the mapping is updated. Otherwise, this transform fails
+    silently unless `fail_on_payload_replacement_not_found` is set to "false".
+    More details can be found at the documentation site of `TrackingListener`.
+
+    This transform also fails silently if the pattern application did not
+    converge within the default number of iterations/rewrites of the greedy
+    pattern rewrite driver.
+  }];
+
+  let arguments = (ins
+    TransformHandleTypeInterface:$target,
+    DefaultValuedAttr<BoolAttr, "true">:$fail_on_payload_replacement_not_found);
+  let results = (outs);
+  let regions = (region MaxSizedRegion<1>:$region);
+
+  let assemblyFormat = "`to` $target $region attr-dict `:` type($target)";
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+      ::mlir::Operation *target,
+      ::mlir::transform::ApplyToEachResultList &results,
+      ::mlir::transform::TransformState &state);
+  }];
+}
+
+def ApplyCanonicalizationPatternsOp
+    : TransformDialectOp<"apply_patterns.canonicalization",
+        [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let summary = "Populates canonicalization patterns";
+  let description = [{
+    This op populates all canonicalization patterns of all loaded dialects in
+    an `apply_patterns` transform.
+  }];
+  let assemblyFormat = "attr-dict";
 }
 
 def CastOp : TransformDialectOp<"cast",
