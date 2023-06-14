@@ -854,6 +854,9 @@ public:
   void __set(size_t __index, _Tp __val) noexcept {
     __storage_[__index] = __val;
   }
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  const _StorageType& data() const noexcept { return __storage_; }
+#endif
 };
 
 #endif // _LIBCPP_HAS_NO_VECTOR_EXTENSION
@@ -1665,6 +1668,10 @@ public:
 #else
   static constexpr size_t size() noexcept;
 #endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  const auto& data() const noexcept { return __s_.data(); }
+#endif
 
   simd_mask() = default;
 
