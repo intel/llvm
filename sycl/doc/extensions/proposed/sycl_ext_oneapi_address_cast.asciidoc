@@ -60,8 +60,8 @@ checks from 1) are not required and may have undesirable performance impact.
 
 This extension separates `sycl::address_space_cast` into two functions:
 
-- `static_address_cast`, which casts with no checks.
-- `dynamic_address_cast`, which casts with checks.
+- `static_address_cast`, which casts with no run-time checks.
+- `dynamic_address_cast`, which casts with run-time checks.
 
 
 == Specification
@@ -119,6 +119,14 @@ designated by `Space`.
 _Returns_: A `multi_ptr` with the specified address space and decoration that
 points to the same object as `ptr`.
 
+[NOTE]
+====
+Implementations using address space deduction may choose to issue a diagnostic
+if they can prove that `ptr` does not point to an object allocated in the
+address space designated by `Space`.
+====
+
+
 [source,c++]
 ----
 template <access::address_space Space, access::decorated DecorateAddress,
@@ -131,10 +139,6 @@ _Preconditions_: The memory at `ptr` is accessible to the calling work-item.
 _Returns_: A `multi_ptr` with the specified address space and decoration that
 points to the same object as `ptr` if `ptr` points to an object allocated in
 the address space designated by `Space`, and `nullptr` otherwise.
-
-_Diagnostics_: Implementations using address space deduction must issue a
-diagnostic if `ptr` does not point to an object allocated in the address space
-designated by `Space`.
 
 [NOTE]
 ====
