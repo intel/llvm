@@ -335,7 +335,8 @@ bool command_graph<graph_state::modifiable>::begin_recording(
     QueueImpl->setCommandGraph(impl);
     impl->addQueue(QueueImpl);
     return true;
-  } else if (QueueImpl->getCommandGraph() != impl) {
+  }
+  if (QueueImpl->getCommandGraph() != impl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue which is already "
                           "recording to a different graph.");
@@ -367,7 +368,8 @@ bool command_graph<graph_state::modifiable>::end_recording(
     QueueImpl->setCommandGraph(nullptr);
     impl->removeQueue(QueueImpl);
     return true;
-  } else if (QueueImpl->getCommandGraph() != nullptr) {
+  }
+  if (QueueImpl->getCommandGraph() != nullptr) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
