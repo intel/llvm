@@ -873,8 +873,7 @@ private:
                  ArrayRef<Value> localIDs, const WorkGroupSize &workGroupSize,
                  DataFlowSolver &solver);
 
-  // Promote loop accesses with memref \p memref to local memory \p
-  // localMemory.
+  // Promote loop accesses with memref \p memref to local memory \p localMemory.
   void promote(Operation *memref, memref::ViewOp localMemory,
                LoopInfo &loopInfo, ArrayRef<Value> localIDs, OpBuilder &builder,
                DataFlowSolver &solver) const;
