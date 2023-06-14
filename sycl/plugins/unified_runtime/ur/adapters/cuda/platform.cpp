@@ -18,7 +18,7 @@
 void enableCUDATracing();
 void disableCUDATracing();
 
-UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t hPlatform, ur_platform_info_t PlatformInfoType,
     size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
 
@@ -56,7 +56,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 ///
 /// However because multiple devices in a context is not currently supported,
 /// place each device in a separate platform.
-UR_DLLEXPORT ur_result_t UR_APICALL
+UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
               uint32_t *pNumPlatforms) {
 
@@ -163,7 +163,7 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
   }
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_platform_handle_t hDriver, ur_api_version_t *pVersion) {
   UR_ASSERT(hDriver, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pVersion, UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -172,12 +172,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
+UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
   enableCUDATracing();
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *) {
+UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
   disableCUDATracing();
   return UR_RESULT_SUCCESS;
 }

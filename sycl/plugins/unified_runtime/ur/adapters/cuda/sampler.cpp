@@ -9,9 +9,9 @@
 #include "sampler.hpp"
 #include "common.hpp"
 
-ur_result_t urSamplerCreate(ur_context_handle_t hContext,
-                            const ur_sampler_desc_t *pDesc,
-                            ur_sampler_handle_t *phSampler) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urSamplerCreate(ur_context_handle_t hContext, const ur_sampler_desc_t *pDesc,
+                ur_sampler_handle_t *phSampler) {
   std::unique_ptr<ur_sampler_handle_t_> Sampler{
       new ur_sampler_handle_t_(hContext)};
 
@@ -29,9 +29,9 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
-                             ur_sampler_info_t propName, size_t propValueSize,
-                             void *pPropValue, size_t *pPropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
+                 size_t propValueSize, void *pPropValue, size_t *pPropSizeRet) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropSizeRet);
 
@@ -60,13 +60,15 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
   return {};
 }
 
-ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urSamplerRetain(ur_sampler_handle_t hSampler) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   hSampler->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urSamplerRelease(ur_sampler_handle_t hSampler) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urSamplerRelease(ur_sampler_handle_t hSampler) {
   UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // double delete or someone is messing with the ref count.

@@ -162,6 +162,11 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       Threads::Threads
       cudadrv
   )
+
+  set_target_properties("ur_adapter_cuda" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
 endif()
 
 if (TARGET UnifiedRuntimeLoader)

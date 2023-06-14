@@ -223,7 +223,7 @@ bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
 /// \ref enqueueEventWaitWithBarrier.) If the events list is empty, the enqueued
 /// wait will wait on all previous events in the queue.
 ///
-UR_DLLEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   // This function makes one stream work on the previous work (or work
@@ -303,14 +303,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 /// TODO: Add support for multiple streams once the Event class is properly
 /// refactored.
 ///
-UR_DLLEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
                                         phEventWaitList, phEvent);
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
