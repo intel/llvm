@@ -90,6 +90,10 @@ auto memoryProviderMakeUnique(Args &&...args) {
             noexcept(reinterpret_cast<T *>(obj)->purge_force(args...)));
         return reinterpret_cast<T *>(obj)->purge_force(args...);
     };
+    ops.get_name = [](void *obj, auto... args) {
+        static_assert(noexcept(reinterpret_cast<T *>(obj)->get_name(args...)));
+        return reinterpret_cast<T *>(obj)->get_name(args...);
+    };
 
     uma_memory_provider_handle_t hProvider = nullptr;
     auto ret = umaMemoryProviderCreate(&ops, &argsTuple, &hProvider);
