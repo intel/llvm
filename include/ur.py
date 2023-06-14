@@ -1863,6 +1863,11 @@ class ur_usm_migration_flags_t(c_int):
 
 
 ###############################################################################
+## @brief The extension string which defines support for command-buffers which
+##        is returned when querying device extensions.
+UR_COMMAND_BUFFER_EXTENSION_STRING_EXP = "ur_exp_command_buffer"
+
+###############################################################################
 ## @brief Command-Buffer Descriptor Type
 class ur_exp_command_buffer_desc_t(Structure):
     _fields_ = [
