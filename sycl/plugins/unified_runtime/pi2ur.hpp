@@ -1743,20 +1743,6 @@ inline pi_result piProgramCreateWithBinary(
   return PI_SUCCESS;
 }
 
-inline pi_result piclProgramCreateWithSource(pi_context Context,
-                                             pi_uint32 Count,
-                                             const char **Strings,
-                                             const size_t *Lengths,
-                                             pi_program *RetProgram) {
-  std::ignore = Context;
-  std::ignore = Count;
-  std::ignore = Strings;
-  std::ignore = Lengths;
-  std::ignore = RetProgram;
-  die("piclProgramCreateWithSource: not supported in UR\n");
-  return PI_ERROR_INVALID_OPERATION;
-}
-
 inline pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {

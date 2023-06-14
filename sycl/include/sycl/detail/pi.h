@@ -1353,12 +1353,6 @@ __SYCL_EXPORT pi_result piextMemImageCreateWithNativeHandle(
 __SYCL_EXPORT pi_result piProgramCreate(pi_context context, const void *il,
                                         size_t length, pi_program *res_program);
 
-__SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
-                                                    pi_uint32 count,
-                                                    const char **strings,
-                                                    const size_t *lengths,
-                                                    pi_program *ret_program);
-
 /// Creates a PI program for a context and loads the given binary into it.
 ///
 /// \param context is the PI context to associate the program with.

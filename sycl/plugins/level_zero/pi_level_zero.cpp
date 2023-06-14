@@ -279,14 +279,6 @@ pi_result piextMemImageCreateWithNativeHandle(
       NativeHandle, Context, OwnNativeHandle, ImageFormat, ImageDesc, Img);
 }
 
-pi_result piclProgramCreateWithSource(pi_context Context, pi_uint32 Count,
-                                      const char **Strings,
-                                      const size_t *Lengths,
-                                      pi_program *RetProgram) {
-  return pi2ur::piclProgramCreateWithSource(Context, Count, Strings, Lengths,
-                                            RetProgram);
-}
-
 pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
                            size_t ParamValueSize, void *ParamValue,
                            size_t *ParamValueSizeRet) {
