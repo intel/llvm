@@ -121,9 +121,9 @@ points to the same object as `ptr`.
 
 [NOTE]
 ====
-Implementations using address space deduction may choose to issue a diagnostic
-if they can prove that `ptr` does not point to an object allocated in the
-address space designated by `Space`.
+Implementations may choose to issue a diagnostic if they can prove that `ptr`
+does not point to an object allocated in the address space designated by
+`Space`.
 ====
 
 
