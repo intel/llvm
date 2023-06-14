@@ -770,10 +770,10 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       const Type *ClangETy = ETy.getTypePtrOrNull();
       if (ClangETy && ClangETy->isStructureOrClassType()) {
         RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
-        if (RD &&
-            RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
-            ResultType = ConvertSYCLJointMatrixINTELType(RD);
-            break;
+        if (RD && RD->getQualifiedNameAsString() ==
+                      "__spv::__spirv_JointMatrixINTEL") {
+          ResultType = ConvertSYCLJointMatrixINTELType(RD);
+          break;
         }
       }
     }
