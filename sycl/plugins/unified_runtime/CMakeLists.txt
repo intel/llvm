@@ -207,6 +207,11 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       Threads::Threads
   )
 
+  set_target_properties("ur_adapter_hip" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
+
   if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
     target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
     # Set HIP define to select AMD platform
