@@ -2044,9 +2044,9 @@ public:
   /// \return an event representing graph execution operation.
   event ext_oneapi_graph(ext::oneapi::experimental::command_graph<
                          ext::oneapi::experimental::graph_state::executable>
-                             Graph _CODELOCPARAM(&CodeLoc)) {
+                             Graph, const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit(
-        [&](handler &CGH) { CGH.ext_oneapi_graph(Graph); } _CODELOCFW(CodeLoc));
+        [&](handler &CGH) { CGH.ext_oneapi_graph(Graph); }, CodeLoc);
   }
 
   /// Shortcut for executing a graph of commands with a single dependency.
@@ -2058,11 +2058,11 @@ public:
   event ext_oneapi_graph(ext::oneapi::experimental::command_graph<
                              ext::oneapi::experimental::graph_state::executable>
                              Graph,
-                         event DepEvent _CODELOCPARAM(&CodeLoc)) {
+                         event DepEvent, const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvent);
       CGH.ext_oneapi_graph(Graph);
-    } _CODELOCFW(CodeLoc));
+    }, CodeLoc);
   }
 
   /// Shortcut for executing a graph of commands with multiple dependencies.
@@ -2074,12 +2074,12 @@ public:
   event ext_oneapi_graph(ext::oneapi::experimental::command_graph<
                              ext::oneapi::experimental::graph_state::executable>
                              Graph,
-                         const std::vector<event> &DepEvents
-                             _CODELOCPARAM(&CodeLoc)) {
+                         const std::vector<event> &DepEvents,
+                             const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.ext_oneapi_graph(Graph);
-    } _CODELOCFW(CodeLoc));
+    }, CodeLoc);
   }
 
   /// Returns whether the queue is in order or OoO
