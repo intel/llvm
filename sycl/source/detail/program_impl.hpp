@@ -306,9 +306,6 @@ public:
   /// \return the current state of this SYCL program.
   program_state get_state() const { return MState; }
 
-  void set_spec_constant_impl(const char *Name, const void *ValAddr,
-                              size_t ValSize);
-
   /// Takes current values of specialization constants and "injects" them into
   /// the underlying native program program via specialization constant
   /// managemment PI APIs. The native program passed as non-null argument
