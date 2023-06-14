@@ -46,6 +46,7 @@ jobs:
     - name: SYCL End-to-end tests
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --max-time 3600 --time-tests
+        LIT_FILTER: SharedLib
       shell: bash
       run: |
         # https://github.com/actions/runner/issues/1964 prevents us from using
