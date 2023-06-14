@@ -1,4 +1,5 @@
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: gpu && !esimd_emulator
