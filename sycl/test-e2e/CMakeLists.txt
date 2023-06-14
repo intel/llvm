@@ -31,6 +31,7 @@ if(NOT LLVM_LIT)
                DOC "Path to lit.py")
 endif()
 
+
 set(SYCL_E2E_TESTS_LIT_FLAGS "-sv" CACHE STRING "Flags used when running lit")
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
