@@ -285,13 +285,13 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
     return Value.convertBitSet<ur_device_affinity_domain_flag_t,
                                pi_device_affinity_domain>(ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_PARTITION_TYPE) {
-    auto ConvertFunc = [](ur_device_partition_property_t UrValue) {
+    auto ConvertFunc = [](ur_device_partition_t UrValue) {
       switch (UrValue) {
       case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
       case UR_DEVICE_PARTITION_BY_CSLICE:
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
-      case (ur_device_partition_property_t)
+      case (ur_device_partition_t)
           UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE:
         return (pi_device_partition_property)
             PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
@@ -299,21 +299,23 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
         die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
       }
     };
-    return Value.convertArray<ur_device_partition_property_t,
-                              pi_device_partition_property>(ConvertFunc);
-  } else if (ParamName == UR_DEVICE_INFO_PARTITION_PROPERTIES) {
-    auto ConvertFunc = [](ur_device_partition_property_t UrValue) {
+    return Value
+        .convertArray<ur_device_partition_t, pi_device_partition_property>(
+            ConvertFunc);
+  } else if (ParamName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    auto ConvertFunc = [](ur_device_partition_t UrValue) {
       switch (UrValue) {
       case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
       case UR_DEVICE_PARTITION_BY_CSLICE:
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
       default:
-        die("UR_DEVICE_INFO_PARTITION_PROPERTIES: unhandled value");
+        die("UR_DEVICE_INFO_SUPPORTED_PARTITIONS: unhandled value");
       }
     };
-    return Value.convertArray<ur_device_partition_property_t,
-                              pi_device_partition_property>(ConvertFunc);
+    return Value
+        .convertArray<ur_device_partition_t, pi_device_partition_property>(
+            ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
     auto ConvertFunc = [](ur_device_local_mem_type_t UrValue) {
       switch (UrValue) {
@@ -777,7 +779,7 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_REFERENCE_COUNT;
     break;
   case PI_DEVICE_INFO_PARTITION_PROPERTIES:
-    InfoType = UR_DEVICE_INFO_PARTITION_PROPERTIES;
+    InfoType = UR_DEVICE_INFO_SUPPORTED_PARTITIONS;
     break;
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     InfoType = UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN;
@@ -1080,7 +1082,7 @@ inline pi_result piDevicePartition(
   if (!Properties || !Properties[0])
     return PI_ERROR_INVALID_VALUE;
 
-  ur_device_partition_property_t Property;
+  ur_device_partition_t Property;
   switch (Properties[0]) {
   case PI_DEVICE_PARTITION_EQUALLY:
     Property = UR_DEVICE_PARTITION_EQUALLY;
@@ -1120,12 +1122,20 @@ inline pi_result piDevicePartition(
   // TODO: correctly terminate the UR properties, see:
   // https://github.com/oneapi-src/unified-runtime/issues/183
   //
-  ur_device_partition_property_t UrProperties[] = {
-      ur_device_partition_property_t(Property), Value, 0};
+  ur_device_partition_property_t UrProperty;
+  UrProperty.type = Property;
+  UrProperty.value.equally = Value;
+
+  ur_device_partition_properties_t UrProperties{
+      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+      nullptr,
+      &UrProperty,
+      1,
+  };
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(UrDevice, UrProperties, NumEntries,
+  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrProperties, NumEntries,
                                   UrSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
