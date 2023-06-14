@@ -68,7 +68,7 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-== Objetive of the extension
+== Objective of the extension
 
 The objective of this extension is to complement the SYCL and DPC++ interface
 with a library of utility functions to support developer effort and maintenance
