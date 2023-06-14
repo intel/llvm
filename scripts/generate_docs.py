@@ -245,9 +245,12 @@ def generate_html(dstpath):
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating HTML...")
-    cmdline = "sphinx-build -M html %s ../docs"%sourcepath
-    print(cmdline)
-    os.system(cmdline)
+    result = subprocess.run(["sphinx-build", "-M", "html", sourcepath, "../docs" ], stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print("sphinx-build returned non-zero error code.")
+        print("--- output ---")
+        print(result.stderr.read().decode())
+        raise Exception("Failed to generate html documentation.")
 
 """
 Entry-point:
@@ -257,9 +260,12 @@ def generate_pdf(dstpath):
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating PDF...")
-    cmdline = "sphinx-build -b pdf %s ../docs/latex"%sourcepath
-    print(cmdline)
-    os.system(cmdline)
+    result = subprocess.run(["sphinx-build", "-b", "pdf", sourcepath, "../docs/latex"], stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print("sphinx-build returned non-zero error code.")
+        print("--- output ---")
+        print(result.stderr.read().decode())
+        raise Exception("Failed to generate pdf documentation.")
 
 """
 Entry-point:
