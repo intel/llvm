@@ -1,9 +1,11 @@
-// Checks that kernelhandler and subhandler are emitted in the integration headers.
-// The sycl-native-cpu helper header is always named <sycl-int-header>.hc
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -Xclang -fsycl-int-footer=%t-footer.h -o %t.bc %s 
+// Checks that kernelhandler and subhandler are emitted in the integration
+// headers. The sycl-native-cpu helper header is always named
+// <sycl-int-header>.hc
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -Xclang -fsycl-int-footer=%t-footer.h -o %t.bc %s
 // RUN: FileCheck -input-file=%t-footer.h %s --check-prefix=CHECK-H
 // RUN: FileCheck -input-file=%t.h.hc %s --check-prefix=CHECK-HC
-// Compiling generated main integration header to check correctness, -fsycl option used to find required includes 
+// Compiling generated main integration header to check correctness, -fsycl
+// option used to find required includes
 // RUN: %clangxx -fsycl -D __SYCL_NATIVE_CPU__ -c -x c++ %t.h
 
 #include "sycl.hpp"
@@ -12,19 +14,13 @@ int main() {
   sycl::queue deviceQueue;
   sycl::accessor<int, 1, sycl::access::mode::write> acc;
   sycl::range<1> r(1);
-  deviceQueue.submit([&](sycl::handler& h){
-        
-        h.parallel_for<Test1>(r, [=](sycl::id<1> id){
-             acc[id[0]] = 42;
-            });
-      });
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.parallel_for<Test1>(r, [=](sycl::id<1> id) { acc[id[0]] = 42; });
+  });
 }
-
 
 // check that we are including the Native CPU header in the main SYCL ih
 // CHECK-H: #include "{{.*}}.h.hc"
-
-
 
 // check that we are emitting the subhandler in Native CPU ih
 //CHECK-HC: #pragma once
@@ -48,4 +44,3 @@ int main() {
 //CHECK-HC-NEXT: 	}
 //CHECK-HC-NEXT: };
 //CHECK-HC-NEXT: static init_native_cpu_ZTS5Test1_NativeCPUKernel_t init_native_cpu_ZTS5Test1_NativeCPUKernel;
-

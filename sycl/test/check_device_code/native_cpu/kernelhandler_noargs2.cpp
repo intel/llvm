@@ -9,7 +9,7 @@ __attribute__((sycl_kernel)) void launch(const Func &kernelFunc) {
   kernelFunc();
 }
 int main() {
-  launch<class TestKernel>([]() {  });
+  launch<class TestKernel>([]() {});
   return 0;
 }
 
