@@ -39,7 +39,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: ${{ github.event.pull_request.merge_commit_sha }}
         sparse-checkout: |
           devops/actions/cached_checkout
     - name: 'PR commits + 2'
@@ -48,10 +47,7 @@ jobs:
       with:
         path: src
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
-        # clang-format uses github.event.pull_request.base.sha that has the top
-        # of the base branch, not the merge base. As such, checkout the merge
-        # commit instead of github.event.pull_request.head.sha.
-        ref: ${{ github.event.pull_request.merge_commit_sha }}
+        ref: ${{ github.event.pull_request.head.sha }}
         cache_path: "/__w/repo_cache/"
         merge: false
     - name: Run clang-format
