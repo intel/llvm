@@ -9,6 +9,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/accessor.hpp>
 
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
