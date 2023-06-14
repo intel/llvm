@@ -45,6 +45,7 @@ sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
+sycl/plugins/unified_runtime/ur/adapters/cuda/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
