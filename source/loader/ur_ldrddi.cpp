@@ -1738,9 +1738,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
     size_t propSize, ///< [in] size in bytes of the pool property value provided
     void *
-        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
-    size_t
-        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the pool
+                    ///< property
+    size_t *
+        pPropSizeRet ///< [out][optional] size in bytes returned in pool property value
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
