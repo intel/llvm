@@ -579,3 +579,17 @@ func.func private @non_bare_due_to_layout(%arg0: memref<100xi64, #layout>, %arg1
   %res = memref.load %arg0[%arg1] : memref<100xi64, #layout>
   return %res : i64
 }
+
+// -----
+
+// CHECK-LABEL:   llvm.func @view(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<3>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i64) -> !llvm.ptr<3> attributes {sym_visibility = "private"} {
+// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<3>, i64) -> !llvm.ptr<3>, i8
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr<3>
+// CHECK:         }
+
+func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index) -> memref<2xf32, 3> {
+  %res = memref.view %arg0[%arg1][] : memref<8xi8, 3> to memref<2xf32, 3>
+  return %res : memref<2xf32, 3>
+}

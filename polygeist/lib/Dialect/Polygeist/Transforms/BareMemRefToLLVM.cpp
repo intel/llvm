@@ -319,6 +319,21 @@ struct StoreMemRefOpLowering : public MemAccessLowering {
     return success();
   }
 };
+
+struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
+  using ConvertOpToLLVMPattern<memref::ViewOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::ViewOp viewOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto convElemType = typeConverter->convertType(
+        viewOp.getSource().getType().getElementType());
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        viewOp, getTypeConverter()->convertType(viewOp.getType()), convElemType,
+        adaptor.getSource(), adaptor.getByteShift());
+    return success();
+  }
+};
 } // namespace
 
 // The following patterns are outdated and only used in case typed pointers
@@ -635,6 +650,22 @@ struct StoreMemRefOpLoweringOld : public MemAccessLowering {
     return success();
   }
 };
+
+struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
+  using ConvertOpToLLVMPattern<memref::ViewOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::ViewOp viewOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto loc = viewOp.getLoc();
+    auto gepPtr = rewriter.create<LLVM::GEPOp>(
+        loc, getTypeConverter()->convertType(viewOp.getSource().getType()),
+        adaptor.getSource(), adaptor.getByteShift());
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(
+        viewOp, getTypeConverter()->convertType(viewOp.getType()), gepPtr);
+    return success();
+  }
+};
 } // namespace
 
 void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
@@ -646,14 +677,15 @@ void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
     patterns.add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
                  AllocMemrefOpLowering, AllocaMemrefOpLowering,
                  CastMemrefOpLowering, DeallocOpLowering, LoadMemRefOpLowering,
-                 MemorySpaceCastMemRefOpLowering, StoreMemRefOpLowering>(
-        converter, 2);
+                 MemorySpaceCastMemRefOpLowering, StoreMemRefOpLowering,
+                 ViewMemRefOpLowering>(converter, 2);
   } else {
     patterns.add<GetGlobalMemrefOpLoweringOld, ReshapeMemrefOpLoweringOld,
                  AllocMemrefOpLoweringOld, AllocaMemrefOpLoweringOld,
                  CastMemrefOpLoweringOld, DeallocOpLoweringOld,
                  LoadMemRefOpLoweringOld, MemorySpaceCastMemRefOpLoweringOld,
-                 StoreMemRefOpLoweringOld>(converter, 2);
+                 StoreMemRefOpLoweringOld, ViewMemRefOpLoweringOld>(converter,
+                                                                    2);
   }
 
   // Patterns are tried in reverse add order, so this is tried before the
