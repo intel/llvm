@@ -7,11 +7,16 @@
 // UNSUPPORTED: hip_amd
 // XFAIL: cuda && windows
 //
-// RUN: %{build} -o %t.out
+// FIXME: Default optimization level is O0 i.e. no optimizations and this test
+// relies on DPC++ compiler to run an optimization, which changes the addres
+// space for the string literal passed to the printf. Future driver version are
+// going to support an extension relaxing the address space requirement.
+// Meanwhile we explictly apply O1 optimizations to pass this test case.
+// RUN: %{build} -O1 -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
 //        support is considered stable.
-// RUN: %{build} -o %t.constant.out -DTEST_CONSTANT_AS
+// RUN: %{build} -O1 -o %t.constant.out -DTEST_CONSTANT_AS
 // RUN: %{run} %t.constant.out | FileCheck %s
 //
 // FIXME: wchar_t* is not supported on GPU
