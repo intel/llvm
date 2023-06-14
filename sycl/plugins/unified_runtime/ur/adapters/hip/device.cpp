@@ -825,9 +825,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_IMAGE_SRGB:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_PCI_ADDRESS: {
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    sycl::detail::ur::assertion(
+        hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize,
+                             hDevice->get()) == hipSuccess);
+    // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API
+    // is not guaranteed to use this format. In practice, it uses this format,
+    // at least in 5.3-5.5. To be on the safe side, we make sure the terminating
+    // \0 is set.
+    AddressBuffer[AddressBufferSize - 1] = '\0';
+    sycl::detail::ur::assertion(strnlen(AddressBuffer, AddressBufferSize) > 0);
+    return ReturnValue(AddressBuffer,
+                       strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
+  }
 
   // TODO: Investigate if this information is available on HIP.
-  case UR_DEVICE_INFO_PCI_ADDRESS:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case UR_DEVICE_INFO_GPU_EU_SLICES:
