@@ -355,7 +355,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:          %[[VAL_44:.*]] = arith.constant 0 : index
 
 // COM: Get pointer to the local memory portion for 1st memref:
-// CHECK-NEXT:          %[[VAL_45:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_44]]]{{\[}}%[[WGSIZE1]], %[[VAL_4]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:          %[[VAL_45:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_44]]]{{\[}}%[[VAL_4]], %[[WGSIZE1]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
 
 // COM: Calculate upper bound for the tiled loop:
 // CHECK-NEXT:          %[[VAL_46:.*]] = arith.addi %[[VAL_39]], %[[TILESIZE]] : index
@@ -383,7 +383,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:          %[[VAL_61:.*]] = arith.addi %[[VAL_44]], %[[VAL_60]] : index
 
 // COM: Get pointer to the local memory portion for 2nd memref:
-// CHECK-NEXT:          %[[VAL_62:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_61]]]{{\[}}%[[WGSIZE1]], %[[VAL_4]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:          %[[VAL_62:.*]] = memref.view %[[VAL_37]]{{\[}}%[[VAL_61]]]{{\[}}%[[VAL_4]], %[[WGSIZE1]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?xf32, #sycl.access.address_space<local>>
 
 // COM: Copy to local memory for 2nd memref:
 // CHECK-NEXT:          %[[VAL_63:.*]] = memref.alloca() : memref<1x!sycl_id_2_>
@@ -518,7 +518,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:            %[[VAL_48:.*]] = arith.constant 0 : index
 
 // COM: Get pointer to the local memory portion for 1st memref:
-// CHECK-NEXT:            %[[VAL_49:.*]] = memref.view %[[VAL_43]]{{\[}}%[[VAL_48]]]{{\[}}%[[WGSIZE2]], %[[VAL_7]], %[[VAL_4]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?x?xf32, #sycl.access.address_space<local>>
+// CHECK-NEXT:            %[[VAL_49:.*]] = memref.view %[[VAL_43]]{{\[}}%[[VAL_48]]]{{\[}}%[[VAL_4]], %[[VAL_7]], %[[WGSIZE2]]] : memref<32000xi8, #sycl.access.address_space<local>> to memref<?x?x?xf32, #sycl.access.address_space<local>>
 
 // COM: Calculate upper bound for the tiled loop:
 // CHECK-NEXT:            %[[VAL_50:.*]] = arith.addi %[[VAL_45]], %[[VAL_44]] : index

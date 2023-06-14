@@ -332,7 +332,7 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
                             OpBuilder builder, Location loc) {
   SmallVector<int64_t> shape;
   SmallVector<Value> sizes;
-  for (int dim = accTy.getDimension() - 1; dim >= 0; --dim) {
+  for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
     std::variant<Value, unsigned> size = workGroupSize[dim];
     if (workGroupSize.hasElemTy<unsigned>())
       shape.push_back(std::get<unsigned>(workGroupSize[dim]));
