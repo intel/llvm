@@ -39,7 +39,9 @@ void test(queue q, InputContainer input, OutputContainer output,
         int lid = it.get_local_id(0);
         out[0] = none_of_group(g, pred(in[lid]));
         out[1] = none_of_group(g, in[lid], pred);
-        out[2] = joint_none_of(g, in.get_pointer(), in.get_pointer() + N, pred);
+        out[2] = joint_none_of(
+            g, in.template get_multi_ptr<access::decorated::no>(),
+            in.template get_multi_ptr<access::decorated::no>() + N, pred);
       });
     });
   }

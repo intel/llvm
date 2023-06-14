@@ -65,42 +65,6 @@
 using namespace lldb;
 using namespace lldb_private;
 
-static llvm::sys::DynamicLibrary LoadPlugin(const lldb::DebuggerSP &debugger_sp,
-                                            const FileSpec &spec,
-                                            Status &error) {
-  llvm::sys::DynamicLibrary dynlib =
-      llvm::sys::DynamicLibrary::getPermanentLibrary(spec.GetPath().c_str());
-  if (dynlib.isValid()) {
-    typedef bool (*LLDBCommandPluginInit)(lldb::SBDebugger & debugger);
-
-    lldb::SBDebugger debugger_sb(debugger_sp);
-    // This calls the bool lldb::PluginInitialize(lldb::SBDebugger debugger)
-    // function.
-    // TODO: mangle this differently for your system - on OSX, the first
-    // underscore needs to be removed and the second one stays
-    LLDBCommandPluginInit init_func =
-        (LLDBCommandPluginInit)(uintptr_t)dynlib.getAddressOfSymbol(
-            "_ZN4lldb16PluginInitializeENS_10SBDebuggerE");
-    if (init_func) {
-      if (init_func(debugger_sb))
-        return dynlib;
-      else
-        error.SetErrorString("plug-in refused to load "
-                             "(lldb::PluginInitialize(lldb::SBDebugger) "
-                             "returned false)");
-    } else {
-      error.SetErrorString("plug-in is missing the required initialization: "
-                           "lldb::PluginInitialize(lldb::SBDebugger)");
-    }
-  } else {
-    if (FileSystem::Instance().Exists(spec))
-      error.SetErrorString("this file does not represent a loadable dylib");
-    else
-      error.SetErrorString("no such file");
-  }
-  return llvm::sys::DynamicLibrary();
-}
-
 static llvm::ManagedStatic<SystemLifetimeManager> g_debugger_lifetime;
 
 SBError SBInputReader::Initialize(
@@ -213,6 +177,42 @@ void SBDebugger::Initialize() {
 
 lldb::SBError SBDebugger::InitializeWithErrorHandling() {
   LLDB_INSTRUMENT();
+
+  auto LoadPlugin = [](const lldb::DebuggerSP &debugger_sp,
+                       const FileSpec &spec,
+                       Status &error) -> llvm::sys::DynamicLibrary {
+    llvm::sys::DynamicLibrary dynlib =
+        llvm::sys::DynamicLibrary::getPermanentLibrary(spec.GetPath().c_str());
+    if (dynlib.isValid()) {
+      typedef bool (*LLDBCommandPluginInit)(lldb::SBDebugger & debugger);
+
+      lldb::SBDebugger debugger_sb(debugger_sp);
+      // This calls the bool lldb::PluginInitialize(lldb::SBDebugger debugger)
+      // function.
+      // TODO: mangle this differently for your system - on OSX, the first
+      // underscore needs to be removed and the second one stays
+      LLDBCommandPluginInit init_func =
+          (LLDBCommandPluginInit)(uintptr_t)dynlib.getAddressOfSymbol(
+              "_ZN4lldb16PluginInitializeENS_10SBDebuggerE");
+      if (init_func) {
+        if (init_func(debugger_sb))
+          return dynlib;
+        else
+          error.SetErrorString("plug-in refused to load "
+                               "(lldb::PluginInitialize(lldb::SBDebugger) "
+                               "returned false)");
+      } else {
+        error.SetErrorString("plug-in is missing the required initialization: "
+                             "lldb::PluginInitialize(lldb::SBDebugger)");
+      }
+    } else {
+      if (FileSystem::Instance().Exists(spec))
+        error.SetErrorString("this file does not represent a loadable dylib");
+      else
+        error.SetErrorString("no such file");
+    }
+    return llvm::sys::DynamicLibrary();
+  };
 
   SBError error;
   if (auto e = g_debugger_lifetime->Initialize(
@@ -1326,7 +1326,10 @@ SBDebugger SBDebugger::FindDebuggerWithID(int id) {
 const char *SBDebugger::GetInstanceName() {
   LLDB_INSTRUMENT_VA(this);
 
-  return (m_opaque_sp ? m_opaque_sp->GetInstanceName().AsCString() : nullptr);
+  if (!m_opaque_sp)
+    return nullptr;
+
+  return ConstString(m_opaque_sp->GetInstanceName()).AsCString();
 }
 
 SBError SBDebugger::SetInternalVariable(const char *var_name, const char *value,
@@ -1334,8 +1337,8 @@ SBError SBDebugger::SetInternalVariable(const char *var_name, const char *value,
   LLDB_INSTRUMENT_VA(var_name, value, debugger_instance_name);
 
   SBError sb_error;
-  DebuggerSP debugger_sp(Debugger::FindDebuggerWithInstanceName(
-      ConstString(debugger_instance_name)));
+  DebuggerSP debugger_sp(
+      Debugger::FindDebuggerWithInstanceName(debugger_instance_name));
   Status error;
   if (debugger_sp) {
     ExecutionContext exe_ctx(
@@ -1356,8 +1359,8 @@ SBDebugger::GetInternalVariableValue(const char *var_name,
                                      const char *debugger_instance_name) {
   LLDB_INSTRUMENT_VA(var_name, debugger_instance_name);
 
-  DebuggerSP debugger_sp(Debugger::FindDebuggerWithInstanceName(
-      ConstString(debugger_instance_name)));
+  DebuggerSP debugger_sp(
+      Debugger::FindDebuggerWithInstanceName(debugger_instance_name));
   Status error;
   if (debugger_sp) {
     ExecutionContext exe_ctx(
@@ -1487,7 +1490,7 @@ bool SBDebugger::GetDescription(SBStream &description) {
   Stream &strm = description.ref();
 
   if (m_opaque_sp) {
-    const char *name = m_opaque_sp->GetInstanceName().AsCString();
+    const char *name = m_opaque_sp->GetInstanceName().c_str();
     user_id_t id = m_opaque_sp->GetID();
     strm.Printf("Debugger (instance: \"%s\", id: %" PRIu64 ")", name, id);
   } else

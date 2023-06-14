@@ -1,6 +1,6 @@
 // REQUIRES: gpu
 // REQUIRES: opencl || level_zero
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 //
 // Temporarily disable on L0 due to fails in CI

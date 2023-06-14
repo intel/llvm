@@ -9,6 +9,14 @@ define i1 @bool_true_or_false(i1 %cond) {
   ret i1 %s
 }
 
+define i1 @cond_constexpr_bool_true_or_false(i1 %cond) {
+; CHECK-LABEL: @cond_constexpr_bool_true_or_false(
+; CHECK-NEXT:    ret i1 ptrtoint (ptr @cond_constexpr_bool_true_or_false to i1)
+;
+  %s = select i1 ptrtoint (ptr @cond_constexpr_bool_true_or_false to i1), i1 true, i1 false
+  ret i1 %s
+}
+
 define <2 x i1> @bool_true_or_false_vec(<2 x i1> %cond) {
 ; CHECK-LABEL: @bool_true_or_false_vec(
 ; CHECK-NEXT:    ret <2 x i1> [[COND:%.*]]
@@ -884,8 +892,7 @@ define <2 x float> @all_constant_false_undef_vec() {
 ; Negative tests. Don't fold if the non-undef operand is a constexpr.
 define i32 @all_constant_false_undef_true_constexpr() {
 ; CHECK-LABEL: @all_constant_false_undef_true_constexpr(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i1), i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i32), i32 undef
-; CHECK-NEXT:    ret i32 [[S]]
+; CHECK-NEXT:    ret i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i32)
 ;
   %s = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i1), i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr to i32), i32 undef
   ret i32 %s
@@ -893,8 +900,7 @@ define i32 @all_constant_false_undef_true_constexpr() {
 
 define i32 @all_constant_true_undef_false_constexpr() {
 ; CHECK-LABEL: @all_constant_true_undef_false_constexpr(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i1), i32 undef, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i32)
-; CHECK-NEXT:    ret i32 [[S]]
+; CHECK-NEXT:    ret i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i32)
 ;
   %s = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i1), i32 undef, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr to i32)
   ret i32 %s
@@ -903,8 +909,7 @@ define i32 @all_constant_true_undef_false_constexpr() {
 ; Negative tests. Don't fold if the non-undef operand is a vector containing a constexpr.
 define <2 x i32> @all_constant_false_undef_true_constexpr_vec() {
 ; CHECK-LABEL: @all_constant_false_undef_true_constexpr_vec(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i1), <2 x i32> <i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i32), i32 -1>, <2 x i32> undef
-; CHECK-NEXT:    ret <2 x i32> [[S]]
+; CHECK-NEXT:    ret <2 x i32> <i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i32), i32 -1>
 ;
   %s = select i1 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i1), <2 x i32> <i32 ptrtoint (ptr @all_constant_false_undef_true_constexpr_vec to i32), i32 -1>, <2 x i32> undef
   ret <2 x i32> %s
@@ -912,8 +917,7 @@ define <2 x i32> @all_constant_false_undef_true_constexpr_vec() {
 
 define <2 x i32> @all_constant_true_undef_false_constexpr_vec() {
 ; CHECK-LABEL: @all_constant_true_undef_false_constexpr_vec(
-; CHECK-NEXT:    [[S:%.*]] = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i1), <2 x i32> undef, <2 x i32> <i32 -1, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i32)>
-; CHECK-NEXT:    ret <2 x i32> [[S]]
+; CHECK-NEXT:    ret <2 x i32> <i32 -1, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i32)>
 ;
   %s = select i1 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i1), <2 x i32> undef, <2 x i32><i32 -1, i32 ptrtoint (ptr @all_constant_true_undef_false_constexpr_vec to i32)>
   ret <2 x i32> %s
@@ -1437,4 +1441,121 @@ latch:
 
 exit:
   ret ptr %sel
+}
+
+define i8 @select_sub_cmp(i8 %0, i8 %1) {
+; CHECK-LABEL: @select_sub_cmp(
+; CHECK-NEXT:    [[TMP3:%.*]] = sub nsw i8 [[TMP1:%.*]], [[TMP0:%.*]]
+; CHECK-NEXT:    ret i8 [[TMP3]]
+;
+  %3 = icmp eq i8 %1, %0
+  %4 = sub nsw i8 %1, %0
+  %5 = select i1 %3, i8 0, i8 %4
+  ret i8 %5
+}
+
+define <2 x i8> @select_sub_cmp_vec(<2 x i8> %0, <2 x i8> %1) {
+; CHECK-LABEL: @select_sub_cmp_vec(
+; CHECK-NEXT:    [[TMP3:%.*]] = sub nsw <2 x i8> [[TMP1:%.*]], [[TMP0:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[TMP3]]
+;
+  %3 = icmp eq <2 x i8> %1, %0
+  %4 = sub nsw <2 x i8> %1, %0
+  %5 = select <2 x i1> %3, <2 x i8> <i8 0, i8 0>, <2 x i8> %4
+  ret <2 x i8> %5
+}
+
+define i8 @select_sub_cmp_swap(i8 %0, i8 %1) {
+; CHECK-LABEL: @select_sub_cmp_swap(
+; CHECK-NEXT:    [[TMP3:%.*]] = sub nsw i8 [[TMP0:%.*]], [[TMP1:%.*]]
+; CHECK-NEXT:    ret i8 [[TMP3]]
+;
+  %3 = icmp eq i8 %1, %0
+  %4 = sub nsw i8 %0, %1
+  %5 = select i1 %3, i8 0, i8 %4
+  ret i8 %5
+}
+
+define <2 x i8> @select_sub_cmp_vec_swap(<2 x i8> %0, <2 x i8> %1) {
+; CHECK-LABEL: @select_sub_cmp_vec_swap(
+; CHECK-NEXT:    [[TMP3:%.*]] = sub nsw <2 x i8> [[TMP0:%.*]], [[TMP1:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[TMP3]]
+;
+  %3 = icmp eq <2 x i8> %1, %0
+  %4 = sub nsw <2 x i8> %0, %1
+  %5 = select <2 x i1> %3, <2 x i8> <i8 0, i8 0>, <2 x i8> %4
+  ret <2 x i8> %5
+}
+
+; negative test
+define i8 @select_sub_cmp_nonzero(i8 %0, i8 %1) {
+; CHECK-LABEL: @select_sub_cmp_nonzero(
+; CHECK-NEXT:    [[TMP3:%.*]] = icmp eq i8 [[TMP1:%.*]], [[TMP0:%.*]]
+; CHECK-NEXT:    [[TMP4:%.*]] = sub nsw i8 [[TMP1]], [[TMP0]]
+; CHECK-NEXT:    [[TMP5:%.*]] = select i1 [[TMP3]], i8 42, i8 [[TMP4]]
+; CHECK-NEXT:    ret i8 [[TMP5]]
+;
+  %3 = icmp eq i8 %1, %0
+  %4 = sub nsw i8 %1, %0
+  %5 = select i1 %3, i8 42, i8 %4
+  ret i8 %5
+}
+
+; X == Y ? 0 : X ^ Y --> X ^ Y, https://alive2.llvm.org/ce/z/cykffE
+define i8 @select_xor_cmp(i8 %0, i8 %1) {
+; CHECK-LABEL: @select_xor_cmp(
+; CHECK-NEXT:    [[TMP3:%.*]] = xor i8 [[TMP1:%.*]], [[TMP0:%.*]]
+; CHECK-NEXT:    ret i8 [[TMP3]]
+;
+  %3 = icmp eq i8 %1, %0
+  %4 = xor i8 %1, %0
+  %5 = select i1 %3, i8 0, i8 %4
+  ret i8 %5
+}
+
+define <2 x i8> @select_xor_cmp_vec(<2 x i8> %0, <2 x i8> %1) {
+; CHECK-LABEL: @select_xor_cmp_vec(
+; CHECK-NEXT:    [[TMP3:%.*]] = xor <2 x i8> [[TMP1:%.*]], [[TMP0:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[TMP3]]
+;
+  %3 = icmp eq <2 x i8> %1, %0
+  %4 = xor <2 x i8> %1, %0
+  %5 = select <2 x i1> %3, <2 x i8> <i8 0, i8 0>, <2 x i8> %4
+  ret <2 x i8> %5
+}
+
+define i8 @select_xor_cmp_swap(i8 %0, i8 %1) {
+; CHECK-LABEL: @select_xor_cmp_swap(
+; CHECK-NEXT:    [[TMP3:%.*]] = xor i8 [[TMP0:%.*]], [[TMP1:%.*]]
+; CHECK-NEXT:    ret i8 [[TMP3]]
+;
+  %3 = icmp eq i8 %1, %0
+  %4 = xor i8 %0, %1
+  %5 = select i1 %3, i8 0, i8 %4
+  ret i8 %5
+}
+
+define <2 x i8> @select_xor_cmp_vec_swap(<2 x i8> %0, <2 x i8> %1) {
+; CHECK-LABEL: @select_xor_cmp_vec_swap(
+; CHECK-NEXT:    [[TMP3:%.*]] = xor <2 x i8> [[TMP0:%.*]], [[TMP1:%.*]]
+; CHECK-NEXT:    ret <2 x i8> [[TMP3]]
+;
+  %3 = icmp eq <2 x i8> %1, %0
+  %4 = xor <2 x i8> %0, %1
+  %5 = select <2 x i1> %3, <2 x i8> <i8 0, i8 0>, <2 x i8> %4
+  ret <2 x i8> %5
+}
+
+; Negative test: the xor operands are not %0 and %1
+define i8 @select_xor_cmp_unmatched_operands(i8 %0, i8 %1, i8 %c) {
+; CHECK-LABEL: @select_xor_cmp_unmatched_operands(
+; CHECK-NEXT:    [[TMP3:%.*]] = icmp eq i8 [[TMP1:%.*]], [[TMP0:%.*]]
+; CHECK-NEXT:    [[TMP4:%.*]] = xor i8 [[TMP1]], [[C:%.*]]
+; CHECK-NEXT:    [[TMP5:%.*]] = select i1 [[TMP3]], i8 0, i8 [[TMP4]]
+; CHECK-NEXT:    ret i8 [[TMP5]]
+;
+  %3 = icmp eq i8 %1, %0
+  %4 = xor i8 %1, %c
+  %5 = select i1 %3, i8 0, i8 %4
+  ret i8 %5
 }

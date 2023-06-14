@@ -145,7 +145,7 @@ private:
 } // namespace
 
 static StringRef unquote(StringRef s) {
-  if (s.startswith("\""))
+  if (s.starts_with("\""))
     return s.substr(1, s.size() - 2);
   return s;
 }
@@ -290,7 +290,7 @@ void ScriptParser::readDefsym(StringRef name) {
 }
 
 void ScriptParser::addFile(StringRef s) {
-  if (isUnderSysroot && s.startswith("/")) {
+  if (isUnderSysroot && s.starts_with("/")) {
     SmallString<128> pathData;
     StringRef path = (config->sysroot + s).toStringRef(pathData);
     if (sys::fs::exists(path))
@@ -300,17 +300,17 @@ void ScriptParser::addFile(StringRef s) {
     return;
   }
 
-  if (s.startswith("/")) {
+  if (s.starts_with("/")) {
     // Case 1: s is an absolute path. Just open it.
     ctx.driver.addFile(s, /*withLOption=*/false);
-  } else if (s.startswith("=")) {
+  } else if (s.starts_with("=")) {
     // Case 2: relative to the sysroot.
     if (config->sysroot.empty())
       ctx.driver.addFile(s.substr(1), /*withLOption=*/false);
     else
       ctx.driver.addFile(saver().save(config->sysroot + "/" + s.substr(1)),
                          /*withLOption=*/false);
-  } else if (s.startswith("-l")) {
+  } else if (s.starts_with("-l")) {
     // Case 3: search in the list of library paths.
     ctx.driver.addLibrary(s.substr(2));
   } else {
@@ -628,7 +628,7 @@ void ScriptParser::readTarget() {
   StringRef tok = unquote(next());
   expect(")");
 
-  if (tok.startswith("elf"))
+  if (tok.starts_with("elf"))
     config->formatBinary = false;
   else if (tok == "binary")
     config->formatBinary = true;
@@ -836,7 +836,7 @@ bool ScriptParser::readSectionDirective(OutputSection *cmd, StringRef tok1, Stri
       // The value is a recognized literal SHT_*.
       cmd->type = it->second;
       skip();
-    } else if (value.startswith("SHT_")) {
+    } else if (value.starts_with("SHT_")) {
       setError("unknown section type " + value);
     } else {
       // Otherwise, read an expression.
@@ -898,6 +898,7 @@ OutputDesc *ScriptParser::readOverlaySectionDescription() {
     osd->osec.commands.push_back(
         readInputSectionRules(next(), withFlags, withoutFlags));
   }
+  osd->osec.phdrs = readOutputSectionPhdrs();
   return osd;
 }
 
@@ -982,7 +983,7 @@ OutputDesc *ScriptParser::readOutputSectionDescription(StringRef outSec) {
 
   osec->phdrs = readOutputSectionPhdrs();
 
-  if (peek() == "=" || peek().startswith("=")) {
+  if (peek() == "=" || peek().starts_with("=")) {
     inExpr = true;
     consume("=");
     osec->filler = readFill();
@@ -1042,7 +1043,7 @@ SymbolAssignment *ScriptParser::readAssignment(StringRef tok) {
   size_t oldPos = pos;
   SymbolAssignment *cmd = nullptr;
   const StringRef op = peek();
-  if (op.startswith("=")) {
+  if (op.starts_with("=")) {
     // Support = followed by an expression without whitespace.
     SaveAndRestore saved(inExpr, true);
     cmd = readSymbolAssignment(tok);
@@ -1227,24 +1228,24 @@ Expr ScriptParser::readConstant() {
 static std::optional<uint64_t> parseInt(StringRef tok) {
   // Hexadecimal
   uint64_t val;
-  if (tok.startswith_insensitive("0x")) {
+  if (tok.starts_with_insensitive("0x")) {
     if (!to_integer(tok.substr(2), val, 16))
       return std::nullopt;
     return val;
   }
-  if (tok.endswith_insensitive("H")) {
+  if (tok.ends_with_insensitive("H")) {
     if (!to_integer(tok.drop_back(), val, 16))
       return std::nullopt;
     return val;
   }
 
   // Decimal
-  if (tok.endswith_insensitive("K")) {
+  if (tok.ends_with_insensitive("K")) {
     if (!to_integer(tok.drop_back(), val, 10))
       return std::nullopt;
     return val * 1024;
   }
-  if (tok.endswith_insensitive("M")) {
+  if (tok.ends_with_insensitive("M")) {
     if (!to_integer(tok.drop_back(), val, 10))
       return std::nullopt;
     return val * 1024 * 1024;
@@ -1528,7 +1529,7 @@ Expr ScriptParser::readPrimary() {
     return [=] { return *val; };
 
   // Tok is a symbol name.
-  if (tok.startswith("\""))
+  if (tok.starts_with("\""))
     tok = unquote(tok);
   else if (!isValidSymbolName(tok))
     setError("malformed number: " + tok);
@@ -1552,7 +1553,7 @@ Expr ScriptParser::readParenExpr() {
 
 SmallVector<StringRef, 0> ScriptParser::readOutputSectionPhdrs() {
   SmallVector<StringRef, 0> phdrs;
-  while (!errorCount() && peek().startswith(":")) {
+  while (!errorCount() && peek().starts_with(":")) {
     StringRef tok = next();
     phdrs.push_back((tok.size() == 1) ? next() : tok.substr(1));
   }
@@ -1679,7 +1680,7 @@ SmallVector<SymbolVersion, 0> ScriptParser::readVersionExtern() {
   while (!errorCount() && peek() != "}") {
     StringRef tok = next();
     ret.push_back(
-        {unquote(tok), isCXX, !tok.startswith("\"") && hasWildcard(tok)});
+        {unquote(tok), isCXX, !tok.starts_with("\"") && hasWildcard(tok)});
     if (consume("}"))
       return ret;
     expect(";");

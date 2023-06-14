@@ -24,17 +24,10 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool keep_ownership = false);
-__SYCL_DEPRECATED("Use make_queue with device parameter")
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle InteropHandle,
-                               bool keep_ownership = false);
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle InteropHandle,
-                               bool keep_ownership = false);
-__SYCL_EXPORT queue make_queue2(const context &Context, const device &Device,
-                                pi_native_handle InteropHandle,
-                                bool IsImmCmdList, bool keep_ownership,
-                                const property_list &Properties);
+                               bool IsImmCmdList, bool keep_ownership,
+                               const property_list &Properties);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -78,19 +71,6 @@ T make(const std::vector<device> &DeviceList,
                       Ownership == ownership::keep);
 }
 
-// Construction of SYCL queue.
-template <typename T,
-          typename std::enable_if_t<std::is_same_v<T, queue>> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
-T make(const context &Context,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop,
-       ownership Ownership = ownership::transfer) {
-  return make_queue(Context, Context.get_devices()[0],
-                    *(reinterpret_cast<pi_native_handle *>(&Interop)),
-                    Ownership == ownership::keep);
-}
-
 // Construction of SYCL event.
 template <typename T,
           typename std::enable_if_t<std::is_same_v<T, event>> * = nullptr>
@@ -102,6 +82,7 @@ T make(const context &Context,
   return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
+
 } // namespace ext::oneapi::level_zero
 
 // Specialization of sycl::make_context for Level-Zero backend.
@@ -133,7 +114,7 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
                                 : reinterpret_cast<pi_native_handle>(
                                       *(std::get_if<ze_command_queue_handle_t>(
                                           &BackendObject.NativeHandle)));
-  return ext::oneapi::level_zero::make_queue2(
+  return ext::oneapi::level_zero::make_queue(
       TargetContext, Device, Handle, IsImmCmdList,
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       BackendObject.Properties);
@@ -144,16 +125,13 @@ template <>
 inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
     -> backend_return_t<backend::ext_oneapi_level_zero, queue> {
   int32_t IsImmCmdList;
-  pi_native_handle Handle = Obj.getNative2(IsImmCmdList);
-  if (IsImmCmdList) {
-    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
-        std::in_place_index<1>,
-        reinterpret_cast<ze_command_list_handle_t>(Handle)};
-  } else {
-    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
-        std::in_place_index<0>,
-        reinterpret_cast<ze_command_queue_handle_t>(Handle)};
-  }
+  pi_native_handle Handle = Obj.getNative(IsImmCmdList);
+  return IsImmCmdList
+             ? backend_return_t<
+                   backend::ext_oneapi_level_zero,
+                   queue>{reinterpret_cast<ze_command_list_handle_t>(Handle)}
+             : backend_return_t<backend::ext_oneapi_level_zero, queue>{
+                   reinterpret_cast<ze_command_queue_handle_t>(Handle)};
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.

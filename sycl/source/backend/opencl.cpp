@@ -45,7 +45,7 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle) {
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, nullptr, false,
+  return detail::make_queue(NativeHandle, 0, Context, nullptr, false, {},
                             ContextImpl->get_async_handler(), backend::opencl);
 }
 

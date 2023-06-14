@@ -274,11 +274,6 @@ cc_library(
     deps = [
         ":config",
         ":Demangle",
-        # We unconditionally depend on the custom LLVM terminfo wrapper. This
-        # will be an empty library unless terminfo is enabled, in which case it
-        # will both provide the necessary dependencies and configuration
-        # defines.
-        "@llvm_terminfo//:terminfo",
         # We unconditionally depend on the custom LLVM zlib wrapper. This will
         # be an empty library unless zlib is enabled, in which case it will
         # both provide the necessary dependencies and configuration defines.
@@ -1447,6 +1442,7 @@ cc_library(
     ]),
     deps = [
         ":Analysis",
+        ":BitReader",
         ":Core",
         ":MC",
         ":Scalar",
@@ -1734,6 +1730,7 @@ cc_library(
         ":Instrumentation",
         ":MC",
         ":MCParser",
+        ":Object",
         ":ProfileData",
         ":Remarks",
         ":Scalar",
@@ -2231,6 +2228,7 @@ gentbl(
             # distinction between these two.
             "lib/Target/" + target["name"] + "/*.def",
             "lib/Target/" + target["name"] + "/*.inc",
+            "lib/Target/" + target["name"] + "/MCTargetDesc/*.def",
         ]),
         copts = llvm_copts,
         features = [
@@ -2753,6 +2751,25 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "DWARFLinkerParallel",
+    srcs = glob([
+        "lib/DWARFLinkerParallel/*.cpp",
+        "lib/DWARFLinkerParallel/*.h",
+    ]),
+    hdrs = glob(["include/llvm/DWARFLinkerParallel/*.h"]),
+    copts = llvm_copts,
+    deps = [
+        ":BinaryFormat",
+        ":CodeGen",
+        ":DWARFLinker",
+        ":DebugInfoDWARF",
+        ":MC",
+        ":Support",
+        ":TargetParser",
+    ],
+)
+
 gentbl(
     name = "DllOptionsTableGen",
     strip_include_prefix = "lib/ToolDrivers/llvm-dlltool",
@@ -3025,6 +3042,7 @@ cc_binary(
         ":CodeGen",
         ":CodeGenTypes",
         ":DWARFLinker",
+        ":DWARFLinkerParallel",
         ":DebugInfo",
         ":DebugInfoDWARF",
         ":DsymutilTableGen",
@@ -3447,6 +3465,7 @@ cc_binary(
         ":AllTargetsCodeGens",
         ":CodeGenTypes",
         ":DWARFLinker",
+        ":DWARFLinkerParallel",
         ":DebugInfoDWARF",
         ":DwarfutilOptionsTableGen",
         ":MC",

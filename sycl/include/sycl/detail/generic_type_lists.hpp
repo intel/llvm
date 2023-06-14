@@ -525,6 +525,9 @@ using scalar_bool_list = type_list<bool>;
 
 using bool_list = type_list<scalar_bool_list, marray_bool_list>;
 
+using vector_bool_list = type_list<vec<bool, 1>, vec<bool, 2>, vec<bool, 3>,
+                                   vec<bool, 4>, vec<bool, 8>, vec<bool, 16>>;
+
 // basic types
 using scalar_signed_basic_list =
     type_list<scalar_floating_list, scalar_signed_integer_list>;

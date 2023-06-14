@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
 
 using namespace mlir;
 using namespace mlir::complex;
@@ -27,18 +30,18 @@ void ConstantOp::getAsmResultNames(
 }
 
 bool ConstantOp::isBuildableWith(Attribute value, Type type) {
-  if (auto arrAttr = value.dyn_cast<ArrayAttr>()) {
-    auto complexTy = type.dyn_cast<ComplexType>();
+  if (auto arrAttr = llvm::dyn_cast<ArrayAttr>(value)) {
+    auto complexTy = llvm::dyn_cast<ComplexType>(type);
     if (!complexTy || arrAttr.size() != 2)
       return false;
     auto complexEltTy = complexTy.getElementType();
-    if (auto fre = arrAttr[0].dyn_cast<FloatAttr>()) {
-      auto im = arrAttr[1].dyn_cast<FloatAttr>();
+    if (auto fre = llvm::dyn_cast<FloatAttr>(arrAttr[0])) {
+      auto im = llvm::dyn_cast<FloatAttr>(arrAttr[1]);
       return im && fre.getType() == complexEltTy &&
              im.getType() == complexEltTy;
     }
-    if (auto ire = arrAttr[0].dyn_cast<IntegerAttr>()) {
-      auto im = arrAttr[1].dyn_cast<IntegerAttr>();
+    if (auto ire = llvm::dyn_cast<IntegerAttr>(arrAttr[0])) {
+      auto im = llvm::dyn_cast<IntegerAttr>(arrAttr[1]);
       return im && ire.getType() == complexEltTy &&
              im.getType() == complexEltTy;
     }
@@ -55,8 +58,8 @@ LogicalResult ConstantOp::verify() {
   }
 
   auto complexEltTy = getType().getElementType();
-  auto re = arrayAttr[0].dyn_cast<FloatAttr>();
-  auto im = arrayAttr[1].dyn_cast<FloatAttr>();
+  auto re = llvm::dyn_cast<FloatAttr>(arrayAttr[0]);
+  auto im = llvm::dyn_cast<FloatAttr>(arrayAttr[1]);
   if (!re || !im)
     return emitOpError("requires attribute's elements to be float attributes");
   if (complexEltTy != re.getType() || complexEltTy != im.getType()) {
@@ -90,7 +93,8 @@ OpFoldResult CreateOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ImOp::fold(FoldAdaptor adaptor) {
-  ArrayAttr arrayAttr = adaptor.getComplex().dyn_cast_or_null<ArrayAttr>();
+  ArrayAttr arrayAttr =
+      llvm::dyn_cast_if_present<ArrayAttr>(adaptor.getComplex());
   if (arrayAttr && arrayAttr.size() == 2)
     return arrayAttr[1];
   if (auto createOp = getOperand().getDefiningOp<CreateOp>())
@@ -98,17 +102,53 @@ OpFoldResult ImOp::fold(FoldAdaptor adaptor) {
   return {};
 }
 
+namespace {
+template <typename OpKind, int ComponentIndex>
+struct FoldComponentNeg final : OpRewritePattern<OpKind> {
+  using OpRewritePattern<OpKind>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpKind op,
+                                PatternRewriter &rewriter) const override {
+    auto negOp = op.getOperand().template getDefiningOp<NegOp>();
+    if (!negOp)
+      return failure();
+
+    auto createOp = negOp.getComplex().template getDefiningOp<CreateOp>();
+    if (!createOp)
+      return failure();
+
+    Type elementType = createOp.getType().getElementType();
+    assert(isa<FloatType>(elementType));
+
+    rewriter.replaceOpWithNewOp<arith::NegFOp>(
+        op, elementType, createOp.getOperand(ComponentIndex));
+    return success();
+  }
+};
+} // namespace
+
+void ImOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                       MLIRContext *context) {
+  results.add<FoldComponentNeg<ImOp, 1>>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // ReOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ReOp::fold(FoldAdaptor adaptor) {
-  ArrayAttr arrayAttr = adaptor.getComplex().dyn_cast_or_null<ArrayAttr>();
+  ArrayAttr arrayAttr =
+      llvm::dyn_cast_if_present<ArrayAttr>(adaptor.getComplex());
   if (arrayAttr && arrayAttr.size() == 2)
     return arrayAttr[0];
   if (auto createOp = getOperand().getDefiningOp<CreateOp>())
     return createOp.getOperand(0);
   return {};
+}
+
+void ReOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                       MLIRContext *context) {
+  results.add<FoldComponentNeg<ReOp, 0>>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -129,8 +169,8 @@ OpFoldResult AddOp::fold(FoldAdaptor adaptor) {
   // complex.add(a, complex.constant<0.0, 0.0>) -> a
   if (auto constantOp = getRhs().getDefiningOp<ConstantOp>()) {
     auto arrayAttr = constantOp.getValue();
-    if (arrayAttr[0].cast<FloatAttr>().getValue().isZero() &&
-        arrayAttr[1].cast<FloatAttr>().getValue().isZero()) {
+    if (llvm::cast<FloatAttr>(arrayAttr[0]).getValue().isZero() &&
+        llvm::cast<FloatAttr>(arrayAttr[1]).getValue().isZero()) {
       return getLhs();
     }
   }
@@ -151,8 +191,8 @@ OpFoldResult SubOp::fold(FoldAdaptor adaptor) {
   // complex.sub(a, complex.constant<0.0, 0.0>) -> a
   if (auto constantOp = getRhs().getDefiningOp<ConstantOp>()) {
     auto arrayAttr = constantOp.getValue();
-    if (arrayAttr[0].cast<FloatAttr>().getValue().isZero() &&
-        arrayAttr[1].cast<FloatAttr>().getValue().isZero()) {
+    if (llvm::cast<FloatAttr>(arrayAttr[0]).getValue().isZero() &&
+        llvm::cast<FloatAttr>(arrayAttr[1]).getValue().isZero()) {
       return getLhs();
     }
   }

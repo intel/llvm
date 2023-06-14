@@ -40,6 +40,8 @@ protected:
   EXPECT_EQ((FormatTok)->getType(), Type) << *(FormatTok)
 #define EXPECT_TOKEN_PRECEDENCE(FormatTok, Prec)                               \
   EXPECT_EQ((FormatTok)->getPrecedence(), Prec) << *(FormatTok)
+#define EXPECT_BRACE_KIND(FormatTok, Kind)                                     \
+  EXPECT_EQ(FormatTok->getBlockKind(), Kind) << *(FormatTok)
 #define EXPECT_TOKEN(FormatTok, Kind, Type)                                    \
   do {                                                                         \
     EXPECT_TOKEN_KIND(FormatTok, Kind);                                        \
@@ -478,6 +480,23 @@ TEST_F(TokenAnnotatorTest, UnderstandsGreaterAfterTemplateCloser) {
   EXPECT_TOKEN(Tokens[5], tok::less, TT_TemplateOpener);
   EXPECT_TOKEN(Tokens[7], tok::greater, TT_TemplateCloser);
   EXPECT_TOKEN(Tokens[8], tok::greater, TT_BinaryOperator);
+}
+
+TEST_F(TokenAnnotatorTest, UnderstandsNonTemplateAngleBrackets) {
+  auto Tokens = annotate("return a < b && c > d;");
+  ASSERT_EQ(Tokens.size(), 10u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::less, TT_BinaryOperator);
+  EXPECT_TOKEN(Tokens[6], tok::greater, TT_BinaryOperator);
+
+  Tokens = annotate("a < 0 ? b : a > 0 ? c : d;");
+  ASSERT_EQ(Tokens.size(), 15u) << Tokens;
+  EXPECT_TOKEN(Tokens[1], tok::less, TT_BinaryOperator);
+  EXPECT_TOKEN(Tokens[7], tok::greater, TT_BinaryOperator);
+
+  Tokens = annotate("ratio{-1, 2} < ratio{-1, 3} == -1 / 3 > -1 / 2;");
+  ASSERT_EQ(Tokens.size(), 27u) << Tokens;
+  EXPECT_TOKEN(Tokens[7], tok::less, TT_BinaryOperator);
+  EXPECT_TOKEN(Tokens[20], tok::greater, TT_BinaryOperator);
 }
 
 TEST_F(TokenAnnotatorTest, UnderstandsWhitespaceSensitiveMacros) {
@@ -1781,6 +1800,22 @@ TEST_F(TokenAnnotatorTest, UnderstandsLabels) {
   Tokens = annotate("{ case x: { break; } }");
   ASSERT_EQ(Tokens.size(), 10u) << Tokens;
   EXPECT_TOKEN(Tokens[3], tok::colon, TT_CaseLabelColon);
+}
+
+TEST_F(TokenAnnotatorTest, UnderstandsNestedBlocks) {
+  // The closing braces are not annotated. It doesn't seem to cause a problem.
+  // So we only test for the opening braces.
+  auto Tokens = annotate("{\n"
+                         "  {\n"
+                         "    { int a = 0; }\n"
+                         "  }\n"
+                         "  {}\n"
+                         "}");
+  ASSERT_EQ(Tokens.size(), 14u) << Tokens;
+  EXPECT_BRACE_KIND(Tokens[0], BK_Block);
+  EXPECT_BRACE_KIND(Tokens[1], BK_Block);
+  EXPECT_BRACE_KIND(Tokens[2], BK_Block);
+  EXPECT_BRACE_KIND(Tokens[10], BK_Block);
 }
 
 } // namespace

@@ -89,6 +89,7 @@ public:
 
 private:
   DIFile *getFile(const SPIRVId SourceId);
+
   DIFile *
   getDIFile(const std::string &FileName,
             std::optional<DIFile::ChecksumInfo<StringRef>> CS = std::nullopt,
@@ -127,7 +128,13 @@ private:
 
   DIStringType *transTypeString(const SPIRVExtInst *DebugInst);
 
-  DINode *transTypeMember(const SPIRVExtInst *DebugInst);
+  DINode *transTypeMember(const SPIRVExtInst *DebugInst,
+                          const SPIRVExtInst *ParentInst = nullptr,
+                          DIScope *Scope = nullptr);
+  DINode *transTypeMemberOpenCL(const SPIRVExtInst *DebugInst);
+  DINode *transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
+                                     const SPIRVExtInst *ParentInst,
+                                     DIScope *Scope);
 
   DINode *transTypeEnum(const SPIRVExtInst *DebugInst);
 
@@ -196,13 +203,19 @@ private:
     return nullptr;
   }
   const std::string &getString(const SPIRVId Id);
-  const std::string getStringContinued(const SPIRVId Id,
-                                       SPIRVExtInst *DebugInst);
+  const std::string getStringSourceContinued(const SPIRVId Id,
+                                             SPIRVExtInst *DebugInst);
   SPIRVWord getConstantValueOrLiteral(const std::vector<SPIRVWord> &,
                                       const SPIRVWord,
                                       const SPIRVExtInstSetKind);
   std::string findModuleProducer();
   std::optional<DIFile::ChecksumInfo<StringRef>> ParseChecksum(StringRef Text);
+
+  // BuildIdentifier and StoragePath must both be set or both unset.
+  // If StoragePath is empty both variables are unset and not valid.
+  uint64_t BuildIdentifier{0};
+  std::string StoragePath{};
+  void setBuildIdentifierAndStoragePath();
 };
 } // namespace SPIRV
 

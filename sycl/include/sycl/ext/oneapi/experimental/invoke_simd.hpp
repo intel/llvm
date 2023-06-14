@@ -11,13 +11,9 @@
 
 #pragma once
 
-// SYCL extension macro definition as required by the SYCL specification.
-// 1 - Initial extension version. Base features are supported.
-#define SYCL_EXT_ONEAPI_INVOKE_SIMD 1
-
+#include <sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
-#include <std/experimental/simd.hpp>
 #include <sycl/detail/boost/mp11.hpp>
 #include <sycl/sub_group.hpp>
 
@@ -71,25 +67,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace ext::oneapi::experimental {
-
-// --- Basic definitions prescribed by the spec.
-namespace simd_abi {
-// "Fixed-size simd width of N" ABI based on clang vectors - used as the ABI for
-// SIMD objects this implementation of invoke_simd spec is based on.
-template <class T, int N>
-using native_fixed_size = typename std::experimental::__simd_abi<
-    std::experimental::_StorageKind::_VecExt, N>;
-} // namespace simd_abi
-
-// The SIMD object type, which is the generic std::experimental::simd type with
-// the native fixed size ABI.
-template <class T, int N>
-using simd = std::experimental::simd<T, simd_abi::native_fixed_size<T, N>>;
-
-// The SIMD mask object type.
-template <class T, int N>
-using simd_mask =
-    std::experimental::simd_mask<T, simd_abi::native_fixed_size<T, N>>;
 
 // --- Helpers
 namespace detail {

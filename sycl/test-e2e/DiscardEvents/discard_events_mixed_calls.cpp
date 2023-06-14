@@ -85,7 +85,7 @@ void RunTest_USM_Accessor(sycl::queue Q) {
   TestHelper(Q, [&](sycl::range<1> Range, int *Harray,
                     sycl::buffer<int, 1> Buf) {
     {
-      auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+      sycl::host_accessor HostAcc(Buf);
       for (size_t i = 0; i < BUFFER_SIZE; ++i) {
         HostAcc[i] = 0;
       }
@@ -105,7 +105,7 @@ void RunTest_USM_Accessor(sycl::queue Q) {
       assert(Harray[i] == expected);
     }
     {
-      auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+      sycl::host_accessor HostAcc(Buf, sycl::read_only);
       for (size_t i = 0; i < BUFFER_SIZE; ++i) {
         int expected = MAX_ITER_NUM2;
         assert(HostAcc[i] == expected);
@@ -118,7 +118,7 @@ void RunTest_Accessor_USM(sycl::queue Q) {
   TestHelper(
       Q, [&](sycl::range<1> Range, int *Harray, sycl::buffer<int, 1> Buf) {
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+          sycl::host_accessor HostAcc(Buf);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             HostAcc[i] = 0;
           }
@@ -138,7 +138,7 @@ void RunTest_Accessor_USM(sycl::queue Q) {
           assert(Harray[i] == expected);
         }
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+          sycl::host_accessor HostAcc(Buf, sycl::read_only);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = MAX_ITER_NUM1;
             assert(HostAcc[i] == expected);
@@ -151,7 +151,7 @@ void RunTest_Mixed(sycl::queue Q) {
   TestHelper(
       Q, [&](sycl::range<1> Range, int *Harray, sycl::buffer<int, 1> Buf) {
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+          sycl::host_accessor HostAcc(Buf);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             HostAcc[i] = 0;
           }
@@ -176,7 +176,7 @@ void RunTest_Mixed(sycl::queue Q) {
           assert(Harray[i] == expected);
         }
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+          sycl::host_accessor HostAcc(Buf, sycl::read_only);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = MAX_ITER_NUM1 + MAX_ITER_NUM2;
             assert(HostAcc[i] == expected);
@@ -208,7 +208,7 @@ void RunTest_MemBufferMapUnMap(sycl::queue Q) {
         {
           // waiting for all queue operations in piEnqueueMemBufferMap and then
           // checking buffer
-          auto HostAcc = Buf.get_access<sycl::access::mode::read_write>();
+          sycl::host_accessor HostAcc(Buf);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = i;
             assert(HostAcc[i] == expected);
@@ -247,7 +247,7 @@ void RunTest_MemBufferMapUnMap(sycl::queue Q) {
           assert(Harray[i] == expected);
         }
         {
-          auto HostAcc = Buf.get_access<sycl::access::mode::read>();
+          sycl::host_accessor HostAcc(Buf, sycl::read_only);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
             int expected = i + 110;
             assert(HostAcc[i] == expected);

@@ -194,8 +194,9 @@ enum PropKind : uint32_t {
   ReadyLatency = 28,
   UsesValid = 29,
   UseRootSync = 30,
+  RegisterAllocMode = 31,
   // PropKindSize must always be the last value.
-  PropKindSize = 31,
+  PropKindSize = 32,
 };
 
 // This trait must be specialized for all properties and must have a unique

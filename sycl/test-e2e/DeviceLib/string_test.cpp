@@ -66,7 +66,7 @@ USM_TEST_RES kernel_test_memcpy_usm(sycl::queue &deviceQueue) {
   if (usm_shared_dest == nullptr || usm_shared_src == nullptr)
     return USM_ALLOC_FAIL;
   // Init src usm memory
-  char *host_init_str = "abcdefghijklmnopqrstuvwxyz";
+  const char *host_init_str = "abcdefghijklmnopqrstuvwxyz";
   size_t str_len = strlen(host_init_str);
   deviceQueue
       .submit([&](sycl::handler &cgh) {

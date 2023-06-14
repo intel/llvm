@@ -602,7 +602,8 @@ SBValue SBFrame::FindValue(const char *name, ValueType value_type,
                 stop_if_block_is_inlined_function,
                 [frame](Variable *v) { return v->IsInScope(frame); },
                 &variable_list);
-          if (value_type == eValueTypeVariableGlobal) {
+          if (value_type == eValueTypeVariableGlobal 
+              || value_type == eValueTypeVariableStatic) {
             const bool get_file_globals = true;
             VariableList *frame_vars = frame->GetVariableList(get_file_globals,
                                                               nullptr);
@@ -708,24 +709,20 @@ SBThread SBFrame::GetThread() const {
 const char *SBFrame::Disassemble() const {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *disassembly = nullptr;
   std::unique_lock<std::recursive_mutex> lock;
   ExecutionContext exe_ctx(m_opaque_sp.get(), lock);
-
-  StackFrame *frame = nullptr;
   Target *target = exe_ctx.GetTargetPtr();
   Process *process = exe_ctx.GetProcessPtr();
-  if (target && process) {
-    Process::StopLocker stop_locker;
-    if (stop_locker.TryLock(&process->GetRunLock())) {
-      frame = exe_ctx.GetFramePtr();
-      if (frame) {
-        disassembly = frame->Disassemble();
-      }
-    }
+  if (!target || !process)
+    return nullptr;
+
+  Process::StopLocker stop_locker;
+  if (stop_locker.TryLock(&process->GetRunLock())) {
+    if (auto *frame = exe_ctx.GetFramePtr())
+      return ConstString(frame->Disassemble()).GetCString();
   }
 
-  return disassembly;
+  return nullptr;
 }
 
 SBValueList SBFrame::GetVariables(bool arguments, bool locals, bool statics,

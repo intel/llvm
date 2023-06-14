@@ -1388,6 +1388,9 @@ TEST(APIntTest, toString) {
   APInt(8, 255, isSigned).toString(S, 10, isSigned, true);
   EXPECT_EQ(std::string(S), "255");
   S.clear();
+  APInt(8, 255, isSigned).toString(S, 16, isSigned, true, /*UpperCase=*/false);
+  EXPECT_EQ(std::string(S), "0xff");
+  S.clear();
   APInt(8, 255, isSigned).toString(S, 16, isSigned, true);
   EXPECT_EQ(std::string(S), "0xFF");
   S.clear();
@@ -3049,6 +3052,7 @@ TEST(APIntTest, ZeroWidth) {
   EXPECT_EQ(0U, APInt::getLowBitsSet(0, 0).getBitWidth());
   EXPECT_EQ(0U, APInt::getSplat(0, ZW).getBitWidth());
   EXPECT_EQ(0U, APInt(4, 10).extractBits(0, 2).getBitWidth());
+  EXPECT_EQ(0U, APInt(4, 10).extractBitsAsZExtValue(0, 2));
 
   // Logical operators.
   ZW |= ZW2;

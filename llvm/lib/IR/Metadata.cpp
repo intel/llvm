@@ -282,7 +282,9 @@ void ReplaceableMetadataImpl::replaceAllUsesWith(Metadata *MD) {
   // Copy out uses since UseMap will get touched below.
   using UseTy = std::pair<void *, std::pair<OwnerTy, uint64_t>>;
   SmallVector<UseTy, 8> Uses(UseMap.begin(), UseMap.end());
-  llvm::sort(Uses, llvm::less_second());
+  llvm::sort(Uses, [](const UseTy &L, const UseTy &R) {
+    return L.second.second < R.second.second;
+  });
   for (const auto &Pair : Uses) {
     // Check that this Ref hasn't disappeared after RAUW (when updating a
     // previous Ref).
@@ -1539,23 +1541,52 @@ void Instruction::setMetadata(unsigned KindID, MDNode *Node) {
   Value::setMetadata(KindID, Node);
 }
 
+void Instruction::addAnnotationMetadata(SmallVector<StringRef> Annotations) {
+  SmallSetVector<StringRef, 2> AnnotationsSet(Annotations.begin(),
+                                              Annotations.end());
+  MDBuilder MDB(getContext());
+
+  auto *Existing = getMetadata(LLVMContext::MD_annotation);
+  SmallVector<Metadata *, 4> Names;
+  if (Existing) {
+    auto *Tuple = cast<MDTuple>(Existing);
+    for (auto &N : Tuple->operands()) {
+      if (isa<MDString>(N.get()))
+        continue;
+      auto *MDAnnotationTuple = cast<MDTuple>(N);
+      if (any_of(MDAnnotationTuple->operands(), [&AnnotationsSet](auto &Op) {
+            return AnnotationsSet.contains(cast<MDString>(Op)->getString());
+          }))
+        return;
+      Names.push_back(N);
+    }
+  }
+
+  SmallVector<Metadata *> MDAnnotationStrings;
+  for (StringRef Annotation : Annotations)
+    MDAnnotationStrings.push_back(MDB.createString(Annotation));
+  MDNode *InfoTuple = MDTuple::get(getContext(), MDAnnotationStrings);
+  Names.push_back(InfoTuple);
+  MDNode *MD = MDTuple::get(getContext(), Names);
+  setMetadata(LLVMContext::MD_annotation, MD);
+}
+
 void Instruction::addAnnotationMetadata(StringRef Name) {
   MDBuilder MDB(getContext());
 
   auto *Existing = getMetadata(LLVMContext::MD_annotation);
   SmallVector<Metadata *, 4> Names;
-  bool AppendName = true;
   if (Existing) {
     auto *Tuple = cast<MDTuple>(Existing);
     for (auto &N : Tuple->operands()) {
-      if (cast<MDString>(N.get())->getString() == Name)
-        AppendName = false;
+      if (isa<MDString>(N.get()) &&
+          cast<MDString>(N.get())->getString() == Name)
+        return;
       Names.push_back(N.get());
     }
   }
-  if (AppendName)
-    Names.push_back(MDB.createString(Name));
 
+  Names.push_back(MDB.createString(Name));
   MDNode *MD = MDTuple::get(getContext(), Names);
   setMetadata(LLVMContext::MD_annotation, MD);
 }
@@ -1579,6 +1610,11 @@ void Instruction::setAAMetadata(const AAMDNodes &N) {
   setMetadata(LLVMContext::MD_tbaa_struct, N.TBAAStruct);
   setMetadata(LLVMContext::MD_alias_scope, N.Scope);
   setMetadata(LLVMContext::MD_noalias, N.NoAlias);
+}
+
+void Instruction::setNoSanitizeMetadata() {
+  setMetadata(llvm::LLVMContext::MD_nosanitize,
+              llvm::MDNode::get(getContext(), std::nullopt));
 }
 
 MDNode *Instruction::getMetadataImpl(unsigned KindID) const {

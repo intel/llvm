@@ -22,7 +22,7 @@ int main() {
       auto acc = buf_data.get_host_access();
 #endif
 
-      assert(acc.get_count() == 3);
+      assert(acc.size() == 3);
       assert(acc.get_range() == sycl::range<1>(3));
       assert(acc[0] == 3);
 
@@ -37,7 +37,7 @@ int main() {
       auto acc = buf_data.get_host_access(sycl::read_only);
 #endif
 
-      assert(acc.get_count() == 3);
+      assert(acc.size() == 3);
       assert(acc.get_range() == sycl::range<1>(3));
       assert(acc[0] == 2);
     }
@@ -48,7 +48,7 @@ int main() {
       auto acc = buf_data.get_host_access(sycl::write_only);
 #endif
 
-      assert(acc.get_count() == 3);
+      assert(acc.size() == 3);
       assert(acc.get_range() == sycl::range<1>(3));
       acc[0] = 1;
       assert(data[0] == 1 && data[1] == 7 && data[2] == 9);
@@ -60,7 +60,7 @@ int main() {
       auto acc = buf_data.get_host_access(sycl::range<1>(2));
 #endif
 
-      assert(acc.get_count() == 2);
+      assert(acc.size() == 2);
       assert(acc.get_range() == sycl::range<1>(2));
       assert(acc[0] == 1);
 
@@ -75,7 +75,7 @@ int main() {
       auto acc = buf_data.get_host_access(sycl::range<1>(2), sycl::read_only);
 #endif
 
-      assert(acc.get_count() == 2);
+      assert(acc.size() == 2);
       assert(acc.get_range() == sycl::range<1>(2));
       assert(acc[0] == 2);
     }
@@ -86,7 +86,7 @@ int main() {
       auto acc = buf_data.get_host_access(sycl::range<1>(2), sycl::write_only);
 #endif
 
-      assert(acc.get_count() == 2);
+      assert(acc.size() == 2);
       assert(acc.get_range() == sycl::range<1>(2));
       acc[0] = 1;
       assert(data[0] == 1 && data[1] == 7 && data[2] == 9);
@@ -98,7 +98,7 @@ int main() {
       auto acc = buf_data.get_host_access(sycl::range<1>(2), sycl::id<1>(1));
 #endif
 
-      assert(acc.get_count() == 2);
+      assert(acc.size() == 2);
       assert(acc.get_range() == sycl::range<1>(2));
       assert(acc[0] == 7);
 
@@ -115,7 +115,7 @@ int main() {
                                           sycl::read_only);
 #endif
 
-      assert(acc.get_count() == 2);
+      assert(acc.size() == 2);
       assert(acc.get_range() == sycl::range<1>(2));
       assert(acc[0] == 6);
     }
@@ -128,7 +128,7 @@ int main() {
                                           sycl::write_only);
 #endif
 
-      assert(acc.get_count() == 2);
+      assert(acc.size() == 2);
       assert(acc.get_range() == sycl::range<1>(2));
       acc[0] = 5;
       assert(data[0] == 1 && data[1] == 5 && data[2] == 9);

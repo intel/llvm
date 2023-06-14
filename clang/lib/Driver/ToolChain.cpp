@@ -417,12 +417,6 @@ Tool *ToolChain::getSPIRVTranslator() const {
   return SPIRVTranslator.get();
 }
 
-Tool *ToolChain::getSPIRCheck() const {
-  if (!SPIRCheck)
-    SPIRCheck.reset(new tools::SPIRCheck(*this));
-  return SPIRCheck.get();
-}
-
 Tool *ToolChain::getSYCLPostLink() const {
   if (!SYCLPostLink)
     SYCLPostLink.reset(new tools::SYCLPostLink(*this));
@@ -507,9 +501,6 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SPIRVTranslatorJobClass:
     return getSPIRVTranslator();
-
-  case Action::SPIRCheckJobClass:
-    return getSPIRCheck();
 
   case Action::SYCLPostLinkJobClass:
     return getSYCLPostLink();
@@ -749,7 +740,8 @@ Tool *ToolChain::SelectTool(const JobAction &JA) const {
   if (D.IsFlangMode() && getDriver().ShouldUseFlangCompiler(JA)) return getFlang();
   if (getDriver().ShouldUseClangCompiler(JA)) return getClang();
   Action::ActionClass AC = JA.getKind();
-  if (AC == Action::AssembleJobClass && useIntegratedAs())
+  if (AC == Action::AssembleJobClass && useIntegratedAs() &&
+      !getTriple().isOSAIX())
     return getClangAs();
   return getTool(AC);
 }
@@ -1243,8 +1235,7 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
   // platform dependent.
 
   SanitizerMask Res =
-      (SanitizerKind::Undefined & ~SanitizerKind::Vptr &
-       ~SanitizerKind::Function) |
+      (SanitizerKind::Undefined & ~SanitizerKind::Vptr) |
       (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
       SanitizerKind::CFICastStrict | SanitizerKind::FloatDivideByZero |
       SanitizerKind::KCFI | SanitizerKind::UnsignedIntegerOverflow |

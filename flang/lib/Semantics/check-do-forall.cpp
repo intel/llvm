@@ -467,12 +467,11 @@ private:
   }
 
   void CheckDoControl(const parser::CharBlock &sourceLocation, bool isReal) {
-    const bool warn{context_.warnOnNonstandardUsage() ||
-        context_.ShouldWarn(common::LanguageFeature::RealDoControls)};
-    if (isReal && !warn) {
-      // No messages for the default case
-    } else if (isReal && warn) {
-      context_.Say(sourceLocation, "DO controls should be INTEGER"_port_en_US);
+    if (isReal) {
+      if (context_.ShouldWarn(common::LanguageFeature::RealDoControls)) {
+        context_.Say(
+            sourceLocation, "DO controls should be INTEGER"_port_en_US);
+      }
     } else {
       SayBadDoControl(sourceLocation);
     }
@@ -976,7 +975,7 @@ static void CheckIfArgIsDoVar(const evaluate::ActualArgument &arg,
 void DoForallChecker::Leave(const parser::CallStmt &callStmt) {
   if (const auto &typedCall{callStmt.typedCall}) {
     const auto &parsedArgs{
-        std::get<std::list<parser::ActualArgSpec>>(callStmt.v.t)};
+        std::get<std::list<parser::ActualArgSpec>>(callStmt.call.t)};
     auto parsedArgIter{parsedArgs.begin()};
     const evaluate::ActualArguments &checkedArgs{typedCall->arguments()};
     for (const auto &checkedOptionalArg : checkedArgs) {

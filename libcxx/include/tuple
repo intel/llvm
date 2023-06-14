@@ -206,7 +206,6 @@ template <class... Types>
 #include <__compare/synth_three_way.h>
 #include <__config>
 #include <__functional/invoke.h>
-#include <__functional/unwrap_ref.h>
 #include <__fwd/array.h>
 #include <__fwd/tuple.h>
 #include <__memory/allocator_arg_t.h>
@@ -252,6 +251,7 @@ template <class... Types>
 #include <__type_traits/negation.h>
 #include <__type_traits/remove_cvref.h>
 #include <__type_traits/remove_reference.h>
+#include <__type_traits/unwrap_ref.h>
 #include <__utility/forward.h>
 #include <__utility/integer_sequence.h>
 #include <__utility/move.h>
@@ -1508,9 +1508,13 @@ struct __ignore_t
     const __ignore_t& operator=(_Tp&&) const {return *this;}
 };
 
+#  if _LIBCPP_STD_VER >= 17
+inline constexpr __ignore_t<unsigned char> ignore = __ignore_t<unsigned char>();
+#  else
 namespace {
   constexpr __ignore_t<unsigned char> ignore = __ignore_t<unsigned char>();
 } // namespace
+#  endif
 
 template <class... _Tp>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_SINCE_CXX14

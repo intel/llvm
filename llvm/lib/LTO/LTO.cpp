@@ -174,22 +174,38 @@ void llvm::computeLTOCacheKey(
   // imported symbols for each module may affect code generation and is
   // sensitive to link order, so include that as well.
   using ImportMapIteratorTy = FunctionImporter::ImportMapTy::const_iterator;
-  std::vector<ImportMapIteratorTy> ImportModulesVector;
+  struct ImportModule {
+    ImportMapIteratorTy ModIt;
+    const ModuleSummaryIndex::ModuleInfo *ModInfo;
+
+    StringRef getIdentifier() const { return ModIt->getKey(); }
+    const FunctionImporter::FunctionsToImportTy &getFunctions() const {
+      return ModIt->second;
+    }
+
+    const ModuleHash &getHash() const { return ModInfo->second.second; }
+    uint64_t getId() const { return ModInfo->second.first; }
+  };
+
+  std::vector<ImportModule> ImportModulesVector;
   ImportModulesVector.reserve(ImportList.size());
 
   for (ImportMapIteratorTy It = ImportList.begin(); It != ImportList.end();
        ++It) {
-    ImportModulesVector.push_back(It);
+    ImportModulesVector.push_back({It, Index.getModule(It->getKey())});
   }
+  // Order using moduleId integer which is based on the order the module was
+  // added.
   llvm::sort(ImportModulesVector,
-             [](const ImportMapIteratorTy &Lhs, const ImportMapIteratorTy &Rhs)
-                 -> bool { return Lhs->getKey() < Rhs->getKey(); });
-  for (const ImportMapIteratorTy &EntryIt : ImportModulesVector) {
-    auto ModHash = Index.getModuleHash(EntryIt->first());
+             [](const ImportModule &Lhs, const ImportModule &Rhs) -> bool {
+               return Lhs.getId() < Rhs.getId();
+             });
+  for (const ImportModule &Entry : ImportModulesVector) {
+    auto ModHash = Entry.getHash();
     Hasher.update(ArrayRef<uint8_t>((uint8_t *)&ModHash[0], sizeof(ModHash)));
 
-    AddUint64(EntryIt->second.size());
-    for (auto &Fn : EntryIt->second)
+    AddUint64(Entry.getFunctions().size());
+    for (auto &Fn : Entry.getFunctions())
       AddUint64(Fn);
   }
 
@@ -259,9 +275,10 @@ void llvm::computeLTOCacheKey(
 
   // Imported functions may introduce new uses of type identifier resolutions,
   // so we need to collect their used resolutions as well.
-  for (auto &ImpM : ImportList)
-    for (auto &ImpF : ImpM.second) {
-      GlobalValueSummary *S = Index.findSummaryInModule(ImpF, ImpM.first());
+  for (const ImportModule &ImpM : ImportModulesVector)
+    for (auto &ImpF : ImpM.getFunctions()) {
+      GlobalValueSummary *S =
+          Index.findSummaryInModule(ImpF, ImpM.getIdentifier());
       AddUsedThings(S);
       // If this is an alias, we also care about any types/etc. that the aliasee
       // may reference.
@@ -429,39 +446,93 @@ void llvm::thinLTOResolvePrevailingInIndex(
                                  recordNewLinkage, GUIDPreservedSymbols);
 }
 
-static bool isWeakObjectWithRWAccess(GlobalValueSummary *GVS) {
-  if (auto *VarSummary = dyn_cast<GlobalVarSummary>(GVS->getBaseObject()))
-    return !VarSummary->maybeReadOnly() && !VarSummary->maybeWriteOnly() &&
-           (VarSummary->linkage() == GlobalValue::WeakODRLinkage ||
-            VarSummary->linkage() == GlobalValue::LinkOnceODRLinkage);
-  return false;
-}
-
 static void thinLTOInternalizeAndPromoteGUID(
     ValueInfo VI, function_ref<bool(StringRef, ValueInfo)> isExported,
     function_ref<bool(GlobalValue::GUID, const GlobalValueSummary *)>
         isPrevailing) {
+  auto ExternallyVisibleCopies =
+      llvm::count_if(VI.getSummaryList(),
+                     [](const std::unique_ptr<GlobalValueSummary> &Summary) {
+                       return !GlobalValue::isLocalLinkage(Summary->linkage());
+                     });
+
   for (auto &S : VI.getSummaryList()) {
+    // First see if we need to promote an internal value because it is not
+    // exported.
     if (isExported(S->modulePath(), VI)) {
       if (GlobalValue::isLocalLinkage(S->linkage()))
         S->setLinkage(GlobalValue::ExternalLinkage);
-    } else if (EnableLTOInternalization &&
-               // Ignore local and appending linkage values since the linker
-               // doesn't resolve them.
-               !GlobalValue::isLocalLinkage(S->linkage()) &&
-               (!GlobalValue::isInterposableLinkage(S->linkage()) ||
-                isPrevailing(VI.getGUID(), S.get())) &&
-               S->linkage() != GlobalValue::AppendingLinkage &&
-               // We can't internalize available_externally globals because this
-               // can break function pointer equality.
-               S->linkage() != GlobalValue::AvailableExternallyLinkage &&
-               // Functions and read-only variables with linkonce_odr and
-               // weak_odr linkage can be internalized. We can't internalize
-               // linkonce_odr and weak_odr variables which are both modified
-               // and read somewhere in the program because reads and writes
-               // will become inconsistent.
-               !isWeakObjectWithRWAccess(S.get()))
-      S->setLinkage(GlobalValue::InternalLinkage);
+      continue;
+    }
+
+    // Otherwise, see if we can internalize.
+    if (!EnableLTOInternalization)
+      continue;
+
+    // Ignore local and appending linkage values since the linker
+    // doesn't resolve them (and there is no need to internalize if this is
+    // already internal).
+    if (GlobalValue::isLocalLinkage(S->linkage()) ||
+        S->linkage() == GlobalValue::AppendingLinkage)
+      continue;
+
+    // We can't internalize available_externally globals because this
+    // can break function pointer equality.
+    if (S->linkage() == GlobalValue::AvailableExternallyLinkage)
+      continue;
+
+    bool IsPrevailing = isPrevailing(VI.getGUID(), S.get());
+
+    if (GlobalValue::isInterposableLinkage(S->linkage()) && !IsPrevailing)
+      continue;
+
+    // Non-exported functions and variables with linkonce_odr or weak_odr
+    // linkage can be internalized in certain cases. The minimum legality
+    // requirements would be that they are not address taken to ensure that we
+    // don't break pointer equality checks, and that variables are either read-
+    // or write-only. For functions, this is the case if either all copies are
+    // [local_]unnamed_addr, or we can propagate reference edge attributes
+    // (which is how this is guaranteed for variables, when analyzing whether
+    // they are read or write-only).
+    //
+    // However, we only get to this code for weak/linkonce ODR values in one of
+    // two cases:
+    // 1) The prevailing copy is not in IR (it is in native code).
+    // 2) The prevailing copy in IR is not exported from its module.
+    // Additionally, at least for the new LTO API, case 2 will only happen if
+    // there is exactly one definition of the value (i.e. in exactly one
+    // module), as duplicate defs are result in the value being marked exported.
+    // Likely, users of the legacy LTO API are similar, however, currently there
+    // are llvm-lto based tests of the legacy LTO API that do not mark
+    // duplicate linkonce_odr copies as exported via the tool, so we need
+    // to handle that case below by checking the number of copies.
+    //
+    // Generally, we only want to internalize a linkonce/weak ODR value in case
+    // 2, because in case 1 we cannot see how the value is used to know if it
+    // is read or write-only. We also don't want to bloat the binary with
+    // multiple internalized copies of non-prevailing linkonce_odr functions.
+    // Note if we don't internalize, we will convert non-prevailing copies to
+    // available_externally anyway, so that we drop them after inlining. The
+    // only reason to internalize such a function is if we indeed have a single
+    // copy, because internalizing it won't increase binary size, and enables
+    // use of inliner heuristics that are more aggressive in the face of a
+    // single call to a static (local). For variables, internalizing a read or
+    // write only variable can enable more aggressive optimization. However, we
+    // already perform this elsewhere in the ThinLTO backend handling for
+    // read or write-only variables (processGlobalForThinLTO).
+    //
+    // Therefore, only internalize linkonce/weak ODR if there is a single copy,
+    // that is prevailing in this IR module. We can do so aggressively, without
+    // requiring the address to be insignificant, or that a variable be read or
+    // write-only.
+    if ((S->linkage() == GlobalValue::WeakODRLinkage ||
+         S->linkage() == GlobalValue::LinkOnceODRLinkage) &&
+        // We can have only one copy in ThinLTO that isn't prevailing, if the
+        // prevailing copy is in a native object.
+        (!IsPrevailing || ExternallyVisibleCopies > 1))
+      continue;
+
+    S->setLinkage(GlobalValue::InternalLinkage);
   }
 }
 

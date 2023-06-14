@@ -14,7 +14,7 @@
 sycl::queue Queue;
 
 int main() {
-  Queue = sycl::queue{sycl::default_selector{}.select_device()};
+  Queue = sycl::queue{sycl::default_selector_v};
 
   return 0;
 }

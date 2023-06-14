@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: "Victor Mustya" <victor.mustya@intel.com>
-    # Date: Tue, 25 Apr 2023 15:13:02 +0000
-    # Use target extension types for SPIR-V opaque arguments
-    set(LLVMGenXIntrinsics_GIT_TAG 2c39bf09756c3afd6ce77c7aa104e4a6e025405d)
+    # Author: Gorban, Igor <igor.gorban@intel.com>
+    # Date:   Tue Jun 6 23:56:43 2023 +0000
+    # Mark llvm15 tests failures
+    set(LLVMGenXIntrinsics_GIT_TAG 910db4801d4a029834606e3e42a8d60358e74fdf)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -59,7 +59,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMDSlmReservation.cpp
   HostPipes.cpp
   LowerInvokeSimd.cpp
-  LowerKernelProps.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
   MutatePrintfAddrspace.cpp
@@ -92,6 +91,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   Analysis
   Core
   Support
+  ipo
   )
 
 target_include_directories(LLVMSYCLLowerIR

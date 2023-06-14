@@ -463,8 +463,23 @@ std::optional<std::string> printExprValue(const Expr *E,
   return Constant.Val.getAsString(Ctx, T);
 }
 
-std::optional<std::string> printExprValue(const SelectionTree::Node *N,
-                                          const ASTContext &Ctx) {
+struct PrintExprResult {
+  /// The evaluation result on expression `Expr`.
+  std::optional<std::string> PrintedValue;
+  /// The Expr object that represents the closest evaluable
+  /// expression.
+  const clang::Expr *TheExpr;
+  /// The node of selection tree where the traversal stops.
+  const SelectionTree::Node *TheNode;
+};
+
+// Seek the closest evaluable expression along the ancestors of node N
+// in a selection tree. If a node in the path can be converted to an evaluable
+// Expr, a possible evaluation would happen and the associated context
+// is returned.
+// If evaluation couldn't be done, return the node where the traversal ends.
+PrintExprResult printExprValue(const SelectionTree::Node *N,
+                               const ASTContext &Ctx) {
   for (; N; N = N->Parent) {
     // Try to evaluate the first evaluatable enclosing expression.
     if (const Expr *E = N->ASTNode.get<Expr>()) {
@@ -473,14 +488,16 @@ std::optional<std::string> printExprValue(const SelectionTree::Node *N,
       if (!E->getType().isNull() && E->getType()->isVoidType())
         break;
       if (auto Val = printExprValue(E, Ctx))
-        return Val;
+        return PrintExprResult{/*PrintedValue=*/std::move(Val), /*Expr=*/E,
+                               /*Node=*/N};
     } else if (N->ASTNode.get<Decl>() || N->ASTNode.get<Stmt>()) {
       // Refuse to cross certain non-exprs. (TypeLoc are OK as part of Exprs).
       // This tries to ensure we're showing a value related to the cursor.
       break;
     }
   }
-  return std::nullopt;
+  return PrintExprResult{/*PrintedValue=*/std::nullopt, /*Expr=*/nullptr,
+                         /*Node=*/N};
 }
 
 std::optional<StringRef> fieldName(const Expr *E) {
@@ -677,6 +694,54 @@ getPredefinedExprHoverContents(const PredefinedExpr &PE, ASTContext &Ctx,
   return HI;
 }
 
+HoverInfo evaluateMacroExpansion(unsigned int SpellingBeginOffset,
+                                 unsigned int SpellingEndOffset,
+                                 llvm::ArrayRef<syntax::Token> Expanded,
+                                 ParsedAST &AST) {
+  auto &Context = AST.getASTContext();
+  auto &Tokens = AST.getTokens();
+  auto PP = getPrintingPolicy(Context.getPrintingPolicy());
+  auto Tree = SelectionTree::createRight(Context, Tokens, SpellingBeginOffset,
+                                         SpellingEndOffset);
+
+  // If macro expands to one single token, rule out punctuator or digraph.
+  // E.g., for the case `array L_BRACKET 42 R_BRACKET;` where L_BRACKET and
+  // R_BRACKET expand to
+  // '[' and ']' respectively, we don't want the type of
+  // 'array[42]' when user hovers on L_BRACKET.
+  if (Expanded.size() == 1)
+    if (tok::getPunctuatorSpelling(Expanded[0].kind()))
+      return {};
+
+  auto *StartNode = Tree.commonAncestor();
+  if (!StartNode)
+    return {};
+  // If the common ancestor is partially selected, do evaluate if it has no
+  // children, thus we can disallow evaluation on incomplete expression.
+  // For example,
+  // #define PLUS_2 +2
+  // 40 PL^US_2
+  // In this case we don't want to present 'value: 2' as PLUS_2 actually expands
+  // to a non-value rather than a binary operand.
+  if (StartNode->Selected == SelectionTree::Selection::Partial)
+    if (!StartNode->Children.empty())
+      return {};
+
+  HoverInfo HI;
+  // Attempt to evaluate it from Expr first.
+  auto ExprResult = printExprValue(StartNode, Context);
+  HI.Value = std::move(ExprResult.PrintedValue);
+  if (auto *E = ExprResult.TheExpr)
+    HI.Type = printType(E->getType(), Context, PP);
+
+  // If failed, extract the type from Decl if possible.
+  if (!HI.Value && !HI.Type && ExprResult.TheNode)
+    if (auto *VD = ExprResult.TheNode->ASTNode.get<VarDecl>())
+      HI.Type = printType(VD->getType(), Context, PP);
+
+  return HI;
+}
+
 /// Generate a \p Hover object given the macro \p MacroDecl.
 HoverInfo getHoverContents(const DefinedMacro &Macro, const syntax::Token &Tok,
                            ParsedAST &AST) {
@@ -732,6 +797,13 @@ HoverInfo getHoverContents(const DefinedMacro &Macro, const syntax::Token &Tok,
       HI.Definition += "// Expands to\n";
       HI.Definition += ExpansionText;
     }
+
+    auto Evaluated = evaluateMacroExpansion(
+        /*SpellingBeginOffset=*/SM.getFileOffset(Tok.location()),
+        /*SpellingEndOffset=*/SM.getFileOffset(Tok.endLocation()),
+        /*Expanded=*/Expansion->Expanded, AST);
+    HI.Value = std::move(Evaluated.Value);
+    HI.Type = std::move(Evaluated.Type);
   }
   return HI;
 }
@@ -794,7 +866,7 @@ HoverInfo getStringLiteralContents(const StringLiteral *SL,
   HoverInfo HI;
 
   HI.Name = "string-literal";
-  HI.Size = (SL->getLength() + 1) * SL->getCharByteWidth();
+  HI.Size = (SL->getLength() + 1) * SL->getCharByteWidth() * 8;
   HI.Type = SL->getType().getAsString(PP).c_str();
 
   return HI;
@@ -928,7 +1000,7 @@ void addLayoutInfo(const NamedDecl &ND, HoverInfo &HI) {
   const auto &Ctx = ND.getASTContext();
   if (auto *RD = llvm::dyn_cast<RecordDecl>(&ND)) {
     if (auto Size = Ctx.getTypeSizeInCharsIfKnown(RD->getTypeForDecl()))
-      HI.Size = Size->getQuantity();
+      HI.Size = Size->getQuantity() * 8;
     return;
   }
 
@@ -936,25 +1008,26 @@ void addLayoutInfo(const NamedDecl &ND, HoverInfo &HI) {
     const auto *Record = FD->getParent();
     if (Record)
       Record = Record->getDefinition();
-    if (Record && !Record->isInvalidDecl() && !Record->isDependentType() &&
-        !FD->isBitField()) {
+    if (Record && !Record->isInvalidDecl() && !Record->isDependentType()) {
       const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(Record);
-      HI.Offset = Layout.getFieldOffset(FD->getFieldIndex()) / 8;
-      if (auto Size = Ctx.getTypeSizeInCharsIfKnown(FD->getType())) {
-        HI.Size = FD->isZeroSize(Ctx) ? 0 : Size->getQuantity();
+      HI.Offset = Layout.getFieldOffset(FD->getFieldIndex());
+      if (FD->isBitField())
+        HI.Size = FD->getBitWidthValue(Ctx);
+      else if (auto Size = Ctx.getTypeSizeInCharsIfKnown(FD->getType()))
+        HI.Size = FD->isZeroSize(Ctx) ? 0 : Size->getQuantity() * 8;
+      if (HI.Size) {
         unsigned EndOfField = *HI.Offset + *HI.Size;
 
         // Calculate padding following the field.
         if (!Record->isUnion() &&
             FD->getFieldIndex() + 1 < Layout.getFieldCount()) {
           // Measure padding up to the next class field.
-          unsigned NextOffset =
-              Layout.getFieldOffset(FD->getFieldIndex() + 1) / 8;
+          unsigned NextOffset = Layout.getFieldOffset(FD->getFieldIndex() + 1);
           if (NextOffset >= EndOfField) // next field could be a bitfield!
             HI.Padding = NextOffset - EndOfField;
         } else {
           // Measure padding up to the end of the object.
-          HI.Padding = Layout.getSize().getQuantity() - EndOfField;
+          HI.Padding = Layout.getSize().getQuantity() * 8 - EndOfField;
         }
       }
       // Offset in a union is always zero, so not really useful to report.
@@ -1196,6 +1269,9 @@ void maybeAddUsedSymbols(ParsedAST &AST, HoverInfo &HI, const Inclusion &Inc) {
   for (const auto &UsedSymbolDecl : UsedSymbols)
     HI.UsedSymbolNames.push_back(getSymbolName(UsedSymbolDecl));
   llvm::sort(HI.UsedSymbolNames);
+  HI.UsedSymbolNames.erase(
+      std::unique(HI.UsedSymbolNames.begin(), HI.UsedSymbolNames.end()),
+      HI.UsedSymbolNames.end());
 }
 
 } // namespace
@@ -1293,7 +1369,7 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
           addLayoutInfo(*DeclToUse, *HI);
         // Look for a close enclosing expression to show the value of.
         if (!HI->Value)
-          HI->Value = printExprValue(N, AST.getASTContext());
+          HI->Value = printExprValue(N, AST.getASTContext()).PrintedValue;
         maybeAddCalleeArgInfo(N, *HI, PP);
         maybeAddSymbolProviders(AST, *HI, include_cleaner::Symbol{*DeclToUse});
       } else if (const Expr *E = N->ASTNode.get<Expr>()) {
@@ -1324,6 +1400,24 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
   HI->SymRange = halfOpenToRange(SM, HighlightRange);
 
   return HI;
+}
+
+// Sizes (and padding) are shown in bytes if possible, otherwise in bits.
+static std::string formatSize(uint64_t SizeInBits) {
+  uint64_t Value = SizeInBits % 8 == 0 ? SizeInBits / 8 : SizeInBits;
+  const char *Unit = Value != 0 && Value == SizeInBits ? "bit" : "byte";
+  return llvm::formatv("{0} {1}{2}", Value, Unit, Value == 1 ? "" : "s").str();
+}
+
+// Offsets are shown in bytes + bits, so offsets of different fields
+// can always be easily compared.
+static std::string formatOffset(uint64_t OffsetInBits) {
+  const auto Bytes = OffsetInBits / 8;
+  const auto Bits = OffsetInBits % 8;
+  auto Offset = formatSize(Bytes * 8);
+  if (Bits != 0)
+    Offset += " and " + formatSize(Bits);
+  return Offset;
 }
 
 markup::Document HoverInfo::present() const {
@@ -1389,14 +1483,13 @@ markup::Document HoverInfo::present() const {
   }
 
   if (Offset)
-    Output.addParagraph().appendText(
-        llvm::formatv("Offset: {0} byte{1}", *Offset, *Offset == 1 ? "" : "s")
-            .str());
+    Output.addParagraph().appendText("Offset: " + formatOffset(*Offset));
   if (Size) {
-    auto &P = Output.addParagraph().appendText(
-        llvm::formatv("Size: {0} byte{1}", *Size, *Size == 1 ? "" : "s").str());
-    if (Padding && *Padding != 0)
-      P.appendText(llvm::formatv(" (+{0} padding)", *Padding).str());
+    auto &P = Output.addParagraph().appendText("Size: " + formatSize(*Size));
+    if (Padding && *Padding != 0) {
+      P.appendText(
+          llvm::formatv(" (+{0} padding)", formatSize(*Padding)).str());
+    }
   }
 
   if (CalleeArgInfo) {
@@ -1457,16 +1550,11 @@ markup::Document HoverInfo::present() const {
     P.appendText("provides ");
 
     const std::vector<std::string>::size_type SymbolNamesLimit = 5;
-    auto Front =
-        llvm::ArrayRef(UsedSymbolNames)
-            .take_front(std::min(UsedSymbolNames.size(), SymbolNamesLimit));
+    auto Front = llvm::ArrayRef(UsedSymbolNames).take_front(SymbolNamesLimit);
 
-    for (const auto &Sym : Front) {
-      P.appendCode(Sym);
-      if (Sym != Front.back())
-        P.appendText(", ");
-    }
-
+    llvm::interleave(
+        Front, [&](llvm::StringRef Sym) { P.appendCode(Sym); },
+        [&] { P.appendText(", "); });
     if (UsedSymbolNames.size() > Front.size()) {
       P.appendText(" and ");
       P.appendText(std::to_string(UsedSymbolNames.size() - Front.size()));

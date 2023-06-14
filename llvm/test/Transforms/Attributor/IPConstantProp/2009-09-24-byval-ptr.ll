@@ -43,7 +43,7 @@ return:                                           ; preds = %entry
 }
 
 define internal i32 @vfu2(ptr byval(%struct.MYstr) align 4 %u) nounwind readonly {
-; CHECK: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
+; CHECK: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; CHECK-LABEL: define {{[^@]+}}@vfu2
 ; CHECK-SAME: (i8 [[TMP0:%.*]], i32 [[TMP1:%.*]]) #[[ATTR1:[0-9]+]] {
 ; CHECK-NEXT:  entry:
@@ -90,7 +90,7 @@ entry:
 }
 
 define internal i32 @vfu2_v2(ptr byval(%struct.MYstr) align 4 %u) nounwind readonly {
-; CHECK: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
+; CHECK: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; CHECK-LABEL: define {{[^@]+}}@vfu2_v2
 ; CHECK-SAME: (i8 [[TMP0:%.*]], i32 [[TMP1:%.*]]) #[[ATTR1]] {
 ; CHECK-NEXT:  entry:
@@ -125,12 +125,12 @@ define i32 @unions_v2() nounwind {
 ; TUNIT-SAME: () #[[ATTR0]] {
 ; TUNIT-NEXT:  entry:
 ; TUNIT-NEXT:    [[TMP0:%.*]] = load i8, ptr @mystr, align 8
-; TUNIT-NEXT:    [[MYSTR_0_11:%.*]] = getelementptr [[STRUCT_MYSTR:%.*]], ptr @mystr, i64 0, i32 1
-; TUNIT-NEXT:    [[TMP1:%.*]] = load i32, ptr [[MYSTR_0_11]], align 8
+; TUNIT-NEXT:    [[MYSTR_0_1:%.*]] = getelementptr [[STRUCT_MYSTR:%.*]], ptr @mystr, i64 0, i32 1
+; TUNIT-NEXT:    [[TMP1:%.*]] = load i32, ptr [[MYSTR_0_1]], align 8
 ; TUNIT-NEXT:    call void @vfu1(i8 [[TMP0]], i32 [[TMP1]]) #[[ATTR0]]
 ; TUNIT-NEXT:    [[TMP2:%.*]] = load i8, ptr @mystr, align 8
-; TUNIT-NEXT:    [[MYSTR_0_1:%.*]] = getelementptr [[STRUCT_MYSTR]], ptr @mystr, i64 0, i32 1
-; TUNIT-NEXT:    [[TMP3:%.*]] = load i32, ptr [[MYSTR_0_1]], align 8
+; TUNIT-NEXT:    [[MYSTR_0_11:%.*]] = getelementptr [[STRUCT_MYSTR]], ptr @mystr, i64 0, i32 1
+; TUNIT-NEXT:    [[TMP3:%.*]] = load i32, ptr [[MYSTR_0_11]], align 8
 ; TUNIT-NEXT:    [[RESULT:%.*]] = call i32 @vfu2_v2(i8 [[TMP2]], i32 [[TMP3]]) #[[ATTR0]]
 ; TUNIT-NEXT:    ret i32 [[RESULT]]
 ;
@@ -149,5 +149,5 @@ entry:
 }
 ;.
 ; CHECK: attributes #[[ATTR0]] = { nounwind }
-; CHECK: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind willreturn memory(argmem: read) }
+; CHECK: attributes #[[ATTR1]] = { mustprogress nofree norecurse nosync nounwind willreturn memory(argmem: read) }
 ;.

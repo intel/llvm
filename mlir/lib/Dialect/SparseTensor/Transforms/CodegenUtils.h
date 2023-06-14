@@ -72,6 +72,72 @@ StringRef primaryTypeFunctionSuffix(Type elemTp);
 // Misc code generators and utilities.
 //===----------------------------------------------------------------------===//
 
+/// A helper class to simplify lowering operations with/without function calls.
+template <class SubClass>
+class FuncCallOrInlineGenerator {
+public:
+  FuncCallOrInlineGenerator(TypeRange retTypes, ValueRange params, bool genCall)
+      : retTypes(retTypes), params(params), genCall(genCall) {}
+
+  // The main API invoked by clients, which abstracts away the details of
+  // creating function calls from clients.
+  SmallVector<Value> genCallOrInline(OpBuilder &builder, Location loc) {
+    if (!genCall)
+      return genImplementation(retTypes, params, builder, loc);
+
+    // Looks up the function.
+    std::string funcName = getMangledFuncName();
+    ModuleOp module = getParentOpOf<ModuleOp>(builder);
+    MLIRContext *context = module.getContext();
+    auto result = SymbolRefAttr::get(context, funcName);
+    auto func = module.lookupSymbol<func::FuncOp>(result.getAttr());
+
+    if (!func) {
+      // Create the function if not already exist.
+      OpBuilder::InsertionGuard insertionGuard(builder);
+      builder.setInsertionPoint(getParentOpOf<func::FuncOp>(builder));
+      func = builder.create<func::FuncOp>(
+          loc, funcName,
+          FunctionType::get(context, params.getTypes(), retTypes));
+      func.setPrivate();
+      // Set the insertion point to the body of the function.
+      Block *entryBB = func.addEntryBlock();
+      builder.setInsertionPointToStart(entryBB);
+      ValueRange args = entryBB->getArguments();
+      // Delegates to user to generate the actually implementation.
+      SmallVector<Value> result =
+          genImplementation(retTypes, args, builder, loc);
+      builder.create<func::ReturnOp>(loc, result);
+    }
+    // Returns the CallOp result.
+    func::CallOp call = builder.create<func::CallOp>(loc, func, params);
+    return call.getResults();
+  }
+
+private:
+  template <class OpTp>
+  OpTp getParentOpOf(OpBuilder &builder) {
+    return builder.getInsertionBlock()->getParent()->getParentOfType<OpTp>();
+  }
+
+  // CRTP: get the mangled function name (only called when genCall=true).
+  std::string getMangledFuncName() {
+    return static_cast<SubClass *>(this)->getMangledFuncName();
+  }
+
+  // CRTP: Client implementation.
+  SmallVector<Value> genImplementation(TypeRange retTypes, ValueRange params,
+                                       OpBuilder &builder, Location loc) {
+    return static_cast<SubClass *>(this)->genImplementation(retTypes, params,
+                                                            builder, loc);
+  }
+
+private:
+  TypeRange retTypes; // The types of all returned results
+  ValueRange params;  // The values of all input parameters
+  bool genCall;       // Should the implemetantion be wrapped in a function
+};
+
 /// Add type casting between arith and index types when needed.
 Value genCast(OpBuilder &builder, Location loc, Value value, Type dstTy);
 
@@ -260,7 +326,7 @@ Value reshapeValuesToLevels(OpBuilder &builder, Location loc,
 /// `IntegerType`), this also works for `RankedTensorType` and `VectorType`
 /// (for which it generates a constant `DenseElementsAttr` of zeros).
 inline Value constantZero(OpBuilder &builder, Location loc, Type tp) {
-  if (auto ctp = tp.dyn_cast<ComplexType>()) {
+  if (auto ctp = dyn_cast<ComplexType>(tp)) {
     auto zeroe = builder.getZeroAttr(ctp.getElementType());
     auto zeroa = builder.getArrayAttr({zeroe, zeroe});
     return builder.create<complex::ConstantOp>(loc, tp, zeroa);
@@ -271,7 +337,7 @@ inline Value constantZero(OpBuilder &builder, Location loc, Type tp) {
 /// Generates a 1-valued constant of the given type.  This supports all
 /// the same types as `constantZero`.
 inline Value constantOne(OpBuilder &builder, Location loc, Type tp) {
-  if (auto ctp = tp.dyn_cast<ComplexType>()) {
+  if (auto ctp = dyn_cast<ComplexType>(tp)) {
     auto zeroe = builder.getZeroAttr(ctp.getElementType());
     auto onee = getOneAttr(builder, ctp.getElementType());
     auto zeroa = builder.getArrayAttr({onee, zeroe});
@@ -350,7 +416,7 @@ inline Value constantDimLevelTypeEncoding(OpBuilder &builder, Location loc,
 }
 
 inline bool isZeroRankedTensorOrScalar(Type type) {
-  auto rtp = type.dyn_cast<RankedTensorType>();
+  auto rtp = dyn_cast<RankedTensorType>(type);
   return !rtp || rtp.getRank() == 0;
 }
 
@@ -363,6 +429,9 @@ Value genToPositions(OpBuilder &builder, Location loc, Value tensor, Level lvl);
 /// any specified layout.
 Value genToCoordinates(OpBuilder &builder, Location loc, Value tensor,
                        Level lvl, Level cooStart);
+
+/// Infers the result type and generates `ToCoordinatesBufferOp`.
+Value genToCoordinatesBuffer(OpBuilder &builder, Location loc, Value tensor);
 
 /// Infers the result type and generates `ToValuesOp`.
 Value genToValues(OpBuilder &builder, Location loc, Value tensor);

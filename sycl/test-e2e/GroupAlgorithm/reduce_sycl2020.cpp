@@ -36,14 +36,16 @@ void test(queue q, InputContainer input, OutputContainer output,
             int lid = it.get_local_id(0);
             out[0] = reduce_over_group(g, in[lid], binary_op);
             out[1] = reduce_over_group(g, in[lid], init, binary_op);
-            out[2] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  binary_op);
-            out[3] = joint_reduce(g, in.get_pointer(), in.get_pointer() + N,
-                                  init, binary_op);
-            out[4] = joint_reduce(sg, in.get_pointer(), in.get_pointer() + N,
-                                  binary_op);
-            out[5] = joint_reduce(sg, in.get_pointer(), in.get_pointer() + N,
-                                  init, binary_op);
+            out[2] = joint_reduce(g, global_ptr<const InputT>(in),
+                                  global_ptr<const InputT>(in) + N, binary_op);
+            out[3] =
+                joint_reduce(g, global_ptr<const InputT>(in),
+                             global_ptr<const InputT>(in) + N, init, binary_op);
+            out[4] = joint_reduce(sg, global_ptr<const InputT>(in),
+                                  global_ptr<const InputT>(in) + N, binary_op);
+            out[5] =
+                joint_reduce(sg, global_ptr<const InputT>(in),
+                             global_ptr<const InputT>(in) + N, init, binary_op);
           });
     });
   }
@@ -93,6 +95,20 @@ int main() {
   test<class KernelNameBitOrI>(q, input, output, sycl::bit_or<int>(), 0);
   test<class KernelNameBitXorI>(q, input, output, sycl::bit_xor<int>(), 0);
   test<class KernelNameBitAndI>(q, input, output, sycl::bit_and<int>(), ~0);
+
+  test<class LogicalOrInt>(q, input, output, sycl::logical_or<int>(), 0);
+  test<class LogicalAndInt>(q, input, output, sycl::logical_and<int>(), 1);
+
+  std::array<bool, N> bool_input = {};
+  std::array<bool, 6> bool_output = {};
+  test<class LogicalOrBool>(q, bool_input, bool_output,
+                            sycl::logical_or<bool>(), false);
+  test<class LogicalOrVoid>(q, bool_input, bool_output, sycl::logical_or<>(),
+                            false);
+  test<class LogicalAndBool>(q, bool_input, bool_output,
+                             sycl::logical_and<bool>(), true);
+  test<class LogicalAndVoid>(q, bool_input, bool_output, sycl::logical_and<>(),
+                             true);
 
   // as part of SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS (
   // https://github.com/intel/llvm/pull/5108/ ) joint_reduce and

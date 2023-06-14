@@ -96,7 +96,7 @@ static void transplantSymbolsAtOffset(InputSection *fromIsec,
 Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
                                  InputSection *isec, uint64_t value,
                                  uint64_t size, bool isWeakDef,
-                                 bool isPrivateExtern, bool isThumb,
+                                 bool isPrivateExtern,
                                  bool isReferencedDynamically, bool noDeadStrip,
                                  bool isWeakDefCanBeHidden) {
   bool overridesWeakDef = false;
@@ -166,9 +166,8 @@ Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
                       !isPrivateExtern;
   Defined *defined = replaceSymbol<Defined>(
       s, name, file, isec, value, size, isWeakDef, /*isExternal=*/true,
-      isPrivateExtern, /*includeInSymtab=*/true, isThumb,
-      isReferencedDynamically, noDeadStrip, overridesWeakDef,
-      isWeakDefCanBeHidden, interposable);
+      isPrivateExtern, /*includeInSymtab=*/true, isReferencedDynamically,
+      noDeadStrip, overridesWeakDef, isWeakDefCanBeHidden, interposable);
   return defined;
 }
 
@@ -176,7 +175,7 @@ Defined *SymbolTable::aliasDefined(Defined *src, StringRef target,
                                    InputFile *newFile, bool makePrivateExtern) {
   bool isPrivateExtern = makePrivateExtern || src->privateExtern;
   return addDefined(target, newFile, src->isec, src->value, src->size,
-                    src->isWeakDef(), isPrivateExtern, src->thumb,
+                    src->isWeakDef(), isPrivateExtern,
                     src->referencedDynamically, src->noDeadStrip,
                     src->weakDefCanBeHidden);
 }
@@ -295,11 +294,10 @@ Defined *SymbolTable::addSynthetic(StringRef name, InputSection *isec,
                                    bool includeInSymtab,
                                    bool referencedDynamically) {
   assert(!isec || !isec->getFile()); // See makeSyntheticInputSection().
-  Defined *s =
-      addDefined(name, /*file=*/nullptr, isec, value, /*size=*/0,
-                 /*isWeakDef=*/false, isPrivateExtern, /*isThumb=*/false,
-                 referencedDynamically, /*noDeadStrip=*/false,
-                 /*isWeakDefCanBeHidden=*/false);
+  Defined *s = addDefined(name, /*file=*/nullptr, isec, value, /*size=*/0,
+                          /*isWeakDef=*/false, isPrivateExtern,
+                          referencedDynamically, /*noDeadStrip=*/false,
+                          /*isWeakDefCanBeHidden=*/false);
   s->includeInSymtab = includeInSymtab;
   return s;
 }
@@ -387,7 +385,7 @@ static bool recoverFromUndefinedSymbol(const Undefined &sym) {
   }
 
   // Leave dtrace symbols, since we will handle them when we do the relocation
-  if (name.startswith("___dtrace_"))
+  if (name.starts_with("___dtrace_"))
     return true;
 
   // Handle -U.
@@ -532,7 +530,7 @@ static const Symbol *getAlternativeSpelling(const Undefined &sym,
 
   // The reference may be a mangled name while the definition is not. Suggest a
   // missing extern "C".
-  if (name.startswith("__Z")) {
+  if (name.starts_with("__Z")) {
     std::string buf = name.str();
     llvm::ItaniumPartialDemangler d;
     if (!d.partialDemangle(buf.c_str()))

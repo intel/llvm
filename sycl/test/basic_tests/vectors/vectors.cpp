@@ -146,6 +146,10 @@ int main() {
   sycl::vec<int8_t, 2> inputVec = sycl::vec<int8_t, 2>(0, 1);
   auto asVec = inputVec.template swizzle<sycl::elem::s0, sycl::elem::s1>()
                    .template as<sycl::vec<int16_t, 1>>();
+  auto test = inputVec.as<sycl::vec<bool, 2>>();
+  assert(!test[0] && test[1]);
+  assert((inputVec.yx().as<sycl::vec<bool, 2>>()[0]));
+  assert((!inputVec.yx().as<sycl::vec<bool, 2>>()[1]));
 
   // Check that [u]long[n] type aliases match vec<[u]int64_t, n> types.
   assert((std::is_same<sycl::vec<std::int64_t, 2>, sycl::long2>::value));

@@ -174,14 +174,14 @@ int main() {
     {
       sycl::buffer<int, 2> buffer_2d(data.data(), rng);
       sycl::buffer<int, 1> buffer_1d =
-          buffer_2d.reinterpret<int, 1>(sycl::range<1>(buffer_2d.get_count()));
+          buffer_2d.reinterpret<int, 1>(sycl::range<1>(buffer_2d.size()));
       // let's make an offset like for 2d buffer {offset_rows, cols}
       // with a range = {1, cols}
       sycl::buffer<int, 1> subbuffer_1d(
           buffer_1d, sycl::id<1>(offset_rows * cols), sycl::range<1>(cols));
 
       sycl::buffer<char, 1> reinterpret_subbuf =
-          subbuffer_1d.reinterpret<char, 1>(subbuffer_1d.get_size());
+          subbuffer_1d.reinterpret<char, 1>(subbuffer_1d.byte_size());
 
       cmd_queue.submit([&](sycl::handler &cgh) {
         auto rb_acc =

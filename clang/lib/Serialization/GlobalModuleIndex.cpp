@@ -281,15 +281,6 @@ GlobalModuleIndex::readIndex(StringRef Path) {
                         llvm::Error::success());
 }
 
-void
-GlobalModuleIndex::getKnownModules(SmallVectorImpl<ModuleFile *> &ModuleFiles) {
-  ModuleFiles.clear();
-  for (unsigned I = 0, N = Modules.size(); I != N; ++I) {
-    if (ModuleFile *MF = Modules[I].File)
-      ModuleFiles.push_back(MF);
-  }
-}
-
 void GlobalModuleIndex::getModuleDependencies(
        ModuleFile *File,
        SmallVectorImpl<ModuleFile *> &Dependencies) {
@@ -632,6 +623,9 @@ llvm::Error GlobalModuleIndexBuilder::loadModuleFile(const FileEntry *File) {
         // Read information about the AST file.
 
         // Skip the imported kind
+        ++Idx;
+
+        // Skip if it is standard C++ module
         ++Idx;
 
         // Skip the import location

@@ -106,7 +106,7 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelCG->MOSModuleHandle, KernelName, Context, Device);
+        KernelName, Context, Device);
     Program = detail::ProgramManager::getInstance().createPIProgram(
         *DeviceImage, Context, Device);
   }
@@ -629,10 +629,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<::jit_compiler::SYCLKernelInfo> InputKernelInfo;
   std::vector<std::string> InputKernelNames;
   // Collect argument information from all input kernels.
-  std::vector<std::vector<char>> ArgsStorage;
-  std::vector<detail::AccessorImplPtr> AccStorage;
-  std::vector<Requirement *> Requirements;
-  std::vector<detail::EventImplPtr> Events;
+
+  detail::CG::StorageInitHelper CGData;
+  std::vector<std::vector<char>> &ArgsStorage = CGData.MArgsStorage;
+  std::vector<detail::AccessorImplPtr> &AccStorage = CGData.MAccStorage;
+  std::vector<Requirement *> &Requirements = CGData.MRequirements;
+  std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
   RT::PiKernelCacheConfig KernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
@@ -665,7 +667,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                     !KernelCG->MSyclKernel->isCreatedFromSource())) {
       EliminatedArgs =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              KernelCG->MOSModuleHandle, Program, KernelName);
+              Program, KernelName);
     }
 
     // Collect information about the arguments of this kernel.
@@ -765,10 +767,10 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     // TODO(Lukas, ONNX-399): Does the MSharedPtrStorage contain any
     // information about actual shared pointers beside the kernel bundle and
     // handler impl? If yes, we might need to copy it here.
-    Requirements.insert(Requirements.end(), KernelCG->MRequirements.begin(),
-                        KernelCG->MRequirements.end());
-    Events.insert(Events.end(), KernelCG->MEvents.begin(),
-                  KernelCG->MEvents.end());
+    Requirements.insert(Requirements.end(), KernelCG->getRequirements().begin(),
+                        KernelCG->getRequirements().end());
+    Events.insert(Events.end(), KernelCG->getEvents().begin(),
+                  KernelCG->getEvents().end());
 
     // If all kernels have the same cache config then use it for the merged
     // kernel, otherwise use default configuration.
@@ -852,26 +854,19 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }(FusedKernelInfo.NDR);
   updatePromotedArgs(FusedKernelInfo, NDRDesc, FusedArgs, ArgsStorage);
 
-  OSModuleHandle Handle = OSUtil::DummyModuleHandle;
   if (!FusionResult.cached()) {
     auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo, TargetFormat);
     detail::ProgramManager::getInstance().addImages(PIDeviceBinaries);
-    Handle = OSUtil::getOSModuleHandle(PIDeviceBinaries->DeviceBinaries);
-    CachedModules.emplace(FusedKernelInfo.Name, Handle);
   } else {
     if (DebugEnabled) {
       std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
     }
-    // Retrieve an OSModuleHandle for the cached binary.
-    assert(CachedModules.count(FusedKernelInfo.Name) && "No cached binary");
-    Handle = CachedModules.at(FusedKernelInfo.Name);
   }
 
   // Create a kernel bundle for the fused kernel.
   // Kernel bundles are stored in the CG as one of the "extended" members.
   auto FusedKernelId = detail::ProgramManager::getInstance().getSYCLKernelID(
       FusedKernelInfo.Name);
-  std::vector<std::shared_ptr<const void>> RawExtendedMembers;
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
@@ -882,9 +877,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(ArgsStorage), std::move(AccStorage),
-      std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
-      std::move(FusedArgs), FusedKernelInfo.Name, Handle, {}, {},
+      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, {}, {},
       CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }

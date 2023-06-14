@@ -16,8 +16,8 @@
 ; CHECK-SPIRV: [[#DINoneId:]] [[#EISId]] DebugInfoNone
 
 ; CHECK-SPIRV: [[#DebugFuncId:]] [[#EISId]] DebugFunction
+; CHECK-SPIRV: [[#LocalVarId:]] [[#EISId]] DebugLocalVariable [[#LocalVarNameId]] [[#]] [[#]] [[#]] [[#]] [[#DebugFuncId]]
 ; CHECK-SPIRV: [[#DebugTypeTemplate:]] [[#EISId]] DebugTypeTemplate [[#DebugFuncId]]
-; CHECK-SPIRV: [[#LocalVarId:]] [[#EISId]] DebugLocalVariable [[#LocalVarNameId]] [[#]] [[#]] [[#]] [[#]] [[#DebugTypeTemplate]]
 ; CHECK-SPIRV: [[#EISId]] DebugTypeSubrange [[#DINoneId]] [[#Constant1Id]] [[#LocalVarId]]  [[#DINoneId]]
 
 ; CHECK-SPIRV: [[#DIExprId:]] [[#EISId]] DebugExpression

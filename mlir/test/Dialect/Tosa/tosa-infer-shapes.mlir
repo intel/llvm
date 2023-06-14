@@ -65,6 +65,9 @@ func.func @test_unary_f32(%arg0 : tensor<4xf32>) -> () {
 
   // CHECK: "tosa.cast"(%arg0) : (tensor<4xf32>) -> tensor<4xi32>
   %12 = "tosa.cast"(%arg0) : (tensor<4xf32>) -> tensor<*xi32>
+
+  // CHECK: "tosa.erf"(%arg0) : (tensor<4xf32>) -> tensor<4xf32>
+  %13 = "tosa.erf"(%arg0) : (tensor<4xf32>) -> tensor<*xf32>
   return
 }
 
@@ -659,7 +662,7 @@ func.func @scatter_minimum_static(%arg0 : tensor<?x4x?xi32>, %arg1 : tensor<3x?x
 // CHECK-LABEL: @test_pool_static
 func.func @test_pool_static(%arg0: tensor<3x5x6x7xf32>) {
   // CHECK: -> tensor<3x2x4x7xf32>
-  %0 = "tosa.avg_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<3x5x6x7xf32>) -> tensor<?x?x?x?xf32>
+  %0 = "tosa.avg_pool2d"(%arg0) {acc_type = f32, kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<3x5x6x7xf32>) -> tensor<?x?x?x?xf32>
 
   // CHECK: -> tensor<3x2x4x7xf32>
   %1 = "tosa.max_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<3x5x6x7xf32>) -> tensor<?x?x?x?xf32>
@@ -689,7 +692,7 @@ func.func @conv2d_dynamic_input(%input: tensor<?x?x?x?xf32>, %weights: tensor<5x
 // CHECK-LABEL: @test_pool_dynamic_input
 func.func @test_pool_dynamic_input(%arg0: tensor<?x?x?x?xf32>) {
   // CHECK: -> tensor<?x?x?x?xf32>
-  %0 = "tosa.avg_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
+  %0 = "tosa.avg_pool2d"(%arg0) {acc_type = f32, kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
 
   // CHECK: -> tensor<?x?x?x?xf32>
   %1 = "tosa.max_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
@@ -701,7 +704,7 @@ func.func @test_pool_dynamic_input(%arg0: tensor<?x?x?x?xf32>) {
 // CHECK-LABEL: @test_pool_padded
 func.func @test_pool_padded(%arg0: tensor<3x5x6x7xf32>) {
   // CHECK: -> tensor<3x5x11x7xf32>
-  %0 = "tosa.avg_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 1, 2, 3, 4>, stride = array<i64: 1, 1>} : (tensor<3x5x6x7xf32>) -> tensor<?x?x?x?xf32>
+  %0 = "tosa.avg_pool2d"(%arg0) {acc_type = f32, kernel = array<i64: 4, 3>, pad = array<i64: 1, 2, 3, 4>, stride = array<i64: 1, 1>} : (tensor<3x5x6x7xf32>) -> tensor<?x?x?x?xf32>
 
   // CHECK: -> tensor<3x5x11x7xf32>
   %1 = "tosa.max_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 1, 2, 3, 4>, stride = array<i64: 1, 1>} : (tensor<3x5x6x7xf32>) -> tensor<?x?x?x?xf32>
@@ -731,7 +734,7 @@ func.func @conv2d_dynamic_bias(%input: tensor<2x8x9x3xf32>, %weights: tensor<5x3
 // CHECK-LABEL: @test_pool_stride
 func.func @test_pool_stride(%arg0: tensor<3x11x12x7xf32>) {
   // CHECK: -> tensor<3x4x4x7xf32>
-  %0 = "tosa.avg_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 3>} : (tensor<3x11x12x7xf32>) -> tensor<?x?x?x?xf32>
+  %0 = "tosa.avg_pool2d"(%arg0) {acc_type = f32, kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 3>} : (tensor<3x11x12x7xf32>) -> tensor<?x?x?x?xf32>
 
   // CHECK: -> tensor<3x4x4x7xf32>
   %1 = "tosa.max_pool2d"(%arg0) {kernel = array<i64: 4, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 3>} : (tensor<3x11x12x7xf32>) -> tensor<?x?x?x?xf32>
@@ -1233,4 +1236,34 @@ func.func @test_unranked_equal(%arg0 : tensor<*xf32>, %arg1 : tensor<f32>) -> ()
   %0 = "tosa.equal"(%arg0, %arg1) : (tensor<*xf32>, tensor<f32>) -> tensor<*xi1>
 
   return
+}
+
+// -----
+
+// CHECK-LABEL: test_non_tosa_consumer_shape
+func.func @test_non_tosa_consumer_shape(%arg0: tensor<4x4xf32>) -> !shape.shape {
+  // CHECK: "tosa.log"(%arg0) : (tensor<4x4xf32>) -> tensor<4x4xf32>
+  %0 = "tosa.log"(%arg0) : (tensor<4x4xf32>) -> tensor<*xf32>
+  %1 = shape.shape_of %0 : tensor<*xf32> -> !shape.shape
+  return %1 : !shape.shape
+}
+
+// -----
+
+// CHECK-LABEL: test_non_tosa_consumer_shape2
+func.func @test_non_tosa_consumer_shape2(%arg0: tensor<4x4xf32>) -> tensor<?xindex> {
+  // CHECK: "tosa.log"(%arg0) : (tensor<4x4xf32>) -> tensor<4x4xf32>
+  %0 = "tosa.log"(%arg0) : (tensor<4x4xf32>) -> tensor<*xf32>
+  %1 = shape.shape_of %0 : tensor<*xf32> -> tensor<?xindex>
+  return %1 : tensor<?xindex>
+}
+
+// -----
+
+// CHECK-LABEL: test_non_tosa_consumer_extract
+func.func @test_non_tosa_consumer_extract(%arg0: tensor<4x4xf32>, %arg1: index) -> f32 {
+  // CHECK: "tosa.log"(%arg0) : (tensor<4x4xf32>) -> tensor<4x4xf32>
+  %0 = "tosa.log"(%arg0) : (tensor<4x4xf32>) -> tensor<?x?xf32>
+  %1 = tensor.extract %0[%arg1, %arg1] : tensor<?x?xf32>
+  return %1 : f32
 }

@@ -35,6 +35,10 @@ set(SYCL_E2E_TESTS_LIT_FLAGS "-sv" CACHE STRING "Flags used when running lit")
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+if(NOT SYCL_TEST_E2E_TARGETS)
+  set(SYCL_TEST_E2E_TARGETS "all")
+endif()
+
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                  "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")
@@ -54,10 +58,6 @@ if(NOT SYCL_TEST_E2E_STANDALONE)
     not
   )
 endif() # Standalone.
-
-if(NOT SYCL_TEST_E2E_TARGETS)
-  set(SYCL_TEST_E2E_TARGETS "all")
-endif()
 
 add_custom_target(check-sycl-e2e
   COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} .

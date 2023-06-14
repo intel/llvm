@@ -273,12 +273,13 @@ private:
   /// Constructor for attributes with a single type argument.
   ParsedAttr(IdentifierInfo *attrName, SourceRange attrRange,
              IdentifierInfo *scopeName, SourceLocation scopeLoc,
-             ParsedType typeArg, Form formUsed)
+             ParsedType typeArg, Form formUsed, SourceLocation ellipsisLoc)
       : AttributeCommonInfo(attrName, scopeName, attrRange, scopeLoc, formUsed),
-        NumArgs(0), Invalid(false), UsedAsTypeAttr(false),
-        IsAvailability(false), IsTypeTagForDatatype(false), IsProperty(false),
-        HasParsedType(true), HasProcessingCache(false),
-        IsPragmaClangAttribute(false), Info(ParsedAttrInfo::get(*this)) {
+        EllipsisLoc(ellipsisLoc), NumArgs(0), Invalid(false),
+        UsedAsTypeAttr(false), IsAvailability(false),
+        IsTypeTagForDatatype(false), IsProperty(false), HasParsedType(true),
+        HasProcessingCache(false), IsPragmaClangAttribute(false),
+        Info(ParsedAttrInfo::get(*this)) {
     new (&getTypeBuffer()) ParsedType(typeArg);
   }
 
@@ -701,11 +702,18 @@ public:
   AttributePool(AttributeFactory &factory) : Factory(factory) {}
 
   AttributePool(const AttributePool &) = delete;
+  // The copy assignment operator is defined as deleted pending further
+  // motivation.
+  AttributePool &operator=(const AttributePool &) = delete;
 
   ~AttributePool() { Factory.reclaimPool(*this); }
 
   /// Move the given pool's allocations to this pool.
   AttributePool(AttributePool &&pool) = default;
+
+  // The move assignment operator is defined as deleted pending further
+  // motivation.
+  AttributePool &operator=(AttributePool &&pool) = delete;
 
   AttributeFactory &getFactory() const { return Factory; }
 
@@ -780,13 +788,14 @@ public:
                                   SourceRange attrRange,
                                   IdentifierInfo *scopeName,
                                   SourceLocation scopeLoc, ParsedType typeArg,
-                                  ParsedAttr::Form formUsed) {
+                                  ParsedAttr::Form formUsed,
+                                  SourceLocation ellipsisLoc) {
     void *memory = allocate(
         ParsedAttr::totalSizeToAlloc<ArgsUnion, detail::AvailabilityData,
                                      detail::TypeTagForDatatypeData, ParsedType,
                                      detail::PropertyData>(0, 0, 0, 1, 0));
     return add(new (memory) ParsedAttr(attrName, attrRange, scopeName, scopeLoc,
-                                       typeArg, formUsed));
+                                       typeArg, formUsed, ellipsisLoc));
   }
 
   ParsedAttr *
@@ -917,6 +926,7 @@ class ParsedAttributes : public ParsedAttributesView {
 public:
   ParsedAttributes(AttributeFactory &factory) : pool(factory) {}
   ParsedAttributes(const ParsedAttributes &) = delete;
+  ParsedAttributes &operator=(const ParsedAttributes &) = delete;
 
   AttributePool &getPool() const { return pool; }
 
@@ -998,9 +1008,11 @@ public:
   /// Add an attribute with a single type argument.
   ParsedAttr *addNewTypeAttr(IdentifierInfo *attrName, SourceRange attrRange,
                              IdentifierInfo *scopeName, SourceLocation scopeLoc,
-                             ParsedType typeArg, ParsedAttr::Form formUsed) {
-    ParsedAttr *attr = pool.createTypeAttribute(attrName, attrRange, scopeName,
-                                                scopeLoc, typeArg, formUsed);
+                             ParsedType typeArg, ParsedAttr::Form formUsed,
+                             SourceLocation ellipsisLoc = SourceLocation()) {
+    ParsedAttr *attr =
+        pool.createTypeAttribute(attrName, attrRange, scopeName, scopeLoc,
+                                 typeArg, formUsed, ellipsisLoc);
     addAtEnd(attr);
     return attr;
   }

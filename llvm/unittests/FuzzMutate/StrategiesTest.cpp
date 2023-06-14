@@ -84,7 +84,7 @@ void IterateOnSource(StringRef Source, IRMutator &Mutator) {
     auto M = parseAssembly(Source.data(), Ctx);
     ASSERT_TRUE(M && !verifyModule(*M, &errs()));
 
-    Mutator.mutateModule(*M, Seed, Source.size(), Source.size() + 100);
+    Mutator.mutateModule(*M, Seed, IRMutator::getModuleSize(*M) + 100);
     EXPECT_TRUE(!verifyModule(*M, &errs()));
   }
 }
@@ -97,7 +97,7 @@ static void mutateAndVerifyModule(StringRef Source,
   std::mt19937 mt(Seed);
   std::uniform_int_distribution<int> RandInt(INT_MIN, INT_MAX);
   for (int i = 0; i < repeat; i++) {
-    Mutator->mutateModule(*M, RandInt(mt), Source.size(), Source.size() + 1024);
+    Mutator->mutateModule(*M, RandInt(mt), IRMutator::getModuleSize(*M) + 1024);
     ASSERT_FALSE(verifyModule(*M, &errs()));
   }
 }
@@ -118,12 +118,36 @@ TEST(InjectorIRStrategyTest, EmptyModule) {
   auto Mutator = createInjectorMutator();
   ASSERT_TRUE(Mutator);
 
-  Mutator->mutateModule(*M, Seed, 1, 1);
+  Mutator->mutateModule(*M, Seed, IRMutator::getModuleSize(*M) + 1);
   EXPECT_TRUE(!verifyModule(*M, &errs()));
 }
 
 TEST(InjectorIRStrategyTest, LargeInsertion) {
   StringRef Source = "";
+  auto Mutator = createInjectorMutator();
+  ASSERT_TRUE(Mutator);
+  mutateAndVerifyModule(Source, Mutator, 100);
+}
+
+TEST(InjectorIRStrategyTest, InsertWMustTailCall) {
+  StringRef Source = "\n\
+        define i1 @recursive() {    \n\
+        Entry:     \n\
+            %Ret = musttail call i1 @recursive() \n\
+            ret i1 %Ret \n\
+        }";
+  auto Mutator = createInjectorMutator();
+  ASSERT_TRUE(Mutator);
+  mutateAndVerifyModule(Source, Mutator, 100);
+}
+
+TEST(InjectorIRStrategyTest, InsertWTailCall) {
+  StringRef Source = "\n\
+        define i1 @recursive() {    \n\
+        Entry:     \n\
+            %Ret = tail call i1 @recursive() \n\
+            ret i1 %Ret \n\
+        }";
   auto Mutator = createInjectorMutator();
   ASSERT_TRUE(Mutator);
   mutateAndVerifyModule(Source, Mutator, 100);
@@ -194,7 +218,7 @@ static void checkModifyNoUnsignedAndNoSignedWrap(StringRef Opc) {
   bool FoundNUW = false;
   bool FoundNSW = false;
   for (int i = 0; i < 100; ++i) {
-    Mutator->mutateModule(*M, Seed + i, Source.size(), Source.size() + 100);
+    Mutator->mutateModule(*M, Seed + i, IRMutator::getModuleSize(*M) + 100);
     EXPECT_TRUE(!verifyModule(*M, &errs()));
     FoundNUW |= AddI->hasNoUnsignedWrap();
     FoundNSW |= AddI->hasNoSignedWrap();
@@ -237,7 +261,7 @@ TEST(InstModificationIRStrategyTest, ICmp) {
   ASSERT_TRUE(M && !verifyModule(*M, &errs()));
   bool FoundNE = false;
   for (int i = 0; i < 100; ++i) {
-    Mutator->mutateModule(*M, Seed + i, Source.size(), Source.size() + 100);
+    Mutator->mutateModule(*M, Seed + i, IRMutator::getModuleSize(*M) + 100);
     EXPECT_TRUE(!verifyModule(*M, &errs()));
     FoundNE |= CI->getPredicate() == CmpInst::ICMP_NE;
   }
@@ -262,7 +286,7 @@ TEST(InstModificationIRStrategyTest, FCmp) {
   ASSERT_TRUE(M && !verifyModule(*M, &errs()));
   bool FoundONE = false;
   for (int i = 0; i < 100; ++i) {
-    Mutator->mutateModule(*M, Seed + i, Source.size(), Source.size() + 100);
+    Mutator->mutateModule(*M, Seed + i, IRMutator::getModuleSize(*M) + 100);
     EXPECT_TRUE(!verifyModule(*M, &errs()));
     FoundONE |= CI->getPredicate() == CmpInst::FCMP_ONE;
   }
@@ -287,7 +311,7 @@ TEST(InstModificationIRStrategyTest, GEP) {
   ASSERT_TRUE(M && !verifyModule(*M, &errs()));
   bool FoundInbounds = false;
   for (int i = 0; i < 100; ++i) {
-    Mutator->mutateModule(*M, Seed + i, Source.size(), Source.size() + 100);
+    Mutator->mutateModule(*M, Seed + i, IRMutator::getModuleSize(*M) + 100);
     EXPECT_TRUE(!verifyModule(*M, &errs()));
     FoundInbounds |= GEP->isInBounds();
   }
@@ -311,7 +335,7 @@ void VerfyOperandShuffled(StringRef Source, std::pair<int, int> ShuffleItems) {
   ASSERT_TRUE(Inst->getOperand(ShuffleItems.second) ==
               dyn_cast<Value>(F.getArg(ShuffleItems.second)));
 
-  Mutator->mutateModule(*M, 0, Source.size(), Source.size() + 100);
+  Mutator->mutateModule(*M, 0, IRMutator::getModuleSize(*M) + 100);
   ASSERT_TRUE(!verifyModule(*M, &errs()));
 
   ASSERT_TRUE(Inst->getOperand(ShuffleItems.first) ==
@@ -350,7 +374,7 @@ void VerfyDivDidntShuffle(StringRef Source) {
   EXPECT_TRUE(isa<Constant>(Inst->getOperand(0)));
   EXPECT_TRUE(Inst->getOperand(1) == dyn_cast<Value>(F.getArg(0)));
 
-  Mutator->mutateModule(*M, Seed, Source.size(), Source.size() + 100);
+  Mutator->mutateModule(*M, Seed, IRMutator::getModuleSize(*M) + 100);
   EXPECT_TRUE(!verifyModule(*M, &errs()));
 
   // Didn't shuffle.
@@ -374,7 +398,7 @@ TEST(InstModificationIRStrategyTest, DidntShuffleFRem) {
   VerfyDivDidntShuffle(Source);
 }
 
-TEST(FunctionIRStrategy, Func) {
+TEST(InsertFunctionStrategy, Func) {
   LLVMContext Ctx;
   const char *Source = "";
   auto Mutator = createMutator<InsertFunctionStrategy>();
@@ -383,7 +407,24 @@ TEST(FunctionIRStrategy, Func) {
   auto M = parseAssembly(Source, Ctx);
   srand(Seed);
   for (int i = 0; i < 100; i++) {
-    Mutator->mutateModule(*M, rand(), 0, 1024);
+    Mutator->mutateModule(*M, rand(), 1024);
+    EXPECT_TRUE(!verifyModule(*M, &errs()));
+  }
+}
+
+TEST(InsertFunctionStrategy, AvoidCallingFunctionWithSpecialParam) {
+  LLVMContext Ctx;
+  StringRef Source = "\n\
+      declare void @llvm.dbg.value(metadata %0, metadata %1, metadata %2)\n\
+      declare i1 @llvm.experimental.gc.result.i1(token %0)\n\
+      define i32 @test(i32 %0) gc \"statepoint-example\" {\n\
+        ret i32 %0 \n\
+      }";
+  auto Mutator = createMutator<InsertFunctionStrategy>();
+  auto M = parseAssembly(Source.data(), Ctx);
+  srand(Seed);
+  for (int i = 0; i < 100; i++) {
+    Mutator->mutateModule(*M, rand(), 1024);
     EXPECT_TRUE(!verifyModule(*M, &errs()));
   }
 }
@@ -406,7 +447,7 @@ TEST(InstModificationIRStrategy, Exact) {
   BinaryOperator *AShr = cast<BinaryOperator>(&*F.begin()->begin());
   bool FoundExact = false;
   for (int i = 0; i < 100; ++i) {
-    Mutator->mutateModule(*M, RandInt(mt), Source.size(), Source.size() + 100);
+    Mutator->mutateModule(*M, RandInt(mt), IRMutator::getModuleSize(*M) + 100);
     ASSERT_FALSE(verifyModule(*M, &errs()));
     FoundExact |= AShr->isExact();
   }
@@ -453,7 +494,7 @@ TEST(InstModificationIRStrategy, FastMath) {
   }
   ASSERT_TRUE(M && !verifyModule(*M, &errs()));
   for (int i = 0; i < 300; ++i) {
-    Mutator->mutateModule(*M, RandInt(mt), Source.size(), Source.size() + 100);
+    Mutator->mutateModule(*M, RandInt(mt), IRMutator::getModuleSize(*M) + 100);
     for (auto p : FPOpsHasFastMath)
       FPOpsHasFastMath[p.first] |= p.first->getFastMathFlags().any();
     ASSERT_FALSE(verifyModule(*M, &errs()));
@@ -559,6 +600,19 @@ TEST(SinkInstructionStrategy, Operand) {
   mutateAndVerifyModule<SinkInstructionStrategy>(Source);
 }
 
+TEST(SinkInstructionStrategy, DoNotSinkTokenType) {
+  StringRef Source = "\n\
+      declare ptr @fake_personality_function() \n\
+      declare token @llvm.experimental.gc.statepoint.p0(i64 immarg %0, i32 immarg %1, ptr %2, i32 immarg %3, i32 immarg %4, ...) \n\
+      define void @test() gc \"statepoint-example\" personality ptr @fake_personality_function { \n\
+      Entry: \n\
+        %token1 = call token (i64, i32, ptr, i32, i32, ...) \
+          @llvm.experimental.gc.statepoint.p0(i64 0, i32 0, ptr elementtype(ptr addrspace(1) ()) undef, i32 0, i32 0, i32 0, i32 0) \n\
+        ret void \n\
+      }";
+  mutateAndVerifyModule<SinkInstructionStrategy>(Source);
+}
+
 static void VerifyBlockShuffle(StringRef Source) {
   LLVMContext Ctx;
   auto Mutator = createMutator<ShuffleBlockStrategy>();
@@ -573,7 +627,7 @@ static void VerifyBlockShuffle(StringRef Source) {
   std::mt19937 mt(Seed);
   std::uniform_int_distribution<int> RandInt(INT_MIN, INT_MAX);
   for (int i = 0; i < 100; i++) {
-    Mutator->mutateModule(*M, RandInt(mt), Source.size(), Source.size() + 1024);
+    Mutator->mutateModule(*M, RandInt(mt), IRMutator::getModuleSize(*M) + 1024);
     for (BasicBlock &BB : *F) {
       int PostShuffleIntCnt = BB.size();
       EXPECT_EQ(PostShuffleIntCnt, PreShuffleInstCnt[&BB]);
