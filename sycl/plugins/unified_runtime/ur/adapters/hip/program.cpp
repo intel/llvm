@@ -9,8 +9,8 @@
 #include "program.hpp"
 
 ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Ctxt)
-    : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1}, Context{
-                                                                        Ctxt} {
+    : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
+      Context{Ctxt} {
   urContextRetain(Context);
 }
 

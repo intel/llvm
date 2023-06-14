@@ -14,9 +14,9 @@
 #include "platform.hpp"
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
-               ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
+    ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
+    [[maybe_unused]] ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
@@ -49,10 +49,10 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
 }
 
 /// USM: Implements USM device allocations using a normal HIP device pointer
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
-                 size_t size, void **ppMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
+    size_t size, void **ppMem) {
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -85,10 +85,10 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 }
 
 /// USM: Implements USM Shared allocations using HIP Managed Memory
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
-                 size_t size, void **ppMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
+    size_t size, void **ppMem) {
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
