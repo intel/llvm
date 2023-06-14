@@ -27,20 +27,37 @@ permissions:
   contents: read
 
 jobs:
+  detect_changes:
+    uses: ./.github/workflows/sycl_detect_changes.yml
+
   lint:
-    runs-on: ubuntu-22.04
+    runs-on: cuda
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
+      # actions/checkout fails without "--privileged".
+      options: -u 1001:1001 --privileged
     steps:
-    - name: 'PR commits + 1'
-      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
     - uses: actions/checkout@v3
       with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        persist-credentials: false
+        ref: ${{ github.event.pull_request.merge_commit_sha }}
+        sparse-checkout: |
+          devops/actions/cached_checkout
+    - name: 'PR commits + 2'
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: src
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+        # clang-format uses github.event.pull_request.base.sha that has the top
+        # of the base branch, not the merge base. As such, checkout the merge
+        # commit instead of github.event.pull_request.head.sha.
+        ref: ${{ github.event.pull_request.merge_commit_sha }}
+        cache_path: "/__w/repo_cache/"
+        merge: false
     - name: Run clang-format
-      uses: ./devops/actions/clang-format
+      uses: ./src/devops/actions/clang-format
+      with:
+        path: src
 
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
@@ -54,7 +71,7 @@ jobs:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, detect_changes]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -66,12 +83,14 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}
 
   windows_default:
     name: Windows
-    needs: [lint, test_matrix]
+    needs: [lint, test_matrix, detect_changes]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
       build_ref: ${{ github.event.pull_request.head.sha }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}

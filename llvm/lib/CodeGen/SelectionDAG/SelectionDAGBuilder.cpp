@@ -3381,6 +3381,9 @@ void SelectionDAGBuilder::visitSelect(const User &I) {
   if (auto *FPOp = dyn_cast<FPMathOperator>(&I))
     Flags.copyFMF(*FPOp);
 
+  Flags.setUnpredictable(
+      cast<SelectInst>(I).getMetadata(LLVMContext::MD_unpredictable));
+
   // Min/max matching is only viable if all output VTs are the same.
   if (all_equal(ValueVTs)) {
     EVT VT = ValueVTs[0];
@@ -5804,6 +5807,26 @@ bool SelectionDAGBuilder::EmitFuncArgumentDbgValue(
   if (!Op)
     return false;
 
+  // If the expression refers to the entry value of an Argument, use the
+  // corresponding livein physical register. As per the Verifier, this is only
+  // allowed for swiftasync Arguments.
+  if (Op->isReg() && Expr->isEntryValue()) {
+    assert(Arg->hasAttribute(Attribute::AttrKind::SwiftAsync));
+    auto OpReg = Op->getReg();
+    for (auto [PhysReg, VirtReg] : FuncInfo.RegInfo->liveins())
+      if (OpReg == VirtReg || OpReg == PhysReg) {
+        SDDbgValue *SDV = DAG.getVRegDbgValue(
+            Variable, Expr, PhysReg,
+            Kind != FuncArgumentDbgValueKind::Value /*is indirect*/, DL,
+            SDNodeOrder);
+        DAG.AddDbgValue(SDV, false /*treat as dbg.declare byval parameter*/);
+        return true;
+      }
+    LLVM_DEBUG(dbgs() << "Dropping dbg.value: expression is entry_value but "
+                         "couldn't find a physical register\n");
+    return true;
+  }
+
   assert(Variable->isValidLocationForIntrinsic(DL) &&
          "Expected inlined-at fields to agree");
   MachineInstr *NewMI = nullptr;
@@ -6548,6 +6571,64 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     setValue(&I, V);
     return;
   }
+  case Intrinsic::get_fpenv: {
+    const DataLayout DLayout = DAG.getDataLayout();
+    EVT EnvVT = TLI.getValueType(DLayout, I.getType());
+    Align TempAlign = DAG.getEVTAlign(EnvVT);
+    SDValue Chain = DAG.getRoot();
+    // Use GET_FPENV if it is legal or custom. Otherwise use memory-based node
+    // and temporary storage in stack.
+    if (TLI.isOperationLegalOrCustom(ISD::SET_FPENV, EnvVT)) {
+      Res = DAG.getNode(
+          ISD::GET_FPENV, sdl,
+          DAG.getVTList(TLI.getValueType(DAG.getDataLayout(), I.getType()),
+                        MVT::Other),
+          Chain);
+    } else {
+      SDValue Temp = DAG.CreateStackTemporary(EnvVT, TempAlign.value());
+      int SPFI = cast<FrameIndexSDNode>(Temp.getNode())->getIndex();
+      auto MPI =
+          MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), SPFI);
+      MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
+          MPI, MachineMemOperand::MOStore, MemoryLocation::UnknownSize,
+          TempAlign);
+      Chain = DAG.getGetFPEnv(Chain, sdl, Temp, EnvVT, MMO);
+      Res = DAG.getLoad(EnvVT, sdl, Chain, Temp, MPI);
+    }
+    setValue(&I, Res);
+    DAG.setRoot(Res.getValue(1));
+    return;
+  }
+  case Intrinsic::set_fpenv: {
+    const DataLayout DLayout = DAG.getDataLayout();
+    SDValue Env = getValue(I.getArgOperand(0));
+    EVT EnvVT = Env.getValueType();
+    Align TempAlign = DAG.getEVTAlign(EnvVT);
+    SDValue Chain = getRoot();
+    // If SET_FPENV is custom or legal, use it. Otherwise use loading
+    // environment from memory.
+    if (TLI.isOperationLegalOrCustom(ISD::SET_FPENV, EnvVT)) {
+      Chain = DAG.getNode(ISD::SET_FPENV, sdl, MVT::Other, Chain, Env);
+    } else {
+      // Allocate space in stack, copy environment bits into it and use this
+      // memory in SET_FPENV_MEM.
+      SDValue Temp = DAG.CreateStackTemporary(EnvVT, TempAlign.value());
+      int SPFI = cast<FrameIndexSDNode>(Temp.getNode())->getIndex();
+      auto MPI =
+          MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), SPFI);
+      Chain = DAG.getStore(Chain, sdl, Env, Temp, MPI, TempAlign,
+                           MachineMemOperand::MOStore);
+      MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
+          MPI, MachineMemOperand::MOLoad, MemoryLocation::UnknownSize,
+          TempAlign);
+      Chain = DAG.getSetFPEnv(Chain, sdl, Temp, EnvVT, MMO);
+    }
+    DAG.setRoot(Chain);
+    return;
+  }
+  case Intrinsic::reset_fpenv:
+    DAG.setRoot(DAG.getNode(ISD::RESET_FPENV, sdl, MVT::Other, getRoot()));
+    return;
   case Intrinsic::pcmarker: {
     SDValue Tmp = getValue(I.getArgOperand(0));
     DAG.setRoot(DAG.getNode(ISD::PCMARKER, sdl, MVT::Other, getRoot(), Tmp));
@@ -7297,6 +7378,40 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     SDValue SetCC = DAG.getSetCC(sdl, CCVT, VectorInduction,
                                  VectorTripCount, ISD::CondCode::SETULT);
     setValue(&I, SetCC);
+    return;
+  }
+  case Intrinsic::experimental_get_vector_length: {
+    assert(cast<ConstantInt>(I.getOperand(1))->getSExtValue() > 0 &&
+           "Expected positive VF");
+    unsigned VF = cast<ConstantInt>(I.getOperand(1))->getZExtValue();
+    bool IsScalable = cast<ConstantInt>(I.getOperand(2))->isOne();
+
+    SDValue Count = getValue(I.getOperand(0));
+    EVT CountVT = Count.getValueType();
+
+    if (!TLI.shouldExpandGetVectorLength(CountVT, VF, IsScalable)) {
+      visitTargetIntrinsic(I, Intrinsic);
+      return;
+    }
+
+    // Expand to a umin between the trip count and the maximum elements the type
+    // can hold.
+    EVT VT = TLI.getValueType(DAG.getDataLayout(), I.getType());
+
+    // Extend the trip count to at least the result VT.
+    if (CountVT.bitsLT(VT)) {
+      Count = DAG.getNode(ISD::ZERO_EXTEND, sdl, VT, Count);
+      CountVT = VT;
+    }
+
+    SDValue MaxEVL = DAG.getElementCount(sdl, CountVT,
+                                         ElementCount::get(VF, IsScalable));
+
+    SDValue UMin = DAG.getNode(ISD::UMIN, sdl, CountVT, Count, MaxEVL);
+    // Clip to the result type if needed.
+    SDValue Trunc = DAG.getNode(ISD::TRUNCATE, sdl, VT, UMin);
+
+    setValue(&I, Trunc);
     return;
   }
   case Intrinsic::vector_insert: {
@@ -8229,14 +8344,13 @@ bool SelectionDAGBuilder::visitMemPCpyCall(const CallInst &I) {
   // DAG::getMemcpy needs Alignment to be defined.
   Align Alignment = std::min(DstAlign, SrcAlign);
 
-  bool isVol = false;
   SDLoc sdl = getCurSDLoc();
 
   // In the mempcpy context we need to pass in a false value for isTailCall
   // because the return pointer needs to be adjusted by the size of
   // the copied memory.
-  SDValue Root = isVol ? getRoot() : getMemoryRoot();
-  SDValue MC = DAG.getMemcpy(Root, sdl, Dst, Src, Size, Alignment, isVol, false,
+  SDValue Root = getMemoryRoot();
+  SDValue MC = DAG.getMemcpy(Root, sdl, Dst, Src, Size, Alignment, false, false,
                              /*isTailCall=*/false,
                              MachinePointerInfo(I.getArgOperand(0)),
                              MachinePointerInfo(I.getArgOperand(1)),

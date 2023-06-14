@@ -19,7 +19,7 @@ apt update && apt install -yqq \
       libdw1 \
       wget \
       sudo \
-      lz4
+      zstd
 
 pip3 install psutil
 

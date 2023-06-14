@@ -4,6 +4,9 @@
 // Group algorithms are not supported on Nvidia.
 // XFAIL: hip_nvidia
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with a one element buffer. Additionally, some
 // reducers will not be written to.

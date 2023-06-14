@@ -1199,13 +1199,22 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   F->getContext().getMDKindNames(MDNames);
   F->getAllMetadata(AllMD);
   for (auto MD : AllMD) {
+    std::string MDName = MDNames[MD.first].str();
+
+    // spirv.Decorations and spirv.ParameterDecorations are handled
+    // elsewhere for both forward and reverse translation and are complicated
+    // to support here, so just skip them.
+    if (MDName == SPIRV_MD_DECORATIONS ||
+        MDName == SPIRV_MD_PARAMETER_DECORATIONS)
+      continue;
+
     // Format for metadata is:
     // NonSemanticAuxDataFunctionMetadata Fcn MDName MDVals...
     // MDName is always a String, MDVals have different types as explained
     // below. Also note this instruction has a variable number of operands
     std::vector<SPIRVWord> Ops;
     Ops.push_back(BF->getId());
-    Ops.push_back(BM->getString(MDNames[MD.first].str())->getId());
+    Ops.push_back(BM->getString(MDName)->getId());
     for (unsigned int OpIdx = 0; OpIdx < MD.second->getNumOperands(); OpIdx++) {
       const auto &CurOp = MD.second->getOperand(OpIdx);
       if (auto *MDStr = dyn_cast<MDString>(CurOp)) {
@@ -3692,23 +3701,30 @@ static bool allowsApproxFunction(IntrinsicInst *II) {
            cast<VectorType>(Ty)->getElementType()->isFloatTy()));
 }
 
-bool allowDecorateWithBufferLocationOrLatencyControlINTEL(IntrinsicInst *II) {
-  SmallVector<Value *, 8> UserList;
+namespace {
+bool checkMemUser(User *User) {
+  if (isa<LoadInst>(User) || isa<StoreInst>(User))
+    return true;
+  if (auto *III = dyn_cast<IntrinsicInst>(User)) {
+    if (III->getIntrinsicID() == Intrinsic::memcpy)
+      return true;
+  }
+  return false;
+}
+} // namespace
 
+bool allowDecorateWithBufferLocationOrLatencyControlINTEL(IntrinsicInst *II) {
   for (auto *Inst : II->users()) {
-    // if castInst, push Successors
+    // if castInst, check Successors
     if (auto *Cast = dyn_cast<CastInst>(Inst)) {
       for (auto *Successor : Cast->users())
-        UserList.push_back(Successor);
+        if (checkMemUser(Successor))
+          return true;
     } else {
-      UserList.push_back(Inst);
+      if (checkMemUser(Inst))
+        return true;
     }
   }
-
-  for (auto &Inst : UserList)
-    if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
-      return true;
-
   return false;
 }
 

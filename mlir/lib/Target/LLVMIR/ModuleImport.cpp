@@ -730,8 +730,8 @@ Attribute ModuleImport::getConstantAsAttr(llvm::Constant *constant) {
 
   // Returns the static shape of the provided type if possible.
   auto getConstantShape = [&](llvm::Type *type) {
-    return getBuiltinTypeForAttr(convertType(type))
-        .dyn_cast_or_null<ShapedType>();
+    return llvm::dyn_cast_if_present<ShapedType>(getBuiltinTypeForAttr(convertType(type))
+        );
   };
 
   // Convert one-dimensional constant arrays or vectors that store 1/2/4/8-byte
@@ -798,8 +798,8 @@ Attribute ModuleImport::getConstantAsAttr(llvm::Constant *constant) {
 
   // Convert zero aggregates.
   if (auto *constZero = dyn_cast<llvm::ConstantAggregateZero>(constant)) {
-    auto shape = getBuiltinTypeForAttr(convertType(constZero->getType()))
-                     .dyn_cast_or_null<ShapedType>();
+    auto shape = llvm::dyn_cast_if_present<ShapedType>(getBuiltinTypeForAttr(convertType(constZero->getType()))
+                     );
     if (!shape)
       return {};
     // Convert zero aggregates with a static shape to splat elements attributes.
@@ -1063,6 +1063,23 @@ FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
       }
     }
     return root;
+  }
+
+  if (auto *constTargetNone = dyn_cast<llvm::ConstantTargetNone>(constant)) {
+    LLVMTargetExtType targetExtType =
+        cast<LLVMTargetExtType>(convertType(constTargetNone->getType()));
+    assert(targetExtType.hasProperty(LLVMTargetExtType::HasZeroInit) &&
+           "target extension type does not support zero-initialization");
+    // As the number of values needed for initialization is target-specific and
+    // opaque to the compiler, use a single i64 zero-valued attribute to
+    // represent the 'zeroinitializer', which is the only constant value allowed
+    // for target extension types (besides poison and undef).
+    // TODO: Replace with 'zeroinitializer' once there is a dedicated
+    // zeroinitializer operation in the LLVM dialect.
+    return builder
+        .create<LLVM::ConstantOp>(loc, targetExtType,
+                                  builder.getI64IntegerAttr(0))
+        .getRes();
   }
 
   StringRef error = "";

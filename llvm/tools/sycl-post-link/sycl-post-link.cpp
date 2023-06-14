@@ -751,6 +751,63 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
   return true;
 }
 
+SmallVector<module_split::ModuleDesc, 2>
+handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
+            bool &SplitOccurred) {
+  // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
+  // undergo different set of LLVMIR passes. After this they are linked back
+  // together to form single module with disjoint SYCL and ESIMD call graphs
+  // unless -split-esimd option is specified. The graphs become disjoint
+  // when linked back because functions shared between graphs are cloned and
+  // renamed.
+  SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
+      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+
+  if (Result.size() > 1 && SplitOccurred &&
+      (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
+    // Controversial state reached - SYCL and ESIMD entry points resulting
+    // from SYCL/ESIMD split (which is done always) are linked back, since
+    // -split-esimd is not specified, but per-kernel split is requested.
+    warning("SYCL and ESIMD entry points detected and split mode is "
+            "per-kernel, so " +
+            SplitEsimd.ValueStr + " must also be specified");
+  }
+  SplitOccurred |= Result.size() > 1;
+
+  for (auto &MD : Result) {
+    DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
+    Modified |= processSpecConstants(MD);
+    if (LowerEsimd && MD.isESIMD())
+      Modified |= lowerEsimdConstructs(MD);
+  }
+
+  if (!SplitEsimd && Result.size() > 1) {
+    // SYCL/ESIMD splitting is not requested, link back into single module.
+    assert(Result.size() == 2 &&
+           "Unexpected number of modules as results of ESIMD split");
+    int ESIMDInd = Result[0].isESIMD() ? 0 : 1;
+    int SYCLInd = 1 - ESIMDInd;
+    assert(Result[SYCLInd].isSYCL() &&
+           "no non-ESIMD module as a result ESIMD split?");
+
+    // ... but before that, make sure no link conflicts will occur.
+    Result[ESIMDInd].renameDuplicatesOf(Result[SYCLInd].getModule(), ".esimd");
+    module_split::ModuleDesc Linked =
+        link(std::move(Result[0]), std::move(Result[1]));
+    Linked.restoreLinkageOfDirectInvokeSimdTargets();
+    string_vector Names;
+    Linked.saveEntryPointNames(Names);
+    Linked.cleanup(); // may remove some entry points, need to save/rebuild
+    Linked.rebuildEntryPoints(Names);
+    Result.clear();
+    Result.emplace_back(std::move(Linked));
+    DUMP_ENTRY_POINTS(Result.back().entries(), Result.back().Name.c_str(), 3);
+    Modified = true;
+  }
+
+  return Result;
+}
+
 std::unique_ptr<util::SimpleTable>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
@@ -825,62 +882,8 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
-
-    // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
-    // undergo different set of LLVMIR passes. After this they are linked back
-    // together to form single module with disjoint SYCL and ESIMD call graphs
-    // unless -split-esimd option is specified. The graphs become disjoint
-    // when linked back because functions shared between graphs are cloned and
-    // renamed.
-    std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
-        module_split::getSplitterByKernelType(std::move(MDesc),
-                                              EmitOnlyKernelsAsEntryPoints);
-    bool ESIMDSplitOccurred = ESIMDSplitter->remainingSplits() > 1;
-
-    if (ESIMDSplitOccurred && SplitOccurred &&
-        (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
-      // Controversial state reached - SYCL and ESIMD entry points resulting
-      // from SYCL/ESIMD split (which is done always) are linked back, since
-      // -split-esimd is not specified, but per-kernel split is requested.
-      warning("SYCL and ESIMD entry points detected and split mode is "
-              "per-kernel, so " +
-              SplitEsimd.ValueStr + " must also be specified");
-    }
-    SmallVector<module_split::ModuleDesc, 2> MMs;
-    SplitOccurred |= ESIMDSplitOccurred;
-    Modified |= SplitOccurred;
-
-    while (ESIMDSplitter->hasMoreSplits()) {
-      module_split::ModuleDesc MDesc2 = ESIMDSplitter->nextSplit();
-      DUMP_ENTRY_POINTS(MDesc2.entries(), MDesc2.Name.c_str(), 3);
-      Modified |= processSpecConstants(MDesc2);
-
-      if (!MDesc2.isSYCL() && LowerEsimd) {
-        assert(MDesc2.isESIMD() && "NYI");
-        Modified |= lowerEsimdConstructs(MDesc2);
-      }
-      MMs.emplace_back(std::move(MDesc2));
-    }
-    if (!SplitEsimd && (MMs.size() > 1)) {
-      // SYCL/ESIMD splitting is not requested, link back into single module.
-      assert(MMs.size() == 2);
-      assert((MMs[0].isESIMD() && MMs[1].isSYCL()) ||
-             (MMs[1].isESIMD() && MMs[0].isSYCL()));
-      int ESIMDInd = MMs[0].isESIMD() ? 0 : 1;
-      int SYCLInd = MMs[0].isESIMD() ? 1 : 0;
-      // ... but before that, make sure no link conflicts will occur.
-      MMs[ESIMDInd].renameDuplicatesOf(MMs[SYCLInd].getModule(), ".esimd");
-      module_split::ModuleDesc M2 = link(std::move(MMs[0]), std::move(MMs[1]));
-      M2.restoreLinkageOfDirectInvokeSimdTargets();
-      string_vector Names;
-      M2.saveEntryPointNames(Names);
-      M2.cleanup(); // may remove some entry points, need to save/rebuild
-      M2.rebuildEntryPoints(Names);
-      MMs.clear();
-      MMs.emplace_back(std::move(M2));
-      DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
-      Modified = true;
-    }
+    SmallVector<module_split::ModuleDesc, 2> MMs =
+        handleESIMD(std::move(MDesc), Modified, SplitOccurred);
 
     if (IROutputOnly) {
       if (SplitOccurred) {
