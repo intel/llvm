@@ -9,7 +9,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/accessor.hpp>
 
-namespace sycl {
+  namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 device getDeviceFromHandler(handler &CommandGroupHandlerRef) {
@@ -22,7 +22,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    int Dims, int ElemSize, int OffsetInBytes,
                                    bool IsSubBuffer,
                                    const property_list &PropertyList) {
-  impl = std::shared_ptr<AccessorImplHost>(
+ impl = std::shared_ptr<AccessorImplHost>(
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                            (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
                            false, OffsetInBytes, IsSubBuffer, PropertyList));
