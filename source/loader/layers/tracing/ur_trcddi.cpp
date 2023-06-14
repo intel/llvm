@@ -5242,6 +5242,55 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMImportExp
+__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem,                   ///< [in] pointer to host memory object
+    size_t size ///< [in] size in bytes of the host memory object to be imported
+) {
+    auto pfnImportExp = context.urDdiTable.USMExp.pfnImportExp;
+
+    if (nullptr == pfnImportExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_usm_import_exp_params_t params = {&hContext, &pMem, &size};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_IMPORT_EXP,
+                                             "urUSMImportExp", &params);
+
+    ur_result_t result = pfnImportExp(hContext, pMem, size);
+
+    context.notify_end(UR_FUNCTION_USM_IMPORT_EXP, "urUSMImportExp", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMReleaseExp
+__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pMem                    ///< [in] pointer to host memory object
+) {
+    auto pfnReleaseExp = context.urDdiTable.USMExp.pfnReleaseExp;
+
+    if (nullptr == pfnReleaseExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_usm_release_exp_params_t params = {&hContext, &pMem};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_USM_RELEASE_EXP,
+                                             "urUSMReleaseExp", &params);
+
+    ur_result_t result = pfnReleaseExp(hContext, pMem);
+
+    context.notify_end(UR_FUNCTION_USM_RELEASE_EXP, "urUSMReleaseExp", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -6161,6 +6210,12 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
     dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
     pDdiTable->pfnPitchedAllocExp = ur_tracing_layer::urUSMPitchedAllocExp;
+
+    dditable.pfnImportExp = pDdiTable->pfnImportExp;
+    pDdiTable->pfnImportExp = ur_tracing_layer::urUSMImportExp;
+
+    dditable.pfnReleaseExp = pDdiTable->pfnReleaseExp;
+    pDdiTable->pfnReleaseExp = ur_tracing_layer::urUSMReleaseExp;
 
     return result;
 }
