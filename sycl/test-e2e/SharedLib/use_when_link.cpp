@@ -8,6 +8,8 @@
 // RUN: %{build} -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
 // RUN: %{run} %t.out
 
+// RUN: false
+
 #include <sycl/sycl.hpp>
 
 #include <iostream>
