@@ -128,7 +128,7 @@ private:
   /// no overlap for \p call.
   void collectMayOverlapAccessorPairs(
       CallOpInterface call,
-      std::set<sycl::AccessorPtrPair> &accessorPairs) const;
+      llvm::SmallSet<sycl::AccessorPtrPair, 4> &accessorPairs) const;
   /// Version \p call.
   void versionCall(CallOpInterface call, bool useOpaquePointers) const;
 };
@@ -215,7 +215,7 @@ bool KernelDisjointSpecializationPass::isCandidateAccessorPair(
 
 void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
     CallOpInterface call,
-    std::set<sycl::AccessorPtrPair> &accessorPairs) const {
+    llvm::SmallSet<sycl::AccessorPtrPair, 4> &accessorPairs) const {
   SmallVector<sycl::AccessorPtrValue> candArgs;
   collectCandidateArguments(call, candArgs);
   for (auto *i = candArgs.begin(); i != candArgs.end(); ++i)
@@ -226,7 +226,7 @@ void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
 
 void KernelDisjointSpecializationPass::versionCall(
     CallOpInterface call, bool useOpaquePointers) const {
-  std::set<sycl::AccessorPtrPair> accessorPairs;
+  llvm::SmallSet<sycl::AccessorPtrPair, 4> accessorPairs;
   collectMayOverlapAccessorPairs(call, accessorPairs);
   if (accessorPairs.empty())
     return;

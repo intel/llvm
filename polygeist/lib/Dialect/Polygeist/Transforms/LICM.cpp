@@ -333,7 +333,7 @@ public:
 
   void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
 
-  const std::set<sycl::AccessorPtrPair> &
+  const llvm::SmallSet<sycl::AccessorPtrPair, 4> &
   getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
@@ -349,7 +349,7 @@ private:
   SmallVector<Operation *> prerequisites;
   /// Pairs of accessors that are required to not overlap for this operation to
   /// be invariant.
-  std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs;
+  llvm::SmallSet<sycl::AccessorPtrPair, 4> requireNoOverlapAccessorPairs;
 };
 
 /// Determine whether any operation in the \p loop has a conflict with the
@@ -568,7 +568,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
                }))
       continue;
 
-    const std::set<sycl::AccessorPtrPair> &accessorPairs =
+    const llvm::SmallSet<sycl::AccessorPtrPair, 4> &accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
     bool willVersion = requireVersioning && LICMEnableSYCLAccessorVersioning &&
@@ -604,7 +604,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    const std::set<sycl::AccessorPtrPair> &accessorPairs =
+    const llvm::SmallSet<sycl::AccessorPtrPair, 4> &accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty()) {
       OpBuilder builder(loop);

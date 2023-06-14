@@ -233,12 +233,12 @@ void FunctionKernelInfo::getKernelCallers(
     kernels.push_back(kernelInfo.kernel);
 }
 
-std::set<FunctionOpInterface>
+llvm::SmallSet<FunctionOpInterface, 4>
 FunctionKernelInfo::getPotentialKernelBodyFunctions(
     gpu::GPUFuncOp kernel) const {
   assert(kernel.isKernel() && "Expecting kernel");
 
-  std::set<FunctionOpInterface> kernelBodyFunctions;
+  llvm::SmallSet<FunctionOpInterface, 4> kernelBodyFunctions;
   for (FunctionOpInterface func : kernelFuncsMap.at(kernel)) {
     if (isPotentialKernelBodyFunction(func))
       kernelBodyFunctions.insert(func);
@@ -778,7 +778,7 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
 }
 
 VersionConditionBuilder::VersionConditionBuilder(
-    std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs,
+    llvm::SmallSet<sycl::AccessorPtrPair, 4> requireNoOverlapAccessorPairs,
     OpBuilder builder, Location loc)
     : accessorPairs(requireNoOverlapAccessorPairs), builder(builder), loc(loc) {
   assert(!accessorPairs.empty() &&

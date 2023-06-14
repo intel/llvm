@@ -21,7 +21,6 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
-#include <set>
 
 #define DEBUG_TYPE "detect-reduction"
 #define REPORT_DEBUG_TYPE DEBUG_TYPE "-report"
@@ -73,7 +72,7 @@ public:
   affine::AffineStoreOp getStore() const { return Store; }
   ArrayRef<affine::AffineLoadOp> getOtherLoads() const { return OtherLoads; }
 
-  const std::set<sycl::AccessorPtrPair> &
+  const llvm::SmallSet<sycl::AccessorPtrPair, 4> &
   getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
@@ -85,7 +84,7 @@ public:
 private:
   /// Pairs of accessors that are required to not overlap for this operation to
   /// be invariant.
-  std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs;
+  llvm::SmallSet<sycl::AccessorPtrPair, 4> requireNoOverlapAccessorPairs;
   /// The reduction load in the loop nest.
   affine::AffineLoadOp Load;
   /// The reduction store in the same loop nest.
@@ -114,10 +113,11 @@ static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
                                 ArrayRef<ReductionOp> Candidates,
                                 bool useOpaquePointers) {
   for (const ReductionOp &Candidate : Candidates) {
-    const std::set<sycl::AccessorPtrPair> &accessorPairs =
+    const llvm::SmallSet<sycl::AccessorPtrPair, 4> &accessorPairs =
         Candidate.getRequireNoOverlapAccessorPairs();
     if (accessorPairs.empty())
       continue;
+
     OpBuilder builder(Loop);
     std::unique_ptr<polygeist::VersionCondition> condition =
         polygeist::VersionConditionBuilder(accessorPairs, builder,
