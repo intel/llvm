@@ -1088,15 +1088,6 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     assert(RHS.val);
   }
 
-  // TODO note assumptions made here about unsigned / unordered
-  bool SignedType = true;
-  if (const auto *Bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
-    if (Bit->isUnsignedInteger())
-      SignedType = false;
-    if (Bit->isSignedInteger())
-      SignedType = true;
-  }
-
   switch (BO->getOpcode()) {
   case clang::BinaryOperator::Opcode::BO_Comma:
     return RHS;
