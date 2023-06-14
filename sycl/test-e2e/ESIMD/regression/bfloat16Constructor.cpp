@@ -1,4 +1,4 @@
-// UNSUPPORTED: gpu-intel-gen9
+// REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: gpu && !esimd_emulator
