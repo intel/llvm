@@ -13,6 +13,15 @@ func.func @test_array.2(%arg0: !sycl_array_2_) {
 
 // -----
 
+!sycl_array_1_ = !sycl.array<[2], (memref<1xindex>)>
+
+// CHECK: llvm.func @test_array.index(%arg0: !llvm.[[ARRAY:struct<"class.sycl::_V1::detail::array.2", \(array<2 x i64>\)>]])
+func.func @test_array.index(%arg0: !sycl_array_1_) {
+  return
+}
+
+// -----
+
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 // CHECK: llvm.func @test_id(%arg0: !llvm.[[ID_1:struct<"class.sycl::_V1::id.*", \(]][[ARRAY_1]][[SUFFIX:\)>]], %arg1: !llvm.[[ID_1]][[ARRAY_1]][[SUFFIX]])
 func.func @test_id(%arg0: !sycl_id_1_, %arg1: !sycl_id_1_) {
