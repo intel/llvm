@@ -159,7 +159,6 @@ def main():
         docpath = os.path.join("../docs/")
 
         generate_docs.prepare(docpath, args['rst'], args['html'], args['ver'])
-        generate_docs.generate_ref(docpath, input['ref'])
 
         for idx, specs in enumerate(input['specs']):
             config = input['configs'][idx]

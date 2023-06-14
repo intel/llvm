@@ -203,18 +203,6 @@ def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta):
             meta=meta,
             specs=specs)
 
-
-"""
-Entry-point:
-    generate reference JSON file
-"""
-def generate_ref(dstpath, ref):
-    refpath = os.path.join(dstpath, "ref")
-    util.removePath(refpath)
-    util.makePath(refpath)
-
-    util.jsonWrite(os.path.join(refpath, "level_zero.json"), ref)
-
 """
 Entry-point:
     generate doxygen xml and setup source path.

@@ -2915,7 +2915,7 @@ urUSMPoolGetInfo(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
-// Intel 'oneAPI' Level-Zero Runtime APIs for Program
+// Intel 'oneAPI' Unified Runtime Runtime APIs for Program
 #if !defined(__GNUC__)
 #pragma region program
 #endif
