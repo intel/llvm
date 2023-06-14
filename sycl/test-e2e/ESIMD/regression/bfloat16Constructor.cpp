@@ -1,8 +1,7 @@
 // REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: gpu && !esimd_emulator
+// XFAIL: windows && !esimd_emulator
 //==- bfloat16Constructor.cpp - Test to verify use of bfloat16 constructor -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
