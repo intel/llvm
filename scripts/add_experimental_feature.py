@@ -32,24 +32,25 @@ def main():
 
     exp_feat_name = args.name
     
-    out_yml_name = "exp-%s.yml" % exp_feat_name
-    out_rst_name = "EXP-%s.rst" % exp_feat_name.upper()
+    out_yml_name = f"exp-{exp_feat_name}.yml"
+    out_rst_name = f"EXP-{exp_feat_name.upper()}.rst"
 
-    yaml_template_path = "./scripts/templates/%s" % "exp_feat.yml.mako"
-    rst_template_path = "./scripts/templates/%s" % "exp_feat.rst.mako"
-    out_yml_path = "./scripts/core/%s" % out_yml_name
-    out_rst_path = "./scripts/core/%s" % out_rst_name
+    yaml_template_path = "./scripts/templates/exp_feat.yml.mako"
+    rst_template_path = "./scripts/templates/exp_feat.rst.mako"
+    out_yml_path = f"./scripts/core/{out_yml_name}"
+    out_rst_path = f"./scripts/core/{out_rst_name}"
 
     makoWrite(yaml_template_path, out_yml_path, name=exp_feat_name)
     makoWrite(rst_template_path, out_rst_path, name=exp_feat_name)
 
 
-    print("Successfully generated the template files needed for %s." % exp_feat_name)
-    print("""
+    print(f"""\
+Successfully generated the template files needed for {exp_feat_name}.
+
 You can now implement your feature in the following files:
-    * %s 
-    * %s
-""" % (out_yml_name, out_rst_name))
+    * {out_yml_name} 
+    * {out_rst_name}
+""")
 
 
 if __name__ == "__main__":
