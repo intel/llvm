@@ -162,6 +162,8 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   return none_of(kernel.getArguments(), [](Value arg) {
     return isLocalAccessAddrSpace(arg.getType());
   });
+
+  // TODO: check uniformity.
 }
 
 /// A function is a candidate iff it has an nd_item argument.
@@ -189,11 +191,9 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
   if (!isa<affine::AffineForOp, scf::ForOp>(*innermostLoop))
     return false;
 
-  if (!innermostLoop->getSingleInductionVar() ||
-      !innermostLoop->getSingleLowerBound())
-    return false;
-
-  // TODO: check uniformity.
+  assert(
+      innermostLoop->getSingleInductionVar() &&
+      "Expecting single induction variable for affine for and scf for loops");
 
   return true;
 }
@@ -577,8 +577,6 @@ public:
   LoopInfo(LoopLikeOpInterface loop) : loop(loop) {
     assert(loop.getSingleInductionVar().has_value() &&
            "Expecting single induction variable");
-    assert(loop.getSingleLowerBound().has_value() &&
-           "Expecting single lower bound");
     inductionVar = *loop.getSingleInductionVar();
   }
 
@@ -590,8 +588,16 @@ public:
     if (lowerBound)
       return lowerBound;
     OpBuilder builder(loop);
-    lowerBound = getValueOrCreateConstantIndexOp(builder, loop.getLoc(),
-                                                 *loop.getSingleLowerBound());
+    lowerBound = TypeSwitch<Operation *, Value>(loop)
+                     .Case<scf::ForOp>(
+                         [&](auto scfLoop) { return scfLoop.getLowerBound(); })
+                     .Case<affine::AffineForOp>([&](auto affineLoop) {
+                       SmallVector<Value, 4> lbOperands(
+                           affineLoop.getLowerBoundOperands());
+                       return builder.create<affine::AffineApplyOp>(
+                           affineLoop.getLoc(), affineLoop.getLowerBoundMap(),
+                           lbOperands);
+                     });
     return lowerBound;
   }
 
@@ -1077,12 +1083,6 @@ void LoopInternalization::transform(T loop,
   assert(res.succeeded() && "Expecting innermost loop to be tiled");
   ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
-
-  if (isa<affine::AffineForOp>(loop)) {
-    LLVM_DEBUG(llvm::dbgs()
-               << "TODO: Need to add support for affine::AffineForOp.\n");
-    return;
-  }
 
   loop = tiledNest.front();
   LoopInfo loopInfo(loop);
