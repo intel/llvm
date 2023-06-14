@@ -12,13 +12,16 @@ runs:
     shell: bash {0}
     run: |
       git config --global --add safe.directory ${{ inputs.path }}
-      git -C ${{ inputs.path }} clang-format ${{ github.event.pull_request.base.sha }}
+      # TODO: Should we just drop fetch-depth in the cached checkout?
+      base=$(git -C ${{ inputs.path }} merge-base ${{ github.event.pull_request.base.sha }} HEAD)
+      echo "::group::Debug"
+      echo "HEAD:"
+      git -C ${{ inputs.path }} log -1 HEAD
+      echo "Merge-base:"
+      git -C ${{ inputs.path }} log -1 $base
+      echo "::endgroup::"
+      git -C ${{ inputs.path }} clang-format $base
       git -C ${{ inputs.path }} diff > ./clang-format.patch
-  - name: Debug
-    shell: bash
-    run: |
-      git -C ${{ inputs.path }} log ${{ github.event.pull_request.base.sha }}..HEAD
-      git -C ${{ inputs.path }} diff ${{ github.event.pull_request.base.sha }}..HEAD
   # Add patch with formatting fixes to CI job artifacts
   - uses: actions/upload-artifact@v1
     with:
