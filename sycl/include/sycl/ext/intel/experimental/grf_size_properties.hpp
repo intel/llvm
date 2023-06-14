@@ -1,4 +1,4 @@
-//==- grf_size_properties.hpp - GRF size kernel properties for Intel GPU -==//
+//==- grf_size_properties.hpp - GRF size kernel properties for Intel GPUs -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
