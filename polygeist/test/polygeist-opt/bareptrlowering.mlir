@@ -585,11 +585,36 @@ func.func private @non_bare_due_to_layout(%arg0: memref<100xi64, #layout>, %arg1
 // CHECK-LABEL:   llvm.func @view(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<3>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: i64) -> !llvm.ptr<3> attributes {sym_visibility = "private"} {
-// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<3>, i64) -> !llvm.ptr<3>, i8
-// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr<3>
-// CHECK:         }
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<3>, i64) -> !llvm.ptr<3>, i8
+// CHECK-NEXT:      llvm.return %[[VAL_2]] : !llvm.ptr<3>
+// CHECK-NEXT:    }
 
 func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index) -> memref<2xf32, 3> {
   %res = memref.view %arg0[%arg1][] : memref<8xi8, 3> to memref<2xf32, 3>
   return %res : memref<2xf32, 3>
+}
+
+// -----
+
+// CHECK-LABEL:   llvm.func @view(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<3>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64) -> !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)> attributes {sym_visibility = "private"} {
+// CHECK:           %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<3>, i64) -> !llvm.ptr<3>, i8
+// CHECK:           %[[VAL_5:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           %[[VAL_6:.*]] = llvm.insertvalue %[[VAL_0]], %[[VAL_5]][0] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           %[[VAL_7:.*]] = llvm.insertvalue %[[VAL_4]], %[[VAL_6]][1] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           %[[VAL_8:.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK:           %[[VAL_9:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_7]][2] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           %[[VAL_10:.*]] = llvm.insertvalue %[[VAL_3]], %[[VAL_9]][3, 1] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           %[[VAL_11:.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK:           %[[VAL_12:.*]] = llvm.insertvalue %[[VAL_11]], %[[VAL_10]][4, 1] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           %[[VAL_13:.*]] = llvm.insertvalue %[[VAL_2]], %[[VAL_12]][3, 0] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           %[[VAL_14:.*]] = llvm.mul %[[VAL_11]], %[[VAL_3]]  : i64
+// CHECK:           %[[VAL_15:.*]] = llvm.insertvalue %[[VAL_14]], %[[VAL_13]][4, 0] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:           llvm.return %[[VAL_15]] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK:         }
+
+func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index, %arg2: index, %arg3: index) -> memref<?x?xf32, 3> {
+  %res = memref.view %arg0[%arg1][%arg2, %arg3] : memref<8xi8, 3> to memref<?x?xf32, 3>
+  return %res : memref<?x?xf32, 3>
 }

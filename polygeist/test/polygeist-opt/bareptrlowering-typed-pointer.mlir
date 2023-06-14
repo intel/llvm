@@ -577,12 +577,39 @@ func.func private @non_bare_due_to_layout(%arg0: memref<100xi64, #layout>, %arg1
 // CHECK-LABEL:   llvm.func @view(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<i8, 3>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: i64) -> !llvm.ptr<f32, 3> attributes {sym_visibility = "private"} {
-// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<i8, 3>, i64) -> !llvm.ptr<i8, 3>
-// CHECK:           %[[VAL_3:.*]] = llvm.bitcast %[[VAL_2]] : !llvm.ptr<i8, 3> to !llvm.ptr<f32, 3>
-// CHECK:           llvm.return %[[VAL_3]] : !llvm.ptr<f32, 3>
-// CHECK:         }
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<i8, 3>, i64) -> !llvm.ptr<i8, 3>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.bitcast %[[VAL_2]] : !llvm.ptr<i8, 3> to !llvm.ptr<f32, 3>
+// CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr<f32, 3>
+// CHECK-NEXT:    }
 
 func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index) -> memref<2xf32, 3> {
   %res = memref.view %arg0[%arg1][] : memref<8xi8, 3> to memref<2xf32, 3>
   return %res : memref<2xf32, 3>
+}
+
+// -----
+
+// CHECK-LABEL:   llvm.func @view(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<i8, 3>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64) -> !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)> attributes {sym_visibility = "private"} {
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<i8, 3>, i64) -> !llvm.ptr<i8, 3>
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr<i8, 3> to !llvm.ptr<f32, 3>
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.insertvalue %[[VAL_6]], %[[VAL_5]][0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.bitcast %[[VAL_4]] : !llvm.ptr<i8, 3> to !llvm.ptr<f32, 3>
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_7]][1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.insertvalue %[[VAL_10]], %[[VAL_9]][2] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.insertvalue %[[VAL_3]], %[[VAL_11]][3, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.insertvalue %[[VAL_13]], %[[VAL_12]][4, 1] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_15:.*]] = llvm.insertvalue %[[VAL_2]], %[[VAL_14]][3, 0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_16:.*]] = llvm.mul %[[VAL_13]], %[[VAL_3]]  : i64
+// CHECK-NEXT:      %[[VAL_17:.*]] = llvm.insertvalue %[[VAL_16]], %[[VAL_15]][4, 0] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      llvm.return %[[VAL_17]] : !llvm.struct<(ptr<f32, 3>, ptr<f32, 3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:    }
+
+func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index, %arg2: index, %arg3: index) -> memref<?x?xf32, 3> {
+  %res = memref.view %arg0[%arg1][%arg2, %arg3] : memref<8xi8, 3> to memref<?x?xf32, 3>
+  return %res : memref<?x?xf32, 3>
 }
