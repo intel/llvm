@@ -3174,6 +3174,7 @@ extern __DPCPP_SYCL_EXTERNAL long long int __imf_mul64hi(long long int x,
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
 __imf_umul64hi(unsigned long long int x, unsigned long long int y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_abs(int x);
+extern __DPCPP_SYCL_EXTERNAL long long int __imf_llabs(long long int x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_saturatef(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf(float x, float y, float z);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fabsf(float x);

@@ -27,11 +27,11 @@ event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
-          detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {
+          detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
   impl->getPlugin()->call<detail::PiApiKind::piEventRetain>(
-      detail::pi::cast<RT::PiEvent>(ClEvent));
+      detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent));
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }

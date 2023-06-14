@@ -27,63 +27,46 @@ permissions:
   contents: read
 
 jobs:
-  need_check:
-    name: Decide which tests could be affected by the changes
-    runs-on: ubuntu-22.04
-    timeout-minutes: 3
-    outputs:
-      llvm: ${{ steps.changes.outputs.llvm == 'true' }}
-      llvm_spirv: ${{ steps.changes.outputs.llvm_spirv == 'true' }}
-      clang: ${{ steps.changes.outputs.clang == 'true' }}
-      xptifw: ${{ steps.changes.outputs.xptifw == 'true' }}
-      libclc: ${{ steps.changes.outputs.libclc == 'true' }}
-      sycl: ${{ steps.changes.outputs.sycl == 'true' }}
-    steps:
-      - name: Check file changes
-        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
-        id: changes
-        with:
-          filters: |
-            llvm: &llvm
-              - 'llvm/**'
-            llvm_spirv: &llvm_spirv
-              - *llvm
-              - 'llvm-spirv/**'
-            clang: &clang
-              - *llvm
-              - 'clang/**'
-            sycl_fusion: &sycl-fusion
-              - *llvm
-              - 'sycl-fusion/**'
-            xptifw: &xptifw
-              - 'xptifw/**'
-            libclc: &libclc
-              - *llvm_spirv
-              - *clang
-              - 'libclc/**'
-            sycl:
-              - *clang
-              - *sycl-fusion
-              - *llvm_spirv
-              - *xptifw
-              - *libclc
-              - 'sycl/*'
-              - 'sycl/!(test-e2e)/**'
+  detect_changes:
+    uses: ./.github/workflows/sycl_detect_changes.yml
 
   lint:
-    runs-on: ubuntu-22.04
+    runs-on: cuda
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
+      # actions/checkout fails without "--privileged".
+      options: -u 1001:1001 --privileged
     steps:
+    - name: Fake actions/checkout task
+      uses: actions/checkout@v3
+      with:
+        # cached_checkout below uses actions/checkout internally. However, when
+        # actions/checkout is run from within another action step (not from
+        # workflow), github seems to try to download from within the container
+        # and doesn't have requried filesystem permissions. Make sure it's
+        # already downloaded by the time it's needed by checking out some small
+        # repository.
+        repository: actions/checkout
+        path: fake-checkout
     - name: 'PR commits + 1'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
-    - uses: actions/checkout@v3
+    - name: Setup action
+      # We can switch to `cp -r /actions .` once changes in cached_checkout are
+      # propagated into the nightly container image.
+      run: |
+        mkdir -p actions/cached_checkout
+        wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/cached_checkout/action.yml   -P ./actions/cached_checkout
+    - uses: ./actions/cached_checkout
       with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        persist-credentials: false
+        path: src
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+        ref: ${{ github.event.pull_request.head.sha }}
+        cache_path: "/__w/repo_cache/"
+        merge: false
     - name: Run clang-format
-      uses: ./devops/actions/clang-format
+      uses: ./src/devops/actions/clang-format
+      with:
+        path: src
 
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
@@ -97,7 +80,7 @@ jobs:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix, need_check]
+    needs: [lint, test_matrix, detect_changes]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -109,24 +92,14 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      check_llvm: ${{ needs.need_check.outputs.llvm }}
-      check_llvm_spirv: ${{ needs.need_check.outputs.llvm_spirv }}
-      check_clang: ${{ needs.need_check.outputs.clang }}
-      check_xptifw: ${{ needs.need_check.outputs.xptifw }}
-      check_libclc: ${{ needs.need_check.outputs.libclc }}
-      check_sycl: ${{ needs.need_check.outputs.sycl }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}
 
   windows_default:
     name: Windows
-    needs: [lint, test_matrix, need_check]
+    needs: [lint, test_matrix, detect_changes]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
       build_ref: ${{ github.event.pull_request.head.sha }}
-      check_llvm: ${{ needs.need_check.outputs.llvm }}
-      check_llvm_spirv: ${{ needs.need_check.outputs.llvm_spirv }}
-      check_clang: ${{ needs.need_check.outputs.clang }}
-      check_xptifw: ${{ needs.need_check.outputs.xptifw }}
-      check_libclc: ${{ needs.need_check.outputs.libclc }}
-      check_sycl: ${{ needs.need_check.outputs.sycl }}
+      check_filters: ${{ needs.detect_changes.outputs.filters }}
