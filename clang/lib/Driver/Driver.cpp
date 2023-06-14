@@ -591,16 +591,14 @@ static llvm::Triple computeTargetTriple(const Driver &D,
 
   // Handle pseudo-target flags '-mlittle-endian'/'-EL' and
   // '-mbig-endian'/'-EB'.
-  if (Arg *A = Args.getLastArg(options::OPT_mlittle_endian,
-                               options::OPT_mbig_endian)) {
-    if (A->getOption().matches(options::OPT_mlittle_endian)) {
-      llvm::Triple LE = Target.getLittleEndianArchVariant();
-      if (LE.getArch() != llvm::Triple::UnknownArch)
-        Target = std::move(LE);
-    } else {
-      llvm::Triple BE = Target.getBigEndianArchVariant();
-      if (BE.getArch() != llvm::Triple::UnknownArch)
-        Target = std::move(BE);
+  if (Arg *A = Args.getLastArgNoClaim(options::OPT_mlittle_endian,
+                                      options::OPT_mbig_endian)) {
+    llvm::Triple T = A->getOption().matches(options::OPT_mlittle_endian)
+                         ? Target.getLittleEndianArchVariant()
+                         : Target.getBigEndianArchVariant();
+    if (T.getArch() != llvm::Triple::UnknownArch) {
+      Target = std::move(T);
+      Args.claimAllArgs(options::OPT_mlittle_endian, options::OPT_mbig_endian);
     }
   }
 
@@ -1811,9 +1809,12 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
           static_cast<const toolchains::SYCLToolChain *>(TI->second);
       FPGATC->TranslateBackendTargetArgs(FPGATC->getTriple(), *TranslatedArgs,
                                          TargetArgs);
+      // By default, FPGAEmulationMode is true due to the fact that
+      // an external option setting is required to target hardware.
+      setOffloadCompileMode(FPGAEmulationMode);
       for (StringRef ArgString : TargetArgs) {
         if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
-          setFPGAEmulationMode(false);
+          setOffloadCompileMode(FPGAHWMode);
           break;
         }
       }
@@ -6225,7 +6226,7 @@ class OffloadingActionBuilder final {
         FPGAOutType = (A->getValue() == StringRef("early"))
                           ? types::TY_FPGA_AOCR
                           : types::TY_FPGA_AOCX;
-        if (C.getDriver().isFPGAEmulationMode())
+        if (C.getDriver().IsFPGAEmulationMode())
           FPGAOutType = (A->getValue() == StringRef("early"))
                             ? types::TY_FPGA_AOCR_EMU
                             : types::TY_FPGA_AOCX;
@@ -6429,7 +6430,6 @@ public:
                           DerivedArgList &Args) {
     std::string InputName = InputArg->getAsString(Args);
     const Driver &D = C.getDriver();
-    bool IsFPGAEmulation = D.isFPGAEmulationMode();
     // Only check for FPGA device information when using fpga SubArch.
     if (A->getType() == types::TY_Object && isObjectFile(InputName))
       return true;
@@ -6457,12 +6457,13 @@ public:
         {types::TY_FPGA_AOCR_EMU, true}};
     for (const auto &ArchiveType : FPGAAOCTypes) {
       bool BinaryFound = hasFPGABinary(C, InputName, ArchiveType.first);
-      if (BinaryFound && ArchiveType.second == IsFPGAEmulation) {
+      if (BinaryFound && ArchiveType.second == D.IsFPGAEmulationMode()) {
         // Binary matches check and emulation type, we keep this one.
         A = C.MakeAction<InputAction>(*InputArg, ArchiveType.first);
         return true;
       }
-      ArchiveTypeMismatch(BinaryFound && ArchiveType.second != IsFPGAEmulation);
+      ArchiveTypeMismatch(BinaryFound &&
+                          ArchiveType.second == D.IsFPGAHWMode());
     }
     return true;
   }
@@ -6786,13 +6787,8 @@ public:
         // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
         // differentiate if aoco unbundling is needed.  Unbundling of aoco is
         // not needed for emulation, as these are treated as regular archives.
-        if (!C.getDriver().isFPGAEmulationMode())
+        if (C.getDriver().IsFPGAHWMode())
           unbundleStaticLib(types::TY_FPGA_AOCO, LA);
-        // Do not unbundle any AOCO archive as a regular archive when we are
-        // in FPGA Hardware/Simulation mode.
-        if (!C.getDriver().isFPGAEmulationMode() &&
-            hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
-          continue;
         unbundleStaticLib(types::TY_Archive, LA);
       }
     }
@@ -7986,9 +7982,15 @@ void Driver::BuildJobs(Compilation &C) const {
 
       // In clang-cl, don't mention unknown arguments here since they have
       // already been warned about.
-      if (!IsCLMode() || !A->getOption().matches(options::OPT_UNKNOWN))
-        Diag(clang::diag::warn_drv_unused_argument)
-            << A->getAsString(C.getArgs());
+      if (!IsCLMode() || !A->getOption().matches(options::OPT_UNKNOWN)) {
+        if (A->getOption().hasFlag(options::TargetSpecific)) {
+          Diag(diag::err_drv_unsupported_opt_for_target)
+              << A->getSpelling() << getTargetTriple();
+        } else {
+          Diag(clang::diag::warn_drv_unused_argument)
+              << A->getAsString(C.getArgs());
+        }
+      }
     }
   }
 }

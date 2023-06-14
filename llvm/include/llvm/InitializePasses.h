@@ -357,8 +357,6 @@ void initializeSYCLLowerWGScopeLegacyPassPass(PassRegistry &);
 void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
 void initializeSYCLLowerInvokeSimdLegacyPassPass(PassRegistry &);
 void initializeSYCLMutatePrintfAddrspaceLegacyPassPass(PassRegistry &);
-void initializePrepareSYCLNativeCPULegacyPassPass(PassRegistry &);
-void initializeEmitSYCLNativeCPUHeaderLegacyPassPass(PassRegistry &);
 void initializeSPIRITTAnnotationsLegacyPassPass(PassRegistry &);
 void initializeESIMDLowerLoadStorePass(PassRegistry &);
 void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);

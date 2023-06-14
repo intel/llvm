@@ -1,5 +1,4 @@
-//===------ EmitSYCLHCHeader.cpp - Emit SYCL Native CPU Helper Header
-// Pass ------===//
+//===---- EmitSYCLHCHeader.cpp - Emit SYCL Native CPU Helper Header Pass --===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,7 +35,6 @@ using namespace llvm;
 namespace {
 
 void emitSubKernelHandler(const Function *F, raw_ostream &O) {
-
   O << "\nextern \"C\" void " << F->getName() << "subhandler(";
   O << "const sycl::detail::NativeCPUArgDesc *MArgs, "
        "__nativecpu_state *state);\n";
@@ -134,7 +132,7 @@ PreservedAnalyses EmitSYCLNativeCPUHeaderPass::run(Module &M,
   O << "#include <sycl/detail/pi.h>\n";
   O << "extern \"C\" void __sycl_register_lib(pi_device_binaries desc);\n";
 
-  for (auto F : Kernels) {
+  for (auto* F : Kernels) {
     emitSubKernelHandler(F, O);
     emitSYCLRegisterLib(F, O);
   }

@@ -45,8 +45,8 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
                                         size_t *param_value_size_ret) {
   EXPECT_EQ(param_name, PI_KERNEL_INFO_CONTEXT)
       << "Unexpected kernel info requested";
-  auto *Result = reinterpret_cast<RT::PiContext *>(param_value);
-  RT::PiContext PiCtx =
+  auto *Result = reinterpret_cast<sycl::detail::pi::PiContext *>(param_value);
+  sycl::detail::pi::PiContext PiCtx =
       detail::getSyclObjImpl(TestContext->Ctx)->getHandleRef();
   *Result = PiCtx;
   return PI_SUCCESS;

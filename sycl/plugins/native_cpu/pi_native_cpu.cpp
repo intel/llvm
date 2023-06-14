@@ -122,15 +122,15 @@ sycl::detail::NDRDescT getNDRDesc(pi_uint32 WorkDim,
                                  {GlobalWorkOffset[0]}));
     break;
   case 2:
-    Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[1], GlobalWorkSize[0]},
-                                 {LocalWorkSize[1], LocalWorkSize[0]},
-                                 {GlobalWorkOffset[1], GlobalWorkOffset[0]}));
+    Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[0], GlobalWorkSize[1]},
+                                 {LocalWorkSize[0], LocalWorkSize[1]},
+                                 {GlobalWorkOffset[0], GlobalWorkOffset[1]}));
     break;
   case 3:
     Res.set<3>(sycl::nd_range<3>(
-        {GlobalWorkSize[2], GlobalWorkSize[1], GlobalWorkSize[0]},
-        {LocalWorkSize[2], LocalWorkSize[1], LocalWorkSize[0]},
-        {GlobalWorkOffset[2], GlobalWorkOffset[1], GlobalWorkOffset[0]}));
+        {GlobalWorkSize[0], GlobalWorkSize[1], GlobalWorkSize[2]},
+        {LocalWorkSize[0], LocalWorkSize[1], LocalWorkSize[2]},
+        {GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]}));
     break;
   }
   return Res;
@@ -465,24 +465,36 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_bool{0});
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
     return ReturnValue(pi_bool{0});
-
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
+  case PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+    return ReturnValue(pi_bool{0});
+  case PI_DEVICE_INFO_IMAGE_SRGB:
+    return ReturnValue(pi_bool{0});
+  case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
+    return ReturnValue(pi_uint32{1});
+  case PI_DEVICE_INFO_GPU_EU_COUNT:
+  case PI_DEVICE_INFO_PCI_ADDRESS:
+  case PI_DEVICE_INFO_GPU_SLICES:
+  case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+  case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D:
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D:
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
+  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER:
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY:
+  case PI_DEVICE_INFO_UUID:
+  case PI_DEVICE_INFO_DEVICE_ID:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
+  case PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
+  case PI_DEVICE_INFO_IL_VERSION:
+    return PI_ERROR_INVALID_VALUE;
 
     // Intel-specific extensions
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_PCI_ADDRESS)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SLICES)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IMAGE_SRGB)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
-    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
-    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
-    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 
   default:
     DIE_NO_IMPLEMENTATION;
@@ -636,8 +648,8 @@ pi_result piMemGetInfo(pi_mem, pi_mem_info, size_t, void *, size_t *) {
 pi_result piMemRetain(pi_mem Mem) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piMemRelease(pi_mem Mem) {
-  Mem->RefCount.fetch_sub(1, std::memory_order_acq_rel);
-  if (Mem->RefCount == 0) {
+  uint32_t OldRefCount = Mem->RefCount.fetch_sub(1, std::memory_order_acq_rel);
+  if (OldRefCount == 1) {
     delete Mem;
   }
 
@@ -1059,12 +1071,12 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
-  for (unsigned g0 = 0; g0 < numWG0; g0++) {
+  for (unsigned g2 = 0; g2 < numWG2; g2++) {
     for (unsigned g1 = 0; g1 < numWG1; g1++) {
-      for (unsigned g2 = 0; g2 < numWG2; g2++) {
-        for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
+      for (unsigned g0 = 0; g0 < numWG0; g0++) {
+        for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
           for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
-            for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
+            for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
               state.update(g0, g1, g2, local0, local1, local2);
               Kernel->_subhandler(Kernel->_args.data(), &state);
             }

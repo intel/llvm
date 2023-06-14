@@ -936,14 +936,17 @@ def GPU_ShuffleMode : I32EnumAttr<"ShuffleMode",
 def GPU_ShuffleModeAttr : EnumAttr<GPU_Dialect, GPU_ShuffleMode,
                                    "shuffle_mode">;
 
-def I32OrF32 : TypeConstraint<Or<[I32.predicate, F32.predicate]>,
-                                 "i32 or f32">;
+def I32I64F32OrF64 : TypeConstraint<Or<[I32.predicate,
+                                        I64.predicate,
+                                        F32.predicate,
+                                        F64.predicate]>,
+                                       "i32, i64, f32 or f64">;
 
 def GPU_ShuffleOp : GPU_Op<
     "shuffle", [Pure, AllTypesMatch<["value", "shuffleResult"]>]>,
-    Arguments<(ins I32OrF32:$value, I32:$offset, I32:$width,
+    Arguments<(ins I32I64F32OrF64:$value, I32:$offset, I32:$width,
                GPU_ShuffleModeAttr:$mode)>,
-    Results<(outs I32OrF32:$shuffleResult, I1:$valid)> {
+    Results<(outs I32I64F32OrF64:$shuffleResult, I1:$valid)> {
   let summary = "Shuffles values within a subgroup.";
   let description = [{
     The "shuffle" op moves values to a different invocation within the same
@@ -1813,6 +1816,31 @@ def GPU_DestroySpMatOp : GPU_Op<"destroy_sp_mat", [GPU_AsyncOpInterface]> {
   }];
 }
 
+// To avoid coupling this dialect with cusparse.h specifics, we hardcoded magic 
+// literals in this enum. Note that this should be kept in sync with 
+// cusparseOperation_t in cusparse.h:
+// typedef enum {
+// CUSPARSE_OPERATION_NON_TRANSPOSE       = 0,
+// CUSPARSE_OPERATION_TRANSPOSE           = 1,
+// CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE = 2
+// } cusparseOperation_t;
+// TODO: find a proper way to keep them in sync?
+def GPU_TransposeMode : I32EnumAttr<"TransposeMode",
+    "transpose mode of sparse matrix supported by sparse tensor ops",
+    [
+      I32EnumAttrCase<"NON_TRANSPOSE", 0>, 
+      I32EnumAttrCase<"TRANSPOSE", 1>, 
+      I32EnumAttrCase<"CONJUGATE_TRANSPOSE", 2>,
+    ]> {
+      let genSpecializedAttr = 0;
+      let cppNamespace = GPU_Dialect.cppNamespace;
+}
+
+def GPU_TransposeModeAttr : EnumAttr<GPU_Dialect, GPU_TransposeMode,
+                                   "mat_transpose_mode">{
+  let defaultValue = "TransposeMode::NON_TRANSPOSE";
+}
+
 def GPU_SpMVBufferSizeOp : GPU_Op<"spmv_buffer_size", [GPU_AsyncOpInterface]> {
   let summary = "Precompute buffersize for SpMV operation";
   let description = [{
@@ -1825,23 +1853,44 @@ def GPU_SpMVBufferSizeOp : GPU_Op<"spmv_buffer_size", [GPU_AsyncOpInterface]> {
     it does not block until the execution has finished on the device). In
     that case, it returns a !gpu.async.token in addition to the environment.
 
+    The matrix arguments can also be associated with one of the following 
+    operators: NON_TRANSPOSE, TRANSPOSE, CONJUGATE_TRANSPOSE. The default value
+    is NON_TRANSPOSE.
+
     Example:
 
     ```mlir
-    %buffersz, %token = gpu.spmv_buffersize async [%dep] %env, %spmatA, %dnX, %dnY
+    %buffersz, %token = gpu.spmv_buffer_size async [%dep] %env, %spmatA{TRANSPOSE}, %dnX, %dnY into f32
     ```
   }];
   let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
                        GPU_SparseEnvHandle:$env,
+                       GPU_TransposeModeAttr:$modeA,
                        GPU_SparseSpMatHandle:$spmatA,
                        GPU_SparseDnVecHandle:$dnX,
-                       GPU_SparseDnVecHandle:$dnY);
+                       GPU_SparseDnVecHandle:$dnY,
+                       TypeAttr:$computeType);
   let results = (outs Res<Index>:$bufferSz, 
                       Optional<GPU_AsyncToken>:$asyncToken);
 
+  let builders = [OpBuilder<(ins
+      "Type":$bufferSz,
+      "Type":$asyncToken,
+      "ValueRange":$asyncDependencies,
+      "Value":$env,
+      "Value":$spmatA,
+      "Value":$dnX,
+      "Value":$dnY,
+      "Type":$computeType)
+      , [{
+    auto modeA = gpu::TransposeMode::NON_TRANSPOSE;
+    return build($_builder, $_state, bufferSz, asyncToken, asyncDependencies, 
+                 env, modeA, spmatA, dnX, dnY, computeType);}]>
+  ];
+
   let assemblyFormat = [{
     custom<AsyncDependencies>(type($asyncToken), $asyncDependencies)
-    $env `,` $spmatA `,` $dnX `,` $dnY attr-dict
+    $env `,` $spmatA (`{` $modeA^ `}`)? `,` $dnX `,` $dnY attr-dict  `into` $computeType
   }];
 }
 
@@ -1857,23 +1906,43 @@ def GPU_SpMVOp : GPU_Op<"spmv", [GPU_AsyncOpInterface]> {
     it does not block until the execution has finished on the device). In
     that case, it returns a !gpu.async.token in addition to the environment.
 
+    The matrix arguments can also be associated with one of the following 
+    operators: NON_TRANSPOSE, TRANSPOSE, CONJUGATE_TRANSPOSE. The default value
+    is NON_TRANSPOSE.
+
     Example:
 
     ```mlir
-    %token = gpu.spmv async [%dep] %env, %spmatA, %dnX, %dnY : memref<?xf64>
+    %token = gpu.spmv async [%dep] %env, %spmatA{TRANSPOSE}, %dnX, %dnY : memref<?xf64> into bf16
     ```
   }];
   let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
                        GPU_SparseEnvHandle:$env,
+                       GPU_TransposeModeAttr:$modeA,
                        GPU_SparseSpMatHandle:$spmatA,
                        GPU_SparseDnVecHandle:$dnX,
                        GPU_SparseDnVecHandle:$dnY,
+                       TypeAttr:$computeType,
                        AnyMemRef:$buffer);
   let results = (outs Optional<GPU_AsyncToken>:$asyncToken);
 
+  let builders = [OpBuilder<(ins
+      "Type":$asyncToken,
+      "ValueRange":$asyncDependencies,
+      "Value":$env,
+      "Value":$spmatA,
+      "Value":$dnX,
+      "Value":$dnY,
+      "Type":$computeType,
+      "Value":$buffer), [{
+    auto modeA = gpu::TransposeMode::NON_TRANSPOSE;
+    return build($_builder, $_state, asyncToken, asyncDependencies, env, modeA,
+                 spmatA, dnX, dnY, computeType, buffer);}]>
+  ];
+
   let assemblyFormat = [{
     custom<AsyncDependencies>(type($asyncToken), $asyncDependencies)
-    $env `,` $spmatA `,` $dnX `,` $dnY `,` $buffer attr-dict `:` type($buffer)
+    $env `,` $spmatA (`{` $modeA^ `}`)? `,` $dnX `,` $dnY `,` $buffer attr-dict `:` type($buffer) `into` $computeType
   }];
 }
 
@@ -1889,24 +1958,46 @@ def GPU_SpMMBufferSizeOp : GPU_Op<"spmm_buffer_size", [GPU_AsyncOpInterface]> {
     it does not block until the execution has finished on the device). In
     that case, it returns a !gpu.async.token in addition to the environment.
 
+    The matrix arguments can also be associated with one of the following 
+    operators: NON_TRANSPOSE, TRANSPOSE, CONJUGATE_TRANSPOSE. The default value
+    is NON_TRANSPOSE.
+
     Example:
 
     ```mlir
-    %buffersz, %token = gpu.spmm_buffersize async [%dep] %env, %spmatA, %spmatB, %spmatC
+    %buffersz, %token = gpu.spmm_buffer_size async [%dep] %env, %spmatA{TRANSPOSE}, %dnmatB{TRANSPOSE}, %dnmatC into f32
     ```
   }];
 
   let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
                        GPU_SparseEnvHandle:$env,
+                       GPU_TransposeModeAttr:$modeA,
+                       GPU_TransposeModeAttr:$modeB,
                        GPU_SparseSpMatHandle:$spmatA,
                        GPU_SparseDnMatHandle:$dnmatB,
-                       GPU_SparseDnMatHandle:$dnmatC);
+                       GPU_SparseDnMatHandle:$dnmatC,
+                       TypeAttr:$computeType);
   let results = (outs Res<Index>:$bufferSz, 
                       Optional<GPU_AsyncToken>:$asyncToken);
 
+  let builders = [OpBuilder<(ins
+      "Type":$bufferSz,
+      "Type":$asyncToken,
+      "ValueRange":$asyncDependencies,
+      "Value":$env,
+      "Value":$spmatA,
+      "Value":$dnmatB,
+      "Value":$dnmatC,
+      "Type":$computeType), [{
+    auto modeA = gpu::TransposeMode::NON_TRANSPOSE;
+    auto modeB = gpu::TransposeMode::NON_TRANSPOSE;
+    return build($_builder, $_state, bufferSz, asyncToken, asyncDependencies, 
+                 env, modeA, modeB, spmatA, dnmatB, dnmatC, computeType);}]>
+  ];
+
   let assemblyFormat = [{
     custom<AsyncDependencies>(type($asyncToken), $asyncDependencies)
-    $env `,` $spmatA `,` $dnmatB `,` $dnmatC attr-dict
+    $env `,` $spmatA (`{` $modeA^ `}`)? `,` $dnmatB (`{` $modeB^ `}`)? `,` $dnmatC attr-dict `into` $computeType
   }];
 }
 
@@ -1922,24 +2013,155 @@ def GPU_SpMMOp : GPU_Op<"spmm", [GPU_AsyncOpInterface]> {
     it does not block until the execution has finished on the device). In
     that case, it returns a !gpu.async.token in addition to the environment.
 
+    The matrix arguments can also be associated with one of the following 
+    operators: NON_TRANSPOSE, TRANSPOSE, CONJUGATE_TRANSPOSE. The default value
+    is NON_TRANSPOSE.
+
     Example:
 
     ```mlir
-    %token = gpu.spmm async [%dep] %env, %spmatA, %spmatB, %spmatC, %buffer
+    %token = gpu.spmm async [%dep] %env, %spmatA{TRANSPOSE}, %dnmatB{TRANSPOSE}, %dnmatC, %buffer into f32
     ```
   }];
 
   let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
                        GPU_SparseEnvHandle:$env,
+                       GPU_TransposeModeAttr:$modeA,
+                       GPU_TransposeModeAttr:$modeB,
                        GPU_SparseSpMatHandle:$spmatA,
                        GPU_SparseDnMatHandle:$dnmatB,
                        GPU_SparseDnMatHandle:$dnmatC,
+                       TypeAttr:$computeType,
                        AnyMemRef:$buffer);
   let results = (outs Optional<GPU_AsyncToken>:$asyncToken);
 
+  let builders = [OpBuilder<(ins
+      "Type":$asyncToken,
+      "ValueRange":$asyncDependencies,
+      "Value":$env,
+      "Value":$spmatA,
+      "Value":$dnmatB,
+      "Value":$dnmatC,
+      "Type":$computeType,
+      "Value":$buffer), [{
+    auto modeA = gpu::TransposeMode::NON_TRANSPOSE;
+    auto modeB = gpu::TransposeMode::NON_TRANSPOSE;
+    return build($_builder, $_state, asyncToken, asyncDependencies, env, modeA, 
+                 modeB, spmatA, dnmatB, dnmatC, computeType, buffer);}]>
+  ];
+
   let assemblyFormat = [{
     custom<AsyncDependencies>(type($asyncToken), $asyncDependencies)
-    $env `,` $spmatA `,` $dnmatB `,` $dnmatC `,` $buffer attr-dict `:` type($buffer)
+    $env `,` $spmatA (`{` $modeA^ `}`)? `,` $dnmatB (`{` $modeB^ `}`)? `,` $dnmatC `,` $buffer attr-dict `:` type($buffer) `into` $computeType
+  }];
+}
+
+def GPU_SDDMMBufferSizeOp : GPU_Op<"sddmm_buffer_size", [GPU_AsyncOpInterface]> {
+  let summary = "Precompute buffersize for SDDMM operation";
+  let description = [{
+    The `gpu.sddmm_buffer_size` operation returns the buffer size required
+    to perform the SDDMM operation on the given sparse and dense matrices.
+    The operation expects handles returned by previous sparse operations
+    to construct an environment and the operands for SDDMM.
+
+    If the `async` keyword is present, the op is executed asynchronously (i.e.
+    it does not block until the execution has finished on the device). In
+    that case, it returns a !gpu.async.token in addition to the environment.
+
+    Example:
+
+    ```mlir
+    %buffersz, %token = gpu.sddmm_buffer_size async [%dep] %env, %dnmatA{TRANSPOSE}, %dnmatB{TRANSPOSE}, %spmatC into f32
+    ```
+
+    The matrix arguments can also be associated with one of the following 
+    operators: NON_TRANSPOSE, TRANSPOSE, CONJUGATE_TRANSPOSE. The default value
+    is NON_TRANSPOSE.
+  }];
+
+  let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
+                   GPU_SparseEnvHandle:$env,
+                   GPU_TransposeModeAttr:$modeA,
+                   GPU_TransposeModeAttr:$modeB,
+                   GPU_SparseDnMatHandle:$dnmatA,
+                   GPU_SparseDnMatHandle:$dnmatB,
+                   GPU_SparseSpMatHandle:$spmatC,
+                   TypeAttr:$computeType);
+  let results = (outs Res<Index>:$bufferSz, Optional<GPU_AsyncToken>:$asyncToken);
+
+  let builders = [OpBuilder<(ins
+      "Type":$bufferSz,
+      "Type":$asyncToken,
+      "ValueRange":$asyncDependencies,
+      "Value":$env,
+      "Value":$dnmatA,
+      "Value":$dnmatB,
+      "Value":$spmatC,
+      "Type":$computeType), [{
+    auto modeA = gpu::TransposeMode::NON_TRANSPOSE;
+    auto modeB = gpu::TransposeMode::NON_TRANSPOSE;
+    return build($_builder, $_state, bufferSz, asyncToken, asyncDependencies, 
+                 env, modeA, modeB, dnmatA, dnmatB, spmatC, computeType);}]>
+  ];
+
+  let assemblyFormat = [{
+    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies)
+    $env `,` $dnmatA (`{` $modeA^ `}`)? `,` $dnmatB (`{` $modeB^ `}`)? `,` $spmatC attr-dict `into` $computeType
+  }];
+}
+
+def GPU_SDDMMOp : GPU_Op<"sddmm", [GPU_AsyncOpInterface]> {
+  let summary = "SDDMM operation";
+  let description = [{
+    The `gpu.sddmm` operation performs the SDDMM operation on the given sparse and
+    dense matrices, and buffer.  The operation expects handles returned by previous
+    sparse operations to construct an environment and the operands for SDDMM. The
+    buffer must have been allocated on the device.
+
+    If the `async` keyword is present, the op is executed asynchronously (i.e.
+    it does not block until the execution has finished on the device). In
+    that case, it returns a !gpu.async.token in addition to the environment.
+
+    Example:
+
+    ```mlir
+    %token = gpu.sddmm async [%dep] %env, %dnmatA{TRANSPOSE}, %dnmatB{TRANSPOSE}, %spmatC, %buffer into f32
+    ```
+
+    The matrix arguments can also be associated with one of the following 
+    operators: NON_TRANSPOSE, TRANSPOSE, CONJUGATE_TRANSPOSE. The default value
+    is NON_TRANSPOSE.
+  }];
+
+  let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
+                   GPU_SparseEnvHandle:$env,
+                   GPU_TransposeModeAttr:$modeA,
+                   GPU_TransposeModeAttr:$modeB,
+                   GPU_SparseDnMatHandle:$dnmatA,
+                   GPU_SparseDnMatHandle:$dnmatB,
+                   GPU_SparseSpMatHandle:$spmatC,
+                   TypeAttr:$computeType,
+                   AnyMemRef:$buffer);
+  let results = (outs Optional<GPU_AsyncToken>:$asyncToken);
+
+  let builders = [OpBuilder<(ins
+    "Type":$asyncToken,
+    "ValueRange":$asyncDependencies,
+    "Value":$env,
+    "Value":$dnmatA,
+    "Value":$dnmatB,
+    "Value":$spmatC,
+    "Type":$computeType,
+    "Value":$buffer), [{
+  auto modeA = gpu::TransposeMode::NON_TRANSPOSE;
+  auto modeB = gpu::TransposeMode::NON_TRANSPOSE;
+  return build($_builder, $_state, asyncToken, asyncDependencies, env, modeA, 
+                modeB, dnmatA, dnmatB, spmatC, computeType, buffer);}]>
+  ];
+
+  let assemblyFormat = [{
+    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies)
+    $env `,` $dnmatA (`{` $modeA^ `}`)? `,` $dnmatB (`{` $modeB^ `}`)? `,` $spmatC `,` $buffer attr-dict `:` type($buffer) `into` $computeType
   }];
 }
 

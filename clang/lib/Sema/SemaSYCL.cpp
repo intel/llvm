@@ -1030,19 +1030,6 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   return TAL->get(0).getAsType().getCanonicalType();
 }
 
-// Kernel names are currently mangled as type names which
-// may collide (in the IR) with the "real" type names generated
-// for RTTI etc when compiling host and device code together.
-// Therefore the mangling of the kernel function is changed for
-// NativeCPU to avoid such potential collision.
-static void changeManglingForNativeCPU(std::string &Name) {
-  const std::string Target("_ZTS");
-  const size_t Pos = Name.find(Target);
-  if (Pos == std::string::npos)
-    return;
-  Name.replace(Pos, Target.size(), "_Z");
-}
-
 // Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
 static std::pair<std::string, std::string>
@@ -1059,14 +1046,6 @@ constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
 
   std::string StableName =
       SYCLUniqueStableNameExpr::ComputeName(S.getASTContext(), KernelNameType);
-
-  // When compiling for the SYCLNativeCPU device we need a C++ identifier
-  // as the kernel name and cannot use the name produced by some manglers
-  // including the MS mangler.
-  if (S.getLangOpts().SYCLIsNativeCPU) {
-    MangledName = StableName;
-    changeManglingForNativeCPU(MangledName);
-  }
 
   return {MangledName, StableName};
 }
