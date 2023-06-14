@@ -197,17 +197,17 @@ public:
   /// An executable command-graph is not user constructable.
   command_graph() = delete;
 
+  /// Update the inputs & output of the graph.
+  /// @param Graph Graph to use the inputs and outputs of.
+  void update(const command_graph<graph_state::modifiable> &Graph);
+
+private:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
   command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
                 const sycl::context &Ctx);
 
-  /// Update the inputs & output of the graph.
-  /// @param Graph Graph to use the inputs and outputs of.
-  void update(const command_graph<graph_state::modifiable> &Graph);
-
-private:
   template <class Obj>
   friend decltype(Obj::impl)
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
@@ -217,6 +217,8 @@ private:
 
   int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
+
+  friend class command_graph<graph_state::modifiable>;
 };
 
 /// Additional CTAD deduction guide.
