@@ -5396,8 +5396,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
     ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,                    ///< [out] returned query value
-    size_t *pPropSizeRet                 ///< [out] returned query value size
+    void *pPropValue,    ///< [out][optional] returned query value
+    size_t *pPropSizeRet ///< [out][optional] returned query value size
 ) {
     auto pfnImageGetInfoExp =
         context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
@@ -5409,14 +5409,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     if (context.enableParameterValidation) {
         if (NULL == hImageMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == pPropValue) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pPropSizeRet) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (pPropValue == NULL && pPropSizeRet == NULL) {

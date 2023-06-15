@@ -5649,22 +5649,20 @@ ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_IMAGE_INFO_DEPTH < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pPropValue`
-///         + `NULL == pPropSizeRet`
-///         + `pPropValue == NULL && pPropSizeRet == NULL`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
     ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,                    ///< [out] returned query value
-    size_t *pPropSizeRet                 ///< [out] returned query value size
+    void *pPropValue,    ///< [out][optional] returned query value
+    size_t *pPropSizeRet ///< [out][optional] returned query value size
     ) try {
     auto pfnImageGetInfoExp =
         ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
