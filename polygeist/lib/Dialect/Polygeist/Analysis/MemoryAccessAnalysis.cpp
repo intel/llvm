@@ -1229,26 +1229,6 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
   return it->second;
 }
 
-unsigned
-MemoryAccessAnalysis::getGridDimension(FunctionOpInterface func) const {
-  if (func.getNumArguments() == 0)
-    return 0;
-
-  Value lastArg = func.getArguments().back();
-  if (!isa<MemRefType>(lastArg.getType()))
-    return 0;
-
-  Type elemTy = cast<MemRefType>(lastArg.getType()).getElementType();
-
-  return TypeSwitch<Type, unsigned>(elemTy)
-      .Case<sycl::NdItemType, sycl::ItemType>([](auto ty) {
-        unsigned dim = ty.getDimension();
-        assert(dim > 0 && dim <= 3 && "Dimension out of range");
-        return dim;
-      })
-      .Default([](auto) { return 0; });
-}
-
 SmallVector<Value>
 MemoryAccessAnalysis::getThreadVector(FunctionOpInterface funcOp,
                                       DataFlowSolver &solver) const {

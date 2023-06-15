@@ -23,6 +23,15 @@ SYCLIDGetOp sycl::createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
       loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
 }
 
+SYCLRangeGetOp sycl::createSYCLRangeGetOp(TypedValue<MemRefType> range,
+                                          unsigned index, OpBuilder builder,
+                                          Location loc) {
+  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+  const auto resTy = builder.getIndexType();
+  return builder.create<SYCLRangeGetOp>(
+      loc, MemRefType::get(ShapedType::kDynamic, resTy), range, indexOp);
+}
+
 TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
                                              ArrayRef<Value> indexes,
                                              OpBuilder builder, Location loc) {
@@ -48,4 +57,30 @@ sycl::createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
       ShapedType::kDynamic, accTy.getType(), MemRefLayoutAttrInterface(),
       builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
   return builder.create<SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
+}
+
+sycl::SYCLWorkGroupSizeOp
+sycl::createWorkGroupSize(unsigned numDims, OpBuilder builder, Location loc) {
+  const auto arrayType = builder.getType<sycl::ArrayType>(
+      numDims, MemRefType::get(numDims, builder.getIndexType()));
+  const auto rangeTy = builder.getType<sycl::RangeType>(numDims, arrayType);
+  return builder.create<sycl::SYCLWorkGroupSizeOp>(loc, rangeTy);
+}
+
+void sycl::populateWorkGroupSize(SmallVectorImpl<Value> &wgSizes,
+                                 unsigned numDims, OpBuilder builder) {
+  const auto arrayType = builder.getType<sycl::ArrayType>(
+      numDims, MemRefType::get(numDims, builder.getIndexType()));
+  const auto rangeTy = builder.getType<sycl::RangeType>(numDims, arrayType);
+  Location loc = builder.getUnknownLoc();
+  auto wgSize = createWorkGroupSize(numDims, builder, loc);
+  auto range =
+      builder.create<memref::AllocaOp>(loc, MemRefType::get(1, rangeTy));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  builder.create<memref::StoreOp>(loc, wgSize, range, zeroIndex);
+  for (unsigned dim = 0; dim < numDims; ++dim) {
+    Value rangeGetOp = sycl::createSYCLRangeGetOp(range, dim, builder, loc);
+    wgSizes.push_back(
+        builder.create<memref::LoadOp>(loc, rangeGetOp, zeroIndex));
+  }
 }

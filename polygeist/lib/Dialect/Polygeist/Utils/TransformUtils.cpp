@@ -105,6 +105,24 @@ bool polygeist::isTailCall(CallOpInterface call) {
           isRegionReturnLike(nextOp));
 }
 
+unsigned polygeist::getGridDimension(FunctionOpInterface func) {
+  if (func.getNumArguments() == 0)
+    return 0;
+
+  Type lastArgTy = func.getArgumentTypes().back();
+  if (!isa<MemRefType>(lastArgTy))
+    return 0;
+
+  Type elemTy = cast<MemRefType>(lastArgTy).getElementType();
+  return TypeSwitch<Type, unsigned>(elemTy)
+      .Case<sycl::NdItemType, sycl::ItemType>([](auto ty) {
+        unsigned dim = ty.getDimension();
+        assert(dim > 0 && dim <= 3 && "Dimension out of range");
+        return dim;
+      })
+      .Default([](auto) { return 0; });
+}
+
 Optional<Value> polygeist::getAccessorUsedByOperation(const Operation &op) {
   auto getMemrefOp = [](const Operation &op) {
     return TypeSwitch<const Operation &, Operation *>(op)

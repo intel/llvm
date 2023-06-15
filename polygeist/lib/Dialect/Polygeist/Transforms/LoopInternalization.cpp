@@ -53,7 +53,11 @@ namespace {
 class WorkGroupSize {
 public:
   using ElemTy = std::variant<Value, unsigned>;
-  WorkGroupSize(Value ndItem, const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
+
+  /// Construct a SYCL work group size object given the rank \p numDims and the
+  /// SYCL 'reqd_work_group_size' attribute \p reqdWorkGroupSize.
+  WorkGroupSize(unsigned numDims,
+                const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                 OpBuilder builder);
 
   /// Return true if the element holds the alternative T.
@@ -79,8 +83,6 @@ public:
   }
 
 private:
-  Value getLocalRange(Value ndItem, unsigned dim, OpBuilder builder) const;
-
   SmallVector<ElemTy> wgSizes;
 };
 
@@ -179,11 +181,15 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   // TODO: check uniformity.
 }
 
-/// A function is a candidate iff it has an nd_item argument.
+/// A function is a candidate iff it has an sycl::nd_item or sycl::item
+/// argument.
 bool isCandidateFunction(FunctionOpInterface func) {
-  // TODO: construct nd_item when not passed in.
-  if (func.getNumArguments() == 0 ||
-      !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
+  if (func.getNumArguments() == 0)
+    return false;
+  Type lastArgTy = func.getArgumentTypes().back();
+  // TODO: Also allow `isPtrOf<sycl::IDType>(lastArgTy)`.
+  if (!sycl::isPtrOf<sycl::NdItemType>(lastArgTy) &&
+      !sycl::isPtrOf<sycl::ItemType>(lastArgTy))
     return false;
   return true;
 }
@@ -209,15 +215,6 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
       "Expecting single induction variable for affine for and scf for loops");
 
   return true;
-}
-
-/// Get the argument of \p func with nd_item type.
-Value getNdItemArgument(FunctionOpInterface func) {
-  assert(func.getNumArguments() > 0 && "Expecting at least one argument");
-  Value lastArg = func.getArguments().back();
-  assert(sycl::isPtrOf<sycl::NdItemType>(lastArg.getType()) &&
-         "Expecting last argument to be nd_item");
-  return lastArg;
 }
 
 /// Get the size of unused shared local memory arena in bytes.
@@ -548,31 +545,24 @@ Value castToIndex(Value val) {
 // WorkGroupSize
 //===----------------------------------------------------------------------===//
 
-WorkGroupSize::WorkGroupSize(Value ndItem,
+WorkGroupSize::WorkGroupSize(unsigned numDims,
                              const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                              OpBuilder builder) {
-  auto ndItemTy = cast<sycl::NdItemType>(
-      cast<MemRefType>(ndItem.getType()).getElementType());
-  const unsigned numDims = ndItemTy.getDimension();
   assert((reqdWorkGroupSize.empty() || reqdWorkGroupSize.size() == numDims) &&
-         "Expecting reqdWorkGroupSize to have same number of elements as "
-         "nd_item dimension");
+         "Expecting 'reqdWorkGroupSize' to have same number of elements as "
+         "'numDims'");
 
-  for (unsigned dim = 0; dim < numDims; ++dim) {
-    // Use constants provided by reqd_work_group_size if given (non-empty).
-    if (!reqdWorkGroupSize.empty())
+  // Use constants provided by reqd_work_group_size if given (non-empty).
+  if (!reqdWorkGroupSize.empty()) {
+    for (unsigned dim = 0; dim < numDims; ++dim)
       wgSizes.push_back(reqdWorkGroupSize[dim]);
-    else
-      wgSizes.push_back(castToIndex(getLocalRange(ndItem, dim, builder)));
+    return;
   }
-}
 
-Value WorkGroupSize::getLocalRange(Value ndItem, unsigned dim,
-                                   OpBuilder builder) const {
-  return builder.create<sycl::SYCLNDItemGetLocalRangeOp>(
-      builder.getUnknownLoc(), builder.getI64Type(), ndItem,
-      builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), dim,
-                                           builder.getI32Type()));
+  SmallVector<Value> wgSizeVals;
+  sycl::populateWorkGroupSize(wgSizeVals, numDims, builder);
+  for (Value wgSize : wgSizeVals)
+    wgSizes.push_back(wgSize);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1110,9 +1100,10 @@ void LoopInternalization::transform(FunctionOpInterface func,
       reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemaining);
 
   // Get or create work group size.
-  Value ndItem = getNdItemArgument(func);
+  const unsigned numDims = getGridDimension(func);
+  assert(numDims > 0 && numDims <= 3 && "Dimension out of range");
   OpBuilder builder(func->getRegion(0));
-  WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
+  WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
   std::variant<Value, unsigned> reqdDynamicLocalMemory =
       getReqdLocalMemory(loopToSharedMemref, workGroupSize, builder);
   if (std::holds_alternative<Value>(reqdDynamicLocalMemory)) {
@@ -1123,9 +1114,6 @@ void LoopInternalization::transform(FunctionOpInterface func,
   // kernel).
   SmallVector<Value> localIDs;
   Location loc = func.getLoc();
-  auto ndItemTy = cast<sycl::NdItemType>(
-      cast<MemRefType>(ndItem.getType()).getElementType());
-  const unsigned numDims = ndItemTy.getDimension();
   const auto arrayType = builder.getType<sycl::ArrayType>(
       numDims, MemRefType::get(numDims, builder.getIndexType()));
   const auto idTy = builder.getType<sycl::IDType>(numDims, arrayType);
