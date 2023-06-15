@@ -56,18 +56,17 @@ public:
   WorkGroupSize(Value ndItem, const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                 OpBuilder builder);
 
-  /// Return true if the element holds the alternative T.
-  template <typename T, typename = std::enable_if_t<
-                            llvm::is_one_of<T, Value, unsigned>::value>>
-  bool hasElemTy() const {
-    return std::holds_alternative<T>(wgSizes.front());
+  /// Return true if the work group size is known at compile time and false
+  /// otherwise.
+  bool isKnown() const {
+    return std::holds_alternative<unsigned>(wgSizes.front());
   }
 
   /// Return the element at position \p dim with type \tparam T.
   template <typename T, typename = std::enable_if_t<
                             llvm::is_one_of<T, Value, unsigned>::value>>
   T get(unsigned dim) const {
-    assert(hasElemTy<T>() && "Incorrect type");
+    assert(std::holds_alternative<T>(wgSizes.front()) && "Incorrect type");
     assert(dim < wgSizes.size() && "Expecting valid dim");
     return std::get<T>(wgSizes[dim]);
   }
@@ -242,17 +241,26 @@ unsigned getLocalMemoryRemaining(gpu::GPUModuleOp &module,
   return localMemoryRemaining;
 }
 
-/// Get the required local memory for \p accTy in bytes.
+/// Get the amount of shared memory needed by \p accTy in bytes.
 std::variant<Value, unsigned>
 getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
                    OpBuilder builder) {
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
-  std::variant<Value, unsigned> reqdLocalMemory =
-      ValueOrUnsigned::get(elemSize, builder, workGroupSize.hasElemTy<Value>());
   const unsigned numDims = accTy.getDimension();
+
+  if (workGroupSize.isKnown()) {
+    unsigned memrefReqdLocalMemory = elemSize;
+    for (unsigned dim = 0; dim < numDims; ++dim)
+      memrefReqdLocalMemory *= workGroupSize.get<unsigned>(dim);
+    return memrefReqdLocalMemory;
+  }
+
+  std::variant<Value, unsigned> reqdLocalMemory =
+      ValueOrUnsigned::get(elemSize, builder, !workGroupSize.isKnown());
   for (unsigned dim = 0; dim < numDims; ++dim)
     reqdLocalMemory =
         ValueOrUnsigned::mul(reqdLocalMemory, workGroupSize[dim], builder);
+
   return reqdLocalMemory;
 }
 
@@ -264,10 +272,11 @@ getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
                        &loopToSharedMemref,
                    const WorkGroupSize &workGroupSize, OpBuilder builder) {
   std::variant<Value, unsigned> reqdLocalMemory =
-      ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
+      ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
+
   for (auto &entry : loopToSharedMemref) {
     std::variant<Value, unsigned> loopReqdLocalMemory =
-        ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
+        ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
     for (Operation *memref : entry.second) {
       sycl::AccessorType accTy =
           getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
@@ -279,43 +288,7 @@ getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
     reqdLocalMemory =
         ValueOrUnsigned::max(reqdLocalMemory, loopReqdLocalMemory, builder);
   }
-  return reqdLocalMemory;
-}
 
-/// Get the required local memory for \p accTy in bytes.
-unsigned getReqdLocalMemory(sycl::AccessorType accTy,
-                            const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
-  assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
-  unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
-  unsigned memrefReqdLocalMemory = elemSize;
-  const unsigned numDims = accTy.getDimension();
-  for (unsigned dim = 0; dim < numDims; ++dim) {
-    memrefReqdLocalMemory *= reqdWorkGroupSize[dim];
-  }
-  return memrefReqdLocalMemory;
-}
-
-/// Get the require local memory for memrefs in \p loopToSharedMemref, i.e, for
-/// each kernel. If there are multiple loops in the kernel that require local
-/// memory, it returns the maximum amount required by any of them.
-Optional<unsigned>
-getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
-                       &loopToSharedMemref,
-                   const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
-  if (reqdWorkGroupSize.empty())
-    return std::nullopt;
-
-  unsigned reqdLocalMemory = 0;
-  for (auto &entry : loopToSharedMemref) {
-    unsigned loopReqdLocalMemory = 0;
-    for (Operation *memref : entry.second) {
-      sycl::AccessorType accTy =
-          getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
-      loopReqdLocalMemory += getReqdLocalMemory(accTy, reqdWorkGroupSize);
-    }
-    // Memref in one loop can reuse local memory allocated for another loop.
-    reqdLocalMemory = std::max(reqdLocalMemory, loopReqdLocalMemory);
-  }
   return reqdLocalMemory;
 }
 
@@ -347,7 +320,7 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
   SmallVector<Value> sizes;
   for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
     std::variant<Value, unsigned> size = workGroupSize[dim];
-    if (workGroupSize.hasElemTy<unsigned>())
+    if (workGroupSize.isKnown())
       shape.push_back(std::get<unsigned>(workGroupSize[dim]));
     else {
       shape.push_back(ShapedType::kDynamic);
@@ -1058,7 +1031,7 @@ Value LoopInternalization::getVersionCondition(
 bool LoopInternalization::canBeTransformed(LoopLikeOpInterface loop,
                                            const WorkGroupSize &workGroupSize,
                                            DataFlowSolver &solver) const {
-  if (workGroupSize.hasElemTy<unsigned>()) {
+  if (workGroupSize.isKnown()) {
     std::set<unsigned> dimsThatUseLoopIV = getDimsThatUseLoopIV(loop, solver);
     const unsigned firstDim = *dimsThatUseLoopIV.begin();
 
@@ -1089,14 +1062,20 @@ void LoopInternalization::transform(FunctionOpInterface func,
                                     const FunctionKernelInfo &funcKernelInfo,
                                     const unsigned localMemoryRemaining,
                                     DataFlowSolver &solver) {
-  // Calculate the required local memory for all accesses in
-  // loopToSharedMemref to be promoted.
+  // Calculate the total amount of shared memory needed to promote the memory
+  // accesses that were identified by the analysis.
   SmallVector<gpu::GPUFuncOp> kernels;
   funcKernelInfo.getKernelCallers(func, kernels);
+
+  Value ndItem = getNdItemArgument(func);
   sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
-  Optional<unsigned> reqdLocalMemory =
-      getReqdLocalMemory(loopToSharedMemref, reqdWorkGroupSize);
-  if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemaining) {
+  OpBuilder builder(func->getRegion(0));
+  WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
+
+  std::variant<Value, unsigned> reqdLocalMemory =
+      getReqdLocalMemory(loopToSharedMemref, workGroupSize, builder);
+  if (std::holds_alternative<unsigned>(reqdLocalMemory) &&
+      std::get<unsigned>(reqdLocalMemory) > localMemoryRemaining) {
     // This is a conservative check because 'reqdLocalMemory' is the max shared
     // local memory required to transform any loop in the function, so there
     // might be a loop that require considerably less than the max.
@@ -1104,19 +1083,14 @@ void LoopInternalization::transform(FunctionOpInterface func,
     return;
   }
 
-  auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
   memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
-      gpuModule,
-      reqdLocalMemory.has_value() ? *reqdLocalMemory : localMemoryRemaining);
+      getOperation(), std::holds_alternative<unsigned>(reqdLocalMemory)
+                          ? std::get<unsigned>(reqdLocalMemory)
+                          : localMemoryRemaining);
 
   // Get or create work group size.
-  Value ndItem = getNdItemArgument(func);
-  OpBuilder builder(func->getRegion(0));
-  WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
-  std::variant<Value, unsigned> reqdDynamicLocalMemory =
-      getReqdLocalMemory(loopToSharedMemref, workGroupSize, builder);
-  if (std::holds_alternative<Value>(reqdDynamicLocalMemory)) {
-    // TODO: Version with reqdDynamicLocalMemory <= localMemoryRemaining.
+  if (std::holds_alternative<Value>(reqdLocalMemory)) {
+    // TODO: Version with reqdLocalMemory <= localMemoryRemaining.
   }
 
   // Create SYCL local ids corresponding to the grid dimensionality (per
@@ -1194,7 +1168,7 @@ void LoopInternalization::transform(T loop,
   LoopInfo loopInfo(loop);
   builder.setInsertionPointToStart(loop->getBlock());
   std::variant<Value, unsigned> offset =
-      ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
+      ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
   for (Operation *memref : memrefs) {
     Location loc = memref->getLoc();
     sycl::AccessorType accTy =
