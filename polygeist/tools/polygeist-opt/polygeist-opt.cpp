@@ -98,6 +98,9 @@ int main(int argc, char **argv) {
     LLVM::LLVMPointerType::attachInterface<MemRefInsider>(*ctx);
   });
   registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMArrayType::attachInterface<MemRefInsider>(*ctx);
+  });
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
     LLVM::LLVMStructType::attachInterface<MemRefInsider>(*ctx);
   });
   registry.addExtension(+[](MLIRContext *ctx, memref::MemRefDialect *dialect) {

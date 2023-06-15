@@ -18,6 +18,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
+#include "llvm/ADT/SmallSet.h"
 #include <set>
 #include <variant>
 
@@ -141,7 +142,7 @@ public:
   /// (e.g., parallel_for). Note that transformation passes might have cloned
   /// the kernel body to specialize it. This function returns all possible
   /// kernel body functions, including specializations.
-  std::set<FunctionOpInterface>
+  llvm::SmallSet<FunctionOpInterface, 4>
   getPotentialKernelBodyFunctions(gpu::GPUFuncOp kernel) const;
 
 private:
@@ -397,7 +398,7 @@ public:
   using AffineCondition = VersionCondition::AffineCondition;
 
   VersionConditionBuilder(
-      std::set<sycl::AccessorPtrPair> requireNoOverlapAccessorPairs,
+      llvm::SmallSet<sycl::AccessorPtrPair, 4> requireNoOverlapAccessorPairs,
       OpBuilder builder, Location loc);
 
   std::unique_ptr<VersionCondition>
@@ -411,7 +412,7 @@ private:
   SCFCondition createSCFCondition(OpBuilder builder, Location loc,
                                   bool useOpaquePointers) const;
 
-  std::set<sycl::AccessorPtrPair> accessorPairs;
+  llvm::SmallSet<sycl::AccessorPtrPair, 4> accessorPairs;
   mutable OpBuilder builder;
   mutable Location loc;
 };
