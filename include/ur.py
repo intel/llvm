@@ -1820,7 +1820,6 @@ class ur_function_v(IntEnum):
     PLATFORM_GET_API_VERSION = 74                   ## Enumerator for ::urPlatformGetApiVersion
     PLATFORM_GET_NATIVE_HANDLE = 75                 ## Enumerator for ::urPlatformGetNativeHandle
     PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76         ## Enumerator for ::urPlatformCreateWithNativeHandle
-    GET_LAST_RESULT = 77                            ## Enumerator for ::urGetLastResult
     PROGRAM_CREATE_WITH_IL = 78                     ## Enumerator for ::urProgramCreateWithIL
     PROGRAM_CREATE_WITH_BINARY = 79                 ## Enumerator for ::urProgramCreateWithBinary
     PROGRAM_BUILD = 80                              ## Enumerator for ::urProgramBuild
@@ -1890,6 +1889,7 @@ class ur_function_v(IntEnum):
     BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147## Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
     BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148   ## Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149 ## Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
+    PLATFORM_GET_LAST_ERROR = 150                   ## Enumerator for ::urPlatformGetLastError
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2026,6 +2026,13 @@ else:
     _urPlatformCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_native_properties_t), POINTER(ur_platform_handle_t) )
 
 ###############################################################################
+## @brief Function-pointer for urPlatformGetLastError
+if __use_win_types:
+    _urPlatformGetLastError_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p), POINTER(c_long) )
+else:
+    _urPlatformGetLastError_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p), POINTER(c_long) )
+
+###############################################################################
 ## @brief Function-pointer for urPlatformGetApiVersion
 if __use_win_types:
     _urPlatformGetApiVersion_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(ur_api_version_t) )
@@ -2048,6 +2055,7 @@ class ur_platform_dditable_t(Structure):
         ("pfnGetInfo", c_void_p),                                       ## _urPlatformGetInfo_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urPlatformGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urPlatformCreateWithNativeHandle_t
+        ("pfnGetLastError", c_void_p),                                  ## _urPlatformGetLastError_t
         ("pfnGetApiVersion", c_void_p),                                 ## _urPlatformGetApiVersion_t
         ("pfnGetBackendOption", c_void_p)                               ## _urPlatformGetBackendOption_t
     ]
@@ -3168,13 +3176,6 @@ else:
     _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
 
 ###############################################################################
-## @brief Function-pointer for urGetLastResult
-if __use_win_types:
-    _urGetLastResult_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
-else:
-    _urGetLastResult_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
-
-###############################################################################
 ## @brief Function-pointer for urTearDown
 if __use_win_types:
     _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
@@ -3187,7 +3188,6 @@ else:
 class ur_global_dditable_t(Structure):
     _fields_ = [
         ("pfnInit", c_void_p),                                          ## _urInit_t
-        ("pfnGetLastResult", c_void_p),                                 ## _urGetLastResult_t
         ("pfnTearDown", c_void_p)                                       ## _urTearDown_t
     ]
 
@@ -3318,6 +3318,7 @@ class UR_DDI:
         self.urPlatformGetInfo = _urPlatformGetInfo_t(self.__dditable.Platform.pfnGetInfo)
         self.urPlatformGetNativeHandle = _urPlatformGetNativeHandle_t(self.__dditable.Platform.pfnGetNativeHandle)
         self.urPlatformCreateWithNativeHandle = _urPlatformCreateWithNativeHandle_t(self.__dditable.Platform.pfnCreateWithNativeHandle)
+        self.urPlatformGetLastError = _urPlatformGetLastError_t(self.__dditable.Platform.pfnGetLastError)
         self.urPlatformGetApiVersion = _urPlatformGetApiVersion_t(self.__dditable.Platform.pfnGetApiVersion)
         self.urPlatformGetBackendOption = _urPlatformGetBackendOption_t(self.__dditable.Platform.pfnGetBackendOption)
 
@@ -3566,7 +3567,6 @@ class UR_DDI:
 
         # attach function interface to function address
         self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
-        self.urGetLastResult = _urGetLastResult_t(self.__dditable.Global.pfnGetLastResult)
         self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
 
         # call driver to get function pointers

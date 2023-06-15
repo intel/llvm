@@ -248,27 +248,31 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urGetLastResult
-__urdlllocal ur_result_t UR_APICALL urGetLastResult(
+/// @brief Intercept function for urPlatformGetLastError
+__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const char **
-        ppMessage ///< [out] pointer to a string containing adapter specific result in string
-                  ///< representation.
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
 ) {
-    auto pfnGetLastResult = context.urDdiTable.Global.pfnGetLastResult;
+    auto pfnGetLastError = context.urDdiTable.Platform.pfnGetLastError;
 
-    if (nullptr == pfnGetLastResult) {
+    if (nullptr == pfnGetLastError) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_get_last_result_params_t params = {&hPlatform, &ppMessage};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_GET_LAST_RESULT,
-                                             "urGetLastResult", &params);
+    ur_platform_get_last_error_params_t params = {&hPlatform, &ppMessage,
+                                                  &pError};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_PLATFORM_GET_LAST_ERROR, "urPlatformGetLastError", &params);
 
-    ur_result_t result = pfnGetLastResult(hPlatform, ppMessage);
+    ur_result_t result = pfnGetLastError(hPlatform, ppMessage, pError);
 
-    context.notify_end(UR_FUNCTION_GET_LAST_RESULT, "urGetLastResult", &params,
-                       &result, instance);
+    context.notify_end(UR_FUNCTION_PLATFORM_GET_LAST_ERROR,
+                       "urPlatformGetLastError", &params, &result, instance);
 
     return result;
 }
@@ -4955,9 +4959,6 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     dditable.pfnInit = pDdiTable->pfnInit;
     pDdiTable->pfnInit = ur_tracing_layer::urInit;
 
-    dditable.pfnGetLastResult = pDdiTable->pfnGetLastResult;
-    pDdiTable->pfnGetLastResult = ur_tracing_layer::urGetLastResult;
-
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
     pDdiTable->pfnTearDown = ur_tracing_layer::urTearDown;
 
@@ -5530,6 +5531,9 @@ __urdlllocal ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
         ur_tracing_layer::urPlatformCreateWithNativeHandle;
+
+    dditable.pfnGetLastError = pDdiTable->pfnGetLastError;
+    pDdiTable->pfnGetLastError = ur_tracing_layer::urPlatformGetLastError;
 
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
     pDdiTable->pfnGetApiVersion = ur_tracing_layer::urPlatformGetApiVersion;

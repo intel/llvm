@@ -598,22 +598,37 @@ urPlatformGetBackendOption(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Retrieve string representation of the underlying adapter specific
-///        result reported by the the last API that returned
-///        UR_RESULT_ADAPTER_SPECIFIC. Allows for an adapter independent way to
-///        return an adapter specific result.
+/// @brief Get the last adapter specific error.
 ///
 /// @details
-///     - The string returned via the ppMessage is a NULL terminated C style
-///       string.
-///     - The string returned via the ppMessage is thread local.
-///     - The entry point will return UR_RESULT_SUCCESS if the result being
-///       reported is to be considered a warning. Any other result code returned
-///       indicates that the adapter specific result is an error.
-///     - The memory in the string returned via the ppMessage is owned by the
-///       adapter.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
+/// To be used after another entry-point has returned
+/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
+/// the circumstances of the underlying driver error and the error code
+/// returned by the failed driver entry-point.
+///
+/// * Implementations *must* store the message and error code in thread-local
+///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The message and error code storage is will only be valid if a previously
+///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The memory pointed to by the C string returned in `ppMessage` is owned by
+///   the adapter and *must* be null terminated.
+///
+/// * The application *may* call this function from simultaneous threads.
+///
+/// * The implementation of this function *should* be lock-free.
+///
+/// Example usage:
+///
+/// ```cpp
+/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
+///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+///     const char* pMessage;
+///     int32_t error;
+///     ::urPlatformGetLastError(hPlatform, &pMessage, &error);
+/// }
+/// ```
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -623,11 +638,14 @@ urPlatformGetBackendOption(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ppMessage`
+///         + `NULL == pError`
 UR_APIEXPORT ur_result_t UR_APICALL
-urGetLastResult(
+urPlatformGetLastError(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **ppMessage          ///< [out] pointer to a string containing adapter specific result in string
-                                    ///< representation.
+    const char **ppMessage,         ///< [out] pointer to a C string where the adapter specific error message
+                                    ///< will be stored.
+    int32_t *pError                 ///< [out] pointer to an integer where the adapter specific error code will
+                                    ///< be stored.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4771,7 +4789,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_PLATFORM_GET_API_VERSION = 74,                                 ///< Enumerator for ::urPlatformGetApiVersion
     UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE = 75,                               ///< Enumerator for ::urPlatformGetNativeHandle
     UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76,                       ///< Enumerator for ::urPlatformCreateWithNativeHandle
-    UR_FUNCTION_GET_LAST_RESULT = 77,                                          ///< Enumerator for ::urGetLastResult
     UR_FUNCTION_PROGRAM_CREATE_WITH_IL = 78,                                   ///< Enumerator for ::urProgramCreateWithIL
     UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY = 79,                               ///< Enumerator for ::urProgramCreateWithBinary
     UR_FUNCTION_PROGRAM_BUILD = 80,                                            ///< Enumerator for ::urProgramBuild
@@ -4841,6 +4858,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147,          ///< Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,             ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,           ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
+    UR_FUNCTION_PLATFORM_GET_LAST_ERROR = 150,                                 ///< Enumerator for ::urPlatformGetLastError
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -6955,6 +6973,16 @@ typedef struct ur_platform_create_with_native_handle_params_t {
 } ur_platform_create_with_native_handle_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urPlatformGetLastError
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_platform_get_last_error_params_t {
+    ur_platform_handle_t *phPlatform;
+    const char ***pppMessage;
+    int32_t **ppError;
+} ur_platform_get_last_error_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGetApiVersion
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -8488,15 +8516,6 @@ typedef struct ur_command_buffer_enqueue_exp_params_t {
 typedef struct ur_init_params_t {
     ur_device_init_flags_t *pdevice_flags;
 } ur_init_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urGetLastResult
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_get_last_result_params_t {
-    ur_platform_handle_t *phPlatform;
-    const char ***pppMessage;
-} ur_get_last_result_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urTearDown

@@ -308,20 +308,23 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urGetLastResult
-__urdlllocal ur_result_t UR_APICALL urGetLastResult(
+/// @brief Intercept function for urPlatformGetLastError
+__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const char **
-        ppMessage ///< [out] pointer to a string containing adapter specific result in string
-                  ///< representation.
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // extract platform's function pointer table
     auto dditable =
         reinterpret_cast<ur_platform_object_t *>(hPlatform)->dditable;
-    auto pfnGetLastResult = dditable->ur.Global.pfnGetLastResult;
-    if (nullptr == pfnGetLastResult) {
+    auto pfnGetLastError = dditable->ur.Platform.pfnGetLastError;
+    if (nullptr == pfnGetLastError) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -329,7 +332,7 @@ __urdlllocal ur_result_t UR_APICALL urGetLastResult(
     hPlatform = reinterpret_cast<ur_platform_object_t *>(hPlatform)->handle;
 
     // forward to device-platform
-    result = pfnGetLastResult(hPlatform, ppMessage);
+    result = pfnGetLastError(hPlatform, ppMessage, pError);
 
     return result;
 }
@@ -6087,7 +6090,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
             pDdiTable->pfnInit = ur_loader::urInit;
-            pDdiTable->pfnGetLastResult = ur_loader::urGetLastResult;
             pDdiTable->pfnTearDown = ur_loader::urTearDown;
         } else {
             // return pointers directly to platform's DDIs
@@ -6641,6 +6643,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
                 ur_loader::urPlatformGetNativeHandle;
             pDdiTable->pfnCreateWithNativeHandle =
                 ur_loader::urPlatformCreateWithNativeHandle;
+            pDdiTable->pfnGetLastError = ur_loader::urPlatformGetLastError;
             pDdiTable->pfnGetApiVersion = ur_loader::urPlatformGetApiVersion;
             pDdiTable->pfnGetBackendOption =
                 ur_loader::urPlatformGetBackendOption;
