@@ -77,6 +77,8 @@ jobs:
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
+    outputs:
+      build_conclusion: ${{ steps.build.conclusion }}
     steps:
     # GHA requires relative paths for actions. Copy actions from container root
     # to CWD.
@@ -185,7 +187,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ always() && !cancelled() && needs.build.build.result == 'success' && inputs.lts_aws_matrix != '[]' }}
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_aws_matrix != '[]' }}
     runs-on: ubuntu-20.04
     environment: aws
     steps:
@@ -208,7 +210,7 @@ jobs:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
-    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
+    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
