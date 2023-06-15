@@ -23,6 +23,15 @@ SYCLIDGetOp sycl::createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
       loc, MemRefType::get(ShapedType::kDynamic, resTy), id, indexOp);
 }
 
+SYCLRangeGetOp sycl::createSYCLRangeGetOp(TypedValue<MemRefType> range,
+                                          unsigned index, OpBuilder builder,
+                                          Location loc) {
+  const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+  const auto resTy = builder.getIndexType();
+  return builder.create<SYCLRangeGetOp>(
+      loc, MemRefType::get(ShapedType::kDynamic, resTy), range, indexOp);
+}
+
 TypedValue<MemRefType> sycl::constructSYCLID(IDType idTy,
                                              ArrayRef<Value> indexes,
                                              OpBuilder builder, Location loc) {

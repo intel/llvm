@@ -30,6 +30,11 @@ inline AccessorType getAccessorType(SYCLAccessorSubscriptOp op) {
 SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id, unsigned index,
                               OpBuilder builder, Location loc);
 
+/// Create sycl.range.get with id \p range and index \p index.
+SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
+                                    unsigned index, OpBuilder builder,
+                                    Location loc);
+
 /// Construct sycl.id with id type \p idTy and indexes \p indexes.
 TypedValue<MemRefType> constructSYCLID(IDType idTy, ArrayRef<Value> indexes,
                                        OpBuilder builder, Location loc);
