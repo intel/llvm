@@ -1,6 +1,8 @@
 // UNSUPPORTED: system-windows
 // Test the addition of a custom linker script for huge device code.
 
+// The "fsycl-link-huge-device-code" spelling is deprecated.
+
 // RUN: %clangxx -### -fsycl -fsycl-link-huge-device-code %s 2>&1 | \
 // RUN:       FileCheck --check-prefix=CHECK-LINKER-SCRIPT %s
 // RUN: %clangxx -### -fopenmp -fopenmp-targets=x86_64 -flink-huge-device-code %s 2>&1 | \
