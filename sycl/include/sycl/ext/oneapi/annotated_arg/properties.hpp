@@ -369,7 +369,6 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
 
 } // namespace detail
 
-
 //===----------------------------------------------------------------------===//
 //   Utility type trait for annotated_arg/annotated_ptr deduction guide
 //===----------------------------------------------------------------------===//
