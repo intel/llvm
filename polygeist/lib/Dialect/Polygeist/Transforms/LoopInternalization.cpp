@@ -1231,8 +1231,7 @@ void LoopInternalization::transform(T loop,
   createWorkGroupBarrier(builder);
 }
 
-void LoopInternalization::promote(Operation *memref,
-                                  memref::ViewOp viewOp,
+void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
                                   LoopInfo &loopInfo, ArrayRef<Value> localIDs,
                                   OpBuilder &builder,
                                   DataFlowSolver &solver) const {
@@ -1301,7 +1300,8 @@ void LoopInternalization::promote(Operation *memref,
     OpBuilder::InsertionGuard insertGuard(builder);
     builder.setInsertionPoint(user);
     assert(isa<affine::AffineLoadOp>(user) && "Expecting affine load user");
-    auto load = builder.create<memref::LoadOp>(user->getLoc(), viewOp, adjustedIndexes);
+    auto load =
+        builder.create<memref::LoadOp>(user->getLoc(), viewOp, adjustedIndexes);
     user->replaceAllUsesWith(load);
     user->erase();
   }
