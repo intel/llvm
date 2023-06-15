@@ -1,0 +1,26 @@
+# Runs bandit security checker for code written in Python.
+name: Bandit
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  linux:
+    name: Bandit
+    runs-on: ubuntu-latest
+  
+    steps:
+      - name: Clone the git repo
+        uses: actions/checkout@v3
+
+      - name: Install apt packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen
+       
+      - name: Install pip packages
+        run: pip install -r third_party/requirements.txt
+
+      # Scan is run only for the 'tools' folder.
+      - name: Run Bandit
+        run: |
+          bandit -r tools
