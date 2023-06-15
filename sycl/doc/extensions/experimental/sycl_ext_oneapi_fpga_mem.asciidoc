@@ -81,8 +81,8 @@ using namespace sycl::ext::oneapi::experimental;
 
 sycl::queue q;
 q.single_task([=] {
-  fpga_mem<int[4], decltype(properties(resource<mlab>))> fm1 {1, 3, 5, 7};
-  fpga_mem<MyClass, decltype(properties(resource<mlab>))> fm2;
+  fpga_mem<int[4], decltype(properties(resource_mlab))> fm1{1, 3, 5, 7};
+  fpga_mem<MyClass, decltype(properties(resource_mlab))> fm2;
   fm2.get().x = fm1[0];
 });
 ----
@@ -154,44 +154,42 @@ The section below and the table following describe the constructors and member f
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT = properties<>>
-class fpga_mem {
-public:
-  template<typename ... S>
-  constexpr fpga_mem(S ... args);
+  template <typename T, typename PropertyListT = properties<>>
+  class fpga_mem {
+  public:
+    template <typename... S> constexpr fpga_mem(S... args);
 
-  template <access::decorated IsDecorated>
-  multi_ptr<T, access::address_space::private_space, IsDecorated>
+    template <access::decorated IsDecorated>
+    multi_ptr<T, access::address_space::private_space, IsDecorated>
     get_multi_ptr() noexcept;
 
-  template <access::decorated IsDecorated>
-  multi_ptr<const T, access::address_space::private_space, IsDecorated>
+    template <access::decorated IsDecorated>
+    multi_ptr<const T, access::address_space::private_space, IsDecorated>
     get_multi_ptr() const noexcept;
 
-  // Access the underlying data
-  operator T&() noexcept;
-  operator const T&() const noexcept;
- 
-  T& get() noexcept;
-  const T& get() const noexcept;
+    // Access the underlying data
+    operator T &() noexcept;
+    operator const T &() const noexcept;
 
-  // Enable assignments from underlying type
-  fpga_mem& operator=(const T&) noexcept;
+    T &get() noexcept;
+    const T &get() const noexcept;
 
-  // Note that there is no need for "fpga_mem" to define member functions for
-  // operators like "++", "[]", "->", comparison, etc. Instead, the type "T" 
-  // need only define these operators as non-member functions. Because there 
-  // is an implicit conversion from "fpga_mem" to "T&", the operations can be 
-  // applied to objects of type "fpga_mem<T>"
+    // Enable assignments from underlying type
+    fpga_mem &operator=(const T &) noexcept;
 
-  template<typename propertyT>
-  static constexpr bool has_property();
+    // Note that there is no need for "fpga_mem" to define member functions
+    // for operators like "++", "[]", "->", comparison, etc. Instead, the type
+    // "T" need only define these operators as non-member functions. Because
+    // there is an implicit conversion from "fpga_mem" to "T&", the operations
+    // can be applied to objects of type "fpga_mem<T>"
 
-  // The return type is an unspecified internal class used to represent 
-  // instances of propertyT
-  template<typename propertyT>
-  static constexpr /*unspecified*/ get_property();
-};
+    template <typename propertyT> static constexpr bool has_property();
+
+    // The return type is an unspecified internal class used to represent
+    // instances of propertyT
+    template <typename propertyT>
+    static constexpr /*unspecified*/ get_property();
+  };
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -288,109 +286,113 @@ as shown in this example:
 using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental;
 
-fpga_mem<MyClass, decltype(properties(resource<mlab>)> dm1;
+fpga_mem<MyClass, decltype(properties(resource_mlab))> dm1;
 ----
 
-The following code synopsis shows the set of supported properties, and the
-following table describes their effect.
+The following code synopsis shows the set of supported properties,
+and the following table describes their effect.
 
-[source,c++]
+[source, c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-enum class resource_enum : std::uint16_t { mlab, block_ram };
+  enum class resource_enum : std::uint16_t { mlab, block_ram };
 
-struct resource_key {
-  template <resource_enum Resource>
-  using value_t =
-      property_value<resource_key,
-                     std::integral_constant<resource_enum, Resource>>;
-};
+  struct resource_key {
+    template <resource_enum Resource>
+    using value_t =
+        property_value<resource_key,
+                       std::integral_constant<resource_enum, Resource>>;
+  };
 
-struct num_banks_key {
-  template <size_t elements>
-  using value_t = property_value<num_banks_key, std::integral_constant<elements>>;
-};
+  struct num_banks_key {
+    template <size_t elements>
+    using value_t =
+        property_value<num_banks_key, std::integral_constant<elements>>;
+  };
 
-struct stride_size_key {
-  template <size_t elements>
-  using value_t = property_value<stride_size_key, std::integral_constant<elements>>;
-};
+  struct stride_size_key {
+    template <size_t elements>
+    using value_t =
+        property_value<stride_size_key, std::integral_constant<elements>>;
+  };
 
-struct word_size_key {
-  template <size_t elements>
-  using value_t = property_value<word_size_key, std::integral_constant<elements>>;
-};
+  struct word_size_key {
+    template <size_t elements>
+    using value_t =
+        property_value<word_size_key, std::integral_constant<elements>>;
+  };
 
-enum class port_direction_enum : std::uint16_t { uni, bi };
+  enum class port_direction_enum : std::uint16_t { uni, bi };
 
-struct port_direction_key {
-  template <port_direction_enum Port_direction>
-  using value_t =
-      property_value<port_direction_key,
-                     std::integral_constant<port_direction_enum, 
-                     Port_direction>>;
-};
+  struct port_direction_key {
+    template <port_direction_enum Port_direction>
+    using value_t = property_value<
+        port_direction_key,
+        std::integral_constant<port_direction_enum, Port_direction>>;
+  };
 
-struct clock_2x_key {
-  template <bool Enable>
-  using value_t = property_value<clock_2x_key, std::bool_constant<Enable>>;
-};
+  struct clock_2x_key {
+    template <bool Enable>
+    using value_t = property_value<clock_2x_key, std::bool_constant<Enable>>;
+  };
 
-enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
+  enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
 
-struct ram_stritching_key {
-  template <ram_stritching_enum Ram_stritching>
-  using value_t =
-      property_value<ram_stritching_key,
-                     std::integral_constant<ram_stritching_enum, 
-                     Ram_stritching>>;
-};
+  struct ram_stritching_key {
+    template <ram_stritching_enum Ram_stritching>
+    using value_t = property_value<
+        ram_stritching_key,
+        std::integral_constant<ram_stritching_enum, Ram_stritching>>;
+  };
 
-struct private_copies_key {
+  struct private_copies_key {
+    template <size_t n>
+    using value_t =
+        property_value<private_copies_key, std::integral_constant<n>>;
+  };
+
+  struct num_replicates_key {
+    template <size_t n>
+    using value_t =
+        property_value<num_replicates_key, std::integral_constant<n>>;
+  };
+
+  template <resource_enum r> inline constexpr resource_key::value_t<r> resource;
+  inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
+  inline constexpr resource_key::value_t<resource_enum::block_ram>
+      resource_block_ram;
+
+  template <size_t e> inline constexpr num_banks_key::value_t<e> num_banks;
+
+  template <size_t e> inline constexpr stride_size_key::value_t<e> stride_size;
+
+  template <size_t e> inline constexpr word_size_key::value_t<e> word_size;
+
+  template <port_direction_enum d>
+  inline constexpr port_direction_key::value_t<d> port_direction;
+  inline constexpr port_direction_key::value_t<port_direction_enum::uni>
+      port_direction_uni;
+  inline constexpr port_direction_key::value_t<port_direction_enum::bi>
+      port_direction_bi;
+
+  template <bool b>
+  inline constexpr clock_2x_key::value_t<b> clock_2x;
+  inline constexpr clock_2x_key::value_t<true> clock_2x_true;
+  inline constexpr clock_2x_key::value_t<false> clock_2x_false;
+
+  template <ram_stitching_enum d>
+  inline constexpr ram_stitching_key::value_t<d> ram_stitching;
+  inline constexpr ram_stitching_key::value_t<ram_stitching_enum::min_ram>
+      ram_stitching_min_ram;
+  inline constexpr ram_stitching_key::value_t<ram_stitching_enum::max_fmax>
+      ram_stitching_max_fmax;
+
   template <size_t n>
-  using value_t = property_value<private_copies_key, std::integral_constant<n>>;
-};
+  inline constexpr private_copies_key::value_t<n> private_copies;
 
-struct num_replicates_key {
   template <size_t n>
-  using value_t = property_value<num_replicates_key, std::integral_constant<n>>;
-};
-
-template<resource_enum r>
-inline constexpr resource_key::value_t<r> resource;
-inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
-inline constexpr resource_key::value_t<resource_enum::block_ram> resource_block_ram;
-
-template<size_t e>
-inline constexpr num_banks_key::value_t<e> num_banks;
-
-template<size_t e>
-inline constexpr stride_size_key::value_t<e> stride_size;
-
-template<size_t e>
-inline constexpr word_size_key::value_t<e> word_size;
-
-template<port_direction_enum d>
-inline constexpr port_direction_key::value_t<d> port_direction;
-inline constexpr port_direction_key::value_t<port_direction_enum::uni> port_direction_uni;
-inline constexpr port_direction_key::value_t<port_direction_enum::bi> port_direction_bi;
-
-template<bool b>
-inline constexpr clock_2x_key::value_t<b> clock_2x;
-inline constexpr clock_2x_key::value_t<true> clock_2x_true;
-inline constexpr clock_2x_key::value_t<false> clock_2x_false;
-
-template<ram_stitching_enum d>
-inline constexpr ram_stitching_key::value_t<d> ram_stitching;
-inline constexpr ram_stitching_key::value_t<ram_stitching_enum::min_ram> ram_stitching_min_ram;
-inline constexpr ram_stitching_key::value_t<ram_stitching_enum::max_fmax> ram_stitching_max_fmax;
-
-template<size_t n>
-inline constexpr private_copies_key::value_t<n> private_copies;
-
-template<size_t n>
-inline constexpr num_replicates_key::value_t<n> num_replicates;
+  inline constexpr num_replicates_key::value_t<n> num_replicates;
 
 } // namespace sycl::ext:intel:
 ----
