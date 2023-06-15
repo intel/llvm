@@ -17,7 +17,7 @@
 
 // Test
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 platform::platform() : platform(default_selector_v) {}
 
