@@ -921,14 +921,13 @@ typedef enum ur_device_info_t {
                                                                   ///< available for this device.
     UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 106,     ///< [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
                                                                   ///< point
-    UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                        ///< [::ur_bool_t] Return 1 if the device doesn't have a notion of a "queue
-                                                                  ///< index". Otherwise,
-                                                                  ///< return the number of queue indices that are available for this device.
+    UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                        ///< [uint32_t] return the width in bits of the memory bus interface of the
+                                                                  ///< device.
     UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                      ///< [size_t[3]] return max 3D work groups
     UR_DEVICE_INFO_ASYNC_BARRIER = 109,                           ///< [::ur_bool_t] return true if Async Barrier is supported
     UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                     ///< [::ur_bool_t] return true if specifying memory channels is supported
-    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,          ///< [::ur_bool_t] Return true if the device supports enqueing commands to
-                                                                  ///< read and write pipes from the host.
+    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,          ///< [::ur_bool_t] Return true if the device supports enqueueing commands
+                                                                  ///< to read and write pipes from the host.
     UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,            ///< [uint32_t] The maximum number of registers available per block.
     UR_DEVICE_INFO_IP_VERSION = 113,                              ///< [uint32_t] The device IP version. The meaning of the device IP version
                                                                   ///< is implementation-defined, but newer devices should have a higher

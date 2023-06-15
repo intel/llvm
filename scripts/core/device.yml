@@ -370,9 +370,7 @@ etors:
     - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
       desc: "[$x_bool_t] support the $xKernelSetSpecializationConstants entry point"
     - name: MEMORY_BUS_WIDTH
-      desc: |
-            [$x_bool_t] Return 1 if the device doesn't have a notion of a "queue index". Otherwise,
-            return the number of queue indices that are available for this device.
+      desc: "[uint32_t] return the width in bits of the memory bus interface of the device."
     - name: MAX_WORK_GROUPS_3D
       desc: "[size_t[3]] return max 3D work groups"
     - name: ASYNC_BARRIER
@@ -380,7 +378,7 @@ etors:
     - name: MEM_CHANNEL_SUPPORT
       desc: "[$x_bool_t] return true if specifying memory channels is supported"
     - name: HOST_PIPE_READ_WRITE_SUPPORTED
-      desc: "[$x_bool_t] Return true if the device supports enqueing commands to read and write pipes from the host."
+      desc: "[$x_bool_t] Return true if the device supports enqueueing commands to read and write pipes from the host."
     - name: MAX_REGISTERS_PER_WORK_GROUP
       desc: "[uint32_t] The maximum number of registers available per block."
     - name: IP_VERSION
