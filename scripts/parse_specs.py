@@ -558,6 +558,8 @@ def _generate_meta(d, ordinal, meta):
             for idx, etor in enumerate(d['etors']):
                 meta[type][name]['etors'].append(etor['name'])
                 value = _get_etor_value(etor.get('value'), value)
+                if not etor.get('value'):
+                    etor['value'] = str(value)
                 if type_traits.is_flags(name):
                     bit_mask |= value
                 if value > max_value:
@@ -568,7 +570,7 @@ def _generate_meta(d, ordinal, meta):
                 if bit_mask != 0:
                     meta[type][name]['bit_mask'] = hex(ctypes.c_uint32(~bit_mask).value)
             else:
-                meta[type][name]['max'] = d['etors'][idx]['name']
+                meta[type][name]['max'] = d['etors'][max_index]['name']
 
         elif 'macro' == type:
             meta[type][name]['values'] = []
@@ -797,6 +799,31 @@ def _generate_ref(specs, tags, ref):
 
     return ref
 
+def refresh_enum_meta(obj, header, meta):
+    ## remove the existing meta records
+    if obj.get('class'):
+        meta['class'][obj['class']]['enum'].remove(obj['name'])
+        
+    del meta['enum'][obj['name']]
+    ## re-generate meta
+    meta = _generate_meta(obj, header['ordinal'], meta)
+
+
+def handle_enum_extensions(d, specs, header, meta):
+    matching_enum = [obj for s in specs for obj in s['objects'] if obj['type'] == 'enum' and d['name'] == obj['name']][0]
+    matching_enum['etors'].extend(d['etors'])
+    
+    ## Refresh metadata
+    refresh_enum_meta(matching_enum, header, meta)
+
+    ## Sort the etors
+    value = -1
+    def sort_etors(x):
+        nonlocal value 
+        value = _get_etor_value(x.get('value'), value)
+        return value
+    matching_enum['etors'] = sorted(matching_enum['etors'], key=sort_etors)
+
 
 """
 Entry-point:
@@ -830,6 +857,10 @@ def parse(section, version, tags, meta, ref):
 
             d = _filter_version(d, float(version))
             if not d:
+                continue
+
+            if d['type'] == "enum" and d.get("extend") == True:
+                handle_enum_extensions(d, specs, header, meta)
                 continue
 
             # extract header from objects

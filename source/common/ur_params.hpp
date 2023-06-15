@@ -651,8 +651,20 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
         os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
         break;
 
+    case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
+        os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
+        break;
+
     case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP:
         os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP";
+        break;
+
+    case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP:
+        os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP";
+        break;
+
+    case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP";
         break;
 
     case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
@@ -780,20 +792,20 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
-        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
-        break;
-
-    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
-        break;
-
     case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES";
         break;
 
     case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -965,18 +977,6 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC: {
-        const ur_exp_command_buffer_desc_t *pstruct =
-            (const ur_exp_command_buffer_desc_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
-    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES: {
-        const ur_exp_sampler_mip_properties_t *pstruct =
-            (const ur_exp_sampler_mip_properties_t *)ptr;
-        ur_params::serializePtr(os, pstruct);
-    } break;
-
     case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES: {
         const ur_kernel_arg_mem_obj_properties_t *pstruct =
             (const ur_kernel_arg_mem_obj_properties_t *)ptr;
@@ -986,6 +986,18 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES: {
         const ur_physical_mem_properties_t *pstruct =
             (const ur_physical_mem_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC: {
+        const ur_exp_command_buffer_desc_t *pstruct =
+            (const ur_exp_command_buffer_desc_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES: {
+        const ur_exp_sampler_mip_properties_t *pstruct =
+            (const ur_exp_sampler_mip_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:

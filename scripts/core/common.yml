@@ -332,10 +332,6 @@ etors:
       desc: $x_queue_native_desc_t
     - name: DEVICE_PARTITION_PROPERTIES
       desc: $x_device_partition_properties_t
-    - name: EXP_COMMAND_BUFFER_DESC
-      desc: $x_exp_command_buffer_desc_t
-    - name: EXP_SAMPLER_MIP_PROPERTIES
-      desc: $x_exp_sampler_mip_properties_t
     - name: KERNEL_ARG_MEM_OBJ_PROPERTIES
       desc: $x_kernel_arg_mem_obj_properties_t
     - name: PHYSICAL_MEM_PROPERTIES
