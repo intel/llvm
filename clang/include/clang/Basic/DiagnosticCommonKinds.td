@@ -301,6 +301,9 @@ def warn_stack_clash_protection_inline_asm : Warning<
 def warn_slh_does_not_support_asm_goto : Warning<
   "speculative load hardening does not protect functions with asm goto">,
   InGroup<DiagGroup<"slh-asm-goto">>;
+
+def err_drv_incompatible_options : Error<
+  "the combination of '%0' and '%1' is incompatible">;
 }
 
 // Sema && Serialization

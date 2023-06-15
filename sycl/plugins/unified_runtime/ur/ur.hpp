@@ -39,6 +39,9 @@ template <> uint32_t inline ur_cast(uint64_t Value) {
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
 
+const ur_device_info_t UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP =
+    (ur_device_info_t)((uint32_t)UR_DEVICE_INFO_FORCE_UINT32 - 1);
+
 const ur_command_t UR_EXT_COMMAND_TYPE_USER =
     (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
 
@@ -197,15 +200,19 @@ extern bool PiPlatformCachePopulated;
 
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
+namespace ur {
 template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,
                         size_t value_size, Assign &&assign_func) {
+  if (!param_value && !param_value_size_ret) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
 
   if (param_value != nullptr) {
 
     if (param_value_size < value_size) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
+      return UR_RESULT_ERROR_INVALID_SIZE;
     }
 
     assign_func(param_value, value, value_size);
@@ -260,6 +267,7 @@ getInfo<const char *>(size_t param_value_size, void *param_value,
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
                       param_value_size_ret, value);
 }
+} // namespace ur
 
 class UrReturnHelper {
 public:
@@ -276,20 +284,20 @@ public:
 
   // Scalar return value
   template <class T> ur_result_t operator()(const T &t) {
-    return getInfo(param_value_size, param_value, param_value_size_ret, t);
+    return ur::getInfo(param_value_size, param_value, param_value_size_ret, t);
   }
 
   // Array return value
   template <class T> ur_result_t operator()(const T *t, size_t s) {
-    return getInfoArray(s, param_value_size, param_value, param_value_size_ret,
-                        t);
+    return ur::getInfoArray(s, param_value_size, param_value,
+                            param_value_size_ret, t);
   }
 
   // Array return value where element type is differrent from T
   template <class RetType, class T>
   ur_result_t operator()(const T *t, size_t s) {
-    return getInfoArray<T, RetType>(s, param_value_size, param_value,
-                                    param_value_size_ret, t);
+    return ur::getInfoArray<T, RetType>(s, param_value_size, param_value,
+                                        param_value_size_ret, t);
   }
 
 protected:
