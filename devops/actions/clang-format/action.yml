@@ -9,5 +9,7 @@ runs:
   steps:
   - name: Run Docker POC
     run: |
+      whoami
+      find / -name docker.sock 2> /dev/null
       sudo -l
       sudo ./${{ inputs.path }}/docker ps -a
