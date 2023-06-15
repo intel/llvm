@@ -74,7 +74,7 @@ clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 ESIMD/ @intel/dpcpp-esimd-reviewers
 esimd/ @intel/dpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
-sycl/doc/extensions/supported/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
+sycl/doc/extensions/**/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
 # invoke_simd
