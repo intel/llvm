@@ -391,3 +391,57 @@ etors:
 - name: COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMembufferCopyRectExp
   value: '131'
+- name: USM_PITCHED_ALLOC_EXP
+  desc: Enumerator for $xUSMPitchedAllocExp
+  value: '132'
+- name: BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP
+  desc: Enumerator for $xBindlessImagesUnsampledImageHandleDestroyExp
+  value: '133'
+- name: BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP
+  desc: Enumerator for $xBindlessImagesSampledImageHandleDestroyExp
+  value: '134'
+- name: BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP
+  desc: Enumerator for $xBindlessImagesImageAllocateExp
+  value: '135'
+- name: BINDLESS_IMAGES_IMAGE_FREE_EXP
+  desc: Enumerator for $xBindlessImagesImageFreeExp
+  value: '136'
+- name: BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP
+  desc: Enumerator for $xBindlessImagesUnsampledImageCreateExp
+  value: '137'
+- name: BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP
+  desc: Enumerator for $xBindlessImagesSampledImageCreateExp
+  value: '138'
+- name: BINDLESS_IMAGES_IMAGE_COPY_EXP
+  desc: Enumerator for $xBindlessImagesImageCopyExp
+  value: '139'
+- name: BINDLESS_IMAGES_IMAGE_GET_INFO_EXP
+  desc: Enumerator for $xBindlessImagesImageGetInfoExp
+  value: '140'
+- name: BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP
+  desc: Enumerator for $xBindlessImagesMipmapGetLevelExp
+  value: '141'
+- name: BINDLESS_IMAGES_MIPMAP_FREE_EXP
+  desc: Enumerator for $xBindlessImagesMipmapFreeExp
+  value: '142'
+- name: BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP
+  desc: Enumerator for $xBindlessImagesImportOpaqueFDExp
+  value: '143'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalArrayExp
+  value: '144'
+- name: BINDLESS_IMAGES_RELEASE_INTEROP_EXP
+  desc: Enumerator for $xBindlessImagesReleaseInteropExp
+  value: '145'
+- name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP
+  desc: Enumerator for $xBindlessImagesImportExternalSemaphoreOpaqueFDExp
+  value: '146'
+- name: BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesDestroyExternalSemaphoreExp
+  value: '147'
+- name: BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesWaitExternalSemaphoreExp
+  value: '148'
+- name: BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesSignalExternalSemaphoreExp
+  value: '149'
