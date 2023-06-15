@@ -329,10 +329,10 @@ params:
       desc: "[in] queried info name"
     - type: void*
       name: pPropValue
-      desc: "[out] returned query value"
+      desc: "[out][optional] returned query value"
     - type: "size_t*"
       name: pPropSizeRet
-      desc: "[out] returned query value size"
+      desc: "[out][optional] returned query value size"
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
         - "If `propName` is not supported by the adapter."
