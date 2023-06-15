@@ -297,7 +297,10 @@ intel_gpu_skl:
 The frontend module should parse the user-provided `.yaml` file and update the
 map with the new information about targets. LLVM provides
 [YAML/IO](https://llvm.org/docs/YamlIO.html) library to easily parse `.yaml`
-files.
+files. The driver should propagate this option to all the tools that require
+the Device Configuration File (e.g. `sycl-post-link`) so that each of the
+tools can modify the map according to the user extensions described in the 
+`.yaml` file. 
 
 As mentioned in [Requirements](#Requirements), there is an auto-detection
 mechanism for `aot-toolchain` and `aot-toolchain-options` that is able to
