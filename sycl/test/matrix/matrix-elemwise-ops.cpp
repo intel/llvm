@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -O2 %s -o %t.out
 
-// REQUIRES: TEMPORARY_DISABLED
-
 #include <iostream>
 #include <sycl/sycl.hpp>
 
