@@ -382,9 +382,9 @@
 ??$has_property@Vuse_primary_context@cuda@context@property@_V1@sycl@@@image_plain@detail@_V1@sycl@@IEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@_V1@sycl@@@sampler@_V1@sycl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
+??0?$command_graph@$00@experimental@oneapi@ext@_V1@sycl@@AEAA@AEBV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@AEBVcontext@45@@Z
 ??0?$command_graph@$00@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0?$command_graph@$00@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
-??0?$command_graph@$00@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@AEBVcontext@45@@Z
 ??0?$command_graph@$0A@@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0?$command_graph@$0A@@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
 ??0?$command_graph@$0A@@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@AEBVdevice@45@AEBVproperty_list@45@@Z
