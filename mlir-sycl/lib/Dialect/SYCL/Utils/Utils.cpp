@@ -58,3 +58,21 @@ sycl::createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
       builder.getI64IntegerAttr(targetToAddressSpace(accTy.getTargetMode())));
   return builder.create<SYCLAccessorSubscriptOp>(loc, MT, accessor, id);
 }
+
+void sycl::populateWorkGroupSize(SmallVectorImpl<Value> &wgSizes,
+                                 unsigned numDims, OpBuilder builder) {
+  const auto arrayType = builder.getType<sycl::ArrayType>(
+      numDims, MemRefType::get(numDims, builder.getIndexType()));
+  const auto rangeTy = builder.getType<sycl::RangeType>(numDims, arrayType);
+  Location loc = builder.getUnknownLoc();
+  auto wgSize = builder.create<sycl::SYCLWorkGroupSizeOp>(loc, rangeTy);
+  auto range =
+      builder.create<memref::AllocaOp>(loc, MemRefType::get(1, rangeTy));
+  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+  builder.create<memref::StoreOp>(loc, wgSize, range, zeroIndex);
+  for (unsigned dim = 0; dim < numDims; ++dim) {
+    Value rangeGetOp = sycl::createSYCLRangeGetOp(range, dim, builder, loc);
+    wgSizes.push_back(
+        builder.create<memref::LoadOp>(loc, rangeGetOp, zeroIndex));
+  }
+}

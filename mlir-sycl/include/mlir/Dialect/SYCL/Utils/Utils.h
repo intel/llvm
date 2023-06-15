@@ -45,6 +45,11 @@ SYCLAccessorSubscriptOp createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
                                                       OpBuilder builder,
                                                       Location loc);
 
+/// Populate \p wgSizes with workgroup size per dimensionality, given the rank
+/// \p numDims.
+void populateWorkGroupSize(SmallVectorImpl<Value> &wgSizes, unsigned numDims,
+                           OpBuilder builder);
+
 } // namespace sycl
 } // namespace mlir
 

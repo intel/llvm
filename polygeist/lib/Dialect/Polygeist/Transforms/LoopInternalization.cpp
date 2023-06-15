@@ -53,6 +53,9 @@ namespace {
 class WorkGroupSize {
 public:
   using ElemTy = std::variant<Value, unsigned>;
+
+  /// Construct a SYCL work group size object given the rank \p numDims and the
+  /// SYCL 'reqd_work_group_size' attribute \p reqdWorkGroupSize.
   WorkGroupSize(unsigned numDims,
                 const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                 OpBuilder builder);
@@ -80,8 +83,6 @@ public:
   }
 
 private:
-  void populateWorkGroupSize(unsigned numDims, OpBuilder builder);
-
   SmallVector<ElemTy> wgSizes;
 };
 
@@ -186,6 +187,7 @@ bool isCandidateFunction(FunctionOpInterface func) {
   if (func.getNumArguments() == 0)
     return false;
   Type lastArgTy = func.getArgumentTypes().back();
+  // TODO: Also allow `isPtrOf<sycl::IDType>(lastArgTy)`.
   if (!sycl::isPtrOf<sycl::NdItemType>(lastArgTy) &&
       !sycl::isPtrOf<sycl::ItemType>(lastArgTy))
     return false;
@@ -494,20 +496,6 @@ SmallVector<Value> getIndexes(sycl::SYCLAccessorSubscriptOp accSub,
   return indexes;
 }
 
-/// Return the grid dimension for \p func (e.g the dimension of the
-/// sycl::nd_item or sycl::item argument passed to the function).
-unsigned getGridDimension(FunctionOpInterface func) {
-  assert(func.getNumArguments() > 0 && "Expecting at least one argument");
-  Type lastArgTy = func.getArgumentTypes().back();
-  Type elemTy = cast<MemRefType>(lastArgTy).getElementType();
-  return TypeSwitch<Type, unsigned>(elemTy)
-      .Case<sycl::NdItemType, sycl::ItemType>([](auto ty) {
-        unsigned dim = ty.getDimension();
-        assert(dim > 0 && dim <= 3 && "Dimension out of range");
-        return dim;
-      });
-}
-
 /// Determine whether \p user uses \p use (directly or indirectly).
 bool usesValue(Value user, Value use) {
   assert(user && use && "Expecting valid user and use");
@@ -561,8 +549,8 @@ WorkGroupSize::WorkGroupSize(unsigned numDims,
                              const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                              OpBuilder builder) {
   assert((reqdWorkGroupSize.empty() || reqdWorkGroupSize.size() == numDims) &&
-         "Expecting reqdWorkGroupSize to have same number of elements as "
-         "numDims");
+         "Expecting 'reqdWorkGroupSize' to have same number of elements as "
+         "'numDims'");
 
   // Use constants provided by reqd_work_group_size if given (non-empty).
   if (!reqdWorkGroupSize.empty()) {
@@ -571,24 +559,10 @@ WorkGroupSize::WorkGroupSize(unsigned numDims,
     return;
   }
 
-  populateWorkGroupSize(numDims, builder);
-}
-
-void WorkGroupSize::populateWorkGroupSize(unsigned numDims, OpBuilder builder) {
-  const auto arrayType = builder.getType<sycl::ArrayType>(
-      numDims, MemRefType::get(numDims, builder.getIndexType()));
-  const auto rangeTy = builder.getType<sycl::RangeType>(numDims, arrayType);
-  Location loc = builder.getUnknownLoc();
-  auto wgSize = builder.create<sycl::SYCLWorkGroupSizeOp>(loc, rangeTy);
-  auto range =
-      builder.create<memref::AllocaOp>(loc, MemRefType::get(1, rangeTy));
-  const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  builder.create<memref::StoreOp>(loc, wgSize, range, zeroIndex);
-  for (unsigned dim = 0; dim < numDims; ++dim) {
-    Value rangeGetOp = sycl::createSYCLRangeGetOp(range, dim, builder, loc);
-    wgSizes.push_back(
-        builder.create<memref::LoadOp>(loc, rangeGetOp, zeroIndex));
-  }
+  SmallVector<Value> wgSizeVals;
+  sycl::populateWorkGroupSize(wgSizeVals, numDims, builder);
+  for (Value wgSize : wgSizeVals)
+    wgSizes.push_back(wgSize);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1127,6 +1101,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
 
   // Get or create work group size.
   const unsigned numDims = getGridDimension(func);
+  assert(numDims > 0 && numDims <= 3 && "Dimension out of range");
   OpBuilder builder(func->getRegion(0));
   WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
   std::variant<Value, unsigned> reqdDynamicLocalMemory =
