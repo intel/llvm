@@ -53,7 +53,11 @@ namespace {
 class WorkGroupSize {
 public:
   using ElemTy = std::variant<Value, unsigned>;
-  WorkGroupSize(Value ndItem, const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
+
+  /// Construct a SYCL work group size object given the rank \p numDims and the
+  /// SYCL 'reqd_work_group_size' attribute \p reqdWorkGroupSize.
+  WorkGroupSize(unsigned numDims,
+                const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                 OpBuilder builder);
 
   /// Return true if the work group size is known at compile time and false
@@ -78,8 +82,6 @@ public:
   }
 
 private:
-  Value getLocalRange(Value ndItem, unsigned dim, OpBuilder builder) const;
-
   SmallVector<ElemTy> wgSizes;
 };
 
@@ -178,11 +180,15 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   // TODO: check uniformity.
 }
 
-/// A function is a candidate iff it has an nd_item argument.
+/// A function is a candidate iff it has an sycl::nd_item or sycl::item
+/// argument.
 bool isCandidateFunction(FunctionOpInterface func) {
-  // TODO: construct nd_item when not passed in.
-  if (func.getNumArguments() == 0 ||
-      !sycl::isPtrOf<sycl::NdItemType>(func.getArgumentTypes().back()))
+  if (func.getNumArguments() == 0)
+    return false;
+  Type lastArgTy = func.getArgumentTypes().back();
+  // TODO: Also allow `isPtrOf<sycl::IDType>(lastArgTy)`.
+  if (!sycl::isPtrOf<sycl::NdItemType>(lastArgTy) &&
+      !sycl::isPtrOf<sycl::ItemType>(lastArgTy))
     return false;
   return true;
 }
@@ -207,16 +213,40 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
       innermostLoop->getSingleInductionVar() &&
       "Expecting single induction variable for affine for and scf for loops");
 
+  // Cannot tile loop that yield values.
+  if (Operation *innermostLoopOp = *innermostLoop;
+      innermostLoopOp->getNumResults() > 0)
+    return false;
+
   return true;
 }
 
-/// Get the argument of \p func with nd_item type.
-Value getNdItemArgument(FunctionOpInterface func) {
-  assert(func.getNumArguments() > 0 && "Expecting at least one argument");
-  Value lastArg = func.getArguments().back();
-  assert(sycl::isPtrOf<sycl::NdItemType>(lastArg.getType()) &&
-         "Expecting last argument to be nd_item");
-  return lastArg;
+/// An access is a candidate iff it is AffineLoadOp or AffineStoreOp, with int
+/// or float element type, and with accessor dimension the same as grid
+/// dimension.
+bool isCandidateAccess(Operation *op) {
+  assert(op && "Expecting valid op");
+
+  if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+    return false;
+
+  affine::MemRefAccess memRefAccess(op);
+  auto accSub = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(
+      memRefAccess.memref.getDefiningOp());
+  if (!accSub)
+    return false;
+
+  // Limitation: cannot calculate element size for non int or float type.
+  if (!cast<MemRefType>(accSub.getType()).getElementType().isIntOrFloat())
+    return false;
+
+  // TODO: Add support for accessors with dimensions not equals to the grid
+  // dimensions.
+  if (auto func = op->getParentOfType<FunctionOpInterface>();
+      getGridDimension(func) != getAccessorType(accSub).getDimension())
+    return false;
+
+  return true;
 }
 
 /// Get the size of unused shared local memory arena in bytes.
@@ -264,7 +294,7 @@ getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
   return reqdLocalMemory;
 }
 
-/// Get the require local memory for memrefs in \p loopToSharedMemref, i.e, for
+/// Get the require local memory for memRefs in \p loopToSharedMemref, i.e, for
 /// each kernel. If there are multiple loops in the kernel that require local
 /// memory, it returns the maximum amount required by any of them.
 std::variant<Value, unsigned>
@@ -335,21 +365,20 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
 }
 
 /// Tile an affine for \p loop given the tile size \p tileSize.
-LogicalResult tile(affine::AffineForOp loop, Value tileSize,
-                   SmallVectorImpl<affine::AffineForOp> &tiledNest) {
+void tile(affine::AffineForOp loop, Value tileSize,
+          SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
   LogicalResult res =
       tilePerfectlyNestedParametric({loop}, tileSize, &newNestedLoops);
+  assert(res.succeeded() && "Expecting innermost loop to be tiled");
   tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
                                                newNestedLoops.end());
-  return res;
 }
 
 /// Tile an SCF for \p loop given the tile size \p tileSize.
-LogicalResult tile(scf::ForOp loop, Value tileSize,
-                   SmallVectorImpl<scf::ForOp> &tiledNest) {
+void tile(scf::ForOp loop, Value tileSize,
+          SmallVectorImpl<scf::ForOp> &tiledNest) {
   tiledNest = tile({loop}, tileSize, loop);
-  return success();
 }
 
 /// Create a group barrier.
@@ -521,31 +550,24 @@ Value castToIndex(Value val) {
 // WorkGroupSize
 //===----------------------------------------------------------------------===//
 
-WorkGroupSize::WorkGroupSize(Value ndItem,
+WorkGroupSize::WorkGroupSize(unsigned numDims,
                              const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                              OpBuilder builder) {
-  auto ndItemTy = cast<sycl::NdItemType>(
-      cast<MemRefType>(ndItem.getType()).getElementType());
-  const unsigned numDims = ndItemTy.getDimension();
   assert((reqdWorkGroupSize.empty() || reqdWorkGroupSize.size() == numDims) &&
-         "Expecting reqdWorkGroupSize to have same number of elements as "
-         "nd_item dimension");
+         "Expecting 'reqdWorkGroupSize' to have same number of elements as "
+         "'numDims'");
 
-  for (unsigned dim = 0; dim < numDims; ++dim) {
-    // Use constants provided by reqd_work_group_size if given (non-empty).
-    if (!reqdWorkGroupSize.empty())
+  // Use constants provided by reqd_work_group_size if given (non-empty).
+  if (!reqdWorkGroupSize.empty()) {
+    for (unsigned dim = 0; dim < numDims; ++dim)
       wgSizes.push_back(reqdWorkGroupSize[dim]);
-    else
-      wgSizes.push_back(castToIndex(getLocalRange(ndItem, dim, builder)));
+    return;
   }
-}
 
-Value WorkGroupSize::getLocalRange(Value ndItem, unsigned dim,
-                                   OpBuilder builder) const {
-  return builder.create<sycl::SYCLNDItemGetLocalRangeOp>(
-      builder.getUnknownLoc(), builder.getI64Type(), ndItem,
-      builder.create<arith::ConstantIntOp>(builder.getUnknownLoc(), dim,
-                                           builder.getI32Type()));
+  SmallVector<Value> wgSizeVals;
+  sycl::populateWorkGroupSize(wgSizeVals, numDims, builder);
+  for (Value wgSize : wgSizeVals)
+    wgSizes.push_back(wgSize);
 }
 
 //===----------------------------------------------------------------------===//
@@ -952,16 +974,10 @@ void LoopInternalization::selectMemorySpace(
   memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+    if (!isCandidateAccess(op))
       return;
 
     affine::MemRefAccess memRefAccess(op);
-    // Limitation: cannot calculate element size for non int or float type.
-    if (!cast<MemRefType>(memRefAccess.memref.getType())
-             .getElementType()
-             .isIntOrFloat())
-      return;
-
     // Compute the ideal memory space if possible.
     std::optional<MemorySelector::MemorySpace> memSpace =
         memorySelector.getMemorySpace(memRefAccess.memref);
@@ -1067,10 +1083,10 @@ void LoopInternalization::transform(FunctionOpInterface func,
   SmallVector<gpu::GPUFuncOp> kernels;
   funcKernelInfo.getKernelCallers(func, kernels);
 
-  Value ndItem = getNdItemArgument(func);
+  const unsigned numDims = getGridDimension(func);
   sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
   OpBuilder builder(func->getRegion(0));
-  WorkGroupSize workGroupSize(ndItem, reqdWorkGroupSize, builder);
+  WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
 
   std::variant<Value, unsigned> reqdLocalMemory =
       getReqdLocalMemory(loopToSharedMemref, workGroupSize, builder);
@@ -1083,23 +1099,10 @@ void LoopInternalization::transform(FunctionOpInterface func,
     return;
   }
 
-  memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
-      getOperation(), std::holds_alternative<unsigned>(reqdLocalMemory)
-                          ? std::get<unsigned>(reqdLocalMemory)
-                          : localMemoryRemaining);
-
-  // Get or create work group size.
-  if (std::holds_alternative<Value>(reqdLocalMemory)) {
-    // TODO: Version with reqdLocalMemory <= localMemoryRemaining.
-  }
-
   // Create SYCL local ids corresponding to the grid dimensionality (per
   // kernel).
   SmallVector<Value> localIDs;
   Location loc = func.getLoc();
-  auto ndItemTy = cast<sycl::NdItemType>(
-      cast<MemRefType>(ndItem.getType()).getElementType());
-  const unsigned numDims = ndItemTy.getDimension();
   const auto arrayType = builder.getType<sycl::ArrayType>(
       numDims, MemRefType::get(numDims, builder.getIndexType()));
   const auto idTy = builder.getType<sycl::IDType>(numDims, arrayType);
@@ -1111,6 +1114,11 @@ void LoopInternalization::transform(FunctionOpInterface func,
     Value idGetOp = sycl::createSYCLIDGetOp(id, dim, builder, loc);
     localIDs.push_back(builder.create<memref::LoadOp>(loc, idGetOp, zeroIndex));
   }
+
+  memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
+      getOperation(), std::holds_alternative<unsigned>(reqdLocalMemory)
+                          ? std::get<unsigned>(reqdLocalMemory)
+                          : localMemoryRemaining);
 
   // Now that we have a list of memref to promote to shared memory in each
   // loop nest's innermost loop, perform the transformation.
@@ -1153,13 +1161,11 @@ void LoopInternalization::transform(T loop,
   auto getGlobalOp = builder.create<memref::GetGlobalOp>(
       loop.getLoc(), workGroupLocalMemory.getType(),
       workGroupLocalMemory.getName());
-  const SetVector<Operation *> &memrefs = loopToSharedMemref.at(loop);
+  const SetVector<Operation *> &memRefs = loopToSharedMemref.at(loop);
 
   // Tile the loop.
   SmallVector<T> tiledNest;
-  LogicalResult res =
-      tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
-  assert(res.succeeded() && "Expecting innermost loop to be tiled");
+  tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
   ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 
@@ -1169,7 +1175,7 @@ void LoopInternalization::transform(T loop,
   builder.setInsertionPointToStart(loop->getBlock());
   std::variant<Value, unsigned> offset =
       ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
-  for (Operation *memref : memrefs) {
+  for (Operation *memref : memRefs) {
     Location loc = memref->getLoc();
     sycl::AccessorType accTy =
         getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
@@ -1182,7 +1188,7 @@ void LoopInternalization::transform(T loop,
     promote(memref, view, loopInfo, localIDs, builder, solver);
 
     // Only increment offset when the current memref is not the last one.
-    if (memref != *memrefs.rbegin()) {
+    if (memref != *memRefs.rbegin()) {
       std::variant<Value, unsigned> reqdLocalMemory =
           getReqdLocalMemory(accTy, workGroupSize, builder);
       offset = ValueOrUnsigned::add(offset, reqdLocalMemory, builder);
