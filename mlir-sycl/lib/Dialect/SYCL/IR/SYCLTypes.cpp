@@ -83,6 +83,7 @@ template <typename T> bool isPtrOf(Type type) {
 }
 template bool isPtrOf<AccessorType>(Type);
 template bool isPtrOf<IDType>(Type);
+template bool isPtrOf<ItemType>(Type);
 template bool isPtrOf<NdItemType>(Type);
 
 bool AccessorPtrValue::classof(Value v) {

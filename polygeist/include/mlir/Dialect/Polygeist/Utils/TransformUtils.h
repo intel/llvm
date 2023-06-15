@@ -72,6 +72,11 @@ void privatize(FunctionOpInterface);
 /// Returns true if the given call is a tail call.
 bool isTailCall(CallOpInterface);
 
+/// Return the grid dimension for \p func (e.g the dimension of the
+/// sycl::nd_item or sycl::item argument passed to the function).
+/// Return zero if it cannot identify the grid dimension.
+unsigned getGridDimension(FunctionOpInterface func);
+
 /// Return the accessor used by \p op if found, and std::nullopt otherwise.
 Optional<Value> getAccessorUsedByOperation(const Operation &op);
 
