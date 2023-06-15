@@ -1597,6 +1597,28 @@ private:
   SourceLocation LastStopPoint;
 
 public:
+  /// Class to manage the BuiltinID for the current builtin expression during
+  /// processing in EmitBuiltinExpr.
+  class CurrentBuiltinIDRAII {
+    CodeGenFunction &CGF;
+    unsigned SavedBuiltinID;
+
+  public:
+    CurrentBuiltinIDRAII(CodeGenFunction &CGF, unsigned BuiltinID)
+        : CGF(CGF), SavedBuiltinID(CGF.CurrentBuiltinID) {
+      CGF.CurrentBuiltinID = BuiltinID;
+    }
+    ~CurrentBuiltinIDRAII() { CGF.CurrentBuiltinID = SavedBuiltinID; }
+  };
+
+private:
+  unsigned CurrentBuiltinID = /*NotBuiltin*/ 0;
+
+public:
+  unsigned getCurrentBuiltinID() const {
+    assert(CurrentBuiltinID != /*NotBuiltin*/ 0);
+    return CurrentBuiltinID;
+  }
   /// Source location information about the default argument or member
   /// initializer expression we're evaluating, if any.
   CurrentSourceLocExprScope CurSourceLocExprScope;
@@ -4288,6 +4310,11 @@ public:
   RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
+
+  llvm::CallInst *
+  EmitFPBuiltinIndirectCall(llvm::FunctionType *IRFuncTy,
+                            const SmallVectorImpl<llvm::Value *> &IRArgs,
+                            llvm::Value *FnPtr, const FunctionDecl *FD);
 
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);

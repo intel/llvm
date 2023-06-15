@@ -203,9 +203,9 @@ event handler::finalize() {
       // this faster path is used to submit kernel bypassing scheduler and
       // avoiding CommandGroup, Command objects creation.
 
-      std::vector<RT::PiEvent> RawEvents;
+      std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
-      RT::PiEvent *OutEvent = nullptr;
+      sycl::detail::pi::PiEvent *OutEvent = nullptr;
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
