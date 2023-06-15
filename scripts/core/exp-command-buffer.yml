@@ -12,6 +12,39 @@ type: header
 desc: "Intel $OneApi Unified Runtime Experimental APIs for Command-Buffers"
 ordinal: "99"
 --- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Experimental Command Buffer result type enums."
+name: $x_result_t
+etors:
+    - name: ERROR_INVALID_COMMAND_BUFFER_EXP
+      value: "0x1000"
+      desc: "Invalid Command-Buffer"
+    - name: ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+      value: "0x1001"
+      desc: "Sync point is not valid for the command-buffer"
+    - name: ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+      value: "0x1002"
+      desc: "Sync point wait list is invalid"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Extend enumeration of Command Buffer Structure Type."
+name: $x_structure_type_t
+etors:
+    - name: EXP_COMMAND_BUFFER_DESC
+      desc: $x_exp_command_buffer_desc_t
+      value: "0x1000"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Extend command type enumeration for Command-Buffer experimental feature."
+name: $x_command_t
+etors:
+    - name: COMMAND_BUFFER_ENQUEUE_EXP
+      desc: Event created by $xCommandBufferEnqueueExp
+      value: "0x1000"
+--- #--------------------------------------------------------------------------
 type: macro
 desc: "The extension string which defines support for command-buffers which is returned when querying device extensions."
 name: $X_COMMAND_BUFFER_EXTENSION_STRING_EXP
