@@ -213,7 +213,7 @@ exec_graph_impl::~exec_graph_impl() { MSchedule.clear(); }
 
 sycl::event exec_graph_impl::enqueue(
     const std::shared_ptr<sycl::detail::queue_impl> &Queue) {
-  std::vector<RT::PiEvent> RawEvents;
+  std::vector<sycl::detail::pi::PiEvent> RawEvents;
   auto CreateNewEvent([&]() {
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
     NewEvent->setContextImpl(Queue->getContextImplPtr());
@@ -226,7 +226,7 @@ sycl::event exec_graph_impl::enqueue(
   {
     std::vector<std::shared_ptr<sycl::detail::event_impl>> ScheduledEvents;
     for (auto &NodeImpl : MSchedule) {
-      std::vector<RT::PiEvent> RawEvents;
+      std::vector<sycl::detail::pi::PiEvent> RawEvents;
 
       // If the node has no requirements for accessors etc. then we skip the
       // scheduler and enqueue directly.
@@ -240,7 +240,7 @@ sycl::event exec_graph_impl::enqueue(
             static_cast<sycl::detail::CGExecKernel *>(
                 NodeImpl->MCommandGroup.get());
         NewEvent = CreateNewEvent();
-        RT::PiEvent *OutEvent = &NewEvent->getHandleRef();
+        sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
         pi_int32 Res = sycl::detail::enqueueImpKernel(
             Queue, CG->MNDRDesc, CG->MArgs,
             // TODO: Handler KernelBundles
