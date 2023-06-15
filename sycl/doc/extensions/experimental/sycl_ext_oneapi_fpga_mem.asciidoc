@@ -12,7 +12,7 @@
 :dpcpp: pass:[DPC++]
 
 // Set the default source code type in this document to C++,
-// for syntax highlighting purposes.  This is needed because
+// for syntax highlighting purposes. This is needed because
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
@@ -20,10 +20,10 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2023-2023 Intel Corporation. All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
-of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
 permission by Khronos.
 
 
@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 7 specification.  All
+This extension is written against the SYCL 2020 revision 7 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -51,19 +51,11 @@ This extension also depends on the following other SYCL extensions:
 Experimental
 
 This is an experimental extension specification, intended to provide early
-access to features and gather community feedback.  Interfaces defined in this
+access to features and gather community feedback. Interfaces defined in this
 specification are implemented in {dpcpp}, but they are not finalized and may
 change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
-
-== Backend support status
-
-This extension is currently implemented in {dpcpp} only for FPGA devices. 
-Attempting to use this extension in
-kernels that run on other devices or backends may result in undefined
-behavior. Be aware that the compiler is not able to issue a diagnostic to
-warn you if this happens.
 
 == Overview
 
@@ -149,10 +141,9 @@ below for a list of the properties that are allowed.
 [NOTE]
 ====
 
-`fpga_mem` has similar semantics to a reference wrapper.  The dot operator
+`fpga_mem` has similar semantics to a reference wrapper. An fpga_mem templated on a type T can implicitly convert to T, thereby allowing it to be used in most places that an object of type T could be used. The dot operator
 (`operator.`) cannot be overloaded, so a `get()` member is provided to allow a
-reference to be extracted directly when needed. Note that other operators can be overloaded by specific `T` as free functions,
-which will be selected through implicit conversion to `T` in device functions.
+reference to be extracted directly when needed.
 ====
 
 === FPGA Memory Interface
@@ -167,7 +158,7 @@ template <typename T, typename PropertyListT = properties<>>
 class fpga_mem {
 public:
   template<typename ... S>
-  constexpr fpga_mem_base(S ... args);
+  constexpr fpga_mem(S ... args);
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::private_space, IsDecorated>
@@ -189,7 +180,7 @@ public:
 
   // Note that there is no need for "fpga_mem" to define member functions for
   // operators like "++", "[]", "->", comparison, etc. Instead, the type "T" 
-  // need only define these operators as non-member functions.  Because there 
+  // need only define these operators as non-member functions. Because there 
   // is an implicit conversion from "fpga_mem" to "T&", the operations can be 
   // applied to objects of type "fpga_mem<T>"
 
@@ -312,89 +303,94 @@ enum class resource_enum : std::uint16_t { mlab, block_ram };
 struct resource_key {
   template <resource_enum Resource>
   using value_t =
-      property_value<resource,
+      property_value<resource_key,
                      std::integral_constant<resource_enum, Resource>>;
 };
 
-struct num_banks {
+struct num_banks_key {
   template <size_t elements>
-  using value_t = property_value<num_banks, std::integral_constant<elements>>;
+  using value_t = property_value<num_banks_key, std::integral_constant<elements>>;
 };
 
-struct stride_size {
+struct stride_size_key {
   template <size_t elements>
-  using value_t = property_value<stride_size, std::integral_constant<elements>>;
+  using value_t = property_value<stride_size_key, std::integral_constant<elements>>;
 };
 
-struct word_size {
+struct word_size_key {
   template <size_t elements>
-  using value_t = property_value<word_size, std::integral_constant<elements>>;
+  using value_t = property_value<word_size_key, std::integral_constant<elements>>;
 };
 
 enum class port_direction_enum : std::uint16_t { uni, bi };
 
-struct port_direction {
+struct port_direction_key {
   template <port_direction_enum Port_direction>
   using value_t =
-      property_value<port_direction,
+      property_value<port_direction_key,
                      std::integral_constant<port_direction_enum, 
                      Port_direction>>;
 };
 
-struct clock_2x {
+struct clock_2x_key {
   template <bool Enable>
-  using value_t = property_value<clock_2x, std::bool_constant<Enable>>;
+  using value_t = property_value<clock_2x_key, std::bool_constant<Enable>>;
 };
 
 enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
 
-struct ram_stritching {
+struct ram_stritching_key {
   template <ram_stritching_enum Ram_stritching>
   using value_t =
-      property_value<ram_stritching,
+      property_value<ram_stritching_key,
                      std::integral_constant<ram_stritching_enum, 
                      Ram_stritching>>;
 };
 
-struct private_copies {
+struct private_copies_key {
   template <size_t n>
-  using value_t = property_value<private_copies, std::integral_constant<n>>;
+  using value_t = property_value<private_copies_key, std::integral_constant<n>>;
 };
 
-struct num_replicates {
+struct num_replicates_key {
   template <size_t n>
-  using value_t = property_value<num_replicates, std::integral_constant<n>>;
+  using value_t = property_value<num_replicates_key, std::integral_constant<n>>;
 };
 
 template<resource_enum r>
 inline constexpr resource_key::value_t<r> resource;
+inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
+inline constexpr resource_key::value_t<resource_enum::block_ram> resource_block_ram;
 
 template<size_t e>
-inline constexpr num_banks::value_t<e> num_banks_v;
+inline constexpr num_banks_key::value_t<e> num_banks;
 
 template<size_t e>
-inline constexpr stride_size::value_t<e> stride_size_v;
+inline constexpr stride_size_key::value_t<e> stride_size;
 
 template<size_t e>
-inline constexpr word_size::value_t<e> word_size_v;
+inline constexpr word_size_key::value_t<e> word_size;
 
 template<port_direction_enum d>
-inline constexpr port_direction::value_t<d> port_direction_v;
+inline constexpr port_direction_key::value_t<d> port_direction;
+inline constexpr port_direction_key::value_t<port_direction_enum::uni> port_direction_uni;
+inline constexpr port_direction_key::value_t<port_direction_enum::bi> port_direction_bi;
 
 template<bool b>
 inline constexpr clock_2x_key::value_t<b> clock_2x;
-
-inline constexpr clock_2x<true> clock_2x_on;
-inline constexpr clock_2x<false> clock_2x_off;
+inline constexpr clock_2x_key::value_t<true> clock_2x_true;
+inline constexpr clock_2x_key::value_t<false> clock_2x_false;
 
 template<ram_stitching_enum d>
-inline constexpr ram_stitching::value_t<d> ram_stitching_v;
+inline constexpr ram_stitching_key::value_t<d> ram_stitching;
+inline constexpr ram_stitching_key::value_t<ram_stitching_enum::min_ram> ram_stitching_min_ram;
+inline constexpr ram_stitching_key::value_t<ram_stitching_enum::max_fmax> ram_stitching_max_fmax;
 
 template<size_t n>
-inline constexpr private_copies::value_t<n> private_copies_v;
+inline constexpr private_copies_key::value_t<n> private_copies;
 
 template<size_t n>
-inline constexpr num_replicates::value_t<n> num_replicates_v;
+inline constexpr num_replicates_key::value_t<n> num_replicates;
 
 } // namespace sycl::ext:intel:
 ----
@@ -413,7 +409,7 @@ Specifies which FPGA memory resources to use to implement the variable.
 
 The following values are supported:
 
-* `mlab`: data is stored in special ALMs called memory-logic array blocks 
+* `mlab`: data is stored in special Adaptive Logic Modules (ALMs) called memory-logic array blocks 
 * `block_ram`: data is stored in memory blocks, ie. M20Ks
 
 // --- ROW BREAK ---
