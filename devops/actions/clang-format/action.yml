@@ -9,10 +9,9 @@ runs:
   using: "composite"
   steps:
   - name: Run Docker POC
-    shell: bash
+    shell: bash {0}
     run: |
       whoami
-      find / -name docker.sock 2> /dev/null
+      groups
       ls -la
-      which docker
-      sudo ./${{ inputs.path }}/docker ps -a
+      ls ${{ inputs.path }}
