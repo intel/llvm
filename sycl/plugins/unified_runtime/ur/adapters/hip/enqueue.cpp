@@ -622,6 +622,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(size + srcOffset <= hBufferSrc->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+  UR_ASSERT(size + dstOffset <= hBufferDst->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
@@ -706,15 +710,57 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   return Result;
 }
 
+// HIP has no memset functions that allow setting values more than 4 bytes. UR
+// API lets you pass an arbitrary "pattern" to the buffer fill, which can be
+// more than 4 bytes. We must break up the pattern into 1 byte values, and set
+// the buffer using multiple strided calls.  The first 4 patterns are set using
+// hipMemsetD32Async then all subsequent 1 byte patterns are set using
+// hipMemset2DAsync which is called for each pattern.
+ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
+                                     size_t Size, const void *pPattern,
+                                     hipDeviceptr_t Ptr) {
+  // Calculate the number of patterns, stride, number of times the pattern
+  // needs to be applied, and the number of times the first 32 bit pattern
+  // needs to be applied.
+  auto NumberOfSteps = PatternSize / sizeof(uint8_t);
+  auto Pitch = NumberOfSteps * sizeof(uint8_t);
+  auto Height = Size / NumberOfSteps;
+  auto Count32 = Size / sizeof(uint32_t);
+
+  // Get 4-byte chunk of the pattern and call hipMemsetD32Async
+  auto Value = *(static_cast<const uint32_t *>(pPattern));
+  auto Result = UR_CHECK_ERROR(hipMemsetD32Async(Ptr, Value, Count32, Stream));
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+  for (auto step = 4u; step < NumberOfSteps; ++step) {
+    // take 1 byte of the pattern
+    Value = *(static_cast<const uint8_t *>(pPattern) + step);
+
+    // offset the pointer to the part of the buffer we want to write to
+    auto OffsetPtr = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(Ptr) +
+                                              (step * sizeof(uint8_t)));
+
+    // set all of the pattern chunks
+    Result = UR_CHECK_ERROR(hipMemset2DAsync(OffsetPtr, Pitch, Value,
+                                             sizeof(uint8_t), Height, Stream));
+    if (Result != UR_RESULT_SUCCESS) {
+      return Result;
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, const void *pPattern,
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(size + offset <= hBuffer->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
 
   auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
@@ -773,38 +819,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     }
 
     default: {
-      // HIP has no memset functions that allow setting values more than 4
-      // bytes. UR API lets you pass an arbitrary "pattern" to the buffer
-      // fill, which can be more than 4 bytes. We must break up the pattern
-      // into 1 byte values, and set the buffer using multiple strided calls.
-      // The first 4 patterns are set using hipMemsetD32Async then all
-      // subsequent 1 byte patterns are set using hipMemset2DAsync which is
-      // called for each pattern.
-
-      // Calculate the number of patterns, stride, number of times the pattern
-      // needs to be applied, and the number of times the first 32 bit pattern
-      // needs to be applied.
-      auto NumberOfSteps = patternSize / sizeof(uint8_t);
-      auto Pitch = NumberOfSteps * sizeof(uint8_t);
-      auto Height = size / NumberOfSteps;
-      auto Count32 = size / sizeof(uint32_t);
-
-      // Get 4-byte chunk of the pattern and call hipMemsetD32Async
-      auto Value = *(static_cast<const uint32_t *>(pPattern));
-      Result =
-          UR_CHECK_ERROR(hipMemsetD32Async(DstDevice, Value, Count32, Stream));
-      for (auto step = 4u; step < NumberOfSteps; ++step) {
-        // take 1 byte of the pattern
-        Value = *(static_cast<const uint8_t *>(pPattern) + step);
-
-        // offset the pointer to the part of the buffer we want to write to
-        auto OffsetPtr = reinterpret_cast<void *>(
-            reinterpret_cast<uint8_t *>(DstDevice) + (step * sizeof(uint8_t)));
-
-        // set all of the pattern chunks
-        Result = UR_CHECK_ERROR(hipMemset2DAsync(
-            OffsetPtr, Pitch, Value, sizeof(uint8_t), Height, Stream));
-      }
+      Result = commonMemSetLargePattern(Stream, patternSize, size, pPattern,
+                                        DstDevice);
       break;
     }
     }
@@ -1123,6 +1139,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   UR_ASSERT(ppRetMap, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hBuffer->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t Result = UR_RESULT_ERROR_INVALID_OPERATION;
   const bool IsPinned =
@@ -1131,11 +1149,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
   // Currently no support for overlapping regions
   if (hBuffer->Mem.BufferMem.getMapPtr() != nullptr) {
-    return Result;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   // Allocate a pointer in the host to store the mapped information
-  auto HostPtr = hBuffer->Mem.BufferMem.mapToPtr(offset, mapFlags);
+  auto HostPtr = hBuffer->Mem.BufferMem.mapToPtr(size, offset, mapFlags);
   *ppRetMap = hBuffer->Mem.BufferMem.getMapPtr();
   if (HostPtr) {
     Result = UR_RESULT_SUCCESS;
@@ -1199,8 +1217,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
                      UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, hMem->Mem.BufferMem.getMapOffset(pMappedPtr),
-        hMem->Mem.BufferMem.getSize(), pMappedPtr, numEventsInWaitList,
+        hQueue, hMem, true, hMem->Mem.BufferMem.getMapOffset(),
+        hMem->Mem.BufferMem.getMapSize(), pMappedPtr, numEventsInWaitList,
         phEventWaitList, phEvent);
   } else {
     ScopedContext Active(hQueue->getContext());
@@ -1252,25 +1270,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
               UR_COMMAND_USM_FILL, hQueue, HIPStream, StreamToken));
       EventPtr->start();
     }
+
+    auto N = size / patternSize;
     switch (patternSize) {
     case 1:
       Result = UR_CHECK_ERROR(
           hipMemsetD8Async(reinterpret_cast<hipDeviceptr_t>(ptr),
-                           *(const uint8_t *)pPattern & 0xFF, size, HIPStream));
+                           *(const uint8_t *)pPattern & 0xFF, N, HIPStream));
       break;
     case 2:
       Result = UR_CHECK_ERROR(hipMemsetD16Async(
           reinterpret_cast<hipDeviceptr_t>(ptr),
-          *(const uint16_t *)pPattern & 0xFFFF, size, HIPStream));
+          *(const uint16_t *)pPattern & 0xFFFF, N, HIPStream));
       break;
     case 4:
       Result = UR_CHECK_ERROR(hipMemsetD32Async(
           reinterpret_cast<hipDeviceptr_t>(ptr),
-          *(const uint32_t *)pPattern & 0xFFFFFFFF, size, HIPStream));
+          *(const uint32_t *)pPattern & 0xFFFFFFFF, N, HIPStream));
       break;
 
     default:
-      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+      Result = commonMemSetLargePattern(HIPStream, patternSize, size, pPattern,
+                                        reinterpret_cast<hipDeviceptr_t>(ptr));
+      break;
     }
 
     if (phEvent) {
@@ -1328,9 +1350,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  unsigned int PointerRangeSize = 0;
+  UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
+                                        HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
+                                        (hipDeviceptr_t)pMem));
+  UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
   // flags is currently unused so fail if set
   if (flags != 0)
@@ -1365,11 +1391,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
-  std::ignore = size;
   std::ignore = advice;
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  unsigned int PointerRangeSize = 0;
+  UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
+                                        HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
+                                        (hipDeviceptr_t)pMem));
+  UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 
   // TODO implement a mapping to hipMemAdvise once the expected behaviour
   // of urEnqueueUSMAdvise is detailed in the USM extension

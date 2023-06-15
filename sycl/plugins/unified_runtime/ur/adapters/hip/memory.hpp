@@ -50,6 +50,8 @@ struct ur_mem_handle_t_ {
       void *HostPtr;
       /// Size of the allocation in bytes
       size_t Size;
+      /// Size of the active mapped region.
+      size_t MapSize;
       /// Offset of the active mapped region.
       size_t MapOffset;
       /// Pointer to the active mapped region, if any
@@ -84,17 +86,18 @@ struct ur_mem_handle_t_ {
 
       void *getMapPtr() const noexcept { return MapPtr; }
 
-      size_t getMapOffset(void *Ptr) const noexcept {
-        std::ignore = Ptr;
-        return MapOffset;
-      }
+      size_t getMapSize() const noexcept { return MapSize; }
+
+      size_t getMapOffset() const noexcept { return MapOffset; }
 
       /// Returns a pointer to data visible on the host that contains
       /// the data on the device associated with this allocation.
       /// The offset is used to index into the HIP allocation.
       ///
-      void *mapToPtr(size_t Offset, ur_map_flags_t Flags) noexcept {
+      void *mapToPtr(size_t Size, size_t Offset,
+                     ur_map_flags_t Flags) noexcept {
         assert(MapPtr == nullptr);
+        MapSize = Size;
         MapOffset = Offset;
         MapFlags = Flags;
         if (HostPtr) {
@@ -115,6 +118,7 @@ struct ur_mem_handle_t_ {
           free(MapPtr);
         }
         MapPtr = nullptr;
+        MapSize = 0;
         MapOffset = 0;
       }
 
@@ -147,6 +151,7 @@ struct ur_mem_handle_t_ {
     Mem.BufferMem.Parent = Parent;
     Mem.BufferMem.HostPtr = HostPtr;
     Mem.BufferMem.Size = Size;
+    Mem.BufferMem.MapSize = 0;
     Mem.BufferMem.MapOffset = 0;
     Mem.BufferMem.MapPtr = nullptr;
     Mem.BufferMem.MapFlags = UR_MAP_FLAG_WRITE;
