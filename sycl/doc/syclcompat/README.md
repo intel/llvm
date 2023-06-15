@@ -83,7 +83,7 @@ dim3 operator-(const dim3 &a, const dim3 &b);
 } // syclcompat
 ```
 
-In SYCL, the fastest-moving dimension is that with a higher index, e.g. in a
+In SYCL, the fastest-moving dimension is the one with the highest index, e.g. in a
 SYCL 2D range iteration space, there are two dimensions, 0 and 1, and 1 will be
 the one that "moves faster". The compatibility headers for SYCL offer a number
 of convenience functions that help the mapping between xyz-based coordinates to
@@ -797,7 +797,7 @@ class device_ext : public sycl::device {
 
 #### Multiple devices
 
-SYCLcompat allows to manage multiple devices through `syclcompat::select_device`
+SYCLcompat allows you to manage multiple devices through `syclcompat::select_device`
 and `syclcompat::create_queue`.
 The library uses the default SYCL device (i.e. the device returned by
 `sycl::default_selector_v`) as the default device, and exposes all other devices
@@ -814,7 +814,7 @@ Note that this implies multiple threads on a single device by default.
 
 Be aware that targetting multiple devices may lead to unintended behavior caused by
 developers, as SYCLcompat does not implement a mechanism to warn when the wrong queue
-is used as argument in any of the member functions of the `syclcompat` namespace.
+is used as an argument in any of the member functions of the `syclcompat` namespace.
 
 #### Atomic Operations
 
@@ -967,8 +967,8 @@ These functions are part of the public API, but they are not
 expected to be useful to developers writing their own code.
 
 Functionality is provided to represent a pair of integers as a `double`.
-`cast_ints_to_double(int, int)` returns the a `double` containing the given
-integers in the high & low 32-bits respectively. `cast_double_to_in` casts the
+`cast_ints_to_double(int, int)` returns a `double` containing the given
+integers in the high & low 32-bits respectively. `cast_double_to_int` casts the
 high or low 32-bits back into an integer.
 
 `syclcompat::fast_length` provides a wrapper to SYCL's
