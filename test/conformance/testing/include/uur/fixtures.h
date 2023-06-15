@@ -696,8 +696,8 @@ struct urKernelExecutionTest : urKernelTest {
                                               sizeof(zero), 0, size, 0, nullptr,
                                               nullptr));
         ASSERT_SUCCESS(urQueueFinish(queue));
-        ASSERT_SUCCESS(
-            urKernelSetArgMemObj(kernel, current_arg_index, mem_handle));
+        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
+                                            mem_handle));
 
         // This emulates the offset struct sycl adds for a 1D buffer accessor.
         struct {
