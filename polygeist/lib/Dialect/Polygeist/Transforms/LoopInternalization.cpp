@@ -60,18 +60,17 @@ public:
                 const sycl::ReqdWorkGroupSize &reqdWorkGroupSize,
                 OpBuilder builder);
 
-  /// Return true if the element holds the alternative T.
-  template <typename T, typename = std::enable_if_t<
-                            llvm::is_one_of<T, Value, unsigned>::value>>
-  bool hasElemTy() const {
-    return std::holds_alternative<T>(wgSizes.front());
+  /// Return true if the work group size is known at compile time and false
+  /// otherwise.
+  bool isKnown() const {
+    return std::holds_alternative<unsigned>(wgSizes.front());
   }
 
   /// Return the element at position \p dim with type \tparam T.
   template <typename T, typename = std::enable_if_t<
                             llvm::is_one_of<T, Value, unsigned>::value>>
   T get(unsigned dim) const {
-    assert(hasElemTy<T>() && "Incorrect type");
+    assert(std::holds_alternative<T>(wgSizes.front()) && "Incorrect type");
     assert(dim < wgSizes.size() && "Expecting valid dim");
     return std::get<T>(wgSizes[dim]);
   }
@@ -181,17 +180,10 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   // TODO: check uniformity.
 }
 
-/// A function is a candidate iff it has an sycl::nd_item or sycl::item
-/// argument.
+/// A function is a candidate iff we can get the grid dimension.
 bool isCandidateFunction(FunctionOpInterface func) {
-  if (func.getNumArguments() == 0)
-    return false;
-  Type lastArgTy = func.getArgumentTypes().back();
-  // TODO: Also allow `isPtrOf<sycl::IDType>(lastArgTy)`.
-  if (!sycl::isPtrOf<sycl::NdItemType>(lastArgTy) &&
-      !sycl::isPtrOf<sycl::ItemType>(lastArgTy))
-    return false;
-  return true;
+  unsigned numGridDim = getGridDimension(func);
+  return (numGridDim > 0 && numGridDim <= 3);
 }
 
 /// A loop nest is a candidate iff is perfect and contains only affine or scf
@@ -276,13 +268,13 @@ unsigned getSharedMemoryRemaining(gpu::GPUModuleOp &module,
   return sharedMemoryRemaining;
 }
 
-/// Get the shared memory needed by \p accTy in bytes.
+/// Get the amount of shared memory needed by \p accTy in bytes.
 std::variant<Value, unsigned>
 getReqdSharedMemory(sycl::AccessorType accTy,
                     const WorkGroupSize &workGroupSize, OpBuilder builder) {
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   std::variant<Value, unsigned> reqdSharedMemory =
-      ValueOrUnsigned::get(elemSize, builder, workGroupSize.hasElemTy<Value>());
+      ValueOrUnsigned::get(elemSize, builder, !workGroupSize.isKnown());
   const unsigned numDims = accTy.getDimension();
   for (unsigned dim = 0; dim < numDims; ++dim)
     reqdSharedMemory =
@@ -299,10 +291,10 @@ getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
                         &loopToSharedMemref,
                     const WorkGroupSize &workGroupSize, OpBuilder builder) {
   std::variant<Value, unsigned> reqdSharedMemory =
-      ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
+      ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
   for (auto &entry : loopToSharedMemref) {
     std::variant<Value, unsigned> loopReqdSharedMemory =
-        ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
+        ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
     for (Operation *memref : entry.second) {
       sycl::AccessorType accTy =
           getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
@@ -314,45 +306,7 @@ getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
     reqdSharedMemory =
         ValueOrUnsigned::max(reqdSharedMemory, loopReqdSharedMemory, builder);
   }
-  return reqdSharedMemory;
-}
 
-/// Get the shared memory needed by \p accTy in bytes.
-unsigned getReqdSharedMemory(sycl::AccessorType accTy,
-                             const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
-  assert(!reqdWorkGroupSize.empty() && "Expecting non-empty reqdWorkGroupSize");
-
-  unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
-  unsigned memrefReqdSharedMemory = elemSize;
-  const unsigned numDims = accTy.getDimension();
-  for (unsigned dim = 0; dim < numDims; ++dim) {
-    memrefReqdSharedMemory *= reqdWorkGroupSize[dim];
-  }
-  return memrefReqdSharedMemory;
-}
-
-/// Get the require shared memory for memrefs in \p loopToSharedMemref, i.e, for
-/// each kernel. If there are multiple loops in the kernel that require shared
-/// memory, it returns the maximum amount required by any of them.
-Optional<unsigned>
-getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
-                        &loopToSharedMemref,
-                    const sycl::ReqdWorkGroupSize &reqdWorkGroupSize) {
-  if (reqdWorkGroupSize.empty())
-    return std::nullopt;
-
-  unsigned reqdSharedMemory = 0;
-  for (auto &entry : loopToSharedMemref) {
-    unsigned loopReqdSharedMemory = 0;
-    for (Operation *memref : entry.second) {
-      sycl::AccessorType accTy =
-          getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
-      loopReqdSharedMemory += getReqdSharedMemory(accTy, reqdWorkGroupSize);
-    }
-    // Memrefs in this loop can reuse shared memory allocated for another
-    // loop.
-    reqdSharedMemory = std::max(reqdSharedMemory, loopReqdSharedMemory);
-  }
   return reqdSharedMemory;
 }
 
@@ -384,7 +338,7 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
   SmallVector<Value> sizes;
   for (unsigned dim = 0; dim < accTy.getDimension(); ++dim) {
     std::variant<Value, unsigned> size = workGroupSize[dim];
-    if (workGroupSize.hasElemTy<unsigned>())
+    if (workGroupSize.isKnown())
       shape.push_back(std::get<unsigned>(workGroupSize[dim]));
     else {
       shape.push_back(ShapedType::kDynamic);
@@ -1082,7 +1036,7 @@ Value LoopInternalization::getVersionCondition(
 bool LoopInternalization::canBeTransformed(LoopLikeOpInterface loop,
                                            const WorkGroupSize &workGroupSize,
                                            DataFlowSolver &solver) const {
-  if (workGroupSize.hasElemTy<unsigned>()) {
+  if (workGroupSize.isKnown()) {
     std::set<unsigned> dimsThatUseLoopIV = getDimsThatUseLoopIV(loop, solver);
     const unsigned firstDim = *dimsThatUseLoopIV.begin();
 
@@ -1113,36 +1067,35 @@ void LoopInternalization::transform(FunctionOpInterface func,
                                     const FunctionKernelInfo &funcKernelInfo,
                                     const unsigned sharedMemoryRemaining,
                                     DataFlowSolver &solver) {
-  // Calculate the required shared memory for all accesses in
-  // 'loopToSharedMemref' to be promoted.
+  // Calculate the total amount of shared memory needed to promote the memory
+  // accesses that were identified by the analysis.
   SmallVector<gpu::GPUFuncOp> kernels;
   funcKernelInfo.getKernelCallers(func, kernels);
+
+  const unsigned numDims = getGridDimension(func);
   sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
-  Optional<unsigned> reqdSharedMemory =
-      getReqdSharedMemory(loopToSharedMemref, reqdWorkGroupSize);
-  if (reqdSharedMemory.has_value() &&
-      *reqdSharedMemory > sharedMemoryRemaining) {
+  OpBuilder builder(func->getRegion(0));
+  WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
+
+  std::variant<Value, unsigned> reqdSharedMemory =
+      getReqdSharedMemory(loopToSharedMemref, workGroupSize, builder);
+  if (std::holds_alternative<unsigned>(reqdSharedMemory) &&
+      std::get<unsigned>(reqdSharedMemory) > sharedMemoryRemaining) {
     // This is a conservative check because 'reqdSharedMemory' is the max shared
     // memory required to transform any loop in the function, so there might be
     // a loop that require considerably less than the max.
-    LLVM_DEBUG(llvm::dbgs() << "Not enough shared memory remaining\n");
+    LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
     return;
   }
 
-  auto gpuModule = func->getParentOfType<gpu::GPUModuleOp>();
   memref::GlobalOp workGroupSharedMemory = getWorkGroupSharedMemory(
-      gpuModule,
-      reqdSharedMemory.has_value() ? *reqdSharedMemory : sharedMemoryRemaining);
+      getOperation(), std::holds_alternative<unsigned>(reqdSharedMemory)
+                          ? std::get<unsigned>(reqdSharedMemory)
+                          : sharedMemoryRemaining);
 
   // Get or create work group size.
-  const unsigned numDims = getGridDimension(func);
-  assert(numDims > 0 && numDims <= 3 && "Dimension out of range");
-  OpBuilder builder(func->getRegion(0));
-  WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
-  std::variant<Value, unsigned> reqdDynamicLocalMemory =
-      getReqdSharedMemory(loopToSharedMemref, workGroupSize, builder);
-  if (std::holds_alternative<Value>(reqdDynamicLocalMemory)) {
-    // TODO: Version with reqdDynamicLocalMemory <= localMemoryRemaining.
+  if (std::holds_alternative<Value>(reqdSharedMemory)) {
+    // TODO: Version with reqdSharedMemory <= localMemoryRemaining.
   }
 
   // Create SYCL local ids corresponding to the grid dimensionality (per
@@ -1215,7 +1168,7 @@ void LoopInternalization::transform(T loop,
   LoopInfo loopInfo(loop);
   builder.setInsertionPointToStart(loop->getBlock());
   std::variant<Value, unsigned> offset =
-      ValueOrUnsigned::get(0, builder, workGroupSize.hasElemTy<Value>());
+      ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
   for (Operation *memref : memrefs) {
     Location loc = memref->getLoc();
     sycl::AccessorType accTy =
