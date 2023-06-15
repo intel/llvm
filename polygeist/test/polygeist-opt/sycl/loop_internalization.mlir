@@ -346,7 +346,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Get pointer to local memory:
 // CHECK-NEXT:        %[[VAL_37:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 
-// COM: Use work group size of dimension the tile size:
+// COM: Use work group size as tile size:
 // CHECK-NEXT:        %[[TILESIZE:.*]] = arith.muli %[[VAL_31]], %[[WGSIZE0]] : index
 // CHECK-NEXT:        scf.for %[[VAL_39:.*]] = %[[VAL_30]] to %[[VAL_32]] step %[[TILESIZE]] {
 
