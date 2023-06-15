@@ -449,10 +449,6 @@ public:
   std::optional<MemoryAccess>
   getMemoryAccess(const affine::MemRefAccess &access) const;
 
-  /// Return the grid dimension for \p funcOp (e.g the dimension of the
-  /// sycl::nditem or sycl::item argument passed to the to the function).
-  unsigned getGridDimension(FunctionOpInterface funcOp) const;
-
   /// Return a vector containing thread values corresponding to the global
   /// thread declarations in \p funcOp. The returned vector has size equal to
   /// the thread grid dimension and is sorted based on the dimension.
