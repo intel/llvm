@@ -1,0 +1,8 @@
+name: Test sycl_detect_changes.yml
+
+on:
+  pull_request_target:
+
+jobs:
+  detect_changes:
+    uses: ./.github/workflows/sycl_detect_changes.yml
