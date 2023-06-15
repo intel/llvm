@@ -367,6 +367,18 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
       return mlir::DenseElementsAttr();
     }
 
+    if (auto *AIL = dyn_cast<ArrayInitLoopExpr>(Expr)) {
+      // In-house bitcast from `memref<-xarray<N x Ty>>` to `memref<? x Ty>`
+      ValueCategory ArrayPtr(ToInit, /*IsReference=*/true, ElementTy);
+      mlir::Type ET = cast<LLVM::LLVMArrayType>(ElementTy).getElementType();
+      ArrayPtr = ArrayPtr.MemRef2Ptr(Builder, Loc);
+      ArrayPtr.ElementType = ET;
+      ArrayPtr = ArrayPtr.Ptr2MemRef(Builder, Loc);
+      // Build array in place
+      VisitArrayInitLoop(AIL, ArrayPtr);
+      return mlir::DenseElementsAttr();
+    }
+
     bool IsArray = false;
     Glob.getTypes().getMLIRType(Expr->getType(), &IsArray);
     ValueCategory Sub = Visit(Expr);
