@@ -1077,11 +1077,11 @@ void LoopInternalization::transform(FunctionOpInterface func,
   OpBuilder builder(func->getRegion(0));
   WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
 
-  std::variant<Value, unsigned> reqdLocalMemory =
+  std::variant<Value, unsigned> reqdSharedMemory =
       getReqdSharedMemory(loopToSharedMemref, workGroupSize, builder);
-  if (std::holds_alternative<unsigned>(reqdLocalMemory) &&
-      std::get<unsigned>(reqdLocalMemory) > sharedMemoryRemaining) {
-    // This is a conservative check because 'reqdLocalMemory' is the max shared
+  if (std::holds_alternative<unsigned>(reqdSharedMemory) &&
+      std::get<unsigned>(reqdSharedMemory) > sharedMemoryRemaining) {
+    // This is a conservative check because 'reqdSharedMemory' is the max shared
     // local memory required to transform any loop in the function, so there
     // might be a loop that require considerably less than the max.
     LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
@@ -1089,13 +1089,13 @@ void LoopInternalization::transform(FunctionOpInterface func,
   }
 
   memref::GlobalOp workGroupSharedMemory = getWorkGroupSharedMemory(
-      getOperation(), std::holds_alternative<unsigned>(reqdLocalMemory)
-                          ? std::get<unsigned>(reqdLocalMemory)
+      getOperation(), std::holds_alternative<unsigned>(reqdSharedMemory)
+                          ? std::get<unsigned>(reqdSharedMemory)
                           : sharedMemoryRemaining);
 
   // Get or create work group size.
-  if (std::holds_alternative<Value>(reqdLocalMemory)) {
-    // TODO: Version with reqdLocalMemory <= localMemoryRemaining.
+  if (std::holds_alternative<Value>(reqdSharedMemory)) {
+    // TODO: Version with reqdSharedMemory <= localMemoryRemaining.
   }
 
   // Create SYCL local ids corresponding to the grid dimensionality (per
