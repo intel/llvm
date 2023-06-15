@@ -12,6 +12,7 @@ runs:
     shell: bash
     run: |
       whoami
-      cat /etc/passwd
       find / -name docker.sock 2> /dev/null
+      ls -la
+      which docker
       sudo ./${{ inputs.path }}/docker ps -a
