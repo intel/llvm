@@ -331,7 +331,7 @@ etors:
       desc: $x_exp_command_buffer_desc_t
     - name: EXP_SAMPLER_MIP_PROPERTIES
       desc: $x_exp_sampler_mip_properties_t
-    - name: MEM_OBJ_PROPERTIES
+    - name: KERNEL_ARG_MEM_OBJ_PROPERTIES
       desc: $x_kernel_arg_mem_obj_properties_t
 --- #--------------------------------------------------------------------------
 type: struct

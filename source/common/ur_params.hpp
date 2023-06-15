@@ -761,8 +761,8 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
         break;
 
-    case UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES:
-        os << "UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES";
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -946,7 +946,7 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         ur_params::serializePtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES: {
+    case UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES: {
         const ur_kernel_arg_mem_obj_properties_t *pstruct =
             (const ur_kernel_arg_mem_obj_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
