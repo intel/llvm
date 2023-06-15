@@ -6950,7 +6950,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
            types::isSrcFile(I.first))) {
         // Unique ID is generated for source files and preprocessed files.
         SmallString<128> ResultID;
-        llvm::sys::fs::createUniquePath("%%%%%%%%%%%%%%%%", ResultID, false);
+        llvm::sys::fs::createUniquePath("uid%%%%%%%%%%%%%%%%", ResultID, false);
         addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
       }
       if (!types::isSrcFile(I.first))
