@@ -96,7 +96,7 @@ q.single_task([=] {
 ----
 
 Above we see an example that declares `fpga_mem` variables `fm1`, `fm2`, and accesses them. 
-`fm1` creates an allocation on the device that is private to the kernel and contains an array of four `int` that is initialized to {1, 3, 5, 7}. `fm2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized. Both of variables will be implemented using the MLAB hardware resource. For more details on supported properties see a section below.
+`fm1` creates an allocation on the device that is private to the kernel and contains an array of four `int`s that is initialized to {1, 3, 5, 7}. `fm2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized. Both variables will be implemented using the MLAB hardware resource. For more details on supported properties see a section below.
 
 `fpga_mem` has reference wrapper-like semantics, and is implicitly convertible to the wrapped type. Of note,
 because {cpp} doesn't allow for overloading of the "dot operator", a `get()`
@@ -131,7 +131,7 @@ supports.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropListT = sycl::ext::oneapi::property_list<>>
+template <typename T, typename PropListT = sycl::ext::oneapi::properties<>>
 class fpga_mem {
   ...
 ----
@@ -140,7 +140,7 @@ class fpga_mem {
 allocation _T_, and a list of properties _PropListT_. The type of the
 allocation _T_ also encodes the size of the allocation.
 
-`fpga_mem` initializes the underlying object `T` with the values passed into it's constructor.
+`fpga_mem` initializes the underlying object `T` with the values passed into its constructor.
 
 Properties may be specified for a `fpga_mem` to provide semantic
 modification or optimization hint information to the compiler. See the section
@@ -157,7 +157,7 @@ which will be selected through implicit conversion to `T` in device functions.
 
 === FPGA Memory Interface
 
-The section below and the table following describe the constructors, member functions for `fpga_mem`.
+The section below and the table following describe the constructors and member functions for `fpga_mem`.
 
 [source,c++]
 ----
@@ -309,7 +309,7 @@ namespace sycl::ext::oneapi::experimental {
 
 enum class resource_enum : std::uint16_t { mlab, block_ram };
 
-struct resource {
+struct resource_key {
   template <resource_enum Resource>
   using value_t =
       property_value<resource,
@@ -346,7 +346,7 @@ struct clock_2x {
   using value_t = property_value<clock_2x, std::bool_constant<Enable>>;
 };
 
-enum class ram_stritching_enum : std::uint16_t { min_ram, max_fmax };
+enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
 
 struct ram_stritching {
   template <ram_stritching_enum Ram_stritching>
@@ -367,7 +367,7 @@ struct num_replicates {
 };
 
 template<resource_enum r>
-inline constexpr resource::value_t<r> resource_v;
+inline constexpr resource_key::value_t<r> resource;
 
 template<size_t e>
 inline constexpr num_banks::value_t<e> num_banks_v;
@@ -382,7 +382,10 @@ template<port_direction_enum d>
 inline constexpr port_direction::value_t<d> port_direction_v;
 
 template<bool b>
-inline constexpr clock_2x::value_t<b> clock_2x_v;
+inline constexpr clock_2x_key::value_t<b> clock_2x;
+
+inline constexpr clock_2x<true> clock_2x_on;
+inline constexpr clock_2x<false> clock_2x_off;
 
 template<ram_stitching_enum d>
 inline constexpr ram_stitching::value_t<d> ram_stitching_v;
@@ -435,7 +438,7 @@ Number of consecutive elements in an array that will be part of the same bank. I
 
 Must be greater than zero and less than number of array elements.
 
-If `word_size`property is specified, `stride_size` must be a multiple of `word_size`. 
+If `word_size` property is specified, `stride_size` must be a multiple of `word_size`. 
 
 // --- ROW BREAK ---
 a|
@@ -481,7 +484,7 @@ ram_stitching
 a|
 If the size of the data is too big for a single RAM to hold it, multiple RAMs  are need to be stitched together. The following values are supported:
 
-* `min_ram`: Specifies that the widths and depths of the individual RAMs may be different to minimize the number of RAMs needed to hold the data. This may result in more complicated logic being implement to index into the RAMs, reducing the fmax.
+* `min_ram`: Specifies that the widths and depths of the individual RAMs may be different to minimize the number of RAMs needed to hold the data. This may result in more complicated logic being implemented to index into the RAMs, reducing the fmax.
 * `max_fmax`: Specifies that the RAMs should be of uniform width and depth, which allows for simple indexing logic to be generated. This may result in more RAMs being used than strictly necessary. 
 
 // --- ROW BREAK ---
