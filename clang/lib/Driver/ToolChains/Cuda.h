@@ -228,7 +228,6 @@ public:
   llvm::DenormalMode getDefaultDenormalModeForType(
       const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
       const llvm::fltSemantics *FPType = nullptr) const override;
-  bool IsMathErrnoDefault() const override { return false; }
 
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
