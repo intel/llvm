@@ -458,10 +458,10 @@ params:
       desc: "[in] size in bytes of the pool property value provided"
     - type: "void*"
       name: pPropValue
-      desc: "[out][typename(propName, propSize)] value of the pool property"
+      desc: "[out][optional][typename(propName, propSize)] value of the pool property"
     - type: "size_t*"
       name: pPropSizeRet
-      desc: "[out] size in bytes returned in pool property value"
+      desc: "[out][optional] size in bytes returned in pool property value"
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
         - "If `propName` is not supported by the adapter."

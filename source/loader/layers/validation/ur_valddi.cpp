@@ -1801,9 +1801,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
     size_t propSize, ///< [in] size in bytes of the pool property value provided
     void *
-        pPropValue, ///< [out][typename(propName, propSize)] value of the pool property
-    size_t
-        *pPropSizeRet ///< [out] size in bytes returned in pool property value
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the pool
+                    ///< property
+    size_t *
+        pPropSizeRet ///< [out][optional] size in bytes returned in pool property value
 ) {
     auto pfnPoolGetInfo = context.urDdiTable.USM.pfnPoolGetInfo;
 
@@ -1814,14 +1815,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     if (context.enableParameterValidation) {
         if (NULL == hPool) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == pPropValue) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pPropSizeRet) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (propSize != 0 && pPropValue == NULL) {
@@ -4407,7 +4400,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (patternSize == 0) {
+        if (patternSize == 0 || size == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -4415,11 +4408,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if (size == 0) {
+        if ((patternSize & (patternSize - 1)) != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
