@@ -611,20 +611,33 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : ARange) {
     using namespace std::literals;
-    if ((*It)->Name != "aspects"sv)
-      continue;
-    ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
-    // 8 because we need to skip 64-bits of size of the byte array
-    auto *AIt = reinterpret_cast<const std::uint32_t *>(&Aspects[8]);
-    auto *AEnd =
-        reinterpret_cast<const std::uint32_t *>(&Aspects[0] + Aspects.size());
-    while (AIt != AEnd) {
-      auto Aspect = static_cast<aspect>(*AIt);
-      if (!Dev->has(Aspect))
-        throw sycl::exception(errc::kernel_not_supported,
-                              "Required aspect " + getAspectNameStr(Aspect) +
-                                  " is not supported on the device");
-      ++AIt;
+    if ((*It)->Name == "aspects"sv) {
+      ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
+      // 8 because we need to skip 64-bits of size of the byte array
+      Aspects.dropBytes(8);
+      while (!Aspects.empty()) {
+        auto Aspect = static_cast<aspect>(Aspects.consume<int>());
+        if (!Dev->has(Aspect))
+          throw sycl::exception(errc::kernel_not_supported,
+                                "Required aspect " + getAspectNameStr(Aspect) +
+                                    " is not supported on the device");
+      }
+    } else if ((*It)->Name == "reqd_sub_group_size"sv) {
+      ByteArray ReqdSubGroupSize = DeviceBinaryProperty(*It).asByteArray();
+      // Drop 8 bytes describing the size of the byte array.
+      ReqdSubGroupSize.dropBytes(8);
+      auto SupportedSubGroupSizes =
+          Device.get_info<info::device::sub_group_sizes>();
+      while (!ReqdSubGroupSize.empty()) {
+        int ReqdSubGroupSizeVal = ReqdSubGroupSize.consume<int>();
+        if (std::find(SupportedSubGroupSizes.cbegin(),
+                      SupportedSubGroupSizes.cend(),
+                      ReqdSubGroupSizeVal) == SupportedSubGroupSizes.cend())
+          throw sycl::exception(errc::kernel_not_supported,
+                                "Sub-group size " +
+                                    std::to_string(ReqdSubGroupSizeVal) +
+                                    " is not supported on the device");
+      }
     }
   }
 
@@ -2398,9 +2411,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 
   auto AspectsPropIt = getPropIt("aspects");
   auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
-
-  if (!AspectsPropIt && !ReqdWGSizePropIt)
-    return true;
+  auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
@@ -2463,6 +2474,23 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
           return false;
     }
   }
+
+  // Check if device supports required sub-group size.
+  if (ReqdSubGroupSizePropIt) {
+    ByteArray ReqdSubGroupSize =
+        DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    ReqdSubGroupSize.dropBytes(8);
+    auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
+    while (!ReqdSubGroupSize.empty()) {
+      int ReqdSubGroupSizeVal = ReqdSubGroupSize.consume<int>();
+      if (std::find(SupportedSubGroupSizes.cbegin(),
+                    SupportedSubGroupSizes.cend(),
+                    ReqdSubGroupSizeVal) == SupportedSubGroupSizes.cend())
+        return false;
+    }
+  }
+
   return true;
 }
 
