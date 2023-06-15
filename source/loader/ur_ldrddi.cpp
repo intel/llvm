@@ -5234,8 +5234,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
     ur_image_info_t propName,            ///< [in] queried info name
-    void *pPropValue,                    ///< [out] returned query value
-    size_t *pPropSizeRet                 ///< [out] returned query value size
+    void *pPropValue,    ///< [out][optional] returned query value
+    size_t *pPropSizeRet ///< [out][optional] returned query value size
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
