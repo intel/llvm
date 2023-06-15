@@ -561,14 +561,13 @@ class ur_device_info_v(IntEnum):
                                                     ## available for this device.
     KERNEL_SET_SPECIALIZATION_CONSTANTS = 106       ## [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
                                                     ## point
-    MEMORY_BUS_WIDTH = 107                          ## [::ur_bool_t] Return 1 if the device doesn't have a notion of a "queue
-                                                    ## index". Otherwise,
-                                                    ## return the number of queue indices that are available for this device.
+    MEMORY_BUS_WIDTH = 107                          ## [uint32_t] return the width in bits of the memory bus interface of the
+                                                    ## device.
     MAX_WORK_GROUPS_3D = 108                        ## [size_t[3]] return max 3D work groups
     ASYNC_BARRIER = 109                             ## [::ur_bool_t] return true if Async Barrier is supported
     MEM_CHANNEL_SUPPORT = 110                       ## [::ur_bool_t] return true if specifying memory channels is supported
-    HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueing commands to
-                                                    ## read and write pipes from the host.
+    HOST_PIPE_READ_WRITE_SUPPORTED = 111            ## [::ur_bool_t] Return true if the device supports enqueueing commands
+                                                    ## to read and write pipes from the host.
     MAX_REGISTERS_PER_WORK_GROUP = 112              ## [uint32_t] The maximum number of registers available per block.
     IP_VERSION = 113                                ## [uint32_t] The device IP version. The meaning of the device IP version
                                                     ## is implementation-defined, but newer devices should have a higher
