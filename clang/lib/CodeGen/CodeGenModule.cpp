@@ -2193,6 +2193,7 @@ CodeGenModule::getMostBaseClasses(const CXXRecordDecl *RD) {
   return MostBases.takeVector();
 }
 
+<<<<<<< HEAD
 llvm::GlobalVariable *
 CodeGenModule::GetOrCreateRTTIProxyGlobalVariable(llvm::Constant *Addr) {
   auto It = RTTIProxyMap.find(Addr);
@@ -2226,6 +2227,8 @@ static bool checkIfDeclaredInSYCLNamespace(const Decl *D) {
   return ND && ND->getName() == "sycl";
 }
 
+=======
+>>>>>>> 8fd80d1d136685688ff49c9d80552bbb7addbda4
 void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
                                                            llvm::Function *F) {
   llvm::AttrBuilder B(F->getContext());
