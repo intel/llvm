@@ -135,8 +135,8 @@ def LoopInternalization : Pass<"loop-internalization", "gpu::GPUModuleOp"> {
     Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
            /*default=*/"false", 
            "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">,
-    Option<"localMemorySize", "local-memory-size", "unsigned",
-           /*default=*/"32000", "The size of local memory arena in bytes">
+    Option<"sharedMemorySize", "shared-memory-size", "unsigned",
+           /*default=*/"32000", "The size of shared local memory in bytes">
   ];
   let statistics = [
     Statistic<"numTiled", "num-tiled", "Number of loops tiled">,
