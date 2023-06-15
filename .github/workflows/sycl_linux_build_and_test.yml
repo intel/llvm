@@ -182,7 +182,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ inputs.lts_aws_matrix != '[]' }}
+    if: ${{ always() && needs.build.result == 'success' && inputs.lts_aws_matrix != '[]' }}
     runs-on: ubuntu-20.04
     environment: aws
     steps:
