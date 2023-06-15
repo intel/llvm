@@ -257,7 +257,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 27,         ///< ::ur_exp_command_buffer_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 28,      ///< ::ur_exp_sampler_mip_properties_t
-    UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES = 29,              ///< ::ur_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES = 29,              ///< ::ur_kernel_arg_mem_obj_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3880,14 +3880,14 @@ urKernelSetArgSampler(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urKernelSetArgMemObj.
-typedef struct ur_mem_obj_properties_t {
+typedef struct ur_kernel_arg_mem_obj_properties_t {
     ur_structure_type_t stype;   ///< [in] type of this structure, must be
-                                 ///< ::UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES
+                                 ///< ::UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES
     void *pNext;                 ///< [in,out][optional] pointer to extension-specific structure
     ur_mem_flags_t memoryAccess; ///< [in] Memory access flag. Allowed values are: ::UR_MEM_FLAG_READ_WRITE,
                                  ///< ::UR_MEM_FLAG_WRITE_ONLY, ::UR_MEM_FLAG_READ_ONLY.
 
-} ur_mem_obj_properties_t;
+} ur_kernel_arg_mem_obj_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set a Memory object as the argument value of a Kernel.
@@ -3906,10 +3906,10 @@ typedef struct ur_mem_obj_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(
-    ur_kernel_handle_t hKernel,                 ///< [in] handle of the kernel object
-    uint32_t argIndex,                          ///< [in] argument index in range [0, num args - 1]
-    const ur_mem_obj_properties_t *pProperties, ///< [in][optional] pointer to Memory object properties.
-    ur_mem_handle_t hArgValue                   ///< [in][optional] handle of Memory object.
+    ur_kernel_handle_t hKernel,                            ///< [in] handle of the kernel object
+    uint32_t argIndex,                                     ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_mem_obj_properties_t *pProperties, ///< [in][optional] pointer to Memory object properties.
+    ur_mem_handle_t hArgValue                              ///< [in][optional] handle of Memory object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7418,7 +7418,7 @@ typedef struct ur_kernel_set_arg_sampler_params_t {
 typedef struct ur_kernel_set_arg_mem_obj_params_t {
     ur_kernel_handle_t *phKernel;
     uint32_t *pargIndex;
-    const ur_mem_obj_properties_t **ppProperties;
+    const ur_kernel_arg_mem_obj_properties_t **ppProperties;
     ur_mem_handle_t *phArgValue;
 } ur_kernel_set_arg_mem_obj_params_t;
 

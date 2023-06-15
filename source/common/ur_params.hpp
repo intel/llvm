@@ -309,8 +309,9 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_cache_config_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_exec_info_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_mem_obj_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_mem_obj_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os, const struct ur_kernel_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value);
@@ -946,8 +947,8 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     } break;
 
     case UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES: {
-        const ur_mem_obj_properties_t *pstruct =
-            (const ur_mem_obj_properties_t *)ptr;
+        const ur_kernel_arg_mem_obj_properties_t *pstruct =
+            (const ur_kernel_arg_mem_obj_properties_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -7252,9 +7253,10 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     }
 }
 } // namespace ur_params
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_mem_obj_properties_t params) {
-    os << "(struct ur_mem_obj_properties_t){";
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_kernel_arg_mem_obj_properties_t params) {
+    os << "(struct ur_kernel_arg_mem_obj_properties_t){";
 
     os << ".stype = ";
 
