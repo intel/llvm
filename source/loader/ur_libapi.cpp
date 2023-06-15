@@ -436,7 +436,7 @@ ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_IP_VERSION < propName`
+///         + `::UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -5266,6 +5266,752 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
     return pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
                             numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM allocate pitched memory
+///
+/// @details
+///     - This function must support memory pooling.
+///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
+///       will be served from a specified memory pool.
+///     - Otherwise, the behavior is implementation-defined.
+///     - Allocations served from different memory pools must be isolated and
+///       must not reside on the same page.
+///     - Any flags/hints passed through pUSMDesc only affect the single
+///       allocation.
+///     - See also ::ur_usm_host_desc_t.
+///     - See also ::ur_usm_device_desc_t.
+///
+/// @remarks
+///   _Analogues_
+///     - **cuMemAllocPitch**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///         + `NULL == pResultPitch`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`
+///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
+///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///         + `widthInBytes == 0`
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If `UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT` and `UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT` are both false.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urUSMPitchedAllocExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_usm_desc_t *
+        pUSMDesc, ///< [in][optional] Pointer to USM memory allocation descriptor.
+    ur_usm_pool_handle_t
+        pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t
+        widthInBytes, ///< [in] width in bytes of the USM memory object to be allocated
+    size_t height, ///< [in] height of the USM memory object to be allocated
+    size_t
+        elementSizeBytes, ///< [in] size in bytes of an element in the allocation
+    void **ppMem,         ///< [out] pointer to USM shared memory object
+    size_t *pResultPitch  ///< [out] pitch of the allocation
+    ) try {
+    auto pfnPitchedAllocExp =
+        ur_lib::context->urDdiTable.USMExp.pfnPitchedAllocExp;
+    if (nullptr == pfnPitchedAllocExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnPitchedAllocExp(hContext, hDevice, pUSMDesc, pool, widthInBytes,
+                              height, elementSizeBytes, ppMem, pResultPitch);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy bindless unsampled image handles
+///
+/// @remarks
+///   _Analogues_
+///     - **cuSurfObjectDestroy**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hImage`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_handle_t
+        hImage ///< [in] pointer to handle of image object to destroy
+    ) try {
+    auto pfnUnsampledImageHandleDestroyExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnUnsampledImageHandleDestroyExp;
+    if (nullptr == pfnUnsampledImageHandleDestroyExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy bindless sampled image handles
+///
+/// @remarks
+///   _Analogues_
+///     - **cuTexObjectDestroy**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hImage`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_handle_t
+        hImage ///< [in] pointer to handle of image object to destroy
+    ) try {
+    auto pfnSampledImageHandleDestroyExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnSampledImageHandleDestroyExp;
+    if (nullptr == pfnSampledImageHandleDestroyExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnSampledImageHandleDestroyExp(hContext, hImage);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Allocate memory for bindless images
+///
+/// @remarks
+///   _Analogues_
+///     - **cuArray3DCreate**
+///     - **cuMipmappedArrayCreate**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageFormat`
+///         + `NULL == pImageDesc`
+///         + `NULL == phImageMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_image_mem_handle_t
+        *phImageMem ///< [out] pointer to handle of image memory allocated
+    ) try {
+    auto pfnImageAllocateExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
+    if (nullptr == pfnImageAllocateExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Free memory for bindless images
+///
+/// @remarks
+///   _Analogues_
+///     - **cuArrayDestroy**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hImageMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem ///< [in] handle of image memory to be freed
+    ) try {
+    auto pfnImageFreeExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageFreeExp;
+    if (nullptr == pfnImageFreeExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnImageFreeExp(hContext, hImageMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a bindless unsampled image handle
+///
+/// @remarks
+///   _Analogues_
+///     - **cuSurfObjectCreate**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hImageMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageFormat`
+///         + `NULL == pImageDesc`
+///         + `NULL == phMem`
+///         + `NULL == phImage`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
+    ur_exp_image_handle_t
+        *phImage ///< [out] pointer to handle of image object created
+    ) try {
+    auto pfnUnsampledImageCreateExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnUnsampledImageCreateExp;
+    if (nullptr == pfnUnsampledImageCreateExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnUnsampledImageCreateExp(hContext, hImageMem, pImageFormat,
+                                      pImageDesc, phMem, phImage);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a bindless sampled image handle
+///
+/// @remarks
+///   _Analogues_
+///     - **cuTexObjectCreate**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hImageMem`
+///         + `NULL == hSampler`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageFormat`
+///         + `NULL == pImageDesc`
+///         + `NULL == phMem`
+///         + `NULL == phImage`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
+    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
+    ur_exp_image_handle_t
+        *phImage ///< [out] pointer to handle of image object created
+    ) try {
+    auto pfnSampledImageCreateExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
+    if (nullptr == pfnSampledImageCreateExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat,
+                                    pImageDesc, hSampler, phMem, phImage);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Copy image data Host to Device or Device to Host
+///
+/// @remarks
+///   _Analogues_
+///     - **cuMemcpyHtoAAsync**
+///     - **cuMemcpyAtoHAsync**
+///     - **cuMemcpy2DAsync**
+///     - **cuMemcpy3DAsync**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///         + `NULL == pImageFormat`
+///         + `NULL == pImageDesc`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pDst,                   ///< [in] location the data will be copied to
+    void *pSrc, ///< [in] location the data will be copied from
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_image_copy_flags_t
+        imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+    ) try {
+    auto pfnImageCopyExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageCopyExp;
+    if (nullptr == pfnImageCopyExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnImageCopyExp(hContext, pDst, pSrc, pImageFormat, pImageDesc,
+                           imageCopyFlags, numEventsInWaitList, phEventWaitList,
+                           phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query an image memory handle for specific properties
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hImageMem`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_IMAGE_INFO_DEPTH < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///         + `NULL == pPropSizeRet`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
+    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
+    ur_image_info_t propName,            ///< [in] queried info name
+    void *pPropValue,                    ///< [out] returned query value
+    size_t *pPropSizeRet                 ///< [out] returned query value size
+    ) try {
+    auto pfnImageGetInfoExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
+    if (nullptr == pfnImageGetInfoExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieve individual image from mipmap
+///
+/// @remarks
+///   _Analogues_
+///     - **cuMipmappedArrayGetLevel**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hImageMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phImageMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem,        ///< [in] memory handle to the mipmap image
+    uint32_t mipmapLevel, ///< [in] requested level of the mipmap
+    ur_exp_image_mem_handle_t
+        *phImageMem ///< [out] returning memory handle to the individual image
+    ) try {
+    auto pfnMipmapGetLevelExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
+    if (nullptr == pfnMipmapGetLevelExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Free mipmap memory for bindless images
+///
+/// @remarks
+///   _Analogues_
+///     - **cuMipmappedArrayDestroy**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+    ) try {
+    auto pfnMipmapFreeExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
+    if (nullptr == pfnMipmapFreeExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnMipmapFreeExp(hContext, hMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Import external memory in the form of a file descriptor
+///
+/// @remarks
+///   _Analogues_
+///     - **cuImportExternalMemory**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phInteropMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    size_t size,                  ///< [in] size of the external memory
+    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_mem_handle_t
+        *phInteropMem ///< [out] interop memory handle to the external memory
+    ) try {
+    auto pfnImportOpaqueFDExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
+    if (nullptr == pfnImportOpaqueFDExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Map an interop memory handle to an image memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hInteropMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pImageFormat`
+///         + `NULL == pImageDesc`
+///         + `NULL == phImageMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_interop_mem_handle_t
+        hInteropMem, ///< [in] interop memory handle to the external memory
+    ur_exp_image_handle_t *
+        phImageMem ///< [out] image memory handle to the externally allocated memory
+    ) try {
+    auto pfnMapExternalArrayExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
+    if (nullptr == pfnMapExternalArrayExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnMapExternalArrayExp(hContext, pImageFormat, pImageDesc,
+                                  hInteropMem, phImageMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy interop memory
+///
+/// @remarks
+///   _Analogues_
+///     - **cuDestroyExternalMemory**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hInteropMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_interop_mem_handle_t
+        hInteropMem ///< [in] handle of interop memory to be freed
+    ) try {
+    auto pfnReleaseInteropExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
+    if (nullptr == pfnReleaseInteropExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnReleaseInteropExp(hContext, hInteropMem);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Import an external semaphore in the form of a file descriptor
+///
+/// @remarks
+///   _Analogues_
+///     - **cuImportExternalSemaphore**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phInteropSemaphoreHandle`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_semaphore_handle_t *
+        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+    ) try {
+    auto pfnImportExternalSemaphoreOpaqueFDExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnImportExternalSemaphoreOpaqueFDExp;
+    if (nullptr == pfnImportExternalSemaphoreOpaqueFDExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnImportExternalSemaphoreOpaqueFDExp(hContext, fileDescriptor,
+                                                 phInteropSemaphoreHandle);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy the external semaphore handle
+///
+/// @remarks
+///   _Analogues_
+///     - **cuDestroyExternalSemaphore**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hInteropSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_interop_semaphore_handle_t
+        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+    ) try {
+    auto pfnDestroyExternalSemaphoreExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnDestroyExternalSemaphoreExp;
+    if (nullptr == pfnDestroyExternalSemaphoreExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Instruct the queue with a non-blocking wait on an external semaphore
+///
+/// @remarks
+///   _Analogues_
+///     - **cuWaitExternalSemaphoresAsync**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_interop_semaphore_handle_t
+        hSemaphore,               ///< [in] interop semaphore handle
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+    ) try {
+    auto pfnWaitExternalSemaphoreExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnWaitExternalSemaphoreExp;
+    if (nullptr == pfnWaitExternalSemaphoreExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnWaitExternalSemaphoreExp(hQueue, hSemaphore, numEventsInWaitList,
+                                       phEventWaitList, phEvent);
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Instruct the queue to signal the external semaphore handle once all
+///        previous commands have completed execution
+///
+/// @remarks
+///   _Analogues_
+///     - **cuSignalExternalSemaphoresAsync**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_interop_semaphore_handle_t
+        hSemaphore,               ///< [in] interop semaphore handle
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+    ) try {
+    auto pfnSignalExternalSemaphoreExp =
+        ur_lib::context->urDdiTable.BindlessImagesExp
+            .pfnSignalExternalSemaphoreExp;
+    if (nullptr == pfnSignalExternalSemaphoreExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    return pfnSignalExternalSemaphoreExp(
+        hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }
