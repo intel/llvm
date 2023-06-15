@@ -265,6 +265,8 @@ public:
 
   void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self) const;
 
+  void markAsInternal() { MIsInternal = true; }
+
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
@@ -305,6 +307,10 @@ protected:
   // we have read only HostPtr - MUploadDataFunctor is empty but delayed release
   // must be not allowed.
   bool MHostPtrProvided;
+  // Indicates that the memory object was allocated internally. Such memory
+  // objects can be released in a deferred manner regardless of whether a host
+  // pointer was provided or not.
+  bool MIsInternal = false;
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

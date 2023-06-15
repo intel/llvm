@@ -546,7 +546,6 @@ void Scheduler::registerAuxiliaryResources(
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  ForceDeferredReleaseWrapper ForceDeferredRelease;
   for (auto It = MAuxiliaryResources.begin();
        It != MAuxiliaryResources.end();) {
     const EventImplPtr &Event = It->first;
@@ -559,8 +558,6 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
       ++It;
   }
 }
-
-thread_local bool Scheduler::ForceDeferredMemObjRelease = false;
 
 void Scheduler::startFusion(QueueImplPtr Queue) {
   WriteLockT Lock = acquireWriteLock();

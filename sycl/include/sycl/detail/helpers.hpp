@@ -37,6 +37,7 @@ enum class memory_order;
 
 namespace detail {
 
+class buffer_impl;
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
@@ -247,6 +248,7 @@ template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 
+void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 } // namespace detail
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
