@@ -19,22 +19,20 @@
 #include <exception>
 #include <iostream>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 constexpr auto CUDA_CALL_STREAM_NAME = "sycl.experimental.cuda.call";
 constexpr auto CUDA_DEBUG_STREAM_NAME = "sycl.experimental.cuda.debug";
 
 thread_local uint64_t CallCorrelationID = 0;
 thread_local uint64_t DebugCorrelationID = 0;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
 static xpti_td *GCallEvent = nullptr;
 static xpti_td *GDebugEvent = nullptr;
-#endif // XPTI_ENABLE_INSTRUMENTATION
 
 constexpr auto GVerStr = "0.1";
 constexpr int GMajVer = 0;
 constexpr int GMinVer = 1;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
 static void cuptiCallback(void *, CUpti_CallbackDomain, CUpti_CallbackId CBID,
                           const void *CBData) {
   if (xptiTraceEnabled()) {

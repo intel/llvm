@@ -51,65 +51,6 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
                                      StringRef suffix) {
   SmallString<256> TypeName;
   llvm::raw_svector_ostream OS(TypeName);
-  // If RD is spirv_JointMatrixINTEL type, mangle differently.
-  if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
-    if (RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
-      if (auto TemplateDecl = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-        ArrayRef<TemplateArgument> TemplateArgs =
-            TemplateDecl->getTemplateArgs().asArray();
-        OS << "spirv.JointMatrixINTEL.";
-        for (auto &TemplateArg : TemplateArgs) {
-          OS << "_";
-          if (TemplateArg.getKind() == TemplateArgument::Type) {
-            llvm::Type *TTy = ConvertType(TemplateArg.getAsType());
-            if (TTy->isIntegerTy()) {
-              switch (TTy->getIntegerBitWidth()) {
-              case 8:
-                OS << "char";
-                break;
-              case 16:
-                OS << "short";
-                break;
-              case 32:
-                OS << "int";
-                break;
-              case 64:
-                OS << "long";
-                break;
-              default:
-                OS << "i" << TTy->getIntegerBitWidth();
-                break;
-              }
-            } else if (TTy->isHalfTy()) {
-              OS << "half";
-            } else if (TTy->isFloatTy()) {
-              OS << "float";
-            } else if (TTy->isDoubleTy()) {
-              OS << "double";
-            } else if (TTy->isBFloatTy()) {
-              OS << "bfloat16";
-            } else if (TTy->isStructTy()) {
-              StringRef LlvmTyName = TTy->getStructName();
-              // Emit half/bfloat16/tf32 for sycl[::*]::{half,bfloat16,tf32}
-              if (LlvmTyName.startswith("class.sycl::") ||
-                  LlvmTyName.startswith("class.__sycl_internal::"))
-                LlvmTyName = LlvmTyName.rsplit("::").second;
-              if (LlvmTyName != "half" && LlvmTyName != "bfloat16" &&
-                  LlvmTyName != "tf32")
-                llvm_unreachable("Wrong matrix base type!");
-              OS << LlvmTyName;
-            } else {
-              llvm_unreachable("Wrong matrix base type!");
-            }
-          } else if (TemplateArg.getKind() == TemplateArgument::Integral) {
-            OS << TemplateArg.getAsIntegral();
-          }
-        }
-        Ty->setName(OS.str());
-        return;
-      }
-    }
-  }
   OS << RD->getKindName() << '.';
 
   // FIXME: We probably want to make more tweaks to the printing policy. For
@@ -460,6 +401,77 @@ llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
   return ResultType;
 }
 
+template <bool NeedTypeInterpret = false>
+llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
+                                       ArrayRef<TemplateArgument> TemplateArgs,
+                                       const unsigned Val = 0) {
+  // TODO: we should actually have exactly 5 template parameters: 1 for
+  // type and 4 for type parameters. But in previous version of the SPIR-V
+  // spec we have Layout matrix type parameter, that was later removed.
+  // Once we update to the newest version of the spec - this should be updated.
+  assert((TemplateArgs.size() == 5 || TemplateArgs.size() == 6) &&
+         "Wrong JointMatrixINTEL template parameters number");
+  // This is required to represent optional 'Component Type Interpretation'
+  // parameter
+  std::vector<unsigned> Params;
+  for (size_t I = 1; I != TemplateArgs.size(); ++I) {
+    assert(TemplateArgs[I].getKind() == TemplateArgument::Integral &&
+           "Wrong JointMatrixINTEL template parameter");
+    Params.push_back(TemplateArgs[I].getAsIntegral().getExtValue());
+  }
+  // Don't add type interpretation for legacy matrices.
+  // Legacy matrices has 5 template parameters, while new representation
+  // has 6.
+  if (NeedTypeInterpret && TemplateArgs.size() != 5)
+    Params.push_back(Val);
+
+  return llvm::TargetExtType::get(CompTy->getContext(),
+                                  "spirv.JointMatrixINTEL", {CompTy}, Params);
+}
+
+/// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
+/// which is represented as a pointer to a structure to LLVM extension type
+/// with the parameters that follow SPIR-V JointMatrixINTEL type.
+/// The expected representation is:
+/// target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%, %scope%,
+///        %use%, (optional) %element_type_interpretation%)
+llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
+  auto *TemplateDecl = cast<ClassTemplateSpecializationDecl>(RD);
+  ArrayRef<TemplateArgument> TemplateArgs =
+      TemplateDecl->getTemplateArgs().asArray();
+  assert(TemplateArgs[0].getKind() == TemplateArgument::Type &&
+         "1st JointMatrixINTEL template parameter must be type");
+  llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
+
+  // Per JointMatrixINTEL spec the type can have an optional
+  // 'Component Type Interpretation' parameter. We should emit it in case
+  // if on SYCL level joint matrix accepts 'bfloat16' or 'tf32' objects as
+  // matrix's components. Yet 'bfloat16' should be represented as 'int16' and
+  // 'tf32' as 'float' types.
+  if (CompTy->isStructTy()) {
+    StringRef LlvmTyName = CompTy->getStructName();
+    // Emit half/int16/float for sycl[::*]::{half,bfloat16,tf32}
+    if (LlvmTyName.startswith("class.sycl::") ||
+        LlvmTyName.startswith("class.__sycl_internal::"))
+      LlvmTyName = LlvmTyName.rsplit("::").second;
+    if (LlvmTyName == "half") {
+      CompTy = llvm::Type::getHalfTy(getLLVMContext());
+      return getJointMatrixINTELExtType(CompTy, TemplateArgs);
+    } else if (LlvmTyName == "tf32") {
+      CompTy = llvm::Type::getFloatTy(getLLVMContext());
+      // 'tf32' interpretation is mapped to '0'
+      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 0);
+    } else if (LlvmTyName == "bfloat16") {
+      CompTy = llvm::Type::getInt16Ty(getLLVMContext());
+      // 'bfloat16' interpretation is mapped to '1'
+      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 1);
+    } else {
+      llvm_unreachable("Wrong matrix base type!");
+    }
+  }
+  return getJointMatrixINTELExtType(CompTy, TemplateArgs);
+}
+
 /// ConvertType - Convert the specified type to its LLVM form.
 llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   T = Context.getCanonicalType(T);
@@ -754,6 +766,18 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     llvm::Type *PointeeType = ConvertTypeForMem(ETy);
     if (PointeeType->isVoidTy())
       PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
+    if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
+      const Type *ClangETy = ETy.getTypePtrOrNull();
+      if (ClangETy && ClangETy->isStructureOrClassType()) {
+        RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
+        if (RD && RD->getQualifiedNameAsString() ==
+                      "__spv::__spirv_JointMatrixINTEL") {
+          ResultType = ConvertSYCLJointMatrixINTELType(RD);
+          break;
+        }
+      }
+    }
+
     unsigned AS = getTargetAddressSpace(ETy);
     ResultType = llvm::PointerType::get(PointeeType, AS);
     break;
