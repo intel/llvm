@@ -22,6 +22,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    int Dims, int ElemSize, int OffsetInBytes,
                                    bool IsSubBuffer,
                                    const property_list &PropertyList) {
+
   impl = std::shared_ptr<AccessorImplHost>(
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                            (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
