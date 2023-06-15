@@ -38,10 +38,10 @@ static pi_result redefinedEnqueueNativeKernel(
   EXPECT_EQ(Reqs[0]->MAccessRange[1], MockReq.MAccessRange[1]);
   EXPECT_EQ(Reqs[0]->MAccessRange[2], MockReq.MAccessRange[2]);
 
-  detail::HostKernelBase *HostKernel =
-      static_cast<detail::HostKernelBase *>(CastedBlob[1]);
+  std::shared_ptr<detail::HostKernelBase> *HostKernel =
+      static_cast<std::shared_ptr<detail::HostKernelBase> *>(CastedBlob[1]);
   testing::internal::CaptureStdout();
-  HostKernel->call(NDRDesc, nullptr);
+  (*HostKernel)->call(NDRDesc, nullptr);
   std::string Output = testing::internal::GetCapturedStdout();
   EXPECT_EQ(Output, "Blablabla");
 
@@ -73,7 +73,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   std::unique_ptr<detail::CG> CG{new detail::CGExecKernel(
       /*NDRDesc*/ NDRDesc,
       /*HKernel*/
-      std::make_unique<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
+      std::make_shared<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
       /*SyclKernel*/ nullptr,
       /*KernelBundle*/ nullptr, std::move(CGData),
       /*Args*/ {},
