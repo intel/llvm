@@ -358,6 +358,16 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xKernelSetArgMemObj."
+class: $xKernel
+name: $x_kernel_arg_mem_obj_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_mem_flags_t
+      name: memoryAccess
+      desc: "[in] Memory access flag. Allowed values are: $X_MEM_FLAG_READ_WRITE, $X_MEM_FLAG_WRITE_ONLY, $X_MEM_FLAG_READ_ONLY."
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Set a Memory object as the argument value of a Kernel."
 class: $xKernel
@@ -372,6 +382,9 @@ params:
     - type: "uint32_t"
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
+    - type: "const $x_kernel_arg_mem_obj_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to Memory object properties."
     - type: "$x_mem_handle_t"
       name: hArgValue
       desc: "[in][optional] handle of Memory object."

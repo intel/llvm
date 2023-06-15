@@ -1955,6 +1955,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_mem_obj_properties_t
+        *pProperties, ///< [in][optional] pointer to Memory object properties.
     ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1962,7 +1964,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnSetArgMemObj = d_context.urDdiTable.Kernel.pfnSetArgMemObj;
     if (nullptr != pfnSetArgMemObj) {
-        result = pfnSetArgMemObj(hKernel, argIndex, hArgValue);
+        result = pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
     } else {
         // generic implementation
     }
