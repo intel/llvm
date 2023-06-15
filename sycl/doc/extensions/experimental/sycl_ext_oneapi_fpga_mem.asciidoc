@@ -394,7 +394,7 @@ namespace sycl::ext::intel::experimental {
   template <size_t n>
   inline constexpr num_replicates_key::value_t<n> num_replicates;
 
-} // namespace sycl::ext:intel:
+} // namespace sycl::ext::intel::experimental
 ----
 
 [frame="topbot",options="header"]
