@@ -203,8 +203,13 @@ void CodeGenFunction::EmitCXXGlobalVarDeclInit(const VarDecl &D,
   unsigned ActualAddrSpace = GV->getAddressSpace();
   llvm::Constant *DeclPtr = GV;
   if (ActualAddrSpace != ExpectedAddrSpace) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::PointerType *PTy =
         llvm::PointerType::get(getLLVMContext(), ExpectedAddrSpace);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::PointerType *PTy = llvm::PointerType::getWithSamePointeeType(
+        GV->getType(), ExpectedAddrSpace);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     DeclPtr = llvm::ConstantExpr::getAddrSpaceCast(DeclPtr, PTy);
   }
 
