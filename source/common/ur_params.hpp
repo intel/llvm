@@ -7442,6 +7442,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
     case UR_QUEUE_FLAG_PRIORITY_HIGH:
         os << "UR_QUEUE_FLAG_PRIORITY_HIGH";
         break;
+
+    case UR_QUEUE_FLAG_SUBMISSION_BATCHED:
+        os << "UR_QUEUE_FLAG_SUBMISSION_BATCHED";
+        break;
+
+    case UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE:
+        os << "UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -7529,6 +7537,28 @@ inline void serializeFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag) {
             first = false;
         }
         os << UR_QUEUE_FLAG_PRIORITY_HIGH;
+    }
+
+    if ((val & UR_QUEUE_FLAG_SUBMISSION_BATCHED) ==
+        (uint32_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+        val ^= (uint32_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+    }
+
+    if ((val & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) ==
+        (uint32_t)UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) {
+        val ^= (uint32_t)UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     }
     if (val != 0) {
         std::bitset<32> bits(val);

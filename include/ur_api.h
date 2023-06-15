@@ -4039,13 +4039,17 @@ typedef enum ur_queue_flag_t {
     UR_QUEUE_FLAG_DISCARD_EVENTS = UR_BIT(4),                ///< Events will be discarded
     UR_QUEUE_FLAG_PRIORITY_LOW = UR_BIT(5),                  ///< Low priority queue
     UR_QUEUE_FLAG_PRIORITY_HIGH = UR_BIT(6),                 ///< High priority queue
+    UR_QUEUE_FLAG_SUBMISSION_BATCHED = UR_BIT(7),            ///< Hint: enqueue and submit in a batch later. No change in queue
+                                                             ///< semantics. Implementation chooses submission mode.
+    UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE = UR_BIT(8),          ///< Hint: enqueue and submit immediately. No change in queue semantics.
+                                                             ///< Implementation chooses submission mode.
     /// @cond
     UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
 } ur_queue_flag_t;
 /// @brief Bit Mask for validating ur_queue_flags_t
-#define UR_QUEUE_FLAGS_MASK 0xffffff80
+#define UR_QUEUE_FLAGS_MASK 0xfffffe00
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
