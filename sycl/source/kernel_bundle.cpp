@@ -292,7 +292,7 @@ std::vector<kernel_id> get_kernel_ids() {
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   if (KernelIDs.empty())
-    return false;
+    return true;
   // TODO: also need to check that the architecture specified by the
   // "-fsycl-targets" flag matches the device when we are able to get the
   // device's arch.
