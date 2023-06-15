@@ -182,7 +182,7 @@ public:
                             const RTDeviceBinaryImage &Img,
                             const SerializedObj &SpecConsts,
                             const std::string &BuildOptionsString,
-                            const RT::PiProgram &NativePrg);
+                            const sycl::detail::pi::PiProgram &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {

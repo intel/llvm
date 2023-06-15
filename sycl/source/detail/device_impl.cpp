@@ -26,16 +26,16 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const PluginPtr &Plugin)
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
 
-device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform)
+device_impl::device_impl(sycl::detail::pi::PiDevice Device, PlatformImplPtr Platform)
     : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
                   Platform->getPlugin()) {}
 
-device_impl::device_impl(RT::PiDevice Device, const PluginPtr &Plugin)
+device_impl::device_impl(sycl::detail::pi::PiDevice Device, const PluginPtr &Plugin)
     : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
                   Plugin) {}
 
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
-                         RT::PiDevice Device, PlatformImplPtr Platform,
+                         sycl::detail::pi::PiDevice Device, PlatformImplPtr Platform,
                          const PluginPtr &Plugin)
     : MDevice(Device), MIsHostDevice(false),
       MDeviceHostBaseTime(std::make_pair(0, 0)) {
@@ -53,13 +53,13 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
+      MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType), &MType, nullptr);
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
   if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin->call<PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice),
+        MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(sycl::detail::pi::PiDevice),
         &MRootDevice, nullptr);
   }
 
@@ -84,7 +84,7 @@ device_impl::~device_impl() {
   if (!MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const PluginPtr &Plugin = getPlugin();
-    RT::PiResult Err =
+    sycl::detail::pi::PiResult Err =
         Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
     __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
   }
@@ -159,7 +159,7 @@ std::vector<device>
 device_impl::create_sub_devices(const cl_device_partition_property *Properties,
                                 size_t SubDevicesCount) const {
 
-  std::vector<RT::PiDevice> SubDevices(SubDevicesCount);
+  std::vector<sycl::detail::pi::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
@@ -176,7 +176,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   //
   std::vector<device> res;
   std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res, this](const RT::PiDevice &a_pi_device) {
+                [&res, this](const sycl::detail::pi::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
                       MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
                   res.push_back(sycl_device);

@@ -36,7 +36,7 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
   return HostImpl;
 }
 
-PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
+PlatformImplPtr platform_impl::getOrMakePlatformImpl(sycl::detail::pi::PiPlatform PiPlatform,
                                                      const PluginPtr &Plugin) {
   PlatformImplPtr Result;
   {
@@ -61,9 +61,9 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
 }
 
 PlatformImplPtr
-platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
+platform_impl::getPlatformFromPiDevice(sycl::detail::pi::PiDevice PiDevice,
                                        const PluginPtr &Plugin) {
-  RT::PiPlatform Plt = nullptr; // TODO catch an exception and put it to list
+  sycl::detail::pi::PiPlatform Plt = nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
   Plugin->call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
                                            sizeof(Plt), &Plt, nullptr);
@@ -114,7 +114,7 @@ std::vector<platform> platform_impl::get_platforms() {
       return Platforms;
 
     if (NumPlatforms) {
-      std::vector<RT::PiPlatform> PiPlatforms(NumPlatforms);
+      std::vector<sycl::detail::pi::PiPlatform> PiPlatforms(NumPlatforms);
       if (Plugin->call_nocheck<PiApiKind::piPlatformsGet>(
               NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
         return Platforms;
@@ -145,7 +145,7 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which plugin.
   // There should be just one plugin serving each backend.
-  std::vector<PluginPtr> &Plugins = RT::initialize();
+  std::vector<PluginPtr> &Plugins = sycl::detail::pi::initialize();
   std::vector<std::pair<platform, PluginPtr>> PlatformsWithPlugin;
 
   // First check Unified Runtime
@@ -216,7 +216,7 @@ std::vector<platform> platform_impl::get_platforms() {
 // devices.
 template <typename ListT, typename FilterT>
 std::vector<int>
-platform_impl::filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
+platform_impl::filterDeviceFilter(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
                                   ListT *FilterList) const {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
@@ -248,9 +248,9 @@ platform_impl::filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   std::vector<int> original_indices;
 
   // Find out backend of the platform
-  RT::PiPlatformBackend PiBackend;
+  sycl::detail::pi::PiPlatformBackend PiBackend;
   MPlugin->call<PiApiKind::piPlatformGetInfo>(
-      MPlatform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(RT::PiPlatformBackend),
+      MPlatform, PI_EXT_PLATFORM_INFO_BACKEND, sizeof(sycl::detail::pi::PiPlatformBackend),
       &PiBackend, nullptr);
   backend Backend = convertBackend(PiBackend);
 
@@ -259,10 +259,10 @@ platform_impl::filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   // backend
   std::lock_guard<std::mutex> Guard(*MPlugin->getPluginMutex());
   int DeviceNum = MPlugin->getStartingDeviceId(MPlatform);
-  for (RT::PiDevice Device : PiDevices) {
-    RT::PiDeviceType PiDevType;
+  for (sycl::detail::pi::PiDevice Device : PiDevices) {
+    sycl::detail::pi::PiDeviceType PiDevType;
     MPlugin->call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
-                                              sizeof(RT::PiDeviceType),
+                                              sizeof(sycl::detail::pi::PiDeviceType),
                                               &PiDevType, nullptr);
     // Assumption here is that there is 1-to-1 mapping between PiDevType and
     // Sycl device type for GPU, CPU, and ACC.
@@ -329,13 +329,13 @@ platform_impl::filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
 }
 
 std::shared_ptr<device_impl>
-platform_impl::getDeviceImpl(RT::PiDevice PiDevice) {
+platform_impl::getDeviceImpl(sycl::detail::pi::PiDevice PiDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   return getDeviceImplHelper(PiDevice);
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
-    RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
+    sycl::detail::pi::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
   std::shared_ptr<device_impl> Result = getDeviceImplHelper(PiDevice);
@@ -523,9 +523,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   pi_uint32 NumDevices = 0;
   MPlugin->call<PiApiKind::piDevicesGet>(
-      MPlatform, pi::cast<RT::PiDeviceType>(DeviceType),
+      MPlatform, pi::cast<sycl::detail::pi::PiDeviceType>(DeviceType),
       0, // CP info::device_type::all
-      pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
+      pi::cast<sycl::detail::pi::PiDevice *>(nullptr), &NumDevices);
   const backend Backend = getBackend();
 
   if (NumDevices == 0) {
@@ -534,7 +534,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const plugin reference.
-    std::vector<PluginPtr> &Plugins = RT::initialize();
+    std::vector<PluginPtr> &Plugins = sycl::detail::pi::initialize();
     auto It = std::find_if(Plugins.begin(), Plugins.end(),
                            [&Platform = MPlatform](PluginPtr &Plugin) {
                              return Plugin->containsPiPlatform(Platform);
@@ -547,16 +547,16 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     return Res;
   }
 
-  std::vector<RT::PiDevice> PiDevices(NumDevices);
+  std::vector<sycl::detail::pi::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
   MPlugin->call<PiApiKind::piDevicesGet>(
       MPlatform,
-      pi::cast<RT::PiDeviceType>(DeviceType), // CP info::device_type::all
+      pi::cast<sycl::detail::pi::PiDeviceType>(DeviceType), // CP info::device_type::all
       NumDevices, PiDevices.data(), nullptr);
 
   // Some elements of PiDevices vector might be filtered out, so make a copy of
   // handles to do a cleanup later
-  std::vector<RT::PiDevice> PiDevicesToCleanUp = PiDevices;
+  std::vector<sycl::detail::pi::PiDevice> PiDevicesToCleanUp = PiDevices;
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
@@ -585,14 +585,14 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, MPlugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
-      [PlatformImpl](const RT::PiDevice &PiDevice) -> device {
+      [PlatformImpl](const sycl::detail::pi::PiDevice &PiDevice) -> device {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
 
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
-  for (RT::PiDevice &PiDev : PiDevicesToCleanUp)
+  for (sycl::detail::pi::PiDevice &PiDev : PiDevicesToCleanUp)
     MPlugin->call<PiApiKind::piDeviceRelease>(PiDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
@@ -644,7 +644,7 @@ bool platform_impl::has(aspect Aspect) const {
 }
 
 std::shared_ptr<device_impl>
-platform_impl::getDeviceImplHelper(RT::PiDevice PiDevice) {
+platform_impl::getDeviceImplHelper(sycl::detail::pi::PiDevice PiDevice) {
   for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
     if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
       if (Device->getHandleRef() == PiDevice)
