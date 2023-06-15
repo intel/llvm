@@ -22,9 +22,6 @@
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
     [[maybe_unused]] ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   size_t DeviceMaxMemAllocSize = 0;
   UR_ASSERT(urDeviceGetInfo(hContext->getDevice(),
                             UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE, sizeof(size_t),
@@ -59,13 +56,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
-                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
   size_t DeviceMaxMemAllocSize = 0;
   UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
                             sizeof(size_t),
@@ -96,13 +86,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_usm_desc_t *pUSMDesc, [[maybe_unused]] ur_usm_pool_handle_t pool,
     size_t size, void **ppMem) {
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!pUSMDesc || (pUSMDesc->align == 0 ||
-                          ((pUSMDesc->align & (pUSMDesc->align - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
   size_t DeviceMaxMemAllocSize = 0;
   UR_ASSERT(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
                             sizeof(size_t),
@@ -132,8 +115,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(hContext);
@@ -164,9 +145,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
                      ur_usm_alloc_info_t propName, size_t propValueSize,
                      void *pPropValue, size_t *pPropValueSizeRet) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
