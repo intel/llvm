@@ -602,13 +602,8 @@ private:
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
 
-<<<<<<< HEAD
-  llvm::DenseMap<const llvm::Constant *, llvm::GlobalVariable *> RTTIProxyMap;
-
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
   const EnumDecl *AspectsEnumDecl = nullptr;
-=======
->>>>>>> 8fd80d1d136685688ff49c9d80552bbb7addbda4
   // Helps squashing blocks of TopLevelStmtDecl into a single llvm::Function
   // when used with -fincremental-extensions.
   std::pair<std::unique_ptr<CodeGenFunction>, const TopLevelStmtDecl *>
