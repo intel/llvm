@@ -180,17 +180,10 @@ bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   // TODO: check uniformity.
 }
 
-/// A function is a candidate iff it has an sycl::nd_item or sycl::item
-/// argument.
+/// A function is a candidate iff we can get the grid dimension.
 bool isCandidateFunction(FunctionOpInterface func) {
-  if (func.getNumArguments() == 0)
-    return false;
-  Type lastArgTy = func.getArgumentTypes().back();
-  // TODO: Also allow `isPtrOf<sycl::IDType>(lastArgTy)`.
-  if (!sycl::isPtrOf<sycl::NdItemType>(lastArgTy) &&
-      !sycl::isPtrOf<sycl::ItemType>(lastArgTy))
-    return false;
-  return true;
+  unsigned numGridDim = getGridDimension(func);
+  return (numGridDim > 0 && numGridDim <= 3);
 }
 
 /// A loop nest is a candidate iff is perfect and contains only affine or scf
@@ -1051,7 +1044,6 @@ void LoopInternalization::transform(FunctionOpInterface func,
   funcKernelInfo.getKernelCallers(func, kernels);
 
   const unsigned numDims = getGridDimension(func);
-  assert(numDims > 0 && numDims <= 3 && "Dimension out of range");
   sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
   OpBuilder builder(func->getRegion(0));
   WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
