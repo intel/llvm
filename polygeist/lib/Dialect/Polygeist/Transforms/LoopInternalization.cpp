@@ -275,13 +275,6 @@ getReqdSharedMemory(sycl::AccessorType accTy,
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   const unsigned numDims = accTy.getDimension();
 
-  if (workGroupSize.isKnown()) {
-    unsigned reqdSharedMemory = elemSize;
-    for (unsigned dim = 0; dim < numDims; ++dim)
-      reqdSharedMemory *= workGroupSize.get<unsigned>(dim);
-    return reqdSharedMemory;
-  }
-
   std::variant<Value, unsigned> reqdSharedMemory =
       ValueOrUnsigned::get(elemSize, builder, !workGroupSize.isKnown());
   for (unsigned dim = 0; dim < numDims; ++dim)
