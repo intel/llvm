@@ -1213,13 +1213,12 @@ void LoopInternalization::transform(T loop,
       offset = ValueOrUnsigned::add(offset, reqdLocalMemory, builder);
     }
   }
+  LLVM_DEBUG(llvm::dbgs() << "Promoted loop: " << loop << "\n");
 
   builder.setInsertionPoint(loop);
   createLocalBarrier(builder);
   builder.setInsertionPointAfter(loop);
   createLocalBarrier(builder);
-
-  LLVM_DEBUG(llvm::dbgs() << "Promoted loop: " << loop << "\n");
 }
 
 void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
