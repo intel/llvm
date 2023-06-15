@@ -1109,16 +1109,14 @@ extension.
 > undefined program behavior if violated.
 
 ### Features not supported with the ESIMD extension:
-- The [C and C++ Standard libraries support](../supported/C-CXX-StandardLibrary.rst)
+- The [C and C++ Standard libraries support](../C-CXX-StandardLibrary.rst)
 - The [Device library extensions](../../../design/DeviceLibExtensions.rst)
 
 ### Unsupported standard SYCL APIs:
 
-Current ESIMD implementation does not support using certain standard SYCL features
-inside explicit SIMD kernels and functions. Most of them will be eventually
-dropped. What's not supported today:
-- Interoperability between regular SYCL and ESIMD kernels is only supported one way.
-  Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.
+Current ESIMD implementation does not support certain standard SYCL features
+inside ESIMD kernels and functions. Most of missing SYCL features listed below
+must be supported eventually:
 - 2D and 3D target::device accessor and local_accessor;
 - Constant accessors;
 - `sycl::accessor::get_pointer()` and `sycl::accessor::operator[]` are supported only with `-fsycl-esimd-force-stateless-mem`. Otherwise, All memory accesses through an accessor are
