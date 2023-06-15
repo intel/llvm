@@ -214,6 +214,39 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
       innermostLoop->getSingleInductionVar() &&
       "Expecting single induction variable for affine for and scf for loops");
 
+  // Cannot tile loop that yield values.
+  if (Operation *innermostLoopOp = *innermostLoop;
+      innermostLoopOp->getNumResults() > 0)
+    return false;
+
+  return true;
+}
+
+/// An access is a candidate iff it is AffineLoadOp or AffineStoreOp, with int
+/// or float element type, and with accessor dimension the same as grid
+/// dimension.
+bool isCandidateAccess(Operation *op) {
+  assert(op && "Expecting valid op");
+
+  if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+    return false;
+
+  affine::MemRefAccess memRefAccess(op);
+  auto accSub = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(
+      memRefAccess.memref.getDefiningOp());
+  if (!accSub)
+    return false;
+
+  // Limitation: cannot calculate element size for non int or float type.
+  if (!cast<MemRefType>(accSub.getType()).getElementType().isIntOrFloat())
+    return false;
+
+  // TODO: Add support for accessors with dimensions not equals to the grid
+  // dimensions.
+  if (auto func = op->getParentOfType<FunctionOpInterface>();
+      getGridDimension(func) != getAccessorType(accSub).getDimension())
+    return false;
+
   return true;
 }
 
@@ -359,21 +392,20 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
 }
 
 /// Tile an affine for \p loop given the tile size \p tileSize.
-LogicalResult tile(affine::AffineForOp loop, Value tileSize,
-                   SmallVectorImpl<affine::AffineForOp> &tiledNest) {
+void tile(affine::AffineForOp loop, Value tileSize,
+          SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
   LogicalResult res =
       tilePerfectlyNestedParametric({loop}, tileSize, &newNestedLoops);
+  assert(res.succeeded() && "Expecting innermost loop to be tiled");
   tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
                                                newNestedLoops.end());
-  return res;
 }
 
 /// Tile an SCF for \p loop given the tile size \p tileSize.
-LogicalResult tile(scf::ForOp loop, Value tileSize,
-                   SmallVectorImpl<scf::ForOp> &tiledNest) {
+void tile(scf::ForOp loop, Value tileSize,
+          SmallVectorImpl<scf::ForOp> &tiledNest) {
   tiledNest = tile({loop}, tileSize, loop);
-  return success();
 }
 
 /// Create a group barrier.
@@ -969,16 +1001,10 @@ void LoopInternalization::selectMemorySpace(
   memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+    if (!isCandidateAccess(op))
       return;
 
     affine::MemRefAccess memRefAccess(op);
-    // Limitation: cannot calculate element size for non int or float type.
-    if (!cast<MemRefType>(memRefAccess.memref.getType())
-             .getElementType()
-             .isIntOrFloat())
-      return;
-
     // Compute the ideal memory space if possible.
     std::optional<MemorySelector::MemorySpace> memSpace =
         memorySelector.getMemorySpace(memRefAccess.memref);
@@ -1171,9 +1197,7 @@ void LoopInternalization::transform(T loop,
 
   // Tile the loop.
   SmallVector<T> tiledNest;
-  LogicalResult res =
-      tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
-  assert(res.succeeded() && "Expecting innermost loop to be tiled");
+  tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
   ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 

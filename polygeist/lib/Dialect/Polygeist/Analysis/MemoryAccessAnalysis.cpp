@@ -1289,8 +1289,8 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   //  - base operand equal to the result of a sycl accessor subscript, and
   //  - a single index with zero value.
   MemRefAccess access(memoryOp);
-  auto accessorSubscriptOp =
-      dyn_cast<sycl::SYCLAccessorSubscriptOp>(access.memref.getDefiningOp());
+  auto accessorSubscriptOp = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(
+      access.memref.getDefiningOp());
   if (!accessorSubscriptOp || !hasZeroIndex(access))
     return;
 
