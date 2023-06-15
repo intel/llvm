@@ -762,7 +762,6 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   case Type::Pointer: {
     const PointerType *PTy = cast<PointerType>(Ty);
     QualType ETy = PTy->getPointeeType();
-<<<<<<< HEAD
     llvm::Type *PointeeType = ConvertTypeForMem(ETy);
     if (PointeeType->isVoidTy())
       PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
@@ -778,8 +777,6 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       }
     }
 
-=======
->>>>>>> 09d6ee765780837d5156ac81f968465bdcec73ba
     unsigned AS = getTargetAddressSpace(ETy);
     ResultType = llvm::PointerType::get(getLLVMContext(), AS);
     break;
