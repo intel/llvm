@@ -75,8 +75,9 @@ int main() {
   if (sycl::is_compatible<class WrongReqSGSize>(Dev)) {
     assert(false && "sycl::is_compatible<WrongReqSGSize> must be false");
     Q.submit([&](sycl::handler &h) {
-      h.parallel_for<class WrongReqSGSize>(sycl::range<1>(2), [=
-      ](sycl::item<1> it) [[sycl::reqd_sub_group_size(INT_MAX)]]{});
+      h.parallel_for<class WrongReqSGSize>(
+          sycl::range<1>(2),
+          [=](sycl::item<1> it) [[sycl::reqd_sub_group_size(INT_MAX)]] {});
     });
   }
 
