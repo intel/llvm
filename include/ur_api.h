@@ -257,7 +257,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 27,         ///< ::ur_exp_command_buffer_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 28,      ///< ::ur_exp_sampler_mip_properties_t
-    UR_STRUCTURE_TYPE_MEM_OBJ_PROPERTIES = 29,              ///< ::ur_kernel_arg_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 29,   ///< ::ur_kernel_arg_mem_obj_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond

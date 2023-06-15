@@ -233,7 +233,7 @@ class ur_structure_type_v(IntEnum):
     DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
     EXP_COMMAND_BUFFER_DESC = 27                    ## ::ur_exp_command_buffer_desc_t
     EXP_SAMPLER_MIP_PROPERTIES = 28                 ## ::ur_exp_sampler_mip_properties_t
-    MEM_OBJ_PROPERTIES = 29                         ## ::ur_kernel_arg_mem_obj_properties_t
+    KERNEL_ARG_MEM_OBJ_PROPERTIES = 29              ## ::ur_kernel_arg_mem_obj_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
