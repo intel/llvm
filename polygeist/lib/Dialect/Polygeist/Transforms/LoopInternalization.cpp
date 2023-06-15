@@ -1,4 +1,4 @@
-//===- LoopInternalization.cpp - Promote memory access to local memory ----===//
+//===- LoopInternalization.cpp - Promote memory access to shared mem -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -171,8 +171,8 @@ bool isLocalAccessAddrSpace(Type ty) {
 /// A kernel is a candidate iff no dynamic sized local accessor is used.
 bool isCandidateKernel(gpu::GPUFuncOp kernel) {
   assert(kernel.isKernel() && "Expecting kernel");
-  // Available local memory of a kernel cannot be calculated when dynamic sized
-  // local memory is used, as its size is not compile time known on device.
+  // Available shared memory of a kernel cannot be calculated when dynamic
+  // sized shared memory is used, as its size is not compile time known.
   return none_of(kernel.getArguments(), [](Value arg) {
     return isLocalAccessAddrSpace(arg.getType());
   });
@@ -206,78 +206,113 @@ bool isCandidateLoopNest(LoopLikeOpInterface loop) {
       innermostLoop->getSingleInductionVar() &&
       "Expecting single induction variable for affine for and scf for loops");
 
+  // Cannot tile loop that yield values.
+  if (Operation *innermostLoopOp = *innermostLoop;
+      innermostLoopOp->getNumResults() > 0)
+    return false;
+
   return true;
 }
 
-/// Get the size of unused shared local memory arena in bytes.
-unsigned getLocalMemoryRemaining(gpu::GPUModuleOp &module,
-                                 unsigned localMemorySize) {
+/// An access is a candidate iff it is AffineLoadOp or AffineStoreOp, with int
+/// or float element type, and with accessor dimension the same as grid
+/// dimension.
+bool isCandidateAccess(Operation *op) {
+  assert(op && "Expecting valid op");
+
+  if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+    return false;
+
+  affine::MemRefAccess memRefAccess(op);
+  auto accSub = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(
+      memRefAccess.memref.getDefiningOp());
+  if (!accSub)
+    return false;
+
+  // Limitation: cannot calculate element size for non int or float type.
+  if (!cast<MemRefType>(accSub.getType()).getElementType().isIntOrFloat())
+    return false;
+
+  // TODO: Add support for accessors with dimensions not equals to the grid
+  // dimensions.
+  if (auto func = op->getParentOfType<FunctionOpInterface>();
+      getGridDimension(func) != getAccessorType(accSub).getDimension())
+    return false;
+
+  return true;
+}
+
+/// Get the size of unused shared memory arena in bytes.
+unsigned getSharedMemoryRemaining(gpu::GPUModuleOp &module,
+                                  const unsigned sharedMemorySize) {
   assert(module.hasTrait<OpTrait::SymbolTable>() &&
          "Expecting module with SymbolTable trait");
-  unsigned localMemoryRemaining = localMemorySize;
-  module.walk([&localMemoryRemaining](memref::GlobalOp global) {
+
+  unsigned sharedMemoryRemaining = sharedMemorySize;
+  module.walk([&](memref::GlobalOp global) {
     MemRefType memRefTy = global.getType();
     if (!isLocalAccessAddrSpace(memRefTy))
       return WalkResult::advance();
+
     unsigned globalSize =
         memRefTy.getElementTypeBitWidth() * memRefTy.getNumElements() / 8;
-    if (globalSize >= localMemoryRemaining) {
-      localMemoryRemaining = 0;
+    if (globalSize >= sharedMemoryRemaining) {
+      sharedMemoryRemaining = 0;
       return WalkResult::interrupt();
     }
-    localMemoryRemaining -= globalSize;
+
+    sharedMemoryRemaining -= globalSize;
     return WalkResult::advance();
   });
-  return localMemoryRemaining;
+
+  return sharedMemoryRemaining;
 }
 
 /// Get the amount of shared memory needed by \p accTy in bytes.
 std::variant<Value, unsigned>
-getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
-                   OpBuilder builder) {
+getReqdSharedMemory(sycl::AccessorType accTy,
+                    const WorkGroupSize &workGroupSize, OpBuilder builder) {
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
-  const unsigned numDims = accTy.getDimension();
-
-  std::variant<Value, unsigned> reqdLocalMemory =
+  std::variant<Value, unsigned> reqdSharedMemory =
       ValueOrUnsigned::get(elemSize, builder, !workGroupSize.isKnown());
+  const unsigned numDims = accTy.getDimension();
   for (unsigned dim = 0; dim < numDims; ++dim)
-    reqdLocalMemory =
-        ValueOrUnsigned::mul(reqdLocalMemory, workGroupSize[dim], builder);
+    reqdSharedMemory =
+        ValueOrUnsigned::mul(reqdSharedMemory, workGroupSize[dim], builder);
 
-  return reqdLocalMemory;
+  return reqdSharedMemory;
 }
 
-/// Get the require local memory for memrefs in \p loopToSharedMemref, i.e, for
-/// each kernel. If there are multiple loops in the kernel that require local
+/// Get the require memory for memrefs in \p loopToSharedMemref, i.e, for
+/// each kernel. If there are multiple loops in the kernel that require shared
 /// memory, it returns the maximum amount required by any of them.
 std::variant<Value, unsigned>
-getReqdLocalMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
-                       &loopToSharedMemref,
-                   const WorkGroupSize &workGroupSize, OpBuilder builder) {
-  std::variant<Value, unsigned> reqdLocalMemory =
+getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
+                        &loopToSharedMemref,
+                    const WorkGroupSize &workGroupSize, OpBuilder builder) {
+  std::variant<Value, unsigned> reqdSharedMemory =
       ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
-
   for (auto &entry : loopToSharedMemref) {
-    std::variant<Value, unsigned> loopReqdLocalMemory =
+    std::variant<Value, unsigned> loopReqdSharedMemory =
         ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
     for (Operation *memref : entry.second) {
       sycl::AccessorType accTy =
           getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
-      loopReqdLocalMemory = ValueOrUnsigned::add(
-          loopReqdLocalMemory,
-          getReqdLocalMemory(accTy, workGroupSize, builder), builder);
+      loopReqdSharedMemory = ValueOrUnsigned::add(
+          loopReqdSharedMemory,
+          getReqdSharedMemory(accTy, workGroupSize, builder), builder);
     }
-    // Memref in one loop can reuse local memory allocated for another loop.
-    reqdLocalMemory =
-        ValueOrUnsigned::max(reqdLocalMemory, loopReqdLocalMemory, builder);
+    // Memref in one loop can reuse shared memory allocated for another loop.
+    reqdSharedMemory =
+        ValueOrUnsigned::max(reqdSharedMemory, loopReqdSharedMemory, builder);
   }
 
-  return reqdLocalMemory;
+  return reqdSharedMemory;
 }
 
-/// Create a GlobalOp for workgroup local memory.
-memref::GlobalOp getWorkGroupLocalMemory(gpu::GPUModuleOp module,
-                                         unsigned size) {
+/// Create a GlobalOp for workgroup shared memory.
+memref::GlobalOp getWorkGroupSharedMemory(gpu::GPUModuleOp module,
+                                          unsigned size) {
   assert(size != 0 && "Expecting non-zero size");
   std::string name("WGLocalMem");
   polygeist::getUniqueSymbolName(name, module);
@@ -318,25 +353,24 @@ memref::ViewOp createViewOp(sycl::AccessorType accTy, Value offset,
 }
 
 /// Tile an affine for \p loop given the tile size \p tileSize.
-LogicalResult tile(affine::AffineForOp loop, Value tileSize,
-                   SmallVectorImpl<affine::AffineForOp> &tiledNest) {
+void tile(affine::AffineForOp loop, Value tileSize,
+          SmallVectorImpl<affine::AffineForOp> &tiledNest) {
   SmallVector<affine::AffineForOp> newNestedLoops;
   LogicalResult res =
       tilePerfectlyNestedParametric({loop}, tileSize, &newNestedLoops);
+  assert(res.succeeded() && "Expecting innermost loop to be tiled");
   tiledNest = SmallVector<affine::AffineForOp>(newNestedLoops.begin() + 1,
                                                newNestedLoops.end());
-  return res;
 }
 
 /// Tile an SCF for \p loop given the tile size \p tileSize.
-LogicalResult tile(scf::ForOp loop, Value tileSize,
-                   SmallVectorImpl<scf::ForOp> &tiledNest) {
+void tile(scf::ForOp loop, Value tileSize,
+          SmallVectorImpl<scf::ForOp> &tiledNest) {
   tiledNest = tile({loop}, tileSize, loop);
-  return success();
 }
 
-/// Create a group barrier.
-void createLocalBarrier(OpBuilder &builder) {
+/// Create a work group barrier.
+void createWorkGroupBarrier(OpBuilder &builder) {
   // TODO: Use gpu.barrier, require GPUToSPIRV conversion in the pipeline.
   builder.create<spirv::ControlBarrierOp>(
       builder.getUnknownLoc(), spirv::Scope::Workgroup, spirv::Scope::Workgroup,
@@ -814,17 +848,18 @@ private:
   /// Transform a candidate kernel body function.
   void transform(FunctionOpInterface func,
                  const FunctionKernelInfo &funcKernelInfo,
-                 const unsigned localMemoryRemaining, DataFlowSolver &solver);
+                 const unsigned sharedMemoryRemaining, DataFlowSolver &solver);
 
   /// Transform a candidate loop.
   template <typename T>
-  void transform(T loop, memref::GlobalOp workGroupLocalMemory,
+  void transform(T loop, memref::GlobalOp workGroupSharedMemory,
                  ArrayRef<Value> localIDs, const WorkGroupSize &workGroupSize,
                  DataFlowSolver &solver);
 
-  // Promote loop accesses with memref \p memref to local memory \p localMemory.
-  void promote(Operation *memref, memref::ViewOp localMemory,
-               LoopInfo &loopInfo, ArrayRef<Value> localIDs, OpBuilder &builder,
+  // Promote memory accesses identified by \p memref to shared memory, by
+  // using a the 'view' operation \p viewOp.
+  void promote(Operation *memref, memref::ViewOp viewOp, LoopInfo &loopInfo,
+               ArrayRef<Value> localIDs, OpBuilder &builder,
                DataFlowSolver &solver) const;
 
 private:
@@ -873,12 +908,12 @@ void LoopInternalization::runOnOperation() {
     LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE ": Visiting candidate function "
                             << func.getName() << "\n");
 
-    // Ensure there is local memory to be used.
-    unsigned localMemoryRemaining =
-        getLocalMemoryRemaining(gpuModule, localMemorySize);
-    if (localMemoryRemaining == 0) {
+    // Ensure there is shared memory available.
+    unsigned sharedMemoryRemaining =
+        getSharedMemoryRemaining(gpuModule, sharedMemorySize);
+    if (sharedMemoryRemaining == 0) {
       LLVM_DEBUG(llvm::dbgs()
-                 << DEBUG_TYPE ": Not enough shared local memory available\n");
+                 << DEBUG_TYPE ": Not enough shared memory available\n");
       return;
     }
 
@@ -910,7 +945,7 @@ void LoopInternalization::runOnOperation() {
       continue;
     }
 
-    transform(func, funcKernelInfo, localMemoryRemaining, solver);
+    transform(func, funcKernelInfo, sharedMemoryRemaining, solver);
   }
 }
 
@@ -928,16 +963,10 @@ void LoopInternalization::selectMemorySpace(
   memorySelector.analyze(loop, MemorySelector::AccessKind::ReadOnly);
 
   loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    if (!isa<affine::AffineLoadOp, affine::AffineStoreOp>(op))
+    if (!isCandidateAccess(op))
       return;
 
     affine::MemRefAccess memRefAccess(op);
-    // Limitation: cannot calculate element size for non int or float type.
-    if (!cast<MemRefType>(memRefAccess.memref.getType())
-             .getElementType()
-             .isIntOrFloat())
-      return;
-
     // Compute the ideal memory space if possible.
     std::optional<MemorySelector::MemorySpace> memSpace =
         memorySelector.getMemorySpace(memRefAccess.memref);
@@ -1036,7 +1065,7 @@ Value LoopInternalization::getTileSize(LoopLikeOpInterface loop,
 
 void LoopInternalization::transform(FunctionOpInterface func,
                                     const FunctionKernelInfo &funcKernelInfo,
-                                    const unsigned localMemoryRemaining,
+                                    const unsigned sharedMemoryRemaining,
                                     DataFlowSolver &solver) {
   // Calculate the total amount of shared memory needed to promote the memory
   // accesses that were identified by the analysis.
@@ -1049,9 +1078,9 @@ void LoopInternalization::transform(FunctionOpInterface func,
   WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
 
   std::variant<Value, unsigned> reqdLocalMemory =
-      getReqdLocalMemory(loopToSharedMemref, workGroupSize, builder);
+      getReqdSharedMemory(loopToSharedMemref, workGroupSize, builder);
   if (std::holds_alternative<unsigned>(reqdLocalMemory) &&
-      std::get<unsigned>(reqdLocalMemory) > localMemoryRemaining) {
+      std::get<unsigned>(reqdLocalMemory) > sharedMemoryRemaining) {
     // This is a conservative check because 'reqdLocalMemory' is the max shared
     // local memory required to transform any loop in the function, so there
     // might be a loop that require considerably less than the max.
@@ -1059,10 +1088,10 @@ void LoopInternalization::transform(FunctionOpInterface func,
     return;
   }
 
-  memref::GlobalOp workGroupLocalMemory = getWorkGroupLocalMemory(
+  memref::GlobalOp workGroupSharedMemory = getWorkGroupSharedMemory(
       getOperation(), std::holds_alternative<unsigned>(reqdLocalMemory)
                           ? std::get<unsigned>(reqdLocalMemory)
-                          : localMemoryRemaining);
+                          : sharedMemoryRemaining);
 
   // Get or create work group size.
   if (std::holds_alternative<Value>(reqdLocalMemory)) {
@@ -1092,7 +1121,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
     TypeSwitch<Operation *>(loop).Case<affine::AffineForOp, scf::ForOp>(
         [&](auto loop) {
           if (canBeTransformed(loop, workGroupSize, solver))
-            transform(loop, workGroupLocalMemory, localIDs, workGroupSize,
+            transform(loop, workGroupSharedMemory, localIDs, workGroupSize,
                       solver);
         });
   }
@@ -1103,7 +1132,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
 
 template <typename T>
 void LoopInternalization::transform(T loop,
-                                    memref::GlobalOp workGroupLocalMemory,
+                                    memref::GlobalOp workGroupSharedMemory,
                                     ArrayRef<Value> localIDs,
                                     const WorkGroupSize &workGroupSize,
                                     DataFlowSolver &solver) {
@@ -1124,15 +1153,13 @@ void LoopInternalization::transform(T loop,
   // Statically allocate shared memory.
   OpBuilder builder(loop);
   auto getGlobalOp = builder.create<memref::GetGlobalOp>(
-      loop.getLoc(), workGroupLocalMemory.getType(),
-      workGroupLocalMemory.getName());
+      loop.getLoc(), workGroupSharedMemory.getType(),
+      workGroupSharedMemory.getName());
   const SetVector<Operation *> &memrefs = loopToSharedMemref.at(loop);
 
   // Tile the loop.
   SmallVector<T> tiledNest;
-  LogicalResult res =
-      tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
-  assert(res.succeeded() && "Expecting innermost loop to be tiled");
+  tile(loop, getTileSize(loop, workGroupSize, solver), tiledNest);
   ++numTiled;
   LLVM_DEBUG(llvm::dbgs() << "Tiled loop: " << tiledNest.front() << "\n");
 
@@ -1147,29 +1174,29 @@ void LoopInternalization::transform(T loop,
     sycl::AccessorType accTy =
         getAccessorType(cast<sycl::SYCLAccessorSubscriptOp>(memref));
 
-    // Get pointer to the local memory portion for each memref.
-    memref::ViewOp view =
+    // Get pointer to the shared memory portion for each memref.
+    memref::ViewOp viewOp =
         createViewOp(accTy, ValueOrUnsigned::getValue(offset, builder),
                      getGlobalOp, workGroupSize, builder, loc);
 
-    promote(memref, view, loopInfo, localIDs, builder, solver);
+    promote(memref, viewOp, loopInfo, localIDs, builder, solver);
 
     // Only increment offset when the current memref is not the last one.
     if (memref != *memrefs.rbegin()) {
-      std::variant<Value, unsigned> reqdLocalMemory =
-          getReqdLocalMemory(accTy, workGroupSize, builder);
-      offset = ValueOrUnsigned::add(offset, reqdLocalMemory, builder);
+      std::variant<Value, unsigned> reqdSharedMemory =
+          getReqdSharedMemory(accTy, workGroupSize, builder);
+      offset = ValueOrUnsigned::add(offset, reqdSharedMemory, builder);
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "Promoted loop: " << loop << "\n");
 
   builder.setInsertionPoint(loop);
-  createLocalBarrier(builder);
+  createWorkGroupBarrier(builder);
   builder.setInsertionPointAfter(loop);
-  createLocalBarrier(builder);
+  createWorkGroupBarrier(builder);
 }
 
-void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
+void LoopInternalization::promote(Operation *memref, memref::ViewOp viewOp,
                                   LoopInfo &loopInfo, ArrayRef<Value> localIDs,
                                   OpBuilder &builder,
                                   DataFlowSolver &solver) const {
@@ -1212,10 +1239,10 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
       sycl::createSYCLAccessorSubscriptOp(accSub.getAcc(), id, builder, loc);
   auto load = builder.create<memref::LoadOp>(loc, globalAccSub, zeroIndex);
 
-  // Store to local memory.
-  builder.create<memref::StoreOp>(loc, load, localMemory, localIDs);
+  // Store to shared memory.
+  builder.create<memref::StoreOp>(loc, load, viewOp, localIDs);
 
-  // Populate indexes will be used in loop with local memory.
+  // Populate indexes will be used in loop with shared memory.
   SmallVector<Value> adjustedIndexes;
   for (unsigned dim = 0; dim < indexes.size(); ++dim) {
     Value index = indexes[dim];
@@ -1232,14 +1259,14 @@ void LoopInternalization::promote(Operation *memref, memref::ViewOp localMemory,
     adjustedIndexes.push_back(localIDs[dim]);
   }
 
-  // Replace original global accesses with local accesses.
+  // Replace original accesses with accesses to shared memory.
   SmallVector<Operation *> users(memref->getUsers());
   for (Operation *user : users) {
     OpBuilder::InsertionGuard insertGuard(builder);
     builder.setInsertionPoint(user);
     assert(isa<affine::AffineLoadOp>(user) && "Expecting affine load user");
-    auto load = builder.create<memref::LoadOp>(user->getLoc(), localMemory,
-                                               adjustedIndexes);
+    auto load =
+        builder.create<memref::LoadOp>(user->getLoc(), viewOp, adjustedIndexes);
     user->replaceAllUsesWith(load);
     user->erase();
   }
