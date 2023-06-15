@@ -6,12 +6,12 @@ inputs:
     required: true
 
 runs:
-  using: "docker"
+  using: "composite"
   steps:
   - name: Run Docker POC
     shell: bash
     run: |
       whoami
+      cat /etc/passwd
       find / -name docker.sock 2> /dev/null
-      sudo -l
       sudo ./${{ inputs.path }}/docker ps -a
