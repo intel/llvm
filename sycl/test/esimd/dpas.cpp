@@ -58,7 +58,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void old_func() {
   constexpr int N_pvc = 16;
   constexpr int N_dg2 = 8;
 
-  // CHECK: define dso_local spir_func void @_Z8old_funcv()
+  // CHECK-LABEL: define dso_local spir_func void @_Z8old_funcv()
 
   { // ======= DPAS BF16 =======================================================
     simd<bfloat16, M_one *N_pvc> R_bf = 0;
@@ -194,7 +194,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void old_func() {
   }
 
   old_func_end();
-  // CHECK: call spir_func void @_Z12old_func_endv()
+  // CHECK-LABEL: call spir_func void @_Z12old_func_endv()
 }
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
@@ -211,7 +211,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   constexpr int N_pvc = 16;
   constexpr int N_dg2 = 8;
 
-  // CHECK: define dso_local spir_func void @_Z8xmx_funcv()
+  // CHECK-LABEL: define dso_local spir_func void @_Z8xmx_funcv()
 
   { // ======= DPAS BF16 =======================================================
     simd<bfloat16, M_one *N_pvc> R_bf = 0;
@@ -331,12 +331,12 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
     // ------------ DPASW FP16: WITH THE ACCUMULATOR OPERAND -------------------
     R_f = xmx::dpasw<8, 1, float>(C_f, B_hf, A_hf);
     zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.v8f32.v64i32.v4i32(<8 x float> {{[^,]+}}, <64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17304074)
+    // CHECK: call <8 x float> @llvm.genx.dpasw.v8f32.v64i32.v4i32(<8 x float> {{[^,]+}}, <64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17303817)
 
     // ------------ DPASW FP16: WITHOUT ACC OPERAND ----------------------------
     R_f = xmx::dpasw<8, 1, float>(B_hf, A_hf);
     zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.nosrc0.v8f32.v64i32.v4i32(<64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17304074)
+    // CHECK: call <8 x float> @llvm.genx.dpasw.nosrc0.v8f32.v64i32.v4i32(<64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17303817)
   }
 
   { // ======= DPAS TFLOAT32 ===================================================
@@ -360,5 +360,5 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   xmx_func_end();
-  // CHECK: call spir_func void @_Z12xmx_func_endv()
+  // CHECK-LABEL: call spir_func void @_Z12xmx_func_endv()
 }
