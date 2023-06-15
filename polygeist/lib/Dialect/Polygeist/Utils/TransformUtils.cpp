@@ -755,12 +755,9 @@ static Value getSYCLAccessorBegin(sycl::AccessorPtrValue accessor,
 
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
-  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
-  for (unsigned i = 0; i < accTy.getDimension(); ++i) {
-    Value idGetOp = sycl::createSYCLIDGetOp(id, i, builder, loc);
-    builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
-  }
+  SmallVector<Value> zeroIndexes(idTy.getDimension(), zeroIndex);
+  TypedValue<MemRefType> id = constructSYCLID(idTy, zeroIndexes, builder, loc);
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
@@ -781,17 +778,16 @@ static Value getSYCLAccessorEnd(sycl::AccessorPtrValue accessor,
   builder.create<memref::StoreOp>(loc, getRangeOp, range, zeroIndex);
   const auto idTy = cast<sycl::IDType>(
       cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
-  auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
   const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  SmallVector<Value> indexes;
   unsigned dim = accTy.getDimension();
   for (unsigned i = 0; i < dim; ++i) {
-    Value idGetOp = sycl::createSYCLIDGetOp(id, i, builder, loc);
     Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
-    auto index = (i == dim - 1)
-                     ? rangeGetOp
-                     : builder.create<arith::SubIOp>(loc, rangeGetOp, one);
-    builder.create<memref::StoreOp>(loc, index, idGetOp, zeroIndex);
+    indexes.push_back(
+        (i == dim - 1) ? rangeGetOp
+                       : builder.create<arith::SubIOp>(loc, rangeGetOp, one));
   }
+  TypedValue<MemRefType> id = constructSYCLID(idTy, indexes, builder, loc);
   return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
 }
 
