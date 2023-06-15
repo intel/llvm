@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl-device-only -S -emit-llvm -o - %s | FileCheck %s
 
+// Check that SROA and mem2reg won't leave alloca of matrix type in IR
+// CHECK-NOT: alloca target("spirv.JointMatrixINTEL"
+
 // check that correct address spaces are used to load from and store to
 #define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
 #include <sycl/sycl.hpp>
@@ -39,16 +42,16 @@ int main(void) {
           it.barrier(access::fence_space::local_space);
 
           // A should load from local address space
-          // CHECK: %{{.*}} = tail call spir_func noundef %spirv.JointMatrixINTEL._short_8_16_0_3_0 addrspace(4)* @_Z[[#]]__spirv_JointMatrixLoadINTEL{{.*}}(i16 addrspace(3)* noundef %{{.*}}, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #{{.*}}
+          // CHECK: %{{.*}} = tail call spir_func noundef target("spirv.JointMatrixINTEL", i16, 8, 16, 0, 3, 0) @_Z[[#]]__spirv_JointMatrixLoadINTEL{{.*}}(i16 addrspace(3)* noundef %{{.*}}, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #{{.*}}
           joint_matrix_load(
               sg, tA,
               tileA.template get_multi_ptr<sycl::access::decorated::yes>(), 16);
           // B should load from global address space
-          // CHECK: %{{.*}} = tail call spir_func noundef %spirv.JointMatrixINTEL._short_16_16_2_3_1 addrspace(4)* @_Z[[#]]__spirv_JointMatrixLoadINTEL{{.*}}(i16 addrspace(1)* noundef %{{.*}}, i64 noundef 32, i32 noundef 2, i32 noundef 3, i32 noundef 0) #{{.*}}
+          // CHECK: %{{.*}} = tail call spir_func noundef target("spirv.JointMatrixINTEL", i16, 16, 16, 2, 3, 1) @_Z[[#]]__spirv_JointMatrixLoadINTEL{{.*}}(i16 addrspace(1)* noundef %{{.*}}, i64 noundef 32, i32 noundef 2, i32 noundef 3, i32 noundef 0) #{{.*}}
           joint_matrix_load(sg, tB, pB, 32);
           tC = joint_matrix_mad(sg, tA, tB, tC);
           // C should store to global address space
-          // CHECK: tail call spir_func void @_Z[[#]]__spirv_JointMatrixStoreINTEL{{.*}}(float addrspace(1)* noundef %{{.*}}, %spirv.JointMatrixINTEL._float_8_16_3_3_2 addrspace(4)* noundef %{{.*}}, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #{{.*}}
+          // CHECK: tail call spir_func void @_Z[[#]]__spirv_JointMatrixStoreINTEL{{.*}}(float addrspace(1)* noundef %{{.*}}, target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) noundef %{{.*}}, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #{{.*}}
           joint_matrix_store(sg, tC, pC, 16, layout::row_major);
         });
   });
