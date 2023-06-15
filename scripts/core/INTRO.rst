@@ -107,7 +107,7 @@ The following design philosophies are adopted to reduce Host-side overhead:
 
   - All API functions return ${x}_result_t
 
-    + This enumeration contains error codes for the Level Zero APIs and validation layers
+    + This enumeration contains error codes for the Unified Runtime APIs and validation layers
     + This allows for a consistent pattern on the application side for catching errors; especially when validation layer(s) are enabled
 
 Multithreading and Concurrency

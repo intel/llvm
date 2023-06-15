@@ -39,6 +39,7 @@ TEST_P(urKernelSetArgMemObjTest, InvalidKernelArgumentIndex) {
     ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
                                    sizeof(num_kernel_args), &num_kernel_args,
                                    nullptr));
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
-                     urKernelSetArgMemObj(kernel, num_kernel_args + 1, nullptr, buffer));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+        urKernelSetArgMemObj(kernel, num_kernel_args + 1, nullptr, buffer));
 }

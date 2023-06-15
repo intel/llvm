@@ -30,6 +30,7 @@ struct urEnqueueUSMFillTestWithParam
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
+        size = std::get<1>(GetParam()).size;
         host_mem = std::vector<uint8_t>(size);
         pattern_size = std::get<1>(GetParam()).pattern_size;
         pattern = std::vector<uint8_t>(pattern_size);
@@ -166,57 +167,50 @@ TEST_P(urEnqueueUSMFillNegativeTest, InvalidNullPtr) {
 }
 
 TEST_P(urEnqueueUSMFillNegativeTest, InvalidSize) {
-
     /* size is 0 */
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, pattern_size,
-                                      pattern.data(), 0, 0, nullptr, nullptr),
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
+                                      0, 0, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 
     /* size is not a multiple of pattern_size */
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, pattern_size,
-                                      pattern.data(), 7, 0, nullptr, nullptr),
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
+                                      7, 0, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFillNegativeTest, OutOfBounds) {
-
     size_t out_of_bounds = size + 1;
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, pattern_size,
-                                      pattern.data(), out_of_bounds, 0, nullptr,
-                                      nullptr),
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
+                                      out_of_bounds, 0, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFillNegativeTest, invalidPatternSize) {
-
     /* pattern_size is 0 */
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, 0, pattern.data(), size,
-                                      0, nullptr, nullptr),
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, 0, pattern.data(), size, 0,
+                                      nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 
     /* pattern_size is not a power of 2 */
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, 3, pattern.data(), size,
-                                      0, nullptr, nullptr),
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, 3, pattern.data(), size, 0,
+                                      nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 
     /* pattern_size is larger than size */
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, 32, pattern.data(), size,
-                                      0, nullptr, nullptr),
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, 32, pattern.data(), size, 0,
+                                      nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_P(urEnqueueUSMFillNegativeTest, InvalidNullPtrEventWaitList) {
-
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, pattern_size,
-                                      pattern.data(), size, 1, nullptr,
-                                      nullptr),
+TEST_P(urEnqueueUSMFillNegativeTest, InvalidEventWaitList) {
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
+                                      size, 1, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ur_event_handle_t validEvent;
     ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
 
-    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, pattern_size,
-                                      pattern.data(), size, 0, &validEvent,
-                                      nullptr),
+    ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
+                                      size, 0, &validEvent, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }

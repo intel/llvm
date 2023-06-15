@@ -369,7 +369,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP < propName) {
+        if (UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -3983,11 +3983,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (srcRowPitch != 0 && srcRowPitch < region.height) {
+        if (srcRowPitch != 0 && srcRowPitch < region.width) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (dstRowPitch != 0 && dstRowPitch < region.height) {
+        if (dstRowPitch != 0 && dstRowPitch < region.width) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -4410,14 +4410,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (size == 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if (size % patternSize != 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
         if (patternSize == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
@@ -4427,6 +4419,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         }
 
         if (patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (size % patternSize != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -4652,11 +4652,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (width == 0) {
+        if (patternSize == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (width % patternSize != 0) {
+        if (patternSize > width * height) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (width == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -4664,15 +4672,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (patternSize == 0) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if (patternSize > width) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-
-        if (patternSize != 0 && ((patternSize & (patternSize - 1)) != 0)) {
+        if (width * height % patternSize != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
@@ -5033,6 +5033,1140 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPitchedAllocExp
+__urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_usm_desc_t *
+        pUSMDesc, ///< [in][optional] Pointer to USM memory allocation descriptor.
+    ur_usm_pool_handle_t
+        pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t
+        widthInBytes, ///< [in] width in bytes of the USM memory object to be allocated
+    size_t height, ///< [in] height of the USM memory object to be allocated
+    size_t
+        elementSizeBytes, ///< [in] size in bytes of an element in the allocation
+    void **ppMem,         ///< [out] pointer to USM shared memory object
+    size_t *pResultPitch  ///< [out] pitch of the allocation
+) {
+    auto pfnPitchedAllocExp = context.urDdiTable.USMExp.pfnPitchedAllocExp;
+
+    if (nullptr == pfnPitchedAllocExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == ppMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pResultPitch) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pUSMDesc && pUSMDesc->align != 0 &&
+            ((pUSMDesc->align & (pUSMDesc->align - 1)) != 0)) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+
+        if (widthInBytes == 0) {
+            return UR_RESULT_ERROR_INVALID_USM_SIZE;
+        }
+    }
+
+    ur_result_t result =
+        pfnPitchedAllocExp(hContext, hDevice, pUSMDesc, pool, widthInBytes,
+                           height, elementSizeBytes, ppMem, pResultPitch);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesUnsampledImageHandleDestroyExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesUnsampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_handle_t
+        hImage ///< [in] pointer to handle of image object to destroy
+) {
+    auto pfnUnsampledImageHandleDestroyExp =
+        context.urDdiTable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
+
+    if (nullptr == pfnUnsampledImageHandleDestroyExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hImage) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSampledImageHandleDestroyExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_handle_t
+        hImage ///< [in] pointer to handle of image object to destroy
+) {
+    auto pfnSampledImageHandleDestroyExp =
+        context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
+
+    if (nullptr == pfnSampledImageHandleDestroyExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hImage) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnSampledImageHandleDestroyExp(hContext, hImage);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageAllocateExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_image_mem_handle_t
+        *phImageMem ///< [out] pointer to handle of image memory allocated
+) {
+    auto pfnImageAllocateExp =
+        context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
+
+    if (nullptr == pfnImageAllocateExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pImageFormat) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pImageDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+    }
+
+    ur_result_t result =
+        pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageFreeExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem ///< [in] handle of image memory to be freed
+) {
+    auto pfnImageFreeExp = context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
+
+    if (nullptr == pfnImageFreeExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnImageFreeExp(hContext, hImageMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesUnsampledImageCreateExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
+    ur_exp_image_handle_t
+        *phImage ///< [out] pointer to handle of image object created
+) {
+    auto pfnUnsampledImageCreateExp =
+        context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
+
+    if (nullptr == pfnUnsampledImageCreateExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pImageFormat) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pImageDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phImage) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+    }
+
+    ur_result_t result = pfnUnsampledImageCreateExp(
+        hContext, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSampledImageCreateExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem, ///< [in] handle to memory from which to create the image
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
+    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
+    ur_exp_image_handle_t
+        *phImage ///< [out] pointer to handle of image object created
+) {
+    auto pfnSampledImageCreateExp =
+        context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
+
+    if (nullptr == pfnSampledImageCreateExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hSampler) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pImageFormat) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pImageDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phImage) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+    }
+
+    ur_result_t result =
+        pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat, pImageDesc,
+                                 hSampler, phMem, phImage);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageCopyExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    void *pDst,                   ///< [in] location the data will be copied to
+    void *pSrc, ///< [in] location the data will be copied from
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_image_copy_flags_t
+        imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+) {
+    auto pfnImageCopyExp = context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
+
+    if (nullptr == pfnImageCopyExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pDst) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pSrc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pImageFormat) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pImageDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+    }
+
+    ur_result_t result = pfnImageCopyExp(
+        hContext, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags,
+        numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImageGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
+    ur_exp_image_mem_handle_t hImageMem, ///< [in] handle to the image memory
+    ur_image_info_t propName,            ///< [in] queried info name
+    void *pPropValue,                    ///< [out] returned query value
+    size_t *pPropSizeRet                 ///< [out] returned query value size
+) {
+    auto pfnImageGetInfoExp =
+        context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
+
+    if (nullptr == pfnImageGetInfoExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pPropValue) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pPropSizeRet) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_IMAGE_INFO_DEPTH < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    ur_result_t result =
+        pfnImageGetInfoExp(hImageMem, propName, pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t
+        hImageMem,        ///< [in] memory handle to the mipmap image
+    uint32_t mipmapLevel, ///< [in] requested level of the mipmap
+    ur_exp_image_mem_handle_t
+        *phImageMem ///< [out] returning memory handle to the individual image
+) {
+    auto pfnMipmapGetLevelExp =
+        context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
+
+    if (nullptr == pfnMipmapGetLevelExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMipmapFreeExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
+) {
+    auto pfnMipmapFreeExp =
+        context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
+
+    if (nullptr == pfnMipmapFreeExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnMipmapFreeExp(hContext, hMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    size_t size,                  ///< [in] size of the external memory
+    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_mem_handle_t
+        *phInteropMem ///< [out] interop memory handle to the external memory
+) {
+    auto pfnImportOpaqueFDExp =
+        context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
+
+    if (nullptr == pfnImportOpaqueFDExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phInteropMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMapExternalArrayExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_image_format_t
+        *pImageFormat, ///< [in] pointer to image format specification
+    const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
+    ur_exp_interop_mem_handle_t
+        hInteropMem, ///< [in] interop memory handle to the external memory
+    ur_exp_image_handle_t *
+        phImageMem ///< [out] image memory handle to the externally allocated memory
+) {
+    auto pfnMapExternalArrayExp =
+        context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
+
+    if (nullptr == pfnMapExternalArrayExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hInteropMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pImageFormat) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pImageDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phImageMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+    }
+
+    ur_result_t result = pfnMapExternalArrayExp(
+        hContext, pImageFormat, pImageDesc, hInteropMem, phImageMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesReleaseInteropExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_interop_mem_handle_t
+        hInteropMem ///< [in] handle of interop memory to be freed
+) {
+    auto pfnReleaseInteropExp =
+        context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
+
+    if (nullptr == pfnReleaseInteropExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hInteropMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnReleaseInteropExp(hContext, hInteropMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hInteropMem);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_semaphore_handle_t *
+        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+) {
+    auto pfnImportExternalSemaphoreOpaqueFDExp =
+        context.urDdiTable.BindlessImagesExp
+            .pfnImportExternalSemaphoreOpaqueFDExp;
+
+    if (nullptr == pfnImportExternalSemaphoreOpaqueFDExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phInteropSemaphoreHandle) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
+        hContext, fileDescriptor, phInteropSemaphoreHandle);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_exp_interop_semaphore_handle_t
+        hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
+) {
+    auto pfnDestroyExternalSemaphoreExp =
+        context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
+
+    if (nullptr == pfnDestroyExternalSemaphoreExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hInteropSemaphore) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result =
+        pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesWaitExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_interop_semaphore_handle_t
+        hSemaphore,               ///< [in] interop semaphore handle
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+) {
+    auto pfnWaitExternalSemaphoreExp =
+        context.urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
+
+    if (nullptr == pfnWaitExternalSemaphoreExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hSemaphore) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnWaitExternalSemaphoreExp(
+        hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSignalExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_exp_interop_semaphore_handle_t
+        hSemaphore,               ///< [in] interop semaphore handle
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command instance.
+) {
+    auto pfnSignalExternalSemaphoreExp =
+        context.urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
+
+    if (nullptr == pfnSignalExternalSemaphoreExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hSemaphore) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnSignalExternalSemaphoreExp(
+        hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferCreateExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_exp_command_buffer_desc_t
+        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
+    ur_exp_command_buffer_handle_t
+        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
+) {
+    auto pfnCreateExp = context.urDdiTable.CommandBufferExp.pfnCreateExp;
+
+    if (nullptr == pfnCreateExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnCreateExp(hContext, hDevice, pCommandBufferDesc, phCommandBuffer);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferRetainExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
+
+    if (nullptr == pfnRetainExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnRetainExp(hCommandBuffer);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hCommandBuffer);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferReleaseExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
+
+    if (nullptr == pfnReleaseExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnReleaseExp(hCommandBuffer);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hCommandBuffer);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferFinalizeExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer ///< [in] handle of the command-buffer object
+) {
+    auto pfnFinalizeExp = context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
+
+    if (nullptr == pfnFinalizeExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnFinalizeExp(hCommandBuffer);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,         ///< [in] handle of the command-buffer object
+    ur_kernel_handle_t hKernel, ///< [in] kernel to append
+    uint32_t workDim,           ///< [in] dimension of the kernel execution
+    const size_t
+        *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
+    const size_t *
+        pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
+    const size_t
+        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendKernelLaunchExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
+
+    if (nullptr == pfnAppendKernelLaunchExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hKernel) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pGlobalWorkOffset) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pGlobalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pLocalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+    }
+
+    ur_result_t result = pfnAppendKernelLaunchExp(
+        hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList,
+        pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    void *pDst,         ///< [in] Location the data will be copied to.
+    const void *pSrc,   ///< [in] The data to be copied.
+    size_t size,        ///< [in] The number of bytes to copy
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMemcpyUSMExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
+
+    if (nullptr == pfnAppendMemcpyUSMExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pDst) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pSrc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+    }
+
+    ur_result_t result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+                                               numSyncPointsInWaitList,
+                                               pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    size_t srcOffset,        ///< [in] Offset into the source memory.
+    size_t dstOffset,        ///< [in] Offset into the destination memory
+    size_t size,             ///< [in] The number of bytes to be copied.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferCopyExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
+
+    if (nullptr == pfnAppendMembufferCopyExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hSrcMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDstMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+    }
+
+    ur_result_t result = pfnAppendMembufferCopyExp(
+        hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
+    ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
+    ur_rect_offset_t
+        srcOrigin, ///< [in] Origin for the region of data to be copied from the source.
+    ur_rect_offset_t
+        dstOrigin, ///< [in] Origin for the region of data to be copied to in the destination.
+    ur_rect_region_t
+        region, ///< [in] The extents describing the region to be copied.
+    size_t srcRowPitch,   ///< [in] Row pitch of the source memory.
+    size_t srcSlicePitch, ///< [in] Slice pitch of the source memory.
+    size_t dstRowPitch,   ///< [in] Row pitch of the destination memory.
+    size_t dstSlicePitch, ///< [in] Slice pitch of the destination memory.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t
+        *pSyncPoint ///< [out][optional] sync point associated with this command
+) {
+    auto pfnAppendMembufferCopyRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
+
+    if (nullptr == pfnAppendMembufferCopyRectExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hSrcMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDstMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+    }
+
+    ur_result_t result = pfnAppendMembufferCopyRectExp(
+        hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
+        srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferEnqueueExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object.
+    ur_queue_handle_t
+        hQueue, ///< [in] the queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command-buffer execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    ///< events.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< command-buffer execution instance.
+) {
+    auto pfnEnqueueExp = context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
+
+    if (nullptr == pfnEnqueueExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+    }
+
+    ur_result_t result = pfnEnqueueExp(
+        hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -5068,6 +6202,174 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
     pDdiTable->pfnTearDown = ur_validation_layer::urTearDown;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's BindlessImagesExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_bindless_images_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.BindlessImagesExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnUnsampledImageHandleDestroyExp =
+        pDdiTable->pfnUnsampledImageHandleDestroyExp;
+    pDdiTable->pfnUnsampledImageHandleDestroyExp =
+        ur_validation_layer::urBindlessImagesUnsampledImageHandleDestroyExp;
+
+    dditable.pfnSampledImageHandleDestroyExp =
+        pDdiTable->pfnSampledImageHandleDestroyExp;
+    pDdiTable->pfnSampledImageHandleDestroyExp =
+        ur_validation_layer::urBindlessImagesSampledImageHandleDestroyExp;
+
+    dditable.pfnImageAllocateExp = pDdiTable->pfnImageAllocateExp;
+    pDdiTable->pfnImageAllocateExp =
+        ur_validation_layer::urBindlessImagesImageAllocateExp;
+
+    dditable.pfnImageFreeExp = pDdiTable->pfnImageFreeExp;
+    pDdiTable->pfnImageFreeExp =
+        ur_validation_layer::urBindlessImagesImageFreeExp;
+
+    dditable.pfnUnsampledImageCreateExp = pDdiTable->pfnUnsampledImageCreateExp;
+    pDdiTable->pfnUnsampledImageCreateExp =
+        ur_validation_layer::urBindlessImagesUnsampledImageCreateExp;
+
+    dditable.pfnSampledImageCreateExp = pDdiTable->pfnSampledImageCreateExp;
+    pDdiTable->pfnSampledImageCreateExp =
+        ur_validation_layer::urBindlessImagesSampledImageCreateExp;
+
+    dditable.pfnImageCopyExp = pDdiTable->pfnImageCopyExp;
+    pDdiTable->pfnImageCopyExp =
+        ur_validation_layer::urBindlessImagesImageCopyExp;
+
+    dditable.pfnImageGetInfoExp = pDdiTable->pfnImageGetInfoExp;
+    pDdiTable->pfnImageGetInfoExp =
+        ur_validation_layer::urBindlessImagesImageGetInfoExp;
+
+    dditable.pfnMipmapGetLevelExp = pDdiTable->pfnMipmapGetLevelExp;
+    pDdiTable->pfnMipmapGetLevelExp =
+        ur_validation_layer::urBindlessImagesMipmapGetLevelExp;
+
+    dditable.pfnMipmapFreeExp = pDdiTable->pfnMipmapFreeExp;
+    pDdiTable->pfnMipmapFreeExp =
+        ur_validation_layer::urBindlessImagesMipmapFreeExp;
+
+    dditable.pfnImportOpaqueFDExp = pDdiTable->pfnImportOpaqueFDExp;
+    pDdiTable->pfnImportOpaqueFDExp =
+        ur_validation_layer::urBindlessImagesImportOpaqueFDExp;
+
+    dditable.pfnMapExternalArrayExp = pDdiTable->pfnMapExternalArrayExp;
+    pDdiTable->pfnMapExternalArrayExp =
+        ur_validation_layer::urBindlessImagesMapExternalArrayExp;
+
+    dditable.pfnReleaseInteropExp = pDdiTable->pfnReleaseInteropExp;
+    pDdiTable->pfnReleaseInteropExp =
+        ur_validation_layer::urBindlessImagesReleaseInteropExp;
+
+    dditable.pfnImportExternalSemaphoreOpaqueFDExp =
+        pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp;
+    pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
+        ur_validation_layer::urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+
+    dditable.pfnDestroyExternalSemaphoreExp =
+        pDdiTable->pfnDestroyExternalSemaphoreExp;
+    pDdiTable->pfnDestroyExternalSemaphoreExp =
+        ur_validation_layer::urBindlessImagesDestroyExternalSemaphoreExp;
+
+    dditable.pfnWaitExternalSemaphoreExp =
+        pDdiTable->pfnWaitExternalSemaphoreExp;
+    pDdiTable->pfnWaitExternalSemaphoreExp =
+        ur_validation_layer::urBindlessImagesWaitExternalSemaphoreExp;
+
+    dditable.pfnSignalExternalSemaphoreExp =
+        pDdiTable->pfnSignalExternalSemaphoreExp;
+    pDdiTable->pfnSignalExternalSemaphoreExp =
+        ur_validation_layer::urBindlessImagesSignalExternalSemaphoreExp;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's CommandBufferExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_command_buffer_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.CommandBufferExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+    pDdiTable->pfnCreateExp = ur_validation_layer::urCommandBufferCreateExp;
+
+    dditable.pfnRetainExp = pDdiTable->pfnRetainExp;
+    pDdiTable->pfnRetainExp = ur_validation_layer::urCommandBufferRetainExp;
+
+    dditable.pfnReleaseExp = pDdiTable->pfnReleaseExp;
+    pDdiTable->pfnReleaseExp = ur_validation_layer::urCommandBufferReleaseExp;
+
+    dditable.pfnFinalizeExp = pDdiTable->pfnFinalizeExp;
+    pDdiTable->pfnFinalizeExp = ur_validation_layer::urCommandBufferFinalizeExp;
+
+    dditable.pfnAppendKernelLaunchExp = pDdiTable->pfnAppendKernelLaunchExp;
+    pDdiTable->pfnAppendKernelLaunchExp =
+        ur_validation_layer::urCommandBufferAppendKernelLaunchExp;
+
+    dditable.pfnAppendMemcpyUSMExp = pDdiTable->pfnAppendMemcpyUSMExp;
+    pDdiTable->pfnAppendMemcpyUSMExp =
+        ur_validation_layer::urCommandBufferAppendMemcpyUSMExp;
+
+    dditable.pfnAppendMembufferCopyExp = pDdiTable->pfnAppendMembufferCopyExp;
+    pDdiTable->pfnAppendMembufferCopyExp =
+        ur_validation_layer::urCommandBufferAppendMembufferCopyExp;
+
+    dditable.pfnAppendMembufferCopyRectExp =
+        pDdiTable->pfnAppendMembufferCopyRectExp;
+    pDdiTable->pfnAppendMembufferCopyRectExp =
+        ur_validation_layer::urCommandBufferAppendMembufferCopyRectExp;
+
+    dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
+    pDdiTable->pfnEnqueueExp = ur_validation_layer::urCommandBufferEnqueueExp;
 
     return result;
 }
@@ -5738,6 +7040,40 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's USMExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_usm_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.USMExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
+    pDdiTable->pfnPitchedAllocExp = ur_validation_layer::urUSMPitchedAllocExp;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Device table
 ///        with current process' addresses
 ///
@@ -5807,6 +7143,16 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetBindlessImagesExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->BindlessImagesExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetCommandBufferExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->CommandBufferExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetContextProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Context);
     }
@@ -5854,6 +7200,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetUSMProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->USM);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetUSMExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->USMExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {
