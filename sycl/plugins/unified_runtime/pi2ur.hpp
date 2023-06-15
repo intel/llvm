@@ -291,10 +291,6 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
       case UR_DEVICE_PARTITION_BY_CSLICE:
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
-      case (ur_device_partition_t)
-          UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE:
-        return (pi_device_partition_property)
-            PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
       default:
         die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
       }
