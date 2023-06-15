@@ -61,15 +61,14 @@ class DisjointPool {
     using Config = DisjointPoolConfig;
 
     uma_result_t initialize(uma_memory_provider_handle_t *providers,
-                            size_t numProviders,
-                            DisjointPoolConfig parameters) noexcept;
-    void *malloc(size_t size) noexcept;
-    void *calloc(size_t, size_t) noexcept;
-    void *realloc(void *, size_t) noexcept;
-    void *aligned_malloc(size_t size, size_t alignment) noexcept;
-    size_t malloc_usable_size(void *) noexcept;
-    void free(void *ptr) noexcept;
-    enum uma_result_t get_last_result(const char **ppMessage) noexcept;
+                            size_t numProviders, DisjointPoolConfig parameters);
+    void *malloc(size_t size);
+    void *calloc(size_t, size_t);
+    void *realloc(void *, size_t);
+    void *aligned_malloc(size_t size, size_t alignment);
+    size_t malloc_usable_size(void *);
+    void free(void *ptr);
+    enum uma_result_t get_last_result(const char **ppMessage);
 
     DisjointPool();
     ~DisjointPool();
