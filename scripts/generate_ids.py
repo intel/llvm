@@ -10,9 +10,7 @@ from fileinput import FileInput
 import util
 import yaml
 
-MAX_FUNCS = 1024 # We could go up to UINT32_MAX...
 ENUM_NAME = '$x_function_t'
-valid_ids = set(range(1, MAX_FUNCS))
 
 class quoted(str):
     pass
@@ -21,50 +19,28 @@ def quoted_presenter(dumper, data):
     return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='"')
 
 def generate_registry(path, specs):
-    functions = list()
-    etors = dict()
-
-    for s in specs:
-        for i, obj in enumerate(s['objects']):
-            if obj['type'] == 'function':
-                functions.append(obj['class'][len('$x'):] + obj['name'])
-
     try:
         existing_registry = list(util.yamlRead(path))[1]['etors']
-        for etor in existing_registry:
-            valid_ids.discard(int(etor['value']))
-            etors[etor['name']] = etor['value']
-    except (TypeError, IndexError, KeyError) as e:
-        print('invalid existing registry, ignoring... ' + str(e))
-
-    updated = False
-
-    new_registry = list()
-    for fname in functions:
-        etor_name = util.to_snake_case(fname)
-        id = etors.get(etor_name)
-        if id is None:
-            updated = True
-            id = valid_ids.pop()
-        new_registry.append({'name': util.to_snake_case(fname), 'desc': 'Enumerator for $x'+fname, 'value': str(id)})
-
-    if updated is False:
-        return
-
-    print("Updating registry %s"%path)
-
-    ids = new_registry
-    ids = sorted(ids, key=lambda x: int(x['value']))
-    wrapper = { 'name': ENUM_NAME, 'type': 'enum', 'desc': 'Defines unique stable identifiers for all functions' , 'etors': ids}
-    header = {'type': 'header', 'desc': quoted('Intel$OneApi Unified Rutime function registry'), 'ordinal': quoted(9)}
-
-    try:
+        existing_etors = {etor["name"]: etor["value"] for etor in existing_registry}
+        max_etor = int(max(existing_registry, key = lambda x : int(x["value"]))["value"])
+        functions = [obj['class'][len('$x'):] + obj['name'] for s in specs for obj in s['objects'] if obj['type'] == 'function']
+        registry = list()
+        for fname in functions:
+            etor_name = util.to_snake_case(fname)
+            id = existing_etors.get(etor_name)
+            if id is None:
+                max_etor += 1
+                id = max_etor
+            registry.append({'name': util.to_snake_case(fname), 'desc': 'Enumerator for $x'+fname, 'value': str(id)})    
+        registry = sorted(registry, key=lambda x: int(x['value']))
+        wrapper = { 'name': ENUM_NAME, 'type': 'enum', 'desc': 'Defines unique stable identifiers for all functions' , 'etors': registry}
+        header = {'type': 'header', 'desc': quoted('Intel $OneApi Unified Runtime function registry'), 'ordinal': quoted(9)}
         with open(path, 'w') as fout:
             yaml.add_representer(quoted, quoted_presenter)
             yaml.dump_all([header, wrapper], fout,
                 default_flow_style=False,
                 sort_keys=False,
                 explicit_start=True)
-    except:
-        print("error: unable to write %s"%path)
-
+    except BaseException as e:
+        print("Failed to generate registry.yml... %s", e)
+        raise e

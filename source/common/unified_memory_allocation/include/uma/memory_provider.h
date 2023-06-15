@@ -96,9 +96,10 @@ umaMemoryProviderGetRecommendedPageSize(uma_memory_provider_handle_t hProvider,
                                         size_t size, size_t *pageSize);
 
 ///
-/// \brief Retrieve minumum possible page size used by memory region referenced by given ptr.
+/// \brief Retrieve minimum possible page size used by memory region referenced by given ptr
+///        or minimum possible page size that can be used by this provider if ptr is NULL.
 /// \param hProvider handle to the memory provider
-/// \param ptr pointer to memory allocated by this memory provider
+/// \param ptr [optional] pointer to memory allocated by this memory provider
 /// \param pageSize [out] will be updated with page size value.
 /// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure.
 enum uma_result_t
@@ -130,6 +131,13 @@ umaMemoryProviderPurgeLazy(uma_memory_provider_handle_t hProvider, void *ptr,
 enum uma_result_t
 umaMemoryProviderPurgeForce(uma_memory_provider_handle_t hProvider, void *ptr,
                             size_t size);
+
+///
+/// \brief Retrive name of a given memory provider.
+/// \param hProvider handle to the memory provider
+/// \param ppName [out] pointer to a string containing name of the provider
+void umaMemoryProviderGetName(uma_memory_provider_handle_t hProvider,
+                              const char **ppName);
 
 #ifdef __cplusplus
 }

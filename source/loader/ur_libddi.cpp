@@ -26,6 +26,16 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = urGetBindlessImagesExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &urDdiTable.BindlessImagesExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = urGetCommandBufferExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &urDdiTable.CommandBufferExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
                                            &urDdiTable.Context);
     }
@@ -71,6 +81,11 @@ __urdlllocal ur_result_t context_t::urInit() {
 
     if (UR_RESULT_SUCCESS == result) {
         result = urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.USM);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = urGetUSMExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                          &urDdiTable.USMExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {

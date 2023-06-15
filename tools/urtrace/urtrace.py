@@ -133,8 +133,12 @@ if force_load:
 if args.debug:
     print(env)
 
-result = subprocess.run(config['command'], env=env)
-if args.debug:
-    print(result)
+if config['command']:
+    result = subprocess.run(config['command'], env=env)
+    if args.debug:
+        print(result)
+    exit(result.returncode)
+else:
+    parser.print_help()
+    sys.exit("\n Error: Missing command to run.")
 
-exit(result.returncode)

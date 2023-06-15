@@ -38,13 +38,13 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     }
 
     void TearDown() override {
-        uur::urQueueTestWithParam<uur::TestParameters2D>::TearDown();
         if (pSrc) {
             ASSERT_SUCCESS(urUSMFree(context, pSrc));
         }
         if (pDst) {
             ASSERT_SUCCESS(urUSMFree(context, pDst));
         }
+        uur::urQueueTestWithParam<uur::TestParameters2D>::TearDown();
     }
 
     void verifyMemcpySucceeded() {

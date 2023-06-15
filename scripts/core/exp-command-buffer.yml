@@ -1,0 +1,314 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for Command-Buffers"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "The extension string which defines support for command-buffers which is returned when querying device extensions."
+name: $X_COMMAND_BUFFER_EXTENSION_STRING_EXP
+value: "\"$x_exp_command_buffer\""
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Command-Buffer Descriptor Type"
+name: $x_exp_command_buffer_desc_t
+base: $x_base_desc_t
+members: []
+--- #--------------------------------------------------------------------------
+type: typedef
+desc: "A value that identifies a command inside of a command-buffer, used for defining dependencies between commands in the same command-buffer."
+class: $xCommandBuffer
+name: $x_exp_command_buffer_sync_point_t
+value: uint32_t
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of Command-Buffer object"
+class: $xCommandBuffer
+name: "$x_exp_command_buffer_handle_t"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a Command-Buffer object"
+class: $xCommandBuffer
+name: CreateExp
+decl: static
+details:
+    - "Create a command-buffer object"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_exp_command_buffer_desc_t*"
+      name: pCommandBufferDesc
+      desc: "[in][optional] CommandBuffer descriptor"
+    - type: "$x_exp_command_buffer_handle_t*"
+      name: phCommandBuffer
+      desc: "[out] pointer to Command-Buffer handle"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Increment the command-buffer object's reference count."
+class: $xCommandBuffer
+name: RetainExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the command-buffer object's reference count and delete the command-buffer object if the reference count becomes zero."
+class: $xCommandBuffer
+name: ReleaseExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Stop recording on a command-buffer object such that no more commands can be appended and make it ready to enqueue."
+class: $xCommandBuffer
+name: FinalizeExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a kernel execution command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendKernelLaunchExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object"
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] kernel to append"
+    - type: uint32_t
+      name: workDim
+      desc: "[in] dimension of the kernel execution"
+    - type: "const size_t*"
+      name: pGlobalWorkOffset
+      desc: "[in] Offset to use when executing kernel."
+    - type: "const size_t*"
+      name: pGlobalWorkSize
+      desc: "[in] Global work size to use when executing kernel."
+    - type: "const size_t*"
+      name: pLocalWorkSize
+      desc: "[in] Local work size to use when executing kernel."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_KERNEL
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
+    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a USM memcpy command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMemcpyUSMExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: "void*"
+      name: pDst
+      desc: "[in] Location the data will be copied to."
+    - type: "const void*"
+      name: pSrc
+      desc: "[in] The data to be copied."
+    - type: "size_t"
+      name: size
+      desc: "[in] The number of bytes to copy"
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pSrc` or `pDst`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a memory copy command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMembufferCopyExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_mem_handle_t
+      name: hSrcMem
+      desc: "[in] The data to be copied."
+    - type: $x_mem_handle_t
+      name: hDstMem
+      desc: "[in] The location the data will be copied to."
+    - type: "size_t"
+      name: srcOffset
+      desc: "[in] Offset into the source memory."
+    - type: "size_t"
+      name: dstOffset
+      desc: "[in] Offset into the destination memory"
+    - type: "size_t"
+      name: size
+      desc: "[in] The number of bytes to be copied."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append a rectangular memory copy command to a command-buffer object"
+class: $xCommandBuffer
+name: AppendMembufferCopyRectExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_mem_handle_t
+      name: hSrcMem
+      desc: "[in] The data to be copied."
+    - type: $x_mem_handle_t
+      name: hDstMem
+      desc: "[in] The location the data will be copied to."
+    - type: $x_rect_offset_t
+      name: srcOrigin
+      desc: "[in] Origin for the region of data to be copied from the source."
+    - type: $x_rect_offset_t
+      name: dstOrigin
+      desc: "[in] Origin for the region of data to be copied to in the destination."
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] The extents describing the region to be copied."
+    - type: "size_t"
+      name: srcRowPitch
+      desc: "[in] Row pitch of the source memory."
+    - type: "size_t"
+      name: srcSlicePitch
+      desc: "[in] Slice pitch of the source memory."
+    - type: "size_t"
+      name: dstRowPitch
+      desc: "[in] Row pitch of the destination memory."
+    - type: "size_t"
+      name: dstSlicePitch
+      desc: "[in] Slice pitch of the destination memory."
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
+    - type: $x_exp_command_buffer_sync_point_t*
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command"
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Submit a command-buffer for execution on a queue."
+class: $xCommandBuffer
+name: EnqueueExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] the queue to submit this command-buffer for execution."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the command-buffer execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events. 
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional] return an event object that identifies this particular command-buffer execution instance.
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES

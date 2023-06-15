@@ -125,7 +125,8 @@ TEST_P(urEnqueueUSMMemcpyTest, NonBlocking) {
  */
 TEST_P(urEnqueueUSMMemcpyTest, WaitForDependencies) {
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, device_dst, device_src,
-                                      sizeof(int), 1, &memset_event, nullptr));
+                                      allocation_size, 1, &memset_event,
+                                      nullptr));
     ASSERT_TRUE(memsetHasFinished());
     ASSERT_NO_FATAL_FAILURE(verifyData());
 }

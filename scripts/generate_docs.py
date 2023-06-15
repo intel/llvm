@@ -203,18 +203,6 @@ def generate_rst(docpath, section, namespace, tags, ver, rev, specs, meta):
             meta=meta,
             specs=specs)
 
-
-"""
-Entry-point:
-    generate reference JSON file
-"""
-def generate_ref(dstpath, ref):
-    refpath = os.path.join(dstpath, "ref")
-    util.removePath(refpath)
-    util.makePath(refpath)
-
-    util.jsonWrite(os.path.join(refpath, "level_zero.json"), ref)
-
 """
 Entry-point:
     generate doxygen xml and setup source path.
@@ -231,7 +219,7 @@ def generate_common(dstpath, sections, ver, rev):
 
     # Generate sphinx configuration file with version.
     loc = 0
-    for fn in ["conf.py", "index.rst", "api.rst"]:
+    for fn in ["conf.py", "index.rst", "api.rst", "exp-features.rst"]:
         loc += util.makoWrite(
             "./templates/%s.mako" % fn,
             os.path.join(sourcepath, fn),
@@ -257,9 +245,12 @@ def generate_html(dstpath):
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating HTML...")
-    cmdline = "sphinx-build -M html %s ../docs"%sourcepath
-    print(cmdline)
-    os.system(cmdline)
+    result = subprocess.run(["sphinx-build", "-M", "html", sourcepath, "../docs" ], stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print("sphinx-build returned non-zero error code.")
+        print("--- output ---")
+        print(result.stderr.read().decode())
+        raise Exception("Failed to generate html documentation.")
 
 """
 Entry-point:
@@ -269,9 +260,12 @@ def generate_pdf(dstpath):
     sourcepath = os.path.join(dstpath, "source")
 
     print("Generating PDF...")
-    cmdline = "sphinx-build -b pdf %s ../docs/latex"%sourcepath
-    print(cmdline)
-    os.system(cmdline)
+    result = subprocess.run(["sphinx-build", "-b", "pdf", sourcepath, "../docs/latex"], stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print("sphinx-build returned non-zero error code.")
+        print("--- output ---")
+        print(result.stderr.read().decode())
+        raise Exception("Failed to generate pdf documentation.")
 
 """
 Entry-point:
