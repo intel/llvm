@@ -56,9 +56,9 @@ Explicit SIMD provides the following key features complementary to SYCL:
   further widening by the compiler, as with traditional SPMD programming.
 - Low-level APIs efficiently mapped to the Intel GPU architecture, such as block loads/stores/gathers/scatters, explicit cache hints, GPU inline assembly, etc.
 - Regular SYCL and ESIMD kernels can co-exist in the same translation unit and in
-the same application. See more details in ./README.md#
+the same application. For more details, see [SYCL and ESIMD interoperability](./README.md#sycl-and-esimd-interoperability)
 
-Explicit SIMD though have some [restrictions](#implementation-restrictions) as well.
+Explicit SIMD has some [restrictions](#implementation-restrictions) as well.
 
 **IMPORTANT NOTE: _Some parts of this extension are under active development. The APIs in the
 `sycl::ext::intel::experimental::esimd` namespace are subject to change or removal._**
@@ -1103,7 +1103,7 @@ more examples can be found in the
 
 ## Implementation restrictions
 
-This section contains lists of the main restrictions that apply when using the ESIMD
+This section contains a list of the main restrictions that apply when using the ESIMD
 extension.
 > **Note**: Some restrictions are not enforced by the compiler, which may lead to
 > undefined program behavior if violated.
@@ -1114,7 +1114,7 @@ extension.
 
 ### Unsupported standard SYCL APIs:
 
-Current ESIMD implementation does not support certain standard SYCL features
+The current ESIMD implementation does not support certain standard SYCL features
 inside ESIMD kernels and functions. Most of missing SYCL features listed below
 must be supported eventually:
 - 2D and 3D target::device accessor and local_accessor;
@@ -1127,6 +1127,6 @@ done via explicit APIs; e.g. `sycl::ext::intel::esimd::block_store(acc, offset)`
 
 ### Other restrictions:
 
-- Only Intel GPU device is supported.
+- Only Intel GPU devices are supported.
 - Interoperability between regular SYCL and ESIMD kernels is only supported one way.
   Regular SYCL kernels can call ESIMD functions, but not vice-versa. Invocation of SYCL code from ESIMD is not supported yet.

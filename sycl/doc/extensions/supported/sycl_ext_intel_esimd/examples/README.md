@@ -1,6 +1,7 @@
 # ESIMD Examples
 
-This folder contains simple ESIMD examples. The main purpose of having them is to show the basic ESIMD APIs in well known test cases.
+This folder contains simple ESIMD examples. The main purpose of having them
+is to show the basic ESIMD APIs in well known examples.
 
 1) The most basic example - ["sum_two_arrays"](./sum_two_arrays.md).
    
@@ -26,4 +27,4 @@ This folder contains simple ESIMD examples. The main purpose of having them is t
    }).wait_and_throw();
    ```
 
-2) TODO: Add more tests here.
+2) TODO: Add more examples here.
