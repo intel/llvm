@@ -1368,11 +1368,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     if ((A->getOption().matches(options::OPT_include) &&
          D.getProbePrecompiled()) ||
         A->getOption().matches(options::OPT_include_pch)) {
-      if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-          Args.hasArg(options::OPT_fsycl_device_only)) {
-        D.Diag(clang::diag::err_drv_pch_include_fsycl);
-      }
 
+      // Enable PCH inclusion when performing host compilation with -fsycl.
+      if (JA.isOffloading(Action::OFK_SYCL) &&
+          !JA.isDeviceOffloading(Action::OFK_SYCL))
+        ;
+      // Disable PCH inclusion when performing device compilation with -fsycl.
+      else if (JA.isDeviceOffloading(Action::OFK_SYCL))
+        break;
       // Handling of gcc-style gch precompiled headers.
       bool IsFirstImplicitInclude = !RenderedImplicitInclude;
       RenderedImplicitInclude = true;
