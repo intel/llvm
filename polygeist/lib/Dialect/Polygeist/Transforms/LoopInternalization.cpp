@@ -248,13 +248,6 @@ getReqdLocalMemory(sycl::AccessorType accTy, const WorkGroupSize &workGroupSize,
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
   const unsigned numDims = accTy.getDimension();
 
-  if (workGroupSize.isKnown()) {
-    unsigned memrefReqdLocalMemory = elemSize;
-    for (unsigned dim = 0; dim < numDims; ++dim)
-      memrefReqdLocalMemory *= workGroupSize.get<unsigned>(dim);
-    return memrefReqdLocalMemory;
-  }
-
   std::variant<Value, unsigned> reqdLocalMemory =
       ValueOrUnsigned::get(elemSize, builder, !workGroupSize.isKnown());
   for (unsigned dim = 0; dim < numDims; ++dim)
