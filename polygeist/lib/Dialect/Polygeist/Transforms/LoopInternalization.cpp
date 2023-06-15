@@ -1051,6 +1051,7 @@ void LoopInternalization::transform(FunctionOpInterface func,
   funcKernelInfo.getKernelCallers(func, kernels);
 
   const unsigned numDims = getGridDimension(func);
+  assert(numDims > 0 && numDims <= 3 && "Dimension out of range");
   sycl::ReqdWorkGroupSize reqdWorkGroupSize(kernels);
   OpBuilder builder(func->getRegion(0));
   WorkGroupSize workGroupSize(numDims, reqdWorkGroupSize, builder);
