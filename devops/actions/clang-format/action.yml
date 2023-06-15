@@ -8,6 +8,7 @@ inputs:
 runs:
   steps:
   - name: Run Docker POC
+    shell: bash
     run: |
       whoami
       find / -name docker.sock 2> /dev/null
