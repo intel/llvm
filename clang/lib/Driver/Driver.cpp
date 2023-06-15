@@ -9252,6 +9252,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     }
   }
 
+  // Emit an error if PCH(Pre-Compiled Header) file generation is forced in
+  // -fsycl mode.
+  if (C.getArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      JA.getType() == types::TY_PCH)
+    Diag(clang::diag::err_drv_fsycl_with_pch);
   // As an annoying special case, PCH generation doesn't strip the pathname.
   if (JA.getType() == types::TY_PCH && !IsCLMode()) {
     llvm::sys::path::remove_filename(BasePath);

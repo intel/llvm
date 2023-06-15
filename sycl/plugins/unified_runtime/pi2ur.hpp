@@ -1017,6 +1017,10 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION;
     break;
   }
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    InfoType = UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
+    break;
+  }
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -1607,17 +1611,20 @@ inline pi_result piProgramCreateWithBinary(
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(DeviceList[0]);
 
-  std::unique_ptr<ur_program_metadata_t[]> pMetadatas(
-      new ur_program_metadata_t[NumMetadataEntries]);
-  for (unsigned i = 0; i < NumMetadataEntries; i++) {
-    HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
-  }
-
-  ur_program_properties_t Properties;
+  ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
   Properties.count = NumMetadataEntries;
-  Properties.pMetadatas = pMetadatas.get();
+
+  std::unique_ptr<ur_program_metadata_t[]> pMetadatas;
+  if (NumMetadataEntries) {
+    pMetadatas.reset(new ur_program_metadata_t[NumMetadataEntries]);
+    for (unsigned i = 0; i < NumMetadataEntries; i++) {
+      HANDLE_ERRORS(mapPIMetadataToUR(&Metadata[i], &pMetadatas[i]));
+    }
+
+    Properties.pMetadatas = pMetadatas.get();
+  }
 
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(Program);
