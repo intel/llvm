@@ -207,6 +207,15 @@ Experimental features *must* be defined in two new files, where
 *   ``scripts/core/exp-<feature>.yml`` defines the interface as an input to
     `Generating Source`_.
 
+To simplify this process please use the provided python script which will create
+these template files for you. You can then freely modify these files to 
+implement your experimental feature. 
+
+.. code-block:: console
+
+    $ python scripts/add_experimental_feature.py <name-of-your-experimental-feature>
+
+
 Naming Convention
 -----------------
 
