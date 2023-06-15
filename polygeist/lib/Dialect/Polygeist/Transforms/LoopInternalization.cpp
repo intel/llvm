@@ -844,13 +844,13 @@ private:
   std::set<unsigned> getDimsThatUseLoopIV(LoopLikeOpInterface loop,
                                           DataFlowSolver &solver) const;
 
-  /// Generate the versioning condition if the loop should be versioned. Rerun
+  /// Generate the versioning condition if the loop should be versioned. Return
   /// nullptr if the loop doesn't need to be versioned.
   Value getVersionCondition(LoopLikeOpInterface loop,
                             const WorkGroupSize &workGroupSize,
                             DataFlowSolver &solver) const;
 
-  /// Return false if it can be determined at compile time whether \p loop can
+  /// Return false if it can be determined at compile time that \p loop cannot
   /// be transformed, and true otherwise.
   bool canBeTransformed(LoopLikeOpInterface loop,
                         const WorkGroupSize &workGroupSize,
@@ -1096,6 +1096,9 @@ void LoopInternalization::transform(FunctionOpInterface func,
   Optional<unsigned> reqdLocalMemory =
       getReqdLocalMemory(loopToSharedMemref, reqdWorkGroupSize);
   if (reqdLocalMemory.has_value() && *reqdLocalMemory > localMemoryRemaining) {
+    // This is a conservative check because 'reqdLocalMemory' is the max shared
+    // local memory required to transform any loop in the function, so there
+    // might be a loop that require considerably less than the max.
     LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
     return;
   }
