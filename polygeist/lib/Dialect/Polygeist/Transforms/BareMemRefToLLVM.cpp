@@ -319,6 +319,119 @@ struct StoreMemRefOpLowering : public MemAccessLowering {
     return success();
   }
 };
+
+struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
+  using ConvertOpToLLVMPattern<memref::ViewOp>::ConvertOpToLLVMPattern;
+
+  // Build and return the value for the idx^th shape dimension, either by
+  // returning the constant shape dimension or counting the proper dynamic size.
+  Value getSize(ConversionPatternRewriter &rewriter, Location loc,
+                ArrayRef<int64_t> shape, ValueRange dynamicSizes,
+                unsigned idx) const {
+    assert(idx < shape.size());
+    if (!ShapedType::isDynamic(shape[idx]))
+      return createIndexConstant(rewriter, loc, shape[idx]);
+    // Count the number of dynamic dims in range [0, idx]
+    unsigned nDynamic =
+        llvm::count_if(shape.take_front(idx), ShapedType::isDynamic);
+    return dynamicSizes[nDynamic];
+  }
+
+  // Build and return the idx^th stride, either by returning the constant stride
+  // or by computing the dynamic stride from the current `runningStride` and
+  // `nextSize`. The caller should keep a running stride and update it with the
+  // result returned by this function.
+  Value getStride(ConversionPatternRewriter &rewriter, Location loc,
+                  ArrayRef<int64_t> strides, Value nextSize,
+                  Value runningStride, unsigned idx) const {
+    assert(idx < strides.size());
+    if (!ShapedType::isDynamic(strides[idx]))
+      return createIndexConstant(rewriter, loc, strides[idx]);
+    if (nextSize)
+      return runningStride
+                 ? rewriter.create<LLVM::MulOp>(loc, runningStride, nextSize)
+                 : nextSize;
+    assert(!runningStride);
+    return createIndexConstant(rewriter, loc, 1);
+  }
+
+  LogicalResult
+  matchAndRewrite(memref::ViewOp viewOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(viewOp.getSource().getType()))
+      return failure();
+
+    const auto sourceTy = dyn_cast_or_null<LLVM::LLVMPointerType>(
+        getTypeConverter()->convertType(viewOp.getSource().getType()));
+    const Type sourceElementTy = getTypeConverter()->convertType(
+        viewOp.getSource().getType().getElementType());
+    if (!sourceTy || !sourceElementTy)
+      return viewOp.emitWarning("Source descriptor type not converted to LLVM"),
+             failure();
+
+    const auto loc = viewOp.getLoc();
+    auto alignedPtr = rewriter.create<LLVM::GEPOp>(
+        loc, sourceTy, sourceElementTy, adaptor.getSource(),
+        adaptor.getByteShift());
+    if (canBeLoweredToBarePtr(viewOp.getType())) {
+      rewriter.replaceOp(viewOp, {alignedPtr});
+      return success();
+    }
+
+    // The code below handles the case when source type can be lowered to bare
+    // pointer, but target type cannot.
+    const Type targetTy = getTypeConverter()->convertType(viewOp.getType());
+    const Type targetElementTy =
+        typeConverter->convertType(viewOp.getType().getElementType());
+    if (!targetTy || !targetElementTy)
+      return viewOp.emitWarning("Target descriptor type not converted to LLVM"),
+             failure();
+
+    int64_t offset = -1;
+    SmallVector<int64_t, 4> strides;
+    auto successStrides =
+        getStridesAndOffset(viewOp.getType(), strides, offset);
+    if (failed(successStrides))
+      return viewOp.emitWarning("cannot cast to non-strided shape"), failure();
+    assert(offset == 0 && "expected offset to be 0");
+
+    // Target memref must be contiguous in memory (innermost stride is 1), or
+    // empty (special case when at least one of the memref dimensions is 0).
+    if (!strides.empty() && (strides.back() != 1 && strides.back() != 0))
+      return viewOp.emitWarning("cannot cast to non-contiguous shape"),
+             failure();
+
+    auto targetMemRef = MemRefDescriptor::undef(rewriter, loc, targetTy);
+
+    targetMemRef.setAllocatedPtr(rewriter, loc, viewOp.getSource());
+
+    targetMemRef.setAlignedPtr(rewriter, loc, alignedPtr);
+
+    // The offset in the resulting type must be 0. This is because of
+    // the type change: an offset on srcType* may not be expressible as an
+    // offset on dstType*.
+    targetMemRef.setOffset(rewriter, loc,
+                           createIndexConstant(rewriter, loc, offset));
+
+    // Early exit for 0-D corner case.
+    if (viewOp.getType().getRank() == 0)
+      return rewriter.replaceOp(viewOp, {targetMemRef}), success();
+
+    Value stride = nullptr, nextSize = nullptr;
+    for (int i = viewOp.getType().getRank() - 1; i >= 0; --i) {
+      // Update size.
+      Value size = getSize(rewriter, loc, viewOp.getType().getShape(),
+                           adaptor.getSizes(), i);
+      targetMemRef.setSize(rewriter, loc, i, size);
+      // Update stride.
+      stride = getStride(rewriter, loc, strides, nextSize, stride, i);
+      targetMemRef.setStride(rewriter, loc, i, stride);
+      nextSize = size;
+    }
+
+    return rewriter.replaceOp(viewOp, {targetMemRef}), success();
+  }
+};
 } // namespace
 
 // The following patterns are outdated and only used in case typed pointers
@@ -635,6 +748,128 @@ struct StoreMemRefOpLoweringOld : public MemAccessLowering {
     return success();
   }
 };
+
+struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
+  using ConvertOpToLLVMPattern<memref::ViewOp>::ConvertOpToLLVMPattern;
+
+  // Build and return the value for the idx^th shape dimension, either by
+  // returning the constant shape dimension or counting the proper dynamic size.
+  Value getSize(ConversionPatternRewriter &rewriter, Location loc,
+                ArrayRef<int64_t> shape, ValueRange dynamicSizes,
+                unsigned idx) const {
+    assert(idx < shape.size());
+    if (!ShapedType::isDynamic(shape[idx]))
+      return createIndexConstant(rewriter, loc, shape[idx]);
+    // Count the number of dynamic dims in range [0, idx]
+    unsigned nDynamic =
+        llvm::count_if(shape.take_front(idx), ShapedType::isDynamic);
+    return dynamicSizes[nDynamic];
+  }
+
+  // Build and return the idx^th stride, either by returning the constant stride
+  // or by computing the dynamic stride from the current `runningStride` and
+  // `nextSize`. The caller should keep a running stride and update it with the
+  // result returned by this function.
+  Value getStride(ConversionPatternRewriter &rewriter, Location loc,
+                  ArrayRef<int64_t> strides, Value nextSize,
+                  Value runningStride, unsigned idx) const {
+    assert(idx < strides.size());
+    if (!ShapedType::isDynamic(strides[idx]))
+      return createIndexConstant(rewriter, loc, strides[idx]);
+    if (nextSize)
+      return runningStride
+                 ? rewriter.create<LLVM::MulOp>(loc, runningStride, nextSize)
+                 : nextSize;
+    assert(!runningStride);
+    return createIndexConstant(rewriter, loc, 1);
+  }
+
+  LogicalResult
+  matchAndRewrite(memref::ViewOp viewOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(viewOp.getSource().getType()))
+      return failure();
+
+    const auto sourceTy = dyn_cast_or_null<LLVM::LLVMPointerType>(
+        getTypeConverter()->convertType(viewOp.getSource().getType()));
+    if (!sourceTy)
+      return viewOp.emitWarning("Source descriptor type not converted to LLVM"),
+             failure();
+
+    const Type targetTy = getTypeConverter()->convertType(viewOp.getType());
+    if (!targetTy)
+      return viewOp.emitWarning("Target descriptor type not converted to LLVM"),
+             failure();
+
+    const auto loc = viewOp.getLoc();
+    auto alignedPtr = rewriter.create<LLVM::GEPOp>(
+        loc, sourceTy, adaptor.getSource(), adaptor.getByteShift());
+    if (canBeLoweredToBarePtr(viewOp.getType())) {
+      rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(viewOp, targetTy,
+                                                   alignedPtr);
+      return success();
+    }
+
+    // The code below handles the case when source type can be lowered to bare
+    // pointer, but target type cannot.
+    const Type targetElementTy =
+        typeConverter->convertType(viewOp.getType().getElementType());
+    if (!targetElementTy)
+      return viewOp.emitWarning(
+                 "Target descriptor element type not converted to LLVM"),
+             failure();
+
+    int64_t offset = -1;
+    SmallVector<int64_t, 4> strides;
+    auto successStrides =
+        getStridesAndOffset(viewOp.getType(), strides, offset);
+    if (failed(successStrides))
+      return viewOp.emitWarning("cannot cast to non-strided shape"), failure();
+    assert(offset == 0 && "expected offset to be 0");
+
+    // Target memref must be contiguous in memory (innermost stride is 1), or
+    // empty (special case when at least one of the memref dimensions is 0).
+    if (!strides.empty() && (strides.back() != 1 && strides.back() != 0))
+      return viewOp.emitWarning("cannot cast to non-contiguous shape"),
+             failure();
+
+    auto targetMemRef = MemRefDescriptor::undef(rewriter, loc, targetTy);
+    auto ptrTy =
+        LLVM::LLVMPointerType::get(targetElementTy, sourceTy.getAddressSpace());
+
+    targetMemRef.setAllocatedPtr(
+        rewriter, loc,
+        rewriter.create<LLVM::BitcastOp>(loc, ptrTy, viewOp.getSource()));
+
+    targetMemRef.setAlignedPtr(
+        rewriter, loc,
+        rewriter.create<LLVM::BitcastOp>(loc, ptrTy, alignedPtr));
+
+    // The offset in the resulting type must be 0. This is because of
+    // the type change: an offset on srcType* may not be expressible as an
+    // offset on dstType*.
+    targetMemRef.setOffset(rewriter, loc,
+                           createIndexConstant(rewriter, loc, offset));
+
+    // Early exit for 0-D corner case.
+    if (viewOp.getType().getRank() == 0)
+      return rewriter.replaceOp(viewOp, {targetMemRef}), success();
+
+    Value stride = nullptr, nextSize = nullptr;
+    for (int i = viewOp.getType().getRank() - 1; i >= 0; --i) {
+      // Update size.
+      Value size = getSize(rewriter, loc, viewOp.getType().getShape(),
+                           adaptor.getSizes(), i);
+      targetMemRef.setSize(rewriter, loc, i, size);
+      // Update stride.
+      stride = getStride(rewriter, loc, strides, nextSize, stride, i);
+      targetMemRef.setStride(rewriter, loc, i, stride);
+      nextSize = size;
+    }
+
+    return rewriter.replaceOp(viewOp, {targetMemRef}), success();
+  }
+};
 } // namespace
 
 void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
@@ -646,14 +881,15 @@ void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
     patterns.add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
                  AllocMemrefOpLowering, AllocaMemrefOpLowering,
                  CastMemrefOpLowering, DeallocOpLowering, LoadMemRefOpLowering,
-                 MemorySpaceCastMemRefOpLowering, StoreMemRefOpLowering>(
-        converter, 2);
+                 MemorySpaceCastMemRefOpLowering, StoreMemRefOpLowering,
+                 ViewMemRefOpLowering>(converter, 2);
   } else {
     patterns.add<GetGlobalMemrefOpLoweringOld, ReshapeMemrefOpLoweringOld,
                  AllocMemrefOpLoweringOld, AllocaMemrefOpLoweringOld,
                  CastMemrefOpLoweringOld, DeallocOpLoweringOld,
                  LoadMemRefOpLoweringOld, MemorySpaceCastMemRefOpLoweringOld,
-                 StoreMemRefOpLoweringOld>(converter, 2);
+                 StoreMemRefOpLoweringOld, ViewMemRefOpLoweringOld>(converter,
+                                                                    2);
   }
 
   // Patterns are tried in reverse add order, so this is tried before the
