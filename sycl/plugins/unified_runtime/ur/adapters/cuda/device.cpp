@@ -690,7 +690,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     return ReturnValue(0u);
   }
-  case UR_DEVICE_INFO_PARTITION_PROPERTIES: {
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
     return ReturnValue(static_cast<ur_device_partition_t>(0u));
   }
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
