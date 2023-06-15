@@ -304,7 +304,6 @@ add_custom_target(sycl-compiler
           llc
           llvm-ar
           llvm-foreach
-          llvm-no-spir-kernel
           llvm-spirv
           llvm-link
           llvm-objcopy
@@ -394,7 +393,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llc
      llvm-ar
      llvm-foreach
-     llvm-no-spir-kernel
      llvm-spirv
      llvm-link
      llvm-objcopy
