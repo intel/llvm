@@ -236,7 +236,7 @@ protected:
                                     /*PropertySetsEnd*/ nullptr};
   pi_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
-  RT::PiProgram NativeProg;
+  sycl::detail::pi::PiProgram NativeProg;
 };
 
 /* Checks that key values with \0 symbols are processed correctly

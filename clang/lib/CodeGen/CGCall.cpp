@@ -34,6 +34,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/FPAccuracy.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
@@ -1834,6 +1835,44 @@ static bool HasStrictReturn(const CodeGenModule &Module, QualType RetTy,
   return Module.getCodeGenOpts().StrictReturn ||
          !Module.MayDropFunctionReturn(Module.getContext(), RetTy) ||
          Module.getLangOpts().Sanitize.has(SanitizerKind::Return);
+}
+
+static llvm::fp::FPAccuracy convertFPAccuracy(StringRef FPAccuracyStr) {
+  return llvm::StringSwitch<llvm::fp::FPAccuracy>(FPAccuracyStr)
+      .Case("high", llvm::fp::FPAccuracy::High)
+      .Case("medium", llvm::fp::FPAccuracy::Medium)
+      .Case("low", llvm::fp::FPAccuracy::Low)
+      .Case("sycl", llvm::fp::FPAccuracy::SYCL)
+      .Case("cuda", llvm::fp::FPAccuracy::CUDA);
+}
+
+void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
+    StringRef Name, llvm::AttrBuilder &FuncAttrs, unsigned ID,
+    const llvm::Type *FuncType) {
+  // Priority is given to to the accuracy specific to the function.
+  // So, if the command line is something like this:
+  // 'clang -fp-accuracy = high -fp-accuracy = low:[sin]'.
+  // This means, all library functions will have the accuracy 'high'
+  // except 'sin', which should have an accuracy value of 'low'.
+  // To ensure that, first check if Name has a required accuracy by visiting
+  // the 'FPAccuracyFuncMap'; if no accuracy is mapped to Name (FuncAttrs
+  // is empty), then set its accuracy from the TU's accuracy value.
+  if (!getLangOpts().FPAccuracyFuncMap.empty()) {
+    auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
+    if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
+      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+          ID, FuncType, convertFPAccuracy(FuncMapIt->second));
+      assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+    }
+  }
+  if (FuncAttrs.attrs().size() == 0)
+    if (!getLangOpts().FPAccuracyVal.empty()) {
+      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+          ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
+      assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+      FuncAttrs.addAttribute("fpbuiltin-max-error=", FPAccuracyVal);
+    }
 }
 
 /// Add denormal-fp-math and denormal-fp-math-f32 as appropriate for the
@@ -5581,6 +5620,13 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {
+    if (CGM.getCodeGenOpts().FPAccuracy) {
+      const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
+      assert(FD && "expecting a function");
+      CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
+      if (CI)
+        return RValue::get(CI);
+    }
     CI = Builder.CreateCall(IRFuncTy, CalleePtr, IRCallArgs, BundleList);
   } else {
     llvm::BasicBlock *Cont = createBasicBlock("invoke.cont");

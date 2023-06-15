@@ -275,9 +275,6 @@ template <class To, class FromE> To cast(std::vector<FromE> Values) {
 } // namespace pi
 } // namespace detail
 
-// For shortness of using PI from the top-level sycl files.
-namespace RT = sycl::detail::pi;
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
