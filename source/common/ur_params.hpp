@@ -3306,10 +3306,10 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     } break;
 
     case UR_DEVICE_INFO_MEMORY_BUS_WIDTH: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size
-               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+               << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
         os << (void *)(tptr) << " (";
