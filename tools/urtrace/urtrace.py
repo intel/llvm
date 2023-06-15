@@ -5,7 +5,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import argparse
-import subprocess
+import subprocess  # nosec B404
 import os
 import sys
 
@@ -134,7 +134,9 @@ if args.debug:
     print(env)
 
 if config['command']:
-    result = subprocess.run(config['command'], env=env)
+    # The core functionality is to pass the user's command,
+    # and it is the user's responsibility to pass secure parameters.
+    result = subprocess.run(config['command'], env=env)  # nosec B603
     if args.debug:
         print(result)
     exit(result.returncode)
