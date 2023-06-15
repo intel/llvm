@@ -325,8 +325,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
     simd<float, M_one *N_dg2> R_f = 0;
     simd<float, M_one *N_dg2> C_f = 0;
 
-    simd<half, K_half *N_dg2> B_hf = 0;
-    simd<half, M_one *K_half / 2> A_hf = 0;
+    simd<half, K_half * N_dg2> B_hf = 0;
+    simd<half, M_one * K_half / 2> A_hf = 0;
 
     // ------------ DPASW FP16: WITH THE ACCUMULATOR OPERAND -------------------
     R_f = xmx::dpasw<8, 1, float>(C_f, B_hf, A_hf);
