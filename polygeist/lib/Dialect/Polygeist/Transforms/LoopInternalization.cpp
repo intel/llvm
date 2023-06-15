@@ -330,7 +330,7 @@ getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
 memref::GlobalOp getWorkGroupSharedMemory(gpu::GPUModuleOp module,
                                           unsigned size) {
   assert(size != 0 && "Expecting non-zero size");
-  std::string name("WGSharedMem");
+  std::string name("WGLocalMem");
   polygeist::getUniqueSymbolName(name, module);
   OpBuilder globalBuilder(module->getRegion(0));
   auto memRefTy = MemRefType::get(
@@ -1232,7 +1232,7 @@ void LoopInternalization::transform(T loop,
 }
 
 void LoopInternalization::promote(Operation *memref,
-                                  memref::ViewOp sharedMemory,
+                                  memref::ViewOp viewOp,
                                   LoopInfo &loopInfo, ArrayRef<Value> localIDs,
                                   OpBuilder &builder,
                                   DataFlowSolver &solver) const {
@@ -1276,7 +1276,7 @@ void LoopInternalization::promote(Operation *memref,
   auto load = builder.create<memref::LoadOp>(loc, globalAccSub, zeroIndex);
 
   // Store to shared memory.
-  builder.create<memref::StoreOp>(loc, load, sharedMemory, localIDs);
+  builder.create<memref::StoreOp>(loc, load, viewOp, localIDs);
 
   // Populate indexes will be used in loop with shared memory.
   SmallVector<Value> adjustedIndexes;
@@ -1301,8 +1301,7 @@ void LoopInternalization::promote(Operation *memref,
     OpBuilder::InsertionGuard insertGuard(builder);
     builder.setInsertionPoint(user);
     assert(isa<affine::AffineLoadOp>(user) && "Expecting affine load user");
-    auto load = builder.create<memref::LoadOp>(user->getLoc(), sharedMemory,
-                                               adjustedIndexes);
+    auto load = builder.create<memref::LoadOp>(user->getLoc(), viewOp, adjustedIndexes);
     user->replaceAllUsesWith(load);
     user->erase();
   }

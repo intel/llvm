@@ -13,7 +13,7 @@
 // CHECK-DAG:   [[MAP1:#map.*]] = affine_map<()[s0] -> (256 ceildiv s0)>
 // CHECK-DAG:   [[MAP2:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0)>
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0 + s0, 256)>
-// CHECK:       memref.global "private" @WGSharedMem : memref<64xi8, #sycl.access.address_space<local>>
+// CHECK:       memref.global "private" @WGLocalMem : memref<64xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL: func.func private @affine_2d(
 // CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_2_>) {
 
@@ -38,7 +38,7 @@
 // CHECK-NEXT:    %[[VAL_16:.*]] = arith.index_cast %[[VAL_15]] : i64 to index
 
 // COM: Get pointer to shared local memory:
-// CHECK-NEXT:    %[[VAL_17:.*]] = memref.get_global @WGSharedMem : memref<64xi8, #sycl.access.address_space<local>>
+// CHECK-NEXT:    %[[VAL_17:.*]] = memref.get_global @WGLocalMem : memref<64xi8, #sycl.access.address_space<local>>
 
 // COM: Use work group size of dimension 1 as tile size:
 // CHECK-NEXT:    %[[TILESIZE:.*]] = arith.constant 4 : index
@@ -142,7 +142,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-DAG:   [[MAP1:#map.*]] = affine_map<()[s0] -> (511 ceildiv s0 + 1)>
 // CHECK-DAG:   [[MAP2:#map.*]] = affine_map<(d0)[s0] -> ((d0 - 1) * s0 + 1)>
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> ((d0 - 1) * s0 + s0 + 1, 512)>
-// CHECK:       memref.global "private" @WGSharedMem : memref<32000xi8, #sycl.access.address_space<local>>
+// CHECK:       memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:  func.func private @affine_3d(
 // CHECK-SAME:       %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
 
@@ -198,7 +198,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:    affine.for %[[VAL_40:.*]] = 0 to 256 {
 
 // COM: Get pointer to shared local memory:
-// CHECK-NEXT:      %[[VAL_41:.*]] = memref.get_global @WGSharedMem : memref<32000xi8, #sycl.access.address_space<local>>
+// CHECK-NEXT:      %[[VAL_41:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 
 // COM: Use work group size of dimension 2 as tile size:
 // CHECK-NEXT:      affine.for %[[VAL_42:.*]] = 1 to [[MAP1]](){{\[}}%[[WGSIZE2]]] {
@@ -292,7 +292,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 !sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
-// CHECK:           memref.global "private" @WGSharedMem : memref<32000xi8, #sycl.access.address_space<local>>
+// CHECK:           memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:     func.func private @scf_2d(
 // CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_2_>) {
 
@@ -344,7 +344,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        scf.if %[[VER_COND]] {
 
 // COM: Get pointer to shared local memory:
-// CHECK-NEXT:        %[[VAL_37:.*]] = memref.get_global @WGSharedMem : memref<32000xi8, #sycl.access.address_space<local>>
+// CHECK-NEXT:        %[[VAL_37:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 
 // COM: Use work group size as tile size:
 // CHECK-NEXT:        %[[TILESIZE:.*]] = arith.muli %[[VAL_31]], %[[WGSIZE0]] : index
@@ -468,7 +468,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 !sycl_item_3 = !sycl.item<[3, true], (!sycl_item_base_3)>
 !sycl_nd_item_3 = !sycl.nd_item<[3], (!sycl_item_3, !sycl_item_3, !sycl_group_3)>
 
-// CHECK:           memref.global "private" @WGSharedMem : memref<32000xi8, #sycl.access.address_space<local>>
+// CHECK:           memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:     func.func private @scf_3d(
 // CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
 
@@ -523,7 +523,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        scf.for %[[VAL_42:.*]] = %[[VAL_33]] to %[[VAL_35]] step %[[VAL_34]] {
 
 // COM: Get pointer to shared local memory:
-// CHECK-NEXT:          %[[VAL_43:.*]] = memref.get_global @WGSharedMem : memref<32000xi8, #sycl.access.address_space<local>>
+// CHECK-NEXT:          %[[VAL_43:.*]] = memref.get_global @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 
 // COM: Use work group size of dimension 1 as tile size:
 // CHECK-NEXT:          %[[VAL_44:.*]] = arith.muli %[[VAL_34]], %[[WGSIZE2]] : index
