@@ -1187,9 +1187,18 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
-                                  pi_uint32 RawImgSize, pi_uint32 *ImgInd) {
-  CONTINUE_NO_IMPLEMENTATION;
+pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *images,
+                                  pi_uint32 num_images, pi_uint32 *selected_image_ind) {
+  // look for a binary with type __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU
+  // Todo: error checking
+  const char *image_target = __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU;
+  for (pi_uint32 i = 0; i < num_images; ++i) {
+    if (strcmp(images[i]->DeviceTargetSpec, image_target) == 0) {
+      *selected_image_ind = i;
+      return PI_SUCCESS;
+    }
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,

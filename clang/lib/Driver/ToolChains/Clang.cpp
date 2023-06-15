@@ -4939,7 +4939,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-  bool IsSYCLNativeCPU = isSYCLNativeCPU(Args);
+  bool IsSYCLNativeCPU = TC.getTriple() == C.getDefaultToolChain().getTriple();
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5274,10 +5274,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
-      if (IsSYCLNativeCPU) {
-        CmdArgs.push_back("-D");
-        CmdArgs.push_back("__SYCL_NATIVE_CPU__");
-      }
 
       if (!D.IsCLMode()) {
         // SYCL library is guaranteed to work correctly only with dynamic

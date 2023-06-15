@@ -78,7 +78,6 @@ SmallVector<unsigned> getUsedIndexes(const Function *F) {
     }
     return res;
   }
-  llvm::errs() << "[ptrdbg] used node : " << *UsedNode << "\n";
   auto NumOperands = UsedNode->getNumOperands();
   for (unsigned I = 0; I < NumOperands; I++) {
     auto &Op = UsedNode->getOperand(I);
@@ -143,13 +142,6 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // Call the kernel
   // Add the nativecpu state as arg
   KernelArgs.push_back(SubhF->getArg(1));
-  llvm::errs() << "[ptrdbg] calling " << *F << "\n";
-  llvm::errs() << "[ptrdbg] nargs " << F->getFunctionType()->getNumParams() << "\n";
-  llvm::errs() << "[ptrdbg] usedI " << UsedIndexes.size() << "\n";
-  llvm::errs() << "[ptrdbg] args: " << KernelArgs.size() << "\n";
-  for(auto& el: KernelArgs)
-    llvm::errs() << "\t" << *el << "\n ";
-  llvm::errs() << "\n";
   Builder.CreateCall(KernelTy, F, KernelArgs);
   Builder.CreateRetVoid();
 }
@@ -251,10 +243,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   Type *StatePtrType = PointerType::getUnqual(StateType);
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
-    llvm::errs() << "[ptrdbg] preclone: " << *OldF << "\n";
     auto *NewF = cloneFunctionAndAddParam(OldF, StatePtrType);
     NewF->takeName(OldF);
-    llvm::errs() << "[ptrdbg] postclone: " << *NewF << "\n";
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
     ModuleChanged |= true;

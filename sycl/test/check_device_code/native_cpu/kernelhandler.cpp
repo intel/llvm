@@ -31,7 +31,7 @@ int main() {
 
 // check that we are emitting the call to __sycl_register_lib
 //CHECK-HC: static _pi_offload_entry_struct _pi_offload_entry_struct_ZTS5Test1{(void*)&_ZTS5Test1subhandler, const_cast<char*>("_ZTS5Test1"), 1, 0, 0 };
-//CHECK-HC-NEXT: static pi_device_binary_struct pi_device_binary_struct_ZTS5Test1{0, 4, 0, __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN, nullptr, nullptr, nullptr, nullptr, (unsigned char*)&_ZTS5Test1subhandler, (unsigned char*)&_ZTS5Test1subhandler + 1, &_pi_offload_entry_struct_ZTS5Test1, &_pi_offload_entry_struct_ZTS5Test1+1, nullptr, nullptr };
+//CHECK-HC-NEXT: static pi_device_binary_struct pi_device_binary_struct_ZTS5Test1{0, 4, 0, __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU, nullptr, nullptr, nullptr, nullptr, (unsigned char*)&_ZTS5Test1subhandler, (unsigned char*)&_ZTS5Test1subhandler + 1, &_pi_offload_entry_struct_ZTS5Test1, &_pi_offload_entry_struct_ZTS5Test1+1, nullptr, nullptr };
 //CHECK-HC-NEXT: static pi_device_binaries_struct pi_device_binaries_struct_ZTS5Test1{0, 1, &pi_device_binary_struct_ZTS5Test1, nullptr, nullptr };
 //CHECK-HC-NEXT: struct init_native_cpu_ZTS5Test1_t{
 //CHECK-HC-NEXT: 	init_native_cpu_ZTS5Test1_t(){
@@ -39,3 +39,4 @@ int main() {
 //CHECK-HC-NEXT: 	}
 //CHECK-HC-NEXT: };
 //CHECK-HC-NEXT: static init_native_cpu_ZTS5Test1_t init_native_cpu_ZTS5Test1;
+
