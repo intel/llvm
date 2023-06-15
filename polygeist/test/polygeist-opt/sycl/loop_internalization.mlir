@@ -203,7 +203,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 
 // COM: Ensure there is a sufficient amount of shared local memory available:
 // CHECK-NEXT:    %[[SHARED_MEM_AMOUNT:.*]] = arith.constant 32000 : index
-// CHECK-NEXT:    %[[VER_COND:.*]] = arith.cmpi eq, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
+// CHECK-NEXT:    %[[VER_COND:.*]] = arith.cmpi ule, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
 // CHECK-NEXT:    scf.if %[[VER_COND]] {
 
 // COM: Get pointer to local memory:
@@ -366,7 +366,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 
 // COM: Ensure there is a sufficient amount of shared local memory available and memory accesses reference the loop IV 'consistently':
 // CHECK-NEXT:        %[[SHARED_MEM_AMOUNT:.*]] = arith.constant 32000 : index
-// CHECK-NEXT:        %[[VER_COND1:.*]] = arith.cmpi eq, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
+// CHECK-NEXT:        %[[VER_COND1:.*]] = arith.cmpi ule, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
 // CHECK-NEXT:        %[[VER_COND2:.*]] = arith.cmpi eq, %[[WGSIZE0]], %[[WGSIZE1]] : index
 // CHECK-NEXT:        %[[VER_COND:.*]] = arith.andi %[[VER_COND1]], %[[VER_COND2]] : i1
 
@@ -557,7 +557,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 
 // COM: Ensure there is a sufficient amount of shared local memory available:
 // CHECK-NEXT:          %[[SHARED_MEM_AMOUNT:.*]] = arith.constant 32000 : index
-// CHECK-NEXT:          %[[VER_COND:.*]] = arith.cmpi eq, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
+// CHECK-NEXT:          %[[VER_COND:.*]] = arith.cmpi ule, %[[REQD_SHARED_MEM]], %[[SHARED_MEM_AMOUNT]] : index
 // CHECK-NEXT:          scf.if %[[VER_COND]] {
 
 // COM: Get pointer to local memory:

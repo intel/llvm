@@ -1022,7 +1022,7 @@ Value LoopInternalization::getVersionCondition(
   // Check for shared memory availability.
   if (std::holds_alternative<Value>(reqdSharedMemory))
     versionCond = builder.create<arith::CmpIOp>(
-        loop.getLoc(), arith::CmpIPredicate::eq,
+        loop.getLoc(), arith::CmpIPredicate::ule,
         std::get<Value>(reqdSharedMemory),
         ValueOrUnsigned::getValue(sharedMemoryRemaining, builder));
 
