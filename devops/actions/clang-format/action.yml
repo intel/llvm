@@ -6,7 +6,7 @@ inputs:
     required: true
 
 runs:
-  using: "composite"
+  using: "docker"
   steps:
   - name: Run Docker POC
     shell: bash
