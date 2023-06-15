@@ -325,18 +325,18 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
     simd<float, M_one *N_dg2> R_f = 0;
     simd<float, M_one *N_dg2> C_f = 0;
 
-    simd<bfloat16, K_half *N_dg2> B_hf = 0;
-    simd<bfloat16, M_one *K_half / 2> A_hf = 0;
+    simd<half, K_half *N_dg2> B_hf = 0;
+    simd<half, M_one *K_half / 2> A_hf = 0;
 
     // ------------ DPASW FP16: WITH THE ACCUMULATOR OPERAND -------------------
     R_f = xmx::dpasw<8, 1, float>(C_f, B_hf, A_hf);
     zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.v8f32.v64i32.v4i32(<8 x float> {{[^,]+}}, <64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17303817)
+    // CHECK: call <8 x float> @llvm.genx.dpasw.v8f32.v64i32.v4i32(<8 x float> {{[^,]+}}, <64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17304074)
 
     // ------------ DPASW FP16: WITHOUT ACC OPERAND ----------------------------
     R_f = xmx::dpasw<8, 1, float>(B_hf, A_hf);
     zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.nosrc0.v8f32.v64i32.v4i32(<64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17303817)
+    // CHECK: call <8 x float> @llvm.genx.dpasw.nosrc0.v8f32.v64i32.v4i32(<64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17304074)
   }
 
   { // ======= DPAS TFLOAT32 ===================================================
