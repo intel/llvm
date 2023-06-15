@@ -13,7 +13,7 @@
 // RUN: %clangxx -### -fsycl -fsycl-link-huge-device-code %s \
 // RUN:       -T custom-user-script.ld 2>&1 | \
 // RUN:       FileCheck --check-prefixes=CHECK-USER-SCRIPT %s
-// RUN: %clangxx -### -fopenmp -fopenmp-targets=x86_64 %s \
+// RUN: %clangxx -### -fopenmp -fopenmp-targets=x86_64 -flink-huge-device-code %s \
 // RUN:       -T custom-user-script.ld 2>&1 | \
 // RUN:       FileCheck --check-prefixes=CHECK-USER-SCRIPT %s
 // CHECK-USER-SCRIPT: "-T" "custom-user-script.ld"
