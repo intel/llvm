@@ -2260,7 +2260,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   if ((FD->hasAttr<ConstAttr>() ||
        ((ConstWithoutErrnoAndExceptions || ConstWithoutExceptions) &&
         (!ConstWithoutErrnoAndExceptions || (!getLangOpts().MathErrno)))) &&
-      !(getLangOpts().isSYCL() && getTarget().getTriple().isNVPTX())) {
+      !(getLangOpts().SYCLIsDevice && getTarget().getTriple().isNVPTX())) {
     switch (BuiltinIDIfNoAsmLabel) {
     case Builtin::BIceil:
     case Builtin::BIceilf:
