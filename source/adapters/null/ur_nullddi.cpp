@@ -219,19 +219,22 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urGetLastResult
-__urdlllocal ur_result_t UR_APICALL urGetLastResult(
+/// @brief Intercept function for urPlatformGetLastError
+__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const char **
-        ppMessage ///< [out] pointer to a string containing adapter specific result in string
-                  ///< representation.
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetLastResult = d_context.urDdiTable.Global.pfnGetLastResult;
-    if (nullptr != pfnGetLastResult) {
-        result = pfnGetLastResult(hPlatform, ppMessage);
+    auto pfnGetLastError = d_context.urDdiTable.Platform.pfnGetLastError;
+    if (nullptr != pfnGetLastError) {
+        result = pfnGetLastError(hPlatform, ppMessage, pError);
     } else {
         // generic implementation
     }
@@ -4327,8 +4330,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     pDdiTable->pfnInit = driver::urInit;
 
-    pDdiTable->pfnGetLastResult = driver::urGetLastResult;
-
     pDdiTable->pfnTearDown = driver::urTearDown;
 
     return result;
@@ -4767,6 +4768,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urPlatformCreateWithNativeHandle;
+
+    pDdiTable->pfnGetLastError = driver::urPlatformGetLastError;
 
     pDdiTable->pfnGetApiVersion = driver::urPlatformGetApiVersion;
 

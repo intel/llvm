@@ -235,9 +235,6 @@ etors:
 - name: PLATFORM_CREATE_WITH_NATIVE_HANDLE
   desc: Enumerator for $xPlatformCreateWithNativeHandle
   value: '76'
-- name: GET_LAST_RESULT
-  desc: Enumerator for $xGetLastResult
-  value: '77'
 - name: PROGRAM_CREATE_WITH_IL
   desc: Enumerator for $xProgramCreateWithIL
   value: '78'
@@ -445,3 +442,6 @@ etors:
 - name: BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesSignalExternalSemaphoreExp
   value: '149'
+- name: PLATFORM_GET_LAST_ERROR
+  desc: Enumerator for $xPlatformGetLastError
+  value: '150'
