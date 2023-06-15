@@ -7,6 +7,7 @@ if (LLVM_ENABLE_DOXYGEN)
     set(DOT ${LLVM_PATH_DOT})
   endif()
 
+
   # TODO add support for external search engine
 
   if (LLVM_ENABLE_DOXYGEN_QT_HELP)
