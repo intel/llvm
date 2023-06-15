@@ -2293,8 +2293,8 @@ void DispatchNativeKernel(void *Blob) {
   std::vector<Requirement *> *Reqs =
       static_cast<std::vector<Requirement *> *>(CastedBlob[0]);
 
-  std::unique_ptr<HostKernelBase> *HostKernel =
-      static_cast<std::unique_ptr<HostKernelBase> *>(CastedBlob[1]);
+  std::shared_ptr<HostKernelBase> *HostKernel =
+      static_cast<std::shared_ptr<HostKernelBase> *>(CastedBlob[1]);
 
   NDRDescT *NDRDesc = static_cast<NDRDescT *>(CastedBlob[2]);
 
@@ -2571,12 +2571,18 @@ pi_int32 ExecCGCommand::enqueueImp() {
     std::vector<Requirement *> *CopyReqs =
         new std::vector<Requirement *>(HostTask->getRequirements());
 
-    std::shared_ptr<HostKernelBase> CopyHostKernel = HostTask->MHostKernel;
+    // Create a shared_ptr on the heap so that the reference count is
+    // incremented until the DispatchNativeKernel() callback is run, which
+    // will free the heap shared_ptr and decrement the reference count. This
+    // prevents errors when the HostTask command-group is deleted before
+    // DispatchNativeKernel() can be run.
+    std::shared_ptr<HostKernelBase> *CopyHostKernel =
+        new std::shared_ptr<HostKernelBase>(HostTask->MHostKernel);
 
     NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
 
     ArgsBlob[0] = (void *)CopyReqs;
-    ArgsBlob[1] = (void *)CopyHostKernel.get();
+    ArgsBlob[1] = (void *)CopyHostKernel;
     ArgsBlob[2] = (void *)CopyNDRDesc;
 
     void **NextArg = ArgsBlob.data() + 3;
