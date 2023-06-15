@@ -2352,6 +2352,16 @@ struct is_device_copyable<T[N],
                           std::enable_if_t<!std::is_trivially_copyable_v<T>>>
     : is_device_copyable<T> {};
 
+// sycl::vec is not currently trivially move-constructible due to a work-around.
+// It should still be safe to copy it to device, however, so we specialize
+// is_device_copyable for it as a work-around.
+// TODO: Remove this once sycl::vec is made trivially move-constructible.
+template <typename T, int N>
+struct is_device_copyable<
+    vec<T, N>, std::enable_if_t<is_device_copyable<T>::value &&
+                                !std::is_trivially_copyable_v<vec<T, N>>>>
+    : std::true_type {};
+
 template <typename T>
 struct is_device_copyable<
     T, std::enable_if_t<!std::is_trivially_copyable_v<T> &&
