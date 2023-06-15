@@ -50,9 +50,9 @@ int main() {
       constexpr uint32_t width = SurfaceWidth * sizeof(float) - 1;
       constexpr uint32_t height = SurfaceHeight - 1;
       constexpr uint32_t pitch = SurfacePitch * sizeof(float) - 1;
-      auto data_a = lsc_load2d<float, BlockWidth, BlockHeight, NumBlocks>(
+      auto data_a = lsc_load_2d<float, BlockWidth, BlockHeight, NumBlocks>(
           A, width, height, pitch, x, y);
-      auto data_b = lsc_load2d<float, BlockWidth, BlockHeight, NumBlocks>(
+      auto data_b = lsc_load_2d<float, BlockWidth, BlockHeight, NumBlocks>(
           B, width, height, pitch, x, y);
 
       auto data_c = data_a + data_b;

@@ -1,0 +1,178 @@
+= sycl_ext_intel_grf_size
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Backend support status
+
+This extension is currently implemented in {dpcpp} only for Intel GPU devices and
+only when using the Level Zero backend or OpenCL backend.
+Attempting to use this extension in kernels that run on other devices or
+backends may result in undefined behavior.  Be aware that the compiler
+is not able to issue a diagnostic to warn you if this happens.
+
+== Overview
+
+There are devices where the size of the general register file (GRF) used by a kernel is 
+configurable. Developers may want to change the GRF size based on their
+application. This extension adds the kernel property `grf_size` which provides a way
+to specify the GRF size for a SYCL kernel, and the kernel property `grf_size_automatic`
+which provides a way to request a valid GRF size be automatically chosen.
+
+The properties described in this extension are advanced features that most applications
+should not need to use. In most cases, applications get the best performance
+without using these properties.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_GRF_SIZE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Properties
+
+|===
+|Property|Description
+
+|`grf_size`
+|The `grf_size` kernel property provides a way to specify the GRF size used by a kernel. 
+It accepts a single unsigned integer value.
+
+|`grf_size_automatic`
+| The `grf_size_automatic` kernel property adds the requirement that the kernel use any of the supported GRF sizes. The manner in which the GRF size is selected is implementation-defined.
+
+|===
+
+At most one of the `grf_size` and `grf_size_automatic` properties may be associated with a kernel.
+
+If a kernel is not associated with a `grf_size` or `grf_size_automatic` property, the manner in which the GRF size is selected is implementation-defined.
+
+The properties are defined as follows:
+```c++
+namespace sycl::ext::intel::experimental {
+
+struct grf_size_key {
+  template <unsigned int Size>
+  using value_t = 
+      oneapi::experimental::property_value<grf_size_key, 
+                                           std::integral_constant<unsigned int, Size>>;
+};
+
+struct grf_size_automatic_key {
+  using value_t = 
+      oneapi::experimental::property_value<grf_size_automatic_key>;
+};
+
+template <unsigned int Size>
+inline constexpr grf_size_key::value_t<Size> grf_size;
+
+inline constexpr grf_size_automatic_key::value_t grf_size_automatic;
+
+} // namespace sycl::ext::intel::experimental
+```
+The supported values are as follows:
+[%header,cols="1,5"]
+|===
+|GPU |Supported Values
+| PVC | 128 (small register file), 256 (large register file)
+| DG2 | 128 (small register file), 256 (large register file)
+|===
+
+Providing a value not consistent with the supported values may result in undefined behavior.
+
+=== Using the properties in a kernel
+
+A simple example of using this extension is below.
+
+```c++
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+{
+  ...
+  syclex::properties kernel_properties{intelex::grf_size<256>};
+
+  q.single_task(kernel_properties, [=] {
+   ...
+  }).wait();
+}
+{
+  ...
+  syclex::properties kernel_properties{intelex:grf_size_automatic};
+
+  q.single_task(kernel_properties, [=] {
+   ...
+  }).wait();
+}
+```
+
+
