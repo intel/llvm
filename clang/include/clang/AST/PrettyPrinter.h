@@ -212,6 +212,9 @@ struct PrintingPolicy {
   ///   \endcode
   unsigned SuppressTypedefs : 1;
 
+  /// When true, suppress printing final specifier.
+  unsigned SuppressFinalSpecifier : 1;
+
   /// When true, suppresses printing template arguments in names of C++
   /// constructors.
   unsigned SuppressTemplateArgsInCXXConstructors : 1;
@@ -219,9 +222,6 @@ struct PrintingPolicy {
   /// When true, attempt to suppress template arguments that match the default
   /// argument for the parameter.
   unsigned SuppressDefaultTemplateArgs : 1;
-
-  /// When true, suppress printing final specifier.
-  unsigned SuppressFinalSpecifier : 1;
 
   /// Whether we can use 'bool' rather than '_Bool' (even if the language
   /// doesn't actually have 'bool', because, e.g., it is defined as a macro).
