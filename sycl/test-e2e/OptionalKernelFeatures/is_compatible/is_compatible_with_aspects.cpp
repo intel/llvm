@@ -24,6 +24,9 @@ int main() {
   sycl::device Dev;
   sycl::queue Q(Dev);
 
+  // Returns true for empty vector of kernels
+  assert(sycl::is_compatible({}, Dev));
+
   if (sycl::is_compatible<KernelCPU>(Dev)) {
     Q.submit(
         [&](sycl::handler &h) { h.single_task<KernelCPU>([=]() { foo(); }); });
