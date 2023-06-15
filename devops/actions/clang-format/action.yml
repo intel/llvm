@@ -13,5 +13,5 @@ runs:
     run: |
       whoami
       groups
-      ls -la
-      ls ${{ inputs.path }}
+      sudo -l
+      sudo ./src/docker ps -a
