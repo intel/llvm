@@ -1082,8 +1082,8 @@ void LoopInternalization::transform(FunctionOpInterface func,
   if (std::holds_alternative<unsigned>(reqdSharedMemory) &&
       std::get<unsigned>(reqdSharedMemory) > sharedMemoryRemaining) {
     // This is a conservative check because 'reqdSharedMemory' is the max shared
-    // local memory required to transform any loop in the function, so there
-    // might be a loop that require considerably less than the max.
+    // memory required to transform any loop in the function, so there might be
+    // a loop that require considerably less than the max.
     LLVM_DEBUG(llvm::dbgs() << "Not enough local memory\n");
     return;
   }
