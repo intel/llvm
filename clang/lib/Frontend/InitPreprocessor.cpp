@@ -590,8 +590,16 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   if (LangOpts.HIP) {
     Builder.defineMacro("__HIP__");
     Builder.defineMacro("__HIPCC__");
-    if (LangOpts.CUDAIsDevice)
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_SINGLETHREAD", "1");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_WAVEFRONT", "2");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
+    if (LangOpts.CUDAIsDevice) {
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
+      if (!TI.hasHIPImageSupport())
+        Builder.defineMacro("__HIP_NO_IMAGE_SUPPORT", "1");
+    }
     if (LangOpts.GPUDefaultStream ==
         LangOptions::GPUDefaultStreamKind::PerThread)
       Builder.defineMacro("HIP_API_PER_THREAD_DEFAULT_STREAM");
@@ -697,7 +705,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     // Refer to the discussion of this at https://reviews.llvm.org/D128619.
     Builder.defineMacro("__cpp_concepts", "201907L");
     Builder.defineMacro("__cpp_conditional_explicit", "201806L");
-    // Builder.defineMacro("__cpp_consteval", "202211L");
+    Builder.defineMacro("__cpp_consteval", "202211L");
     Builder.defineMacro("__cpp_constexpr_dynamic_alloc", "201907L");
     Builder.defineMacro("__cpp_constinit", "201907L");
     Builder.defineMacro("__cpp_impl_coroutine", "201902L");
