@@ -45,6 +45,10 @@ SYCLAccessorSubscriptOp createSYCLAccessorSubscriptOp(AccessorPtrValue accessor,
                                                       OpBuilder builder,
                                                       Location loc);
 
+/// Create sycl.work_group_size with rank \p numDims.
+sycl::SYCLWorkGroupSizeOp createWorkGroupSize(unsigned numDims,
+                                              OpBuilder builder, Location loc);
+
 /// Populate \p wgSizes with workgroup size per dimensionality, given the rank
 /// \p numDims.
 void populateWorkGroupSize(SmallVectorImpl<Value> &wgSizes, unsigned numDims,
