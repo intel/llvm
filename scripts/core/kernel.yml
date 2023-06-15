@@ -361,7 +361,7 @@ returns:
 type: struct
 desc: "Properties for for $xKernelSetArgMemObj."
 class: $xKernel
-name: $x_mem_obj_properties_t
+name: $x_kernel_arg_mem_obj_properties_t
 base: $x_base_properties_t
 members:
     - type: $x_mem_flags_t
@@ -382,7 +382,7 @@ params:
     - type: "uint32_t"
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
-    - type: "const $x_mem_obj_properties_t*"
+    - type: "const $x_kernel_arg_mem_obj_properties_t*"
       name: pProperties
       desc: "[in][optional] pointer to Memory object properties."
     - type: "$x_mem_handle_t"
