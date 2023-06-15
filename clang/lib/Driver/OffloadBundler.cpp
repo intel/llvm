@@ -610,6 +610,13 @@ class ObjectFileHandler final : public FileHandler {
     raw_svector_ostream SymbolsOS(SymbolsBuf);
     LLVMContext Context;
 
+    // Set the default value for opaque pointers prior to parsing the bitcode.
+#if SPIRV_ENABLE_OPAQUE_POINTERS || !defined(__SPIR__)
+    Context.setOpaquePointers(true);
+#else
+    Context.setOpaquePointers(false);
+#endif
+
     for (unsigned I = 0; I < NumberOfInputs; ++I) {
       if (I == BundlerConfig.HostInputIndex)
         continue;
