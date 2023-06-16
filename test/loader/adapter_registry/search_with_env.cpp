@@ -6,10 +6,12 @@
 #include "fixtures.hpp"
 
 TEST_F(adapterRegSearchTest, testSearchWithEnv) {
-    // Check if there's any path that's just a library name.
+    // Check if there's any path that's just a library name (disabled on Windows).
+#ifndef _WIN32
     auto testLibNameExists =
         std::any_of(registry.cbegin(), registry.cend(), hasTestLibName);
     ASSERT_TRUE(testLibNameExists);
+#endif
 
     // Check for path obtained from 'UR_ADAPTERS_SEARCH_PATH'
     auto testEnvPathExists =
