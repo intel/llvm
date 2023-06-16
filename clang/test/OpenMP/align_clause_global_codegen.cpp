@@ -1,9 +1,18 @@
+<<<<<<< HEAD
 // RUN: %clang_cc1 -opaque-pointers -emit-llvm -o - -fopenmp \
 // RUN:  -triple i386-unknown-unknown -fopenmp-version=51 %s \
 // RUN:  | FileCheck %s --check-prefixes=CHECK,CHECK-32
 
 // RUN: %clang_cc1 -opaque-pointers -emit-llvm -o - -fopenmp \
 // RUN:  -triple x86_64-unknown-linux-gnu -fopenmp-version=51 %s \
+=======
+// RUN: %clang_cc1 -emit-llvm -o - -fopenmp \
+// RUN:  -triple i386-unknown-unknown %s \
+// RUN:  | FileCheck %s --check-prefixes=CHECK,CHECK-32
+
+// RUN: %clang_cc1 -emit-llvm -o - -fopenmp \
+// RUN:  -triple x86_64-unknown-linux-gnu %s \
+>>>>>>> 0c6f2f629cc0017361310fa4c132090413a874db
 // RUN:  | FileCheck %s --check-prefixes=CHECK,CHECK-64
 
 typedef enum omp_allocator_handle_t {
