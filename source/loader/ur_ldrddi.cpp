@@ -6043,6 +6043,110 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_device_object_t *>(commandDevice)->dditable;
+    auto pfnEnablePeerAccessExp = dditable->ur.UsmP2PExp.pfnEnablePeerAccessExp;
+    if (nullptr == pfnEnablePeerAccessExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    commandDevice =
+        reinterpret_cast<ur_device_object_t *>(commandDevice)->handle;
+
+    // convert loader handle to platform handle
+    peerDevice = reinterpret_cast<ur_device_object_t *>(peerDevice)->handle;
+
+    // forward to device-platform
+    result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
+    ur_device_handle_t
+        commandDevice,            ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice ///< [in] handle of the peer device object
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_device_object_t *>(commandDevice)->dditable;
+    auto pfnDisablePeerAccessExp =
+        dditable->ur.UsmP2PExp.pfnDisablePeerAccessExp;
+    if (nullptr == pfnDisablePeerAccessExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    commandDevice =
+        reinterpret_cast<ur_device_object_t *>(commandDevice)->handle;
+
+    // convert loader handle to platform handle
+    peerDevice = reinterpret_cast<ur_device_object_t *>(peerDevice)->handle;
+
+    // forward to device-platform
+    result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    ur_device_handle_t
+        commandDevice,             ///< [in] handle of the command device object
+    ur_device_handle_t peerDevice, ///< [in] handle of the peer device object
+    ur_exp_peer_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If propSize is not equal to or greater than the real number of bytes
+    ///< needed to return the info
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    ///< pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_device_object_t *>(commandDevice)->dditable;
+    auto pfnPeerAccessGetInfoExp =
+        dditable->ur.UsmP2PExp.pfnPeerAccessGetInfoExp;
+    if (nullptr == pfnPeerAccessGetInfoExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    commandDevice =
+        reinterpret_cast<ur_device_object_t *>(commandDevice)->handle;
+
+    // convert loader handle to platform handle
+    peerDevice = reinterpret_cast<ur_device_object_t *>(peerDevice)->handle;
+
+    // forward to device-platform
+    result = pfnPeerAccessGetInfoExp(commandDevice, peerDevice, propName,
+                                     propSize, pPropValue, pPropSizeRet);
+
+    return result;
+}
+
 } // namespace ur_loader
 
 #if defined(__cplusplus)
@@ -6955,6 +7059,65 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
             // return pointers directly to platform's DDIs
             *pDdiTable =
                 ur_loader::context->platforms.front().dditable.ur.USMExp;
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's UsmP2PExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_usm_p2_p_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (ur_loader::context->version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // Load the device-platform DDI tables
+    for (auto &platform : ur_loader::context->platforms) {
+        if (platform.initStatus != UR_RESULT_SUCCESS) {
+            continue;
+        }
+        auto getTable = reinterpret_cast<ur_pfnGetUsmP2PExpProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(), "urGetUsmP2PExpProcAddrTable"));
+        if (!getTable) {
+            continue;
+        }
+        platform.initStatus =
+            getTable(version, &platform.dditable.ur.UsmP2PExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        if (ur_loader::context->platforms.size() != 1 ||
+            ur_loader::context->forceIntercept) {
+            // return pointers to loader's DDIs
+            pDdiTable->pfnEnablePeerAccessExp =
+                ur_loader::urUsmP2PEnablePeerAccessExp;
+            pDdiTable->pfnDisablePeerAccessExp =
+                ur_loader::urUsmP2PDisablePeerAccessExp;
+            pDdiTable->pfnPeerAccessGetInfoExp =
+                ur_loader::urUsmP2PPeerAccessGetInfoExp;
+        } else {
+            // return pointers directly to platform's DDIs
+            *pDdiTable =
+                ur_loader::context->platforms.front().dditable.ur.UsmP2PExp;
         }
     }
 

@@ -89,6 +89,11 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = urGetUsmP2PExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                             &urDdiTable.UsmP2PExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
                                           &urDdiTable.Device);
     }

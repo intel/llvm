@@ -445,3 +445,12 @@ etors:
 - name: PLATFORM_GET_LAST_ERROR
   desc: Enumerator for $xPlatformGetLastError
   value: '150'
+- name: USM_P2_P_ENABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PEnablePeerAccessExp
+  value: '151'
+- name: USM_P2_P_DISABLE_PEER_ACCESS_EXP
+  desc: Enumerator for $xUsmP2PDisablePeerAccessExp
+  value: '152'
+- name: USM_P2_P_PEER_ACCESS_GET_INFO_EXP
+  desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
+  value: '153'
