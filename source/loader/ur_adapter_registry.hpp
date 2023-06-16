@@ -13,7 +13,7 @@
 #include <array>
 
 #include "logger/ur_logger.hpp"
-#include "ur_loader_location.hpp"
+#include "ur_adapter_search.hpp"
 #include "ur_util.hpp"
 
 namespace fs = filesystem;
@@ -152,7 +152,11 @@ class AdapterRegistry {
                 }
             }
 
-            loadPaths.emplace_back(fs::path(adapterName));
+            auto adapterNamePathOpt = getAdapterNameAsPath(adapterName);
+            if (adapterNamePathOpt.has_value()) {
+                auto adapterNamePath = adapterNamePathOpt.value();
+                loadPaths.emplace_back(adapterNamePath);
+            }
 
             if (loaderLibPathOpt.has_value()) {
                 auto loaderLibPath = loaderLibPathOpt.value();
