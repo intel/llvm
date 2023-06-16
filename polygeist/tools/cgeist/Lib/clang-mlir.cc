@@ -623,13 +623,22 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
   }
 
   auto MT = cast<MemRefType>(Scalar.val.getType());
+
+  mlir::Type ET = MT.getElementType();
+  if (auto AT = dyn_cast<LLVM::LLVMArrayType>(ET)) {
+    // In-house bitcast from `memref<-xarray<N x Ty>>` to `memref<? x Ty>`
+    Scalar = Scalar.MemRef2Ptr(Builder, Loc);
+    Scalar.ElementType = AT.getElementType();
+    return Scalar.Ptr2MemRef(Builder, Loc);
+  }
+
   auto Shape = std::vector<int64_t>(MT.getShape());
   Shape[0] = ShapedType::kDynamic;
-  auto MT0 = MemRefType::get(Shape, MT.getElementType(),
-                             MemRefLayoutAttrInterface(), MT.getMemorySpace());
+  auto MT0 = MemRefType::get(Shape, ET, MemRefLayoutAttrInterface(),
+                             MT.getMemorySpace());
 
   auto Post = Builder.create<memref::CastOp>(Loc, MT0, Scalar.val);
-  return ValueCategory(Post, /*isReference*/ false, MT.getElementType());
+  return ValueCategory(Post, /*isReference*/ false, ET);
 }
 
 ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory Array, Value Idx,

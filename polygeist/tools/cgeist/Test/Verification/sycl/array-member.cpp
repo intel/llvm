@@ -21,15 +21,16 @@ int main(){
 // CHECK-SAME:                            %[[VAL_219:.*]]: !llvm.ptr
 // CHECK:             %[[VAL_220:.*]] = arith.constant 1 : i64
 // CHECK:             %[[VAL_227:.*]] = llvm.alloca %[[VAL_220]] x !llvm.struct<(array<8 x f32>)> : (i64) -> !llvm.ptr
-// CHECK-NEXT:        %[[VAL_228:.*]] = llvm.getelementptr inbounds %[[VAL_219]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(array<8 x f32>)>
+// CHECK-NEXT:        %[[VAL_228:.*]] = llvm.getelementptr inbounds %[[VAL_227]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(array<8 x f32>)>
 // CHECK-NEXT:        %[[VAL_229:.*]] = llvm.getelementptr inbounds %[[VAL_228]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<8 x f32>
-// CHECK-NEXT:        affine.for %[[VAL_230:.*]] = 0 to 8 {
-// CHECK-NEXT:          %[[VAL_231:.*]] = arith.index_cast %[[VAL_230]] : index to i64
-// CHECK-NEXT:          %[[VAL_232:.*]] = llvm.getelementptr %[[VAL_229]]{{\[}}%[[VAL_231]]] : (!llvm.ptr, i64) -> !llvm.ptr, f32
-// CHECK-NEXT:          %[[VAL_233:.*]] = llvm.load %[[VAL_232]] : !llvm.ptr -> f32
-// CHECK-NEXT:          %[[VAL_234:.*]] = arith.index_cast %[[VAL_230]] : index to i32
-// CHECK-NEXT:          %[[VAL_235:.*]] = llvm.getelementptr %[[VAL_227]]{{\[}}%[[VAL_234]]] : (!llvm.ptr, i32) -> !llvm.ptr, f32
-// CHECK-NEXT:          llvm.store %[[VAL_233]], %[[VAL_235]] : f32, !llvm.ptr
+// CHECK-NEXT:        %[[VAL_230:.*]] = llvm.getelementptr inbounds %[[VAL_219]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(array<8 x f32>)>
+// CHECK-NEXT:        %[[VAL_231:.*]] = llvm.getelementptr inbounds %[[VAL_230]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<8 x f32>
+// CHECK-NEXT:        affine.for %[[VAL_232:.*]] = 0 to 8 {
+// CHECK-NEXT:          %[[VAL_233:.*]] = arith.index_cast %[[VAL_232]] : index to i64
+// CHECK-NEXT:          %[[VAL_234:.*]] = llvm.getelementptr %[[VAL_229]]{{\[}}%[[VAL_233]]] : (!llvm.ptr, i64) -> !llvm.ptr, f32
+// CHECK-NEXT:          %[[VAL_235:.*]] = llvm.getelementptr %[[VAL_231]]{{\[}}%[[VAL_233]]] : (!llvm.ptr, i64) -> !llvm.ptr, f32
+// CHECK-NEXT:          %[[VAL_236:.*]] = llvm.load %[[VAL_235]] : !llvm.ptr -> f32
+// CHECK-NEXT:          llvm.store %[[VAL_236]], %[[VAL_234]] : f32, !llvm.ptr
 // CHECK-NEXT:        }
 
 // COM: (void)array to ensure the array is captured in the lambda.
