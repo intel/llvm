@@ -96,8 +96,16 @@ if(UR_ENABLE_TRACING)
     set(XPTI_SOURCE_DIR ${xpti_SOURCE_DIR})
     set(XPTI_DIR ${xpti_SOURCE_DIR})
     set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
+
     FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230304" "xptifw")
+
     FetchContent_MakeAvailable(xptifw)
+
+    check_cxx_compiler_flag("-Wno-error=maybe-uninitialized" HAS_MAYBE_UNINIT)
+    if (HAS_MAYBE_UNINIT)
+        target_compile_options(xptifw PRIVATE -Wno-error=maybe-uninitialized)
+    endif()
+
     set_target_properties(xptifw PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
     )
