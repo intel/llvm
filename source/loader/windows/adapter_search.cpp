@@ -34,4 +34,8 @@ std::optional<fs::path> getLoaderLibPath() {
     return std::nullopt;
 }
 
+std::optional<fs::path> getAdapterNameAsPath(std::string adapterName) {
+    return std::nullopt;
+}
+
 } // namespace ur_loader
