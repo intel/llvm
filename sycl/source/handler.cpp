@@ -188,9 +188,9 @@ event handler::finalize() {
       // this faster path is used to submit kernel bypassing scheduler and
       // avoiding CommandGroup, Command objects creation.
 
-      std::vector<RT::PiEvent> RawEvents;
+      std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
-      RT::PiEvent *OutEvent = nullptr;
+      sycl::detail::pi::PiEvent *OutEvent = nullptr;
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
@@ -376,9 +376,8 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
   MImpl->MAuxiliaryResources.push_back(ReduObj);
 }
 
-void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
-                                   access::target AccTarget) {
-  detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
+                                         int AccTarget) {
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
   CGData.MRequirements.push_back(Req);
@@ -387,8 +386,25 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
   // Add an accessor to the handler list of associated accessors.
   // For associated accessors index does not means nothing.
   MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
-                                   Req, static_cast<int>(AccTarget),
-                                   /*index*/ 0);
+                                   Req, AccTarget, /*index*/ 0);
+}
+
+void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
+                                   access::target AccTarget) {
+  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+                             static_cast<int>(AccTarget));
+}
+
+void handler::associateWithHandler(
+    detail::UnsampledImageAccessorBaseHost *AccBase, image_target AccTarget) {
+  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+                             static_cast<int>(AccTarget));
+}
+
+void handler::associateWithHandler(
+    detail::SampledImageAccessorBaseHost *AccBase, image_target AccTarget) {
+  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+                             static_cast<int>(AccTarget));
 }
 
 static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
