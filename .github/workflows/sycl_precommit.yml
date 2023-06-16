@@ -31,19 +31,29 @@ jobs:
     uses: ./.github/workflows/sycl_detect_changes.yml
 
   lint:
-    runs-on: ubuntu-22.04
+    runs-on: cuda
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
+      # actions/checkout fails without "--privileged".
+      options: -u 1001:1001 --privileged
     steps:
-    - name: 'PR commits + 1'
-      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
     - uses: actions/checkout@v3
       with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        persist-credentials: false
+        sparse-checkout: |
+          devops/actions/cached_checkout
+    - name: 'PR commits + 2'
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 2 ))" >> "${GITHUB_ENV}"
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: src
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+        ref: ${{ github.event.pull_request.head.sha }}
+        cache_path: "/__w/repo_cache/"
+        merge: false
     - name: Run clang-format
-      uses: ./devops/actions/clang-format
+      uses: ./src/devops/actions/clang-format
+      with:
+        path: src
 
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:

@@ -24,7 +24,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default-2204
-      build_configure_extra_args: ''
+      build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
 
   ubuntu2204_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
