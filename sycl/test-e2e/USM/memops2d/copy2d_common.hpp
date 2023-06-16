@@ -1,16 +1,4 @@
-//==---- copy2d.cpp - USM 2D copy test -------------------------------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-
-// Temporarily disabled until the failure is addressed.
-// UNSUPPORTED: gpu-intel-pvc || (level_zero && windows)
+#pragma once
 
 // https://github.com/intel/llvm/issues/7585 to fix the time out failure:
 // XFAIL: cpu,gpu
@@ -402,8 +390,8 @@ int testForAllPaths(queue &Q, T ExpectedVal1, T ExpectedVal2) {
   return Failures;
 }
 
-template <Alloc SrcAllocKind, Alloc DstAllocKind>
-int testForAllTypesAndPaths(queue &Q) {
+template <Alloc SrcAllocKind, Alloc DstAllocKind> int test() {
+  queue Q;
 
   bool SupportsHalf = Q.get_device().has(aspect::fp16);
   bool SupportsDouble = Q.get_device().has(aspect::fp64);
@@ -427,35 +415,5 @@ int testForAllTypesAndPaths(queue &Q) {
         testForAllPaths<double, SrcAllocKind, DstAllocKind>(Q, 42.34, 12.24);
   Failures += testForAllPaths<TestStruct, SrcAllocKind, DstAllocKind>(
       Q, TestStructRef1, TestStructRef2);
-  return Failures;
-}
-
-template <Alloc SrcAllocKind> int testForAllTypesAndPathsAndDsts(queue &Q) {
-  int Failures = 0;
-  Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::DirectHost>(Q);
-  if (Q.get_device().has(aspect::usm_device_allocations))
-    Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::Device>(Q);
-  if (Q.get_device().has(aspect::usm_host_allocations))
-    Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::Host>(Q);
-  if (Q.get_device().has(aspect::usm_shared_allocations))
-    Failures += testForAllTypesAndPaths<SrcAllocKind, Alloc::Shared>(Q);
-  return Failures;
-}
-
-int main() {
-  queue Q;
-
-  int Failures = 0;
-  Failures += testForAllTypesAndPathsAndDsts<Alloc::DirectHost>(Q);
-  if (Q.get_device().has(aspect::usm_device_allocations))
-    Failures += testForAllTypesAndPathsAndDsts<Alloc::Device>(Q);
-  if (Q.get_device().has(aspect::usm_host_allocations))
-    Failures += testForAllTypesAndPathsAndDsts<Alloc::Host>(Q);
-  if (Q.get_device().has(aspect::usm_shared_allocations))
-    Failures += testForAllTypesAndPathsAndDsts<Alloc::Shared>(Q);
-
-  if (!Failures)
-    std::cout << "Passed!" << std::endl;
-
   return Failures;
 }

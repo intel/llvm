@@ -189,23 +189,11 @@ jobs:
     name: Start AWS
     needs: build
     if: ${{ inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-20.04
-    environment: aws
-    steps:
-      - name: Setup script
-        run: |
-          mkdir -p ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
-          npm install ./aws-ec2
-      - name: Start AWS EC2 runners
-        uses: ./aws-ec2
-        with:
-          runs-on-list: ${{ inputs.lts_aws_matrix }}
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+    uses: ./.github/workflows/aws.yml
+    secrets: inherit
+    with:
+      mode: start
+      runs-on-list: ${{ inputs.lts_aws_matrix }}
 
   e2e-tests:
     needs: [build, aws-start]
@@ -307,21 +295,8 @@ jobs:
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
     if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-20.04
-    environment: aws
-    steps:
-      - name: Setup script
-        run: |
-          mkdir -p ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
-          npm install ./aws-ec2
-      - name: Stop AWS EC2 runners
-        uses: ./aws-ec2
-        with:
-          runs-on-list: ${{ inputs.lts_aws_matrix }}
-          mode: stop
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+    uses: ./.github/workflows/aws.yml
+    secrets: inherit
+    with:
+      mode: stop
+      runs-on-list: ${{ inputs.lts_aws_matrix }}
