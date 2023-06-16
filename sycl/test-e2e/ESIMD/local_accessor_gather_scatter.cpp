@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// local_accessors are not supported in esimd_emulator yet.
+// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // The test checks functionality of the gather/scatter local
