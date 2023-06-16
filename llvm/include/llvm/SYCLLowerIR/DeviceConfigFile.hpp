@@ -6,12 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/ArrayRef.h"
-#include <algorithm>
-#include <array>
-#include <cstdint>
-#include <map>
-
 namespace DeviceConfigFile {
 
 struct TargetInfo {
