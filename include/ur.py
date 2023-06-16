@@ -1902,6 +1902,9 @@ class ur_function_v(IntEnum):
     BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148   ## Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149 ## Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
     PLATFORM_GET_LAST_ERROR = 150                   ## Enumerator for ::urPlatformGetLastError
+    USM_P2_P_ENABLE_PEER_ACCESS_EXP = 151           ## Enumerator for ::urUsmP2PEnablePeerAccessExp
+    USM_P2_P_DISABLE_PEER_ACCESS_EXP = 152          ## Enumerator for ::urUsmP2PDisablePeerAccessExp
+    USM_P2_P_PEER_ACCESS_GET_INFO_EXP = 153         ## Enumerator for ::urUsmP2PPeerAccessGetInfoExp
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2005,6 +2008,19 @@ class ur_exp_command_buffer_sync_point_t(c_ulong):
 ## @brief Handle of Command-Buffer object
 class ur_exp_command_buffer_handle_t(c_void_p):
     pass
+
+###############################################################################
+## @brief Supported peer info
+class ur_exp_peer_info_v(IntEnum):
+    PI_PEER_ACCESS_SUPPORTED = 0                    ## [uint32_t] 1 if P2P access is supported otherwise P2P access is not
+                                                    ## supported.
+    PI_PEER_ATOMICS_SUPPORTED = 1                   ## [uint32_t] 1 if atomic operations are supported over the P2P link,
+                                                    ## otherwise such operations are not supported.
+
+class ur_exp_peer_info_t(c_int):
+    def __str__(self):
+        return str(ur_exp_peer_info_v(self.value))
+
 
 ###############################################################################
 __use_win_types = "Windows" == platform.uname()[0]
@@ -3181,6 +3197,37 @@ class ur_command_buffer_exp_dditable_t(Structure):
     ]
 
 ###############################################################################
+## @brief Function-pointer for urUsmP2PEnablePeerAccessExp
+if __use_win_types:
+    _urUsmP2PEnablePeerAccessExp_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+else:
+    _urUsmP2PEnablePeerAccessExp_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urUsmP2PDisablePeerAccessExp
+if __use_win_types:
+    _urUsmP2PDisablePeerAccessExp_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+else:
+    _urUsmP2PDisablePeerAccessExp_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urUsmP2PPeerAccessGetInfoExp
+if __use_win_types:
+    _urUsmP2PPeerAccessGetInfoExp_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t, ur_exp_peer_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urUsmP2PPeerAccessGetInfoExp_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_handle_t, ur_exp_peer_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+
+###############################################################################
+## @brief Table of UsmP2PExp functions pointers
+class ur_usm_p2_p_exp_dditable_t(Structure):
+    _fields_ = [
+        ("pfnEnablePeerAccessExp", c_void_p),                           ## _urUsmP2PEnablePeerAccessExp_t
+        ("pfnDisablePeerAccessExp", c_void_p),                          ## _urUsmP2PDisablePeerAccessExp_t
+        ("pfnPeerAccessGetInfoExp", c_void_p)                           ## _urUsmP2PPeerAccessGetInfoExp_t
+    ]
+
+###############################################################################
 ## @brief Function-pointer for urInit
 if __use_win_types:
     _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
@@ -3298,6 +3345,7 @@ class ur_dditable_t(Structure):
         ("USM", ur_usm_dditable_t),
         ("USMExp", ur_usm_exp_dditable_t),
         ("CommandBufferExp", ur_command_buffer_exp_dditable_t),
+        ("UsmP2PExp", ur_usm_p2_p_exp_dditable_t),
         ("Global", ur_global_dditable_t),
         ("Device", ur_device_dditable_t)
     ]
@@ -3569,6 +3617,18 @@ class UR_DDI:
         self.urCommandBufferAppendMembufferCopyExp = _urCommandBufferAppendMembufferCopyExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyExp)
         self.urCommandBufferAppendMembufferCopyRectExp = _urCommandBufferAppendMembufferCopyRectExp_t(self.__dditable.CommandBufferExp.pfnAppendMembufferCopyRectExp)
         self.urCommandBufferEnqueueExp = _urCommandBufferEnqueueExp_t(self.__dditable.CommandBufferExp.pfnEnqueueExp)
+
+        # call driver to get function pointers
+        UsmP2PExp = ur_usm_p2_p_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetUsmP2PExpProcAddrTable(version, byref(UsmP2PExp)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.UsmP2PExp = UsmP2PExp
+
+        # attach function interface to function address
+        self.urUsmP2PEnablePeerAccessExp = _urUsmP2PEnablePeerAccessExp_t(self.__dditable.UsmP2PExp.pfnEnablePeerAccessExp)
+        self.urUsmP2PDisablePeerAccessExp = _urUsmP2PDisablePeerAccessExp_t(self.__dditable.UsmP2PExp.pfnDisablePeerAccessExp)
+        self.urUsmP2PPeerAccessGetInfoExp = _urUsmP2PPeerAccessGetInfoExp_t(self.__dditable.UsmP2PExp.pfnPeerAccessGetInfoExp)
 
         # call driver to get function pointers
         Global = ur_global_dditable_t()
