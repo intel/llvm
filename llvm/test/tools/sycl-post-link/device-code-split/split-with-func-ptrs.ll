@@ -26,6 +26,10 @@ $bar = comdat any
 @"tableX" = weak global [1 x void ()*] [void ()* @foo], align 8
 @"tableY" = weak global [1 x void ()*] [void ()* @bar], align 8
 
+; Ensure that tableX and tableY are not deleted.  This is necessary
+; because otherwise unused weak global symbols can be internalized
+; and then subsequently deleted.
+@llvm.compiler.used = appending global [2 x [1 x void ()*]*] [[1 x void ()*]* @tableX, [1 x void ()*]* @tableY ]
 
 ; Function Attrs: mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @foo() unnamed_addr #0 comdat align 2 {
