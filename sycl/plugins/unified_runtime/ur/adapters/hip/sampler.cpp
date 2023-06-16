@@ -32,7 +32,6 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
 ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
                              ur_sampler_info_t propName, size_t propValueSize,
                              void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -61,14 +60,11 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
 }
 
 ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   hSampler->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urSamplerRelease(ur_sampler_handle_t hSampler) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   sycl::detail::ur::assertion(

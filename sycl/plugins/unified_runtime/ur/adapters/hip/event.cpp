@@ -159,7 +159,6 @@ ur_result_t ur_event_handle_t_::release() {
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   UR_ASSERT(numEvents > 0, UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(phEventWaitList, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   try {
 
@@ -186,7 +185,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    size_t propValueSize,
                                                    void *pPropValue,
                                                    size_t *pPropValueSizeRet) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(!(pPropValue && propValueSize == 0), UR_RESULT_ERROR_INVALID_SIZE);
 
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
@@ -214,7 +212,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     ur_event_handle_t hEvent, ur_profiling_info_t propName,
     size_t propValueSize, void *pPropValue, size_t *pPropValueSizeRet) {
 
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(!(pPropValue && propValueSize == 0), UR_RESULT_ERROR_INVALID_VALUE);
 
   ur_queue_handle_t Queue = hEvent->getQueue();
@@ -250,8 +247,6 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   const auto RefCount = hEvent->incrementReferenceCount();
 
   sycl::detail::ur::assertion(
@@ -261,8 +256,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   sycl::detail::ur::assertion(
@@ -294,9 +287,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
 /// a user event.
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeEvent, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeEvent = reinterpret_cast<ur_native_handle_t>(hEvent->get());
   return UR_RESULT_SUCCESS;
 }

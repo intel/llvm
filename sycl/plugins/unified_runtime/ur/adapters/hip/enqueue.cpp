@@ -93,10 +93,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
@@ -143,10 +139,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
@@ -194,11 +186,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pGlobalWorkSize, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hQueue->getContext() == hKernel->getContext(),
             UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
@@ -373,7 +360,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
@@ -506,10 +492,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
@@ -579,10 +561,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   void *DevPtr = hBuffer->Mem.BufferMem.getVoid();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -628,7 +606,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(size + srcOffset <= hBufferSrc->Mem.BufferMem.getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
   UR_ASSERT(size + dstOffset <= hBufferDst->Mem.BufferMem.getSize(),
@@ -678,11 +655,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBufferSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBufferDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   void *SrcPtr = hBufferSrc->Mem.BufferMem.getVoid();
   void *DstPtr = hBufferDst->Mem.BufferMem.getVoid();
@@ -763,12 +735,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(size + offset <= hBuffer->Mem.BufferMem.getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
-
   auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
 
@@ -854,8 +822,6 @@ static ur_result_t commonEnqueueMemImageNDCopy(
     hipStream_t HipStream, ur_mem_type_t ImgType, const size_t *Region,
     const void *SrcPtr, const hipMemoryType SrcType, const size_t *SrcOffset,
     void *DstPtr, const hipMemoryType DstType, const size_t *DstOffset) {
-  UR_ASSERT(Region, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   UR_ASSERT(SrcType == hipMemoryTypeArray || SrcType == hipMemoryTypeHost,
             UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT(DstType == hipMemoryTypeArray || DstType == hipMemoryTypeHost,
@@ -927,9 +893,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = rowPitch;
   std::ignore = slicePitch;
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -995,9 +958,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   std::ignore = blockingWrite;
   std::ignore = rowPitch;
   std::ignore = slicePitch;
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hImage->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -1059,10 +1019,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ur_rect_offset_t dstOrigin, ur_rect_region_t region,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE)
-  UR_ASSERT(hImageSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE)
-  UR_ASSERT(hImageDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE)
   UR_ASSERT(hImageSrc->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(hImageDst->MemType == ur_mem_handle_t_::Type::Surface,
@@ -1141,9 +1097,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_map_flags_t mapFlags, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent, void **ppRetMap) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppRetMap, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hBuffer->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.getSize(),
@@ -1204,10 +1157,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   ur_result_t Result = UR_RESULT_SUCCESS;
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMappedPtr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hMem->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() != nullptr,
@@ -1255,11 +1204,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
@@ -1317,10 +1261,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
@@ -1357,8 +1297,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
@@ -1400,8 +1338,6 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
   std::ignore = advice;
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
@@ -1452,10 +1388,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const void *pSrc, size_t srcPitch, size_t width, size_t height,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {

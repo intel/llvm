@@ -78,8 +78,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
                       size_t length, const ur_program_properties_t *pProperties,
                       ur_program_handle_t *phProgram) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_device_handle_t hDevice = hContext->getDevice();
   auto pBinary = reinterpret_cast<const uint8_t *>(pIL);
 
@@ -104,8 +102,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
   std::ignore = hContext;
-
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -155,8 +151,6 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
   // Ignore unused parameter
   std::ignore = hDevice;
 
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -176,8 +170,6 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pProgramInfo, size_t *pPropSizeRet) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propSize, pProgramInfo, pPropSizeRet);
 
   switch (propName) {
@@ -205,7 +197,6 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hProgram->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_PROGRAM);
   hProgram->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
@@ -216,8 +207,6 @@ urProgramRetain(ur_program_handle_t hProgram) {
 /// the context.
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   UR_ASSERT(hProgram->getReferenceCount() != 0,
@@ -253,7 +242,6 @@ urProgramRelease(ur_program_handle_t hProgram) {
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t hProgram, ur_native_handle_t *phNativeProgram) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   *phNativeProgram = reinterpret_cast<ur_native_handle_t>(hProgram->get());
   return UR_RESULT_SUCCESS;
 }
@@ -267,9 +255,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     const uint8_t *pBinary, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pBinary != nullptr && size != 0, UR_RESULT_ERROR_INVALID_BINARY);
   UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
@@ -308,11 +293,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     ur_device_handle_t hDevice, ur_program_handle_t hProgram,
     const char *pFunctionName, void **ppFunctionPointer) {
   // Check if device passed is the same the device bound to the context
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice == hProgram->getContext()->getDevice(),
             UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(ppFunctionPointer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   hipFunction_t Func;
   hipError_t Ret = hipModuleGetFunction(&Func, hProgram->get(), pFunctionName);

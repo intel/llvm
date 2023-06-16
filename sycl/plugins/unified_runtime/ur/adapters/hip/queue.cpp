@@ -108,10 +108,6 @@ hipStream_t ur_queue_handle_t_::getNextTransferStream() {
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
               const ur_queue_properties_t *pProps, ur_queue_handle_t *phQueue) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   try {
     std::unique_ptr<ur_queue_handle_t_> QueueImpl{nullptr};
 
@@ -123,7 +119,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     unsigned int Flags = 0;
 
     const bool IsOutOfOrder =
-        pProps->flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+        pProps ? pProps->flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE
+               : false;
 
     std::vector<hipStream_t> ComputeHipStreams(
         IsOutOfOrder ? ur_queue_handle_t_::DefaultNumComputeStreams : 1);
@@ -132,7 +129,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
     QueueImpl = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
         std::move(ComputeHipStreams), std::move(TransferHipStreams), hContext,
-        hDevice, Flags, pProps->flags});
+        hDevice, Flags, pProps ? pProps->flags : 0});
 
     *phQueue = QueueImpl.release();
 
@@ -149,8 +146,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t propValueSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropSizeRet);
   switch (propName) {
   case UR_QUEUE_INFO_CONTEXT:
@@ -184,7 +179,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hQueue->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_QUEUE);
 
   hQueue->incrementReferenceCount();
@@ -192,8 +186,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   if (hQueue->decrementReferenceCount() > 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -217,8 +209,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // set default result to a negative result (avoid false-positve tests)
   ur_result_t Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
 
@@ -257,8 +247,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
                        ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ScopedContext Active(hQueue->getContext());
   *phNativeQueue =

@@ -24,7 +24,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
@@ -862,8 +861,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 /// \return UR_RESULT_SUCCESS if the function is executed successfully
 /// HIP devices are always root devices so retain always returns success.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
+  std::ignore = hDevice;
   return UR_RESULT_SUCCESS;
 }
 
@@ -877,8 +875,7 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_property_t *,
 /// devices.
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
+  std::ignore = hDevice;
   return UR_RESULT_SUCCESS;
 }
 
@@ -892,8 +889,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   const bool AskingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
   const bool AskingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
   const bool ReturnDevices = AskingForDefault || AskingForGPU || AskingForAll;
-
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   size_t NumDevices = ReturnDevices ? hPlatform->Devices.size() : 0;
 
@@ -926,9 +921,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeHandle = reinterpret_cast<ur_native_handle_t>(hDevice->get());
   return UR_RESULT_SUCCESS;
 }
@@ -937,11 +929,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
+  std::ignore = hNativeDevice;
   std::ignore = hPlatform;
   std::ignore = pProperties;
-
-  UR_ASSERT(hNativeDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phDevice, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  std::ignore = phDevice;
 
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
@@ -954,7 +945,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   // Ignore unused parameter
   std::ignore = hDevice;
 
-  UR_ASSERT(pBinaries, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
 
   // Look for an image for the HIP target, and return the first one that is
@@ -980,8 +970,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
                                                    uint64_t *pDeviceTimestamp,
                                                    uint64_t *pHostTimestamp) {
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   if (!pDeviceTimestamp && !pHostTimestamp)
     return UR_RESULT_SUCCESS;
 
