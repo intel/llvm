@@ -35,6 +35,7 @@ struct AllocationInfo {
 
 class USMAnalyzer {
 private:
+  static std::ostream &OutStream;
   USMAnalyzer(){};
   // TO DO: mem allocations could be effectively validated with
   // piextUSMGetMemAllocInfo - could be more robust
@@ -44,12 +45,12 @@ private:
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();
     if (PtrToValidate == nullptr) {
-      std::cerr << std::endl;
-      std::cerr << PrintPrefix << "Function uses nullptr as " << ParameterDesc
+      OutStream << std::endl;
+      OutStream << PrintPrefix << "Function uses nullptr as " << ParameterDesc
                 << ".\n";
-      std::cerr << PrintIndentation << FunctionName << " location: ";
-      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+      OutStream << PrintIndentation << FunctionName << " location: ";
+      OutStream << " function " << GS.LastTracepoint.Function << " at ";
+      OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
@@ -66,17 +67,17 @@ private:
         const void *CopyRegionEnd =
             static_cast<const char *>(PtrToValidate) + size;
         if (CopyRegionEnd > End) {
-          std::cerr << std::endl;
-          std::cerr << PrintPrefix << "Requested " << FunctionName
+          OutStream << std::endl;
+          OutStream << PrintPrefix << "Requested " << FunctionName
                     << " range exceeds allocated USM memory size for "
                     << ParameterDesc << ".\n";
-          std::cerr << PrintIndentation << "Allocation location: ";
-          std::cerr << " function " << Alloc.second.Location.Function << " at ";
-          std::cerr << Alloc.second.Location.Source << ":"
+          OutStream << PrintIndentation << "Allocation location: ";
+          OutStream << " function " << Alloc.second.Location.Function << " at ";
+          OutStream << Alloc.second.Location.Source << ":"
                     << Alloc.second.Location.Line << "\n";
-          std::cerr << PrintIndentation << FunctionName << " location: ";
-          std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-          std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+          OutStream << PrintIndentation << FunctionName << " location: ";
+          OutStream << " function " << GS.LastTracepoint.Function << " at ";
+          OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                     << "\n";
           if (GS.TerminateOnError)
             std::terminate();
@@ -86,14 +87,14 @@ private:
     }
 
     if (!PointerFound) {
-      std::cerr << std::endl;
-      std::cerr << PrintPrefix
+      OutStream << std::endl;
+      OutStream << PrintPrefix
                 << "Function uses unknown USM pointer (could be already "
                    "released or not allocated as USM) as "
                 << ParameterDesc << ".\n";
-      std::cerr << PrintIndentation << FunctionName << " location: ";
-      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+      OutStream << PrintIndentation << FunctionName << " location: ";
+      OutStream << " function " << GS.LastTracepoint.Function << " at ";
+      OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
@@ -108,13 +109,13 @@ private:
     auto &GS = USMAnalyzer::getInstance();
 
     if (width > length) {
-      std::cerr << std::endl;
-      std::cerr << PrintPrefix << "Requested " << FunctionName
+      OutStream << std::endl;
+      OutStream << PrintPrefix << "Requested " << FunctionName
                 << " width is greater than pitch for  " << ParameterDesc
                 << ".\n";
-      std::cerr << PrintIndentation << FunctionName << " location: ";
-      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+      OutStream << PrintIndentation << FunctionName << " location: ";
+      OutStream << " function " << GS.LastTracepoint.Function << " at ";
+      OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
@@ -122,12 +123,12 @@ private:
     }
 
     if (PtrToValidate == nullptr) {
-      std::cerr << std::endl;
-      std::cerr << PrintPrefix << "Function uses nullptr as " << ParameterDesc
+      OutStream << std::endl;
+      OutStream << PrintPrefix << "Function uses nullptr as " << ParameterDesc
                 << ".\n";
-      std::cerr << PrintIndentation << FunctionName << " location: ";
-      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+      OutStream << PrintIndentation << FunctionName << " location: ";
+      OutStream << " function " << GS.LastTracepoint.Function << " at ";
+      OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
@@ -143,17 +144,17 @@ private:
         const void *CopyRegionEnd =
             static_cast<const char *>(PtrToValidate) + pitch * length;
         if (CopyRegionEnd > End) {
-          std::cerr << std::endl;
-          std::cerr << PrintPrefix << "Requested " << FunctionName
+          OutStream << std::endl;
+          OutStream << PrintPrefix << "Requested " << FunctionName
                     << " range exceeds allocated USM memory size for "
                     << ParameterDesc << ".\n";
-          std::cerr << PrintIndentation << "Allocation location: ";
-          std::cerr << " function " << Alloc.second.Location.Function << " at ";
-          std::cerr << Alloc.second.Location.Source << ":"
+          OutStream << PrintIndentation << "Allocation location: ";
+          OutStream << " function " << Alloc.second.Location.Function << " at ";
+          OutStream << Alloc.second.Location.Source << ":"
                     << Alloc.second.Location.Line << "\n";
-          std::cerr << PrintIndentation << FunctionName << " location: ";
-          std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-          std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+          OutStream << PrintIndentation << FunctionName << " location: ";
+          OutStream << " function " << GS.LastTracepoint.Function << " at ";
+          OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                     << "\n";
           if (GS.TerminateOnError)
             std::terminate();
@@ -163,13 +164,13 @@ private:
       }
     }
     if (!PointerFound) {
-      std::cerr << std::endl;
-      std::cerr << PrintPrefix
+      OutStream << std::endl;
+      OutStream << PrintPrefix
                 << "Function uses unknown USM pointer (could be already "
                    "released or not allocated as USM).\n";
-      std::cerr << PrintIndentation << FunctionName << " location: ";
-      std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-      std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+      OutStream << PrintIndentation << FunctionName << " location: ";
+      OutStream << " function " << GS.LastTracepoint.Function << " at ";
+      OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                 << "\n";
       if (GS.TerminateOnError)
         std::terminate();
@@ -285,13 +286,13 @@ public:
                             pi_context, void *Ptr) {
     auto &GS = USMAnalyzer::getInstance();
     if (GS.ActivePointers.count(Ptr) == 0) {
-      std::cerr << std::endl;
-      std::cerr << PrintPrefix << "Attempt to free pointer " << std::hex << Ptr;
-      std::cerr << " that was not allocated with SYCL USM APIs.\n";
-      std::cerr << PrintIndentation << "Location: function "
+      OutStream << std::endl;
+      OutStream << PrintPrefix << "Attempt to free pointer " << std::hex << Ptr;
+      OutStream << " that was not allocated with SYCL USM APIs.\n";
+      OutStream << PrintIndentation << "Location: function "
                 << GS.LastTracepoint.Function;
-      std::cerr << " at " << GS.LastTracepoint.Source << ":";
-      std::cerr << std::dec << GS.LastTracepoint.Line << "\n";
+      OutStream << " at " << GS.LastTracepoint.Source << ":";
+      OutStream << std::dec << GS.LastTracepoint.Line << "\n";
       if (GS.TerminateOnError)
         std::terminate();
     }
@@ -311,26 +312,26 @@ public:
       if (HostPtr >= Begin && HostPtr <= End) {
         bool NeedsTerminate = false;
         if (Alloc.second.Kind != AllocKind::host) {
-          std::cerr << PrintPrefix
+          OutStream << PrintPrefix
                     << "Attempt to construct a buffer with non-host pointer.\n";
           NeedsTerminate = true;
         }
 
         const void *HostEnd = static_cast<char *>(HostPtr) + Size;
         if (HostEnd > End) {
-          std::cerr << PrintPrefix
+          OutStream << PrintPrefix
                     << "Buffer size exceeds allocated host memory size.\n";
           NeedsTerminate = true;
         }
 
         if (NeedsTerminate) {
-          std::cerr << PrintIndentation << "Allocation location: ";
-          std::cerr << " function " << Alloc.second.Location.Function << " at ";
-          std::cerr << Alloc.second.Location.Source << ":"
+          OutStream << PrintIndentation << "Allocation location: ";
+          OutStream << " function " << Alloc.second.Location.Function << " at ";
+          OutStream << Alloc.second.Location.Source << ":"
                     << Alloc.second.Location.Line << "\n";
-          std::cerr << PrintIndentation << "Buffer location: ";
-          std::cerr << " function " << GS.LastTracepoint.Function << " at ";
-          std::cerr << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
+          OutStream << PrintIndentation << "Buffer location: ";
+          OutStream << " function " << GS.LastTracepoint.Function << " at ";
+          OutStream << GS.LastTracepoint.Source << ":" << GS.LastTracepoint.Line
                     << "\n";
           if (GS.TerminateOnError)
             std::terminate();
@@ -418,3 +419,4 @@ public:
 
 const std::string USMAnalyzer::PrintPrefix = "[USM] ";
 const std::string USMAnalyzer::PrintIndentation = "      | ";
+std::ostream &USMAnalyzer::OutStream = std::cout;

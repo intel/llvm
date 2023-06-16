@@ -276,6 +276,7 @@ void GlobalHandler::prepareSchedulerToRelease() {
   drainThreadPool();
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources();
+  MXPTIRegistry.Inst.reset(nullptr);
 #endif
 }
 
