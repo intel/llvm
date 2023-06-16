@@ -5,18 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// local_accessors are not supported in esimd_emulator yet.
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
 // TODO: Enable the test when GPU driver is ready/fixed.
 // XFAIL: opencl || windows
+// TODO: add support for local_accessors to esimd_emulator.
+// UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
-//
-// The test checks functionality of the gather/scatter accessor-based ESIMD
-// intrinsics.
 
 #include "esimd_test_utils.hpp"
 
@@ -49,7 +46,7 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   T *A = new T[size];
 
   for (unsigned i = 0; i < size; ++i) {
-    A[i] = (T)i;
+    A[i] = static_cast<T>(i);
   }
 
   try {
@@ -84,7 +81,7 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
 
   for (unsigned i = 0; i < size; ++i) {
     if (i != MASKED_LANE) {
-      T gold = (T)i;
+      T gold = static_cast<T>(i);
 
       if (A[i] != gold) {
         if (++err_cnt < 35) {

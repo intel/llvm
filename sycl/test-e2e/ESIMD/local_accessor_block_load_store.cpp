@@ -5,14 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// local_accessors are not supported in esimd_emulator yet.
-// UNSUPPORTED: esimd_emulator
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
 // TODO: Enable the test when GPU driver is ready/fixed.
 // XFAIL: opencl || windows
+// TODO: add support for local_accessors to esimd_emulator.
+// UNSUPPORTED: esimd_emulator
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "esimd_test_utils.hpp"

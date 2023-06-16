@@ -276,7 +276,7 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
 ///    1, 2, 4 or 8 owords long.
 /// @tparam Flags The alignment specifier type tag. Auto-deduced from the
 ///    \c Flags parameter. If it is less than \c 16, then slower unaligned
-///    access is generated, othewise the access is aligned.
+///    access is generated, otherwise the access is aligned.
 /// @param addr The address to load from.
 /// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
@@ -313,7 +313,7 @@ __ESIMD_API simd<Tx, N> block_load(const Tx *addr, Flags = {}) {
 /// @tparam AccessorTy Accessor type (auto-deduced).
 /// @tparam Flags The alignment specifier type tag. Auto-deduced from the
 ///    \c Flags parameter. If it is less than \c 16, then slower unaligned
-///    access is generated, othewise the access is aligned.
+///    access is generated, otherwise the access is aligned.
 /// @param acc The accessor.
 /// @param offset The offset to load from in bytes.
 /// @param Flags Specifies the alignment.
@@ -520,7 +520,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 /// @anchor accessor_gather Accessor-based gather.
 ///
 /// Collects elements located at given offsets in an accessor and returns them
-/// as a single \ref simd object. An element can be 1, 2 or 4-byte value.
+/// as a single \ref simd object. An element can be a 1, 2 or 4-byte value.
 ///
 /// @tparam T Element type; can only be a 1,2,4-byte integer, \c sycl::half or
 ///   \c float.
@@ -573,7 +573,7 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
 /// Accessor-based scatter.
 ///
 /// Writes elements of a \ref simd object into an accessor at given offsets.
-/// An element can be 1, 2 or 4-byte value.
+/// An element can be a 1, 2 or 4-byte value.
 ///
 /// @tparam T Element type; can only be a 1,2,4-byte integer, \c sycl::half or
 ///   \c float.
@@ -936,7 +936,7 @@ gather_rgba(AccessorT acc, simd<Toffset, N> offsets, uint64_t global_offset = 0,
 /// the operation semantics and parameter restrictions/interdependencies.
 /// @tparam RGBAMask Pixel's channel mask.
 /// @tparam AccessorT The accessor type for the memory to be stored/scattered.
-/// The returned vector elements mast match the accessor data type. The loaded
+/// The returned vector elements must match the accessor data type. The loaded
 /// elements must be 4 bytes in size.
 /// @tparam N The number of elements to access.
 /// @param offsets Byte offsets of each element.
@@ -2031,14 +2031,13 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 /// @tparam AccessorTy Accessor type (auto-deduced).
 /// @tparam Flags The alignment specifier type tag. Auto-deduced from the
 ///    \c Flags parameter. If it is less than \c 16, then slower unaligned
-///    access is generated, othewise the access is aligned.
+///    access is generated, otherwise the access is aligned.
 /// @param acc The accessor.
 /// @param offset The offset to load from in bytes.
 /// @return A vector of loaded elements.
 ///
 template <typename Tx, int N, typename AccessorTy,
           typename = std::enable_if_t<
-              !std::is_pointer<AccessorTy>::value &&
               sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>>
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset) {
   return slm_block_load<Tx, N>(
@@ -2062,7 +2061,6 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset) {
 ///
 template <typename Tx, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
     sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals) {
   slm_block_store<Tx, N>(
@@ -2074,7 +2072,7 @@ block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals) {
 /// Variant of gather that uses local accessor as a parameter
 ///
 /// Collects elements located at given offsets in an accessor and returns them
-/// as a single \ref simd object. An element can be 1, 2 or 4-byte value.
+/// as a single \ref simd object. An element can be a 1, 2 or 4-byte value.
 ///
 /// @tparam T Element type; can only be a 1,2,4-byte integer, \c sycl::half or
 ///   \c float.
@@ -2090,10 +2088,7 @@ block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals) {
 ///
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value &&
-        sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    simd<T, N>>
+    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>, simd<T, N>>
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> mask = 1) {
   return slm_gather<T, N>(
@@ -2106,7 +2101,7 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 /// Variant of scatter that uses local accessor as a parameter
 ///
 /// Writes elements of a \ref simd object into an accessor at given offsets.
-/// An element can be 1, 2 or 4-byte value.
+/// An element can be a 1, 2 or 4-byte value.
 ///
 /// @tparam T Element type; can only be a 1,2,4-byte integer, \c sycl::half or
 ///   \c float.
@@ -2123,8 +2118,6 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 ///
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    !std::is_pointer<AccessorTy>::value &&
     sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
@@ -2162,9 +2155,7 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
 __ESIMD_API std::enable_if_t<
-    ((N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-     !std::is_pointer_v<AccessorT> &&
-     sycl::detail::acc_properties::is_local_accessor_v<AccessorT>),
+    sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
     simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
@@ -2182,7 +2173,7 @@ gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 /// the operation semantics and parameter restrictions/interdependencies.
 /// @tparam RGBAMask Pixel's channel mask.
 /// @tparam AccessorT The accessor type for the memory to be stored/scattered.
-/// The returned vector elements mast match the accessor data type. The loaded
+/// The returned vector elements must match the accessor data type. The loaded
 /// elements must be 4 bytes in size.
 /// @tparam N The number of elements to access.
 /// @param offsets Byte offsets of each element.
@@ -2194,8 +2185,6 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
 __ESIMD_API std::enable_if_t<
-    (N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-    !std::is_pointer_v<AccessorT> &&
     sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
 scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,

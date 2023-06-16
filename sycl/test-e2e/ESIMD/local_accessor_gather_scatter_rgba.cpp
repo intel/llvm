@@ -5,12 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// local_accessors are not supported in esimd_emulator yet.
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // TODO: Enable the test when GPU driver is ready/fixed.
 // XFAIL: opencl || windows
+// TODO: add support for local_accessors to esimd_emulator.
+// UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather_rgba/scatter_rgba local
 // accessor-based ESIMD intrinsics.
 
@@ -66,7 +66,7 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
   T *gold = new T[size];
 
   for (int i = 0; i < size; ++i) {
-    A[i] = (T)-i;
+    A[i] = static_cast<T>(-i);
   }
 
   // Fill out the array with gold values.
