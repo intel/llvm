@@ -234,6 +234,30 @@ An example of an environment variable for setting up the null adapter library wi
 
   UR_LOG_NULL="level:warning;output:stdout"
 
+Adapter Discovery
+---------------------
+UR is capable of discovering adapter libraries in the following ways in the listed order:
+
+  - Search in paths to the adapters set in `UR_ADAPTERS_FORCE_LOAD` environment variable.
+
+    + All other adapter discovery methods are disabled when this environment variable is used.
+
+  - Search in directories specified in `UR_ADAPTERS_SEARCH_PATH` environment variable.
+
+  - Leave adapter discovery for the OS.
+
+    + This method is disabled on Windows.
+
+    + If on Linux, use the shared library discovery mechanism (see **ld.so**(8) for details).
+
+  - Search in directory at the UR loader location.
+
+Currently, UR looks for these adapter libraries:
+
+  - ur_adapter_level_zero
+
+For more information about the usage of mentioned environment variables see `Environment Variables`_ section.
+
 Environment Variables
 ---------------------
 
@@ -253,7 +277,7 @@ Specific environment variables can be set to control the behavior of unified run
 
 .. envvar:: UR_ADAPTERS_FORCE_LOAD
 
-   Holds a comma-separated list of library names used by the loader for adapter discovery. By setting this value you can
+   Holds a comma-separated list of library paths used by the loader for adapter discovery. By setting this value you can
    force the loader to use specific adapter implementations from the libraries provided.
 
    .. note::
@@ -262,8 +286,7 @@ Specific environment variables can be set to control the behavior of unified run
 
    .. note::
 
-    When this environmental variable is used the paths in environmental variable :envvar:`UR_ADAPTERS_SEARCH_PATH`
-    are ignored.
+    All other adapter discovery methods are disabled when this environment variable is used.
 
 .. envvar:: UR_ADAPTERS_SEARCH_PATH
 
@@ -276,7 +299,7 @@ Specific environment variables can be set to control the behavior of unified run
 
    .. note::
 
-    This environmental variable is ignored when :envvar:`UR_ADAPTERS_FORCE_LOAD` environmental variable is used.
+    This environment variable is ignored when :envvar:`UR_ADAPTERS_FORCE_LOAD` environment variable is used.
 
 .. envvar:: UR_ENABLE_VALIDATION_LAYER
 
