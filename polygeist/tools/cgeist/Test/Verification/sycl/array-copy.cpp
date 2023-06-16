@@ -4,6 +4,8 @@
 // Possibly fails due to the bad handling of `memref<?x!llvm.array<NxTy>>` in
 // `VisitArraySubscriptExpr`
 
+// Remove array-member.cpp when this passes, as this covers it.
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

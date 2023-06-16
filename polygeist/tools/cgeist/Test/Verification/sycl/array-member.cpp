@@ -32,6 +32,7 @@ int main(){
 // CHECK-NEXT:          llvm.store %[[VAL_233]], %[[VAL_235]] : f32, !llvm.ptr
 // CHECK-NEXT:        }
 
+// COM: (void)array to ensure the array is captured in the lambda.
     cgh.parallel_for<Kernel>(range, [=](id<1>){ (void)array; });
   });
 
