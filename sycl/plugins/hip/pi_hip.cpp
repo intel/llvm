@@ -624,6 +624,8 @@ pi_uint64 _pi_event::get_start_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
 
+  PI_CHECK_ERROR(hipEventSynchronize(_pi_platform::evBase_));
+  PI_CHECK_ERROR(hipEventSynchronize(evStart_));
   PI_CHECK_ERROR(
       hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
