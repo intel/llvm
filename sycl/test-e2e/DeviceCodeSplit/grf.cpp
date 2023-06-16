@@ -32,10 +32,11 @@
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
-#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/sycl.hpp>
 #ifdef USE_NEW_API
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
+#else
+#include <sycl/detail/kernel_properties.hpp>
 #endif
 
 using namespace sycl;

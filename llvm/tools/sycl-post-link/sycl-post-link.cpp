@@ -485,8 +485,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     });
     if (HasGRFSize) {
       if (HasRegAllocMode)
-        error("Unsupported use of both sycl-register-alloc-mode and "
-              "sycl-grf-size");
+        error("Unsupported use of both register_alloc_mode and "
+              "grf_size");
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
     }
   }

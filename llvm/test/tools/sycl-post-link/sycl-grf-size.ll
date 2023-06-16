@@ -2,7 +2,7 @@
 
 ; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR
+; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR --implicit-check-not='__ESIMD_kernel()'
 ; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-LargeGRF-IR
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-LargeGRF-PROP
@@ -55,7 +55,6 @@ entry:
 }
 
 define weak_odr dso_local spir_kernel void @__ESIMD_kernel() #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
-
 entry:
   ret void
 }

@@ -26,11 +26,12 @@
 #include "esimd_test_utils.hpp"
 
 #include <iostream>
-#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 #ifdef USE_NEW_API
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
+#else
+#include <sycl/detail/kernel_properties.hpp>
 #endif
 
 using namespace sycl;

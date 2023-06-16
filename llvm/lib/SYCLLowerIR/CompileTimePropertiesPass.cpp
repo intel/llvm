@@ -279,10 +279,12 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
              "Unsupported GRF Size");
       // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
+      static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
+      static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
       if (PropVal == 128)
-        PropVal = 1;
+        PropVal = SMALL_GRF_REGALLOCMODE_VAL;
       else if (PropVal == 256)
-        PropVal = 2;
+        PropVal = LARGE_GRF_REGALLOCMODE_VAL;
     }
     Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
         Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};

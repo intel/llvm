@@ -2,7 +2,7 @@
 
 ; RUN: not sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s 2>&1 | FileCheck %s
 
-; CHECK: Unsupported use of both sycl-register-alloc-mode and sycl-grf-size
+; CHECK: Unsupported use of both register_alloc_mode and grf_size
 
 source_filename = "llvm-link"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
