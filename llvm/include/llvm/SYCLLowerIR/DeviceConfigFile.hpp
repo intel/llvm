@@ -21,8 +21,8 @@ struct TargetInfo {
   std::string aotToolchain;
   std::string aotToolchainOptions;
 };
+using TargetTable_t = std::map<std::string, TargetInfo>;
 
 #define GET_TargetTable_IMPL
-#include "sycl/device_config_file.inc"
-using TargetTable_t = std::map<std::string, TargetInfo>;
+#include "llvm/SYCLLowerIR/DeviceConfigFile.inc"
 }; // namespace DeviceConfigFile
