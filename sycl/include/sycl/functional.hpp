@@ -20,8 +20,20 @@ template <typename T = void> using multiplies = std::multiplies<T>;
 template <typename T = void> using bit_and = std::bit_and<T>;
 template <typename T = void> using bit_or = std::bit_or<T>;
 template <typename T = void> using bit_xor = std::bit_xor<T>;
-template <typename T = void> using logical_and = std::logical_and<T>;
-template <typename T = void> using logical_or = std::logical_or<T>;
+
+// std:logical_and/std::logical_or with a non-void type returns bool,
+// sycl requires returning T.
+template <typename T = void> struct logical_and {
+  T operator()(const T &lhs, const T &rhs) const { return lhs && rhs; }
+};
+
+template <> struct logical_and<void> : std::logical_and<void> {};
+
+template <typename T = void> struct logical_or {
+  T operator()(const T &lhs, const T &rhs) const { return lhs || rhs; }
+};
+
+template <> struct logical_or<void> : std::logical_or<void> {};
 
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
