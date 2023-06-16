@@ -134,20 +134,20 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
   unsigned data_height, data_width, data_pitch, x, y;
 
   // CHECK: {{[^)]+}} = call <32 x i32> @llvm.genx.lsc.load2d.stateless.v32i32.v32i1.i64(<32 x i1> {{[^)]+}}, i8 1, i8 1, i8 3, i8 1, i8 2, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
-  simd<int, Width *Height *NumBlocks> data7 =
-      lsc_load2d<int, Width, Height, NumBlocks, false, false,
-                 cache_hint::uncached, cache_hint::uncached>(
+  simd<int, Width * Height * NumBlocks> data7 =
+      lsc_load_2d<int, Width, Height, NumBlocks, false, false,
+                  cache_hint::uncached, cache_hint::uncached>(
           ptr, data_width, data_height, data_pitch, x, y);
 
   simd<int, Width *Height * 1> data8 = 7;
   // CHECK: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16i32(<16 x i1> {{[^)]+}}, i8 1, i8 1, i8 3, i8 1, i8 1, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x i32> {{[^)]+}})
-  lsc_store2d<int, Width, Height, cache_hint::uncached, cache_hint::uncached>(
+  lsc_store_2d<int, Width, Height, cache_hint::uncached, cache_hint::uncached>(
       ptr, data_width, data_height, data_pitch, x, y, data8);
 
   // CHECK: call void @llvm.genx.lsc.prefetch2d.stateless.v32i1.i64(<32 x i1> {{[^)]+}}, i8 1, i8 2, i8 3, i8 1, i8 2, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
-  lsc_prefetch2d<int, Width, Height, NumBlocks, cache_hint::uncached,
-                 cache_hint::cached>(ptr, data_width, data_height, data_pitch,
-                                     x, y);
+  lsc_prefetch_2d<int, Width, Height, NumBlocks, cache_hint::uncached,
+                  cache_hint::cached>(ptr, data_width, data_height, data_pitch,
+                                      x, y);
 
   lsc_fence<lsc_memory_kind::shared_local, lsc_fence_op::none, lsc_scope::group,
             16>();

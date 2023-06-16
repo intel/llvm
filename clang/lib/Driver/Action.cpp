@@ -50,8 +50,6 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
-  case SPIRCheckJobClass:
-    return "llvm-no-spir-kernel";
   case SYCLPostLinkJobClass:
     return "sycl-post-link";
   case BackendCompileJobClass:
@@ -507,11 +505,6 @@ void SPIRVTranslatorJobAction::anchor() {}
 SPIRVTranslatorJobAction::SPIRVTranslatorJobAction(Action *Input,
                                                    types::ID Type)
     : JobAction(SPIRVTranslatorJobClass, Input, Type) {}
-
-void SPIRCheckJobAction::anchor() {}
-
-SPIRCheckJobAction::SPIRCheckJobAction(Action *Input, types::ID Type)
-    : JobAction(SPIRCheckJobClass, Input, Type) {}
 
 void SYCLPostLinkJobAction::anchor() {}
 

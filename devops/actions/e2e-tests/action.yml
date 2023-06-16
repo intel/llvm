@@ -45,8 +45,6 @@ runs:
     run: |
       export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
       export PATH=$PWD/toolchain/bin/:$PATH
-      # TODO make this part of container build
-      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
       export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
@@ -55,12 +53,6 @@ runs:
       else
         echo "no TBB vars in /opt/runtimes or /runtimes";
       fi
-      # TODO remove workaround of FPGA emu bug
-      mkdir -p icd
-      echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd
-      echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
-      echo /opt/runtimes/oclcpu/x64/libintelocl.so > icd/cpu2.icd
-      export OCL_ICD_VENDORS=$PWD/icd
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
