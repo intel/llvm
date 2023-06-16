@@ -1,6 +1,6 @@
-# March'23 release notes
+# April'23 release notes
 
-Release notes for commit range [`ca54ea30..cb91c232`](https://github.com/intel/llvm/compare/ca54ea30...cb91c232)
+Release notes for commit range [`ca54ea30..9e5b2ed1`](https://github.com/intel/llvm/compare/ca54ea30...9e5b2ed1)
 
 ## New features
 
@@ -13,6 +13,7 @@ codes in the same translation unit [31608c24] [f5126d28]
 `-fsycl-targets` [5e86a41d]
 
 ### SYCL Library
+- Made use of immediate command lists the default on Intel® Data Center GPU Max Series on Linux [9e5b2ed1] (https://www.intel.com/content/www/us/en/developer/articles/guide/level-zero-immediate-command-lists.html)
 - Implemented [`sycl_ext_oneapi_matrix`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc) extension using new unified interface [f4a9ef1b]
 - Partially implemented [`sycl_ext_codeplay_kernel_fusion`](doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc) extension for Linux: Intel CPU and GPU devices are fully supported, except specialization constants, streams, images and reductions [89e82e3f] 
 [5d7e86d4] [ab0c46bd] [b5d5aada] [325bc4e2] [cf245f62]
