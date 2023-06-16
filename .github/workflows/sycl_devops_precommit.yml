@@ -1,0 +1,43 @@
+name: SYCL Devops Pre Commit
+
+on:
+  pull_request_target:
+    paths:
+    - .github/workflows/**
+    - devops/**
+
+permissions: write-all
+
+jobs:
+  devops:
+    runs-on: ubuntu-latest
+    environment: devops
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR: ${{ github.event.number }}
+      HEADER: "Accept: application/vnd.github.v3+json"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+      - name: Devops CI
+        run: |
+          set -x
+          gh auth setup-git
+
+          # Create base branch and trigger post-commit CI.
+          git push origin HEAD:refs/heads/test-devops-pr/$PR --force
+
+          # Create fake test PR to trigger pre-commit CI.
+          git checkout -b trigger-pre-commit/$PR HEAD
+          echo '// RUN: true' > sycl/test-e2e/a.cpp
+          git add sycl/test-e2e/a.cpp
+          git config user.email fake@example.com
+          git config user.name Fake
+          git commit -m '[DO NOT MERGE] Test PR'
+          # If PR was created on a previous revision, it will be updated
+          # automatically.
+          git push origin HEAD:refs/heads/trigger-pre-commit/$PR --force
+          # Create PR if it doesn't exist yet.
+          gh pr create --fill --draft -B test-devops-pr/$PR || true
