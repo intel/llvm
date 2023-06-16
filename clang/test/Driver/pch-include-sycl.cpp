@@ -18,3 +18,9 @@
 // RUN:   | FileCheck -check-prefix=CHECK-PCH %s
 // CHECK-PCH: -fsycl-is-host
 // CHECK-PCH-SAME: -include-pch
+
+// Windows
+// RUN: %clang_cl -fsycl --target=x86_64-unknown-linux-gnu /Yupchfile.h /FIpchfile.h -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-YU %s
+// CHECK-YU: -fsycl-is-host
+// CHECK-YU-SAME: -include-pch
