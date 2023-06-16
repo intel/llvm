@@ -117,8 +117,8 @@ TEST_P(umaMultiPoolTest, memoryTracking) {
         ASSERT_EQ(pool, expectedPool);
     }
 
-    for (auto [ptr, _1, _2] : ptrs) {
-        umaFree(ptr);
+    for (auto p : ptrs) {
+        umaFree(std::get<0>(p));
     }
 }
 
