@@ -41,30 +41,6 @@ In particular, the following words are used to describe the actions of an implem
   - **Should** - the word *should*, or the adjective *recommended*, mean that there could be reasons for an implementation to deviate from the behavior described, but that such deviation should be avoided.
   - **Must** - the word *must*, or the term *required* or *shall*, mean that the behavior described is an absolute requirement of the specification.
 
-Naming Convention
------------------
-
-The following naming conventions must be followed:
-
-## --validate=off
-  - All functions must be prefixed with ``${x}``
-  - All functions must use camel case ``${x}ObjectAction`` convention
-  - All macros must use all caps ``${X}_NAME`` convention
-  - All structures, enumerations and other types must follow ``${x}_name_t`` snake case convention
-  - All structure members and function parameters must use camel case convention
-  - All enumerator values must use all caps ``${X}_ENUM_ETOR_NAME`` convention
-  - All handle types must end with ``handle_t``
-  - All descriptor structures must end with ``desc_t``
-  - All property structures must end with ``properties_t``
-  - All flag enumerations must end with ``flags_t``
-## --validate=on
-
-The following coding conventions must be followed:
-
-  - All descriptor structures must be derived from ${x}_base_desc_t
-  - All property structures must be derived from ${x}_base_properties_t
-  - All function input parameters must precede output parameters
-  - All functions must return ${x}_result_t
 
 Versioning
 ----------
