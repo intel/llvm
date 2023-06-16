@@ -1,0 +1,19 @@
+name: SYCL Devops Pre Commit
+
+on:
+  pull_request_target:
+
+permissions:
+  contents: write
+
+jobs:
+  devops:
+    runs-on: ubuntu-latest
+    environment: devops
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Create branch
+        # TODO: Use sha~1 for the base branch and sha for the test PR.
+        run: |
+          gh api --method POST -H "Accept: application/vnd.github.v3+json" /repos/intel/llvm/git/refs  -f ref='refs/heads/test-devops-pr' -f sha='${{ github.event.pull_request.head.sha }}'
