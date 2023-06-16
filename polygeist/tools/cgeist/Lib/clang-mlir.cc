@@ -626,7 +626,7 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
 
   mlir::Type ET = MT.getElementType();
   if (auto AT = dyn_cast<LLVM::LLVMArrayType>(ET)) {
-    // In-house bitcast from `memref<-xarray<N x Ty>>` to `memref<? x Ty>`
+    // In-house bitcast from `memref<- x array<N x Ty>>` to `memref<? x Ty>`
     Scalar = Scalar.MemRef2Ptr(Builder, Loc);
     Scalar.ElementType = AT.getElementType();
     return Scalar.Ptr2MemRef(Builder, Loc);
