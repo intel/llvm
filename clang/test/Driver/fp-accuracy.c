@@ -49,7 +49,7 @@
 // RUN: | FileCheck %s --check-prefixes=ERR-3
 
 // Disabled due to https://github.com/intel/llvm/issues/9934
-// XFAIL: system-linux
+// UNSUPPORTED: system-linux
 
 // HIGH: "-ffp-builtin-accuracy=high"
 // LOW: "-ffp-builtin-accuracy=low"
