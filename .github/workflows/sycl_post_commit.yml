@@ -2,9 +2,6 @@ name: SYCL Post Commit
 
 on:
   push:
-    branches:
-    - sycl
-    - test-devops-pr/**
 
 jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
