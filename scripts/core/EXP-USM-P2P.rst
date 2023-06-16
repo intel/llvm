@@ -22,41 +22,32 @@ Usm P2P
 
 Terminology
 --------------------------------------------------------------------------------
-.. comment:
-    If your experimental feature introduces a new concept or terminology. Please 
-    provide a detailed explanation in this section. If this does not apply to 
-    your feature you may freely delete this section.
+"Peer to peer" ("P2P") is used to indicate a "command" device either accessing
+or copying the memory located on a separate "peer" device.
 
 Motivation
 --------------------------------------------------------------------------------
-.. comment:
-    In this section you *must* justify your motivation for adding this 
-    experimental feature. You should also state at least one adapter upon which 
-    this feature can be supported.
+Several important projects that the SYCL programming model aims to support use
+fine-grained peer to peer memory access controls.
+Two such examples that SYCL supports are Pytorch and Gromacs.
+This experimental extension to UR aims to provide a portable interface that can
+call appropriate driver functions to query and control peer memory access
+across the CUDA, HIP and L0 adapters.
 
+================================================================================
 API
---------------------------------------------------------------------------------
-.. comment:
-    In this section you *must* list all additions your experimental feature will 
-    make to the Unified Runtime specification. If your experimental feature does 
-    not include additions from one or more of the sections listed below, you may 
-    freely remove them.
-
-Macros
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${x}_EXP_MACRO
+================================================================================
 
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${x}_exp_enum_t
 
-Structs
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${x}_exp_struct_t 
+* ${x}_exp_peer_info_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${x}FunctionExp
+* ${x}EnablePeerAccessExp
+* ${x}DisablePeerAccessExp
+* ${x}PeerAccessGetInfoExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -67,7 +58,7 @@ Changelog
 +-----------+------------------------+
 | Revision  | Changes                |
 +===========+========================+
-| 1.0       | Intial Draft           |
+| 1.0       | Initial Draft           |
 +-----------+------------------------+
 
 Contributors
