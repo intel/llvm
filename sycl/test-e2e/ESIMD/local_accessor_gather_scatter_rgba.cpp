@@ -125,7 +125,7 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
          // 00,04,08,12,...,_,01,05,09,13,...,_,02,06,10,14,...,_,03,07,11,19,...,_
          simd_mask<VL> pred = 1;
          pred[VL - MASKED_LANE_NUM_REV] = 0; // mask out the last lane
-         simd<T, VL *numChannels> valsOut =
+         simd<T, VL * numChannels> valsOut =
              gather_rgba<CH_MASK>(LocalAcc, byteOffsets, 0, pred);
          // replace undefined values in the masked out lane with something
          // verifiable
