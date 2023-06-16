@@ -13,8 +13,7 @@ import re
 import subprocess
 
 def verify_kebab_case(input: str) -> bool:
-    # kebab case regex from https://github.com/expandjs/expandjs/blob/master/lib/kebabCaseRegex.js
-    kebab_case_re = r"^([a-z](?![\d])|[\d](?![a-z]))+(-?([a-z](?![\d])|[\d](?![a-z])))*$|^$"
+    kebab_case_re = r"[a-z0-9]+(?:-[a-z0-9]+)*"
     pattern = re.compile(kebab_case_re)
     if pattern.match(input) is None:
         return False
