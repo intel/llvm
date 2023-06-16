@@ -207,7 +207,7 @@ public:
         continue;
 
       // Only functions which are marked with "referenced-indireclty" attribute
-      // are considered to be indirect calees candidates.
+      // are considered to be indirect callee candidates.
       if (!F.hasFnAttribute("referenced-indirectly"))
         continue;
 
