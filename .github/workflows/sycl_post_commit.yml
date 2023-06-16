@@ -3,6 +3,7 @@ name: SYCL Post Commit
 on:
   push:
 
+
 jobs:
   # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
