@@ -273,10 +273,10 @@ std::variant<Value, unsigned>
 getReqdSharedMemory(sycl::AccessorType accTy,
                     const WorkGroupSize &workGroupSize, OpBuilder builder) {
   unsigned elemSize = accTy.getType().getIntOrFloatBitWidth() / 8;
-  const unsigned numDims = accTy.getDimension();
-
   std::variant<Value, unsigned> reqdSharedMemory =
       ValueOrUnsigned::get(elemSize, builder, !workGroupSize.isKnown());
+
+  const unsigned numDims = accTy.getDimension();
   for (unsigned dim = 0; dim < numDims; ++dim)
     reqdSharedMemory =
         ValueOrUnsigned::mul(reqdSharedMemory, workGroupSize[dim], builder);
@@ -296,7 +296,6 @@ getReqdSharedMemory(const DenseMap<LoopLikeOpInterface, SetVector<Operation *>>
 
   for (auto &entry : loopToSharedMemref) {
     std::variant<Value, unsigned> loopReqdSharedMemory =
-
         ValueOrUnsigned::get(0, builder, !workGroupSize.isKnown());
     for (Operation *memref : entry.second) {
       sycl::AccessorType accTy =
@@ -830,6 +829,14 @@ private:
   std::set<unsigned> getDimsThatUseLoopIV(LoopLikeOpInterface loop,
                                           DataFlowSolver &solver) const;
 
+  // If the memory accesses do not use the loop induction variable
+  // 'consistently' (that is on the same dimension), create a versioning
+  // condition:
+  ///   (wgSize[dim1] == wgSize[dim2]) && (wgSize[dim1] == wgSize[dim3]) ...
+  Value checkForConsistentUseOfLoopIV(LoopLikeOpInterface loop,
+                                      const WorkGroupSize &workGroupSize,
+                                      DataFlowSolver &solver) const;
+
   /// Generate the versioning condition if the loop should be versioned. Return
   /// nullptr if the loop doesn't need to be versioned.
   Value getVersionCondition(LoopLikeOpInterface loop,
@@ -1003,52 +1010,64 @@ LoopInternalization::getDimsThatUseLoopIV(LoopLikeOpInterface loop,
   return dimsThatUseLoopIV;
 }
 
-Value LoopInternalization::getVersionCondition(
+Value LoopInternalization::checkForConsistentUseOfLoopIV(
     LoopLikeOpInterface loop, const WorkGroupSize &workGroupSize,
-    std::variant<Value, unsigned> reqdSharedMemory,
-    const unsigned sharedMemoryRemaining, DataFlowSolver &solver) const {
-  OpBuilder builder(loop);
-  Value versionCond;
-
-  // Check for shared memory availability.
-  if (std::holds_alternative<Value>(reqdSharedMemory))
-    versionCond = builder.create<arith::CmpIOp>(
-        loop.getLoc(), arith::CmpIPredicate::ule,
-        std::get<Value>(reqdSharedMemory),
-        ValueOrUnsigned::getValue(sharedMemoryRemaining, builder));
-
+    DataFlowSolver &solver) const {
   // Find out which dimensions use the loop IV in the memory accesses that
   // should use shared memory. For example given (assume 'i' is the loop IV):
   //   A[tx][ty][i], B[tx][i][ty]
   // The set collected would contain {0,1}.
   std::set<unsigned> dimsThatUseLoopIV = getDimsThatUseLoopIV(loop, solver);
   if (dimsThatUseLoopIV.size() <= 1)
-    return versionCond;
+    return nullptr;
 
   // If the memory accesses do not use the loop induction variable
   // 'consistently' (that is on the same dimension) we need to version the
   // loop. Build the versioning condition as:
   //   (wgSize[dim1] == wgSize[dim2]) && wgSize[dim1] == wgSize[dim3] && ...)
-  Value cond, first;
-  for (unsigned dim : dimsThatUseLoopIV) {
-    Value wgSize = ValueOrUnsigned::getValue(workGroupSize[dim], builder);
+  auto it = dimsThatUseLoopIV.begin();
+  unsigned firstDim = *it++, secondDim = *it++;
+  OpBuilder builder(loop);
+  Value first = ValueOrUnsigned::getValue(workGroupSize[firstDim], builder);
+  Value second = ValueOrUnsigned::getValue(workGroupSize[secondDim], builder);
+  Value versionCond = builder.create<arith::CmpIOp>(
+      loop.getLoc(), arith::CmpIPredicate::eq, first, second);
 
-    if (!cond)
-      cond = first = wgSize;
-    else if (isa<arith::CmpIOp, arith::AndIOp>(cond.getDefiningOp()))
-      cond = builder.create<arith::AndIOp>(
-          loop.getLoc(), cond,
-          builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::eq,
-                                        first, wgSize));
-    else
-      cond = builder.create<arith::CmpIOp>(
-          loop.getLoc(), arith::CmpIPredicate::eq, first, wgSize);
+  for (; it != dimsThatUseLoopIV.end(); ++it) {
+    Value wgSize = ValueOrUnsigned::getValue(workGroupSize[*it], builder);
+    versionCond = builder.create<arith::AndIOp>(
+        loop.getLoc(), versionCond,
+        builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::eq,
+                                      first, wgSize));
   }
-  assert(cond && "cond should not be a nullptr");
 
-  return versionCond
-             ? builder.create<arith::AndIOp>(loop.getLoc(), versionCond, cond)
-             : cond;
+  return versionCond;
+}
+
+Value LoopInternalization::getVersionCondition(
+    LoopLikeOpInterface loop, const WorkGroupSize &workGroupSize,
+    std::variant<Value, unsigned> reqdSharedMemory,
+    const unsigned sharedMemoryRemaining, DataFlowSolver &solver) const {
+  // Check that there is enough shared memory available.
+  OpBuilder builder(loop);
+  Value versionCond;
+  if (std::holds_alternative<Value>(reqdSharedMemory)) {
+    Value val = builder.create<arith::ConstantIndexOp>(loop.getLoc(),
+                                                       sharedMemoryRemaining);
+    versionCond =
+        builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::ule,
+                                      std::get<Value>(reqdSharedMemory), val);
+  }
+
+  // If promotable memory accesses do not reference the loop IV on the same
+  // dimension, check that the work group sizes corresponding to the dimensions
+  // that reference the loop IV are the same.
+  if (Value cond = checkForConsistentUseOfLoopIV(loop, workGroupSize, solver))
+    return versionCond
+               ? builder.create<arith::AndIOp>(loop.getLoc(), versionCond, cond)
+               : cond;
+
+  return versionCond;
 }
 
 bool LoopInternalization::canBeTransformed(LoopLikeOpInterface loop,
