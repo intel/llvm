@@ -9,6 +9,8 @@
 // UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// TODO: Enable the test when GPU driver is ready/fixed.
+// XFAIL: gpu
 // The test checks functionality of the gather_rgba/scatter_rgba local
 // accessor-based ESIMD intrinsics.
 

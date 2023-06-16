@@ -10,7 +10,9 @@
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
+//
+// TODO: Enable the test when GPU driver is ready/fixed.
+// XFAIL: gpu
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "esimd_test_utils.hpp"
