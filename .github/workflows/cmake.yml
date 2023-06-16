@@ -24,6 +24,9 @@ jobs:
             build_type: Release
             compiler: {c: clang, cxx: clang++}
             libbacktrace: '-DVAL_USE_LIBBACKTRACE_BACKTRACE=ON'
+          - os: 'ubuntu-20.04'
+            build_type: Release
+            compiler: {c: gcc-7, cxx: g++-7}
 
     runs-on: ${{matrix.os}}
 
@@ -34,6 +37,11 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y doxygen ${{matrix.compiler.c}}
+
+    - name: Install g++-7
+      if: matrix.compiler.cxx == 'g++-7'
+      run: |
+        sudo apt-get install -y ${{matrix.compiler.cxx}}
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
