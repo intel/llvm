@@ -47,7 +47,8 @@ getOrWaitEvents(std::vector<sycl::event> DepEvents,
 
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
 
-__SYCL_EXPORT void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
